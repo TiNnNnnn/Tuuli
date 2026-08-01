@@ -13,6 +13,7 @@
 #include "gpos/base.h"
 
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLFilterMatcher.h"
 
 using namespace gpopt;
 
@@ -54,19 +55,21 @@ CDSLMatcher::FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 //
 //		The generic skeleton knows how to bind NOTHING structural on its own:
 //		  * symbol-free operators (Union / Exists) bind nothing here — success.
-//		  * Filter / InnerJoin / LeftJoin / Proj / Agg carry symbols whose binding
-//		    needs operator-specific structural knowledge (conjunct split, join-key
-//		    extraction, project-list / group-by columns). Those are delegated to
-//		    dedicated collaborators in their own files:
-//		        Filter  <p a>            -> CDSLFilterMatcher       (#25)
-//		        Join    <a a>            -> join-key binding         (#27)
-//		        Proj    <a s>            -> attrs/schema binding      (#27)
-//		        Agg     <a a f s p>      -> agg symbol binding        (#27)
+//		  * InnerJoin / LeftJoin / Proj / Agg carry symbols whose binding needs
+//		    operator-specific structural knowledge (join-key extraction,
+//		    project-list / group-by columns). Those are delegated to dedicated
+//		    binding in a later component (#27):
+//		        Join    <a a>            -> join-key binding
+//		        Proj    <a s>            -> attrs/schema binding
+//		        Agg     <a a f s p>      -> agg symbol binding
+//		  * Filter <p a> is NOT handled here at all — it is intercepted earlier in
+//		    FMatch and routed to CDSLFilterMatcher (#25), because a DSL Filter
+//		    chain maps to a single ORCA Select, not a per-node match.
 //
-//		Until those land this is a NO-OP seam: an operator with symbols still
+//		Until #27 lands this is a NO-OP seam: an operator with symbols still
 //		matches structurally (identity + children), it simply leaves those
 //		symbols unbound. That is deliberately safe for the skeleton's own tests
-//		(Input, Union, bare identity) and is filled in by the later components
+//		(Input, Union, bare identity) and is filled in by the later component
 //		without touching the recursion here.
 //---------------------------------------------------------------------------
 BOOL
@@ -146,6 +149,17 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	if (EdslopInput == pop->Edslop())
 	{
 		return FMatchInput(pop, pexpr, pmodel);
+	}
+
+	// Filter chain: a DSL single-predicate Filter (chain) matches ONE ORCA
+	// CLogicalSelect whose conjunctive predicate is split into a conjunct set.
+	// Delegated to the filter matcher, which recurses the chain's base op back
+	// into this matcher (see CDSLFilterMatcher). This is the hardest mismatch
+	// (doc §2) and is why Filter does not go through the generic child recursion.
+	if (EdslopFilter == pop->Edslop())
+	{
+		CDSLFilterMatcher fm(m_mp, this);
+		return fm.FMatch(pop, pexpr, pmodel);
 	}
 
 	// operator-identity gate. Operators with no direct ORCA logical counterpart

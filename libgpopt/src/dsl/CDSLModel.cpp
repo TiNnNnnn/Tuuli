@@ -15,7 +15,7 @@ using namespace gpopt;
 //	@function:
 //		CDSLModel::CDSLModel
 //---------------------------------------------------------------------------
-CDSLModel::CDSLModel(CMemoryPool *mp) : m_mp(mp)
+CDSLModel::CDSLModel(CMemoryPool *mp) : m_mp(mp), m_pdrgpexprResidual(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
@@ -30,6 +30,22 @@ CDSLModel::~CDSLModel()
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
+	CRefCount::SafeRelease(m_pdrgpexprResidual);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLModel::SetResidualConjuncts
+//
+//	@doc:
+//		Take ownership of the unconsumed-conjunct list (filter split, #25). A
+//		second call replaces the previous set (the earlier one is released).
+//---------------------------------------------------------------------------
+void
+CDSLModel::SetResidualConjuncts(CExpressionArray *pdrgpexpr)
+{
+	CRefCount::SafeRelease(m_pdrgpexprResidual);
+	m_pdrgpexprResidual = pdrgpexpr;
 }
 
 //---------------------------------------------------------------------------

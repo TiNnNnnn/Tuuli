@@ -65,6 +65,13 @@ private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
 
+	// conjuncts of a matched Filter/Select that the rule did NOT consume — they
+	// must be carried through to the instantiated target unchanged (dropping a
+	// predicate = wrong plan). Populated by the filter matcher (#25), consumed by
+	// the instantiator (#27). Owns one ref of each conjunct; NULL until a filter
+	// match records residuals.
+	CExpressionArray *m_pdrgpexprResidual;
+
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
@@ -96,6 +103,24 @@ public:
 	CColRefArray *PdrgpcrSchema(const CDSLSymbol *psym) const;
 
 	ULONG Size() const { return m_phmSymToRef->Size(); }
+
+	//------------------------------------------------------------------
+	// residual conjuncts (filter split — #25 produces, #27 consumes)
+	//------------------------------------------------------------------
+
+	// record the conjuncts of a matched Filter/Select that the rule did not
+	// consume. Takes ownership of pdrgpexpr (one ref); replaces any previous set.
+	// Each element is expected to already carry the ref the array holds.
+	void SetResidualConjuncts(CExpressionArray *pdrgpexpr);
+
+	// the residual conjuncts recorded by the filter matcher; NULL if none were
+	// recorded (i.e. no filter was split, or every conjunct was consumed). Does
+	// NOT transfer ownership.
+	CExpressionArray *
+	PdrgpexprResidual() const
+	{
+		return m_pdrgpexprResidual;
+	}
 };
 }  // namespace gpopt
 
