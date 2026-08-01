@@ -15,10 +15,13 @@
 #include "gpos/_api.h"
 #include "gpos/task/CWorker.h"
 
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/exception.h"
 #include "gpopt/mdcache/CMDCache.h"
 #include "gpopt/xforms/CXformFactory.h"
 #include "naucrates/init.h"
+
+#include <cstdlib>	// getenv
 
 using namespace gpos;
 using namespace gpopt;
@@ -45,6 +48,11 @@ gpopt_init()
 	gpopt::EresExceptionInit(mp);
 
 	CXformFactory::Init();
+
+	// Initialize the MONSOON DSL rule engine. The rule-library path comes from
+	// the MONSOON_DSL_RULES env var for now (a GUC can replace this later);
+	// unset => the engine loads empty and every DSL shell safely no-ops.
+	CDSLRuleEngine::Init(std::getenv("MONSOON_DSL_RULES"));
 }
 
 //---------------------------------------------------------------------------
@@ -59,6 +67,8 @@ void
 gpopt_terminate()
 {
 #ifdef GPOS_DEBUG
+	CDSLRuleEngine::Shutdown();
+
 	CMDCache::Shutdown();
 
 	CMemoryPoolManager::Destroy(mp);

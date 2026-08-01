@@ -25,6 +25,7 @@
 #include "gpopt/xforms/CXformCollapseGbAgg.h"
 #include "gpopt/xforms/CXformCollapseProject.h"
 #include "gpopt/xforms/CXformContext.h"
+#include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformDelete2DML.h"
 #include "gpopt/xforms/CXformDifference2LeftAntiSemiJoin.h"
 #include "gpopt/xforms/CXformDifferenceAll2LeftAntiSemiJoin.h"

@@ -102,6 +102,8 @@ CLogicalSelect::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfSelect2DynamicBitmapBoolOp);
 	(void) xform_set->ExchangeSet(CXform::ExfSimplifySelectWithSubquery);
 	(void) xform_set->ExchangeSet(CXform::ExfSelect2Filter);
+	// MONSOON DSL-rule shell rooted at Select
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleSelect);
 	if (GPOS_FTRACE(EopttraceForceSplitWindowFunc))
 		(void) xform_set->ExchangeSet(CXform::ExfSplitWindowFunc);
 	return xform_set;

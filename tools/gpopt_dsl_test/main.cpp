@@ -21,6 +21,7 @@
 #include "gpopt/mdcache/CMDCache.h"
 #include "naucrates/init.h"
 
+#include "unittest/gpopt/dsl/CDSLEngineTest.h"
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 
 using namespace gpos;
@@ -29,6 +30,7 @@ using namespace gpopt;
 // static array of all DSL-engine unittest routines
 static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLParserTest),
+	GPOS_UNITTEST_STD(CDSLEngineTest),
 };
 
 static void *
