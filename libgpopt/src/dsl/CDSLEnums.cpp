@@ -1,0 +1,263 @@
+//---------------------------------------------------------------------------
+//	MONSOON DSL rule engine
+//
+//	@filename:
+//		CDSLEnums.cpp
+//
+//	@doc:
+//		Static lookup tables for the DSL operator/constraint enums. Every
+//		constant here is transcribed from WeTune's Java source; the comment on
+//		each table cites the origin so it can be re-verified.
+//---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLEnums.h"
+
+#include "gpos/common/clibwrapper.h"
+
+using namespace gpopt;
+
+namespace
+{
+// Per-operator descriptor. Order MUST match EDslOpKind.
+struct SDslOpDesc
+{
+	EDslOpKind edslop;
+	const CHAR *sz_name;   // canonical printed name
+	ULONG ul_children;	   // WeTune OpKind.numPredecessors
+	ULONG ul_syms;		   // count of positional <...> symbols
+	EDslSymbolKind rgesymk[GPOPT_DSL_MAX_OP_SYMS];	// positional symbol kinds
+};
+
+// The authoritative operator table. Sources:
+//   - name + child arity  : OpKind.java  (numPredecessors, text)
+//   - positional symbols   : SymbolsImpl.bindSymbol() + FragmentUtils.bindNames()
+// WeTune positional order (INSIDE <...>), verified against fewshot rules:
+//   Input      <t>                        Filter<p0 a1> => [pred, attrs]
+//   InnerJoin  <a a>   (lhsAttrs, rhsAttrs)
+//   LeftJoin   <a a>
+//   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
+//   InSubFilter<a>     (attrs)
+//   Exists     <>      (no symbols)
+//   Proj       <a s>   (attrs, schema)
+//   Agg        <a a f s p> (groupBy, aggAttrs, func, schema, havingPred)
+//   Sort       <a>     (attrs)
+//   Limit      <n n>   (limit, offset)
+//   Union      <>      (no symbols)
+const SDslOpDesc rg_op_desc[] = {
+	{EdslopInput, "Input", 0, 1, {EdslsymTable}},
+	{EdslopInnerJoin, "InnerJoin", 2, 2, {EdslsymAttrs, EdslsymAttrs}},
+	{EdslopLeftJoin, "LeftJoin", 2, 2, {EdslsymAttrs, EdslsymAttrs}},
+	{EdslopFilter, "Filter", 1, 2, {EdslsymPred, EdslsymAttrs}},
+	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
+	{EdslopExists, "Exists", 2, 0, {}},
+	{EdslopProj, "Proj", 1, 2, {EdslsymAttrs, EdslsymSchema}},
+	{EdslopAgg, "Agg", 1, 5,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema, EdslsymPred}},
+	{EdslopSort, "Sort", 1, 1, {EdslsymAttrs}},
+	{EdslopLimit, "Limit", 1, 2, {EdslsymScalar, EdslsymScalar}},
+	{EdslopUnion, "Union", 2, 0, {}},
+};
+
+const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
+
+const SDslOpDesc *
+PdescOp(EDslOpKind edslop)
+{
+	GPOS_ASSERT(EdslopSentinel != edslop);
+	GPOS_ASSERT(rg_op_desc[edslop].edslop == edslop &&
+				"EDslOpKind order out of sync with rg_op_desc");
+	return &rg_op_desc[edslop];
+}
+
+// Constraint descriptor. Order MUST match EDslConstraintKind.
+struct SDslConDesc
+{
+	EDslConstraintKind edslcon;
+	const CHAR *sz_name;
+	ULONG ul_arity;
+};
+
+// Source: Constraint.java Kind(numSyms).
+const SDslConDesc rg_con_desc[] = {
+	{EdslconTableEq, "TableEq", 2},		{EdslconAttrsEq, "AttrsEq", 2},
+	{EdslconPredicateEq, "PredicateEq", 2}, {EdslconSchemaEq, "SchemaEq", 2},
+	{EdslconFuncEq, "FuncEq", 2},		{EdslconScalarEq, "ScalarEq", 2},
+	{EdslconAttrsSub, "AttrsSub", 2},	{EdslconUnique, "Unique", 2},
+	{EdslconNotNull, "NotNull", 2},		{EdslconReference, "Reference", 4},
+};
+
+const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
+
+// symbol-prefix letters, indexed by EDslSymbolKind
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n'};
+}  // namespace
+
+// ---------------------------------------------------------------------------
+// CDSLOpKindTable
+// ---------------------------------------------------------------------------
+
+const CHAR *
+CDSLOpKindTable::SzName(EDslOpKind edslop)
+{
+	return PdescOp(edslop)->sz_name;
+}
+
+ULONG
+CDSLOpKindTable::UlChildren(EDslOpKind edslop)
+{
+	return PdescOp(edslop)->ul_children;
+}
+
+ULONG
+CDSLOpKindTable::UlSyms(EDslOpKind edslop)
+{
+	return PdescOp(edslop)->ul_syms;
+}
+
+EDslSymbolKind
+CDSLOpKindTable::EsymkindAt(EDslOpKind edslop, ULONG ul)
+{
+	const SDslOpDesc *pdesc = PdescOp(edslop);
+	GPOS_ASSERT(ul < pdesc->ul_syms);
+	return pdesc->rgesymk[ul];
+}
+
+COperator::EOperatorId
+CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
+{
+	switch (edslop)
+	{
+		case EdslopFilter:
+			return COperator::EopLogicalSelect;
+		case EdslopProj:
+			return COperator::EopLogicalProject;
+		case EdslopInnerJoin:
+			return COperator::EopLogicalInnerJoin;
+		case EdslopLeftJoin:
+			return COperator::EopLogicalLeftOuterJoin;
+		case EdslopAgg:
+			return COperator::EopLogicalGbAgg;
+		case EdslopUnion:
+			// Union* (dedup) => UNION => set semantics; Union => UNION ALL.
+			return fDistinct ? COperator::EopLogicalUnion
+							 : COperator::EopLogicalUnionAll;
+		case EdslopInput:
+			// base-relation placeholder; no logical op — matched as a subtree.
+		case EdslopInSubFilter:
+		case EdslopExists:
+			// subquery family -> ORCA Apply family (phase-2 deferred).
+		case EdslopSort:
+		case EdslopLimit:
+			// ORCA has no independent Sort logical op (deferred).
+		default:
+			return COperator::EopSentinel;
+	}
+}
+
+EDslOpKind
+CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
+					   EDslSortDir *pedslsort)
+{
+	GPOS_ASSERT(nullptr != sz_token);
+	*pfStar = false;
+	*pedslsort = EdslsortNone;
+
+	// Strip a trailing '*' (Proj* / Union*). WeTune sets a dedup flag for it.
+	CHAR rgch[64];
+	clib::Strncpy(rgch, sz_token, GPOS_ARRAY_SIZE(rgch) - 1);
+	rgch[GPOS_ARRAY_SIZE(rgch) - 1] = '\0';
+	ULONG ul_len = clib::Strlen(rgch);
+	if (0 < ul_len && '*' == rgch[ul_len - 1])
+	{
+		*pfStar = true;
+		rgch[ul_len - 1] = '\0';
+	}
+
+	// Alias resolution, mirroring WeTune OpKind.parse (case labels).
+	struct SAlias
+	{
+		const CHAR *sz;
+		EDslOpKind edslop;
+		EDslSortDir edslsort;
+	};
+	static const SAlias rg_alias[] = {
+		{"Input", EdslopInput, EdslsortNone},
+		{"InnerJoin", EdslopInnerJoin, EdslsortNone},
+		{"LeftJoin", EdslopLeftJoin, EdslsortNone},
+		{"Filter", EdslopFilter, EdslsortNone},
+		{"PlainFilter", EdslopFilter, EdslsortNone},
+		{"SimpleFilter", EdslopFilter, EdslsortNone},
+		{"InSubFilter", EdslopInSubFilter, EdslsortNone},
+		{"SubqueryFilter", EdslopInSubFilter, EdslsortNone},
+		{"InSub", EdslopInSubFilter, EdslsortNone},
+		{"Exists", EdslopExists, EdslsortNone},
+		{"ExistsFilter", EdslopExists, EdslsortNone},
+		{"Proj", EdslopProj, EdslsortNone},
+		{"Agg", EdslopAgg, EdslsortNone},
+		{"Union", EdslopUnion, EdslsortNone},
+		{"Limit", EdslopLimit, EdslsortNone},
+		{"Sort", EdslopSort, EdslsortNone},
+		{"SortAsc", EdslopSort, EdslsortAsc},
+		{"SortDesc", EdslopSort, EdslsortDesc},
+	};
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rg_alias); ul++)
+	{
+		if (0 == clib::Strcmp(rgch, rg_alias[ul].sz))
+		{
+			*pedslsort = rg_alias[ul].edslsort;
+			return rg_alias[ul].edslop;
+		}
+	}
+	return EdslopSentinel;
+}
+
+CHAR
+CDSLOpKindTable::WcSymPrefix(EDslSymbolKind esymk)
+{
+	GPOS_ASSERT(EdslsymSentinel != esymk);
+	return rg_sym_prefix[esymk];
+}
+
+// ---------------------------------------------------------------------------
+// CDSLConstraintKindTable
+// ---------------------------------------------------------------------------
+
+const CHAR *
+CDSLConstraintKindTable::SzName(EDslConstraintKind edslcon)
+{
+	GPOS_ASSERT(EdslconSentinel != edslcon);
+	GPOS_ASSERT(rg_con_desc[edslcon].edslcon == edslcon &&
+				"EDslConstraintKind order out of sync with rg_con_desc");
+	return rg_con_desc[edslcon].sz_name;
+}
+
+ULONG
+CDSLConstraintKindTable::UlArity(EDslConstraintKind edslcon)
+{
+	GPOS_ASSERT(EdslconSentinel != edslcon);
+	return rg_con_desc[edslcon].ul_arity;
+}
+
+EDslConstraintKind
+CDSLConstraintKindTable::Parse(const CHAR *sz_name)
+{
+	GPOS_ASSERT(nullptr != sz_name);
+	// WeTune rewrites the legacy "Pick" prefix to "Attrs" for backward compat
+	// (ConstraintImpl.parse: fields[0].replace("Pick","Attrs")). Handle
+	// "PickSub"->"AttrsSub" and "PickEq"->"AttrsEq" by canonicalising first.
+	CHAR rgch[64];
+	if (0 == clib::Strncmp(sz_name, "Pick", 4))
+	{
+		clib::Strncpy(rgch, "Attrs", 6);
+		clib::Strncpy(rgch + 5, sz_name + 4, GPOS_ARRAY_SIZE(rgch) - 6);
+		rgch[GPOS_ARRAY_SIZE(rgch) - 1] = '\0';
+		sz_name = rgch;
+	}
+	for (ULONG ul = 0; ul < ul_num_cons; ul++)
+	{
+		if (0 == clib::Strcmp(sz_name, rg_con_desc[ul].sz_name))
+		{
+			return rg_con_desc[ul].edslcon;
+		}
+	}
+	return EdslconSentinel;
+}

@@ -6,3 +6,10 @@
 [submodule "third_party/xerces-c"]
 	path = third_party/xerces-c
 	url = https://github.com/apache/xerces-c
+
+# ANTLR4 C++ runtime for the MONSOON DSL rule parser. Pin to the 4.8 line to
+# match the ANTLR4 tool jar used for codegen (antlr-4.8-complete.jar); the
+# generated parser and the runtime must be the same 4.x version.
+[submodule "third_party/antlr4"]
+	path = third_party/antlr4
+	url = https://github.com/antlr/antlr4

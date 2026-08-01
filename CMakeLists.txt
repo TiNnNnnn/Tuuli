@@ -103,10 +103,18 @@ if(PG_ORCA_BUNDLED_XERCES)
         CXX_VISIBILITY_PRESET     hidden
         VISIBILITY_INLINES_HIDDEN ON)
 
-    # The xerces-c target propagates its include dirs as PUBLIC, so consumers
-    # only need to link to it. Keep XERCES_INCLUDE empty for the static path.
+    # NOTE: xerces-c's own CMakeLists does NOT export its headers as a PUBLIC
+    # usage requirement (no target_include_directories(xerces-c PUBLIC ...)),
+    # so linking the target alone does NOT put its headers on the include path.
+    # We must supply them explicitly. They live in three places:
+    #   - the source tree src/           (hand-written headers, e.g. xercesc/*)
+    #   - the build tree src/            (generated Xerces_autoconf_config.hpp)
+    #   - the build tree root            (generated config.h)
     set(XERCES_LIB     xerces-c)
-    set(XERCES_INCLUDE "")
+    set(XERCES_INCLUDE
+        "${_xerces_src}/src"
+        "${CMAKE_BINARY_DIR}/third_party/xerces-c/src"
+        "${CMAKE_BINARY_DIR}/third_party/xerces-c")
     message(STATUS "xerces-c: bundled static build (third_party/xerces-c)")
 else()
     # Legacy path: find a system-installed xerces-c.
@@ -156,6 +164,55 @@ else()
 endif()
 
 # -------------------------------------------------------------------
+# ANTLR4 C++ runtime (for the MONSOON DSL rule parser)
+# Mirrors the xerces-c bundling: build the runtime statically from a
+# submodule and fold it into pg_orca.so / gporca_test. The generated
+# lexer/parser (produced at build time by the ANTLR4 tool jar, see
+# libgpopt/src/dsl/CMakeLists.txt) link against this runtime.
+# -------------------------------------------------------------------
+option(PG_ORCA_BUNDLED_ANTLR4
+    "Build the ANTLR4 C++ runtime from third_party/ and link statically"
+    ${_pg_orca_bundled_default})
+
+if(PG_ORCA_BUNDLED_ANTLR4)
+    set(_antlr4_src "${CMAKE_SOURCE_DIR}/third_party/antlr4/runtime/Cpp")
+    if(NOT EXISTS "${_antlr4_src}/CMakeLists.txt")
+        message(FATAL_ERROR
+            "PG_ORCA_BUNDLED_ANTLR4=ON but ${_antlr4_src}/CMakeLists.txt is "
+            "missing. Run: git submodule update --init --recursive")
+    endif()
+
+    # Force runtime options before adding its subdirectory (CACHE + FORCE, same
+    # reason as xerces). Build only the static lib; disable demo/tests.
+    set(ANTLR4_INSTALL       OFF CACHE BOOL "" FORCE)
+    set(ANTLR_BUILD_CPP_TESTS OFF CACHE BOOL "" FORCE)
+    set(WITH_DEMO            OFF CACHE BOOL "" FORCE)
+    set(CMAKE_SKIP_INSTALL_RULES_BACKUP "${CMAKE_SKIP_INSTALL_RULES}")
+    set(CMAKE_SKIP_INSTALL_RULES TRUE)
+    add_subdirectory(third_party/antlr4/runtime/Cpp EXCLUDE_FROM_ALL)
+    set(CMAKE_SKIP_INSTALL_RULES "${CMAKE_SKIP_INSTALL_RULES_BACKUP}")
+
+    # The static runtime target is "antlr4_static".
+    set_target_properties(antlr4_static PROPERTIES
+        POSITION_INDEPENDENT_CODE ON
+        CXX_VISIBILITY_PRESET     hidden
+        VISIBILITY_INLINES_HIDDEN ON)
+
+    set(ANTLR4_LIB     antlr4_static)
+    # The runtime headers live under runtime/src; expose them to consumers.
+    set(ANTLR4_INCLUDE "${_antlr4_src}/runtime/src")
+    message(STATUS "ANTLR4 C++ runtime: bundled static build")
+else()
+    find_package(antlr4-runtime CONFIG REQUIRED)
+    set(ANTLR4_LIB     antlr4_shared)
+    set(ANTLR4_INCLUDE "")
+    message(STATUS "ANTLR4 C++ runtime: system package")
+endif()
+
+# Generate the DSL parser (defines DSL_GENERATED_SRC / DSL_GENERATED_DIR).
+add_subdirectory(libgpopt/src/dsl)
+
+# -------------------------------------------------------------------
 # gettext/libintl headers (needed by libintl used in gpos)
 # On Linux, libintl.h is part of glibc and always in the standard
 # include path. On macOS it is a separate Homebrew formula.
@@ -184,7 +241,11 @@ file(GLOB_RECURSE ORCA_CORE_SRC CONFIGURE_DEPENDS
     ${CMAKE_SOURCE_DIR}/libgpdbcost/src/*.cpp
 )
 
-add_library(orca_core OBJECT ${ORCA_CORE_SRC})
+add_library(orca_core OBJECT ${ORCA_CORE_SRC} ${DSL_GENERATED_SRC})
+
+# orca_core includes the ANTLR4-generated DSL parser; make sure codegen runs
+# first.
+add_dependencies(orca_core dsl_codegen)
 
 # Pull in xerces-c headers via the target's PUBLIC interface. For the
 # bundled build XERCES_LIB is the "xerces-c" target which propagates its
@@ -193,7 +254,7 @@ add_library(orca_core OBJECT ${ORCA_CORE_SRC})
 # see target_include_directories below). OBJECT libs accept
 # target_link_libraries since CMake 3.12 — no symbol is actually linked,
 # but compile-time properties propagate.
-target_link_libraries(orca_core PUBLIC ${XERCES_LIB})
+target_link_libraries(orca_core PUBLIC ${XERCES_LIB} ${ANTLR4_LIB})
 
 target_compile_definitions(orca_core PUBLIC
     $<$<CONFIG:Debug>:GPOS_DEBUG>
@@ -214,10 +275,12 @@ target_include_directories(orca_core PUBLIC
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}           # allows "compat/utils/foo.h" style includes
     ${CMAKE_SOURCE_DIR}/compat   # stub headers replacing GPDB-specific includes
+    ${DSL_GENERATED_DIR}         # ANTLR4-generated DSLRuleParser.h etc.
     SYSTEM
     ${PG_SERVER_INCLUDEDIR}
     ${PG_INCLUDEDIR}
     ${XERCES_INCLUDE}
+    ${ANTLR4_INCLUDE}
     ${EXTRA_SYSTEM_INCLUDES}
 )
 
@@ -287,7 +350,7 @@ target_include_directories(pg_orca PRIVATE
     ${EXTRA_SYSTEM_INCLUDES}
 )
 
-target_link_libraries(pg_orca PRIVATE ${XERCES_LIB})
+target_link_libraries(pg_orca PRIVATE ${XERCES_LIB} ${ANTLR4_LIB})
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(pg_orca PRIVATE dl)
@@ -354,11 +417,66 @@ target_include_directories(gporca_test PRIVATE
     ${EXTRA_SYSTEM_INCLUDES}
 )
 
-target_link_libraries(gporca_test PRIVATE ${XERCES_LIB})
+target_link_libraries(gporca_test PRIVATE ${XERCES_LIB} ${ANTLR4_LIB})
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(gporca_test PRIVATE dl)
 endif()
+
+# -------------------------------------------------------------------
+# gpopt_dsl_test — unit tests for the MONSOON DSL rule engine
+# (parser, IR, loader; later the xform engine). Uses the GPOS CUnittest
+# framework. Run: ./gpopt_dsl_test
+# -------------------------------------------------------------------
+file(GLOB_RECURSE DSL_TEST_SRC CONFIGURE_DEPENDS
+    ${CMAKE_SOURCE_DIR}/libgpopt/server/src/unittest/*.cpp
+)
+
+add_executable(gpopt_dsl_test
+    tools/gpopt_dsl_test/main.cpp
+    tools/gporca_test/pg_cost_stubs.cpp
+    ${DSL_TEST_SRC}
+    $<TARGET_OBJECTS:orca_core>
+)
+add_dependencies(gpopt_dsl_test dsl_codegen)
+
+target_compile_definitions(gpopt_dsl_test PRIVATE
+    $<$<CONFIG:Debug>:GPOS_DEBUG>
+    USE_CMAKE
+)
+
+target_compile_options(gpopt_dsl_test PRIVATE
+    -Wall
+    -Wno-unused-parameter
+    -Wno-sign-compare
+)
+
+target_include_directories(gpopt_dsl_test PRIVATE
+    ${CMAKE_SOURCE_DIR}/libgpos/include
+    ${CMAKE_SOURCE_DIR}/libnaucrates/include
+    ${CMAKE_SOURCE_DIR}/libgpopt/include
+    ${CMAKE_SOURCE_DIR}/libgpopt/server/include   # unittest/gpopt/dsl/*.h
+    ${CMAKE_SOURCE_DIR}/libgpdbcost/include
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/compat
+    ${DSL_GENERATED_DIR}
+    SYSTEM
+    ${PG_SERVER_INCLUDEDIR}
+    ${PG_INCLUDEDIR}
+    ${XERCES_INCLUDE}
+    ${ANTLR4_INCLUDE}
+    ${EXTRA_SYSTEM_INCLUDES}
+)
+
+target_link_libraries(gpopt_dsl_test PRIVATE ${XERCES_LIB} ${ANTLR4_LIB})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(gpopt_dsl_test PRIVATE dl)
+endif()
+
+enable_testing()
+add_test(NAME gpopt_dsl_test COMMAND gpopt_dsl_test)
 
 # -------------------------------------------------------------------
 # Packaging (DEB/RPM via CPack). Linux only.

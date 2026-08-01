@@ -1,0 +1,351 @@
+//---------------------------------------------------------------------------
+//	MONSOON DSL rule engine
+//
+//	@filename:
+//		CDSLParserTest.cpp
+//
+//	@doc:
+//		Unit tests for the DSL rule parser and loader. Uses only public entry
+//		points (CDSLRuleParser::PdslruleParse, CDSLRuleLoader::*). Rules used
+//		here are real, WeTune-proven rules taken from the MONSOON corpus, one
+//		per operator, so the tests double as a coverage check over the operator
+//		vocabulary.
+//---------------------------------------------------------------------------
+#include "unittest/gpopt/dsl/CDSLParserTest.h"
+
+#include "gpos/io/COstreamString.h"
+#include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/string/CWStringDynamic.h"
+#include "gpos/test/CUnittest.h"
+
+#include "gpopt/dsl/CDSLRule.h"
+#include "gpopt/dsl/CDSLRuleLoader.h"
+#include "gpopt/dsl/CDSLRuleParser.h"
+
+using namespace gpopt;
+
+namespace
+{
+// Parse sz_dsl and return the rule (or NULL). Caller releases.
+CDSLRule *
+Parse(CMemoryPool *mp, const CHAR *sz_dsl)
+{
+	CWStringDynamic strErr(mp);
+	return CDSLRuleParser::PdslruleParse(mp, sz_dsl, nullptr, &strErr);
+}
+
+// Render a rule to its canonical DSL text into a UTF-8-ish CHAR comparison
+// via a wide dynamic string, then compare to expected (wide).
+BOOL
+FRoundTrips(CMemoryPool *mp, const CHAR *sz_dsl)
+{
+	CDSLRule *rule = Parse(mp, sz_dsl);
+	if (nullptr == rule)
+	{
+		return false;
+	}
+	CWStringDynamic str(mp);
+	COstreamString oss(&str);
+	IOstream &os = oss;
+	rule->OsPrint(os);
+	rule->Release();
+
+	// build expected wide string from sz_dsl
+	CWStringConst expected(mp, sz_dsl);
+	return str.Equals(&expected);
+}
+}  // namespace
+
+GPOS_RESULT
+CDSLParserTest::EresUnittest()
+{
+	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Aliases),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolNamespace),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Constraints),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Whitespace),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Loader),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Errors),
+	};
+	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+// Round-trip: parse -> OsPrint reproduces the canonical input, for one real
+// proven rule per operator family. These are already canonical (no aliases, no
+// stray spaces) so print == input.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_RoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	const CHAR *rgsz[] = {
+		// Proj*/Unique
+		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);"
+		"Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		// Filter (pred first) + Sort
+		"Filter<p0 a1>(SortAsc<a0>(Input<t0>))|SortAsc<a3>(Filter<p1 a2>"
+		"(Input<t1>))|AttrsSub(a0,t0);TableEq(t1,t0);AttrsEq(a2,a1);"
+		"AttrsEq(a3,a0);PredicateEq(p1,p0)",
+		// LeftJoin/InnerJoin + Reference
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,"
+		"Input<t3>)|AttrsSub(a0,t0);Reference(t0,a0,t1,a1);TableEq(t2,t0);"
+		"TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
+		// Agg (5 symbols) + Exists + Union (no <...>)
+		"Exists(Union(Input<t0>,Input<t1>),Agg<a0 a1 f0 s0 p0>(Input<t2>))"
+		"|Input<t3>|TableEq(t3,t0)",
+		// InSubFilter + Limit + Input-only target
+		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
+		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",
+	};
+
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)
+	{
+		if (!FRoundTrips(mp, rgsz[ul]))
+		{
+			return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Symbol arity: wrong number of symbols inside <...> is rejected; correct
+// number accepted.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_SymbolArity()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	// Filter needs 2 (<pred attrs>); one is an error.
+	CDSLRule *bad = Parse(mp, "Filter<p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// Agg needs 5; four is an error.
+	bad = Parse(mp, "Agg<a0 a1 f0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// Correct arities parse.
+	CDSLRule *ok =
+		Parse(mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == ok)
+	{
+		return GPOS_FAILED;
+	}
+	ok->Release();
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Aliases: ExistsFilter->Exists, SimpleFilter/PlainFilter->Filter; Proj*
+// distinct; SortAsc/SortDesc direction; Union* distinct. Verified via the
+// canonical round-trip: an aliased input prints as its canonical form.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_Aliases()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	struct
+	{
+		const CHAR *in;
+		const CHAR *canonical;
+	} rg[] = {
+		{"ExistsFilter(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)",
+		 "Exists(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)"},
+		{"SimpleFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
+		{"PlainFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
+		{"SortDesc<a0>(Input<t0>)|SortDesc<a1>(Input<t1>)|TableEq(t1,t0);"
+		 "AttrsEq(a1,a0)",
+		 "SortDesc<a0>(Input<t0>)|SortDesc<a1>(Input<t1>)|TableEq(t1,t0);"
+		 "AttrsEq(a1,a0)"},
+	};
+
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rg); ul++)
+	{
+		CDSLRule *rule = Parse(mp, rg[ul].in);
+		if (nullptr == rule)
+		{
+			return GPOS_FAILED;
+		}
+		CWStringDynamic str(mp);
+		COstreamString oss(&str);
+		IOstream &os = oss;
+		rule->OsPrint(os);
+		rule->Release();
+		CWStringConst expected(mp, rg[ul].canonical);
+		if (!str.Equals(&expected))
+		{
+			return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Shared symbol namespace: reusing a name on BOTH sides is a "value already
+// present" error (WeTune BiMap); constraints correctly reference symbols
+// across sides.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_SymbolNamespace()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	// t0 declared on both sides -> redeclaration error.
+	CDSLRule *bad = Parse(mp, "Input<t0>|Input<t0>|");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// disjoint names + cross-side constraint -> OK.
+	CDSLRule *ok = Parse(mp, "Input<t0>|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == ok)
+	{
+		return GPOS_FAILED;
+	}
+	ok->Release();
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Constraints: arity enforced (Reference=4, Unique=2); unknown constraint
+// rejected; constraint referencing an undeclared symbol rejected.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_Constraints()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	// Reference with 2 args (needs 4) -> error.
+	CDSLRule *bad = Parse(mp, "Input<t0>|Input<t1>|Reference(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// unknown constraint name -> error.
+	bad = Parse(mp, "Input<t0>|Input<t1>|Frobnicate(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// constraint referencing undeclared symbol -> error.
+	bad = Parse(mp, "Input<t0>|Input<t1>|TableEq(t1,t9)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	// well-formed Reference(4) + Unique(2) -> OK.
+	CDSLRule *ok = Parse(
+		mp,
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,"
+		"Input<t3>)|Reference(t0,a0,t1,a1);Unique(t0,a0);TableEq(t2,t0);"
+		"TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)");
+	if (nullptr == ok)
+	{
+		return GPOS_FAILED;
+	}
+	ok->Release();
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Whitespace robustness: spaces around '|' ';' ',' are tolerated (WS skipped),
+// while spaces INSIDE <...> remain the real symbol separator.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_Whitespace()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	// spaces around bars and commas
+	CDSLRule *ok = Parse(
+		mp, "Filter<p0 a0>(Input<t0>) | Input<t1> | TableEq(t1, t0)");
+	if (nullptr == ok)
+	{
+		return GPOS_FAILED;
+	}
+	ok->Release();
+	return GPOS_OK;
+}
+
+//---------------------------------------------------------------------------
+// Loader: EQ-only admission. A buffer with an EQ rule, a NEQ rule and a
+// comment/blank line yields exactly one admitted rule and one skipped.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_Loader()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	const CHAR *sz_buf =
+		"# a comment\n"
+		"\n"
+		"Input<t0>|Input<t1>|TableEq(t1,t0)\tEQ\n"
+		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|TableEq(t1,t0);"
+		"AttrsEq(a1,a0);SchemaEq(s1,s0)\tNEQ\n";
+
+	CDSLRuleLoader::SLoadStats stats;
+	CWStringDynamic strErrs(mp);
+	CDSLRuleArray *pdrg = CDSLRuleLoader::PdrgpdslruleLoadBuffer(
+		mp, sz_buf, true /*fEqOnly*/, &stats, &strErrs);
+
+	BOOL ok = (nullptr != pdrg) && (1 == pdrg->Size()) &&
+			  (1 == stats.ul_admitted) && (1 == stats.ul_skipped) &&
+			  (0 == stats.ul_failed);
+	if (nullptr != pdrg)
+	{
+		pdrg->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+//---------------------------------------------------------------------------
+// Errors: a syntactically broken rule returns NULL and a non-empty message,
+// and does not crash.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_Errors()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	CWStringDynamic strErr(mp);
+	// missing target segment
+	CDSLRule *bad =
+		CDSLRuleParser::PdslruleParse(mp, "Filter<p0 a0>(Input<t0>)", nullptr,
+									  &strErr);
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	if (0 == strErr.Length())
+	{
+		return GPOS_FAILED;
+	}
+	return GPOS_OK;
+}
