@@ -10,7 +10,6 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRuleEngine.h"
 
-#include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
 #include "gpos/memory/CMemoryPoolManager.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -123,18 +122,6 @@ CDSLRuleEngine::Init(const CHAR *szPath)
 				pengine->m_pdrgprule->Append(prule);
 			}
 			pdrgprule->Release();
-		}
-
-		{
-			CAutoTrace at(mp);
-			at.Os() << "[CDSLRuleEngine] loaded rules from '" << szPath
-					<< "': admitted=" << stats.ul_admitted
-					<< " skipped=" << stats.ul_skipped
-					<< " failed=" << stats.ul_failed;
-			if (0 < strErrs.Length())
-			{
-				at.Os() << "; first errors: " << strErrs.GetBuffer();
-			}
 		}
 	}
 

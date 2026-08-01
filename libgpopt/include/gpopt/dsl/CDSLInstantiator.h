@@ -30,10 +30,13 @@
 //		                         plus its (bound) predicate.
 //
 //		Simplifications (doc §11): reused subtrees/predicates are grafted by
-//		AddRef with their real CColRefs already correct, so no
-//		PexprCopyWithRemappedColumns is needed for structural rules (it is only
-//		required once Proj/Agg introduce fresh columns). We trust the MONSOON EQ
-//		proof, so no equivalence re-check.
+//		AddRef with their real CColRefs already correct, so no per-node column
+//		remapping is needed for structural rules (that is only required once
+//		Proj/Agg introduce fresh columns). ONE exception: an operator-eliminating
+//		rule (e.g. Filter(Input<t0>) -> Input<t1>) yields a target whose ROOT is a
+//		reused memo subtree, which violates Cascades' "result root must be freshly
+//		built" contract; PexprFreshRoot re-roots it with an identity remap. We
+//		trust the MONSOON EQ proof, so no equivalence re-check.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLInstantiator_H
 #define GPOPT_CDSLInstantiator_H
@@ -99,6 +102,13 @@ private:
 	// join rules that merely reshape carry the predicate on the model.
 	CExpression *PexprBuildJoin(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
+
+	// Cascades requires an xform result ROOT to be a freshly-built CExpression
+	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a
+	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns
+	// (fresh nodes, colrefs unchanged). Consumes pexpr, returns the fresh-rooted
+	// expression (or pexpr unchanged if it was already fresh / NULL).
+	CExpression *PexprFreshRoot(CExpression *pexpr) const;
 
 public:
 	CDSLInstantiator(const CDSLInstantiator &) = delete;

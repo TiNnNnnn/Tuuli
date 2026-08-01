@@ -12,6 +12,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/base/CColRef.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
@@ -263,6 +264,40 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PexprFreshRoot
+//
+//	@doc:
+//		Cascades contract (CEngine::PgroupInsert): an xform result ROOT must be a
+//		freshly-built CExpression (Pgexpr()==NULL); a memo-extracted node as root
+//		trips the "A valid group is expected" assertion. CHILDREN may freely reuse
+//		memo subtrees. Operator-eliminating rules (e.g. Filter(Input<t0>) ->
+//		Input<t1>) build a target whose root IS a reused memo subtree, so we must
+//		re-root it. PexprCopyWithRemappedColumns with an EMPTY mapping is the
+//		standard ORCA primitive that does exactly this: every node (root included)
+//		is GPOS_NEW'd afresh, and with must_exist=false unmapped CColRefs pass
+//		through unchanged, so DeriveOutputColumns is preserved (output-col
+//		invariant holds). Fresh-rooted targets (Filter/Join) are returned as-is.
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
+{
+	if (nullptr == pexpr || nullptr == pexpr->Pgexpr())
+	{
+		// already a freshly-built root (or NULL) — nothing to do.
+		return pexpr;
+	}
+
+	// re-root via an identity remap (empty mapping => colrefs pass through).
+	UlongToColRefMap *colref_mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	CExpression *pexprFresh = pexpr->PexprCopyWithRemappedColumns(
+		m_mp, colref_mapping, false /*must_exist*/);
+	colref_mapping->Release();
+	pexpr->Release();
+	return pexprFresh;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PexprInstantiate
 //---------------------------------------------------------------------------
 CExpression *
@@ -273,7 +308,8 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	GPOS_ASSERT(nullptr != pmodel);
 
 	BuildAliasMap(prule);
-	return PexprBuild(prule->PfragTgt()->PopRoot(), pmodel);
+	CExpression *pexprTgt = PexprBuild(prule->PfragTgt()->PopRoot(), pmodel);
+	return PexprFreshRoot(pexprTgt);
 }
 
 // EOF

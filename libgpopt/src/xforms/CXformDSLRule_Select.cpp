@@ -60,9 +60,10 @@ CXformDSLRule_Select::Exfp(CExpressionHandle &	// exprhdl
 //		CXformDSLRule_Select::Transform
 //
 //	@doc:
-//		Hand the expression to the engine; add every produced alternative.
-//		PHASE 1: engine match/check/instantiate are stubs, so this dispatches
-//		but produces no rewrite. Confirms ORCA routes Select expressions here.
+//		Hand the expression to the engine; for each Select-rooted rule run the
+//		three-stage decision (match && check && instantiate!=NULL) and add every
+//		produced alternative. Instantiate re-roots any operator-eliminating result
+//		so the alternative handed to ORCA is always a freshly-built CExpression.
 //---------------------------------------------------------------------------
 void
 CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
@@ -88,8 +89,7 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		if (peng->FMatch(prule, pexpr, pmodel) &&
 			peng->FCheckConstraints(prule, pmodel, pexpr))
 		{
-			CExpression *pexprTgt =
-				peng->PexprInstantiate(mp, prule, pmodel);
+			CExpression *pexprTgt = peng->PexprInstantiate(mp, prule, pmodel);
 			if (nullptr != pexprTgt)
 			{
 				// trust chain: rule carries a WeTune EQ proof, so ORCA does not
