@@ -14,6 +14,7 @@
 
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
+#include "gpopt/dsl/CDSLProjMatcher.h"
 
 using namespace gpopt;
 
@@ -160,6 +161,17 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CDSLFilterMatcher fm(m_mp, this);
 		return fm.FMatch(pop, pexpr, pmodel);
+	}
+
+	// Proj<a s>: bind the projected-column symbols against the live
+	// CLogicalProject's project list, then recurse the relational child. Like
+	// Filter, Proj carries scalar structure (the project list) that only
+	// operator-specific code reads, so it does not go through generic child
+	// recursion (see CDSLProjMatcher, doc M1).
+	if (EdslopProj == pop->Edslop())
+	{
+		CDSLProjMatcher pm(m_mp, this);
+		return pm.FMatch(pop, pexpr, pmodel);
 	}
 
 	// operator-identity gate. Operators with no direct ORCA logical counterpart

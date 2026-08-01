@@ -326,6 +326,8 @@ CLogicalProject::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfProject2Apply);
 	(void) xform_set->ExchangeSet(CXform::ExfProject2ComputeScalar);
 	(void) xform_set->ExchangeSet(CXform::ExfCollapseProject);
+	// MONSOON DSL-rule shell rooted at Project
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleProject);
 
 	return xform_set;
 }

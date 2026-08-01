@@ -15,7 +15,8 @@ using namespace gpopt;
 //	@function:
 //		CDSLModel::CDSLModel
 //---------------------------------------------------------------------------
-CDSLModel::CDSLModel(CMemoryPool *mp) : m_mp(mp), m_pdrgpexprResidual(nullptr)
+CDSLModel::CDSLModel(CMemoryPool *mp)
+	: m_mp(mp), m_pdrgpexprResidual(nullptr), m_pexprProjList(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
@@ -31,6 +32,7 @@ CDSLModel::~CDSLModel()
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
+	CRefCount::SafeRelease(m_pexprProjList);
 }
 
 //---------------------------------------------------------------------------
@@ -46,6 +48,21 @@ CDSLModel::SetResidualConjuncts(CExpressionArray *pdrgpexpr)
 {
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	m_pdrgpexprResidual = pdrgpexpr;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLModel::SetProjList
+//
+//	@doc:
+//		Take ownership of a matched CLogicalProject's project-list subtree (Proj
+//		match, M1). A second call replaces the previous one (released).
+//---------------------------------------------------------------------------
+void
+CDSLModel::SetProjList(CExpression *pexpr)
+{
+	CRefCount::SafeRelease(m_pexprProjList);
+	m_pexprProjList = pexpr;
 }
 
 //---------------------------------------------------------------------------

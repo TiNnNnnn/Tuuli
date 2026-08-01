@@ -148,6 +148,13 @@ public:
 	CExpression *PexprLogicalInnerJoin(CExpression *pexprLeft,
 									   CExpression *pexprRight,
 									   CExpression *pexprPred);
+
+	// Project(child, project-list) projecting the given columns as pass-through
+	// CScalarIdent elements (one CScalarProjectElement per column, redefining the
+	// same CColRef). AddRefs the child; caller owns the result. Models a plain
+	// column projection (SELECT c0, c1, ... FROM ...).
+	CExpression *PexprLogicalProject(CExpression *pexprChild,
+									 CColRefArray *pdrgpcrProj);
 };
 }  // namespace gpopt
 

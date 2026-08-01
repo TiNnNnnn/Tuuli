@@ -72,6 +72,15 @@ private:
 	// match records residuals.
 	CExpressionArray *m_pdrgpexprResidual;
 
+	// the project-list scalar subtree (CScalarProjectList) of a matched
+	// CLogicalProject. WeTune's Proj<a s> models projected columns as attrs/schema
+	// symbols, but ORCA's project list also carries the computed-column value
+	// subtrees, which those symbols do not capture. So the Proj matcher (M1)
+	// records the whole list here (opaque, AddRef'd — exactly like Filter records
+	// its predicate) and the instantiator AddRef-grafts it over the rebuilt child.
+	// Owns one ref; NULL until a Proj match records it.
+	CExpression *m_pexprProjList;
+
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
@@ -120,6 +129,22 @@ public:
 	PdrgpexprResidual() const
 	{
 		return m_pdrgpexprResidual;
+	}
+
+	//------------------------------------------------------------------
+	// project list (Proj match — M1 produces, instantiator consumes)
+	//------------------------------------------------------------------
+
+	// record the CScalarProjectList subtree of a matched CLogicalProject. Takes
+	// ownership of one ref of pexpr; replaces any previous set.
+	void SetProjList(CExpression *pexpr);
+
+	// the project-list subtree recorded by the Proj matcher; NULL if no Proj was
+	// matched. Does NOT transfer ownership.
+	CExpression *
+	PexprProjList() const
+	{
+		return m_pexprProjList;
 	}
 };
 }  // namespace gpopt

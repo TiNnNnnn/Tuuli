@@ -310,6 +310,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformLeftAntiSemiJoin2HashJoinBuildOuter(m_mp));
 	// MONSOON DSL-rule shells (order matches CXform::EXformId tail)
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Select(m_mp));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_Project(m_mp));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&
 				"Not all xforms have been instantiated");

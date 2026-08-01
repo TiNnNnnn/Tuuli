@@ -19,10 +19,13 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarNullTest.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/dxl/operators/CDXLTableDescr.h"  // UNASSIGNED_QUERYID
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDProviderGeneric.h"
@@ -260,6 +263,39 @@ CDSLTestFixture::PexprLogicalInnerJoin(CExpression *pexprLeft,
 	return GPOS_NEW(m_mp)
 		CExpression(m_mp, GPOS_NEW(m_mp) CLogicalInnerJoin(m_mp), pexprLeft,
 					pexprRight, pexprPred);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLTestFixture::PexprLogicalProject
+//
+//	@doc:
+//		Project(child, CScalarProjectList(prEl0, prEl1, ...)) where each element
+//		re-defines one of pdrgpcrProj as a pass-through CScalarIdent of itself.
+//		This mirrors a plain column projection; the defined columns ARE the input
+//		columns (so DeriveOutputColumns is stable under identity rewrites).
+//---------------------------------------------------------------------------
+CExpression *
+CDSLTestFixture::PexprLogicalProject(CExpression *pexprChild,
+									 CColRefArray *pdrgpcrProj)
+{
+	CExpressionArray *pdrgpexprPrEl = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	const ULONG ulProj = pdrgpcrProj->Size();
+	for (ULONG ul = 0; ul < ulProj; ul++)
+	{
+		CColRef *pcr = (*pdrgpcrProj)[ul];
+		CExpression *pexprIdent = GPOS_NEW(m_mp)
+			CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcr));
+		CExpression *pexprPrEl = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarProjectElement(m_mp, pcr), pexprIdent);
+		pdrgpexprPrEl->Append(pexprPrEl);
+	}
+	CExpression *pexprPrjList = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);
+
+	pexprChild->AddRef();
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprPrjList);
 }
 
 // EOF

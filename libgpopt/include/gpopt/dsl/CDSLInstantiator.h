@@ -103,6 +103,15 @@ private:
 	CExpression *PexprBuildJoin(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 
+	// Proj<a s>: Project(child, project-list). M1 grafts the SOURCE-matched
+	// project-list subtree (recorded on the model) over the rebuilt relational
+	// child, so the projected/computed columns — hence DeriveOutputColumns — are
+	// preserved exactly. Column remapping (PexprCopyWithRemappedColumns) is only
+	// needed once a target introduces NEW columns (Agg / computed projections),
+	// which is future work; M1 rules reuse the source columns.
+	CExpression *PexprBuildProj(const CDSLOp *pop,
+								const CDSLModel *pmodel) const;
+
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression
 	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a
 	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns

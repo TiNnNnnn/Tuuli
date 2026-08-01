@@ -247,6 +247,7 @@ public:
 		// dispatches to the shared CDSLRuleEngine. Keep these last, just before
 		// ExfInvalid, so all pre-existing xform ids are unchanged.
 		ExfDSLRuleSelect,
+		ExfDSLRuleProject,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

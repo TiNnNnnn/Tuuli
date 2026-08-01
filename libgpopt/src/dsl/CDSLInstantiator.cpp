@@ -16,6 +16,7 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 
@@ -239,6 +240,46 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PexprBuildProj
+//
+//	@doc:
+//		Proj<a s>: CLogicalProject(child, project-list). M1 rebuilds the relational
+//		child and grafts the SOURCE-matched project-list subtree (recorded on the
+//		model by CDSLProjMatcher). Reusing the very list the matcher saw preserves
+//		the projected/computed columns — and hence the output-column invariant —
+//		exactly, without per-column remapping (that is only needed once a target
+//		introduces NEW columns; future work). Returns NULL if the model carries no
+//		project list (i.e. the source was not a Proj) — the rule then does not fire.
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const
+{
+	if (1 != pop->UlChildren())
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprProjList = pmodel->PexprProjList();
+	if (nullptr == pexprProjList)
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+
+	// graft the matched project list (AddRef — the model keeps its own ref).
+	pexprProjList->AddRef();
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprProjList);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PexprBuild
 //---------------------------------------------------------------------------
 CExpression *
@@ -252,12 +293,14 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildInput(pop, pmodel);
 		case EdslopFilter:
 			return PexprBuildFilter(pop, pmodel);
+		case EdslopProj:
+			return PexprBuildProj(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 			return PexprBuildJoin(pop, pmodel);
 		default:
-			// Proj / Agg / Union / Sort / Limit: not yet instantiable (future
-			// work). The rule does not fire.
+			// Agg / Union / Sort / Limit: not yet instantiable (future work).
+			// The rule does not fire.
 			return nullptr;
 	}
 }
