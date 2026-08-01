@@ -72,6 +72,14 @@ public:
 
 	~CDSLModel() override;
 
+	// the pool this model (and any transient work a matcher does for it) lives
+	// in — the per-optimization xform pool, NOT the engine's long-lived pool.
+	CMemoryPool *
+	Pmp() const
+	{
+		return m_mp;
+	}
+
 	// bind a symbol to an artifact; AddRef's pval and takes ownership of that
 	// ref. Returns false if the symbol was already bound to a DIFFERENT value
 	// (WeTune's incompatible-reassignment failure); rebinding to the SAME value

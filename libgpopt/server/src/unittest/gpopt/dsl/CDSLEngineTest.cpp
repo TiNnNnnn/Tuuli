@@ -157,10 +157,12 @@ CDSLEngineTest::EresUnittest_Bucketing()
 //		CDSLEngineTest::EresUnittest_StubsCallable
 //
 //	@doc:
-//		The global engine exists after gpopt_init and its dispatch/three-stage
-//		entry points are safe to call. Phase-1 stubs: RulesForRoot never NULL,
-//		match/check return false, instantiate returns NULL — so a shell's
-//		Transform loop is a safe no-op with no rules loaded.
+//		The global engine exists after gpopt_init and its dispatch + remaining
+//		three-stage entry points are safe to call. RulesForRoot never returns
+//		NULL; the still-stubbed Check/Instantiate return false/NULL, so a shell's
+//		Transform loop is a safe no-op with no rules loaded. (FMatch is now real —
+//		task #24 — and is covered by CDSLMatchTest, which feeds it live
+//		expressions; it asserts non-null args, so it is not exercised here.)
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLEngineTest::EresUnittest_StubsCallable()
@@ -181,8 +183,8 @@ CDSLEngineTest::EresUnittest_StubsCallable()
 		return GPOS_FAILED;
 	}
 
-	// three-stage stubs: parse one rule, confirm entry points are callable and
-	// behave as documented (no rewrite in phase 1).
+	// remaining stubs: parse one rule, confirm Check/Instantiate are callable and
+	// behave as documented (no rewrite until #26/#27 land).
 	const CHAR *szRule =
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)";
@@ -196,7 +198,6 @@ CDSLEngineTest::EresUnittest_StubsCallable()
 	GPOS_RESULT eres = GPOS_OK;
 
 	if (0 != pmodel->Size() ||
-		peng->FMatch(prule, nullptr /*pexpr*/, pmodel) ||
 		peng->FCheckConstraints(prule, pmodel, nullptr /*pexpr*/) ||
 		nullptr != peng->PexprInstantiate(mp, prule, pmodel))
 	{

@@ -15,6 +15,8 @@
 #include "gpos/memory/CMemoryPoolManager.h"
 #include "gpos/string/CWStringDynamic.h"
 
+#include "gpopt/dsl/CDSLMatcher.h"
+
 using namespace gpopt;
 
 // global instance
@@ -174,19 +176,24 @@ CDSLRuleEngine::PdrgpruleForRoot(COperator::EOperatorId eopid) const
 }
 
 //---------------------------------------------------------------------------
-//	Three-stage rewrite — PHASE 1 STUBS.
-//	Implemented in phase 2 (see docs/WETUNE_ORCA_PER_OP_THREESTAGE.md).
+//	Three-stage rewrite.
+//	Match: real (phase 2, #24 — generic recursion + Input, delegated symbol
+//	binding). Check / Instantiate remain phase-2 stubs (#26 / #27).
 //---------------------------------------------------------------------------
 BOOL
-CDSLRuleEngine::FMatch(const CDSLRule *,	 // prule
-					   CExpression *,		 // pexpr
-					   CDSLModel *			 // pmodel
-) const
+CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
+					   CDSLModel *pmodel) const
 {
-	// phase 2: recursively compare CDSLOp.Eopid() with pexpr->Pop()->Eopid(),
-	// bind symbols into *pmodel, split CScalarBoolOp(And) into conjuncts for
-	// filter matching.
-	return false;
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pexpr);
+	GPOS_ASSERT(nullptr != pmodel);
+
+	// match the source fragment's root template against the live expression.
+	// The matcher allocates any transient work in the model's (per-optimization)
+	// pool — NOT the engine's long-lived library pool.
+	CDSLMatcher matcher(pmodel->Pmp());
+	CDSLOp *pop_src_root = prule->PfragSrc()->PopRoot();
+	return matcher.FMatch(pop_src_root, pexpr, pmodel);
 }
 
 BOOL

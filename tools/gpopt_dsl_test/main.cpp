@@ -22,6 +22,8 @@
 #include "naucrates/init.h"
 
 #include "unittest/gpopt/dsl/CDSLEngineTest.h"
+#include "unittest/gpopt/dsl/CDSLFixtureTest.h"
+#include "unittest/gpopt/dsl/CDSLMatchTest.h"
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 
 using namespace gpos;
@@ -31,6 +33,8 @@ using namespace gpopt;
 static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLParserTest),
 	GPOS_UNITTEST_STD(CDSLEngineTest),
+	GPOS_UNITTEST_STD(CDSLFixtureTest),
+	GPOS_UNITTEST_STD(CDSLMatchTest),
 };
 
 static void *
