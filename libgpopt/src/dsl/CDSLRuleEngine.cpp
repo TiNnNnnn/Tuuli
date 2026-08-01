@@ -15,6 +15,7 @@
 #include "gpos/memory/CMemoryPoolManager.h"
 #include "gpos/string/CWStringDynamic.h"
 
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 
 using namespace gpopt;
@@ -197,14 +198,20 @@ CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
 }
 
 BOOL
-CDSLRuleEngine::FCheckConstraints(const CDSLRule *,	 // prule
-								  const CDSLModel *,  // pmodel
-								  CExpression *		  // pexpr
+CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
+								  const CDSLModel *pmodel,
+								  CExpression *  // pexpr (unused: constraints are
+											     // checked against bound model)
 ) const
 {
-	// phase 2: Unique/NotNull/Reference/AttrsSub via CExpressionHandle +
-	// CMDAccessor; equality-class compatibility over the bound model.
-	return false;
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pmodel);
+
+	// structural constraints (AttrsSub/Unique/NotNull/Reference) verified against
+	// the bound model + live metadata; equality-class constraints hold by
+	// construction (FBind enforced them during match). See CDSLConstraintChecker.
+	CDSLConstraintChecker checker(pmodel->Pmp());
+	return checker.FCheck(prule, pmodel);
 }
 
 CExpression *

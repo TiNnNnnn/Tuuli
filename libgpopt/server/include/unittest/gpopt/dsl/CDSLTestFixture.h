@@ -105,9 +105,12 @@ public:
 
 	// build a heap table descriptor named szTable with ulCols int4 columns
 	// c0..c(ulCols-1). If ulKeyCol < ulCols, that column is registered as a
-	// unique key (for Unique-constraint tests).
+	// unique key (for Unique-constraint tests). If fNullable, the columns are
+	// created nullable (for NotNull-constraint rejection tests); the default is
+	// non-nullable.
 	CTableDescriptor *PtabdescCreate(const CHAR *szTable, ULONG ulCols,
-									 ULONG ulKeyCol = gpos::ulong_max);
+									 ULONG ulKeyCol = gpos::ulong_max,
+									 BOOL fNullable = false);
 
 	// CLogicalGet over ptabdesc; fills *ppdrgpcrOut with the output colrefs when
 	// non-NULL (caller does NOT own that array's ref — it lives on the Get).

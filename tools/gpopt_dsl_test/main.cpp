@@ -21,6 +21,7 @@
 #include "gpopt/mdcache/CMDCache.h"
 #include "naucrates/init.h"
 
+#include "unittest/gpopt/dsl/CDSLConstraintTest.h"
 #include "unittest/gpopt/dsl/CDSLEngineTest.h"
 #include "unittest/gpopt/dsl/CDSLFilterSplitTest.h"
 #include "unittest/gpopt/dsl/CDSLFixtureTest.h"
@@ -37,6 +38,7 @@ static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLFixtureTest),
 	GPOS_UNITTEST_STD(CDSLMatchTest),
 	GPOS_UNITTEST_STD(CDSLFilterSplitTest),
+	GPOS_UNITTEST_STD(CDSLConstraintTest),
 };
 
 static void *

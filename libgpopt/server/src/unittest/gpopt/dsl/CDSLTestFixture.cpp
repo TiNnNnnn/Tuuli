@@ -119,7 +119,7 @@ CDSLTestFixture::PcrCreateInt4(const CHAR *szName)
 //---------------------------------------------------------------------------
 CTableDescriptor *
 CDSLTestFixture::PtabdescCreate(const CHAR *szTable, ULONG ulCols,
-								ULONG ulKeyCol)
+								ULONG ulKeyCol, BOOL fNullable)
 {
 	CWStringDynamic strTable(m_mp);
 	strTable.AppendFormat(GPOS_WSZ_LIT("%s"), szTable);
@@ -141,7 +141,7 @@ CDSLTestFixture::PtabdescCreate(const CHAR *szTable, ULONG ulCols,
 		CName nameCol(m_mp, &strCol);
 		CColumnDescriptor *pcoldesc = GPOS_NEW(m_mp) CColumnDescriptor(
 			m_mp, m_pmdtypeInt4, default_type_modifier, nameCol,
-			(INT) (ul + 1) /*attno, 1-based*/, false /*is_nullable*/,
+			(INT) (ul + 1) /*attno, 1-based*/, fNullable /*is_nullable*/,
 			gpos::ulong_max /*width*/);
 		ptabdesc->AddColumn(pcoldesc);
 	}

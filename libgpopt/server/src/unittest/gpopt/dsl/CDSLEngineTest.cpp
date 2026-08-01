@@ -157,12 +157,14 @@ CDSLEngineTest::EresUnittest_Bucketing()
 //		CDSLEngineTest::EresUnittest_StubsCallable
 //
 //	@doc:
-//		The global engine exists after gpopt_init and its dispatch + remaining
-//		three-stage entry points are safe to call. RulesForRoot never returns
-//		NULL; the still-stubbed Check/Instantiate return false/NULL, so a shell's
-//		Transform loop is a safe no-op with no rules loaded. (FMatch is now real —
-//		task #24 — and is covered by CDSLMatchTest, which feeds it live
-//		expressions; it asserts non-null args, so it is not exercised here.)
+//		The global engine exists after gpopt_init and its dispatch + three-stage
+//		entry points are safe to call. RulesForRoot never returns NULL. FMatch
+//		(#24) and FCheckConstraints (#26) are real and covered by their own suites
+//		(they assert non-null model / feed live expressions); here we confirm that
+//		with an EMPTY model a structural-constraint rule is safely REJECTED by
+//		Check (a subset constraint over an unbound symbol cannot hold) and that
+//		the still-stubbed Instantiate returns NULL — so a shell's Transform loop
+//		is a safe no-op with no rules loaded.
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLEngineTest::EresUnittest_StubsCallable()
@@ -183,11 +185,12 @@ CDSLEngineTest::EresUnittest_StubsCallable()
 		return GPOS_FAILED;
 	}
 
-	// remaining stubs: parse one rule, confirm Check/Instantiate are callable and
-	// behave as documented (no rewrite until #26/#27 land).
+	// a rule carrying a STRUCTURAL constraint (AttrsSub) — against an empty model
+	// Check must reject (unbound symbols), and Instantiate (still a stub) returns
+	// NULL. Confirms the entry points are callable and fail safe.
 	const CHAR *szRule =
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
-		"TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)";
+		"AttrsSub(a0,t0);TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)";
 	CDSLRule *prule = CDSLRuleParser::PdslruleParse(mp, szRule, "EQ", nullptr);
 	if (nullptr == prule)
 	{
