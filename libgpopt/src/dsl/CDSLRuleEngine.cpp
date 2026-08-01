@@ -16,6 +16,7 @@
 #include "gpos/string/CWStringDynamic.h"
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 
 using namespace gpopt;
@@ -215,15 +216,18 @@ CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
 }
 
 CExpression *
-CDSLRuleEngine::PexprInstantiate(CMemoryPool *,		  // mp
-								 const CDSLRule *,	  // prule
-								 const CDSLModel *	  // pmodel
-) const
+CDSLRuleEngine::PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
+								 const CDSLModel *pmodel) const
 {
-	// phase 2: build target CExpression, AddRef-graft reused subtrees, merge
-	// residual conjuncts via CPredicateUtils, remap columns with
-	// PexprCopyWithRemappedColumns.
-	return nullptr;
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pmodel);
+
+	// build the target expression from the bound model; reused subtrees/preds are
+	// AddRef-grafted, residual conjuncts merged, target symbols resolved through
+	// the rule's equality classes. See CDSLInstantiator.
+	CDSLInstantiator instantiator(mp);
+	return instantiator.PexprInstantiate(prule, pmodel);
 }
 
 // EOF
