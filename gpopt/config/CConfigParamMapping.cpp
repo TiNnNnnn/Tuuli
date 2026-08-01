@@ -21,7 +21,8 @@ extern int optimizer_join_order;
 // Declared at global scope (before `using namespace …`) so symbol lookup
 // finds the unmangled C-linkage global, not a namespaced overload.
 extern bool pg_orca_enable_dynamic_tablescan;
-
+// pg_orca.enable_dsl_rule GUC (pg_orca.cpp): preserve logical ops for DSL match.
+extern bool pg_orca_enable_dsl_rule;
 #include "gpopt/config/CConfigParamMapping.h"
 #include "gpopt/xforms/CXform.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -330,6 +331,12 @@ CConfigParamMapping::SConfigMappingElem CConfigParamMapping::m_elements[] = {
 	{EopttraceVerifyChildOptMemo, &optimizer_verify_child_opt_memo,
 	 false, GPOS_WSZ_LIT(
 		 "Optimize the children of requests that could reuse child contexts and report differences.")},
+
+	// MONSOON: pg_orca.enable_dsl_rule -> preserve logical ops for DSL matching
+	{EopttracePreserveOpsForDSL, &pg_orca_enable_dsl_rule,
+	 false, GPOS_WSZ_LIT(
+		 "Preserve logical operators (skip collapse/prune/transpose in "
+		 "preprocessing) for MONSOON DSL rule matching.")},
 };
 
 //---------------------------------------------------------------------------

@@ -42,7 +42,6 @@ extern "C" {
 
 extern "C" {
 PG_FUNCTION_INFO_V1(DisableXform);
-
 Datum DisableXform(PG_FUNCTION_ARGS)
 {
 	/* the SQL declaration may not be STRICT, so check for NULL input here */
@@ -83,7 +82,6 @@ Datum DisableXform(PG_FUNCTION_ARGS)
 
 extern "C" {
 PG_FUNCTION_INFO_V1(EnableXform);
-
 Datum EnableXform(PG_FUNCTION_ARGS)
 {
 	/* the SQL declaration may not be STRICT, so check for NULL input here */

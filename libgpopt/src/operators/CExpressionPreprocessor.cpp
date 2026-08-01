@@ -3461,10 +3461,20 @@ CExpressionPreprocessor::PexprPreprocess(
 	pexprPrefiltersExtracted->Release();
 
 	// eliminate unused computed columns
-	CExpression *pexprNoUnusedPrEl = PexprPruneUnusedComputedCols(
-		mp, pexprOrderedAggPreprocessed, pcrsOutputAndOrderCols);
-	GPOS_CHECK_ABORT;
-	pexprOrderedAggPreprocessed->Release();
+	// MONSOON: skipped under pg_orca.enable_dsl_rule so a computed-col Project
+	// survives for the DSL matcher (pass ownership through, do not release).
+	CExpression *pexprNoUnusedPrEl = nullptr;
+	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	{
+		pexprNoUnusedPrEl = pexprOrderedAggPreprocessed;
+	}
+	else
+	{
+		pexprNoUnusedPrEl = PexprPruneUnusedComputedCols(
+			mp, pexprOrderedAggPreprocessed, pcrsOutputAndOrderCols);
+		GPOS_CHECK_ABORT;
+		pexprOrderedAggPreprocessed->Release();
+	}
 
 	// normalize expression
 	CExpression *pexprNormalized1 =
@@ -3494,10 +3504,19 @@ CExpressionPreprocessor::PexprPreprocess(
 	pexprWithPreds->Release();
 
 	// collapse cascade of projects
-	CExpression *pexprCollapsedProjects =
-		PexprCollapseProjects(mp, pexprPruned);
-	GPOS_CHECK_ABORT;
-	pexprPruned->Release();
+	// MONSOON: skipped under pg_orca.enable_dsl_rule so adjacent Projects stay
+	// separate for the DSL matcher (pass ownership through, do not release).
+	CExpression *pexprCollapsedProjects = nullptr;
+	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	{
+		pexprCollapsedProjects = pexprPruned;
+	}
+	else
+	{
+		pexprCollapsedProjects = PexprCollapseProjects(mp, pexprPruned);
+		GPOS_CHECK_ABORT;
+		pexprPruned->Release();
+	}
 
 	// insert dummy project when the scalar subquery is under a project and returns an outer reference
 	CExpression *pexprSubquery = PexprProjBelowSubquery(
@@ -3518,9 +3537,19 @@ CExpressionPreprocessor::PexprPreprocess(
 	pexprExistWithPredFromINSubq->Release();
 
 	// swap logical select over logical project
-	CExpression *pexprTransposeSelectAndProject =
-		PexprTransposeSelectAndProject(mp, pexprPrunedPartitions);
-	pexprPrunedPartitions->Release();
+	// MONSOON: skipped under pg_orca.enable_dsl_rule so Select/Project ordering
+	// is preserved for the DSL matcher (pass ownership through, do not release).
+	CExpression *pexprTransposeSelectAndProject = nullptr;
+	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	{
+		pexprTransposeSelectAndProject = pexprPrunedPartitions;
+	}
+	else
+	{
+		pexprTransposeSelectAndProject =
+			PexprTransposeSelectAndProject(mp, pexprPrunedPartitions);
+		pexprPrunedPartitions->Release();
+	}
 
 	// convert split update to inplace update
 	CExpression *pexprSplitUpdateToInplace =

@@ -167,6 +167,15 @@ static const struct config_enum_entry pg_orca_cost_model_options[] = {
  */
 bool  pg_orca_enable_dynamic_tablescan = true;
 
+/*
+ * MONSOON: when on, CExpressionPreprocessor skips the operator-collapsing
+ * steps (prune-unused-computed-cols / collapse-projects / transpose
+ * select-project) so the DSL rule matcher sees the un-collapsed
+ * CLogicalProject/CLogicalSelect tree during exploration.  Non-static so
+ * CConfigParamMapping.cpp can extern it to pack the trace flag.
+ */
+bool  pg_orca_enable_dsl_rule = false;
+
 static bool orca_initialized = false;
 
 /*
@@ -818,6 +827,19 @@ void _PG_init(void)
         NULL,
         &pg_orca_enable_dynamic_tablescan,
         true,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.enable_dsl_rule",
+        "Preserve logical operators for MONSOON DSL rule matching.  When on, "
+        "the preprocessor skips the operator-collapsing steps (collapse "
+        "projects, prune computed columns, transpose select/project) so the "
+        "DSL matcher sees the un-collapsed CLogicalProject/CLogicalSelect tree "
+        "during exploration.",
+        NULL,
+        &pg_orca_enable_dsl_rule,
+        false,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 
