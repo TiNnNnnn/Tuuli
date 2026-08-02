@@ -154,6 +154,12 @@ public:
 									   CExpression *pexprRight,
 									   CExpression *pexprPred);
 
+	// LeftOuterJoin(left, right, predicate). AddRefs all; caller owns result.
+	// Used by the join-elimination LeftJoin rule (rules.txt line 205).
+	CExpression *PexprLogicalLeftOuterJoin(CExpression *pexprLeft,
+										   CExpression *pexprRight,
+										   CExpression *pexprPred);
+
 	// Project(child, project-list) projecting the given columns as pass-through
 	// CScalarIdent elements (one CScalarProjectElement per column, redefining the
 	// same CColRef). AddRefs the child; caller owns the result. Models a plain

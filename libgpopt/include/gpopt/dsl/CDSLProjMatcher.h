@@ -63,10 +63,16 @@ private:
 	// generic matcher to recurse the relational child into (not owned)
 	const CDSLMatcher *m_pmatcher;
 
-	// gather the columns the project list defines (each CScalarProjectElement's
-	// Pcr()) into a fresh ordered CColRefArray. Caller owns the returned ref.
-	// Returns NULL if child[1] is not a well-formed CScalarProjectList.
-	CColRefArray *PdrgpcrProjected(CExpression *pexprProjList) const;
+	// gather the columns the project list DEFINES / outputs (each
+	// CScalarProjectElement's Pcr()) — WeTune's valuesOf, bound to schema <s>.
+	// Caller owns the returned ref. NULL if child[1] is not a project list.
+	CColRefArray *PdrgpcrSchema(CExpression *pexprProjList) const;
+
+	// gather the columns the project elements' value expressions REFERENCE
+	// (DeriveUsedColumns), de-duplicated in first-seen order — WeTune's
+	// valueRefsOf, bound to attrs <a>. Differs from the schema for computed
+	// columns. Caller owns the returned ref. NULL if not a project list.
+	CColRefArray *PdrgpcrAttrs(CExpression *pexprProjList) const;
 
 public:
 	CDSLProjMatcher(const CDSLProjMatcher &) = delete;

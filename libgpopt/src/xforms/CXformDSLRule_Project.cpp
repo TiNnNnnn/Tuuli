@@ -14,7 +14,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalProject.h"
-#include "gpopt/operators/CPatternLeaf.h"
+#include "gpopt/operators/CPatternTree.h"
 
 using namespace gpopt;
 
@@ -23,13 +23,18 @@ using namespace gpopt;
 //		CXformDSLRule_Project::CXformDSLRule_Project
 //
 //	@doc:
-//		Ctor — loose pattern: Project(relational-leaf, project-list-leaf).
+//		Ctor — pattern: Project(relational-tree, project-list-tree). Both children
+//		are CPatternTree so the memo binder MATERIALIZES the whole relational
+//		subtree AND the project list, letting a DSL rule of ANY depth rooted at
+//		Project recurse into them — in particular the join-elimination rule
+//		Proj(Join(Input,Input)) -> Proj(Input) (WeTune rules.txt 180/205), whose
+//		Join child a CPatternLeaf would leave as an unmaterialized arity-0 stub.
 //---------------------------------------------------------------------------
 CXformDSLRule_Project::CXformDSLRule_Project(CMemoryPool *mp)
 	: CXformExploration(GPOS_NEW(mp) CExpression(
 		  mp, GPOS_NEW(mp) CLogicalProject(mp),
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // rel
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp))	// prjl
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),  // rel
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))	// prjl
 		  ))
 {
 }

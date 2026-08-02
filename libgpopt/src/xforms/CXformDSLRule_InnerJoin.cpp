@@ -14,7 +14,6 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
-#include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/operators/CPatternTree.h"
 
 using namespace gpopt;
@@ -24,13 +23,17 @@ using namespace gpopt;
 //		CXformDSLRule_InnerJoin::CXformDSLRule_InnerJoin
 //
 //	@doc:
-//		Ctor — loose pattern: InnerJoin(rel-leaf, rel-leaf, predicate-leaf).
+//		Ctor — pattern: InnerJoin(rel-tree, rel-tree, predicate-tree). All three
+//		children are CPatternTree so the memo binder MATERIALIZES both relational
+//		subtrees and the predicate; a CPatternLeaf relational child would bind an
+//		arity-0 stub and any rule nesting below the join (or the join matcher's
+//		own predicate split) could never see it.
 //---------------------------------------------------------------------------
 CXformDSLRule_InnerJoin::CXformDSLRule_InnerJoin(CMemoryPool *mp)
 	: CXformExploration(GPOS_NEW(mp) CExpression(
 		  mp, GPOS_NEW(mp) CLogicalInnerJoin(mp),
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // left
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // right
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),  // left
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),  // right
 		  GPOS_NEW(mp)
 			  CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // join predicate
 		  ))

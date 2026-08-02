@@ -14,7 +14,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalSelect.h"
-#include "gpopt/operators/CPatternLeaf.h"
+#include "gpopt/operators/CPatternTree.h"
 
 using namespace gpopt;
 
@@ -23,13 +23,19 @@ using namespace gpopt;
 //		CXformDSLRule_Select::CXformDSLRule_Select
 //
 //	@doc:
-//		Ctor — loose pattern: Select(relational-leaf, scalar-leaf).
+//		Ctor — pattern: Select(relational-tree, scalar-tree). Both children are
+//		CPatternTree (not CPatternLeaf) so the memo binder MATERIALIZES the whole
+//		relational subtree and the predicate, letting a DSL rule of ANY depth
+//		rooted at Select (e.g. Select(Join(...)) ) recurse into them. A leaf would
+//		bind an unmaterialized group stub (arity 0) and a nested rule could never
+//		match. See CXformExpandFullOuterJoin for the same tree-on-relational-child
+//		idiom.
 //---------------------------------------------------------------------------
 CXformDSLRule_Select::CXformDSLRule_Select(CMemoryPool *mp)
 	: CXformExploration(GPOS_NEW(mp) CExpression(
 		  mp, GPOS_NEW(mp) CLogicalSelect(mp),
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // rel
-		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp))	// pred
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),  // rel
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))	// pred
 		  ))
 {
 }

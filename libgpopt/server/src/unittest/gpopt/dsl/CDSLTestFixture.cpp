@@ -20,6 +20,7 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarBoolOp.h"
@@ -322,6 +323,23 @@ CDSLTestFixture::PexprLogicalInnerJoin(CExpression *pexprLeft,
 	pexprPred->AddRef();
 	return GPOS_NEW(m_mp)
 		CExpression(m_mp, GPOS_NEW(m_mp) CLogicalInnerJoin(m_mp), pexprLeft,
+					pexprRight, pexprPred);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLTestFixture::PexprLogicalLeftOuterJoin
+//---------------------------------------------------------------------------
+CExpression *
+CDSLTestFixture::PexprLogicalLeftOuterJoin(CExpression *pexprLeft,
+										   CExpression *pexprRight,
+										   CExpression *pexprPred)
+{
+	pexprLeft->AddRef();
+	pexprRight->AddRef();
+	pexprPred->AddRef();
+	return GPOS_NEW(m_mp)
+		CExpression(m_mp, GPOS_NEW(m_mp) CLogicalLeftOuterJoin(m_mp), pexprLeft,
 					pexprRight, pexprPred);
 }
 

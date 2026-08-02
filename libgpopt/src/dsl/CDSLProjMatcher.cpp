@@ -13,6 +13,8 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -28,8 +30,17 @@ using namespace gpopt;
 //	@doc:
 //		Collect the CColRef each CScalarProjectElement defines, in list order.
 //---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjMatcher::PdrgpcrSchema
+//
+//	@doc:
+//		Collect the CColRef each CScalarProjectElement DEFINES (its output
+//		column), in list order. This is WeTune's `outValues` = valuesOf(projNode),
+//		bound to the schema symbol <s> (see Match.matchProj).
+//---------------------------------------------------------------------------
 CColRefArray *
-CDSLProjMatcher::PdrgpcrProjected(CExpression *pexprProjList) const
+CDSLProjMatcher::PdrgpcrSchema(CExpression *pexprProjList) const
 {
 	if (nullptr == pexprProjList ||
 		COperator::EopScalarProjectList != pexprProjList->Pop()->Eopid())
@@ -51,6 +62,57 @@ CDSLProjMatcher::PdrgpcrProjected(CExpression *pexprProjList) const
 			CScalarProjectElement::PopConvert(pexprElem->Pop());
 		pdrgpcr->Append(popElem->Pcr());
 	}
+	return pdrgpcr;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjMatcher::PdrgpcrAttrs
+//
+//	@doc:
+//		Collect the columns the project elements' value expressions REFERENCE
+//		(their input dependencies), de-duplicated, in first-seen order. This is
+//		WeTune's `inValues` = flatMap(attrExprs, valueRefsOf), bound to the attrs
+//		symbol <a> (see Match.matchProj). For a plain pass-through projection this
+//		equals the schema columns; for a COMPUTED column (e.g. cname||'x') it is
+//		the underlying column(s) the expression reads (cname) — which is what
+//		AttrsSub(a,t) must test, NOT the freshly-defined output column.
+//---------------------------------------------------------------------------
+CColRefArray *
+CDSLProjMatcher::PdrgpcrAttrs(CExpression *pexprProjList) const
+{
+	if (nullptr == pexprProjList ||
+		COperator::EopScalarProjectList != pexprProjList->Pop()->Eopid())
+	{
+		return nullptr;
+	}
+
+	CColRefSet *pcrsSeen = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	const ULONG ulElems = pexprProjList->Arity();
+	for (ULONG ul = 0; ul < ulElems; ul++)
+	{
+		CExpression *pexprElem = (*pexprProjList)[ul];
+		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid())
+		{
+			pcrsSeen->Release();
+			pdrgpcr->Release();
+			return nullptr;
+		}
+		// the value expression is the project element's scalar child.
+		CColRefSet *pcrsUsed = (*pexprElem)[0]->DeriveUsedColumns();
+		CColRefSetIter crsi(*pcrsUsed);
+		while (crsi.Advance())
+		{
+			CColRef *pcr = crsi.Pcr();
+			if (!pcrsSeen->FMember(pcr))
+			{
+				pcrsSeen->Include(pcr);
+				pdrgpcr->Append(pcr);
+			}
+		}
+	}
+	pcrsSeen->Release();
 	return pdrgpcr;
 }
 
@@ -82,17 +144,25 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
 	const CDSLSymbol *psymSchema = (*pdrgpsym)[1];
 
-	// collect the projected columns and bind them to both <a> and <s>. FBind
-	// AddRefs, so we release our local ref after binding.
-	CColRefArray *pdrgpcr = PdrgpcrProjected((*pexprProject)[1]);
-	if (nullptr == pdrgpcr)
+	// bind <a> and <s> per WeTune Match.matchProj:
+	//   <a> attrs  = columns the projection expressions REFERENCE (valueRefsOf)
+	//   <s> schema = columns the projection DEFINES / outputs (valuesOf)
+	// These differ for computed columns; conflating them (the old code bound both
+	// to the defined column) made AttrsSub(a,t) test the wrong set and wrongly
+	// rejected any rule over a computed projection. FBind AddRefs; release locals.
+	CColRefArray *pdrgpcrAttrs = PdrgpcrAttrs((*pexprProject)[1]);
+	CColRefArray *pdrgpcrSchema = PdrgpcrSchema((*pexprProject)[1]);
+	if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema)
 	{
+		CRefCount::SafeRelease(pdrgpcrAttrs);
+		CRefCount::SafeRelease(pdrgpcrSchema);
 		return false;
 	}
 
-	BOOL fBound = pmodel->FBind(psymAttrs, pdrgpcr) &&
-				  pmodel->FBind(psymSchema, pdrgpcr);
-	pdrgpcr->Release();
+	BOOL fBound = pmodel->FBind(psymAttrs, pdrgpcrAttrs) &&
+				  pmodel->FBind(psymSchema, pdrgpcrSchema);
+	pdrgpcrAttrs->Release();
+	pdrgpcrSchema->Release();
 	if (!fBound)
 	{
 		return false;
