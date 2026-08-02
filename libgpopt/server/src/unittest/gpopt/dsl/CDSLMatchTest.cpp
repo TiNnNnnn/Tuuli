@@ -185,10 +185,11 @@ CDSLMatchTest::EresUnittest_SelectRootMatchesAndRecurses()
 //
 //	@doc:
 //		InnerJoin<a0 a1>(Input<t0>,Input<t1>) matches a live InnerJoin(Get,Get,
-//		pred): both relational children recurse and bind. The scalar join
-//		predicate (child[2]) is beyond the template's arity of 2 — join-key
-//		binding is #27's job. WeTune: Match.matchOne join branch (identity +
-//		child recursion; ORCA leaves join reordering to the memo, doc §6).
+//		pred): both relational children recurse and bind, and the two <a> join-key
+//		symbols bind (M2 — CDSLJoinMatcher). Here the predicate is opaque IsNull
+//		atoms (non-equi), so no equi keys are extracted (<a0>/<a1> bind empty
+//		column arrays) and the atoms are kept as residual; the model still binds
+//		t0, t1, a0, a1 (4 symbols). WeTune: Match.matchOne join branch.
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren()
@@ -223,13 +224,14 @@ CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren()
 	}
 	else
 	{
-		// both Input symbols must be bound to the respective Get subtrees
+		// both Input symbols must be bound to the respective Get subtrees; the
+		// model also carries the two join-key <a> bindings (M2), so Size()==4.
 		CDSLOp *popIn0 = (*popRoot)[0];
 		CDSLOp *popIn1 = (*popRoot)[1];
 		const CDSLSymbol *psymT0 = (*popIn0->Pdrgpsym())[0];
 		const CDSLSymbol *psymT1 = (*popIn1->Pdrgpsym())[0];
 		if (pexprLeft != pmodel->PexprTable(psymT0) ||
-			pexprRight != pmodel->PexprTable(psymT1) || 2 != pmodel->Size())
+			pexprRight != pmodel->PexprTable(psymT1) || 4 != pmodel->Size())
 		{
 			eres = GPOS_FAILED;
 		}

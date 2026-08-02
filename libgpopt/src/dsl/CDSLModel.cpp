@@ -16,7 +16,10 @@ using namespace gpopt;
 //		CDSLModel::CDSLModel
 //---------------------------------------------------------------------------
 CDSLModel::CDSLModel(CMemoryPool *mp)
-	: m_mp(mp), m_pdrgpexprResidual(nullptr), m_pexprProjList(nullptr)
+	: m_mp(mp),
+	  m_pdrgpexprResidual(nullptr),
+	  m_pexprProjList(nullptr),
+	  m_pexprJoinPred(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
@@ -33,6 +36,7 @@ CDSLModel::~CDSLModel()
 	m_phmSymToRef->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pexprProjList);
+	CRefCount::SafeRelease(m_pexprJoinPred);
 }
 
 //---------------------------------------------------------------------------
@@ -63,6 +67,21 @@ CDSLModel::SetProjList(CExpression *pexpr)
 {
 	CRefCount::SafeRelease(m_pexprProjList);
 	m_pexprProjList = pexpr;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLModel::SetJoinPred
+//
+//	@doc:
+//		Take ownership of a matched join's predicate subtree (join match, M2). A
+//		second call replaces the previous one (released).
+//---------------------------------------------------------------------------
+void
+CDSLModel::SetJoinPred(CExpression *pexpr)
+{
+	CRefCount::SafeRelease(m_pexprJoinPred);
+	m_pexprJoinPred = pexpr;
 }
 
 //---------------------------------------------------------------------------

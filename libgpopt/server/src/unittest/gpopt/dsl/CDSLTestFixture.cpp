@@ -10,6 +10,7 @@
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 #include "gpos/common/CAutoRef.h"
+#include "gpos/string/CWStringConst.h"
 
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/CUtils.h"
@@ -22,14 +23,17 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/dxl/operators/CDXLTableDescr.h"  // UNASSIGNED_QUERYID
 #include "naucrates/md/CMDIdGPDB.h"
+#include "naucrates/md/CMDName.h"
 #include "naucrates/md/CMDProviderGeneric.h"
 #include "naucrates/md/CMDProviderMemory.h"
+#include "naucrates/md/CMDScalarOpGPDB.h"
 #include "naucrates/md/CMDTypeBoolGPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "naucrates/md/CMDTypeInt8GPDB.h"
@@ -68,6 +72,32 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt8GPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeBoolGPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeOidGPDB(mp));
+
+	// int4 '=' scalar operator (oid 96). CScalarCmp's ctor looks it up
+	// (FScalarOpReturnsNullOnNullInput / FCommutativeScalarOp), so PexprEqPred —
+	// used to build equi-join keys — needs it registered. '=' is commutative
+	// (commute op is itself), result type bool, cmp type EcmptEq.
+	{
+		CMDName *pmdnameEq = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
+			mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_EQ_OP),
+			pmdnameEq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+								   GPDB_INT4_EQ_OP) /*func (dtor Releases it;
+													  unused by our checks)*/,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+								   GPDB_INT4_EQ_OP) /*commute = itself*/,
+			nullptr /*inverse*/, IMDType::EcmptEq,
+			false /*returns_null_on_null_input*/,
+			GPOS_NEW(mp) IMdIdArray(mp) /*opfamilies*/,
+			nullptr /*hash_opfamily*/, nullptr /*legacy_hash_opfamily*/,
+			false /*is_ndv_preserving*/));
+	}
 
 	m_pmdp = GPOS_NEW(mp) CMDProviderMemory(mp, m_pdrgpmdobj);
 	m_pmdp->AddRef();
@@ -232,6 +262,36 @@ CDSLTestFixture::PexprConjunctionOfAtoms(CColRef **rgpcr, ULONG ulAtoms)
 	return GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp, CScalarBoolOp::EboolopAnd),
 		pdrgpexpr);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLTestFixture::PexprEqPred
+//
+//	@doc:
+//		Equi-join key predicate pcrLeft = pcrRight, built as a CScalarCmp(EcmptEq)
+//		over two CScalarIdents directly (NOT via CUtils::PexprScalarEqCmp, which
+//		does a scalar-op cache lookup the programmatic md provider doesn't carry).
+//		The int4 '=' operator mdid comes straight from the int4 type-info. This is a
+//		plain-equality (both sides CScalarIdent) that CDSLJoinMatcher extracts as a
+//		join key — unlike PexprPredAtom's opaque IsNull.
+//---------------------------------------------------------------------------
+CExpression *
+CDSLTestFixture::PexprEqPred(CColRef *pcrLeft, CColRef *pcrRight)
+{
+	CExpression *pexprLeft = GPOS_NEW(m_mp)
+		CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrLeft));
+	CExpression *pexprRight = GPOS_NEW(m_mp)
+		CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrRight));
+
+	IMDId *pmdidEq = m_pmdtypeInt4->GetMdidForCmpType(IMDType::EcmptEq);
+	pmdidEq->AddRef();  // CScalarCmp owns a ref
+	CWStringConst *pstrEq = GPOS_NEW(m_mp) CWStringConst(GPOS_WSZ_LIT("="));
+
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CScalarCmp(m_mp, pmdidEq, pstrEq, IMDType::EcmptEq),
+		pexprLeft, pexprRight);
 }
 
 //---------------------------------------------------------------------------

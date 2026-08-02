@@ -12,11 +12,21 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 
 #include "gpos/base.h"
+#include "gpos/error/CException.h"
+
+#include "naucrates/exception.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefTable.h"
 #include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/mdcache/CMDAccessor.h"
+#include "gpopt/metadata/CTableDescriptor.h"
 #include "gpopt/operators/CExpression.h"
+#include "gpopt/operators/CLogicalGet.h"
+#include "naucrates/md/CMDForeignKey.h"
+#include "naucrates/md/IMDRelation.h"
 
 using namespace gpopt;
 
@@ -206,22 +216,163 @@ CDSLConstraintChecker::FCheckNotNull(const CDSLConstraint *pcon,
 //		CDSLConstraintChecker::FCheckReference
 //
 //	@doc:
-//		Reference(t0,a0,t1,a1): a0 references a1 via a foreign key. In this ORCA
-//		build the FK metadata (IMDRelation::ForeignKeyAt) is populated only by
-//		CMDRelationGPDB from a live relcache; the programmatic test fixture
-//		carries no FK info, so this is implemented conservatively — with no FK
-//		metadata reachable we currently REJECT (a rule guarded by Reference will
-//		simply not fire on synthetic relations). Full FK verification is enabled
-//		once base B / live PG metadata is wired (doc §1); the test migration marks
-//		Reference as pending accordingly.
+//		Reference(t0,a0,t1,a1): the columns bound to a0 (in the relation bound to
+//		t0) reference the columns bound to a1 (in the relation bound to t1) via a
+//		foreign key. Symbols are positional: [t0, a0, t1, a1].
+//
+//		Live-metadata path (M2): resolve t0's bound subtree to its CLogicalGet ->
+//		CTableDescriptor -> relation MDId -> IMDRelation, then look for a foreign
+//		key whose referenced relation is t1's MDId and whose local/referenced attno
+//		sets equal the attnos of a0 / a1. FK metadata is populated only by
+//		CMDRelationGPDB from a live relcache; the programmatic test fixture carries
+//		none, so on a synthetic relation ForeignKeyCount()==0 and this returns false
+//		(a Reference-guarded rule then simply does not fire — no regression).
 //---------------------------------------------------------------------------
-BOOL
-CDSLConstraintChecker::FCheckReference(const CDSLConstraint *,  // pcon
-									   const CDSLModel *		   // pmodel
-) const
+
+// collect the (table) attnos of the columns bound to an attrs symbol into pais.
+// Returns false if the symbol is unbound or any bound column is not a table
+// column (a Reference over computed columns cannot be an FK).
+static BOOL
+FCollectAttnos(CMemoryPool *mp, const CDSLSymbol *psymAttrs,
+			   const CDSLModel *pmodel, IntPtrArray *pais)
 {
-	// conservative default: cannot confirm the FK => do not fire.
-	return false;
+	CColRefArray *pdrgpcr = pmodel->PdrgpcrAttrs(psymAttrs);
+	if (nullptr == pdrgpcr || 0 == pdrgpcr->Size())
+	{
+		return false;
+	}
+	const ULONG ulCols = pdrgpcr->Size();
+	for (ULONG ul = 0; ul < ulCols; ul++)
+	{
+		CColRef *pcr = (*pdrgpcr)[ul];
+		if (CColRef::EcrtTable != pcr->Ecrt())
+		{
+			return false;
+		}
+		pais->Append(GPOS_NEW(mp) INT(CColRefTable::PcrConvert(pcr)->AttrNum()));
+	}
+	return true;
+}
+
+// true iff the two attno arrays hold the same SET of attnos (order-independent).
+static BOOL
+FSameAttnoSet(const IntPtrArray *paisFst, const IntPtrArray *paisSnd)
+{
+	const ULONG ulFst = paisFst->Size();
+	if (ulFst != paisSnd->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < ulFst; ul++)
+	{
+		const INT iTarget = *(*paisFst)[ul];
+		BOOL fFound = false;
+		for (ULONG ulS = 0; ulS < paisSnd->Size() && !fFound; ulS++)
+		{
+			fFound = (iTarget == *(*paisSnd)[ulS]);
+		}
+		if (!fFound)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// resolve the relation MDId of the subtree bound to a table symbol; NULL if the
+// subtree is not a plain CLogicalGet (conservative — cannot confirm the FK).
+static IMDId *
+PmdidRelFromTableSym(const CDSLSymbol *psymTable, const CDSLModel *pmodel)
+{
+	CExpression *pexpr = pmodel->PexprTable(psymTable);
+	if (nullptr == pexpr ||
+		COperator::EopLogicalGet != pexpr->Pop()->Eopid())
+	{
+		return nullptr;
+	}
+	return CLogicalGet::PopConvert(pexpr->Pop())->Ptabdesc()->MDId();
+}
+
+BOOL
+CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
+									   const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (4 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	// positional schema: Reference(t0, a0, t1, a1)
+	const CDSLSymbol *psymTab0 = (*pdrgpsym)[0];
+	const CDSLSymbol *psymAttr0 = (*pdrgpsym)[1];
+	const CDSLSymbol *psymTab1 = (*pdrgpsym)[2];
+	const CDSLSymbol *psymAttr1 = (*pdrgpsym)[3];
+	if (EdslsymTable != psymTab0->Esymkind() ||
+		EdslsymAttrs != psymAttr0->Esymkind() ||
+		EdslsymTable != psymTab1->Esymkind() ||
+		EdslsymAttrs != psymAttr1->Esymkind())
+	{
+		return false;
+	}
+
+	IMDId *pmdidRel0 = PmdidRelFromTableSym(psymTab0, pmodel);
+	IMDId *pmdidRel1 = PmdidRelFromTableSym(psymTab1, pmodel);
+	if (nullptr == pmdidRel0 || nullptr == pmdidRel1)
+	{
+		return false;
+	}
+
+	IntPtrArray *paisLocal = GPOS_NEW(m_mp) IntPtrArray(m_mp);
+	IntPtrArray *paisRef = GPOS_NEW(m_mp) IntPtrArray(m_mp);
+	if (!FCollectAttnos(m_mp, psymAttr0, pmodel, paisLocal) ||
+		!FCollectAttnos(m_mp, psymAttr1, pmodel, paisRef))
+	{
+		paisLocal->Release();
+		paisRef->Release();
+		return false;
+	}
+
+	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
+
+	BOOL fHolds = false;
+	// RetrieveRel raises ExmiMDCacheEntryNotFound when the relation isn't cached
+	// (e.g. the synthetic programmatic-test fixture registers only scalar types).
+	// A best-effort FK check must never abort optimization, so swallow that one
+	// exception and treat it as "cannot confirm the FK" => reject.
+	GPOS_TRY
+	{
+		const IMDRelation *prel = pmda->RetrieveRel(pmdidRel0);
+		const ULONG ulFK = prel->ForeignKeyCount();
+		for (ULONG ul = 0; ul < ulFK && !fHolds; ul++)
+		{
+			const CMDForeignKey *pfk = prel->ForeignKeyAt(ul);
+			if (pfk->RefMdid()->Equals(pmdidRel1) &&
+				FSameAttnoSet(pfk->LocalAttnos(), paisLocal) &&
+				FSameAttnoSet(pfk->RefAttnos(), paisRef))
+			{
+				fHolds = true;
+			}
+		}
+	}
+	GPOS_CATCH_EX(ex)
+	{
+		if (GPOS_MATCH_EX(ex, gpdxl::ExmaMD, gpdxl::ExmiMDCacheEntryNotFound))
+		{
+			GPOS_RESET_EX;
+			fHolds = false;
+		}
+		else
+		{
+			paisLocal->Release();
+			paisRef->Release();
+			GPOS_RETHROW(ex);
+		}
+	}
+	GPOS_CATCH_END;
+
+	paisLocal->Release();
+	paisRef->Release();
+	return fHolds;
 }
 
 //---------------------------------------------------------------------------

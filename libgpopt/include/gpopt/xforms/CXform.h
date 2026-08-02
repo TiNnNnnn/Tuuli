@@ -248,6 +248,8 @@ public:
 		// ExfInvalid, so all pre-existing xform ids are unchanged.
 		ExfDSLRuleSelect,
 		ExfDSLRuleProject,
+		ExfDSLRuleInnerJoin,
+		ExfDSLRuleLeftJoin,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

@@ -83,6 +83,9 @@ CLogicalInnerJoin::PxfsCandidates(CMemoryPool *mp) const
 
 	(void) xform_set->ExchangeSet(CXform::ExfReduceAggInputViaCTE);
 
+	// MONSOON DSL-rule shell
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInnerJoin);
+
 	return xform_set;
 }
 

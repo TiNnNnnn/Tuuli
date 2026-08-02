@@ -14,6 +14,7 @@
 
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
+#include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
 
 using namespace gpopt;
@@ -172,6 +173,17 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CDSLProjMatcher pm(m_mp, this);
 		return pm.FMatch(pop, pexpr, pmodel);
+	}
+
+	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>
+	// symbols, keep non-equi conjuncts as residual, and recurse both relational
+	// children. Like Filter/Proj, the join predicate (child[2]) is scalar structure
+	// only operator-specific code reads, so join does not go through generic child
+	// recursion (see CDSLJoinMatcher, doc M2).
+	if (EdslopInnerJoin == pop->Edslop() || EdslopLeftJoin == pop->Edslop())
+	{
+		CDSLJoinMatcher jm(m_mp, this);
+		return jm.FMatch(pop, pexpr, pmodel);
 	}
 
 	// operator-identity gate. Operators with no direct ORCA logical counterpart

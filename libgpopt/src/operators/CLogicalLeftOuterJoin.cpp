@@ -86,6 +86,9 @@ CLogicalLeftOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowLeftUnionAll);
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowRightUnionAll);
 
+	// MONSOON DSL-rule shell
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleLeftJoin);
+
 	return xform_set;
 }
 

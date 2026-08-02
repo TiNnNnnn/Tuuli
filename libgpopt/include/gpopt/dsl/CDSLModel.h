@@ -81,6 +81,15 @@ private:
 	// Owns one ref; NULL until a Proj match records it.
 	CExpression *m_pexprProjList;
 
+	// the whole join-predicate scalar subtree (child[2]) of a matched
+	// CLogicalInnerJoin / CLogicalLeftOuterJoin. WeTune's Join<a a> models only the
+	// equi-join key columns as attrs symbols, but ORCA's join predicate also carries
+	// non-equi conjuncts (and the exact comparison ops) those symbols do not capture.
+	// So the join matcher (M2) records the whole predicate here (opaque, AddRef'd —
+	// exactly like Proj records its list) and the instantiator AddRef-grafts it onto
+	// the rebuilt join. Owns one ref; NULL until a Join match records it.
+	CExpression *m_pexprJoinPred;
+
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
@@ -145,6 +154,22 @@ public:
 	PexprProjList() const
 	{
 		return m_pexprProjList;
+	}
+
+	//------------------------------------------------------------------
+	// join predicate (Join match — M2 produces, instantiator consumes)
+	//------------------------------------------------------------------
+
+	// record the join-predicate subtree (child[2]) of a matched join. Takes
+	// ownership of one ref of pexpr; replaces any previous set.
+	void SetJoinPred(CExpression *pexpr);
+
+	// the join-predicate subtree recorded by the join matcher; NULL if no join was
+	// matched. Does NOT transfer ownership.
+	CExpression *
+	PexprJoinPred() const
+	{
+		return m_pexprJoinPred;
 	}
 };
 }  // namespace gpopt

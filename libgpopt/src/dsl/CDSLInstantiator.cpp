@@ -15,6 +15,7 @@
 #include "gpopt/base/CColRef.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -213,12 +214,14 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		CDSLInstantiator::PexprBuildJoin
 //
 //	@doc:
-//		InnerJoin/LeftJoin: rebuild both children and attach the join predicate.
-//		The generic matcher (#24) matches a join's two relational children but
-//		does not yet bind its scalar predicate / keys, so a structural join
-//		rule cannot recover the predicate here. Until join-key binding lands, a
-//		join target is not instantiable — return NULL (the rule simply does not
-//		fire), which is safe. Children are still built to validate the recursion.
+//		InnerJoin/LeftJoin<a a>: rebuild both relational children and graft the
+//		SOURCE-matched join predicate (recorded on the model by CDSLJoinMatcher),
+//		building the join operator the TARGET op names. Reusing the exact predicate
+//		subtree the matcher saw preserves the equi + non-equi conjuncts (and the
+//		precise comparison ops) — so no predicate is dropped and output columns are
+//		preserved without per-key remapping (rebuilding NEW keys is future work).
+//		Returns NULL if the model carries no join predicate (source was not a join),
+//		in which case the rule simply does not fire.
 //---------------------------------------------------------------------------
 CExpression *
 CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
@@ -228,14 +231,45 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	CExpression *pexprLeft = PexprBuild((*pop)[0], pmodel);
-	CExpression *pexprRight =
-		(nullptr != pexprLeft) ? PexprBuild((*pop)[1], pmodel) : nullptr;
 
-	// join predicate / keys not yet recovered by the matcher — see doc.
-	CRefCount::SafeRelease(pexprLeft);
-	CRefCount::SafeRelease(pexprRight);
-	return nullptr;
+	CExpression *pexprJoinPred = pmodel->PexprJoinPred();
+	if (nullptr == pexprJoinPred)
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprLeft = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprLeft)
+	{
+		return nullptr;
+	}
+	CExpression *pexprRight = PexprBuild((*pop)[1], pmodel);
+	if (nullptr == pexprRight)
+	{
+		pexprLeft->Release();
+		return nullptr;
+	}
+
+	// build the join operator the TARGET names (Inner or LeftOuter).
+	CLogicalJoin *popJoin = nullptr;
+	switch (pop->Edslop())
+	{
+		case EdslopInnerJoin:
+			popJoin = GPOS_NEW(m_mp) CLogicalInnerJoin(m_mp);
+			break;
+		case EdslopLeftJoin:
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterJoin(m_mp);
+			break;
+		default:
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+	}
+
+	// graft the matched predicate (AddRef — the model keeps its own ref).
+	pexprJoinPred->AddRef();
+	return GPOS_NEW(m_mp)
+		CExpression(m_mp, popJoin, pexprLeft, pexprRight, pexprJoinPred);
 }
 
 //---------------------------------------------------------------------------

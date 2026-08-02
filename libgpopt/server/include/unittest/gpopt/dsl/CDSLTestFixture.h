@@ -136,6 +136,11 @@ public:
 	// return the single atom unchanged. Consumes one ref of each (AddRef inside).
 	CExpression *PexprConjunctionOfAtoms(CColRef **rgpcr, ULONG ulAtoms);
 
+	// an equi-join key predicate: pcrLeft = pcrRight (CScalarCmp over two
+	// CScalarIdents, int4 '='). Unlike PexprPredAtom this is a plain-equality the
+	// join matcher can split into left/right keys. Caller owns the result.
+	CExpression *PexprEqPred(CColRef *pcrLeft, CColRef *pcrRight);
+
 	//------------------------------------------------------------------
 	// logical nodes
 	//------------------------------------------------------------------

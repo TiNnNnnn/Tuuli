@@ -1,0 +1,109 @@
+//---------------------------------------------------------------------------
+//	MONSOON DSL rule engine
+//
+//	@filename:
+//		CXformDSLRule_LeftJoin.cpp
+//
+//	@doc:
+//		Implementation of the CLogicalLeftOuterJoin DSL-rule shell.
+//---------------------------------------------------------------------------
+#include "gpopt/xforms/CXformDSLRule_LeftJoin.h"
+
+#include "gpos/base.h"
+
+#include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CPatternLeaf.h"
+#include "gpopt/operators/CPatternTree.h"
+
+using namespace gpopt;
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CXformDSLRule_LeftJoin::CXformDSLRule_LeftJoin
+//
+//	@doc:
+//		Ctor — loose pattern: LeftOuterJoin(rel-leaf, rel-leaf, predicate-leaf).
+//---------------------------------------------------------------------------
+CXformDSLRule_LeftJoin::CXformDSLRule_LeftJoin(CMemoryPool *mp)
+	: CXformExploration(GPOS_NEW(mp) CExpression(
+		  mp, GPOS_NEW(mp) CLogicalLeftOuterJoin(mp),
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // left
+		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp)),  // right
+		  GPOS_NEW(mp)
+			  CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))  // join predicate
+		  ))
+{
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CXformDSLRule_LeftJoin::Exfp
+//
+//	@doc:
+//		Promise. High only when there is at least one rule rooted at
+//		CLogicalLeftOuterJoin; otherwise None so the engine skips this shell.
+//---------------------------------------------------------------------------
+CXform::EXformPromise
+CXformDSLRule_LeftJoin::Exfp(CExpressionHandle &  // exprhdl
+) const
+{
+	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
+	if (nullptr == peng ||
+		0 ==
+			peng->PdrgpruleForRoot(COperator::EopLogicalLeftOuterJoin)->Size())
+	{
+		return CXform::ExfpNone;
+	}
+	return CXform::ExfpHigh;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CXformDSLRule_LeftJoin::Transform
+//
+//	@doc:
+//		Hand the expression to the engine; for each LeftJoin-rooted rule run the
+//		three-stage decision (match && check && instantiate!=NULL) and add every
+//		produced alternative. Instantiate re-roots any result so the alternative
+//		handed to ORCA is always a freshly-built CExpression.
+//---------------------------------------------------------------------------
+void
+CXformDSLRule_LeftJoin::Transform(CXformContext *pxfctxt,
+								  CXformResult *pxfres,
+								  CExpression *pexpr) const
+{
+	GPOS_ASSERT(nullptr != pxfctxt);
+	GPOS_ASSERT(FPromising(pxfctxt->Pmp(), this, pexpr));
+	GPOS_ASSERT(FCheckPattern(pexpr));
+
+	CMemoryPool *mp = pxfctxt->Pmp();
+	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
+	GPOS_ASSERT(nullptr != peng);  // Exfp gated on a non-null engine
+
+	const CDSLRuleArray *pdrgprule =
+		peng->PdrgpruleForRoot(COperator::EopLogicalLeftOuterJoin);
+
+	const ULONG ulRules = pdrgprule->Size();
+	for (ULONG ul = 0; ul < ulRules; ul++)
+	{
+		const CDSLRule *prule = (*pdrgprule)[ul];
+
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		if (peng->FMatch(prule, pexpr, pmodel) &&
+			peng->FCheckConstraints(prule, pmodel, pexpr))
+		{
+			CExpression *pexprTgt = peng->PexprInstantiate(mp, prule, pmodel);
+			if (nullptr != pexprTgt)
+			{
+				// trust chain: rule carries a WeTune EQ proof, so ORCA does not
+				// re-verify equivalence (see design §七).
+				pxfres->Add(pexprTgt);
+			}
+		}
+		pmodel->Release();
+	}
+}
+
+// EOF
