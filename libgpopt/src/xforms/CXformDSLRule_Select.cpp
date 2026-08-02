@@ -15,6 +15,7 @@
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPatternTree.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
@@ -52,6 +53,13 @@ CXform::EXformPromise
 CXformDSLRule_Select::Exfp(CExpressionHandle &	// exprhdl
 ) const
 {
+	// master switch: pg_orca.enable_dsl_rule (trace flag EopttracePreserveOpsForDSL)
+	// gates whether DSL rules fire at all. Off => behave as native ORCA.
+	if (!GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	{
+		return CXform::ExfpNone;
+	}
+
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	if (nullptr == peng ||
 		0 == peng->PdrgpruleForRoot(COperator::EopLogicalSelect)->Size())
