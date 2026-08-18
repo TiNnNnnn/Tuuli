@@ -19,6 +19,7 @@
 #include "gpopt/metadata/CName.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -374,6 +375,47 @@ CDSLTestFixture::PexprLogicalProject(CExpression *pexprChild,
 	pexprChild->AddRef();
 	return GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprPrjList);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLTestFixture::PexprLogicalGbAgg
+//
+//	@doc:
+//		GbAgg(child, empty CScalarProjectList) grouping by pdrgpcrGrouping with no
+//		aggregate functions — ORCA's SELECT DISTINCT. The 3-arg CLogicalGbAgg ctor
+//		takes ownership of the grouping array, so AddRef it first. An empty agg
+//		project list is exactly the shape CXformSimplifyGbAgg::FDropGbAgg (and the
+//		DSL dedup matcher) operate on.
+//---------------------------------------------------------------------------
+CExpression *
+CDSLTestFixture::PexprLogicalGbAgg(CExpression *pexprChild,
+								   CColRefArray *pdrgpcrGrouping,
+								   CColRef *pcrAgg)
+{
+	// aggregate project list: empty for a pure dedup; one (dummy) element when a
+	// caller wants a non-empty list (matcher reject test).
+	CExpressionArray *pdrgpexprPrEl = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	if (nullptr != pcrAgg)
+	{
+		CColRef *pcrIn = (0 < pdrgpcrGrouping->Size()) ? (*pdrgpcrGrouping)[0]
+													   : pcrAgg;
+		CExpression *pexprIdent = GPOS_NEW(m_mp)
+			CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrIn));
+		pdrgpexprPrEl->Append(GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarProjectElement(m_mp, pcrAgg),
+			pexprIdent));
+	}
+	CExpression *pexprPrjList = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);
+
+	pdrgpcrGrouping->AddRef();
+	pexprChild->AddRef();
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, pdrgpcrGrouping,
+									 COperator::EgbaggtypeGlobal),
+		pexprChild, pexprPrjList);
 }
 
 // EOF

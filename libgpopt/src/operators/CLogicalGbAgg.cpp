@@ -585,6 +585,8 @@ CLogicalGbAgg::PxfsCandidates(CMemoryPool *mp) const
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
 	(void) xform_set->ExchangeSet(CXform::ExfSimplifyGbAgg);
+	// MONSOON DSL-rule shell rooted at CLogicalGbAgg (dedup elimination etc.)
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleAgg);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAggWithMDQA2Join);
 	(void) xform_set->ExchangeSet(CXform::ExfCollapseGbAgg);
 	(void) xform_set->ExchangeSet(CXform::ExfPushGbBelowJoin);

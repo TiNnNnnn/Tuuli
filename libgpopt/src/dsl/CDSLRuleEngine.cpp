@@ -108,6 +108,7 @@ CDSLRuleEngine::Init(const CHAR *szPath)
 	{
 		CDSLRuleLoader::SLoadStats stats;
 		CWStringDynamic strErrs(mp);
+		//TODO: load the rule from postgresql sytem table instead of from static file.
 		CDSLRuleArray *pdrgprule = CDSLRuleLoader::PdrgpdslruleLoadFile(
 			mp, szPath, true /*fEqOnly*/, &stats, &strErrs);
 

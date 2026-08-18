@@ -166,6 +166,18 @@ public:
 	// column projection (SELECT c0, c1, ... FROM ...).
 	CExpression *PexprLogicalProject(CExpression *pexprChild,
 									 CColRefArray *pdrgpcrProj);
+
+	// GbAgg(child, empty-project-list) grouping by the given columns with NO
+	// aggregate functions — ORCA's representation of SELECT DISTINCT cols. AddRefs
+	// the child and the grouping array; caller owns the result. Used by the dedup
+	// (DISTINCT) elimination rule (the DSL analogue of CXformSimplifyGbAgg).
+	//
+	// If pcrAgg is non-NULL, a single (dummy) aggregate project element defining
+	// pcrAgg is added so the agg list is NON-empty — used by the dedup matcher's
+	// reject-non-empty-agg test. (Structural only; not a real aggregate function.)
+	CExpression *PexprLogicalGbAgg(CExpression *pexprChild,
+								   CColRefArray *pdrgpcrGrouping,
+								   CColRef *pcrAgg = nullptr);
 };
 }  // namespace gpopt
 

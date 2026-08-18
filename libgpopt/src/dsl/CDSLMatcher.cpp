@@ -13,6 +13,7 @@
 #include "gpos/base.h"
 
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLAggMatcher.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
@@ -169,10 +170,28 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// Filter, Proj carries scalar structure (the project list) that only
 	// operator-specific code reads, so it does not go through generic child
 	// recursion (see CDSLProjMatcher, doc M1).
+	//
+	// Proj* (deduplicated projection) has NO CLogicalProject counterpart in ORCA
+	// — SELECT DISTINCT becomes a CLogicalGbAgg (empty agg list). So a DISTINCT
+	// Proj routes to the Agg matcher instead; a plain Proj to the Proj matcher.
 	if (EdslopProj == pop->Edslop())
 	{
+		if (pop->FDistinct())
+		{
+			CDSLAggMatcher am(m_mp, this);
+			return am.FMatch(pop, pexpr, pmodel);
+		}
 		CDSLProjMatcher pm(m_mp, this);
 		return pm.FMatch(pop, pexpr, pmodel);
+	}
+
+	// Agg<a a a f s p>: routes to the Agg matcher, which currently supports only
+	// the pure-dedup form (empty agg list). An Agg carrying aggregate functions is
+	// rejected there (a later milestone), so such a rule does not fire.
+	if (EdslopAgg == pop->Edslop())
+	{
+		CDSLAggMatcher am(m_mp, this);
+		return am.FMatch(pop, pexpr, pmodel);
 	}
 
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>

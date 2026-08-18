@@ -250,6 +250,7 @@ public:
 		ExfDSLRuleProject,
 		ExfDSLRuleInnerJoin,
 		ExfDSLRuleLeftJoin,
+		ExfDSLRuleAgg,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

@@ -90,6 +90,13 @@ private:
 	// the rebuilt join. Owns one ref; NULL until a Join match records it.
 	CExpression *m_pexprJoinPred;
 
+	// set by the Agg matcher when the matched source root is a pure-dedup
+	// CLogicalGbAgg (empty agg list) whose grouping columns form a key — i.e. a
+	// redundant SELECT DISTINCT. The instantiator then drops the GbAgg by wrapping
+	// the resolved relational child in Select(child, TRUE), mirroring ORCA's own
+	// CXformSimplifyGbAgg::FDropGbAgg. No artifact to own — just a bit.
+	BOOL m_fDedupDrop;
+
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
@@ -170,6 +177,26 @@ public:
 	PexprJoinPred() const
 	{
 		return m_pexprJoinPred;
+	}
+
+	//------------------------------------------------------------------
+	// dedup drop (Agg match — Agg matcher produces, instantiator consumes)
+	//------------------------------------------------------------------
+
+	// mark the matched source root as a redundant dedup GbAgg to be dropped
+	// (grouping cols form a key, no agg functions). The instantiator wraps the
+	// resolved child in Select(child, TRUE).
+	void
+	SetDedupDrop()
+	{
+		m_fDedupDrop = true;
+	}
+
+	// whether the Agg matcher flagged a redundant dedup GbAgg for elimination.
+	BOOL
+	FDedupDrop() const
+	{
+		return m_fDedupDrop;
 	}
 };
 }  // namespace gpopt

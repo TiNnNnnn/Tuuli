@@ -19,7 +19,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgpexprResidual(nullptr),
 	  m_pexprProjList(nullptr),
-	  m_pexprJoinPred(nullptr)
+	  m_pexprJoinPred(nullptr),
+	  m_fDedupDrop(false)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);

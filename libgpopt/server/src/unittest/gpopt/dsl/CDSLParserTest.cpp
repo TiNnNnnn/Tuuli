@@ -95,8 +95,9 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,"
 		"Input<t3>)|AttrsSub(a0,t0);Reference(t0,a0,t1,a1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
-		// Agg (5 symbols) + Exists + Union (no <...>)
-		"Exists(Union(Input<t0>,Input<t1>),Agg<a0 a1 f0 s0 p0>(Input<t2>))"
+		// Agg (6 symbols: groupBy, aggAttrs, aggOutAttrs, func, schema, having)
+		// + Exists + Union (no <...>)
+		"Exists(Union(Input<t0>,Input<t1>),Agg<a0 a1 a2 f0 s0 p0>(Input<t2>))"
 		"|Input<t3>|TableEq(t3,t0)",
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
@@ -130,8 +131,8 @@ CDSLParserTest::EresUnittest_SymbolArity()
 		bad->Release();
 		return GPOS_FAILED;
 	}
-	// Agg needs 5; four is an error.
-	bad = Parse(mp, "Agg<a0 a1 f0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	// Agg needs 6; five is an error.
+	bad = Parse(mp, "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
 	if (nullptr != bad)
 	{
 		bad->Release();

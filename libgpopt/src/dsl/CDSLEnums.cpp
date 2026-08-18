@@ -38,7 +38,7 @@ struct SDslOpDesc
 //   InSubFilter<a>     (attrs)
 //   Exists     <>      (no symbols)
 //   Proj       <a s>   (attrs, schema)
-//   Agg        <a a f s p> (groupBy, aggAttrs, func, schema, havingPred)
+//   Agg        <a a a f s p> (groupBy, aggAttrs, aggOutAttrs, func, schema, havingPred)
 //   Sort       <a>     (attrs)
 //   Limit      <n n>   (limit, offset)
 //   Union      <>      (no symbols)
@@ -50,8 +50,9 @@ const SDslOpDesc rg_op_desc[] = {
 	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
 	{EdslopExists, "Exists", 2, 0, {}},
 	{EdslopProj, "Proj", 1, 2, {EdslsymAttrs, EdslsymSchema}},
-	{EdslopAgg, "Agg", 1, 5,
-	 {EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema, EdslsymPred}},
+	{EdslopAgg, "Agg", 1, 6,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
+	  EdslsymPred}},
 	{EdslopSort, "Sort", 1, 1, {EdslsymAttrs}},
 	{EdslopLimit, "Limit", 1, 2, {EdslsymScalar, EdslsymScalar}},
 	{EdslopUnion, "Union", 2, 0, {}},
@@ -129,7 +130,10 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 		case EdslopFilter:
 			return COperator::EopLogicalSelect;
 		case EdslopProj:
-			return COperator::EopLogicalProject;
+			// Proj* (dedup projection) => ORCA SELECT DISTINCT => CLogicalGbAgg
+			// (grouping = projected cols, empty agg list); plain Proj => Project.
+			return fDistinct ? COperator::EopLogicalGbAgg
+							 : COperator::EopLogicalProject;
 		case EdslopInnerJoin:
 			return COperator::EopLogicalInnerJoin;
 		case EdslopLeftJoin:

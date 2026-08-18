@@ -386,6 +386,21 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 
 	BuildAliasMap(prule);
 	CExpression *pexprTgt = PexprBuild(prule->PfragTgt()->PopRoot(), pmodel);
+
+	// dedup drop: the source root was a redundant SELECT DISTINCT (pure-dedup
+	// CLogicalGbAgg whose grouping cols form a key). PexprBuild produced the
+	// resolved relational child (a bare Input target); wrap it in Select(child,
+	// TRUE) to drop the GbAgg, exactly like ORCA's CXformSimplifyGbAgg::FDropGbAgg.
+	// This keeps the memo group's output-column invariant: the trivial Select
+	// outputs the child's columns (a superset of the GbAgg's grouping-only output),
+	// which is the same substitution the native xform makes. The Select is a fresh
+	// CExpression, so PexprFreshRoot returns it as-is (no remap needed).
+	if (nullptr != pexprTgt && pmodel->FDedupDrop())
+	{
+		pexprTgt = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
+			CPredicateUtils::PexprConjunction(m_mp, nullptr));
+	}
 	return PexprFreshRoot(pexprTgt);
 }
 
