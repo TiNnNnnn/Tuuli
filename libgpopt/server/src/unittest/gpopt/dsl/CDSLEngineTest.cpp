@@ -35,10 +35,36 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_ShellRegistered),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_SelectDispatches),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_Bucketing),
+		GPOS_UNITTEST_FUNC(
+			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability
+//
+//	@doc:
+//		Select-stage routing is classified by DSL operator semantics. Both a
+//		single and a nested InSub source have the same capability; Exists shares
+//		it, while ordinary Select/Agg operators do not. This prevents dispatch
+//		from growing rule-shape checks as more corpus rules are admitted.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability()
+{
+	if (!CDSLOpKindTable::FHasPreUnnestRepresentation(EdslopInSubFilter) ||
+		!CDSLOpKindTable::FHasPreUnnestRepresentation(EdslopExists) ||
+		CDSLOpKindTable::FHasPreUnnestRepresentation(EdslopFilter) ||
+		CDSLOpKindTable::FHasPreUnnestRepresentation(EdslopAgg))
+	{
+		return GPOS_FAILED;
+	}
+
+	return GPOS_OK;
 }
 
 //---------------------------------------------------------------------------

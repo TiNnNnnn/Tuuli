@@ -40,6 +40,9 @@ public:
 	// engine buckets a loaded library by source-root EOperatorId
 	static GPOS_RESULT EresUnittest_Bucketing();
 
+	// subquery phase routing is an operator capability, independent of rule shape
+	static GPOS_RESULT EresUnittest_SubqueryRepresentationCapability();
+
 	// three-stage entry points are callable (phase-1 stubs: no rewrite)
 	static GPOS_RESULT EresUnittest_StubsCallable();
 };	// class CDSLEngineTest

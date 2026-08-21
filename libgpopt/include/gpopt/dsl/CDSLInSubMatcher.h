@@ -30,10 +30,12 @@ private:
 	BOOL FBindOuterAttrs(const CDSLOp *pop, CExpression *pexprScalar,
 					 CDSLModel *pmodel) const;
 
-	// Match one DSL inner child against the relational child carried by ANY.
-	// Handles PostgreSQL's pass-through Proj folding normalization.
-	BOOL FMatchInner(const CDSLOp *popInner, CExpression *pexprAny,
-					 CDSLModel *pmodel) const;
+	// Match one DSL inner child against a live inner relation. pcrProjected is
+	// the subquery output column recorded by either ScalarSubqueryAny or Apply.
+	// Handles PostgreSQL's pass-through Proj folding normalization uniformly in
+	// both representations.
+	BOOL FMatchInner(const CDSLOp *popInner, CExpression *pexprInner,
+					 const CColRef *pcrProjected, CDSLModel *pmodel) const;
 
 	// Reconstruct the equality predicate represented by ScalarSubqueryAny.
 	// Caller owns the returned expression.

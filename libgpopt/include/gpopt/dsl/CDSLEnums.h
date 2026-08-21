@@ -147,6 +147,13 @@ public:
 	// for). fDistinct selects Union vs UnionAll / (future) distinct variants.
 	static COperator::EOperatorId Eopid(EDslOpKind edslop, BOOL fDistinct);
 
+	// True when the DSL operator is a SQL subquery filter whose translated
+	// expression has two supported matching representations: a Select carrying
+	// a scalar subquery before unnesting, and an Apply operator afterwards.
+	// Dispatch uses this operator capability (not a particular rule shape) to
+	// choose exactly one representation in an optimization run.
+	static BOOL FHasPreUnnestRepresentation(EDslOpKind edslop);
+
 	// resolve an input operator token (with aliases + '*'/dir suffixes stripped)
 	// to a kind. Mirrors WeTune OpKind.parse. Returns EdslopSentinel if unknown.
 	// On return, *pfStar / *pedslsort report the parsed '*' and Sort direction.

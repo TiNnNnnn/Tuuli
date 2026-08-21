@@ -74,18 +74,25 @@ PG_CONFIG="$PG_CONFIG" test/dsl/e2e.sh
 ```
 
 `test/dsl/e2e.sh` creates and removes its own temporary PostgreSQL cluster and
-loads the tracked real-rule fixture in `test/dsl/rules/`. It verifies all of
-the following:
+loads a tracked library in the original MONSOON rule format from
+`test/dsl/rules/`. The cases exercise framework capabilities rather than C++
+implementations of individual rules. It verifies all of the following:
 
 - DSL OFF versus ON changes a repeated-IN plan from two joins to one;
-- with native `CXformSelect2Apply` disabled, DSL OFF falls back while DSL ON
-  still produces a pg_orca plan;
-- the causally rewritten query returns the same rows as PostgreSQL;
+- a separate single self-IN rule eliminates its join while preserving a sibling
+  predicate, through both pre-Apply and post-Apply representations;
+- Agg/HAVING produces a real DSL xform alternative even when its identity-shaped
+  framework probe does not change the final plan;
+- a real `Exists(Agg,Proj)` corpus rule works with HAVING and correlated EXISTS;
+- with native `CXformSelect2Apply` disabled, the IN and EXISTS DSL OFF controls
+  fall back while DSL ON still produces pg_orca plans;
+- every rewritten query returns the same rows as PostgreSQL;
 - a different second inner table is rejected by the rule's `TableEq` check.
 
 Plans and server logs are written to `build/dsl-e2e/`. Set
 `DSL_E2E_KEEP_TMP=1` to preserve the temporary data directory after a local
-run, or `DSL_RULE_FILE` to test another compatible repeated-IN rule fixture.
+run. `DSL_RULE_FILE` may point to another library that supplies all operators
+and constraints exercised by this framework harness.
 
 ### PostgreSQL standard regression suite with ORCA loaded
 

@@ -158,6 +158,12 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 	}
 }
 
+BOOL
+CDSLOpKindTable::FHasPreUnnestRepresentation(EDslOpKind edslop)
+{
+	return EdslopExists == edslop || EdslopInSubFilter == edslop;
+}
+
 EDslOpKind
 CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 					   EDslSortDir *pedslsort,

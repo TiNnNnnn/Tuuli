@@ -33,6 +33,59 @@ using namespace gpopt;
 namespace
 {
 CExpression *
+PexprSingleBaseGet(CExpression *pexpr, BOOL *pfAmbiguous)
+{
+	if (nullptr == pexpr || *pfAmbiguous)
+	{
+		return nullptr;
+	}
+	if (COperator::EopLogicalGet == pexpr->Pop()->Eopid())
+	{
+		return pexpr;
+	}
+
+	CExpression *pexprFound = nullptr;
+	for (ULONG ul = 0; ul < pexpr->Arity() && !*pfAmbiguous; ul++)
+	{
+		CExpression *pexprChild =
+			PexprSingleBaseGet((*pexpr)[ul], pfAmbiguous);
+		if (nullptr == pexprChild)
+		{
+			continue;
+		}
+		if (nullptr != pexprFound && pexprFound != pexprChild)
+		{
+			*pfAmbiguous = true;
+			return nullptr;
+		}
+		pexprFound = pexprChild;
+	}
+	return *pfAmbiguous ? nullptr : pexprFound;
+}
+
+CExpression *
+PexprOwningGetInSubtree(CExpression *pexpr, const CColRef *pcr)
+{
+	if (nullptr == pexpr)
+	{
+		return nullptr;
+	}
+	if (COperator::EopLogicalGet == pexpr->Pop()->Eopid())
+	{
+		return pexpr->DeriveOutputColumns()->FMember(pcr) ? pexpr : nullptr;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CExpression *pexprGet = PexprOwningGetInSubtree((*pexpr)[ul], pcr);
+		if (nullptr != pexprGet)
+		{
+			return pexprGet;
+		}
+	}
+	return nullptr;
+}
+
+CExpression *
 PexprOwningGet(const CDSLRule *prule, const CDSLModel *pmodel,
 			   const CColRef *pcr)
 {
@@ -45,11 +98,10 @@ PexprOwningGet(const CDSLRule *prule, const CDSLModel *pmodel,
 			continue;
 		}
 		CExpression *pexpr = pmodel->PexprTable(psym);
-		if (nullptr != pexpr &&
-			COperator::EopLogicalGet == pexpr->Pop()->Eopid() &&
-			pexpr->DeriveOutputColumns()->FMember(pcr))
+		CExpression *pexprGet = PexprOwningGetInSubtree(pexpr, pcr);
+		if (nullptr != pexprGet)
 		{
-			return pexpr;
+			return pexprGet;
 		}
 	}
 	return nullptr;
@@ -484,13 +536,18 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 			{
 				return true;
 			}
-			if (COperator::EopLogicalGet == pexprFirst->Pop()->Eopid() &&
-				COperator::EopLogicalGet == pexprSecond->Pop()->Eopid())
+			BOOL fFirstAmbiguous = false;
+			BOOL fSecondAmbiguous = false;
+			CExpression *pexprFirstGet =
+				PexprSingleBaseGet(pexprFirst, &fFirstAmbiguous);
+			CExpression *pexprSecondGet =
+				PexprSingleBaseGet(pexprSecond, &fSecondAmbiguous);
+			if (nullptr != pexprFirstGet && nullptr != pexprSecondGet)
 			{
-				return CLogicalGet::PopConvert(pexprFirst->Pop())
+				return CLogicalGet::PopConvert(pexprFirstGet->Pop())
 					->Ptabdesc()
 					->MDId()
-					->Equals(CLogicalGet::PopConvert(pexprSecond->Pop())
+					->Equals(CLogicalGet::PopConvert(pexprSecondGet->Pop())
 							 ->Ptabdesc()
 							 ->MDId());
 			}

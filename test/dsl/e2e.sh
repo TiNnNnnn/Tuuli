@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/repeated_insub.rules}"
+RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/framework.rules}"
 OUTPUT_DIR="${DSL_E2E_OUTPUT_DIR:-$REPO_ROOT/build/dsl-e2e}"
 PG_CONFIG="${PG_CONFIG:-$(command -v pg_config || true)}"
 PORT="${DSL_E2E_PORT:-55439}"
@@ -77,11 +77,17 @@ CREATE TABLE dsl_insub_outer(id int PRIMARY KEY, v int NOT NULL);
 CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
 INSERT INTO dsl_insub_outer VALUES (1,10),(2,20),(3,30);
 INSERT INTO dsl_insub_inner VALUES (1),(3);
+CREATE TABLE dsl_agg_outer(g int, v int);
+CREATE TABLE dsl_exists_inner(x int);
+INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
+INSERT INTO dsl_exists_inner VALUES (5),(20);
 ANALYZE dsl_insub_outer;
 ANALYZE dsl_insub_inner;
+ANALYZE dsl_agg_outer;
+ANALYZE dsl_exists_inner;
 "
 
-QUERY="
+REPEATED_IN_QUERY="
 SELECT id, v
 FROM dsl_insub_outer o
 WHERE id IN (SELECT id FROM dsl_insub_inner i1)
@@ -89,23 +95,56 @@ WHERE id IN (SELECT id FROM dsl_insub_inner i1)
 ORDER BY id
 "
 
+SELF_IN_QUERY="
+SELECT id, v
+FROM dsl_insub_outer o
+WHERE id IN (SELECT id FROM dsl_insub_outer i)
+  AND v > 10
+ORDER BY id
+"
+
+AGG_HAVING_QUERY="
+SELECT g, max(v) AS max_v
+FROM dsl_agg_outer
+GROUP BY g
+HAVING max(v) > 5
+ORDER BY g
+"
+
+AGG_EXISTS_QUERY="
+SELECT g, max(v) AS max_v
+FROM dsl_agg_outer
+GROUP BY g
+HAVING max(v) > 5
+   AND EXISTS (
+       SELECT x + 1
+       FROM dsl_exists_inner
+       WHERE x = max(v))
+ORDER BY g
+"
+
 run_explain()
 {
     local output_file=$1
     local dsl_enabled=$2
-    local disable_native=$3
-    local disable_sql=""
+    local native_enabled=$3
+    local query=$4
+    local trace_xforms=${5:-off}
+    local native_sql="DO 'BEGIN PERFORM enable_xform(''CXformSelect2Apply''); END';"
 
-    if [[ "$disable_native" = "yes" ]]; then
-        disable_sql="DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';"
+    if [[ "$native_enabled" = "off" ]]; then
+        native_sql="DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';"
     fi
 
     "${PSQL[@]}" -q -c "
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=$dsl_enabled;
-$disable_sql
-EXPLAIN (COSTS OFF) $QUERY;
+$native_sql
+SET optimizer_print_xform=$trace_xforms;
+SET optimizer_print_xform_results=$trace_xforms;
+SET client_min_messages=log;
+EXPLAIN (COSTS OFF) $query;
 " >"$output_file" 2>&1
 }
 
@@ -125,6 +164,31 @@ assert_not_contains()
     fi
 }
 
+assert_xform_produced_alternative()
+{
+    local file=$1
+    local xform=$2
+
+    awk -v xform="$xform" '
+        index($0, "Xform: " xform) {
+            in_xform = 1
+            in_alternatives = 0
+            next
+        }
+        in_xform && index($0, "TRACE,\"Xform:") {
+            in_xform = 0
+        }
+        in_xform && /^Alternatives:/ {
+            in_alternatives = 1
+            next
+        }
+        in_xform && in_alternatives && /^0:/ {
+            found = 1
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$file" || fail "$xform produced no alternative in $file"
+}
+
 count_plan_joins()
 {
     grep -Ec \
@@ -132,10 +196,45 @@ count_plan_joins()
         "$1" || true
 }
 
+assert_same_rows()
+{
+    local case_name=$1
+    local query=$2
+    local expected=$3
+    local native_enabled=$4
+    local native_sql="DO 'BEGIN PERFORM enable_xform(''CXformSelect2Apply''); END';"
+    local dsl_rows
+    local postgres_rows
+
+    if [[ "$native_enabled" = "off" ]]; then
+        native_sql="DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';"
+    fi
+
+    dsl_rows="$("${PSQL[@]}" -qAt -c "
+LOAD 'pg_orca';
+SET pg_orca.enable_orca=on;
+SET pg_orca.enable_dsl_rule=on;
+$native_sql
+COPY ($query) TO STDOUT WITH (FORMAT csv);
+")"
+    postgres_rows="$("${PSQL[@]}" -qAt -c "
+LOAD 'pg_orca';
+SET pg_orca.enable_orca=off;
+COPY ($query) TO STDOUT WITH (FORMAT csv);
+")"
+
+    if [[ "$dsl_rows" != "$postgres_rows" ]]; then
+        fail "$case_name: DSL and PostgreSQL returned different rows"
+    fi
+    if [[ "$dsl_rows" != "$expected" ]]; then
+        fail "$case_name: unexpected result rows: $dsl_rows"
+    fi
+}
+
 # Normal ON/OFF comparison: native ORCA first unnests the subqueries, then the
 # post-Apply DSL rule removes the duplicate join.
-run_explain "$OUTPUT_DIR/dsl-off-native-on.plan" off no
-run_explain "$OUTPUT_DIR/dsl-on-native-on.plan" on no
+run_explain "$OUTPUT_DIR/dsl-off-native-on.plan" off on "$REPEATED_IN_QUERY"
+run_explain "$OUTPUT_DIR/dsl-on-native-on.plan" on on "$REPEATED_IN_QUERY"
 
 assert_contains "$OUTPUT_DIR/dsl-off-native-on.plan" "Optimizer: pg_orca"
 assert_contains "$OUTPUT_DIR/dsl-on-native-on.plan" "Optimizer: pg_orca"
@@ -151,8 +250,8 @@ fi
 
 # Causal control: with the native subquery-to-Apply xform disabled, pg_orca can
 # only produce a plan when the loaded DSL rule performs the rewrite itself.
-run_explain "$OUTPUT_DIR/dsl-off-native-off.plan" off yes
-run_explain "$OUTPUT_DIR/dsl-on-native-off.plan" on yes
+run_explain "$OUTPUT_DIR/dsl-off-native-off.plan" off off "$REPEATED_IN_QUERY"
+run_explain "$OUTPUT_DIR/dsl-on-native-off.plan" on off "$REPEATED_IN_QUERY"
 
 assert_not_contains "$OUTPUT_DIR/dsl-off-native-off.plan" "Optimizer: pg_orca"
 assert_contains "$OUTPUT_DIR/dsl-on-native-off.plan" "Optimizer: pg_orca"
@@ -167,12 +266,12 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
 DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';
-COPY ($QUERY) TO STDOUT WITH (FORMAT csv);
+COPY ($REPEATED_IN_QUERY) TO STDOUT WITH (FORMAT csv);
 ")"
 postgres_rows="$("${PSQL[@]}" -qAt -c "
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=off;
-COPY ($QUERY) TO STDOUT WITH (FORMAT csv);
+COPY ($REPEATED_IN_QUERY) TO STDOUT WITH (FORMAT csv);
 ")"
 expected_rows=$'1,10\n3,30'
 
@@ -182,6 +281,61 @@ fi
 if [[ "$dsl_rows" != "$expected_rows" ]]; then
     fail "unexpected result rows: $dsl_rows"
 fi
+
+# A different real rule exercises the same InSub matcher with a one-node source
+# and an eliminating target. This guards against implementing only the repeated
+# IN tree shape. The residual v > 10 predicate must survive elimination.
+run_explain "$OUTPUT_DIR/self-in-off-native-on.plan" off on "$SELF_IN_QUERY"
+run_explain "$OUTPUT_DIR/self-in-on-native-on.plan" on on "$SELF_IN_QUERY" on
+assert_contains "$OUTPUT_DIR/self-in-off-native-on.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/self-in-on-native-on.plan" "Optimizer: pg_orca"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/self-in-on-native-on.plan" "CXformDSLRule_InSub"
+self_off_join_count="$(count_plan_joins "$OUTPUT_DIR/self-in-off-native-on.plan")"
+self_on_join_count="$(count_plan_joins "$OUTPUT_DIR/self-in-on-native-on.plan")"
+if (( self_off_join_count < 1 )); then
+    fail "self-IN DSL OFF baseline should contain a join"
+fi
+if (( self_on_join_count != 0 )); then
+    fail "self-IN DSL ON should eliminate the join, found $self_on_join_count"
+fi
+
+run_explain "$OUTPUT_DIR/self-in-off-native-off.plan" off off "$SELF_IN_QUERY"
+run_explain "$OUTPUT_DIR/self-in-on-native-off.plan" on off "$SELF_IN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/self-in-off-native-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Optimizer: pg_orca"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/self-in-on-native-off.plan" "CXformDSLRule_Select"
+if (( $(count_plan_joins "$OUTPUT_DIR/self-in-on-native-off.plan") != 0 )); then
+    fail "causal self-IN DSL ON should eliminate the join"
+fi
+assert_same_rows "self-IN" "$SELF_IN_QUERY" $'2,20\n3,30' off
+
+# Agg/HAVING is an identity-shaped framework probe: the observable plan need
+# not change, so xform trace proves that generic match/check/instantiate ran.
+run_explain "$OUTPUT_DIR/agg-having-off.plan" off on "$AGG_HAVING_QUERY" on
+run_explain "$OUTPUT_DIR/agg-having-on.plan" on on "$AGG_HAVING_QUERY" on
+assert_contains "$OUTPUT_DIR/agg-having-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/agg-having-on.plan" "Optimizer: pg_orca"
+assert_not_contains "$OUTPUT_DIR/agg-having-off.plan" "CXformDSLRule_Select"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/agg-having-on.plan" "CXformDSLRule_Select"
+assert_same_rows "Agg/HAVING" "$AGG_HAVING_QUERY" $'1,20' on
+
+# The real Exists(Agg,Proj) corpus rule crosses matcher/instantiator boundaries.
+# With native unnesting disabled, only the Select-stage DSL representation can
+# make the query optimizable; the sibling HAVING conjunct is also preserved.
+run_explain "$OUTPUT_DIR/agg-exists-off-native-on.plan" off on "$AGG_EXISTS_QUERY"
+run_explain "$OUTPUT_DIR/agg-exists-on-native-on.plan" on on "$AGG_EXISTS_QUERY"
+assert_contains "$OUTPUT_DIR/agg-exists-off-native-on.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/agg-exists-on-native-on.plan" "Optimizer: pg_orca"
+run_explain "$OUTPUT_DIR/agg-exists-off-native-off.plan" off off "$AGG_EXISTS_QUERY"
+run_explain "$OUTPUT_DIR/agg-exists-on-native-off.plan" on off "$AGG_EXISTS_QUERY" on
+assert_not_contains "$OUTPUT_DIR/agg-exists-off-native-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/agg-exists-on-native-off.plan" "Optimizer: pg_orca"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/agg-exists-on-native-off.plan" "CXformDSLRule_Select"
+assert_same_rows "Agg/HAVING/EXISTS" "$AGG_EXISTS_QUERY" $'1,20' off
 
 # Constraint negative control: the second inner relation differs, so
 # TableEq(t1,t2) must reject the rule. Native unnesting is still disabled;
@@ -200,5 +354,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: OFF=$off_join_count joins, ON=$on_join_count join, causal ON=$causal_join_count join"
+echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, and Agg/HAVING/EXISTS"
+echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

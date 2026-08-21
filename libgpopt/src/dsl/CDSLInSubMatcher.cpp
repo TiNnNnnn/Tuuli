@@ -51,24 +51,23 @@ CDSLInSubMatcher::FBindOuterAttrs(const CDSLOp *pop,
 
 BOOL
 CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
-							 CExpression *pexprAny,
+							 CExpression *pexprInner,
+							 const CColRef *pcrProjected,
 							 CDSLModel *pmodel) const
 {
-	CExpression *pexprInner = (*pexprAny)[0];
-
 	// PostgreSQL's ORCA translator removes a pass-through SELECT-list
 	// projection from a scalar IN subquery and stores its selected column
-	// directly on CScalarSubqueryAny. WeTune still exposes that SQL node as
-	// Proj<a s>(child). Treat this one precise representation difference as a
-	// transparent projection. Computed projects remain CLogicalProject nodes.
+	// on the subquery/Apply operator. WeTune still exposes that SQL node as
+	// Proj<a s>(child). Treat this representation difference as a transparent
+	// projection in both pre- and post-Apply matching. Computed projects remain
+	// CLogicalProject nodes.
 	if (EdslopProj == popInner->Edslop() &&
 		COperator::EopLogicalProject != pexprInner->Pop()->Eopid() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-		2 == popInner->Pdrgpsym()->Size())
+		2 == popInner->Pdrgpsym()->Size() && nullptr != pcrProjected)
 	{
 		CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		pdrgpcr->Append(const_cast<CColRef *>(
-			CScalarSubqueryAny::PopConvert(pexprAny->Pop())->Pcr()));
+		pdrgpcr->Append(const_cast<CColRef *>(pcrProjected));
 		BOOL fMatched =
 			pmodel->FBind((*popInner->Pdrgpsym())[0], pdrgpcr) &&
 			pmodel->FBind((*popInner->Pdrgpsym())[1], pdrgpcr) &&
@@ -154,7 +153,10 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 				// Probe structural compatibility in a disposable model so rejected
 				// candidates cannot leave partial bindings in the real model.
 				CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
-				BOOL fFits = FMatchInner((*popNode)[1], pexprConj, pmodelProbe);
+				CScalarSubqueryAny *popAny =
+					CScalarSubqueryAny::PopConvert(pexprConj->Pop());
+				BOOL fFits = FMatchInner((*popNode)[1], (*pexprConj)[0],
+									 popAny->Pcr(), pmodelProbe);
 				pmodelProbe->Release();
 				if (fFits)
 				{
@@ -176,8 +178,11 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			const CDSLOp *popNode = rgpopChain[ulNode];
 			CExpression *pexprAny = rgpexprChosen[ulNode];
 			const CDSLSymbol *psymAttrs = (*popNode->Pdrgpsym())[0];
+			CScalarSubqueryAny *popAny =
+				CScalarSubqueryAny::PopConvert(pexprAny->Pop());
 			fMatched =
-				FMatchInner((*popNode)[1], pexprAny, pmodel) &&
+				FMatchInner((*popNode)[1], (*pexprAny)[0], popAny->Pcr(),
+							pmodel) &&
 				FBindOuterAttrs(popNode, (*pexprAny)[1], pmodel) &&
 				pmodel->FSetInSubPred(psymAttrs, PexprComparison(pexprAny));
 		}
@@ -212,7 +217,9 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			return false;
 		}
 		CLogicalApply *popApply = CLogicalApply::PopConvert(pexpr->Pop());
-		if (COperator::EopScalarSubqueryAny != popApply->EopidOriginSubq())
+		CColRefArray *pdrgpcrInner = popApply->PdrgPcrInner();
+		if (COperator::EopScalarSubqueryAny != popApply->EopidOriginSubq() ||
+			nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
 		{
 			return false;
 		}
@@ -227,7 +234,8 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		pdrgpcrOuter->Release();
 		if (!fBound ||
 			!m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) ||
-			!m_pmatcher->FMatch((*pop)[1], (*pexpr)[1], pmodel))
+			!FMatchInner((*pop)[1], (*pexpr)[1], (*pdrgpcrInner)[0],
+						pmodel))
 		{
 			return false;
 		}

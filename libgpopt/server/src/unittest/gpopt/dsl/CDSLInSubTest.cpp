@@ -76,6 +76,8 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyCorpusElimination),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_PostApplyCorpusElimination),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyRepeatedInElimination),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PostApplyRepeatedInElimination),
@@ -83,6 +85,55 @@ CDSLInSubTest::EresUnittest()
 			CDSLInSubTest::EresUnittest_RejectsDifferentTable),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PostApplyIdentity)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_PostApplyCorpusElimination()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CTableDescriptor *ptabdesc =
+		fix.PtabdescCreate("insub_apply_same", 2, 0, false);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuterGet =
+		fix.PexprLogicalGet(ptabdesc, "insub_apply_same_outer", &pdrgpcrOuter);
+	CExpression *pexprResidual = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+	CExpression *pexprOuter =
+		fix.PexprLogicalSelect(pexprOuterGet, pexprResidual);
+	pexprOuterGet->Release();
+	pexprResidual->Release();
+	ptabdesc->AddRef();
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet(ptabdesc, "insub_apply_same_inner", &pdrgpcrInner);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprSource =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			mp, pexprOuter, pexprInner, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubqueryAny, pexprPred);
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_CORPUS_INSUB_ELIM_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGet == (*pexprTarget)[0]->Pop()->Eopid());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT
