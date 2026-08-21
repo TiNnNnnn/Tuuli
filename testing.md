@@ -56,6 +56,37 @@ These tests live in `test/sql/` and `test/expected/`. They load pg_orca, enable 
 test/test.sh --orca-tests
 ```
 
+### DSL unit and end-to-end tests
+
+The DSL CI path has two layers. The C++ unit suite covers parsing, matching,
+constraints, and instantiation:
+
+```bash
+cmake --build build --target gpopt_dsl_test -j$(nproc)
+ctest --test-dir build --output-on-failure --no-tests=error -R '^gpopt_dsl_test$'
+```
+
+After installing the extension, run the PostgreSQL end-to-end harness:
+
+```bash
+cmake --install build
+PG_CONFIG="$PG_CONFIG" test/dsl/e2e.sh
+```
+
+`test/dsl/e2e.sh` creates and removes its own temporary PostgreSQL cluster and
+loads the tracked real-rule fixture in `test/dsl/rules/`. It verifies all of
+the following:
+
+- DSL OFF versus ON changes a repeated-IN plan from two joins to one;
+- with native `CXformSelect2Apply` disabled, DSL OFF falls back while DSL ON
+  still produces a pg_orca plan;
+- the causally rewritten query returns the same rows as PostgreSQL;
+- a different second inner table is rejected by the rule's `TableEq` check.
+
+Plans and server logs are written to `build/dsl-e2e/`. Set
+`DSL_E2E_KEEP_TMP=1` to preserve the temporary data directory after a local
+run, or `DSL_RULE_FILE` to test another compatible repeated-IN rule fixture.
+
 ### PostgreSQL standard regression suite with ORCA loaded
 
 Runs PostgreSQL's full `parallel_schedule` with `pg_orca` loaded as an extension. This checks that ORCA does not break standard SQL semantics.
