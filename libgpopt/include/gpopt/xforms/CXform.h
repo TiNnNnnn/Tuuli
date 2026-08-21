@@ -255,6 +255,7 @@ public:
 		ExfDSLRuleInSub,
 		ExfDSLRuleUnion,
 		ExfDSLRuleUnionAll,
+		ExfDSLRuleLimit,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

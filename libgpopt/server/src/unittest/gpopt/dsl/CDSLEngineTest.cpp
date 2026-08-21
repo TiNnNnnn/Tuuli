@@ -18,6 +18,7 @@
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/xforms/CXform.h"
@@ -37,6 +38,7 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_ShellRegistered),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_SelectDispatches),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_UnionShellsDispatch),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_LimitShellDispatch),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_Bucketing),
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
@@ -53,8 +55,7 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 	for (ULONG ul = 0; ul < EdslopSentinel; ul++)
 	{
 		const EDslOpKind edslop = static_cast<EDslOpKind>(ul);
-		const BOOL fExpected =
-			EdslopSort != edslop && EdslopLimit != edslop;
+		const BOOL fExpected = true;
 		if (fExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
 			fExpected != CDSLOpKindTable::FInstantiatorSupported(edslop))
 		{
@@ -64,7 +65,9 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 
 	if (CDSLOpKindTable::FSourceRootDispatchSupported(EdslopInput, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopFilter, false) ||
-		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopProj, true))
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopProj, true) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopSort, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopLimit, false))
 	{
 		return GPOS_FAILED;
 	}
@@ -78,6 +81,29 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		}
 	}
 	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_LimitShellDispatch()
+{
+	CXformFactory *pxff = CXformFactory::Pxff();
+	CXform *pxform =
+		(nullptr == pxff) ? nullptr : pxff->Pxf("CXformDSLRule_Limit");
+	if (nullptr == pxform || CXform::ExfDSLRuleLimit != pxform->Exfid() ||
+		!pxform->FExploration() || pxform->FImplementation())
+	{
+		return GPOS_FAILED;
+	}
+
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CLogicalLimit *popLimit = GPOS_NEW(mp) CLogicalLimit(mp);
+	CXformSet *pxfs = popLimit->PxfsCandidates(mp);
+	GPOS_RESULT eres = pxfs->Get(CXform::ExfDSLRuleLimit) ? GPOS_OK
+													 : GPOS_FAILED;
+	pxfs->Release();
+	popLimit->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------
@@ -289,6 +315,21 @@ CDSLEngineTest::EresUnittest_Bucketing()
 		return GPOS_FAILED;
 	}
 	pruleUnion->Release();
+
+	const CHAR *szLimitRule =
+		"Limit<n0 n1>(SortAsc<a0>(Input<t0>))|"
+		"Limit<n2 n3>(SortAsc<a1>(Input<t1>))|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);ScalarEq(n2,n0);"
+		"ScalarEq(n3,n1)";
+	CDSLRule *pruleLimit =
+		CDSLRuleParser::PdslruleParse(mp, szLimitRule, "EQ", nullptr);
+	if (nullptr == pruleLimit ||
+		COperator::EopLogicalLimit != pruleLimit->EopidSrcRoot())
+	{
+		CRefCount::SafeRelease(pruleLimit);
+		return GPOS_FAILED;
+	}
+	pruleLimit->Release();
 
 	return GPOS_OK;
 }

@@ -54,6 +54,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+class COrderSpec;
+
 // target CDSLSymbol* -> source CDSLSymbol* it aliases (via an *Eq constraint).
 // Keys/values unowned (they belong to the rule IR); pointer identity.
 using CDSLSymbolAliasMap =
@@ -135,6 +137,17 @@ private:
 	// SchemaEq aliases may reorder the two branches.
 	CExpression *PexprBuildUnion(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
+
+	// Sort is represented as a count-less CLogicalLimit. Limit consumes a
+	// directly nested Sort and fuses both into one CLogicalLimit, mirroring the
+	// query translator's ORDER BY + LIMIT representation.
+	CExpression *PexprBuildSort(const CDSLOp *pop,
+								const CDSLModel *pmodel) const;
+	CExpression *PexprBuildLimit(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const;
+	COrderSpec *PosBuildSort(const CDSLOp *pop,
+							 const CDSLModel *pmodel,
+							 CExpression *pexprChild) const;
 
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression
 	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a

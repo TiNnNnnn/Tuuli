@@ -144,6 +144,29 @@ FROM (
 ORDER BY id
 "
 
+SORT_QUERY="
+SELECT id
+FROM dsl_insub_outer
+ORDER BY id
+"
+
+NESTED_SORT_QUERY="
+SELECT id, v
+FROM (
+    SELECT id, v
+    FROM dsl_insub_outer
+    ORDER BY v
+) AS ordered_inner
+ORDER BY id
+"
+
+ORDER_LIMIT_QUERY="
+SELECT id
+FROM dsl_insub_outer
+ORDER BY id
+LIMIT 2 OFFSET 1
+"
+
 run_explain()
 {
     local output_file=$1
@@ -384,6 +407,38 @@ assert_xform_produced_alternative \
     "$OUTPUT_DIR/union-distinct-on.plan" "CXformDSLRule_Union"
 assert_same_rows "Union/Union distinct" "$UNION_DISTINCT_QUERY" $'1\n2\n3' on
 
+# Sort and Limit are not independent logical operators in ORCA. These probes
+# prove that the shared CLogicalLimit shell sees both the count-less Sort view
+# and the fused Limit(Sort(...)) view, and that target reconstruction remains
+# executable with identical rows.
+run_explain "$OUTPUT_DIR/sort-off.plan" off on "$SORT_QUERY" on
+run_explain "$OUTPUT_DIR/sort-on.plan" on on "$SORT_QUERY" on
+assert_not_contains "$OUTPUT_DIR/sort-off.plan" "CXformDSLRule_Limit"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/sort-on.plan" "CXformDSLRule_Limit"
+assert_contains "$OUTPUT_DIR/sort-on.plan" "Rule: SortAsc"
+assert_same_rows "Sort adapter" "$SORT_QUERY" $'1\n2\n3' on
+
+run_explain "$OUTPUT_DIR/nested-sort-off.plan" off on "$NESTED_SORT_QUERY" on
+run_explain "$OUTPUT_DIR/nested-sort-on.plan" on on "$NESTED_SORT_QUERY" on
+assert_not_contains "$OUTPUT_DIR/nested-sort-off.plan" "CXformDSLRule_Limit"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/nested-sort-on.plan" "CXformDSLRule_Limit"
+assert_contains "$OUTPUT_DIR/nested-sort-on.plan" \
+    "Rule: SortAsc<a1>(SortAsc<a0>(Input<t0>))"
+assert_contains "$OUTPUT_DIR/nested-sort-on.plan" "stage=applied bindings="
+assert_same_rows "Nested Sort elimination" "$NESTED_SORT_QUERY" \
+    $'1,10\n2,20\n3,30' on
+
+run_explain "$OUTPUT_DIR/order-limit-off.plan" off on "$ORDER_LIMIT_QUERY" on
+run_explain "$OUTPUT_DIR/order-limit-on.plan" on on "$ORDER_LIMIT_QUERY" on
+assert_not_contains "$OUTPUT_DIR/order-limit-off.plan" "CXformDSLRule_Limit"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/order-limit-on.plan" "CXformDSLRule_Limit"
+assert_contains "$OUTPUT_DIR/order-limit-on.plan" "Rule: Limit"
+assert_contains "$OUTPUT_DIR/order-limit-on.plan" "stage=applied bindings="
+assert_same_rows "Order/Limit fused adapter" "$ORDER_LIMIT_QUERY" $'2\n3' on
+
 # Constraint negative control: the second inner relation differs, so
 # TableEq(t1,t2) must reject the rule. Native unnesting is still disabled;
 # absence of the pg_orca annotation therefore means the expected fallback.
@@ -401,6 +456,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, Agg/HAVING/EXISTS, Union, and Union*"
+echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, Agg/HAVING/EXISTS, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

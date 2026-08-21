@@ -43,6 +43,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+class COrderSpec;
+
 //---------------------------------------------------------------------------
 //	@class:
 //		CDSLMatcher
@@ -74,6 +76,13 @@ private:
 	// binding, not here).
 	BOOL FMatchChildren(const CDSLOp *pop, CExpression *pexpr,
 						CDSLModel *pmodel) const;
+
+	// Sort/Limit share CLogicalLimit in ORCA. Match the standalone forms and
+	// virtually split a fused node into Limit(Sort(child)).
+	BOOL FMatchOrderLimit(const CDSLOp *pop, CExpression *pexpr,
+						 CDSLModel *pmodel) const;
+	BOOL FMatchSortView(const CDSLOp *popSort, CExpression *pexprChild,
+						  const COrderSpec *pos, CDSLModel *pmodel) const;
 
 public:
 	CDSLMatcher(const CDSLMatcher &) = delete;

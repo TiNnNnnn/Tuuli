@@ -14,6 +14,7 @@
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -22,6 +23,7 @@
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSetOp.h"
@@ -29,6 +31,7 @@
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
@@ -111,6 +114,13 @@ FContainsGbAgg(const CExpression *pexpr)
 		}
 	}
 	return false;
+}
+
+BOOL
+FNullScalarConst(const CExpression *pexpr)
+{
+	return nullptr != pexpr && COperator::EopScalarConst == pexpr->Pop()->Eopid() &&
+		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
 }
 
 // A set-op's output identities are anchored to its first input. Reordering
@@ -947,6 +957,163 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PosBuildSort
+//---------------------------------------------------------------------------
+COrderSpec *
+CDSLInstantiator::PosBuildSort(const CDSLOp *pop,
+							   const CDSLModel *pmodel,
+							   CExpression *pexprChild) const
+{
+	GPOS_ASSERT(nullptr != pop);
+	GPOS_ASSERT(EdslopSort == pop->Edslop());
+	if (nullptr == pop->Pdrgpsym() || 1 != pop->Pdrgpsym()->Size() ||
+		(EdslsortAsc != pop->Edslsort() &&
+		 EdslsortDesc != pop->Edslsort()))
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
+	CColRefArray *pdrgpcr = pmodel->PdrgpcrAttrs(psymAttrs);
+	if (nullptr == pdrgpcr || 0 == pdrgpcr->Size())
+	{
+		return nullptr;
+	}
+
+	CColRefSet *pcrsOutput = pexprChild->DeriveOutputColumns();
+	for (ULONG ul = 0; ul < pdrgpcr->Size(); ul++)
+	{
+		if (!pcrsOutput->FMember((*pdrgpcr)[ul]))
+		{
+			return nullptr;
+		}
+	}
+
+	const IMDType::ECmpType ecmpt =
+		(EdslsortAsc == pop->Edslsort()) ? IMDType::EcmptL
+										 : IMDType::EcmptG;
+	const COrderSpec::ENullTreatment ent =
+		(EdslsortAsc == pop->Edslsort()) ? COrderSpec::EntLast
+										 : COrderSpec::EntFirst;
+	COrderSpec *pos = GPOS_NEW(m_mp) COrderSpec(m_mp);
+	for (ULONG ul = 0; ul < pdrgpcr->Size(); ul++)
+	{
+		CColRef *pcr = (*pdrgpcr)[ul];
+		IMDId *pmdid = pcr->RetrieveType()->GetMdidForCmpType(ecmpt);
+		if (!IMDId::IsValid(pmdid))
+		{
+			pos->Release();
+			return nullptr;
+		}
+		pmdid->AddRef();
+		pos->Append(pmdid, pcr, ent);
+	}
+	return pos;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiator::PexprBuildSort
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildSort(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const
+{
+	if (1 != pop->UlChildren())
+	{
+		return nullptr;
+	}
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+	COrderSpec *pos = PosBuildSort(pop, pmodel, pexprChild);
+	if (nullptr == pos)
+	{
+		pexprChild->Release();
+		return nullptr;
+	}
+
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CLogicalLimit(m_mp, pos, true /*global*/,
+									 false /*has count*/, false /*top DML*/),
+		pexprChild, CUtils::PexprScalarConstInt8(m_mp, 0),
+		CUtils::PexprScalarConstInt8(m_mp, 0, true /*is null*/));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiator::PexprBuildLimit
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildLimit(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const
+{
+	if (1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		2 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprCount =
+		pmodel->PexprScalar(PsymResolve((*pop->Pdrgpsym())[0]));
+	CExpression *pexprOffset =
+		pmodel->PexprScalar(PsymResolve((*pop->Pdrgpsym())[1]));
+	if (nullptr == pexprCount || nullptr == pexprOffset)
+	{
+		return nullptr;
+	}
+
+	const CDSLOp *popChild = (*pop)[0];
+	const CDSLOp *popSort = nullptr;
+	CExpression *pexprChild = nullptr;
+	if (EdslopSort == popChild->Edslop())
+	{
+		popSort = popChild;
+		if (1 != popSort->UlChildren())
+		{
+			return nullptr;
+		}
+		pexprChild = PexprBuild((*popSort)[0], pmodel);
+	}
+	else
+	{
+		pexprChild = PexprBuild(popChild, pmodel);
+	}
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+
+	COrderSpec *pos = nullptr;
+	if (nullptr != popSort)
+	{
+		pos = PosBuildSort(popSort, pmodel, pexprChild);
+	}
+	else
+	{
+		pos = GPOS_NEW(m_mp) COrderSpec(m_mp);
+	}
+	if (nullptr == pos)
+	{
+		pexprChild->Release();
+		return nullptr;
+	}
+
+	pexprOffset->AddRef();
+	pexprCount->AddRef();
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CLogicalLimit(m_mp, pos, true /*global*/,
+									 !FNullScalarConst(pexprCount),
+									 false /*top DML*/),
+		pexprChild, pexprOffset, pexprCount);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PexprBuild
 //---------------------------------------------------------------------------
 CExpression *
@@ -970,12 +1137,14 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildInSub(pop, pmodel);
 		case EdslopUnion:
 			return PexprBuildUnion(pop, pmodel);
+		case EdslopSort:
+			return PexprBuildSort(pop, pmodel);
+		case EdslopLimit:
+			return PexprBuildLimit(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 			return PexprBuildJoin(pop, pmodel);
 		default:
-			// Sort / Limit have no independent ORCA logical representation.
-			// The rule does not fire.
 			return nullptr;
 	}
 }

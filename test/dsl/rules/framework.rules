@@ -23,3 +23,16 @@ Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,
 # Same framework path for set semantics. Union* is the existing MONSOON
 # spelling for duplicate-eliminating UNION (ORCA CLogicalUnion).
 Union*(Input<t0>,Input<t1>)|Union*(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,t1);TableEq(t3,t0)
+
+# ORDER BY is a count-less CLogicalLimit in ORCA. This identity probe verifies
+# the virtual Sort view without relying on a native ordering rewrite.
+SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)
+
+# MONSOON/dataset/rules/fewshot_curated.txt:11. The outer ordering makes the
+# inner ordering redundant; unlike the identity probe this removes one logical
+# order boundary and proves structural target construction.
+SortAsc<a1>(SortAsc<a0>(Input<t0>))|SortAsc<a2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a1)
+
+# ORDER BY + LIMIT/OFFSET is one fused CLogicalLimit. The ordinary MONSOON
+# syntax remains Limit(Sort(Input)); the adapter splits/fuses it at runtime.
+Limit<n0 n1>(SortAsc<a0>(Input<t0>))|Limit<n2 n3>(SortAsc<a1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a1,a0);ScalarEq(n2,n0);ScalarEq(n3,n1)

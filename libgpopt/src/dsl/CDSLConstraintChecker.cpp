@@ -584,7 +584,8 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 			return true;
 		}
 		case EdslconScalarEq:
-			return pvalFirst == pvalSecond;
+			return pmodel->PexprScalar(psymFirst)->Matches(
+				pmodel->PexprScalar(psymSecond));
 		default:
 			return false;
 	}

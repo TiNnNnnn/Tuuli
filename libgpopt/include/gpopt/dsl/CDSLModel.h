@@ -14,6 +14,7 @@
 //		  pred   symbol -> CExpression*      (a single conjunct predicate subtree)
 //		  schema symbol -> CColRefArray*     (ordered output columns; Proj/Agg)
 //		  func   symbol -> CExpressionArray* (aggregate expressions)
+//		  scalar symbol -> CExpression*      (LIMIT count / offset expression)
 //
 //		Design notes (see docs/WETUNE_ORCA_PER_OP_THREESTAGE.md):
 //		  * Everything stored here is AddRef'd on insertion and Released in the
@@ -147,6 +148,7 @@ public:
 	// typed convenience accessors; NULL if unbound. Do NOT AddRef.
 	CExpression *PexprTable(const CDSLSymbol *psym) const;
 	CExpression *PexprPred(const CDSLSymbol *psym) const;
+	CExpression *PexprScalar(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrAttrs(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrSchema(const CDSLSymbol *psym) const;
 	CExpressionArray *PdrgpexprFunc(const CDSLSymbol *psym) const;

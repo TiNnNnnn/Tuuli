@@ -41,6 +41,9 @@ public:
 	// operators, completing scheduler dispatch for the generic set-op framework
 	static GPOS_RESULT EresUnittest_UnionShellsDispatch();
 
+	// Sort/Limit share the CLogicalLimit shell and scheduler candidate.
+	static GPOS_RESULT EresUnittest_LimitShellDispatch();
+
 	// engine buckets a loaded library by source-root EOperatorId
 	static GPOS_RESULT EresUnittest_Bucketing();
 

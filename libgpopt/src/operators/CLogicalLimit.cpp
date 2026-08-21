@@ -231,6 +231,7 @@ CLogicalLimit::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfSplitLimit);
 	(void) xform_set->ExchangeSet(CXform::ExfLimit2IndexGet);
 	(void) xform_set->ExchangeSet(CXform::ExfLimit2IndexOnlyGet);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleLimit);
 
 	return xform_set;
 }

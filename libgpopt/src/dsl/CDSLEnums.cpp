@@ -148,11 +148,14 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			// Union* (dedup) => UNION => set semantics; Union => UNION ALL.
 			return fDistinct ? COperator::EopLogicalUnion
 							 : COperator::EopLogicalUnionAll;
-		case EdslopInput:
-			// base-relation placeholder; no logical op — matched as a subtree.
 		case EdslopSort:
 		case EdslopLimit:
-			// ORCA has no independent Sort logical op (deferred).
+			// ORCA fuses ORDER BY and LIMIT/OFFSET in CLogicalLimit. The DSL
+			// matcher exposes the fused node as the virtual shape
+			// Limit(Sort(child)); both DSL roots therefore share one shell.
+			return COperator::EopLogicalLimit;
+		case EdslopInput:
+			// base-relation placeholder; no logical op — matched as a subtree.
 		default:
 			return COperator::EopSentinel;
 	}
@@ -178,9 +181,9 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
-			return true;
 		case EdslopSort:
 		case EdslopLimit:
+			return true;
 		case EdslopSentinel:
 			return false;
 	}
@@ -201,9 +204,9 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
-			return true;
 		case EdslopSort:
 		case EdslopLimit:
+			return true;
 		case EdslopSentinel:
 			return false;
 	}

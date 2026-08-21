@@ -231,6 +231,13 @@ CDSLModel::PexprPred(const CDSLSymbol *psym) const
 	return dynamic_cast<CExpression *>(PvalLookup(psym));
 }
 
+CExpression *
+CDSLModel::PexprScalar(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymScalar == psym->Esymkind());
+	return dynamic_cast<CExpression *>(PvalLookup(psym));
+}
+
 CColRefArray *
 CDSLModel::PdrgpcrAttrs(const CDSLSymbol *psym) const
 {
