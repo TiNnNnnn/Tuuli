@@ -11,10 +11,9 @@
 //		which applies every loaded DSL rule bucketed under EopLogicalGbAgg.
 //
 //		This shell is what a Proj* (deduplicated projection) rule fires on, since
-//		SELECT DISTINCT is a CLogicalGbAgg in ORCA. The engine's Agg matcher
-//		currently supports only the pure-dedup form (empty agg list); a rule
-//		carrying aggregate functions is a later milestone. See
-//		docs/DSL_WETUNE_ALIGNMENT.md (Agg phase 1).
+//		SELECT DISTINCT is a CLogicalGbAgg in ORCA. The same matcher also supports
+//		five/six-symbol real aggregate rules; HAVING rules are additionally routed
+//		through the Select shell. See docs/DSL_WETUNE_ALIGNMENT.md.
 //
 //		Pattern: CLogicalGbAgg(CPatternTree, CPatternTree) — a relational child and
 //		the aggregate project list, both CPatternTree so the memo binder

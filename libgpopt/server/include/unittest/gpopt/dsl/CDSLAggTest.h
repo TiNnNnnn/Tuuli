@@ -68,6 +68,10 @@ public:
 	// aggregate output columns from schema - groupByAttrs.
 	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
 
+	// ORCA Select(GbAgg,HAVING) binds p to the real predicate and reconstructs
+	// the same two-node shape end to end.
+	static GPOS_RESULT EresUnittest_HavingRoundTrip();
+
 	// Function-specific templates do not match a different aggregate kind.
 	static GPOS_RESULT EresUnittest_RejectsWrongAggFunction();
 

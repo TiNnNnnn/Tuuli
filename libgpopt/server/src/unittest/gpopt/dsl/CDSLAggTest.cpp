@@ -124,6 +124,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsNonEmptyAggList),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
@@ -227,6 +228,64 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 
 	CRefCount::SafeRelease(pexprTgt);
 	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_HavingRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_AGG_IDENTITY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	CColRefArray *pdrgpcrInput = nullptr;
+	CColRef *pcrAggOut = nullptr;
+	BuildRealGbAgg(fix, &pexprGet, &pexprGbAgg, &pdrgpcrInput, &pcrAggOut);
+	CExpression *pexprHaving = fix.PexprPredAtom(pcrAggOut);
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprGbAgg, pexprHaving);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	CDSLOp *popSrc = prule->PfragSrc()->PopRoot();
+	if (!matcher.FMatch(popSrc, pexprSelect, pmodel) ||
+		pmodel->PexprPred((*popSrc->Pdrgpsym())[4]) != pexprHaving ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalSelect != pexprTgt->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg != (*pexprTgt)[0]->Pop()->Eopid() ||
+			(*(*pexprTgt)[0])[0] != pexprGet || (*pexprTgt)[1] != pexprHaving ||
+			!pexprTgt->DeriveOutputColumns()->Equals(
+				pexprSelect->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprHaving->Release();
+	pexprSelect->Release();
 	pexprGet->Release();
 	pexprGbAgg->Release();
 	prule->Release();

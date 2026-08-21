@@ -14,6 +14,7 @@
 
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLAggMatcher.h"
+#include "gpopt/dsl/CDSLExistsMatcher.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
@@ -185,13 +186,21 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return pm.FMatch(pop, pexpr, pmodel);
 	}
 
-	// Agg<a a a f s p>: routes to the Agg matcher, which currently supports only
-	// the pure-dedup form (empty agg list). An Agg carrying aggregate functions is
-	// rejected there (a later milestone), so such a rule does not fire.
+	// Corpus Agg<a a f s p> and the six-symbol extension route to the Agg
+	// matcher, including ORCA's Select-over-GbAgg representation of HAVING.
 	if (EdslopAgg == pop->Edslop())
 	{
 		CDSLAggMatcher am(m_mp, this);
 		return am.FMatch(pop, pexpr, pmodel);
+	}
+
+	// EXISTS in a filter context is normalized by ORCA into a LeftSemiApply.
+	// Its uncorrelated inner LIMIT 1 is an implementation detail hidden from the
+	// two-child DSL operator.
+	if (EdslopExists == pop->Edslop())
+	{
+		CDSLExistsMatcher em(m_mp, this);
+		return em.FMatch(pop, pexpr, pmodel);
 	}
 
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>

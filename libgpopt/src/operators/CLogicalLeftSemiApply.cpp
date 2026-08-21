@@ -60,6 +60,7 @@ CLogicalLeftSemiApply::PxfsCandidates(CMemoryPool *mp) const
 		CXform::ExfLeftSemiApplyWithExternalCorrs2InnerJoin);
 	(void) xform_set->ExchangeSet(
 		CXform::ExfLeftSemiApply2LeftSemiJoinNoCorrelations);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleExists);
 
 	return xform_set;
 }

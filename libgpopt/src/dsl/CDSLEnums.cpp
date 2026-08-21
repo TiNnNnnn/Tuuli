@@ -140,6 +140,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLeftOuterJoin;
 		case EdslopAgg:
 			return COperator::EopLogicalGbAgg;
+		case EdslopExists:
+			return COperator::EopLogicalLeftSemiApply;
 		case EdslopUnion:
 			// Union* (dedup) => UNION => set semantics; Union => UNION ALL.
 			return fDistinct ? COperator::EopLogicalUnion
@@ -147,8 +149,7 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 		case EdslopInput:
 			// base-relation placeholder; no logical op — matched as a subtree.
 		case EdslopInSubFilter:
-		case EdslopExists:
-			// subquery family -> ORCA Apply family (phase-2 deferred).
+			// remaining subquery family -> ORCA Apply family (deferred).
 		case EdslopSort:
 		case EdslopLimit:
 			// ORCA has no independent Sort logical op (deferred).

@@ -20,6 +20,7 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -546,6 +547,54 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PexprBuildExists
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
+								   const CDSLModel *pmodel) const
+{
+	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		0 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprOuter)
+	{
+		return nullptr;
+	}
+	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
+	if (nullptr == pexprInner)
+	{
+		pexprOuter->Release();
+		return nullptr;
+	}
+
+	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();
+	if (0 == pcrsInnerOutput->Size())
+	{
+		pexprOuter->Release();
+		pexprInner->Release();
+		return nullptr;
+	}
+	CColRef *pcrInner = pcrsInnerOutput->PcrFirst();
+
+	// Mirror subquery removal: LIMIT 1 is valid and avoids unnecessary work only
+	// for an uncorrelated EXISTS input.
+	if (0 == pexprInner->DeriveOuterReferences()->Size() &&
+		1 < pexprInner->DeriveMaxCard().Ull())
+	{
+		pexprInner = CUtils::PexprLimit(m_mp, pexprInner, 0, 1);
+	}
+
+	return CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+		m_mp, pexprOuter, pexprInner, pcrInner,
+		COperator::EopScalarSubqueryExists);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PexprBuild
 //---------------------------------------------------------------------------
 CExpression *
@@ -563,6 +612,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildProj(pop, pmodel);
 		case EdslopAgg:
 			return PexprBuildAgg(pop, pmodel);
+		case EdslopExists:
+			return PexprBuildExists(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 			return PexprBuildJoin(pop, pmodel);

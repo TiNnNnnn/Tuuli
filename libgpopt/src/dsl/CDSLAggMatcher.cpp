@@ -152,6 +152,7 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 BOOL
 CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 								 CExpression *pexprAgg,
+								 CExpression *pexprHaving,
 								 CDSLModel *pmodel) const
 {
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
@@ -229,17 +230,27 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 		pdrgpcrSchema->Append((*pdrgpcrAggOut)[ul]);
 	}
 
-	// ORCA represents a missing HAVING clause by the absence of a Select above
-	// the GbAgg. Bind the DSL predicate symbol to TRUE, matching WeTune's
-	// concrete-predicate translation.
-	CExpression *pexprHaving = CUtils::PexprScalarConstBool(m_mp, true);
+	// ORCA represents HAVING as Select(GbAgg, predicate). A predicate may use
+	// grouping columns and/or aggregate outputs, but no column outside the Agg
+	// schema. Missing HAVING is the WeTune concrete predicate TRUE.
+	BOOL fOwnHaving = false;
+	if (nullptr == pexprHaving)
+	{
+		fOwnHaving = true;
+		pexprHaving = CUtils::PexprScalarConstBool(m_mp, true);
+	}
+	CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsSchema->Include(pdrgpcrSchema);
+	BOOL fHavingValid =
+		pcrsSchema->ContainsAll(pexprHaving->DeriveUsedColumns());
+	pcrsSchema->Release();
 	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrGroup) &&
 				  pmodel->FBind((*pdrgpsym)[1], pdrgpcrAggInputs);
 	if (fBound && !fLegacy)
 	{
 		fBound = pmodel->FBind((*pdrgpsym)[2], pdrgpcrAggOut);
 	}
-	fBound = fBound &&
+	fBound = fHavingValid && fBound &&
 			 pmodel->FBind((*pdrgpsym)[ulFunc], pdrgpexprFuncs) &&
 			 pmodel->FBind((*pdrgpsym)[ulSchema], pdrgpcrSchema) &&
 			 pmodel->FBind((*pdrgpsym)[ulHaving], pexprHaving);
@@ -250,7 +261,10 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 	pdrgpexprFuncs->Release();
 	pdrgpcrSchema->Release();
 	pcrsAggInputs->Release();
-	pexprHaving->Release();
+	if (fOwnHaving)
+	{
+		pexprHaving->Release();
+	}
 
 	return fBound &&
 		   m_pmatcher->FMatch((*popAgg)[0], (*pexprAgg)[0], pmodel);
@@ -265,8 +279,18 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 				EdslopAgg == popAgg->Edslop());
 	GPOS_ASSERT(nullptr != pexprAgg);
 
-	if (COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() ||
-		2 != pexprAgg->Arity())
+	CExpression *pexprGbAgg = pexprAgg;
+	CExpression *pexprHaving = nullptr;
+	if (EdslopAgg == popAgg->Edslop() &&
+		COperator::EopLogicalSelect == pexprAgg->Pop()->Eopid() &&
+		2 == pexprAgg->Arity())
+	{
+		pexprGbAgg = (*pexprAgg)[0];
+		pexprHaving = (*pexprAgg)[1];
+	}
+
+	if (COperator::EopLogicalGbAgg != pexprGbAgg->Pop()->Eopid() ||
+		2 != pexprGbAgg->Arity())
 	{
 		return false;
 	}
@@ -274,9 +298,9 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 	if (EdslopProj == popAgg->Edslop())
 	{
 		return popAgg->FDistinct() &&
-			   FMatchDedup(popAgg, pexprAgg, pmodel);
+			   FMatchDedup(popAgg, pexprGbAgg, pmodel);
 	}
-	return FMatchAggregate(popAgg, pexprAgg, pmodel);
+	return FMatchAggregate(popAgg, pexprGbAgg, pexprHaving, pmodel);
 }
 
 // EOF

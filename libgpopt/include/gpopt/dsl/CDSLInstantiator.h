@@ -118,6 +118,12 @@ private:
 	CExpression *PexprBuildAgg(const CDSLOp *pop,
 							   const CDSLModel *pmodel) const;
 
+	// Exists(left,right): rebuild ORCA's LeftSemiApply representation. An
+	// uncorrelated right input receives the same LIMIT 1 normalization used by
+	// CSubqueryHandler.
+	CExpression *PexprBuildExists(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const;
+
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression
 	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a
 	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns

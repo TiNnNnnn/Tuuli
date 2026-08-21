@@ -15,10 +15,9 @@
 //		        project list is EMPTY. (A bare Agg<...> template also routes here.)
 //		ORCA  : CLogicalGbAgg(base, CScalarProjectList())  with Pdrgpcr() = grouping.
 //
-//		Scope of THIS matcher: pure dedup only — it rejects any GbAgg that carries
-//		aggregate functions (non-empty project list). Real aggregate functions
-//		(Agg_count/max/min, column remapping, HAVING) are a later milestone; an
-//		Agg-with-funcs rule simply fails to match here and does not fire.
+//		Scope: pure dedup plus original Global real aggregates. Real Agg binds
+//		group/input/output columns, aggregate functions, schema, and HAVING; the
+//		latter is represented by ORCA as Select(GbAgg,predicate).
 //
 //		Approach (engine-side; ORCA core untouched), mirroring CDSLProjMatcher:
 //		  1. Identity + arity gate: the live node must be a CLogicalGbAgg of arity 2
@@ -52,8 +51,8 @@ class CDSLMatcher;
 //		CDSLAggMatcher
 //
 //	@doc:
-//		Matches a DSL Proj*<a s> (or Agg) dedup template against an ORCA
-//		CLogicalGbAgg with an empty aggregate list. Constructed per match attempt
+//		Matches a DSL Proj*<a s> dedup or five/six-symbol Agg template against an
+//		ORCA CLogicalGbAgg (optionally beneath a HAVING Select). Constructed per match attempt
 //		with the transient pool and a back-reference to the generic matcher (so the
 //		relational child can recurse). Owns no state beyond those.
 //---------------------------------------------------------------------------
@@ -81,6 +80,7 @@ private:
 	// inputs, optional explicit aggregate outputs, aggregate expressions, output
 	// schema, and the implicit TRUE HAVING predicate, then recurse.
 	BOOL FMatchAggregate(const CDSLOp *popAgg, CExpression *pexprAgg,
+						 CExpression *pexprHaving,
 						 CDSLModel *pmodel) const;
 
 public:
@@ -93,8 +93,8 @@ public:
 		GPOS_ASSERT(nullptr != pmatcher);
 	}
 
-	// Match a Proj* dedup template or a five/six-symbol Agg template against a
-	// live CLogicalGbAgg.
+	// Match a Proj* dedup template against CLogicalGbAgg, or a five/six-symbol
+	// Agg against either GbAgg or Select(GbAgg, HAVING).
 	BOOL FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 				CDSLModel *pmodel) const;
 };

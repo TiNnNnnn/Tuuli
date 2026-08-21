@@ -66,21 +66,33 @@ CDSLRuleEngine::BucketByRoot()
 	for (ULONG ul = 0; ul < ulRules; ul++)
 	{
 		CDSLRule *prule = (*m_pdrgprule)[ul];
-		const ULONG ulOpid = (ULONG) prule->EopidSrcRoot();
-
-		CDSLRuleArray *pdrgpruleBucket = m_phmOpidToRules->Find(&ulOpid);
-		if (nullptr == pdrgpruleBucket)
+		ULONG rgulOpid[2] = {(ULONG) prule->EopidSrcRoot(), 0};
+		ULONG ulBuckets = 1;
+		// HAVING is Select(GbAgg,predicate) in ORCA, while the DSL source root
+		// remains Agg. Route Agg-rooted rules to both physical expression shapes.
+		if (EdslopAgg == prule->PfragSrc()->PopRoot()->Edslop())
 		{
-			pdrgpruleBucket = GPOS_NEW(m_mp) CDSLRuleArray(m_mp);
-			ULONG *pulKey = GPOS_NEW(m_mp) ULONG(ulOpid);
-			BOOL fInserted =
-				m_phmOpidToRules->Insert(pulKey, pdrgpruleBucket);
-			GPOS_ASSERT(fInserted);
-			(void) fInserted;
+			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
 		}
 
-		prule->AddRef();
-		pdrgpruleBucket->Append(prule);
+		for (ULONG ulBucket = 0; ulBucket < ulBuckets; ulBucket++)
+		{
+			const ULONG ulOpid = rgulOpid[ulBucket];
+			CDSLRuleArray *pdrgpruleBucket =
+				m_phmOpidToRules->Find(&ulOpid);
+			if (nullptr == pdrgpruleBucket)
+			{
+				pdrgpruleBucket = GPOS_NEW(m_mp) CDSLRuleArray(m_mp);
+				ULONG *pulKey = GPOS_NEW(m_mp) ULONG(ulOpid);
+				BOOL fInserted =
+					m_phmOpidToRules->Insert(pulKey, pdrgpruleBucket);
+				GPOS_ASSERT(fInserted);
+				(void) fInserted;
+			}
+
+			prule->AddRef();
+			pdrgpruleBucket->Append(prule);
+		}
 	}
 }
 
