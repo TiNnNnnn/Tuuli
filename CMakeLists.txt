@@ -475,8 +475,64 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_link_libraries(gpopt_dsl_test PRIVATE dl)
 endif()
 
+# -------------------------------------------------------------------
+# pgorca_rule_audit — static capability audit for real MONSOON rule corpora.
+# Reuses the production parser/IR and XformFactory; writes coverage.json,
+# unsupported_features.csv, and replacement_candidates.csv.
+# -------------------------------------------------------------------
+add_executable(pgorca_rule_audit
+    tools/pgorca_rule_audit/main.cpp
+    tools/gporca_test/pg_cost_stubs.cpp
+    $<TARGET_OBJECTS:orca_core>
+)
+add_dependencies(pgorca_rule_audit dsl_codegen)
+
+target_compile_definitions(pgorca_rule_audit PRIVATE
+    $<$<CONFIG:Debug>:GPOS_DEBUG>
+    USE_CMAKE
+)
+
+target_compile_options(pgorca_rule_audit PRIVATE
+    -Wall
+    -Wno-unused-parameter
+    -Wno-sign-compare
+)
+
+target_include_directories(pgorca_rule_audit PRIVATE
+    ${CMAKE_SOURCE_DIR}/libgpos/include
+    ${CMAKE_SOURCE_DIR}/libnaucrates/include
+    ${CMAKE_SOURCE_DIR}/libgpopt/include
+    ${CMAKE_SOURCE_DIR}/libgpdbcost/include
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/compat
+    ${DSL_GENERATED_DIR}
+    SYSTEM
+    ${PG_SERVER_INCLUDEDIR}
+    ${PG_INCLUDEDIR}
+    ${XERCES_INCLUDE}
+    ${ANTLR4_INCLUDE}
+    ${EXTRA_SYSTEM_INCLUDES}
+)
+
+target_link_libraries(pgorca_rule_audit PRIVATE ${XERCES_LIB} ${ANTLR4_LIB})
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(pgorca_rule_audit PRIVATE dl)
+endif()
+
 enable_testing()
 add_test(NAME gpopt_dsl_test COMMAND gpopt_dsl_test)
+add_test(
+    NAME pgorca_rule_audit_fixture
+    COMMAND pgorca_rule_audit
+            ${CMAKE_SOURCE_DIR}/test/dsl/audit
+            ${CMAKE_BINARY_DIR}/rule-audit-fixture
+)
+set_tests_properties(pgorca_rule_audit_fixture PROPERTIES
+    PASS_REGULAR_EXPRESSION
+    "candidates=4 parsed=2 supported_static=1 unsupported_static=1 parse_failed=1 skipped_non_eq=1"
+)
 
 # -------------------------------------------------------------------
 # Packaging (DEB/RPM via CPack). Linux only.

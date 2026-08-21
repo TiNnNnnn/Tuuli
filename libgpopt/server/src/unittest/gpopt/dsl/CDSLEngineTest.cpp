@@ -40,10 +40,44 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_Bucketing),
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_CapabilityMetadata),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_CapabilityMetadata()
+{
+	for (ULONG ul = 0; ul < EdslopSentinel; ul++)
+	{
+		const EDslOpKind edslop = static_cast<EDslOpKind>(ul);
+		const BOOL fExpected =
+			EdslopSort != edslop && EdslopLimit != edslop;
+		if (fExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
+			fExpected != CDSLOpKindTable::FInstantiatorSupported(edslop))
+		{
+			return GPOS_FAILED;
+		}
+	}
+
+	if (CDSLOpKindTable::FSourceRootDispatchSupported(EdslopInput, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopFilter, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopProj, true))
+	{
+		return GPOS_FAILED;
+	}
+
+	for (ULONG ul = 0; ul < EdslconSentinel; ul++)
+	{
+		if (!CDSLConstraintKindTable::FCheckerSupported(
+				static_cast<EDslConstraintKind>(ul)))
+		{
+			return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
 }
 
 //---------------------------------------------------------------------------

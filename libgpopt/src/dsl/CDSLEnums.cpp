@@ -164,6 +164,60 @@ CDSLOpKindTable::FHasPreUnnestRepresentation(EDslOpKind edslop)
 	return EdslopExists == edslop || EdslopInSubFilter == edslop;
 }
 
+BOOL
+CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
+{
+	switch (edslop)
+	{
+		case EdslopInput:
+		case EdslopInnerJoin:
+		case EdslopLeftJoin:
+		case EdslopFilter:
+		case EdslopInSubFilter:
+		case EdslopExists:
+		case EdslopProj:
+		case EdslopAgg:
+		case EdslopUnion:
+			return true;
+		case EdslopSort:
+		case EdslopLimit:
+		case EdslopSentinel:
+			return false;
+	}
+	return false;
+}
+
+BOOL
+CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
+{
+	switch (edslop)
+	{
+		case EdslopInput:
+		case EdslopInnerJoin:
+		case EdslopLeftJoin:
+		case EdslopFilter:
+		case EdslopInSubFilter:
+		case EdslopExists:
+		case EdslopProj:
+		case EdslopAgg:
+		case EdslopUnion:
+			return true;
+		case EdslopSort:
+		case EdslopLimit:
+		case EdslopSentinel:
+			return false;
+	}
+	return false;
+}
+
+BOOL
+CDSLOpKindTable::FSourceRootDispatchSupported(EDslOpKind edslop,
+										   BOOL fDistinct)
+{
+	return EdslopInput != edslop && FMatcherSupported(edslop) &&
+		   COperator::EopSentinel != Eopid(edslop, fDistinct);
+}
+
 EDslOpKind
 CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 					   EDslSortDir *pedslsort,
@@ -327,4 +381,26 @@ CDSLConstraintKindTable::Parse(const CHAR *sz_name)
 		}
 	}
 	return EdslconSentinel;
+}
+
+BOOL
+CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
+{
+	switch (edslcon)
+	{
+		case EdslconTableEq:
+		case EdslconAttrsEq:
+		case EdslconPredicateEq:
+		case EdslconSchemaEq:
+		case EdslconFuncEq:
+		case EdslconScalarEq:
+		case EdslconAttrsSub:
+		case EdslconUnique:
+		case EdslconNotNull:
+		case EdslconReference:
+			return true;
+		case EdslconSentinel:
+			return false;
+	}
+	return false;
 }

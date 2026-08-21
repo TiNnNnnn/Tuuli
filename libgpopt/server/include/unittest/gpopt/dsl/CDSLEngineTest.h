@@ -47,6 +47,9 @@ public:
 	// subquery phase routing is an operator capability, independent of rule shape
 	static GPOS_RESULT EresUnittest_SubqueryRepresentationCapability();
 
+	// corpus-audit capability metadata mirrors the implemented engine boundary
+	static GPOS_RESULT EresUnittest_CapabilityMetadata();
+
 	// three-stage entry points are callable (phase-1 stubs: no rewrite)
 	static GPOS_RESULT EresUnittest_StubsCallable();
 };	// class CDSLEngineTest

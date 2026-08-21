@@ -1,0 +1,11 @@
+# One statically supported rule.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)
+
+# Parser support is present, but the current matcher/instantiator has no Sort.
+SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)
+
+# Deliberately malformed, to verify per-line parse failure reporting.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|AttrsEq(a1,
+
+# A non-EQ verdict is inventoried but excluded from the trusted corpus.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0)	NEQ

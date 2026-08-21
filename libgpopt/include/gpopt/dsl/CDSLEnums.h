@@ -154,6 +154,15 @@ public:
 	// choose exactly one representation in an optimization run.
 	static BOOL FHasPreUnnestRepresentation(EDslOpKind edslop);
 
+	// Static execution capabilities used by both diagnostics and corpus audit.
+	// These describe whether the current generic engine has a matcher/target
+	// builder for an operator kind; they do not claim that a particular live
+	// SQL expression will satisfy a rule's bindings or metadata constraints.
+	static BOOL FMatcherSupported(EDslOpKind edslop);
+	static BOOL FInstantiatorSupported(EDslOpKind edslop);
+	static BOOL FSourceRootDispatchSupported(EDslOpKind edslop,
+										 BOOL fDistinct);
+
 	// resolve an input operator token (with aliases + '*'/dir suffixes stripped)
 	// to a kind. Mirrors WeTune OpKind.parse. Returns EdslopSentinel if unknown.
 	// On return, *pfStar / *pedslsort report the parsed '*' and Sort direction.
@@ -188,6 +197,9 @@ public:
 	// resolve a constraint name to its kind; also accepts the legacy "Pick*"
 	// spelling WeTune rewrites to "Attrs*". Returns EdslconSentinel if unknown.
 	static EDslConstraintKind Parse(const CHAR *sz_name);
+
+	// Whether CDSLConstraintChecker implements this constraint kind.
+	static BOOL FCheckerSupported(EDslConstraintKind edslcon);
 };
 }  // namespace gpopt
 
