@@ -98,6 +98,24 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	for (ULONG ul = 0; ul < ulRules; ul++)
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
+		const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
+
+		// PostgreSQL flattens a chain of IN filters into one Select containing
+		// several ANY conjuncts. If native Select2Apply is enabled it will also
+		// materialize that chain as nested ApplyIn nodes, where
+		// CXformDSLRule_InSub can apply the same DSL rule. Producing both the
+		// pre-Apply and post-Apply collapse alternatives for the same memo group
+		// leaves ORCA search jobs queued at stage finalization. Prefer the native
+		// unnest + post-Apply DSL path in normal operation; when Select2Apply is
+		// explicitly disabled, retain the pre-Apply path so DSL independently
+		// replaces it (and causal tests remain meaningful).
+		if (EdslopInSubFilter == popSrcRoot->Edslop() &&
+			0 < popSrcRoot->UlChildren() &&
+			EdslopInSubFilter == (*popSrcRoot)[0]->Edslop() &&
+			GPOPT_FENABLED_XFORM(CXform::ExfSelect2Apply))
+		{
+			continue;
+		}
 
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		if (peng->FMatch(prule, pexpr, pmodel) &&

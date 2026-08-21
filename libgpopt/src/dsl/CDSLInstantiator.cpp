@@ -631,7 +631,8 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
 	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
-	CExpression *pexprPred = pmodel->PexprInSubPred();
+	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
+	CExpression *pexprPred = pmodel->PexprInSubPred(psymAttrs);
 	if (nullptr == pexprOuter || nullptr == pexprInner || nullptr == pexprPred)
 	{
 		CRefCount::SafeRelease(pexprOuter);

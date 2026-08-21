@@ -15,7 +15,21 @@
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 
+#include <vector>
+
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FPlainEqAny(CExpression *pexpr)
+{
+	return COperator::EopScalarSubqueryAny == pexpr->Pop()->Eopid() &&
+		   2 == pexpr->Arity() &&
+		   IMDType::EcmptEq == CUtils::ParseCmpType(
+				CScalarSubqueryAny::PopConvert(pexpr->Pop())->MdIdOp());
+}
+}  // namespace
 
 BOOL
 CDSLInSubMatcher::FBindOuterAttrs(const CDSLOp *pop,
@@ -33,6 +47,50 @@ CDSLInSubMatcher::FBindOuterAttrs(const CDSLOp *pop,
 				  pmodel->FBind((*pdrgpsym)[0], pdrgpcr);
 	pdrgpcr->Release();
 	return fBound;
+}
+
+BOOL
+CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
+							 CExpression *pexprAny,
+							 CDSLModel *pmodel) const
+{
+	CExpression *pexprInner = (*pexprAny)[0];
+
+	// PostgreSQL's ORCA translator removes a pass-through SELECT-list
+	// projection from a scalar IN subquery and stores its selected column
+	// directly on CScalarSubqueryAny. WeTune still exposes that SQL node as
+	// Proj<a s>(child). Treat this one precise representation difference as a
+	// transparent projection. Computed projects remain CLogicalProject nodes.
+	if (EdslopProj == popInner->Edslop() &&
+		COperator::EopLogicalProject != pexprInner->Pop()->Eopid() &&
+		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
+		2 == popInner->Pdrgpsym()->Size())
+	{
+		CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		pdrgpcr->Append(const_cast<CColRef *>(
+			CScalarSubqueryAny::PopConvert(pexprAny->Pop())->Pcr()));
+		BOOL fMatched =
+			pmodel->FBind((*popInner->Pdrgpsym())[0], pdrgpcr) &&
+			pmodel->FBind((*popInner->Pdrgpsym())[1], pdrgpcr) &&
+			m_pmatcher->FMatch((*popInner)[0], pexprInner, pmodel);
+		pdrgpcr->Release();
+		return fMatched;
+	}
+
+	return m_pmatcher->FMatch(popInner, pexprInner, pmodel);
+}
+
+CExpression *
+CDSLInSubMatcher::PexprComparison(CExpression *pexprAny) const
+{
+	CScalarSubqueryAny *popAny =
+		CScalarSubqueryAny::PopConvert(pexprAny->Pop());
+	CExpression *pexprOuterScalar = (*pexprAny)[1];
+	pexprOuterScalar->AddRef();
+	IMDId *pmdidOp = popAny->MdIdOp();
+	pmdidOp->AddRef();
+	return CUtils::PexprScalarCmp(m_mp, pexprOuterScalar, popAny->Pcr(),
+								 *popAny->PstrOp(), pmdidOp);
 }
 
 BOOL
@@ -60,88 +118,84 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 
 		CExpressionArray *pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
-		CExpression *pexprAny = nullptr;
-		ULONG ulAny = 0;
-		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+		// WeTune represents chained WHERE ... IN (...) AND ... IN (...) as nested
+		// InSubFilter nodes, while PostgreSQL flattens them into sibling ANY
+		// conjuncts under one Select. Flatten the DSL's left spine, pair each node
+		// with one live ANY, then match their common relational base once.
+		std::vector<const CDSLOp *> rgpopChain;
+		const CDSLOp *popBase = pop;
+		while (EdslopInSubFilter == popBase->Edslop())
 		{
-			CExpression *pexprConj = (*pdrgpexprConj)[ul];
-			if (COperator::EopScalarSubqueryAny ==
-					pexprConj->Pop()->Eopid() &&
-				2 == pexprConj->Arity())
+			if (2 != popBase->UlChildren() || nullptr == popBase->Pdrgpsym() ||
+				1 != popBase->Pdrgpsym()->Size())
 			{
-				CScalarSubqueryAny *popAny =
-					CScalarSubqueryAny::PopConvert(pexprConj->Pop());
-				if (IMDType::EcmptEq == CUtils::ParseCmpType(popAny->MdIdOp()))
+				pdrgpexprConj->Release();
+				return false;
+			}
+			rgpopChain.push_back(popBase);
+			popBase = (*popBase)[0];
+		}
+
+		std::vector<CExpression *> rgpexprChosen(rgpopChain.size(), nullptr);
+		std::vector<BOOL> rgfUsed(pdrgpexprConj->Size(), false);
+		BOOL fMatched = true;
+		for (ULONG ulNode = 0; ulNode < rgpopChain.size() && fMatched;
+			 ulNode++)
+		{
+			const CDSLOp *popNode = rgpopChain[ulNode];
+			fMatched = false;
+			for (ULONG ulConj = 0; ulConj < pdrgpexprConj->Size(); ulConj++)
+			{
+				CExpression *pexprConj = (*pdrgpexprConj)[ulConj];
+				if (rgfUsed[ulConj] || !FPlainEqAny(pexprConj))
 				{
-					pexprAny = pexprConj;
-					ulAny++;
+					continue;
+				}
+				// Probe structural compatibility in a disposable model so rejected
+				// candidates cannot leave partial bindings in the real model.
+				CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
+				BOOL fFits = FMatchInner((*popNode)[1], pexprConj, pmodelProbe);
+				pmodelProbe->Release();
+				if (fFits)
+				{
+					rgpexprChosen[ulNode] = pexprConj;
+					rgfUsed[ulConj] = true;
+					fMatched = true;
+					break;
 				}
 			}
 		}
 
-		BOOL fMatched = false;
-		BOOL fInnerMatched = false;
-		if (1 == ulAny)
+		if (fMatched)
 		{
-			const CDSLOp *popInner = (*pop)[1];
-			CExpression *pexprInner = (*pexprAny)[0];
-
-			// PostgreSQL's ORCA translator removes a pass-through SELECT-list
-			// projection from a scalar IN subquery and stores its selected column
-			// directly on CScalarSubqueryAny. WeTune still exposes that SQL node as
-			// Proj<a s>(child). Treat this one precise representation difference as
-			// a transparent projection: the ANY comparison column is both the
-			// referenced attr and output schema, then match the Proj's child against
-			// the live inner relation. Computed/non-pass-through projects remain real
-			// CLogicalProject nodes and go through CDSLProjMatcher.
-			if (EdslopProj == popInner->Edslop() &&
-				COperator::EopLogicalProject != pexprInner->Pop()->Eopid() &&
-				1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-				2 == popInner->Pdrgpsym()->Size())
-			{
-				CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
-				pdrgpcr->Append(const_cast<CColRef *>(
-					CScalarSubqueryAny::PopConvert(pexprAny->Pop())->Pcr()));
-				fInnerMatched =
-					pmodel->FBind((*popInner->Pdrgpsym())[0], pdrgpcr) &&
-					pmodel->FBind((*popInner->Pdrgpsym())[1], pdrgpcr) &&
-					m_pmatcher->FMatch((*popInner)[0], pexprInner, pmodel);
-				pdrgpcr->Release();
-			}
-			else
-			{
-				fInnerMatched =
-					m_pmatcher->FMatch(popInner, pexprInner, pmodel);
-			}
+			fMatched = m_pmatcher->FMatch(popBase, (*pexpr)[0], pmodel);
 		}
-		if (1 == ulAny && fInnerMatched &&
-			FBindOuterAttrs(pop, (*pexprAny)[1], pmodel) &&
-			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel))
+		for (ULONG ulNode = 0; ulNode < rgpopChain.size() && fMatched;
+			 ulNode++)
 		{
-			CScalarSubqueryAny *popAny =
-				CScalarSubqueryAny::PopConvert(pexprAny->Pop());
-			CExpression *pexprOuterScalar = (*pexprAny)[1];
-			pexprOuterScalar->AddRef();
-			IMDId *pmdidOp = popAny->MdIdOp();
-			pmdidOp->AddRef();
-			CExpression *pexprPred = CUtils::PexprScalarCmp(
-				m_mp, pexprOuterScalar, popAny->Pcr(), *popAny->PstrOp(),
-				pmdidOp);
-			pmodel->SetInSubPred(pexprPred);
+			const CDSLOp *popNode = rgpopChain[ulNode];
+			CExpression *pexprAny = rgpexprChosen[ulNode];
+			const CDSLSymbol *psymAttrs = (*popNode->Pdrgpsym())[0];
+			fMatched =
+				FMatchInner((*popNode)[1], pexprAny, pmodel) &&
+				FBindOuterAttrs(popNode, (*pexprAny)[1], pmodel) &&
+				pmodel->FSetInSubPred(psymAttrs, PexprComparison(pexprAny));
+		}
 
+		if (fMatched)
+		{
 			CExpressionArray *pdrgpexprResidual =
 				GPOS_NEW(m_mp) CExpressionArray(m_mp);
 			for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 			{
-				CExpression *pexprConj = (*pdrgpexprConj)[ul];
-				if (pexprConj != pexprAny)
+				if (!rgfUsed[ul])
 				{
+					CExpression *pexprConj = (*pdrgpexprConj)[ul];
 					pexprConj->AddRef();
 					pdrgpexprResidual->Append(pexprConj);
 				}
 			}
 			pmodel->SetInSubResidualConjuncts(pdrgpexprResidual);
-			fMatched = true;
 		}
 		pdrgpexprConj->Release();
 		return fMatched;
@@ -178,8 +232,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			return false;
 		}
 		(*pexpr)[2]->AddRef();
-		pmodel->SetInSubPred((*pexpr)[2]);
-		return true;
+		return pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], (*pexpr)[2]);
 	}
 
 	return false;

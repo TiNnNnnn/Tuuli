@@ -15,10 +15,11 @@ class CDSLInSubTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_PreApplyCorpusElimination();
+	static GPOS_RESULT EresUnittest_PreApplyRepeatedInElimination();
+	static GPOS_RESULT EresUnittest_PostApplyRepeatedInElimination();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();
 };
 }  // namespace gpopt
 
 #endif	// !GPOPT_CDSLInSubTest_H
-

@@ -19,7 +19,6 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgpexprResidual(nullptr),
 	  m_pdrgpexprExistsResidual(nullptr),
-	  m_pexprInSubPred(nullptr),
 	  m_pdrgpexprInSubResidual(nullptr),
 	  m_pexprProjList(nullptr),
 	  m_pexprJoinPred(nullptr),
@@ -27,6 +26,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
+	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 }
 
 //---------------------------------------------------------------------------
@@ -38,9 +38,9 @@ CDSLModel::~CDSLModel()
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
+	m_phmInSubPred->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
-	CRefCount::SafeRelease(m_pexprInSubPred);
 	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
 	CRefCount::SafeRelease(m_pexprProjList);
 	CRefCount::SafeRelease(m_pexprJoinPred);
@@ -53,11 +53,32 @@ CDSLModel::SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr)
 	m_pdrgpexprExistsResidual = pdrgpexpr;
 }
 
-void
-CDSLModel::SetInSubPred(CExpression *pexpr)
+BOOL
+CDSLModel::FSetInSubPred(const CDSLSymbol *psymAttrs, CExpression *pexpr)
 {
-	CRefCount::SafeRelease(m_pexprInSubPred);
-	m_pexprInSubPred = pexpr;
+	GPOS_ASSERT(nullptr != psymAttrs);
+	GPOS_ASSERT(EdslsymAttrs == psymAttrs->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprExisting = m_phmInSubPred->Find(psymAttrs);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmInSubPred->Insert(
+		const_cast<CDSLSymbol *>(psymAttrs), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprInSubPred(const CDSLSymbol *psymAttrs) const
+{
+	GPOS_ASSERT(nullptr != psymAttrs);
+	GPOS_ASSERT(EdslsymAttrs == psymAttrs->Esymkind());
+	return m_phmInSubPred->Find(psymAttrs);
 }
 
 void

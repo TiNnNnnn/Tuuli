@@ -50,6 +50,14 @@ using CDSLSymbolToRefMap =
 			 gpos::EqualPtr<CDSLSymbol>, CleanupNULL<CDSLSymbol>,
 			 CleanupRelease<CRefCount> >;
 
+// IN predicates are additional artifacts keyed by the InSubFilter's attrs
+// symbol. They cannot live in m_phmSymToRef because that symbol is already
+// bound to its CColRefArray. Values are owned; keys belong to the rule IR.
+using CDSLSymbolToExpressionMap =
+	CHashMap<CDSLSymbol, CExpression, gpos::HashPtr<CDSLSymbol>,
+			 gpos::EqualPtr<CDSLSymbol>, CleanupNULL<CDSLSymbol>,
+			 CleanupRelease<CExpression> >;
+
 //---------------------------------------------------------------------------
 //	@class:
 //		CDSLModel
@@ -64,6 +72,7 @@ class CDSLModel : public CRefCount
 private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
+	CDSLSymbolToExpressionMap *m_phmInSubPred;
 
 	// conjuncts of a matched Filter/Select that the rule did NOT consume — they
 	// must be carried through to the instantiated target unchanged (dropping a
@@ -78,9 +87,9 @@ private:
 	// from Filter/Join residuals because an Exists subtree may contain either.
 	CExpressionArray *m_pdrgpexprExistsResidual;
 
-	// The equality predicate represented by a matched plain IN/ANY subquery and
-	// any other conjuncts beside that subquery in its source Select.
-	CExpression *m_pexprInSubPred;
+	// Other conjuncts beside matched IN/ANY subqueries in their source Select.
+	// Each IN comparison predicate is stored separately in m_phmInSubPred under
+	// that InSubFilter node's attrs symbol, allowing nested/repeated IN rules.
 	CExpressionArray *m_pdrgpexprInSubResidual;
 
 	// the project-list scalar subtree (CScalarProjectList) of a matched
@@ -168,13 +177,12 @@ public:
 		return m_pdrgpexprExistsResidual;
 	}
 
-	void SetInSubPred(CExpression *pexpr);
+	// Record the exact comparison predicate for one source InSubFilter attrs
+	// symbol. Takes ownership of pexpr. Returns false on an incompatible repeat.
+	BOOL FSetInSubPred(const CDSLSymbol *psymAttrs, CExpression *pexpr);
 
-	CExpression *
-	PexprInSubPred() const
-	{
-		return m_pexprInSubPred;
-	}
+	// Look up the predicate for a resolved source attrs symbol. No AddRef.
+	CExpression *PexprInSubPred(const CDSLSymbol *psymAttrs) const;
 
 	void SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr);
 
