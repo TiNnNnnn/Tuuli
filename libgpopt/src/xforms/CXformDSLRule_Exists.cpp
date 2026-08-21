@@ -59,18 +59,11 @@ CXformDSLRule_Exists::Transform(CXformContext *pxfctxt,
 	for (ULONG ul = 0; ul < pdrgprule->Size(); ul++)
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
-		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-		if (peng->FMatch(prule, pexpr, pmodel) &&
-			peng->FCheckConstraints(prule, pmodel, pexpr))
+		CExpression *pexprTgt = peng->PexprApply(mp, prule, pexpr);
+		if (nullptr != pexprTgt)
 		{
-			CExpression *pexprTgt =
-				peng->PexprInstantiate(mp, prule, pmodel);
-			if (nullptr != pexprTgt)
-			{
-				pxfres->Add(pexprTgt);
-			}
+			pxfres->Add(pexprTgt);
 		}
-		pmodel->Release();
 	}
 }
 

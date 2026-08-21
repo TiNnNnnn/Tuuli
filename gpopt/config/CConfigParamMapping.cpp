@@ -23,8 +23,13 @@ extern int optimizer_join_order;
 extern bool pg_orca_enable_dynamic_tablescan;
 // pg_orca.enable_dsl_rule GUC (pg_orca.cpp): preserve logical ops for DSL match.
 extern bool pg_orca_enable_dsl_rule;
+// pg_orca.dsl_only_xforms / pg_orca.trace_dsl_rule (pg_orca.cpp): scoped
+// native-xform suppression and per-rule attribution for replacement tests.
+extern char *pg_orca_dsl_only_xforms;
+extern bool pg_orca_trace_dsl_rule;
 #include "gpopt/config/CConfigParamMapping.h"
 #include "gpopt/xforms/CXform.h"
+#include "gpopt/xforms/CXformFactory.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpos;
@@ -139,6 +144,9 @@ CConfigParamMapping::SConfigMappingElem CConfigParamMapping::m_elements[] = {
 
 	{EopttracePrintXformResults, &optimizer_print_xform_results,
 	 false, GPOS_WSZ_LIT("Print input and output of xforms.")},
+
+	{EopttracePrintDSLRule, &pg_orca_trace_dsl_rule,
+	 false, GPOS_WSZ_LIT("Print per-rule MONSOON DSL rewrite attribution.")},
 
 	{EopttracePrintMemoAfterExploration, &optimizer_print_memo_after_exploration,
 	 false, GPOS_WSZ_LIT("Prints MEMO after exploration.")},
@@ -391,6 +399,68 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 			BOOL is_traceflag_set GPOS_ASSERTS_ONLY =
 				traceflag_bitset->ExchangeSet(EopttraceDisableXformBase + ul);
 			GPOS_ASSERT(!is_traceflag_set);
+		}
+	}
+
+	// A DSL-only experiment names only the native xforms whose capability is
+	// under replacement.  Apply this list to the current optimization task's
+	// trace flags (not optimizer_xforms[]) so RESET immediately restores the
+	// normal native set and independent sessions cannot leak state.
+	if (nullptr != pg_orca_dsl_only_xforms &&
+		'\0' != pg_orca_dsl_only_xforms[0])
+	{
+		const CHAR *szCursor = pg_orca_dsl_only_xforms;
+		while ('\0' != *szCursor)
+		{
+			while (' ' == *szCursor || '\t' == *szCursor || ',' == *szCursor)
+			{
+				szCursor++;
+			}
+			if ('\0' == *szCursor)
+			{
+				break;
+			}
+
+			const CHAR *szBegin = szCursor;
+			while ('\0' != *szCursor && ',' != *szCursor)
+			{
+				szCursor++;
+			}
+			const CHAR *szEnd = szCursor;
+			while (szBegin < szEnd &&
+				   (' ' == szEnd[-1] || '\t' == szEnd[-1]))
+			{
+				szEnd--;
+			}
+
+			const SIZE_T length = static_cast<SIZE_T>(szEnd - szBegin);
+			CHAR *szName = GPOS_NEW_ARRAY(mp, CHAR, length + 1);
+			for (SIZE_T ul = 0; ul < length; ul++)
+			{
+				szName[ul] = szBegin[ul];
+			}
+			szName[length] = '\0';
+
+			CXform *pxform = CXformFactory::Pxff()->Pxf(szName);
+			if (nullptr == pxform)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("unrecognized xform in pg_orca.dsl_only_xforms: %s",
+								szName)));
+			}
+			if (pxform->Exfid() >= CXform::ExfDSLRuleSelect &&
+				pxform->Exfid() <= CXform::ExfDSLRuleUnionAll)
+			{
+				ereport(ERROR,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("pg_orca.dsl_only_xforms accepts native xforms only: %s",
+								szName)));
+			}
+
+			traceflag_bitset->ExchangeSet(EopttraceDisableXformBase +
+									   pxform->Exfid());
+			GPOS_DELETE_ARRAY(szName);
 		}
 	}
 

@@ -10,6 +10,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRuleEngine.h"
 
+#include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
 #include "gpos/memory/CMemoryPoolManager.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -17,6 +18,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
@@ -31,11 +33,13 @@ CDSLRuleEngine::CDSLRuleEngine(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgprule(nullptr),
 	  m_phmOpidToRules(nullptr),
+	  m_phmRuleToId(nullptr),
 	  m_pdrgpruleEmpty(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_pdrgprule = GPOS_NEW(mp) CDSLRuleArray(mp);
 	m_phmOpidToRules = GPOS_NEW(mp) COperatorIdToRuleArrayMap(mp);
+	m_phmRuleToId = GPOS_NEW(mp) CDSLRuleToIdMap(mp);
 	m_pdrgpruleEmpty = GPOS_NEW(mp) CDSLRuleArray(mp);
 }
 
@@ -46,6 +50,7 @@ CDSLRuleEngine::CDSLRuleEngine(CMemoryPool *mp)
 CDSLRuleEngine::~CDSLRuleEngine()
 {
 	m_phmOpidToRules->Release();
+	m_phmRuleToId->Release();
 	m_pdrgprule->Release();
 	m_pdrgpruleEmpty->Release();
 }
@@ -144,6 +149,10 @@ CDSLRuleEngine::Init(const CHAR *szPath)
 				CDSLRule *prule = (*pdrgprule)[ul];
 				prule->AddRef();
 				pengine->m_pdrgprule->Append(prule);
+				BOOL fInserted = pengine->m_phmRuleToId->Insert(
+					prule, GPOS_NEW(mp) ULONG(ul + 1));
+				GPOS_ASSERT(fInserted);
+				(void) fInserted;
 			}
 			pdrgprule->Release();
 		}
@@ -188,10 +197,81 @@ CDSLRuleEngine::PdrgpruleForRoot(COperator::EOperatorId eopid) const
 	return pdrgprule;
 }
 
+ULONG
+CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
+{
+	GPOS_ASSERT(nullptr != prule);
+	ULONG *pulId = m_phmRuleToId->Find(const_cast<CDSLRule *>(prule));
+	return nullptr == pulId ? 0 : *pulId;
+}
+
+namespace
+{
+void
+TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
+			 const CDSLRule *prule, const CDSLModel *pmodel,
+			 const CExpression *pexprTgt)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+
+	CAutoTrace at(mp);
+	IOstream &os = at.Os();
+	os << "DSL_RULE id=" << ulRuleId << " stage=" << szStage;
+	if (nullptr != pmodel)
+	{
+		os << " bindings=" << pmodel->Size();
+	}
+	os << std::endl << "Rule: ";
+	prule->OsPrint(os);
+	os << std::endl;
+	if (nullptr != pexprTgt)
+	{
+		os << "Generated:" << std::endl;
+		pexprTgt->OsPrint(os);
+	}
+}
+}  // namespace
+
+CExpression *
+CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
+						   CExpression *pexpr) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pexpr);
+
+	const ULONG ulRuleId =
+		GPOS_FTRACE(EopttracePrintDSLRule) ? UlRuleId(prule) : 0;
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	if (!FMatch(prule, pexpr, pmodel))
+	{
+		TraceDSLRule(mp, ulRuleId, "match_rejected", prule, pmodel, nullptr);
+		pmodel->Release();
+		return nullptr;
+	}
+	if (!FCheckConstraints(prule, pmodel, pexpr))
+	{
+		TraceDSLRule(mp, ulRuleId, "constraint_rejected", prule, pmodel,
+					 nullptr);
+		pmodel->Release();
+		return nullptr;
+	}
+
+	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
+	TraceDSLRule(mp, ulRuleId,
+				 nullptr == pexprTgt ? "instantiate_rejected" : "applied", prule,
+				 pmodel, pexprTgt);
+	pmodel->Release();
+	return pexprTgt;
+}
+
 //---------------------------------------------------------------------------
 //	Three-stage rewrite.
-//	Match: real (phase 2, #24 — generic recursion + Input, delegated symbol
-//	binding). Check / Instantiate remain phase-2 stubs (#26 / #27).
+//	Generic recursion + delegated operator matchers, constraint checking, and
+//	target instantiation shared by every DSL xform shell.
 //---------------------------------------------------------------------------
 BOOL
 CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,

@@ -7,6 +7,7 @@ RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/framework.rules}"
 OUTPUT_DIR="${DSL_E2E_OUTPUT_DIR:-$REPO_ROOT/build/dsl-e2e}"
 PG_CONFIG="${PG_CONFIG:-$(command -v pg_config || true)}"
 PORT="${DSL_E2E_PORT:-55439}"
+REPLACEMENT_XFORMS="CXformSelect2Apply, CXformProject2Apply"
 
 fail()
 {
@@ -150,10 +151,10 @@ run_explain()
     local native_enabled=$3
     local query=$4
     local trace_xforms=${5:-off}
-    local native_sql="DO 'BEGIN PERFORM enable_xform(''CXformSelect2Apply''); END';"
+    local native_sql="SET pg_orca.dsl_only_xforms='';"
 
     if [[ "$native_enabled" = "off" ]]; then
-        native_sql="DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';"
+        native_sql="SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';"
     fi
 
     "${PSQL[@]}" -q -c "
@@ -163,6 +164,7 @@ SET pg_orca.enable_dsl_rule=$dsl_enabled;
 $native_sql
 SET optimizer_print_xform=$trace_xforms;
 SET optimizer_print_xform_results=$trace_xforms;
+SET pg_orca.trace_dsl_rule=$trace_xforms;
 SET client_min_messages=log;
 EXPLAIN (COSTS OFF) $query;
 " >"$output_file" 2>&1
@@ -222,12 +224,12 @@ assert_same_rows()
     local query=$2
     local expected=$3
     local native_enabled=$4
-    local native_sql="DO 'BEGIN PERFORM enable_xform(''CXformSelect2Apply''); END';"
+    local native_sql="SET pg_orca.dsl_only_xforms='';"
     local dsl_rows
     local postgres_rows
 
     if [[ "$native_enabled" = "off" ]]; then
-        native_sql="DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';"
+        native_sql="SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';"
     fi
 
     dsl_rows="$("${PSQL[@]}" -qAt -c "
@@ -285,7 +287,7 @@ dsl_rows="$("${PSQL[@]}" -qAt -c "
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
-DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';
+SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';
 COPY ($REPEATED_IN_QUERY) TO STDOUT WITH (FORMAT csv);
 ")"
 postgres_rows="$("${PSQL[@]}" -qAt -c "
@@ -326,6 +328,9 @@ assert_not_contains "$OUTPUT_DIR/self-in-off-native-off.plan" "Optimizer: pg_orc
 assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Optimizer: pg_orca"
 assert_xform_produced_alternative \
     "$OUTPUT_DIR/self-in-on-native-off.plan" "CXformDSLRule_Select"
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "stage=applied bindings="
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Rule: InSubFilter"
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Generated:"
 if (( $(count_plan_joins "$OUTPUT_DIR/self-in-on-native-off.plan") != 0 )); then
     fail "causal self-IN DSL ON should eliminate the join"
 fi
@@ -386,7 +391,7 @@ assert_same_rows "Union/Union distinct" "$UNION_DISTINCT_QUERY" $'1\n2\n3' on
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
-DO 'BEGIN PERFORM disable_xform(''CXformSelect2Apply''); END';
+SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';
 EXPLAIN (COSTS OFF)
 SELECT id, v
 FROM dsl_insub_outer o

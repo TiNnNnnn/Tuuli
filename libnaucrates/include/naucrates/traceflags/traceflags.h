@@ -80,6 +80,9 @@ enum EOptTraceFlag
 	// log results of hint parsing
 	EopttracePrintPgHintPlanLog = 101018,
 
+	// print per-rule MONSOON DSL match/check/instantiate attribution
+	EopttracePrintDSLRule = 101019,
+
 	///////////////////////////////////////////////////////
 	////////////////// transformations flags //////////////
 	///////////////////////////////////////////////////////

@@ -176,6 +176,18 @@ bool  pg_orca_enable_dynamic_tablescan = true;
  */
 bool  pg_orca_enable_dsl_rule = false;
 
+/*
+ * Comma-separated native xforms that are suppressed for a DSL replacement
+ * experiment.  Unlike disable_xform(), this is query configuration: it is
+ * packed into the optimization task's trace flags without mutating the
+ * backend-global optimizer_xforms[] array.  Keeping the replacement set
+ * separate from rule data preserves MONSOON's existing DSL format.
+ */
+char *pg_orca_dsl_only_xforms = NULL;
+
+/* Emit per-rule match/check/instantiate attribution from CDSLRuleEngine. */
+bool  pg_orca_trace_dsl_rule = false;
+
 static bool orca_initialized = false;
 
 /*
@@ -839,6 +851,27 @@ void _PG_init(void)
         "during exploration.",
         NULL,
         &pg_orca_enable_dsl_rule,
+        false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomStringVariable(
+        "pg_orca.dsl_only_xforms",
+        "Comma-separated native ORCA xforms to suppress for a DSL-only "
+        "replacement experiment. Empty means DSL and native xforms run in "
+        "shadow mode.",
+        NULL,
+        &pg_orca_dsl_only_xforms,
+        "",
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.trace_dsl_rule",
+        "Log per-rule DSL match, constraint, instantiation, and application "
+        "decisions, including the canonical rule and generated expression.",
+        NULL,
+        &pg_orca_trace_dsl_rule,
         false,
         PGC_USERSET,
         0, NULL, NULL, NULL);

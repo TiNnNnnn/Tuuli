@@ -45,6 +45,13 @@ using COperatorIdToRuleArrayMap =
 	CHashMap<ULONG, CDSLRuleArray, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
 			 CleanupDelete<ULONG>, CleanupRelease<CDSLRuleArray> >;
 
+// Rule pointer -> stable one-based ordinal in the admitted library. Keys are
+// owned by m_pdrgprule; values are owned by this map.
+using CDSLRuleToIdMap =
+	CHashMap<CDSLRule, ULONG, gpos::HashPtr<CDSLRule>,
+			 gpos::EqualPtr<CDSLRule>, CleanupNULL<CDSLRule>,
+			 CleanupDelete<ULONG> >;
+
 //---------------------------------------------------------------------------
 //	@class:
 //		CDSLRuleEngine
@@ -67,6 +74,9 @@ private:
 
 	// source-root EOperatorId -> rules with that root
 	COperatorIdToRuleArrayMap *m_phmOpidToRules;
+
+	// admitted rule pointer -> stable one-based library ordinal
+	CDSLRuleToIdMap *m_phmRuleToId;
 
 	// empty bucket returned for roots with no rules (avoids NULL checks in
 	// shells); owned, allocated once.
@@ -113,24 +123,31 @@ public:
 	// total admitted rules (diagnostics)
 	ULONG UlRules() const { return m_pdrgprule->Size(); }
 
+	// Stable one-based ordinal in the admitted rule library. Returns zero only
+	// for a pointer that is not owned by this engine.
+	ULONG UlRuleId(const CDSLRule *prule) const;
+
 	//------------------------------------------------------------------
-	// three-stage rewrite (PHASE 2 — currently stubs)
+	// three-stage rewrite
 	//------------------------------------------------------------------
 
 	// ①: match rule's source template against pexpr, populating *pmodel.
-	// PHASE 1 STUB: always returns false.
 	BOOL FMatch(const CDSLRule *prule, CExpression *pexpr,
 				CDSLModel *pmodel) const;
 
 	// ②: check the rule's constraints against the bound model / live metadata.
-	// PHASE 1 STUB: always returns false.
 	BOOL FCheckConstraints(const CDSLRule *prule, const CDSLModel *pmodel,
 						   CExpression *pexpr) const;
 
 	// ③: instantiate the rule's target template under the bound model, in mp.
-	// PHASE 1 STUB: always returns NULL.
 	CExpression *PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
 								  const CDSLModel *pmodel) const;
+
+	// Run the complete match -> check -> instantiate pipeline for one rule.
+	// When pg_orca.trace_dsl_rule is enabled, this is also the single attribution
+	// point used by every operator shell. Caller owns the returned expression.
+	CExpression *PexprApply(CMemoryPool *mp, const CDSLRule *prule,
+							CExpression *pexpr) const;
 };
 }  // namespace gpopt
 

@@ -114,19 +114,13 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 			continue;
 		}
 
-		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-		if (peng->FMatch(prule, pexpr, pmodel) &&
-			peng->FCheckConstraints(prule, pmodel, pexpr))
+		CExpression *pexprTgt = peng->PexprApply(mp, prule, pexpr);
+		if (nullptr != pexprTgt)
 		{
-			CExpression *pexprTgt = peng->PexprInstantiate(mp, prule, pmodel);
-			if (nullptr != pexprTgt)
-			{
-				// trust chain: rule carries a WeTune EQ proof, so ORCA does not
-				// re-verify equivalence (see design §七).
-				pxfres->Add(pexprTgt);
-			}
+			// trust chain: rule carries a WeTune EQ proof, so ORCA does not
+			// re-verify equivalence (see design §七).
+			pxfres->Add(pexprTgt);
 		}
-		pmodel->Release();
 	}
 }
 
