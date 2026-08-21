@@ -35,6 +35,7 @@
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 #include "unittest/gpopt/dsl/CDSLProjTest.h"
 #include "unittest/gpopt/dsl/CDSLTriggerTest.h"
+#include "unittest/gpopt/dsl/CDSLUnionTest.h"
 
 using namespace gpos;
 using namespace gpopt;
@@ -55,6 +56,7 @@ static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLExistsTest),
 	GPOS_UNITTEST_STD(CDSLInSubTest),
 	GPOS_UNITTEST_STD(CDSLTriggerTest),
+	GPOS_UNITTEST_STD(CDSLUnionTest),
 };
 
 static void *

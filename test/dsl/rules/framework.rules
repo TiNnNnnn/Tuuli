@@ -14,3 +14,12 @@ Exists(Agg<a0 a1 f0 s0 p0>(Input<t0>),Proj<a2 s1>(Input<t1>))|Exists(Agg<a3 a4 f
 # It is a framework probe: changing the symbols or aggregate function must be
 # handled by bindings/constraints, not by C++ recognition of this text.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)
+
+# Generic Union commutativity probe in the established MONSOON format. The
+# source TableEq guard makes swapping UNION ALL branches semantics-preserving;
+# no rule text or table name is recognized by the C++ engine.
+Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,t1);TableEq(t3,t0)
+
+# Same framework path for set semantics. Union* is the existing MONSOON
+# spelling for duplicate-eliminating UNION (ORCA CLogicalUnion).
+Union*(Input<t0>,Input<t1>)|Union*(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,t1);TableEq(t3,t0)

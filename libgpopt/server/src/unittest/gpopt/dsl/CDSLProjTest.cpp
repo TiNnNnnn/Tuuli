@@ -115,9 +115,11 @@ CDSLProjTest::EresUnittest_MatchBindsProjectedColumns()
 		// the project list must have been recorded on the model.
 		const CDSLSymbol *psymAttrs =
 			prule->PfragSrc()->PopRoot()->Pdrgpsym()->operator[](0);
+		const CDSLSymbol *psymSchema =
+			prule->PfragSrc()->PopRoot()->Pdrgpsym()->operator[](1);
 		CColRefArray *pdrgpcrBound = pmodel->PdrgpcrAttrs(psymAttrs);
 		if (nullptr == pdrgpcrBound || 2 != pdrgpcrBound->Size() ||
-			nullptr == pmodel->PexprProjList())
+			nullptr == pmodel->PexprProjList(psymSchema))
 		{
 			eres = GPOS_FAILED;
 		}

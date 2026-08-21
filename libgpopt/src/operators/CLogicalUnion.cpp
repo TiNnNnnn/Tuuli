@@ -116,6 +116,7 @@ CLogicalUnion::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfUnion2UnionAll);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleUnion);
 	return xform_set;
 }
 

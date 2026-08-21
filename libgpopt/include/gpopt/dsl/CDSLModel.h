@@ -73,6 +73,13 @@ private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
+	CDSLSymbolToExpressionMap *m_phmProjList;
+
+	// Every matched Union/Union* expression, in source-tree traversal order.
+	// The operator owns the ordered output-column array and one ordered input
+	// array per branch; keeping the complete expression lets instantiation
+	// preserve those mappings even when target constraints reorder branches.
+	CExpressionArray *m_pdrgpexprUnionBindings;
 
 	// conjuncts of a matched Filter/Select that the rule did NOT consume — they
 	// must be carried through to the instantiated target unchanged (dropping a
@@ -92,15 +99,11 @@ private:
 	// that InSubFilter node's attrs symbol, allowing nested/repeated IN rules.
 	CExpressionArray *m_pdrgpexprInSubResidual;
 
-	// the project-list scalar subtree (CScalarProjectList) of a matched
-	// CLogicalProject. WeTune's Proj<a s> models projected columns as attrs/schema
-	// symbols, but ORCA's project list also carries the computed-column value
-	// subtrees, which those symbols do not capture. So the Proj matcher (M1)
-	// records the whole list here (opaque, AddRef'd — exactly like Filter records
-	// its predicate) and the instantiator AddRef-grafts it over the rebuilt child.
-	// Owns one ref; NULL until a Proj match records it.
-	CExpression *m_pexprProjList;
-
+	// Project-list scalar subtrees (CScalarProjectList), keyed by each Proj's
+	// schema symbol. A rule may contain sibling or nested Proj nodes, so a single
+	// global slot would let a later match overwrite an earlier one. Values are
+	// opaque and AddRef'd; they preserve computed-column value subtrees that
+	// attrs/schema bindings alone cannot represent.
 	// the whole join-predicate scalar subtree (child[2]) of a matched
 	// CLogicalInnerJoin / CLogicalLeftOuterJoin. WeTune's Join<a a> models only the
 	// equi-join key columns as attrs symbols, but ORCA's join predicate also carries
@@ -196,16 +199,26 @@ public:
 	// project list (Proj match — M1 produces, instantiator consumes)
 	//------------------------------------------------------------------
 
-	// record the CScalarProjectList subtree of a matched CLogicalProject. Takes
-	// ownership of one ref of pexpr; replaces any previous set.
-	void SetProjList(CExpression *pexpr);
+	// Record the CScalarProjectList subtree for one matched Proj schema symbol.
+	// Takes ownership of one ref of pexpr; duplicate keys are rejected.
+	BOOL FSetProjList(const CDSLSymbol *psymSchema, CExpression *pexpr);
 
-	// the project-list subtree recorded by the Proj matcher; NULL if no Proj was
+	// The project-list subtree for one Proj schema symbol; NULL if it was not
 	// matched. Does NOT transfer ownership.
-	CExpression *
-	PexprProjList() const
+	CExpression *PexprProjList(const CDSLSymbol *psymSchema) const;
+
+	//------------------------------------------------------------------
+	// set-op mappings (Union match produces, instantiator consumes)
+	//------------------------------------------------------------------
+
+	// Add one matched CLogicalUnion/CLogicalUnionAll expression. AddRefs it.
+	void AddUnionBinding(CExpression *pexprUnion);
+
+	// Matched Union expressions; does not transfer ownership.
+	CExpressionArray *
+	PdrgpexprUnionBindings() const
 	{
-		return m_pexprProjList;
+		return m_pdrgpexprUnionBindings;
 	}
 
 	//------------------------------------------------------------------

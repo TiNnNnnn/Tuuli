@@ -19,6 +19,7 @@
 #include "gpopt/dsl/CDSLInSubMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
+#include "gpopt/dsl/CDSLUnionMatcher.h"
 
 using namespace gpopt;
 
@@ -208,6 +209,12 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CDSLInSubMatcher ism(m_mp, this);
 		return ism.FMatch(pop, pexpr, pmodel);
+	}
+
+	if (EdslopUnion == pop->Edslop())
+	{
+		CDSLUnionMatcher um(m_mp, this);
+		return um.FMatch(pop, pexpr, pmodel);
 	}
 
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>

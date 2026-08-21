@@ -144,7 +144,7 @@ public:
 	// ORCA logical operator this DSL operator maps to; returns
 	// COperator::EopSentinel for operators with no direct logical counterpart
 	// (Input placeholder; Sort/Limit which ORCA has no independent logical op
-	// for). fDistinct selects Union vs UnionAll / (future) distinct variants.
+	// for). fDistinct selects Union vs UnionAll and Proj vs dedup GbAgg.
 	static COperator::EOperatorId Eopid(EDslOpKind edslop, BOOL fDistinct);
 
 	// True when the DSL operator is a SQL subquery filter whose translated

@@ -20,13 +20,14 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	  m_pdrgpexprResidual(nullptr),
 	  m_pdrgpexprExistsResidual(nullptr),
 	  m_pdrgpexprInSubResidual(nullptr),
-	  m_pexprProjList(nullptr),
 	  m_pexprJoinPred(nullptr),
 	  m_fDedupDrop(false)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
 	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 }
 
 //---------------------------------------------------------------------------
@@ -39,10 +40,11 @@ CDSLModel::~CDSLModel()
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
 	m_phmInSubPred->Release();
+	m_phmProjList->Release();
+	m_pdrgpexprUnionBindings->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
-	CRefCount::SafeRelease(m_pexprProjList);
 	CRefCount::SafeRelease(m_pexprJoinPred);
 }
 
@@ -105,17 +107,48 @@ CDSLModel::SetResidualConjuncts(CExpressionArray *pdrgpexpr)
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLModel::SetProjList
+//		CDSLModel::FSetProjList
 //
 //	@doc:
-//		Take ownership of a matched CLogicalProject's project-list subtree (Proj
-//		match, M1). A second call replaces the previous one (released).
+//		Record one matched CLogicalProject's project list by schema symbol. A
+//		rebind is accepted only when the scalar structures match.
 //---------------------------------------------------------------------------
-void
-CDSLModel::SetProjList(CExpression *pexpr)
+BOOL
+CDSLModel::FSetProjList(const CDSLSymbol *psymSchema, CExpression *pexpr)
 {
-	CRefCount::SafeRelease(m_pexprProjList);
-	m_pexprProjList = pexpr;
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprExisting = m_phmProjList->Find(psymSchema);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmProjList->Insert(
+		const_cast<CDSLSymbol *>(psymSchema), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprProjList(const CDSLSymbol *psymSchema) const
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	return m_phmProjList->Find(psymSchema);
+}
+
+void
+CDSLModel::AddUnionBinding(CExpression *pexprUnion)
+{
+	GPOS_ASSERT(nullptr != pexprUnion);
+	GPOS_ASSERT(COperator::EopLogicalUnion == pexprUnion->Pop()->Eopid() ||
+				COperator::EopLogicalUnionAll == pexprUnion->Pop()->Eopid());
+	pexprUnion->AddRef();
+	m_pdrgpexprUnionBindings->Append(pexprUnion);
 }
 
 //---------------------------------------------------------------------------

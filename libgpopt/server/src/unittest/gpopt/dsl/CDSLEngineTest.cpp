@@ -18,6 +18,8 @@
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalUnion.h"
+#include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -34,6 +36,7 @@ CDSLEngineTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_ShellRegistered),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_SelectDispatches),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_UnionShellsDispatch),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_Bucketing),
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
@@ -41,6 +44,56 @@ CDSLEngineTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLEngineTest::EresUnittest_UnionShellsDispatch
+//
+//	@doc:
+//		Both set-op shells are registered as exploration xforms and both logical
+//		operators advertise the corresponding id to the scheduler.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_UnionShellsDispatch()
+{
+	CXformFactory *pxff = CXformFactory::Pxff();
+	if (nullptr == pxff)
+	{
+		return GPOS_FAILED;
+	}
+
+	CXform *pxformUnion = pxff->Pxf("CXformDSLRule_Union");
+	CXform *pxformUnionAll = pxff->Pxf("CXformDSLRule_UnionAll");
+	if (nullptr == pxformUnion || nullptr == pxformUnionAll ||
+		CXform::ExfDSLRuleUnion != pxformUnion->Exfid() ||
+		CXform::ExfDSLRuleUnionAll != pxformUnionAll->Exfid() ||
+		!pxformUnion->FExploration() || pxformUnion->FImplementation() ||
+		!pxformUnionAll->FExploration() || pxformUnionAll->FImplementation() ||
+		pxformUnion != pxff->Pxf(CXform::ExfDSLRuleUnion) ||
+		pxformUnionAll != pxff->Pxf(CXform::ExfDSLRuleUnionAll))
+	{
+		return GPOS_FAILED;
+	}
+
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CLogicalUnion *popUnion = GPOS_NEW(mp) CLogicalUnion(mp);
+	CLogicalUnionAll *popUnionAll = GPOS_NEW(mp) CLogicalUnionAll(mp);
+	CXformSet *pxfsUnion = popUnion->PxfsCandidates(mp);
+	CXformSet *pxfsUnionAll = popUnionAll->PxfsCandidates(mp);
+
+	GPOS_RESULT eres =
+		pxfsUnion->Get(CXform::ExfDSLRuleUnion) &&
+		pxfsUnionAll->Get(CXform::ExfDSLRuleUnionAll)
+			? GPOS_OK
+			: GPOS_FAILED;
+
+	pxfsUnion->Release();
+	pxfsUnionAll->Release();
+	popUnion->Release();
+	popUnionAll->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------
@@ -174,6 +227,34 @@ CDSLEngineTest::EresUnittest_Bucketing()
 		return GPOS_FAILED;
 	}
 	pruleJoin->Release();
+
+	// In the WeTune vocabulary bare Union means bag union (ORCA UnionAll),
+	// while Union* means duplicate-eliminating union (ORCA Union).
+	const CHAR *szUnionAllRule =
+		"Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1)";
+	CDSLRule *pruleUnionAll =
+		CDSLRuleParser::PdslruleParse(mp, szUnionAllRule, "EQ", nullptr);
+	if (nullptr == pruleUnionAll ||
+		COperator::EopLogicalUnionAll != pruleUnionAll->EopidSrcRoot())
+	{
+		CRefCount::SafeRelease(pruleUnionAll);
+		return GPOS_FAILED;
+	}
+	pruleUnionAll->Release();
+
+	const CHAR *szUnionRule =
+		"Union*(Input<t0>,Input<t1>)|Union*(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1)";
+	CDSLRule *pruleUnion =
+		CDSLRuleParser::PdslruleParse(mp, szUnionRule, "EQ", nullptr);
+	if (nullptr == pruleUnion ||
+		COperator::EopLogicalUnion != pruleUnion->EopidSrcRoot())
+	{
+		CRefCount::SafeRelease(pruleUnion);
+		return GPOS_FAILED;
+	}
+	pruleUnion->Release();
 
 	return GPOS_OK;
 }

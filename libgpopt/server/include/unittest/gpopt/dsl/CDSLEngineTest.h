@@ -37,6 +37,10 @@ public:
 	// set the scheduler intersects to route expressions to xforms
 	static GPOS_RESULT EresUnittest_SelectDispatches();
 
+	// Union and Union* shells are registered and advertised by their logical
+	// operators, completing scheduler dispatch for the generic set-op framework
+	static GPOS_RESULT EresUnittest_UnionShellsDispatch();
+
 	// engine buckets a loaded library by source-root EOperatorId
 	static GPOS_RESULT EresUnittest_Bucketing();
 

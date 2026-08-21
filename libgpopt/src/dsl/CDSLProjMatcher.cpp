@@ -183,8 +183,7 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	// (it carries computed-column value subtrees the attrs/schema symbols do not).
 	CExpression *pexprProjList = (*pexprProject)[1];
 	pexprProjList->AddRef();
-	pmodel->SetProjList(pexprProjList);
-	return true;
+	return pmodel->FSetProjList(psymSchema, pexprProjList);
 }
 
 // EOF

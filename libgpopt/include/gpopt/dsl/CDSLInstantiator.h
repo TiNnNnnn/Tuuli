@@ -18,8 +18,7 @@
 //		alias map from the equality constraints, then reads the source symbol's
 //		binding out of the model.
 //
-//		Per-operator target build (structural operators — the set the matcher
-//		already supports; Proj/Agg with NEW columns are future work):
+//		Per-operator target build (the logical subset ORCA can represent):
 //		  Input<t>            -> the relational subtree bound to t (AddRef-graft)
 //		  Filter<p a>         -> CLogicalSelect(child, predicate). The predicate is
 //		                         the conjunct bound to p, CONJOINED with the
@@ -28,6 +27,9 @@
 //		                         residual = wrong plan.
 //		  InnerJoin/LeftJoin  -> the join operator over the two rebuilt children
 //		                         plus its (bound) predicate.
+//		  Proj/Agg/Exists/InSub/Union
+//		                       -> operator-specific builders preserve scalar and
+//		                          ordered-column metadata captured by the matcher.
 //
 //		Simplifications (doc §11): reused subtrees/predicates are grafted by
 //		AddRef with their real CColRefs already correct, so no per-node column
@@ -103,12 +105,11 @@ private:
 	CExpression *PexprBuildJoin(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 
-	// Proj<a s>: Project(child, project-list). M1 grafts the SOURCE-matched
+	// Proj<a s>: Project(child, project-list). Grafts the SOURCE-matched
 	// project-list subtree (recorded on the model) over the rebuilt relational
 	// child, so the projected/computed columns — hence DeriveOutputColumns — are
-	// preserved exactly. Column remapping (PexprCopyWithRemappedColumns) is only
-	// needed once a target introduces NEW columns (Agg / computed projections),
-	// which is future work; M1 rules reuse the source columns.
+	// preserved exactly. A target that introduces NEW columns still needs column
+	// remapping; current rules conservatively reuse source column identities.
 	CExpression *PexprBuildProj(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 
@@ -127,6 +128,12 @@ private:
 	// InSubFilter<a>(outer,inner): rebuild a LeftSemiApplyIn using the exact
 	// equality predicate captured from ScalarSubqueryAny/ApplyIn.
 	CExpression *PexprBuildInSub(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const;
+
+	// Union/Union*: rebuild a binary logical set-op while preserving the
+	// source match's ordered output-to-input column mapping. Target TableEq /
+	// SchemaEq aliases may reorder the two branches.
+	CExpression *PexprBuildUnion(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
 
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression

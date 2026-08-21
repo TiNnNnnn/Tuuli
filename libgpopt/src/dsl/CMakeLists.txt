@@ -28,9 +28,30 @@ if(NOT ANTLR4_JAR)
 endif()
 
 if(NOT ANTLR4_JAR OR NOT EXISTS "${ANTLR4_JAR}")
-    message(FATAL_ERROR
-        "ANTLR4 tool jar not found. Set -DANTLR4_JAR=/path/to/antlr-4.8-complete.jar "
-        "(or the ANTLR4_JAR env var). Download from https://www.antlr.org/download/ .")
+    # A clean checkout must be buildable without an ignored local .cache.
+    # Pin both the tool version and digest so CI does not execute an
+    # unauthenticated, mutable download. An explicit ANTLR4_JAR still wins.
+    set(_ANTLR4_DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_deps/antlr4-tool")
+    set(_ANTLR4_DOWNLOAD_JAR
+        "${_ANTLR4_DOWNLOAD_DIR}/antlr-4.8-complete.jar")
+    file(MAKE_DIRECTORY "${_ANTLR4_DOWNLOAD_DIR}")
+    message(STATUS "ANTLR4 tool jar not found locally; downloading 4.8")
+    file(DOWNLOAD
+        "https://www.antlr.org/download/antlr-4.8-complete.jar"
+        "${_ANTLR4_DOWNLOAD_JAR}"
+        EXPECTED_HASH
+            "SHA256=73a49d6810d903aa4827ee32126937b85d3bebec0a8e679b0dd963cbcc49ba5a"
+        TLS_VERIFY ON
+        STATUS _ANTLR4_DOWNLOAD_STATUS
+        LOG _ANTLR4_DOWNLOAD_LOG)
+    list(GET _ANTLR4_DOWNLOAD_STATUS 0 _ANTLR4_DOWNLOAD_CODE)
+    if(NOT _ANTLR4_DOWNLOAD_CODE EQUAL 0)
+        message(FATAL_ERROR
+            "Failed to download the pinned ANTLR4 4.8 tool jar: "
+            "${_ANTLR4_DOWNLOAD_STATUS}\n${_ANTLR4_DOWNLOAD_LOG}\n"
+            "Set -DANTLR4_JAR=/path/to/antlr-4.8-complete.jar for an offline build.")
+    endif()
+    set(ANTLR4_JAR "${_ANTLR4_DOWNLOAD_JAR}")
 endif()
 message(STATUS "ANTLR4 tool jar: ${ANTLR4_JAR}")
 

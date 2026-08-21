@@ -123,6 +123,26 @@ HAVING max(v) > 5
 ORDER BY g
 "
 
+UNION_QUERY="
+SELECT id
+FROM (
+    SELECT id FROM dsl_insub_outer WHERE id <= 2
+    UNION ALL
+    SELECT id FROM dsl_insub_outer WHERE id >= 2
+) AS union_rows
+ORDER BY id
+"
+
+UNION_DISTINCT_QUERY="
+SELECT id
+FROM (
+    SELECT id FROM dsl_insub_outer WHERE id <= 2
+    UNION
+    SELECT id FROM dsl_insub_outer WHERE id >= 2
+) AS union_rows
+ORDER BY id
+"
+
 run_explain()
 {
     local output_file=$1
@@ -337,6 +357,28 @@ assert_xform_produced_alternative \
     "$OUTPUT_DIR/agg-exists-on-native-off.plan" "CXformDSLRule_Select"
 assert_same_rows "Agg/HAVING/EXISTS" "$AGG_EXISTS_QUERY" $'1,20' off
 
+# Union is symbol-free in the DSL but ORCA carries an ordered output/input
+# column map on the logical operator. The data rule swaps two branches over the
+# same base relation; a non-empty alternative proves the generic shell,
+# matcher, constraint checker and mapping-aware instantiator all participated.
+run_explain "$OUTPUT_DIR/union-off.plan" off on "$UNION_QUERY" on
+run_explain "$OUTPUT_DIR/union-on.plan" on on "$UNION_QUERY" on
+assert_contains "$OUTPUT_DIR/union-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/union-on.plan" "Optimizer: pg_orca"
+assert_not_contains "$OUTPUT_DIR/union-off.plan" "CXformDSLRule_UnionAll"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/union-on.plan" "CXformDSLRule_UnionAll"
+assert_same_rows "Union/UnionAll" "$UNION_QUERY" $'1\n2\n2\n3' on
+
+run_explain "$OUTPUT_DIR/union-distinct-off.plan" off on "$UNION_DISTINCT_QUERY" on
+run_explain "$OUTPUT_DIR/union-distinct-on.plan" on on "$UNION_DISTINCT_QUERY" on
+assert_contains "$OUTPUT_DIR/union-distinct-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/union-distinct-on.plan" "Optimizer: pg_orca"
+assert_not_contains "$OUTPUT_DIR/union-distinct-off.plan" "CXformDSLRule_Union"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/union-distinct-on.plan" "CXformDSLRule_Union"
+assert_same_rows "Union/Union distinct" "$UNION_DISTINCT_QUERY" $'1\n2\n3' on
+
 # Constraint negative control: the second inner relation differs, so
 # TableEq(t1,t2) must reject the rule. Native unnesting is still disabled;
 # absence of the pg_orca annotation therefore means the expected fallback.
@@ -354,6 +396,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, and Agg/HAVING/EXISTS"
+echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, Agg/HAVING/EXISTS, Union, and Union*"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

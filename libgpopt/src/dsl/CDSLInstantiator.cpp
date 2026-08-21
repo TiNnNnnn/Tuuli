@@ -24,6 +24,9 @@
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalSetOp.h"
+#include "gpopt/operators/CLogicalUnion.h"
+#include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -77,6 +80,82 @@ FColArraysSameSet(CMemoryPool *mp, const CColRefArray *pdrgpcrFirst,
 	pcrsFirst->Release();
 	pcrsSecond->Release();
 	return fEqual;
+}
+
+BOOL
+FColSetContainsArray(const CColRefSet *pcrs,
+					 const CColRefArray *pdrgpcr)
+{
+	for (ULONG ul = 0; ul < pdrgpcr->Size(); ul++)
+	{
+		if (!pcrs->FMember((*pdrgpcr)[ul]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+BOOL
+FContainsGbAgg(const CExpression *pexpr)
+{
+	if (COperator::EopLogicalGbAgg == pexpr->Pop()->Eopid())
+	{
+		return true;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		if (FContainsGbAgg((*pexpr)[ul]))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// A set-op's output identities are anchored to its first input. Reordering
+// branches therefore cannot merely reorder the operator's input-column arrays:
+// later ORCA property derivation assumes every non-first input maps to distinct
+// output CColRefs. Copy the moved child and remap its set-op columns into the
+// identities required at the target position. Consumes pexpr.
+CExpression *
+PexprRemapSetOpChild(CMemoryPool *mp, CExpression *pexpr,
+					 const CColRefArray *pdrgpcrFrom,
+					 const CColRefArray *pdrgpcrTo)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexpr);
+	GPOS_ASSERT(nullptr != pdrgpcrFrom);
+	GPOS_ASSERT(nullptr != pdrgpcrTo);
+	GPOS_ASSERT(pdrgpcrFrom->Size() == pdrgpcrTo->Size());
+
+	UlongToColRefMap *colref_mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+	BOOL fNeedsRemap = false;
+	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
+	{
+		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
+		CColRef *pcrTo = (*pdrgpcrTo)[ul];
+		if (pcrFrom == pcrTo)
+		{
+			continue;
+		}
+		BOOL fInserted GPOS_ASSERTS_ONLY = colref_mapping->Insert(
+			GPOS_NEW(mp) ULONG(pcrFrom->Id()), pcrTo);
+		GPOS_ASSERT(fInserted);
+		fNeedsRemap = true;
+	}
+
+	if (!fNeedsRemap)
+	{
+		colref_mapping->Release();
+		return pexpr;
+	}
+
+	CExpression *pexprRemapped = pexpr->PexprCopyWithRemappedColumns(
+		mp, colref_mapping, false /*must_exist*/);
+	colref_mapping->Release();
+	pexpr->Release();
+	return pexprRemapped;
 }
 }  // namespace
 
@@ -346,13 +425,8 @@ CExpression *
 CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const
 {
-	if (1 != pop->UlChildren())
-	{
-		return nullptr;
-	}
-
-	CExpression *pexprProjList = pmodel->PexprProjList();
-	if (nullptr == pexprProjList)
+	if (1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		2 != pop->Pdrgpsym()->Size())
 	{
 		return nullptr;
 	}
@@ -363,10 +437,199 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		return nullptr;
 	}
 
+	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
+	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+
+	// Proj* is ORCA's pure-dedup Global GbAgg. Unlike the special root-level
+	// elimination rule, a Proj* nested in Union/Join must be rebuilt, not dropped.
+	if (pop->FDistinct())
+	{
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema ||
+			0 == pdrgpcrSchema->Size() ||
+			!FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		CColRefSet *pcrsChild = pexprChild->DeriveOutputColumns();
+		CColRefSet *pcrsGrouping = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsGrouping->Include(pdrgpcrSchema);
+		BOOL fValid = pcrsChild->ContainsAll(pcrsGrouping);
+		pcrsGrouping->Release();
+		if (!fValid)
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		pdrgpcrSchema->AddRef();
+		CExpression *pexprEmptyList = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp),
+			GPOS_NEW(m_mp) CExpressionArray(m_mp));
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp,
+			GPOS_NEW(m_mp) CLogicalGbAgg(
+				m_mp, pdrgpcrSchema, COperator::EgbaggtypeGlobal),
+			pexprChild, pexprEmptyList);
+	}
+
+	CExpression *pexprProjList = pmodel->PexprProjList(psymSchema);
+	if (nullptr == pexprProjList ||
+		!pexprChild->DeriveOutputColumns()->ContainsAll(
+			pexprProjList->DeriveUsedColumns()))
+	{
+		pexprChild->Release();
+		return nullptr;
+	}
+
 	// graft the matched project list (AddRef — the model keeps its own ref).
 	pexprProjList->AddRef();
 	return GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprProjList);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiator::PexprBuildUnion
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const
+{
+	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		0 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprLeft = PexprBuild((*pop)[0], pmodel);
+	CExpression *pexprRight = PexprBuild((*pop)[1], pmodel);
+	if (nullptr == pexprLeft || nullptr == pexprRight)
+	{
+		CRefCount::SafeRelease(pexprLeft);
+		CRefCount::SafeRelease(pexprRight);
+		return nullptr;
+	}
+
+	CExpression *rgpexprTarget[2] = {pexprLeft, pexprRight};
+	CExpressionArray *pdrgpexprBindings = pmodel->PdrgpexprUnionBindings();
+	CColRefArray *pdrgpcrOutput = nullptr;
+	CColRefArray *rgpdrgpcrInput[2] = {nullptr, nullptr};
+	ULONG rgulSourceForTarget[2] = {0, 1};
+
+	for (ULONG ulBinding = 0;
+		 nullptr != pdrgpexprBindings && ulBinding < pdrgpexprBindings->Size();
+		 ulBinding++)
+	{
+		CExpression *pexprSource = (*pdrgpexprBindings)[ulBinding];
+		if (2 != pexprSource->Arity())
+		{
+			continue;
+		}
+		CLogicalSetOp *popSource =
+			CLogicalSetOp::PopConvert(pexprSource->Pop());
+		CColRefArray *pdrgpcrCandidateOutput = popSource->PdrgpcrOutput();
+		CColRef2dArray *pdrgpdrgpcrCandidateInput =
+			popSource->PdrgpdrgpcrInput();
+		if (2 != pdrgpdrgpcrCandidateInput->Size() ||
+			0 == pdrgpcrCandidateOutput->Size())
+		{
+			continue;
+		}
+
+		BOOL rgfFits[2][2];
+		for (ULONG ulTarget = 0; ulTarget < 2; ulTarget++)
+		{
+			CColRefSet *pcrsTarget =
+				rgpexprTarget[ulTarget]->DeriveOutputColumns();
+			for (ULONG ulSource = 0; ulSource < 2; ulSource++)
+			{
+				CColRefArray *pdrgpcrInput =
+					(*pdrgpdrgpcrCandidateInput)[ulSource];
+				rgfFits[ulTarget][ulSource] =
+					pdrgpcrInput->Size() == pdrgpcrCandidateOutput->Size() &&
+					FColSetContainsArray(pcrsTarget, pdrgpcrInput);
+			}
+		}
+
+		if (rgfFits[0][0] && rgfFits[1][1])
+		{
+			pdrgpcrOutput = pdrgpcrCandidateOutput;
+			rgpdrgpcrInput[0] = (*pdrgpdrgpcrCandidateInput)[0];
+			rgpdrgpcrInput[1] = (*pdrgpdrgpcrCandidateInput)[1];
+			rgulSourceForTarget[0] = 0;
+			rgulSourceForTarget[1] = 1;
+			break;
+		}
+		if (rgfFits[0][1] && rgfFits[1][0])
+		{
+			pdrgpcrOutput = pdrgpcrCandidateOutput;
+			// Keep the set-op position maps stable and move the child semantics
+			// into those identities below. Swapping these arrays directly can put
+			// an output CColRef in a non-first input and violates ORCA invariants.
+			rgpdrgpcrInput[0] = (*pdrgpdrgpcrCandidateInput)[0];
+			rgpdrgpcrInput[1] = (*pdrgpdrgpcrCandidateInput)[1];
+			rgulSourceForTarget[0] = 1;
+			rgulSourceForTarget[1] = 0;
+			break;
+		}
+	}
+
+	if (nullptr == pdrgpcrOutput)
+	{
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
+	}
+
+	// Moving a memo-derived aggregate by deep column remapping recreates its
+	// Local/Global split as fresh groups, losing the native xform provenance that
+	// prevents incompatible aggregate xforms from running again. Identity-shaped
+	// Union rules (including the real corpus Proj* rules) need no copy and remain
+	// supported; conservatively reject only a branch move across a GbAgg subtree.
+	for (ULONG ulTarget = 0; ulTarget < 2; ulTarget++)
+	{
+		if (rgulSourceForTarget[ulTarget] != ulTarget &&
+			FContainsGbAgg(rgpexprTarget[ulTarget]))
+		{
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
+	}
+
+	for (ULONG ulTarget = 0; ulTarget < 2; ulTarget++)
+	{
+		ULONG ulSource = rgulSourceForTarget[ulTarget];
+		rgpexprTarget[ulTarget] = PexprRemapSetOpChild(
+			m_mp, rgpexprTarget[ulTarget], rgpdrgpcrInput[ulSource],
+			rgpdrgpcrInput[ulTarget]);
+	}
+	pexprLeft = rgpexprTarget[0];
+	pexprRight = rgpexprTarget[1];
+
+	pdrgpcrOutput->AddRef();
+	CColRef2dArray *pdrgpdrgpcrInput =
+		GPOS_NEW(m_mp) CColRef2dArray(m_mp, 2);
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		rgpdrgpcrInput[ul]->AddRef();
+		pdrgpdrgpcrInput->Append(rgpdrgpcrInput[ul]);
+	}
+	CExpressionArray *pdrgpexprChildren =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp, 2);
+	pdrgpexprChildren->Append(pexprLeft);
+	pdrgpexprChildren->Append(pexprRight);
+
+	COperator *popSet = pop->FDistinct()
+		? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnion(
+			  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput))
+		: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnionAll(
+			  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	return GPOS_NEW(m_mp) CExpression(m_mp, popSet, pdrgpexprChildren);
 }
 
 //---------------------------------------------------------------------------
@@ -705,11 +968,13 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildExists(pop, pmodel);
 		case EdslopInSubFilter:
 			return PexprBuildInSub(pop, pmodel);
+		case EdslopUnion:
+			return PexprBuildUnion(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 			return PexprBuildJoin(pop, pmodel);
 		default:
-			// Union / Sort / Limit: not yet instantiable (future work).
+			// Sort / Limit have no independent ORCA logical representation.
 			// The rule does not fire.
 			return nullptr;
 	}
@@ -805,7 +1070,11 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	// outputs the child's columns (a superset of the GbAgg's grouping-only output),
 	// which is the same substitution the native xform makes. The Select is a fresh
 	// CExpression, so PexprFreshRoot returns it as-is (no remap needed).
-	if (nullptr != pexprTgt && pmodel->FDedupDrop())
+	if (nullptr != pexprTgt && pmodel->FDedupDrop() &&
+		EdslopProj == prule->PfragSrc()->PopRoot()->Edslop() &&
+		prule->PfragSrc()->PopRoot()->FDistinct() &&
+		!(EdslopProj == prule->PfragTgt()->PopRoot()->Edslop() &&
+		  prule->PfragTgt()->PopRoot()->FDistinct()))
 	{
 		pexprTgt = GPOS_NEW(m_mp) CExpression(
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
