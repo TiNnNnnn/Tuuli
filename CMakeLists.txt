@@ -172,7 +172,7 @@ endif()
 # -------------------------------------------------------------------
 option(PG_ORCA_BUNDLED_ANTLR4
     "Build the ANTLR4 C++ runtime from third_party/ and link statically"
-    ${_pg_orca_bundled_default})
+    ON)
 
 if(PG_ORCA_BUNDLED_ANTLR4)
     set(_antlr4_src "${CMAKE_SOURCE_DIR}/third_party/antlr4/runtime/Cpp")
