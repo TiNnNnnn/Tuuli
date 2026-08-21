@@ -588,9 +588,30 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		pexprInner = CUtils::PexprLimit(m_mp, pexprInner, 0, 1);
 	}
 
-	return CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+	CExpression *pexprResult =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
 		m_mp, pexprOuter, pexprInner, pcrInner,
 		COperator::EopScalarSubqueryExists);
+
+	CExpressionArray *pdrgpexprResidual =
+		pmodel->PdrgpexprExistsResidual();
+	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
+	{
+		CExpressionArray *pdrgpexprCopy =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
+		{
+			CExpression *pexprConj = (*pdrgpexprResidual)[ul];
+			pexprConj->AddRef();
+			pdrgpexprCopy->Append(pexprConj);
+		}
+		CExpression *pexprPred =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy);
+		pexprResult = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
+			pexprPred);
+	}
+	return pexprResult;
 }
 
 //---------------------------------------------------------------------------

@@ -18,8 +18,9 @@ class CDSLExistsTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_CorpusAggProjRoundTrip();
+	static GPOS_RESULT EresUnittest_PreApplyCorpusAggProjRoundTrip();
+	static GPOS_RESULT EresUnittest_PreApplyPreservesResidual();
 };
 }  // namespace gpopt
 
 #endif	// !GPOPT_CDSLExistsTest_H
-

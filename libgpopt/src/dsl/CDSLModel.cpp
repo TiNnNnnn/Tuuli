@@ -18,6 +18,7 @@ using namespace gpopt;
 CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgpexprResidual(nullptr),
+	  m_pdrgpexprExistsResidual(nullptr),
 	  m_pexprProjList(nullptr),
 	  m_pexprJoinPred(nullptr),
 	  m_fDedupDrop(false)
@@ -36,8 +37,16 @@ CDSLModel::~CDSLModel()
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
+	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	CRefCount::SafeRelease(m_pexprProjList);
 	CRefCount::SafeRelease(m_pexprJoinPred);
+}
+
+void
+CDSLModel::SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr)
+{
+	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
+	m_pdrgpexprExistsResidual = pdrgpexpr;
 }
 
 //---------------------------------------------------------------------------

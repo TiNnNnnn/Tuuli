@@ -5,9 +5,11 @@
 //		CDSLExistsMatcher.h
 //
 //	@doc:
-//		Match Exists(left,right) against ORCA's normalized EXISTS shape:
-//		CLogicalLeftSemiApply(left, LIMIT 1 right, TRUE).  The LIMIT 1 is an
-//		internal uncorrelated-subquery optimization and is transparent to the DSL.
+//		Match Exists(left,right) both before subquery unnesting
+//		(Select(left, ScalarSubqueryExists(right))) and after it
+//		(CLogicalLeftSemiApply(left, LIMIT 1 right, TRUE)). Translator-generated
+//		conjuncts beside EXISTS are preserved as dedicated residuals; LIMIT 1 is
+//		an internal uncorrelated-subquery optimization transparent to the DSL.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLExistsMatcher_H
 #define GPOPT_CDSLExistsMatcher_H
@@ -50,4 +52,3 @@ public:
 }  // namespace gpopt
 
 #endif	// !GPOPT_CDSLExistsMatcher_H
-

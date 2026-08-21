@@ -72,6 +72,12 @@ private:
 	// match records residuals.
 	CExpressionArray *m_pdrgpexprResidual;
 
+	// conjuncts surrounding a ScalarSubqueryExists in its source Select. The
+	// EXISTS matcher consumes only the existential conjunct; these predicates
+	// must remain as a Select above the instantiated LeftSemiApply. Kept separate
+	// from Filter/Join residuals because an Exists subtree may contain either.
+	CExpressionArray *m_pdrgpexprExistsResidual;
+
 	// the project-list scalar subtree (CScalarProjectList) of a matched
 	// CLogicalProject. WeTune's Proj<a s> models projected columns as attrs/schema
 	// symbols, but ORCA's project list also carries the computed-column value
@@ -146,6 +152,15 @@ public:
 	PdrgpexprResidual() const
 	{
 		return m_pdrgpexprResidual;
+	}
+
+	// record/access predicates adjacent to the consumed EXISTS conjunct.
+	void SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr);
+
+	CExpressionArray *
+	PdrgpexprExistsResidual() const
+	{
+		return m_pdrgpexprExistsResidual;
 	}
 
 	//------------------------------------------------------------------

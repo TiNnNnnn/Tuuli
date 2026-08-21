@@ -23,6 +23,9 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
+#include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -38,8 +41,13 @@ using namespace gpopt;
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
-	CUnittest rgut[] = {GPOS_UNITTEST_FUNC(
-		CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip)};
+	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_PreApplyCorpusAggProjRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_PreApplyPreservesResidual)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
 
@@ -107,6 +115,145 @@ CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip()
 	GPOS_ASSERT(COperator::EopScalarSubqueryExists ==
 				dynamic_cast<CLogicalApply *>(pexprTarget->Pop())
 					->EopidOriginSubq());
+	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
+		pexprTarget->DeriveOutputColumns()));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprOuterGet->Release();
+	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_PreApplyCorpusAggProjRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuterGet =
+		fix.PexprLogicalGet("exists_preapply_outer", 2, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrOuter)[0]);
+	CColRef *pcrMax = fix.PcrCreateInt4("exists_preapply_max");
+	CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+		pexprOuterGet, pdrgpcrGroup, pcrMax, (*pdrgpcrOuter)[1]);
+	pdrgpcrGroup->Release();
+
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInnerGet =
+		fix.PexprLogicalGet("exists_preapply_inner", 2, &pdrgpcrInner);
+	CColRefArray *pdrgpcrProjected = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProjected->Append((*pdrgpcrInner)[0]);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprInnerGet, pdrgpcrProjected);
+	pdrgpcrProjected->Release();
+
+	CExpression *pexprScalarExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprProject);
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprAgg, pexprScalarExists);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_CORPUS_EXISTS_AGG_PROJ_RULE, "EQ", &strErr);
+	GPOS_ASSERT(nullptr != prule);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiApply ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGbAgg == (*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalLimit == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalProject ==
+				(*(*pexprTarget)[1])[0]->Pop()->Eopid());
+	GPOS_ASSERT(CUtils::FScalarConstTrue((*pexprTarget)[2]));
+	GPOS_ASSERT(COperator::EopScalarSubqueryExists ==
+				dynamic_cast<CLogicalApply *>(pexprTarget->Pop())
+					->EopidOriginSubq());
+	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
+		pexprTarget->DeriveOutputColumns()));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprOuterGet->Release();
+	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_PreApplyPreservesResidual()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuterGet =
+		fix.PexprLogicalGet("exists_residual_outer", 2, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrOuter)[0]);
+	CColRef *pcrMax = fix.PcrCreateInt4("exists_residual_max");
+	CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+		pexprOuterGet, pdrgpcrGroup, pcrMax, (*pdrgpcrOuter)[1]);
+	pdrgpcrGroup->Release();
+
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInnerGet =
+		fix.PexprLogicalGet("exists_residual_inner", 2, &pdrgpcrInner);
+	CColRefArray *pdrgpcrProjected = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProjected->Append((*pdrgpcrInner)[0]);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprInnerGet, pdrgpcrProjected);
+	pdrgpcrProjected->Release();
+
+	CExpression *pexprResidual = fix.PexprPredAtom(pcrMax);
+	CExpression *pexprScalarExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprProject);
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprConj->Append(pexprResidual);
+	pdrgpexprConj->Append(pexprScalarExists);
+	CExpression *pexprPred =
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj);
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprAgg, pexprPred);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_CORPUS_EXISTS_AGG_PROJ_RULE, "EQ", &strErr);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	GPOS_ASSERT(nullptr != pmodel->PdrgpexprExistsResidual());
+	GPOS_ASSERT(1 == pmodel->PdrgpexprExistsResidual()->Size());
+
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiApply ==
+				(*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT((*pexprTarget)[1]->Matches(pexprResidual));
 	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
 		pexprTarget->DeriveOutputColumns()));
 
