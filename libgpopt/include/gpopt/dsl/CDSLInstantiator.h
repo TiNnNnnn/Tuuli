@@ -124,6 +124,11 @@ private:
 	CExpression *PexprBuildExists(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const;
 
+	// InSubFilter<a>(outer,inner): rebuild a LeftSemiApplyIn using the exact
+	// equality predicate captured from ScalarSubqueryAny/ApplyIn.
+	CExpression *PexprBuildInSub(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const;
+
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression
 	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a
 	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns

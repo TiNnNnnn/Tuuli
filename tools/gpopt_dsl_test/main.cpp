@@ -28,6 +28,7 @@
 #include "unittest/gpopt/dsl/CDSLFilterSplitTest.h"
 #include "unittest/gpopt/dsl/CDSLFixtureTest.h"
 #include "unittest/gpopt/dsl/CDSLInstantiateTest.h"
+#include "unittest/gpopt/dsl/CDSLInSubTest.h"
 #include "unittest/gpopt/dsl/CDSLJoinElimTest.h"
 #include "unittest/gpopt/dsl/CDSLJoinTest.h"
 #include "unittest/gpopt/dsl/CDSLMatchTest.h"
@@ -52,6 +53,7 @@ static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLJoinElimTest),
 	GPOS_UNITTEST_STD(CDSLAggTest),
 	GPOS_UNITTEST_STD(CDSLExistsTest),
+	GPOS_UNITTEST_STD(CDSLInSubTest),
 	GPOS_UNITTEST_STD(CDSLTriggerTest),
 };
 

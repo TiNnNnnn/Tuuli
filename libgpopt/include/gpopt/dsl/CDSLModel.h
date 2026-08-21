@@ -78,6 +78,11 @@ private:
 	// from Filter/Join residuals because an Exists subtree may contain either.
 	CExpressionArray *m_pdrgpexprExistsResidual;
 
+	// The equality predicate represented by a matched plain IN/ANY subquery and
+	// any other conjuncts beside that subquery in its source Select.
+	CExpression *m_pexprInSubPred;
+	CExpressionArray *m_pdrgpexprInSubResidual;
+
 	// the project-list scalar subtree (CScalarProjectList) of a matched
 	// CLogicalProject. WeTune's Proj<a s> models projected columns as attrs/schema
 	// symbols, but ORCA's project list also carries the computed-column value
@@ -161,6 +166,22 @@ public:
 	PdrgpexprExistsResidual() const
 	{
 		return m_pdrgpexprExistsResidual;
+	}
+
+	void SetInSubPred(CExpression *pexpr);
+
+	CExpression *
+	PexprInSubPred() const
+	{
+		return m_pexprInSubPred;
+	}
+
+	void SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr);
+
+	CExpressionArray *
+	PdrgpexprInSubResidual() const
+	{
+		return m_pdrgpexprInSubResidual;
 	}
 
 	//------------------------------------------------------------------

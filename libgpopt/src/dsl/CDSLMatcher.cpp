@@ -16,6 +16,7 @@
 #include "gpopt/dsl/CDSLAggMatcher.h"
 #include "gpopt/dsl/CDSLExistsMatcher.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
+#include "gpopt/dsl/CDSLInSubMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
 
@@ -201,6 +202,12 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CDSLExistsMatcher em(m_mp, this);
 		return em.FMatch(pop, pexpr, pmodel);
+	}
+
+	if (EdslopInSubFilter == pop->Edslop())
+	{
+		CDSLInSubMatcher ism(m_mp, this);
+		return ism.FMatch(pop, pexpr, pmodel);
 	}
 
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>

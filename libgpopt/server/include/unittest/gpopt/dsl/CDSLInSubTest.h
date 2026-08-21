@@ -1,0 +1,24 @@
+//---------------------------------------------------------------------------
+//	MONSOON DSL rule engine
+//--------------------------------------------------------------------------
+#ifndef GPOPT_CDSLInSubTest_H
+#define GPOPT_CDSLInSubTest_H
+
+#include "gpos/base.h"
+
+namespace gpopt
+{
+using namespace gpos;
+
+class CDSLInSubTest
+{
+public:
+	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_PreApplyCorpusElimination();
+	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
+	static GPOS_RESULT EresUnittest_PostApplyIdentity();
+};
+}  // namespace gpopt
+
+#endif	// !GPOPT_CDSLInSubTest_H
+

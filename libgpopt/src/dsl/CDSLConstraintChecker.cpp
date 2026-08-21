@@ -30,6 +30,80 @@
 
 using namespace gpopt;
 
+namespace
+{
+CExpression *
+PexprOwningGet(const CDSLRule *prule, const CDSLModel *pmodel,
+			   const CColRef *pcr)
+{
+	CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->Pdrgpsym();
+	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+	{
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		if (EdslsymTable != psym->Esymkind())
+		{
+			continue;
+		}
+		CExpression *pexpr = pmodel->PexprTable(psym);
+		if (nullptr != pexpr &&
+			COperator::EopLogicalGet == pexpr->Pop()->Eopid() &&
+			pexpr->DeriveOutputColumns()->FMember(pcr))
+		{
+			return pexpr;
+		}
+	}
+	return nullptr;
+}
+
+BOOL
+FColRefSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
+					 const CColRef *pcrFirst, const CColRef *pcrSecond)
+{
+	if (pcrFirst == pcrSecond)
+	{
+		return true;
+	}
+	if (CColRef::EcrtTable != pcrFirst->Ecrt() ||
+		CColRef::EcrtTable != pcrSecond->Ecrt() ||
+		CColRefTable::PcrConvert(const_cast<CColRef *>(pcrFirst))->AttrNum() !=
+			CColRefTable::PcrConvert(const_cast<CColRef *>(pcrSecond))->AttrNum())
+	{
+		return false;
+	}
+
+	CExpression *pexprFirst = PexprOwningGet(prule, pmodel, pcrFirst);
+	CExpression *pexprSecond = PexprOwningGet(prule, pmodel, pcrSecond);
+	return nullptr != pexprFirst && nullptr != pexprSecond &&
+		   CLogicalGet::PopConvert(pexprFirst->Pop())
+			   ->Ptabdesc()
+			   ->MDId()
+			   ->Equals(CLogicalGet::PopConvert(pexprSecond->Pop())
+						->Ptabdesc()
+						->MDId());
+}
+
+BOOL
+FColArraysSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
+						const CColRefArray *pdrgpcrFirst,
+						const CColRefArray *pdrgpcrSecond)
+{
+	if (nullptr == pdrgpcrFirst || nullptr == pdrgpcrSecond ||
+		pdrgpcrFirst->Size() != pdrgpcrSecond->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpcrFirst->Size(); ul++)
+	{
+		if (!FColRefSemanticEqual(prule, pmodel, (*pdrgpcrFirst)[ul],
+							  (*pdrgpcrSecond)[ul]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+}  // namespace
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::PcrsFromAttrsSym
@@ -378,10 +452,94 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLConstraintChecker::FCheckEquality
+//---------------------------------------------------------------------------
+BOOL
+CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
+								  const CDSLConstraint *pcon,
+								  const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	const CDSLSymbol *psymFirst = (*pdrgpsym)[0];
+	const CDSLSymbol *psymSecond = (*pdrgpsym)[1];
+	CRefCount *pvalFirst = pmodel->PvalLookup(psymFirst);
+	CRefCount *pvalSecond = pmodel->PvalLookup(psymSecond);
+	if (nullptr == pvalFirst || nullptr == pvalSecond)
+	{
+		// Target symbols are deliberately unbound during source matching.
+		return true;
+	}
+
+	switch (pcon->Edslcon())
+	{
+		case EdslconTableEq:
+		{
+			CExpression *pexprFirst = pmodel->PexprTable(psymFirst);
+			CExpression *pexprSecond = pmodel->PexprTable(psymSecond);
+			if (pexprFirst == pexprSecond)
+			{
+				return true;
+			}
+			if (COperator::EopLogicalGet == pexprFirst->Pop()->Eopid() &&
+				COperator::EopLogicalGet == pexprSecond->Pop()->Eopid())
+			{
+				return CLogicalGet::PopConvert(pexprFirst->Pop())
+					->Ptabdesc()
+					->MDId()
+					->Equals(CLogicalGet::PopConvert(pexprSecond->Pop())
+							 ->Ptabdesc()
+							 ->MDId());
+			}
+			return pexprFirst->Matches(pexprSecond);
+		}
+		case EdslconAttrsEq:
+			return FColArraysSemanticEqual(
+				prule, pmodel, pmodel->PdrgpcrAttrs(psymFirst),
+				pmodel->PdrgpcrAttrs(psymSecond));
+		case EdslconSchemaEq:
+			return FColArraysSemanticEqual(
+				prule, pmodel, pmodel->PdrgpcrSchema(psymFirst),
+				pmodel->PdrgpcrSchema(psymSecond));
+		case EdslconPredicateEq:
+			return pmodel->PexprPred(psymFirst)->Matches(
+				pmodel->PexprPred(psymSecond));
+		case EdslconFuncEq:
+		{
+			CExpressionArray *pdrgpexprFirst =
+				pmodel->PdrgpexprFunc(psymFirst);
+			CExpressionArray *pdrgpexprSecond =
+				pmodel->PdrgpexprFunc(psymSecond);
+			if (pdrgpexprFirst->Size() != pdrgpexprSecond->Size())
+			{
+				return false;
+			}
+			for (ULONG ul = 0; ul < pdrgpexprFirst->Size(); ul++)
+			{
+				if (!(*pdrgpexprFirst)[ul]->Matches((*pdrgpexprSecond)[ul]))
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		case EdslconScalarEq:
+			return pvalFirst == pvalSecond;
+		default:
+			return false;
+	}
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLConstraintChecker::FCheckOne
 //---------------------------------------------------------------------------
 BOOL
-CDSLConstraintChecker::FCheckOne(const CDSLConstraint *pcon,
+CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
+							 const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const
 {
 	switch (pcon->Edslcon())
@@ -395,17 +553,13 @@ CDSLConstraintChecker::FCheckOne(const CDSLConstraint *pcon,
 		case EdslconReference:
 			return FCheckReference(pcon, pmodel);
 
-		// equality-class constraints are not run-time data checks; they govern
-		// how the target reuses source bindings (consumed by the instantiator,
-		// #27). FBind already enforced same-class-same-artifact during match, so
-		// they hold by construction here.
 		case EdslconTableEq:
 		case EdslconAttrsEq:
 		case EdslconPredicateEq:
 		case EdslconSchemaEq:
 		case EdslconFuncEq:
 		case EdslconScalarEq:
-			return true;
+			return FCheckEquality(prule, pcon, pmodel);
 
 		default:
 			// unknown constraint kind: be safe, do not fire.
@@ -437,7 +591,7 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 	const ULONG ulCon = pdrgpcon->Size();
 	for (ULONG ul = 0; ul < ulCon; ul++)
 	{
-		if (!FCheckOne((*pdrgpcon)[ul], pmodel))
+		if (!FCheckOne(prule, (*pdrgpcon)[ul], pmodel))
 		{
 			return false;
 		}

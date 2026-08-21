@@ -19,6 +19,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgpexprResidual(nullptr),
 	  m_pdrgpexprExistsResidual(nullptr),
+	  m_pexprInSubPred(nullptr),
+	  m_pdrgpexprInSubResidual(nullptr),
 	  m_pexprProjList(nullptr),
 	  m_pexprJoinPred(nullptr),
 	  m_fDedupDrop(false)
@@ -38,6 +40,8 @@ CDSLModel::~CDSLModel()
 	m_phmSymToRef->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
+	CRefCount::SafeRelease(m_pexprInSubPred);
+	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
 	CRefCount::SafeRelease(m_pexprProjList);
 	CRefCount::SafeRelease(m_pexprJoinPred);
 }
@@ -47,6 +51,20 @@ CDSLModel::SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr)
 {
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	m_pdrgpexprExistsResidual = pdrgpexpr;
+}
+
+void
+CDSLModel::SetInSubPred(CExpression *pexpr)
+{
+	CRefCount::SafeRelease(m_pexprInSubPred);
+	m_pexprInSubPred = pexpr;
+}
+
+void
+CDSLModel::SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr)
+{
+	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
+	m_pdrgpexprInSubResidual = pdrgpexpr;
 }
 
 //---------------------------------------------------------------------------

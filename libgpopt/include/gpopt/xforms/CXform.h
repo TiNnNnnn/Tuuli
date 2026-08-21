@@ -252,6 +252,7 @@ public:
 		ExfDSLRuleLeftJoin,
 		ExfDSLRuleAgg,
 		ExfDSLRuleExists,
+		ExfDSLRuleInSub,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

@@ -26,11 +26,10 @@
 //		                   defensively but exercised only against real relations
 //		                   (test-migrated once base B / live PG is wired — doc §1).
 //
-//		Equality-class constraints (TableEq / AttrsEq / PredicateEq / SchemaEq /
-//		FuncEq / ScalarEq) are NOT verified as run-time data checks: per doc §10
-//		they constrain how the TARGET reuses the SOURCE's bindings, and are
-//		consumed by the instantiator (#27), not here. The matcher's FBind already
-//		enforces that two source symbols in one class bind to the same artifact.
+//		Equality-class constraints also gate SOURCE matches. If both symbols are
+//		bound, their artifacts must be semantically compatible (same relation MDId,
+//		same underlying columns, or matching scalar trees). Target-side symbols are
+//		unbound during matching and remain aliases consumed by the instantiator.
 //
 //		The bound <t> artifact is a relational CExpression subtree; the bound <a>
 //		artifact is a CColRefArray. Metadata is reached via
@@ -63,7 +62,13 @@ private:
 
 	// dispatch one constraint; returns true if it holds (or is a no-op class
 	// constraint handled elsewhere).
-	BOOL FCheckOne(const CDSLConstraint *pcon, const CDSLModel *pmodel) const;
+	BOOL FCheckOne(const CDSLRule *prule, const CDSLConstraint *pcon,
+				   const CDSLModel *pmodel) const;
+
+	// *Eq: check two source-side bindings when both are present; an unbound
+	// target-side symbol is deferred to instantiation alias resolution.
+	BOOL FCheckEquality(const CDSLRule *prule, const CDSLConstraint *pcon,
+					const CDSLModel *pmodel) const;
 
 	// AttrsSub(a,x): x is a table/subtree or schema symbol
 	BOOL FCheckAttrsSub(const CDSLConstraint *pcon,
