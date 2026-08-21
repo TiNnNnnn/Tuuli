@@ -159,11 +159,13 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 
 EDslOpKind
 CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
-					   EDslSortDir *pedslsort)
+					   EDslSortDir *pedslsort,
+					   EDslAggFuncKind *pedslaggfunc)
 {
 	GPOS_ASSERT(nullptr != sz_token);
 	*pfStar = false;
 	*pedslsort = EdslsortNone;
+	*pedslaggfunc = EdslaggfuncUnknown;
 
 	// Strip a trailing '*' (Proj* / Union*). WeTune sets a dedup flag for it.
 	CHAR rgch[64];
@@ -197,6 +199,11 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"ExistsFilter", EdslopExists, EdslsortNone},
 		{"Proj", EdslopProj, EdslsortNone},
 		{"Agg", EdslopAgg, EdslsortNone},
+		{"Agg_sum", EdslopAgg, EdslsortNone},
+		{"Agg_average", EdslopAgg, EdslsortNone},
+		{"Agg_count", EdslopAgg, EdslsortNone},
+		{"Agg_max", EdslopAgg, EdslsortNone},
+		{"Agg_min", EdslopAgg, EdslsortNone},
 		{"Union", EdslopUnion, EdslsortNone},
 		{"Limit", EdslopLimit, EdslsortNone},
 		{"Sort", EdslopSort, EdslsortNone},
@@ -207,11 +214,60 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 	{
 		if (0 == clib::Strcmp(rgch, rg_alias[ul].sz))
 		{
+			if (0 == clib::Strcmp(rgch, "Agg_sum"))
+			{
+				*pedslaggfunc = EdslaggfuncSum;
+			}
+			else if (0 == clib::Strcmp(rgch, "Agg_average"))
+			{
+				*pedslaggfunc = EdslaggfuncAverage;
+			}
+			else if (0 == clib::Strcmp(rgch, "Agg_count"))
+			{
+				*pedslaggfunc = EdslaggfuncCount;
+			}
+			else if (0 == clib::Strcmp(rgch, "Agg_max"))
+			{
+				*pedslaggfunc = EdslaggfuncMax;
+			}
+			else if (0 == clib::Strcmp(rgch, "Agg_min"))
+			{
+				*pedslaggfunc = EdslaggfuncMin;
+			}
+
+			// '*' is meaningful only for Proj, Union, and COUNT(DISTINCT ...).
+			if (*pfStar && EdslopProj != rg_alias[ul].edslop &&
+				EdslopUnion != rg_alias[ul].edslop &&
+				!(EdslopAgg == rg_alias[ul].edslop &&
+				  EdslaggfuncCount == *pedslaggfunc))
+			{
+				return EdslopSentinel;
+			}
 			*pedslsort = rg_alias[ul].edslsort;
 			return rg_alias[ul].edslop;
 		}
 	}
 	return EdslopSentinel;
+}
+
+const CHAR *
+CDSLOpKindTable::SzAggFuncName(EDslAggFuncKind edslaggfunc)
+{
+	switch (edslaggfunc)
+	{
+		case EdslaggfuncSum:
+			return "sum";
+		case EdslaggfuncAverage:
+			return "average";
+		case EdslaggfuncCount:
+			return "count";
+		case EdslaggfuncMax:
+			return "max";
+		case EdslaggfuncMin:
+			return "min";
+		default:
+			return nullptr;
+	}
 }
 
 CHAR

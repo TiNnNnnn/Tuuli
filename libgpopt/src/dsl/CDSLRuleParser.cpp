@@ -107,11 +107,18 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const ULONG ul_given =
 		(nullptr == symlist_ctx) ? 0 : (ULONG) symlist_ctx->SYMBOL().size();
 
-	if (ul_given != ul_expected)
+	// MONSOON's checked-in rule corpus predates aggregateOutputAttrs and uses
+	// Agg<groupByAttrs aggregateAttrs aggFunc schema havingPred> (5 symbols).
+	// Current SQLSolver adds aggregateOutputAttrs as the third symbol (6 total).
+	// Accept both wire formats; the matcher/instantiator infer legacy aggregate
+	// output columns from schema - groupByAttrs.
+	const BOOL fLegacyAgg = EdslopAgg == edslop && 5 == ul_given;
+	if (ul_given != ul_expected && !fLegacyAgg)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
-		   << ul_expected << " symbol(s) in <...>, got " << ul_given;
+		   << (EdslopAgg == edslop ? "5 or 6" : std::to_string(ul_expected))
+		   << " symbol(s) in <...>, got " << ul_given;
 		bctx.Fail(os.str());
 		return nullptr;
 	}
@@ -128,7 +135,17 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			pdrgpsym->Release();
 			return nullptr;
 		}
-		EDslSymbolKind esymk = CDSLOpKindTable::EsymkindAt(edslop, ul);
+		EDslSymbolKind esymk;
+		if (fLegacyAgg && 2 <= ul)
+		{
+			// Current schema is [a,a,a,f,s,p]; removing aggregateOutputAttrs
+			// yields the legacy [a,a,f,s,p] layout.
+			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul + 1);
+		}
+		else
+		{
+			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul);
+		}
 		CDSLSymbol *psym =
 			GPOS_NEW(mp) CDSLSymbol(mp, esymk, name.c_str(), bctx.next_id++, eside);
 		pdrgpsym->Append(psym);	 // op array owns rc=1
@@ -155,7 +172,9 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 	}
 	BOOL fStar = false;
 	EDslSortDir edslsort = EdslsortNone;
-	EDslOpKind edslop = CDSLOpKindTable::Parse(token.c_str(), &fStar, &edslsort);
+	EDslAggFuncKind edslaggfunc = EdslaggfuncUnknown;
+	EDslOpKind edslop = CDSLOpKindTable::Parse(token.c_str(), &fStar, &edslsort,
+											  &edslaggfunc);
 	if (EdslopSentinel == edslop)
 	{
 		bctx.Fail("unknown operator: " + token);
@@ -197,7 +216,8 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 	}
 
 	return GPOS_NEW(mp)
-		CDSLOp(mp, edslop, fStar, edslsort, pdrgpsym, pdrgpchild);
+		CDSLOp(mp, edslop, fStar, edslsort, edslaggfunc, pdrgpsym,
+				 pdrgpchild);
 }
 
 // Build one fragment (source or target). Returns NULL on failure.

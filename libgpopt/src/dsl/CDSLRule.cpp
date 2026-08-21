@@ -36,18 +36,21 @@ CDSLSymbol::~CDSLSymbol()
 // ---------------------------------------------------------------------------
 CDSLOp::CDSLOp(CMemoryPool *,  // mp unused: children/syms arrays pre-built
 			   EDslOpKind edslop, BOOL fDistinct, EDslSortDir edslsort,
+			   EDslAggFuncKind edslaggfunc,
 			   CDSLSymbolArray *pdrgpsym, CDSLOpArray *pdrgpchild)
 	: m_edslop(edslop),
 	  m_eopid(CDSLOpKindTable::Eopid(edslop, fDistinct)),
 	  m_fDistinct(fDistinct),
 	  m_edslsort(edslsort),
+	  m_edslaggfunc(edslaggfunc),
 	  m_pdrgpsym(pdrgpsym),
 	  m_pdrgpchild(pdrgpchild)
 {
 	GPOS_ASSERT(nullptr != pdrgpsym);
 	GPOS_ASSERT(nullptr != pdrgpchild);
 	GPOS_ASSERT(CDSLOpKindTable::UlChildren(edslop) == pdrgpchild->Size());
-	GPOS_ASSERT(CDSLOpKindTable::UlSyms(edslop) == pdrgpsym->Size());
+	GPOS_ASSERT(CDSLOpKindTable::UlSyms(edslop) == pdrgpsym->Size() ||
+				(EdslopAgg == edslop && 5 == pdrgpsym->Size()));
 }
 
 CDSLOp::~CDSLOp()
@@ -67,6 +70,15 @@ CDSLOp::OsPrint(IOstream &os) const
 	else if (EdslopSort == m_edslop && EdslsortDesc == m_edslsort)
 	{
 		os << "SortDesc";
+	}
+	else if (EdslopAgg == m_edslop &&
+			 EdslaggfuncUnknown != m_edslaggfunc)
+	{
+		os << "Agg_" << CDSLOpKindTable::SzAggFuncName(m_edslaggfunc);
+		if (m_fDistinct)
+		{
+			os << "*";
+		}
 	}
 	else
 	{

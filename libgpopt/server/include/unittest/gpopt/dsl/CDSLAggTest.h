@@ -20,8 +20,9 @@
 //		      | Input<t2>
 //		      | AttrsSub(a0,t0);Unique(t0,a0);TableEq(t2,t0)
 //
-//		Scope: pure dedup only — a GbAgg carrying aggregate functions is rejected
-//		by the Agg matcher (real aggregates are a later milestone).
+//		Also covers the repository rule corpus' five-symbol real Agg matching and
+//		target reconstruction. The newer six-symbol/function-qualified spelling is
+//		covered as a compatibility extension by parser tests.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLAggTest_H
 #define GPOPT_CDSLAggTest_H
@@ -59,6 +60,16 @@ public:
 	// a GbAgg that computes an aggregate function (non-empty agg list) is not a
 	// pure dedup: the Agg matcher rejects it (out of scope for this milestone).
 	static GPOS_RESULT EresUnittest_RejectsNonEmptyAggList();
+
+	// Bare Agg<a a f s p> binds the five corpus symbols against a real GbAgg.
+	static GPOS_RESULT EresUnittest_MatchBindsRealAgg();
+
+	// A corpus-format Agg identity rule reconstructs a valid GbAgg and infers its
+	// aggregate output columns from schema - groupByAttrs.
+	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
+
+	// Function-specific templates do not match a different aggregate kind.
+	static GPOS_RESULT EresUnittest_RejectsWrongAggFunction();
 
 	// the dedup rule must not match a non-GbAgg root (bare Get / plain Project).
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();

@@ -75,6 +75,20 @@ enum EDslSortDir
 	EdslsortDesc
 };
 
+// Optional aggregate-function kind encoded by newer SQLSolver spellings such
+// as Agg_count. MONSOON's established rules use bare Agg, which leaves the kind
+// unknown and matches the bound aggregate expression(s) without name filtering.
+enum EDslAggFuncKind
+{
+	EdslaggfuncUnknown = 0,
+	EdslaggfuncSum,
+	EdslaggfuncAverage,
+	EdslaggfuncCount,
+	EdslaggfuncMax,
+	EdslaggfuncMin,
+	EdslaggfuncSentinel
+};
+
 // Which side of the rule a symbol was first declared on. WeTune shares ONE
 // SymbolNaming across source and target, and reusing a name on both sides is a
 // parse error ("value already present"); we record the side to reproduce that.
@@ -137,7 +151,11 @@ public:
 	// to a kind. Mirrors WeTune OpKind.parse. Returns EdslopSentinel if unknown.
 	// On return, *pfStar / *pedslsort report the parsed '*' and Sort direction.
 	static EDslOpKind Parse(const CHAR *sz_token, BOOL *pfStar,
-							EDslSortDir *pedslsort);
+							EDslSortDir *pedslsort,
+							EDslAggFuncKind *pedslaggfunc);
+
+	// canonical suffix used after "Agg_"; NULL for Unknown/Sentinel.
+	static const CHAR *SzAggFuncName(EDslAggFuncKind edslaggfunc);
 
 	// letter conventionally used to print a symbol of this kind (t/a/p/s/f/n)
 	static CHAR WcSymPrefix(EDslSymbolKind esymk);

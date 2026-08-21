@@ -126,6 +126,7 @@ public:
 	CExpression *PexprPred(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrAttrs(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrSchema(const CDSLSymbol *psym) const;
+	CExpressionArray *PdrgpexprFunc(const CDSLSymbol *psym) const;
 
 	ULONG Size() const { return m_phmSymToRef->Size(); }
 

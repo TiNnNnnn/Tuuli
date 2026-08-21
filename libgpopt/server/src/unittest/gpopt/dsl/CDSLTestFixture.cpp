@@ -31,6 +31,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/dxl/operators/CDXLTableDescr.h"  // UNASSIGNED_QUERYID
+#include "naucrates/md/CMDAggregateGPDB.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDName.h"
 #include "naucrates/md/CMDProviderGeneric.h"
@@ -74,6 +75,23 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt8GPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeBoolGPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeOidGPDB(mp));
+
+	// int4 MAX aggregate metadata, used to build a genuine CScalarAggFunc in
+	// the Agg DSL tests. The synthetic result/intermediate types are both int4;
+	// only structural optimizer behavior is under test here.
+	{
+		CMDName *pmdnameMax = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("max")), true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDAggregateGPDB(
+			mp,
+			GPOS_NEW(mp)
+				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_AGG_MAX),
+			pmdnameMax,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			false /*ordered*/, true /*splittable*/, true /*hash capable*/,
+			true /*rep safe*/));
+	}
 
 	// int4 '=' scalar operator (oid 96). CScalarCmp's ctor looks it up
 	// (FScalarOpReturnsNullOnNullInput / FCommutativeScalarOp), so PexprEqPred —
@@ -391,20 +409,26 @@ CDSLTestFixture::PexprLogicalProject(CExpression *pexprChild,
 CExpression *
 CDSLTestFixture::PexprLogicalGbAgg(CExpression *pexprChild,
 								   CColRefArray *pdrgpcrGrouping,
-								   CColRef *pcrAgg)
+								   CColRef *pcrAgg,
+								   CColRef *pcrAggInput)
 {
-	// aggregate project list: empty for a pure dedup; one (dummy) element when a
-	// caller wants a non-empty list (matcher reject test).
+	// aggregate project list: empty for a pure dedup; one real MAX aggregate
+	// element when pcrAgg is supplied.
 	CExpressionArray *pdrgpexprPrEl = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	if (nullptr != pcrAgg)
 	{
-		CColRef *pcrIn = (0 < pdrgpcrGrouping->Size()) ? (*pdrgpcrGrouping)[0]
-													   : pcrAgg;
-		CExpression *pexprIdent = GPOS_NEW(m_mp)
-			CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrIn));
+		CColRef *pcrIn = pcrAggInput;
+		if (nullptr == pcrIn)
+		{
+			pcrIn = (0 < pdrgpcrGrouping->Size()) ? (*pdrgpcrGrouping)[0]
+													  : pcrAgg;
+		}
+		CExpression *pexprAggFunc = CUtils::PexprAgg(
+			m_mp, m_pmda, IMDType::EaggMax, pcrIn, false /*distinct*/,
+			false /*agg star*/);
 		pdrgpexprPrEl->Append(GPOS_NEW(m_mp) CExpression(
 			m_mp, GPOS_NEW(m_mp) CScalarProjectElement(m_mp, pcrAgg),
-			pexprIdent));
+			pexprAggFunc));
 	}
 	CExpression *pexprPrjList = GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);

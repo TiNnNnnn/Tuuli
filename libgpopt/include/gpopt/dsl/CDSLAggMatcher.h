@@ -5,8 +5,9 @@
 //		CDSLAggMatcher.h
 //
 //	@doc:
-//		Stage ① symbol binding for the dedup (SELECT DISTINCT) form of the Agg
-//		operator (see docs/DSL_WETUNE_ALIGNMENT.md — Agg phase 1).
+//		Stage ① symbol binding for both dedup (Proj*) and real Agg operators.
+//		The repository corpus' five-symbol Agg<a a f s p> is the primary format;
+//		the newer six-symbol Agg<a a a f s p> is accepted as an extension.
 //
 //		DSL   : Proj*<a s>(base)   — a DEDUPLICATED projection. In ORCA there is no
 //		        "distinct" flag on CLogicalProject; SELECT DISTINCT cols becomes a
@@ -71,6 +72,17 @@ private:
 	// CleanupNULL). Never NULL for a valid GbAgg.
 	CColRefArray *PdrgpcrGrouping(CExpression *pexprAgg) const;
 
+	// Proj* special case: match a pure-dedup Global GbAgg with an empty
+	// aggregate project list and flag it for elimination.
+	BOOL FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
+					 CDSLModel *pmodel) const;
+
+	// Agg<a a f s p> / Agg<a a a f s p>: bind group-by inputs, aggregate
+	// inputs, optional explicit aggregate outputs, aggregate expressions, output
+	// schema, and the implicit TRUE HAVING predicate, then recurse.
+	BOOL FMatchAggregate(const CDSLOp *popAgg, CExpression *pexprAgg,
+						 CDSLModel *pmodel) const;
+
 public:
 	CDSLAggMatcher(const CDSLAggMatcher &) = delete;
 
@@ -81,10 +93,8 @@ public:
 		GPOS_ASSERT(nullptr != pmatcher);
 	}
 
-	// match a dedup Agg/Proj*-rooted DSL template against a live CLogicalGbAgg.
-	// Returns true iff the GbAgg is a pure dedup (empty agg list), the grouping
-	// columns bound consistently, and the relational child matched. Sets the
-	// model's dedup-drop flag on success.
+	// Match a Proj* dedup template or a five/six-symbol Agg template against a
+	// live CLogicalGbAgg.
 	BOOL FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 				CDSLModel *pmodel) const;
 };

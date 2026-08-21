@@ -5,11 +5,8 @@
 //		CDSLAggTest.cpp
 //
 //	@doc:
-//		Implementation of the dedup / DISTINCT-elimination three-stage tests (see
-//		header). Builds a live dedup CLogicalGbAgg (empty agg list) via the fixture
-//		and drives match -> check -> instantiate, asserting the GbAgg is dropped
-//		(replaced by Select over the reused child), mirroring
-//		CXformSimplifyGbAgg::FDropGbAgg.
+//		Implementation of dedup elimination and corpus-format real Agg three-stage
+//		tests. The latter uses bare Agg<a a f s p>, matching MONSOON/dataset/rules.
 //
 //		As with join elimination the source and target output-column SETS are not
 //		equal (the GbAgg outputs only its grouping cols; the Select outputs the
@@ -24,12 +21,15 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CScalarAggFunc.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -43,6 +43,13 @@ using namespace gpopt;
 	"Proj*<a0 s0>(Input<t0>)|"                                              \
 	"Input<t2>|"                                                            \
 	"AttrsSub(a0,t0);Unique(t0,a0);TableEq(t2,t0)"
+
+#define GPOPT_DSL_AGG_IDENTITY_RULE                                         \
+	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
+	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
+	"AttrsSub(a0,t0);AttrsSub(a1,t0);"                                     \
+	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
+	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
@@ -80,6 +87,28 @@ BuildDedupGbAgg(CDSLTestFixture &fix, BOOL fUniqueKey, CExpression **ppGet,
 	*ppGbAgg = pexprGbAgg;
 }
 
+static void
+BuildRealGbAgg(CDSLTestFixture &fix, CExpression **ppGet,
+			   CExpression **ppGbAgg, CColRefArray **ppdrgpcrInput,
+			   CColRef **ppcrAggOut)
+{
+	CMemoryPool *mp = fix.Pmp();
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet =
+		fix.PexprLogicalGet("t0", 2, &pdrgpcrInput);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_c1");
+	CExpression *pexprGbAgg = fix.PexprLogicalGbAgg(
+		pexprGet, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[1]);
+	pdrgpcrGroup->Release();
+
+	*ppGet = pexprGet;
+	*ppGbAgg = pexprGbAgg;
+	*ppdrgpcrInput = pdrgpcrInput;
+	*ppcrAggOut = pcrAggOut;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLAggTest::EresUnittest
@@ -93,10 +122,148 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_InstantiateProducesSelectOverChild),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsNonEmptyAggList),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_MatchBindsRealAgg()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_AGG_IDENTITY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	CColRefArray *pdrgpcrInput = nullptr;
+	CColRef *pcrAggOut = nullptr;
+	BuildRealGbAgg(fix, &pexprGet, &pexprGbAgg, &pdrgpcrInput, &pcrAggOut);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLOp *popSrc = prule->PfragSrc()->PopRoot();
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(popSrc, pexprGbAgg, pmodel) || 6 != pmodel->Size())
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLSymbolArray *syms = popSrc->Pdrgpsym();
+		CColRefArray *group = pmodel->PdrgpcrAttrs((*syms)[0]);
+		CColRefArray *inputs = pmodel->PdrgpcrAttrs((*syms)[1]);
+		CExpressionArray *funcs = pmodel->PdrgpexprFunc((*syms)[2]);
+		CColRefArray *schema = pmodel->PdrgpcrSchema((*syms)[3]);
+		CExpression *having = pmodel->PexprPred((*syms)[4]);
+		if (1 != group->Size() || (*group)[0] != (*pdrgpcrInput)[0] ||
+			1 != inputs->Size() || (*inputs)[0] != (*pdrgpcrInput)[1] ||
+			1 != funcs->Size() ||
+			COperator::EopScalarAggFunc != (*funcs)[0]->Pop()->Eopid() ||
+			2 != schema->Size() || (*schema)[1] != pcrAggOut ||
+			!CUtils::FScalarConstTrue(having))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateRealAgg()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_AGG_IDENTITY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	CColRefArray *pdrgpcrInput = nullptr;
+	CColRef *pcrAggOut = nullptr;
+	BuildRealGbAgg(fix, &pexprGet, &pexprGbAgg, &pdrgpcrInput, &pcrAggOut);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalGbAgg != pexprTgt->Pop()->Eopid() ||
+			(*pexprTgt)[0] != pexprGet || 1 != (*pexprTgt)[1]->Arity() ||
+			!pexprTgt->DeriveOutputColumns()->Equals(
+				pexprGbAgg->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_RejectsWrongAggFunction()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Agg_min<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	CColRefArray *pdrgpcrInput = nullptr;
+	CColRef *pcrAggOut = nullptr;
+	BuildRealGbAgg(fix, &pexprGet, &pexprGbAgg, &pdrgpcrInput, &pcrAggOut);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_RESULT eres = matcher.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel)
+		? GPOS_FAILED
+		: GPOS_OK;
+
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

@@ -99,6 +99,7 @@ private:
 	const COperator::EOperatorId m_eopid;	 // mapped ORCA logical op (or Sentinel)
 	const BOOL m_fDistinct;					 // Proj* / Union*
 	const EDslSortDir m_edslsort;			 // Sort direction
+	const EDslAggFuncKind m_edslaggfunc;	 // Agg_sum/count/max/... or Unknown
 	CDSLSymbolArray *m_pdrgpsym;			 // owned; positional symbols
 	CDSLOpArray *m_pdrgpchild;				 // owned; relational children
 
@@ -106,7 +107,8 @@ public:
 	CDSLOp(const CDSLOp &) = delete;
 
 	CDSLOp(CMemoryPool *mp, EDslOpKind edslop, BOOL fDistinct,
-		   EDslSortDir edslsort, CDSLSymbolArray *pdrgpsym,
+		   EDslSortDir edslsort, EDslAggFuncKind edslaggfunc,
+		   CDSLSymbolArray *pdrgpsym,
 		   CDSLOpArray *pdrgpchild);
 
 	~CDSLOp() override;
@@ -115,6 +117,7 @@ public:
 	COperator::EOperatorId Eopid() const { return m_eopid; }
 	BOOL FDistinct() const { return m_fDistinct; }
 	EDslSortDir Edslsort() const { return m_edslsort; }
+	EDslAggFuncKind Edslaggfunc() const { return m_edslaggfunc; }
 	CDSLSymbolArray *Pdrgpsym() const { return m_pdrgpsym; }
 	CDSLOpArray *Pdrgpchild() const { return m_pdrgpchild; }
 

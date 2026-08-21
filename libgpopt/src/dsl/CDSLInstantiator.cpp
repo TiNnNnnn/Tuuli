@@ -13,15 +13,70 @@
 #include "gpos/base.h"
 
 #include "gpopt/base/CColRef.h"
+#include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FAggNameEquals(CMemoryPool *mp, const CWStringConst *pstrActual,
+			   const CHAR *szExpected)
+{
+	CWStringConst strExpected(mp, szExpected);
+	return pstrActual->Equals(&strExpected);
+}
+
+BOOL
+FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
+				const CScalarAggFunc *popFunc)
+{
+	if (popAgg->FDistinct() != popFunc->IsDistinct())
+	{
+		return false;
+	}
+	switch (popAgg->Edslaggfunc())
+	{
+		case EdslaggfuncUnknown:
+			return true;
+		case EdslaggfuncSentinel:
+			return false;
+		case EdslaggfuncAverage:
+			return FAggNameEquals(mp, popFunc->PstrAggFunc(), "avg") ||
+				   FAggNameEquals(mp, popFunc->PstrAggFunc(), "average");
+		default:
+			return FAggNameEquals(
+				mp, popFunc->PstrAggFunc(),
+				CDSLOpKindTable::SzAggFuncName(popAgg->Edslaggfunc()));
+	}
+}
+
+BOOL
+FColArraysSameSet(CMemoryPool *mp, const CColRefArray *pdrgpcrFirst,
+				  const CColRefArray *pdrgpcrSecond)
+{
+	CColRefSet *pcrsFirst = GPOS_NEW(mp) CColRefSet(mp);
+	CColRefSet *pcrsSecond = GPOS_NEW(mp) CColRefSet(mp);
+	pcrsFirst->Include(const_cast<CColRefArray *>(pdrgpcrFirst));
+	pcrsSecond->Include(const_cast<CColRefArray *>(pdrgpcrSecond));
+	BOOL fEqual = pcrsFirst->Equals(pcrsSecond);
+	pcrsFirst->Release();
+	pcrsSecond->Release();
+	return fEqual;
+}
+}  // namespace
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -314,6 +369,183 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PexprBuildAgg
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
+								const CDSLModel *pmodel) const
+{
+	if (1 != pop->UlChildren())
+	{
+		return nullptr;
+	}
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	if (nullptr == pdrgpsym ||
+		(5 != pdrgpsym->Size() && 6 != pdrgpsym->Size()))
+	{
+		return nullptr;
+	}
+	const BOOL fLegacy = 5 == pdrgpsym->Size();
+	const ULONG ulFunc = fLegacy ? 2 : 3;
+	const ULONG ulSchema = fLegacy ? 3 : 4;
+	const ULONG ulHaving = fLegacy ? 4 : 5;
+
+	const CDSLSymbol *psymGroup = PsymResolve((*pdrgpsym)[0]);
+	const CDSLSymbol *psymAggInputs = PsymResolve((*pdrgpsym)[1]);
+	const CDSLSymbol *psymFuncs = PsymResolve((*pdrgpsym)[ulFunc]);
+	const CDSLSymbol *psymSchema = PsymResolve((*pdrgpsym)[ulSchema]);
+	const CDSLSymbol *psymHaving = PsymResolve((*pdrgpsym)[ulHaving]);
+
+	CColRefArray *pdrgpcrGroup = pmodel->PdrgpcrAttrs(psymGroup);
+	CColRefArray *pdrgpcrAggInputs = pmodel->PdrgpcrAttrs(psymAggInputs);
+	CExpressionArray *pdrgpexprFuncs = pmodel->PdrgpexprFunc(psymFuncs);
+	CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+	CExpression *pexprHaving = pmodel->PexprPred(psymHaving);
+	if (nullptr == pdrgpcrGroup || nullptr == pdrgpcrAggInputs ||
+		nullptr == pdrgpexprFuncs || nullptr == pdrgpcrSchema ||
+		nullptr == pexprHaving)
+	{
+		return nullptr;
+	}
+
+	// The repository's established Agg<a a f s p> format has no explicit
+	// aggregate-output symbol. In a GbAgg schema, grouping columns are passed
+	// through and every remaining schema column is defined by one aggregate
+	// project element, so recover the output array as schema - groupByAttrs.
+	CColRefArray *pdrgpcrAggOutputs = nullptr;
+	BOOL fOwnAggOutputs = false;
+	if (fLegacy)
+	{
+		fOwnAggOutputs = true;
+		pdrgpcrAggOutputs = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsGroup->Include(pdrgpcrGroup);
+		for (ULONG ul = 0; ul < pdrgpcrSchema->Size(); ul++)
+		{
+			CColRef *pcr = (*pdrgpcrSchema)[ul];
+			if (!pcrsGroup->FMember(pcr))
+			{
+				pdrgpcrAggOutputs->Append(pcr);
+			}
+		}
+		pcrsGroup->Release();
+	}
+	else
+	{
+		const CDSLSymbol *psymAggOutputs = PsymResolve((*pdrgpsym)[2]);
+		pdrgpcrAggOutputs = pmodel->PdrgpcrAttrs(psymAggOutputs);
+	}
+	if (nullptr == pdrgpcrAggOutputs ||
+		pdrgpcrAggOutputs->Size() != pdrgpexprFuncs->Size())
+	{
+		if (fOwnAggOutputs)
+		{
+			pdrgpcrAggOutputs->Release();
+		}
+		return nullptr;
+	}
+
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		if (fOwnAggOutputs)
+		{
+			pdrgpcrAggOutputs->Release();
+		}
+		return nullptr;
+	}
+
+	CColRefSet *pcrsChild = pexprChild->DeriveOutputColumns();
+	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsFuncInputs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsGroup->Include(pdrgpcrGroup);
+	for (ULONG ul = 0; ul < pdrgpexprFuncs->Size(); ul++)
+	{
+		CExpression *pexprFunc = (*pdrgpexprFuncs)[ul];
+		if (COperator::EopScalarAggFunc != pexprFunc->Pop()->Eopid() ||
+			!FAggFuncMatches(
+				m_mp, pop,
+				CScalarAggFunc::PopConvert(pexprFunc->Pop())))
+		{
+			pcrsGroup->Release();
+			pcrsFuncInputs->Release();
+			pexprChild->Release();
+			if (fOwnAggOutputs)
+			{
+				pdrgpcrAggOutputs->Release();
+			}
+			return nullptr;
+		}
+		pcrsFuncInputs->Include(pexprFunc->DeriveUsedColumns());
+	}
+
+	CColRefArray *pdrgpcrActualInputs = pcrsFuncInputs->Pdrgpcr(m_mp);
+	BOOL fInputsValid = FColArraysSameSet(
+		m_mp, pdrgpcrAggInputs, pdrgpcrActualInputs);
+	pdrgpcrActualInputs->Release();
+
+	CColRefSet *pcrsExpectedSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsExpectedSchema->Include(pdrgpcrGroup);
+	pcrsExpectedSchema->Include(pdrgpcrAggOutputs);
+	pcrsSchema->Include(pdrgpcrSchema);
+	BOOL fSchemaValid = pcrsExpectedSchema->Equals(pcrsSchema);
+
+	BOOL fColumnsValid = fInputsValid && fSchemaValid &&
+					 pcrsChild->ContainsAll(pcrsGroup) &&
+					 pcrsChild->ContainsAll(pcrsFuncInputs);
+	pcrsGroup->Release();
+	pcrsFuncInputs->Release();
+	pcrsExpectedSchema->Release();
+	pcrsSchema->Release();
+	if (!fColumnsValid)
+	{
+		pexprChild->Release();
+		if (fOwnAggOutputs)
+		{
+			pdrgpcrAggOutputs->Release();
+		}
+		return nullptr;
+	}
+
+	CExpressionArray *pdrgpexprPrEl =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	for (ULONG ul = 0; ul < pdrgpexprFuncs->Size(); ul++)
+	{
+		CExpression *pexprFunc = (*pdrgpexprFuncs)[ul];
+		pexprFunc->AddRef();
+		pdrgpexprPrEl->Append(GPOS_NEW(m_mp) CExpression(
+			m_mp,
+			GPOS_NEW(m_mp) CScalarProjectElement(
+				m_mp, (*pdrgpcrAggOutputs)[ul]),
+			pexprFunc));
+	}
+	CExpression *pexprAggList = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);
+
+	pdrgpcrGroup->AddRef();
+	CExpression *pexprResult = GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, pdrgpcrGroup,
+									 COperator::EgbaggtypeGlobal),
+		pexprChild, pexprAggList);
+
+	if (!CUtils::FScalarConstTrue(pexprHaving))
+	{
+		pexprHaving->AddRef();
+		pexprResult = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
+			pexprHaving);
+	}
+	if (fOwnAggOutputs)
+	{
+		pdrgpcrAggOutputs->Release();
+	}
+	return pexprResult;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PexprBuild
 //---------------------------------------------------------------------------
 CExpression *
@@ -329,11 +561,13 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildFilter(pop, pmodel);
 		case EdslopProj:
 			return PexprBuildProj(pop, pmodel);
+		case EdslopAgg:
+			return PexprBuildAgg(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 			return PexprBuildJoin(pop, pmodel);
 		default:
-			// Agg / Union / Sort / Limit: not yet instantiable (future work).
+			// Union / Sort / Limit: not yet instantiable (future work).
 			// The rule does not fire.
 			return nullptr;
 	}

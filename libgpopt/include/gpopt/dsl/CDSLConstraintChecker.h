@@ -12,9 +12,8 @@
 //		failure; we do the same).
 //
 //		Which constraints run here (doc §10 mapping table):
-//		  AttrsSub(a,t)  : columns bound to <a> are a subset of the output columns
-//		                   of the subtree bound to <t>  -> DeriveOutputColumns +
-//		                   CColRefSet::ContainsAll
+//		  AttrsSub(a,x)  : columns bound to <a> are a subset of a table/subtree's
+//		                   output columns or of a bound schema's columns
 //		  Unique(t,a)    : columns bound to <a> form a key of <t>'s subtree
 //		                   -> DeriveKeyCollection()->FKey(pcrs)
 //		  NotNull(t,a)   : columns bound to <a> are all non-nullable in <t>
@@ -66,7 +65,7 @@ private:
 	// constraint handled elsewhere).
 	BOOL FCheckOne(const CDSLConstraint *pcon, const CDSLModel *pmodel) const;
 
-	// AttrsSub(a,t): cols(<a>) subset of DeriveOutputColumns(<t>)
+	// AttrsSub(a,x): x is a table/subtree or schema symbol
 	BOOL FCheckAttrsSub(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
 

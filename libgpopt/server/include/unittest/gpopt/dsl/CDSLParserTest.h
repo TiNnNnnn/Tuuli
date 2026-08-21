@@ -34,6 +34,7 @@ public:
 	static GPOS_RESULT EresUnittest_RoundTrip();
 	static GPOS_RESULT EresUnittest_SymbolArity();
 	static GPOS_RESULT EresUnittest_Aliases();
+	static GPOS_RESULT EresUnittest_AggFunctions();
 	static GPOS_RESULT EresUnittest_SymbolNamespace();
 	static GPOS_RESULT EresUnittest_Constraints();
 	static GPOS_RESULT EresUnittest_Whitespace();

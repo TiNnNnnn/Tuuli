@@ -129,7 +129,7 @@ CDSLModel::PvalLookup(const CDSLSymbol *psym) const
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLModel::PexprTable / PexprPred / PdrgpcrAttrs / PdrgpcrSchema
+//		CDSLModel typed accessors
 //
 //	@doc:
 //		Typed views over the stored CRefCount*. The stored dynamic type is
@@ -165,6 +165,13 @@ CDSLModel::PdrgpcrSchema(const CDSLSymbol *psym) const
 {
 	GPOS_ASSERT(EdslsymSchema == psym->Esymkind());
 	return static_cast<CColRefArray *>(PvalLookup(psym));
+}
+
+CExpressionArray *
+CDSLModel::PdrgpexprFunc(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymFunc == psym->Esymkind());
+	return static_cast<CExpressionArray *>(PvalLookup(psym));
 }
 
 // EOF

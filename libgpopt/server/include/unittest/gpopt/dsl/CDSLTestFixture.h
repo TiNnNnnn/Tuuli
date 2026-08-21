@@ -172,12 +172,12 @@ public:
 	// the child and the grouping array; caller owns the result. Used by the dedup
 	// (DISTINCT) elimination rule (the DSL analogue of CXformSimplifyGbAgg).
 	//
-	// If pcrAgg is non-NULL, a single (dummy) aggregate project element defining
-	// pcrAgg is added so the agg list is NON-empty — used by the dedup matcher's
-	// reject-non-empty-agg test. (Structural only; not a real aggregate function.)
+	// If pcrAgg is non-NULL, a genuine MAX(pcrAggInput) aggregate project element
+	// defining pcrAgg is added (falling back to grouping[0]).
 	CExpression *PexprLogicalGbAgg(CExpression *pexprChild,
 								   CColRefArray *pdrgpcrGrouping,
-								   CColRef *pcrAgg = nullptr);
+								   CColRef *pcrAgg = nullptr,
+								   CColRef *pcrAggInput = nullptr);
 };
 }  // namespace gpopt
 

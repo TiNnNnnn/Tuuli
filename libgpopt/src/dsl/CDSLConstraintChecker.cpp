@@ -57,9 +57,7 @@ CDSLConstraintChecker::PcrsFromAttrsSym(const CDSLSymbol *psymAttrs,
 //		CDSLConstraintChecker::FCheckAttrsSub
 //
 //	@doc:
-//		AttrsSub(a,t): the columns bound to the attrs symbol must be a subset of
-//		the output columns of the subtree bound to the table symbol. Symbols are
-//		distinguished by their (declaration-time) kind, not argument position.
+//		AttrsSub(a,x): x is either a table/subtree symbol or a schema symbol.
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
@@ -71,36 +69,39 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	// find the attrs and table symbols by kind (order is a/t but be robust)
-	const CDSLSymbol *psymAttrs = nullptr;
-	const CDSLSymbol *psymTable = nullptr;
-	for (ULONG ul = 0; ul < 2; ul++)
-	{
-		const CDSLSymbol *psym = (*pdrgpsym)[ul];
-		if (EdslsymAttrs == psym->Esymkind())
-		{
-			psymAttrs = psym;
-		}
-		else if (EdslsymTable == psym->Esymkind())
-		{
-			psymTable = psym;
-		}
-	}
-	if (nullptr == psymAttrs || nullptr == psymTable)
+	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	const CDSLSymbol *psymSource = (*pdrgpsym)[1];
+	if (EdslsymAttrs != psymAttrs->Esymkind() ||
+		(EdslsymTable != psymSource->Esymkind() &&
+		 EdslsymSchema != psymSource->Esymkind()))
 	{
 		return false;
 	}
 
-	CExpression *pexprTable = pmodel->PexprTable(psymTable);
 	CColRefSet *pcrsAttrs = PcrsFromAttrsSym(psymAttrs, pmodel);
-	if (nullptr == pexprTable || nullptr == pcrsAttrs)
+	if (nullptr == pcrsAttrs)
 	{
-		CRefCount::SafeRelease(pcrsAttrs);
 		return false;
 	}
 
-	CColRefSet *pcrsOutput = pexprTable->DeriveOutputColumns();
-	BOOL fHolds = pcrsOutput->ContainsAll(pcrsAttrs);
+	BOOL fHolds = false;
+	if (EdslsymTable == psymSource->Esymkind())
+	{
+		CExpression *pexprTable = pmodel->PexprTable(psymSource);
+		fHolds = nullptr != pexprTable &&
+				 pexprTable->DeriveOutputColumns()->ContainsAll(pcrsAttrs);
+	}
+	else
+	{
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSource);
+		if (nullptr != pdrgpcrSchema)
+		{
+			CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+			pcrsSchema->Include(pdrgpcrSchema);
+			fHolds = pcrsSchema->ContainsAll(pcrsAttrs);
+			pcrsSchema->Release();
+		}
+	}
 	pcrsAttrs->Release();
 	return fHolds;
 }

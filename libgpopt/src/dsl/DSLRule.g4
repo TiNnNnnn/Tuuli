@@ -50,6 +50,8 @@ SEMI   : ';' ;
 // and 't0' (len 2) beats 't' (len 1). Capitalised names ('Input') fail SYMBOL
 // at char 0 and fall through to ID.
 SYMBOL : [a-z] [0-9]+ ;
-ID     : [A-Za-z]+ ;
+// Aggregate operators encode their function kind with an underscore
+// (Agg_sum/Agg_average/Agg_count/Agg_max/Agg_min).
+ID     : [A-Za-z] [A-Za-z_]* ;
 
 WS     : [ \t\r\n]+ -> skip ;

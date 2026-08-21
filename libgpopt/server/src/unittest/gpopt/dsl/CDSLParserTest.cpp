@@ -63,6 +63,7 @@ CDSLParserTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Aliases),
+		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_AggFunctions),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolNamespace),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Constraints),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Whitespace),
@@ -70,6 +71,63 @@ CDSLParserTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Errors),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+// Aggregate operator suffixes carry the WeTune function kind. COUNT alone may
+// carry '*', which maps to COUNT(DISTINCT ...).
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLParserTest::EresUnittest_AggFunctions()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	struct
+	{
+		const CHAR *dsl;
+		EDslAggFuncKind kind;
+		BOOL distinct;
+	} rg[] = {
+		{"Agg_sum<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 EdslaggfuncSum, false},
+		{"Agg_average<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 EdslaggfuncAverage, false},
+		{"Agg_count*<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 EdslaggfuncCount, true},
+		{"Agg_max<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 EdslaggfuncMax, false},
+		{"Agg_min<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		 EdslaggfuncMin, false},
+	};
+
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rg); ul++)
+	{
+		CDSLRule *prule = Parse(mp, rg[ul].dsl);
+		if (nullptr == prule)
+		{
+			return GPOS_FAILED;
+		}
+		CDSLOp *pop = prule->PfragSrc()->PopRoot();
+		BOOL fOk = EdslopAgg == pop->Edslop() &&
+				   rg[ul].kind == pop->Edslaggfunc() &&
+				   rg[ul].distinct == pop->FDistinct();
+		prule->Release();
+		if (!fOk || !FRoundTrips(mp, rg[ul].dsl))
+		{
+			return GPOS_FAILED;
+		}
+	}
+
+	CDSLRule *bad = Parse(
+		mp,
+		"Agg_sum*<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	return GPOS_OK;
 }
 
 //---------------------------------------------------------------------------
@@ -95,10 +153,13 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,"
 		"Input<t3>)|AttrsSub(a0,t0);Reference(t0,a0,t1,a1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
-		// Agg (6 symbols: groupBy, aggAttrs, aggOutAttrs, func, schema, having)
-		// + Exists + Union (no <...>)
-		"Exists(Union(Input<t0>,Input<t1>),Agg<a0 a1 a2 f0 s0 p0>(Input<t2>))"
-		"|Input<t3>|TableEq(t3,t0)",
+		// Existing MONSOON corpus form (fewshot_curated.txt): bare Agg with five
+		// symbols groupBy, aggAttrs, func, schema, having.
+		"Exists(Proj<a0 s0>(Input<t0>),Agg<a1 a2 f0 s1 p0>(Input<t1>))|"
+		"Exists(Proj<a3 s2>(Input<t2>),Agg<a4 a5 f1 s3 p1>(Input<t3>))|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);TableEq(t2,t0);"
+		"TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);"
+		"PredicateEq(p1,p0);SchemaEq(s2,s0);SchemaEq(s3,s1);FuncEq(f1,f0)",
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
 		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",
@@ -131,13 +192,35 @@ CDSLParserTest::EresUnittest_SymbolArity()
 		bad->Release();
 		return GPOS_FAILED;
 	}
-	// Agg needs 6; five is an error.
-	bad = Parse(mp, "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	// Agg accepts the corpus's 5-symbol form and current SQLSolver's 6-symbol
+	// extension, but neither 4 nor 7 symbols.
+	bad = Parse(mp, "Agg<a0 a1 f0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
 	if (nullptr != bad)
 	{
 		bad->Release();
 		return GPOS_FAILED;
 	}
+	bad = Parse(
+		mp,
+		"Agg<a0 a1 a2 a3 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	CDSLRule *agg5 = Parse(
+		mp, "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	CDSLRule *agg6 = Parse(
+		mp,
+		"Agg_max<a0 a1 a2 f0 s0 p0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == agg5 || nullptr == agg6)
+	{
+		CRefCount::SafeRelease(agg5);
+		CRefCount::SafeRelease(agg6);
+		return GPOS_FAILED;
+	}
+	agg5->Release();
+	agg6->Release();
 	// Correct arities parse.
 	CDSLRule *ok =
 		Parse(mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");

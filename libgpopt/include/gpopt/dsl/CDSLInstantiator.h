@@ -112,6 +112,12 @@ private:
 	CExpression *PexprBuildProj(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 
+	// Rebuild a Global CLogicalGbAgg for corpus Agg<a a f s p> or the extended
+	// Agg<a a a f s p>. The corpus form infers aggregate outputs from schema minus
+	// grouping columns. A non-TRUE HAVING is Select(GbAgg, predicate).
+	CExpression *PexprBuildAgg(const CDSLOp *pop,
+							   const CDSLModel *pmodel) const;
+
 	// Cascades requires an xform result ROOT to be a freshly-built CExpression
 	// (Pgexpr()==NULL). Operator-eliminating rules build a target whose root is a
 	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns
