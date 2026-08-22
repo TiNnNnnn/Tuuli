@@ -1,0 +1,16 @@
+{
+  "kind": "wetune_workload",
+  "application": "gitlab",
+  "source_dialect": "postgres",
+  "statement_count": 621,
+  "translated_count": 621,
+  "maximum_statement_id": 1143,
+  "schema_patches": {
+    "FOREIGN_KEY": 5,
+    "NOT_NULL": 442,
+    "UNIQUE": 2
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

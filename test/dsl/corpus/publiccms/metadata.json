@@ -1,0 +1,14 @@
+{
+  "kind": "wetune_workload",
+  "application": "publiccms",
+  "source_dialect": "mysql",
+  "statement_count": 289,
+  "translated_count": 289,
+  "maximum_statement_id": 405,
+  "schema_patches": {
+    "NOT_NULL": 26
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

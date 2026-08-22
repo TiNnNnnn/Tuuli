@@ -1,0 +1,16 @@
+{
+  "kind": "wetune_workload",
+  "application": "redmine",
+  "source_dialect": "mysql",
+  "statement_count": 1578,
+  "translated_count": 1578,
+  "maximum_statement_id": 1693,
+  "schema_patches": {
+    "FOREIGN_KEY": 59,
+    "NOT_NULL": 37,
+    "UNIQUE": 2
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

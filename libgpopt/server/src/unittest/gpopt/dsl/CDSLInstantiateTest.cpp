@@ -117,9 +117,13 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 	CExpression *pexprLeft =
 		fix.PexprLogicalGet("left_t", 1, &pdrgpcrLeft);
 	CExpression *pexprRight =
-		fix.PexprLogicalGet("right_t", 1, &pdrgpcrRight);
+		fix.PexprLogicalGet("right_t", 2, &pdrgpcrRight);
+	// Put an unrelated conjunct first. The source AttrsEq(a1,a2) must guide
+	// assignment to the second conjunct, which references the right join key.
+	CColRef *rgpcrRightPreds[] = {(*pdrgpcrRight)[1],
+								 (*pdrgpcrRight)[0]};
 	CExpression *pexprRightPred =
-		fix.PexprPredAtom((*pdrgpcrRight)[0]);
+		fix.PexprConjunctionOfAtoms(rgpcrRightPreds, 2);
 	CExpression *pexprRightSelect =
 		fix.PexprLogicalSelect(pexprRight, pexprRightPred);
 	CExpression *pexprJoinPred =
@@ -145,6 +149,17 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 		{
 			eres = GPOS_FAILED;
 		}
+		const CDSLSymbol *psymSourcePred =
+			(*prule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+		CExpression *pexprSourcePred = pmodel->PexprPred(psymSourcePred);
+		if (nullptr == pexprSourcePred ||
+			!pexprSourcePred->DeriveUsedColumns()->FMember(
+				(*pdrgpcrRight)[0]) ||
+			pexprSourcePred->DeriveUsedColumns()->FMember(
+				(*pdrgpcrRight)[1]))
+		{
+			eres = GPOS_FAILED;
+		}
 
 		CDSLConstraintChecker checker(mp);
 		if (!checker.FCheck(prule, pmodel))
@@ -160,7 +175,9 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 			!(*pexprTgt)[1]->DeriveUsedColumns()->FMember(
 				(*pdrgpcrLeft)[0]) ||
 			(*pexprTgt)[1]->DeriveUsedColumns()->FMember(
-				(*pdrgpcrRight)[0]))
+				(*pdrgpcrRight)[0]) ||
+			!(*pexprTgt)[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrRight)[1]))
 		{
 			eres = GPOS_FAILED;
 		}

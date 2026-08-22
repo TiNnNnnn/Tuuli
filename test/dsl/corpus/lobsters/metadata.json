@@ -1,0 +1,14 @@
+{
+  "kind": "wetune_workload",
+  "application": "lobsters",
+  "source_dialect": "mysql",
+  "statement_count": 137,
+  "translated_count": 137,
+  "maximum_statement_id": 138,
+  "schema_patches": {
+    "NOT_NULL": 27
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

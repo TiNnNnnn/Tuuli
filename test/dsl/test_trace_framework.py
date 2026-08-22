@@ -15,7 +15,13 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from build_reference_manifest import build_manifest
 from compare_rule_traces import compare, read_records
-from run_trace_corpus import read_manifest, reference_records
+from run_trace_corpus import (
+    orca_fallback_reason,
+    parameter_count,
+    read_manifest,
+    reference_records,
+    render_trace_query,
+)
 
 
 class TraceFrameworkTest(unittest.TestCase):
@@ -115,6 +121,31 @@ class TraceFrameworkTest(unittest.TestCase):
         ):
             self.assertNotIn(secret, rendered)
 
+    def test_manifest_can_replace_query_dialect_and_case_prefix(self) -> None:
+        records = [
+            {
+                "kind": "query",
+                "case_id": "source.sql:2",
+                "query": "SELECT `i` FROM `t`",
+            },
+            {
+                "kind": "application",
+                "case_id": "source.sql:2",
+                "rule_id": 7,
+                "status": "applied",
+            },
+        ]
+
+        manifest = build_manifest(
+            records,
+            maximum=0,
+            case_prefix="sample",
+            translated_queries=["", 'SELECT "i" FROM "t"'],
+        )
+
+        self.assertEqual(manifest[0]["case_id"], "sample:2")
+        self.assertEqual(manifest[0]["query"], 'SELECT "i" FROM "t"')
+
     def test_public_and_private_manifest_shapes_share_the_same_oracle(self) -> None:
         cases = [
             {
@@ -159,6 +190,62 @@ class TraceFrameworkTest(unittest.TestCase):
 
             with self.assertRaisesRegex(ValueError, "at least one expected/reference"):
                 read_manifest(manifest_path)
+
+    def test_parameter_count_ignores_literals_identifiers_and_comments(self) -> None:
+        query = (
+            "SELECT '$9', \"$8\" FROM t WHERE a = $2 "
+            "/* $7 */ AND b = $1 -- $6\n"
+        )
+
+        self.assertEqual(parameter_count(query), 2)
+
+    def test_parameterized_trace_uses_a_generic_prepared_plan(self) -> None:
+        rendered = render_trace_query("SELECT * FROM t WHERE a = $1 LIMIT $2")
+
+        self.assertIn("PREPARE dsl_trace_case AS", rendered)
+        self.assertIn("EXECUTE dsl_trace_case(NULL, NULL)", rendered)
+        self.assertTrue(rendered.endswith("DEALLOCATE dsl_trace_case;\n"))
+
+    def test_plain_trace_query_is_explained_directly(self) -> None:
+        self.assertEqual(
+            render_trace_query("SELECT * FROM t;"),
+            "EXPLAIN (COSTS OFF)\nSELECT * FROM t;\n",
+        )
+
+    def test_orca_fallback_is_not_counted_as_missing_dsl_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "case.log"
+            log.write_text(
+                "NOTICE: Falling back to Postgres-based planner because GPORCA "
+                "does not support the following feature: DISTINCT ON\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                orca_fallback_reason(log),
+                "Falling back to Postgres-based planner because GPORCA does not "
+                "support the following feature: DISTINCT ON",
+            )
+
+    def test_internal_orca_fallback_without_standard_notice_is_detected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "case.log"
+            log.write_text(
+                '2026-01-01,THD000,ERROR,"Query-to-DXL Translation failed",\n'
+                " Seq Scan on t\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                orca_fallback_reason(log), "Query-to-DXL Translation failed"
+            )
+
+    def test_orca_plan_marker_wins_when_no_fallback_was_logged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "case.log"
+            log.write_text("Result\n Optimizer: pg_orca\n", encoding="utf-8")
+
+            self.assertIsNone(orca_fallback_reason(log))
 
 
 if __name__ == "__main__":

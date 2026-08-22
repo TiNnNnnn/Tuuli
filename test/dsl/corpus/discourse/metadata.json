@@ -1,0 +1,29 @@
+{
+  "kind": "wetune_workload",
+  "application": "discourse",
+  "source_dialect": "postgres",
+  "statement_count": 1915,
+  "translated_count": 1915,
+  "maximum_statement_id": 5198,
+  "schema_patches": {
+    "FOREIGN_KEY": 99,
+    "NOT_NULL": 120,
+    "UNIQUE": 9
+  },
+  "skipped_schema_patches": [
+    {
+      "type": "FOREIGN_KEY",
+      "table": "post_actions",
+      "columns": "user_id",
+      "reference": "bookmarks.user_id",
+      "reason": "reference_not_unique"
+    }
+  ],
+  "repairs": [
+    {
+      "stmt_id": 5190,
+      "repair": "removed unmatched trailing double quote"
+    }
+  ],
+  "translation_failures": []
+}

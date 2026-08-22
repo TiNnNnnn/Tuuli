@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "shopizer",
+  "source_dialect": "mysql",
+  "statement_count": 89,
+  "translated_count": 89,
+  "maximum_statement_id": 131,
+  "schema_patches": {
+    "NOT_NULL": 47,
+    "UNIQUE": 4
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

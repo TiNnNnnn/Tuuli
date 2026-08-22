@@ -1,0 +1,16 @@
+{
+  "kind": "wetune_workload",
+  "application": "spree",
+  "source_dialect": "mysql",
+  "statement_count": 1188,
+  "translated_count": 1188,
+  "maximum_statement_id": 1205,
+  "schema_patches": {
+    "FOREIGN_KEY": 48,
+    "NOT_NULL": 214,
+    "UNIQUE": 1
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

@@ -1,0 +1,14 @@
+{
+  "kind": "wetune_workload",
+  "application": "eladmin",
+  "source_dialect": "mysql",
+  "statement_count": 81,
+  "translated_count": 81,
+  "maximum_statement_id": 134,
+  "schema_patches": {
+    "NOT_NULL": 8
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

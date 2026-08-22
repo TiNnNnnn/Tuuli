@@ -24,10 +24,8 @@ extern "C" {
 #include "utils/guc.h"
 #include "utils/uuid.h"
 
-/* PG18 compat: GPDB-only GUC and constants */
-#ifndef optimizer_enable_query_parameter
-static const bool optimizer_enable_query_parameter = false;
-#endif
+/* Registered by the PostgreSQL extension (GPDB provides the same GUC). */
+extern bool optimizer_enable_query_parameter;
 }
 
 #include <vector>

@@ -1,0 +1,14 @@
+{
+  "kind": "wetune_workload",
+  "application": "halo",
+  "source_dialect": "mysql",
+  "statement_count": 166,
+  "translated_count": 166,
+  "maximum_statement_id": 208,
+  "schema_patches": {
+    "FOREIGN_KEY": 2
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

@@ -1,0 +1,35 @@
+{
+  "kind": "wetune_workload",
+  "application": "solidus",
+  "source_dialect": "mysql",
+  "statement_count": 842,
+  "translated_count": 842,
+  "maximum_statement_id": 848,
+  "schema_patches": {
+    "FOREIGN_KEY": 50,
+    "NOT_NULL": 154,
+    "UNIQUE": 5
+  },
+  "skipped_schema_patches": [
+    {
+      "type": "NOT_NULL",
+      "table": "spree_product_taxons",
+      "columns": "taxon_id",
+      "reason": "table_not_found"
+    },
+    {
+      "type": "NOT_NULL",
+      "table": "spree_role_users",
+      "columns": "role_id",
+      "reason": "table_not_found"
+    },
+    {
+      "type": "NOT_NULL",
+      "table": "spree_role_users",
+      "columns": "user_id",
+      "reason": "table_not_found"
+    }
+  ],
+  "repairs": [],
+  "translation_failures": []
+}

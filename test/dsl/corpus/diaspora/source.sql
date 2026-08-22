@@ -1,0 +1,629 @@
+SELECT  1 AS one FROM `users` WHERE (id != 1 AND email = 'alice@newmail.com') LIMIT 1
+SELECT `people`.`diaspora_handle` FROM `people` WHERE `people`.`guid` = 'd03e63806b4401384b7a08e9fe568a11' AND `people`.`diaspora_handle` != 'bob812e183cc@localhost:9887'
+SELECT  `users`.* FROM `users` WHERE `users`.`id` = 1 LIMIT 1
+
+
+SELECT  `pods`.* FROM `pods` WHERE `pods`.`host` = 'example.net' AND `pods`.`port` IS NULL LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`id` = 1 LIMIT 1
+SELECT `people`.`id` FROM `people` WHERE `people`.`owner_id` = 3
+SELECT `mentions`.* FROM `mentions` INNER JOIN `people` ON `people`.`id` = `mentions`.`person_id` WHERE `mentions`.`mentions_container_id` = 1895 AND `mentions`.`mentions_container_type` = 'Post' AND `people`.`owner_id` IS NOT NULL AND `mentions`.`person_id` != 1 AND `mentions`.`person_id` = 3
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`id` = 1170 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`id` = 1399 LIMIT 1
+SELECT  1 AS one FROM `blocks` WHERE `blocks`.`user_id` = 689 AND `blocks`.`person_id` = 2441 LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`diaspora_handle` = 'bob@localhost:9887' LIMIT 1
+SELECT  `profiles`.* FROM `profiles` WHERE `profiles`.`person_id` = 3 LIMIT 1
+SELECT  `mentions`.* FROM `mentions` WHERE `mentions`.`mentions_container_id` = 75 AND `mentions`.`mentions_container_type` = 'Post' AND `mentions`.`person_id` = 3 LIMIT 1
+SELECT `mentions`.* FROM `mentions` INNER JOIN `people` ON `people`.`id` = `mentions`.`person_id` WHERE `mentions`.`mentions_container_id` = 1897 AND `mentions`.`mentions_container_type` = 'Post' AND `people`.`owner_id` IS NOT NULL AND `mentions`.`person_id` != 1
+SELECT  posts.* FROM `posts` INNER JOIN `share_visibilities` ON `share_visibilities`.`shareable_id` = `posts`.`id` AND `share_visibilities`.`shareable_type` = 'Post' WHERE `posts`.`guid` = '2149f6b06c3001384b7e08e9fe568a11' AND `share_visibilities`.`user_id` = 1105 ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  `o_auth_applications`.* FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` = 'd39ef61429e0ac0c747fe3eb27b551f7' LIMIT 1
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`o_auth_application_id` IN (SELECT `o_auth_applications`.`id` FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` = 'd39ef61429e0ac0c747fe3eb27b551f7') AND `authorizations`.`refresh_token` = 'b60a8521ad814a2d5b0082de92bf23ed11d91d0520a920fa0c529f700ad1c42f' LIMIT 1
+SELECT  1 AS one FROM `o_auth_access_tokens` WHERE `o_auth_access_tokens`.`token` = '1e3ff348db12fa37a86377bc4aa1d0e7da3f07c51711da0d6f92c46f89df4b96' LIMIT 1
+SELECT  `tags`.* FROM `tags` WHERE `tags`.`name` = '6bfec517-c42e-4e02-90b2-4b92fdba22ba' LIMIT 1
+SELECT  1 AS one FROM `tags` WHERE `tags`.`name` = '6bfec517-c42e-4e02-90b2-4b92fdba22ba' LIMIT 1
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`id` = 849 LIMIT 1
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`id` = 297 LIMIT 1
+SELECT  1 AS one FROM `notifications` WHERE `notifications`.`guid` = '5e34dec06c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `people` WHERE `people`.`guid` = '5ea733606a7d01384b7208e9fe568a11' AND `people`.`id` != 1 LIMIT 1
+SELECT  1 AS one FROM `people` WHERE `people`.`diaspora_handle` = 'alice@localhost:9887' AND `people`.`id` != 1 LIMIT 1
+SELECT  1 AS one FROM `user_preferences` WHERE `user_preferences`.`user_id` = 2 AND `user_preferences`.`email_type` = 'started_sharing' LIMIT 1
+SELECT  1 AS one FROM `users` WHERE `users`.`username` = 'alice' AND `users`.`id` != 1 LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`owner_id` = 1 LIMIT 1
+SELECT `taggings`.* FROM `taggings` WHERE `taggings`.`taggable_id` = 2 AND `taggings`.`taggable_type` = 'Profile'
+SELECT `tags`.* FROM `tags` INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` WHERE `taggings`.`taggable_id` = 2 AND `taggings`.`taggable_type` = 'Profile' AND (taggings.context = 'tags' AND taggings.tagger_id IS NULL) ORDER BY taggings.id
+SELECT `taggings`.* FROM `taggings` WHERE `taggings`.`taggable_id` = 2 AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`tagger_id` IS NULL AND `taggings`.`tagger_type` IS NULL AND `taggings`.`context` = 'tags' AND `taggings`.`tag_id` IN (1, 2)
+SELECT  `tags`.* FROM `tags` WHERE `tags`.`id` = 1 LIMIT 1
+SELECT `tags`.`name` FROM `tags` INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` WHERE `taggings`.`taggable_id` = 4741 AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' ORDER BY taggings.id
+SELECT `people`.`id` FROM `people` WHERE `people`.`owner_id` IN (3, 1)
+SELECT `mentions`.* FROM `mentions` INNER JOIN `people` ON `people`.`id` = `mentions`.`person_id` WHERE `mentions`.`mentions_container_id` = 1899 AND `mentions`.`mentions_container_type` = 'Post' AND `people`.`owner_id` IS NOT NULL AND `mentions`.`person_id` != 2 AND `mentions`.`person_id` IN (1, 3)
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`type` IN ('Notifications::Reshared') AND `notifications`.`recipient_id` = 3 AND `notifications`.`target_type` = 'Post' AND `notifications`.`target_id` = 1893 AND `notifications`.`unread` = TRUE LIMIT 1
+SELECT DISTINCT `mentions`.`id` AS t0_r0, `mentions`.`mentions_container_id` AS t0_r1, `mentions`.`person_id` AS t0_r2, `mentions`.`mentions_container_type` AS t0_r3, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9 FROM `mentions` INNER JOIN `people` ON `people`.`id` = `mentions`.`person_id` WHERE `mentions`.`mentions_container_id` = 591 AND `mentions`.`mentions_container_type` = 'Comment' AND `people`.`owner_id` IS NOT NULL AND `mentions`.`person_id` != 3
+SELECT  1 AS one FROM `notifications` WHERE `notifications`.`type` IN ('Notifications::MentionedInComment') AND `notifications`.`recipient_id` = 1 AND `notifications`.`target_type` = 'Mention' AND `notifications`.`target_id` = 396 LIMIT 1
+SELECT  1 AS one FROM `notifications` WHERE `notifications`.`type` IN ('Notifications::MentionedInComment') AND `notifications`.`target_type` = 'Mention' AND `notifications`.`target_id` IN (SELECT `mentions`.`id` FROM `mentions` WHERE `mentions`.`mentions_container_id` = 591 AND `mentions`.`mentions_container_type` = 'Comment' AND `mentions`.`person_id` = 1) LIMIT 1
+SELECT `people`.`owner_id` FROM `people` INNER JOIN `participations` ON `people`.`id` = `participations`.`author_id` WHERE `participations`.`target_id` = 2339 AND `participations`.`target_type` = 'Post' AND (people.owner_id IS NOT NULL) AND `people`.`id` NOT IN (1, 3)
+SELECT  `users`.* FROM `users` WHERE `users`.`id` = 2 ORDER BY `users`.`id` ASC LIMIT 1000
+SELECT  1 AS one FROM `users` WHERE `users`.`email` = 'my@newemail.com' AND `users`.`id` != 1 LIMIT 1
+SELECT  `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`id` = 239 ORDER BY order_id ASC LIMIT 1
+SELECT  1 AS one FROM `contacts` WHERE `contacts`.`person_id` = 2 AND `contacts`.`user_id` = 1 LIMIT 1
+SELECT  1 AS one FROM `contacts` WHERE `contacts`.`user_id` = 1491 AND `contacts`.`person_id` = 4768 LIMIT 1
+SELECT MAX(`aspects`.`order_id`) FROM `aspects` WHERE `aspects`.`user_id` = 263
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`guid` = '6a25ee606c3001384b7e08e9fe568a11' AND `posts`.`author_id` = 4261 ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`guid` = '6a25ee606c3001384b7e08e9fe568a11' AND `posts`.`public` = TRUE ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `invitation_codes` WHERE `invitation_codes`.`token` = '7481622781f3' LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`guid` IS NULL LIMIT 1
+SELECT  1 AS one FROM `people` WHERE `people`.`diaspora_handle` = 'user_b@localhost:9887' LIMIT 1
+SELECT  `pods`.* FROM `pods` WHERE `pods`.`id` = 262 LIMIT 1
+SELECT  `account_migrations`.* FROM `account_migrations` WHERE `account_migrations`.`old_person_id` = 4589 LIMIT 1
+SELECT `contacts`.* FROM `contacts` INNER JOIN contacts as c2 ON (contacts.user_id = c2.user_id AND contacts.person_id=4573 AND c2.person_id=4589)
+SELECT `likes`.* FROM `likes` INNER JOIN likes as l2 ON (likes.target_id = l2.target_id AND likes.target_type = l2.target_type AND likes.author_id=4573 AND l2.author_id=4589)
+SELECT `participations`.* FROM `participations` INNER JOIN participations as p2 ON (participations.target_id = p2.target_id AND participations.target_type = p2.target_type AND participations.author_id=4573 AND p2.author_id=4589)
+SELECT `poll_participations`.* FROM `poll_participations` INNER JOIN poll_participations as p2 ON (poll_participations.poll_id = p2.poll_id AND poll_participations.author_id=4573 AND p2.author_id=4589)
+SELECT `contacts`.* FROM `contacts` WHERE `contacts`.`person_id` = 4589 AND `contacts`.`sharing` = TRUE
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`old_person_id` = 4573 AND `account_migrations`.`id` != 35 LIMIT 1
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`new_person_id` = 4589 AND `account_migrations`.`id` != 35 LIMIT 1
+SELECT  `share_visibilities`.* FROM `share_visibilities` WHERE `share_visibilities`.`user_id` = 1465 ORDER BY `share_visibilities`.`id` ASC LIMIT 20
+SELECT `contacts`.* FROM `contacts` WHERE `contacts`.`user_id` = 1465
+SELECT `aspect_memberships`.* FROM `aspect_memberships` WHERE `aspect_memberships`.`contact_id` = 1017
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`target_type` = 'Person' AND `notifications`.`target_id` = 4680 AND `notifications`.`recipient_id` = 1465 AND `notifications`.`type` = 'Notifications::StartedSharing'
+SELECT `tag_followings`.`id` FROM `tag_followings` WHERE `tag_followings`.`user_id` = 1465
+SELECT `services`.`id` FROM `services` WHERE `services`.`user_id` = 1465
+SELECT `aspects`.`id` FROM `aspects` WHERE `aspects`.`user_id` = 1465 ORDER BY order_id ASC
+SELECT `user_preferences`.`id` FROM `user_preferences` WHERE `user_preferences`.`user_id` = 1465
+SELECT `notifications`.`id` FROM `notifications` WHERE `notifications`.`recipient_id` = 1465
+SELECT `blocks`.`id` FROM `blocks` WHERE `blocks`.`user_id` = 1465
+SELECT `authorizations`.`id` FROM `authorizations` WHERE `authorizations`.`user_id` = 1465
+SELECT `o_auth_applications`.`id` FROM `o_auth_applications` INNER JOIN `authorizations` ON `o_auth_applications`.`id` = `authorizations`.`o_auth_application_id` WHERE `authorizations`.`user_id` = 1465
+SELECT `ppid`.`id` FROM `ppid` WHERE `ppid`.`user_id` = 1465
+SELECT `people`.* FROM `people` INNER JOIN `contacts` ON `people`.`id` = `contacts`.`person_id` WHERE `contacts`.`user_id` = 1
+SELECT `mentions`.* FROM `mentions` WHERE `mentions`.`mentions_container_id` = 285 AND `mentions`.`mentions_container_type` = 'Post'
+SELECT `people`.* FROM `people` INNER JOIN `posts` ON `people`.`id` = `posts`.`author_id` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '4bbacbd06b4401384b7808e9fe568a11'
+SELECT `people`.* FROM `people` INNER JOIN `participations` ON `people`.`id` = `participations`.`author_id` WHERE `participations`.`target_id` = 285 AND `participations`.`target_type` = 'Post'
+SELECT `pods`.* FROM `pods` WHERE 1=0
+SELECT  `people`.* FROM `people` WHERE `people`.`guid` = '999_999_999' LIMIT 1
+SELECT COUNT(*) FROM `people` INNER JOIN `notification_actors` ON `people`.`id` = `notification_actors`.`person_id` WHERE `notification_actors`.`notification_id` = 400
+SELECT  `contacts`.* FROM `contacts` WHERE `contacts`.`user_id` = 1880 AND `contacts`.`person_id` = 1 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'f58e61406c2f01384b7d08e9fe568a11' ORDER BY author_id = 3546 DESC LIMIT 15 OFFSET 0
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`id` = 1 ORDER BY order_id ASC
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1070 ORDER BY order_id ASC
+SELECT `aspects`.* FROM `aspects` INNER JOIN `aspect_visibilities` ON `aspect_visibilities`.`aspect_id` = `aspects`.`id` WHERE `aspects`.`user_id` = 1070 AND `aspect_visibilities`.`shareable_id` = 1444 AND `aspect_visibilities`.`shareable_type` = 'Post' ORDER BY order_id ASC
+SELECT DISTINCT `people`.* FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `aspect_memberships`.`aspect_id` = 668
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`id` IS NULL ORDER BY order_id ASC
+SELECT  1 AS one FROM `aspects` WHERE LOWER(`aspects`.`name`) = LOWER('generic') AND `aspects`.`id` != 1 AND `aspects`.`user_id` = 1 LIMIT 1
+SELECT `tags`.* FROM `tags` INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` WHERE `taggings`.`taggable_id` = 773 AND `taggings`.`taggable_type` = 'Post' AND (taggings.context = 'tags' AND taggings.tagger_id IS NULL)
+SELECT  1 AS one FROM `comments` WHERE `comments`.`guid` = 'f58f2b306c3001384b8408e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `posts` WHERE `posts`.`guid` = 'f551d7406c3001384b8408e9fe568a11' AND `posts`.`id` != 2293 LIMIT 1
+SELECT  1 AS one FROM `posts` WHERE `posts`.`id` = 2293 AND `posts`.`id` != 2293 LIMIT 1
+SELECT  1 AS one FROM `people` INNER JOIN `blocks` ON `people`.`id` = `blocks`.`person_id` WHERE `blocks`.`user_id` = 1 AND `people`.`id` = 1 LIMIT 1
+SELECT COUNT(*) FROM `comments` WHERE `comments`.`commentable_id` = 2293 AND `comments`.`commentable_type` = 'Post'
+SELECT `serialized_private_key` FROM `people` INNER JOIN `users` ON `users`.`id` = `people`.`owner_id` WHERE `people`.`diaspora_handle` = 'bob190e569bc@localhost:9887'
+SELECT  `invitation_codes`.* FROM `invitation_codes` WHERE `invitation_codes`.`token` = 'c0f2afccc5cd' LIMIT 1
+SELECT  1 AS one FROM `conversations` WHERE `conversations`.`guid` = 'b971ee206c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `messages` WHERE `messages`.`guid` = 'b971e2a06c3001384b7e08e9fe568a11' LIMIT 1
+SELECT `share_visibilities`.`user_id` FROM `share_visibilities` WHERE `share_visibilities`.`shareable_id` = 1157 AND `share_visibilities`.`shareable_type` = 'Photo' AND `share_visibilities`.`user_id` = 3
+SELECT  `participations`.* FROM `participations` WHERE `participations`.`author_id` = 5420 AND `participations`.`target_id` = 2275 LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`guid` = 'f12a60706c3001384b8408e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`target_id` = 2275 AND `participations`.`target_type` = 'Post' AND `participations`.`author_id` = 5420 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'f52649706c2f01384b7d08e9fe568a11' ORDER BY author_id = 3542 DESC LIMIT 15 OFFSET 0
+SELECT  `aspects`.* FROM `aspects` WHERE `aspects`.`id` = 1 LIMIT 1
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`guid` = '06a8b2506c3101384b8408e9fe568a11' ORDER BY `notifications`.`id` ASC LIMIT 1
+SELECT  posts.* FROM `posts` INNER JOIN `share_visibilities` ON `share_visibilities`.`shareable_id` = `posts`.`id` AND `share_visibilities`.`shareable_type` = 'Post' WHERE `posts`.`id` = 999999999 AND `share_visibilities`.`user_id` = 1092 ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` = 999999999 AND `posts`.`author_id` = 3881 ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` = 999999999 AND `posts`.`public` = TRUE ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `people` WHERE `people`.`diaspora_handle` = 'sample@diaspor.us' AND `people`.`closed_account` = FALSE LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`diaspora_handle` = 'sample@diaspor.us' AND `people`.`closed_account` = FALSE LIMIT 15 OFFSET 0
+SELECT COUNT(*) FROM `notifications` WHERE `notifications`.`recipient_id` = 1088 AND `notifications`.`unread` = TRUE
+SELECT SUM(`conversation_visibilities`.`unread`) FROM `conversation_visibilities` WHERE `conversation_visibilities`.`person_id` = 3874
+SELECT  1 AS one FROM `roles` WHERE `roles`.`person_id` = 3874 AND `roles`.`name` = 'admin' LIMIT 1
+SELECT  1 AS one FROM `roles` WHERE `roles`.`name` IN ('moderator', 'admin') AND `roles`.`person_id` = 3874 LIMIT 1
+SELECT `services`.* FROM `services` WHERE `services`.`user_id` = 1088
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` = 1199 LIMIT 1
+SELECT  `o_auth_access_tokens`.* FROM `o_auth_access_tokens` WHERE (expires_at >= '2020-04-28 06:08:27.587246') AND `o_auth_access_tokens`.`token` = 'a4a84171f117ca1aa16d3a9520408208044658a08e7ae2697cc8eb1a18ccb6e8' LIMIT 1
+SELECT  1 AS one FROM `contacts` WHERE `contacts`.`person_id` = 2 AND `contacts`.`id` != 1263 AND `contacts`.`user_id` = 1 LIMIT 1
+SELECT `contacts`.`person_id` FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE AND `contacts`.`person_id` = 3
+SELECT `share_visibilities`.`user_id` FROM `share_visibilities` WHERE `share_visibilities`.`shareable_id` = 694 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`user_id` IN (3, 1)
+SELECT `photos`.* FROM `photos` WHERE `photos`.`status_message_guid` = 'd2419e106b4401384b7a08e9fe568a11'
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` `conversation_visibilities_conversations` ON `conversation_visibilities_conversations`.`conversation_id` = `conversations`.`id` INNER JOIN `conversation_visibilities` ON `conversations`.`id` = `conversation_visibilities`.`conversation_id` INNER JOIN `people` ON `conversation_visibilities`.`person_id` = `people`.`id` WHERE `people`.`owner_id` = 1 AND `conversation_visibilities`.`person_id` = 1 AND `conversation_visibilities`.`conversation_id` = 202 ORDER BY `conversations`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `aspect_visibilities` WHERE `aspect_visibilities`.`aspect_id` = 3 AND `aspect_visibilities`.`shareable_id` = 1965 AND `aspect_visibilities`.`shareable_type` = 'Post' LIMIT 1
+SELECT  `users`.* FROM `users` WHERE `users`.`id` = 1 ORDER BY `users`.`id` ASC LIMIT 1
+SELECT `people`.* FROM `people` WHERE `people`.`id` = 3
+SELECT `profiles`.* FROM `profiles` WHERE `profiles`.`person_id` = 3
+SELECT  `invitation_codes`.* FROM `invitation_codes` WHERE `invitation_codes`.`user_id` = 1 LIMIT 1
+SELECT  `locations`.* FROM `locations` WHERE `locations`.`status_message_id` = 801 LIMIT 1
+SELECT  `polls`.* FROM `polls` WHERE `polls`.`status_message_id` = 801 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` = 801 ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 801 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE LIMIT 30
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'e211c4606b4401384b7a08e9fe568a11' LIMIT 30
+SELECT `tags`.* FROM `tags` INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` WHERE `taggings`.`taggable_id` = 801 AND `taggings`.`taggable_type` = 'Post' AND `taggings`.`context` = 'tags'
+SELECT  `mentions`.* FROM `mentions` WHERE `mentions`.`id` = 365 LIMIT 1
+SELECT COUNT(*) FROM `photos` WHERE `photos`.`status_message_guid` = 'e145a5d06b4401384b7a08e9fe568a11'
+SELECT  1 AS one FROM `likes` WHERE `likes`.`author_id` = 1 AND `likes`.`target_type` = 'Post' AND `likes`.`target_id` = 796 LIMIT 1
+SELECT COUNT(*) FROM `likes` WHERE `likes`.`target_id` = 796 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE
+SELECT `comments`.* FROM `comments` WHERE `comments`.`commentable_id` = 796 AND `comments`.`commentable_type` = 'Post' ORDER BY created_at ASC
+SELECT COUNT(*) FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`receiving` = TRUE
+SELECT `tags`.* FROM `tags` INNER JOIN `tag_followings` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tag_followings`.`user_id` = 1 ORDER BY tags.name
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`guid` = 'e11760d06b4401384b7a08e9fe568a11' LIMIT 1
+SELECT COUNT(*) FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'e11754a06b4401384b7a08e9fe568a11'
+SELECT  `people`.* FROM `people` WHERE `people`.`id` = 3 ORDER BY `people`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `aspects` WHERE LOWER(`aspects`.`name`) = LOWER('Family') AND `aspects`.`user_id` = 526 LIMIT 1
+
+
+
+SELECT  `simple_captcha_data`.* FROM `simple_captcha_data` WHERE `simple_captcha_data`.`key` = '98e022ed5b7f1e6d992c6e8989b14dfbf4c3900c' ORDER BY `simple_captcha_data`.`id` ASC LIMIT 1
+SELECT `tags`.* FROM `tags` INNER JOIN `taggings` ON `tags`.`id` = `taggings`.`tag_id` WHERE `taggings`.`taggable_id` = 3 AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' ORDER BY taggings.id
+SELECT  `contacts`.* FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`person_id` = -1 ORDER BY `contacts`.`id` ASC LIMIT 1
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`guid` = '999_999_999' LIMIT 1
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`redirect_uri` IS NULL AND `authorizations`.`code` = '123456' LIMIT 1
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`redirect_uri` = 'http://localhost:3000/' AND `authorizations`.`code` = 'ec1a8c893e6084024f5fc7469dccb440f9ff6ad250d4409d7704cd0a86e85b7e' LIMIT 1
+SELECT `o_auth_access_tokens`.* FROM `o_auth_access_tokens` WHERE `o_auth_access_tokens`.`authorization_id` = 533
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 491 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 491) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 491 LIMIT 15 OFFSET 0
+SELECT  `roles`.* FROM `roles` WHERE `roles`.`person_id` = 1 AND `roles`.`name` = 'moderator' LIMIT 1
+SELECT  1 AS one FROM `roles` WHERE `roles`.`name` = 'moderator' AND `roles`.`person_id` = 1 LIMIT 1
+SELECT  1 AS one FROM `photos` WHERE `photos`.`guid` = '62b203d06c3001384b7e08e9fe568a11' AND `photos`.`id` != 894 LIMIT 1
+SELECT  `aspect_memberships`.* FROM `aspect_memberships` WHERE `aspect_memberships`.`contact_id` = 2 AND `aspect_memberships`.`aspect_id` = 515 ORDER BY `aspect_memberships`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`guid` = 'f65016106c3001384b8408e9fe568a11' AND `participations`.`id` != 348 LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`target_id` = 2296 AND `participations`.`id` != 348 AND `participations`.`target_type` = 'Post' AND `participations`.`author_id` = 5462 LIMIT 1
+SELECT  `contacts`.* FROM `contacts` WHERE `contacts`.`id` = 594 LIMIT 1
+SELECT posts.guid FROM `posts` WHERE `posts`.`author_id` = 1
+SELECT  1 AS one FROM `people` WHERE `people`.`guid` = 'c2f8e9806c3001384b7e08e9fe568a11' LIMIT 1
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('one') OR LOWER(name) = LOWER('two'))
+SELECT  1 AS one FROM `taggings` WHERE `taggings`.`tag_id` = 1 AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`taggable_id` = 5270 AND `taggings`.`context` = 'tags' AND `taggings`.`tagger_id` IS NULL AND `taggings`.`tagger_type` IS NULL LIMIT 1
+SELECT `poll_participations`.* FROM `poll_participations` WHERE `poll_participations`.`author_id` = 1 AND `poll_participations`.`poll_id` = 120
+SELECT  1 AS one FROM `likes` WHERE `likes`.`guid` = '143cc1806c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `likes` WHERE `likes`.`target_id` = 1525 AND `likes`.`target_type` = 'Post' AND `likes`.`author_id` = 3 LIMIT 1
+SELECT  1 AS one FROM `posts` WHERE `posts`.`guid` = '080fc0006c3101384b8408e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `posts` WHERE `posts`.`id` IS NULL LIMIT 1
+SELECT  1 AS one FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '080212506c3101384b8408e9fe568a11' AND `posts`.`author_id` = 3 LIMIT 1
+SELECT  `people`.* FROM `people` INNER JOIN `posts` ON `people`.`id` = `posts`.`author_id` WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`id` = 2337 LIMIT 1
+SELECT  `blocks`.* FROM `blocks` WHERE `blocks`.`user_id` = 3 AND `blocks`.`person_id` = 1 LIMIT 1
+SELECT COUNT(*) FROM `services` WHERE `services`.`user_id` = 1
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`post_default` = TRUE ORDER BY order_id ASC
+SELECT  1 AS one FROM `aspects` WHERE `aspects`.`user_id` = 1 LIMIT 1
+SELECT COUNT(*) FROM `aspects` WHERE `aspects`.`user_id` = 1
+SELECT COUNT(*) FROM `contacts` WHERE `contacts`.`user_id` = 1
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 515 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 515) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 515 AND `contacts`.`receiving` = TRUE LIMIT 15 OFFSET 0
+SELECT  1 AS one FROM `services` WHERE `services`.`uid` = '2' AND `services`.`type` = 'Services::Tumblr' LIMIT 1
+SELECT  1 AS one FROM `reports` WHERE `reports`.`item_id` = 525 AND `reports`.`item_type` = 'Comment' AND `reports`.`user_id` = 1720 LIMIT 1
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`id` = 525 LIMIT 1
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 503 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 503) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 503 AND `contacts`.`sharing` = TRUE LIMIT 15 OFFSET 0
+SELECT DISTINCT `people`.* FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE 1=0
+
+SELECT  1 AS one FROM `reports` WHERE `reports`.`item_id` IS NULL AND `reports`.`item_type` = 'Post' AND `reports`.`user_id` = 3 LIMIT 1
+SELECT  1 AS one FROM `reports` WHERE `reports`.`item_id` = 1746 AND `reports`.`item_type` IS NULL AND `reports`.`user_id` = 3 LIMIT 1
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 497 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 497) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 497 AND `contacts`.`receiving` = TRUE AND `contacts`.`user_id` = 497 AND `contacts`.`sharing` = TRUE LIMIT 15 OFFSET 0
+SELECT  `user_preferences`.* FROM `user_preferences` WHERE `user_preferences`.`user_id` = 1 AND `user_preferences`.`email_type` = 'mentioned_in_comment' LIMIT 1
+SELECT COUNT(*) FROM (SELECT DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE `photos`.`author_id` = 3499 AND (`share_visibilities`.`user_id` = 1 OR `photos`.`public` = TRUE) AND (photos.created_at < '2020-04-29 10:13:01.826963') AND `photos`.`pending` = FALSE ORDER BY `photos`.`created_at` DESC) subquery_for_count
+SELECT  `polls`.* FROM `polls` WHERE `polls`.`guid` = '441535906c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `polls` WHERE `polls`.`guid` = '442160c06c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `poll_answers` WHERE `poll_answers`.`guid` = '44b2e7506c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  `polls`.* FROM `polls` WHERE `polls`.`id` = 98 LIMIT 1
+SELECT DISTINCT people.id FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `aspect_memberships`.`aspect_id` = 1
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` IN (3, 2) AND (`share_visibilities`.`user_id` = 1 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:10:50' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN aspect_visibilities ON aspect_visibilities.shareable_id = posts.id AND  aspect_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 1 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (`aspect_visibilities`.`aspect_id` IN (1) OR `posts`.`public` = TRUE) AND `posts`.`created_at` < '2020-04-28 06:10:50' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT  `users`.* FROM `users` WHERE `users`.`username` = 'alice' LIMIT 1
+SELECT  DISTINCT `people`.* FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 485 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 485) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 485 AND `aspect_memberships`.`aspect_id` = 319) LIMIT 15 OFFSET 0
+SELECT COUNT(DISTINCT `contacts`.`id`) FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`aspect_id` = 250 AND `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `contacts`.`user_id` = 332
+SELECT contacts.id, profiles.first_name, profiles.last_name, people.diaspora_handle FROM `contacts` INNER JOIN `people` ON `people`.`id` = `contacts`.`person_id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 1 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE
+SELECT  1 AS one FROM `photos` WHERE `photos`.`guid` = '99b76fd06b4401384b7908e9fe568a11' LIMIT 1
+SELECT  `conversation_visibilities`.* FROM `conversation_visibilities` WHERE `conversation_visibilities`.`conversation_id` = 181 AND `conversation_visibilities`.`person_id` = 1 LIMIT 1
+SELECT  `profiles`.* FROM `profiles` WHERE `profiles`.`id` = 1 LIMIT 1
+SELECT  `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9, `profiles`.`id` AS t2_r0, `profiles`.`diaspora_handle` AS t2_r1, `profiles`.`first_name` AS t2_r2, `profiles`.`last_name` AS t2_r3, `profiles`.`image_url` AS t2_r4, `profiles`.`image_url_small` AS t2_r5, `profiles`.`image_url_medium` AS t2_r6, `profiles`.`birthday` AS t2_r7, `profiles`.`gender` AS t2_r8, `profiles`.`bio` AS t2_r9, `profiles`.`searchable` AS t2_r10, `profiles`.`person_id` AS t2_r11, `profiles`.`created_at` AS t2_r12, `profiles`.`updated_at` AS t2_r13, `profiles`.`location` AS t2_r14, `profiles`.`full_name` AS t2_r15, `profiles`.`nsfw` AS t2_r16, `profiles`.`public_details` AS t2_r17 FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 3 ORDER BY receiving DESC, profiles.first_name ASC, profiles.last_name ASC, profiles.diaspora_handle ASC LIMIT 25 OFFSET 0
+SELECT COUNT(*) FROM `tags` INNER JOIN `tag_followings` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tag_followings`.`user_id` = 1
+SELECT `photos`.* FROM `photos` WHERE `photos`.`id` IN (871, 872) AND `photos`.`author_id` = 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`guid` = '1775bc606c3001384b7e08e9fe568a11' LIMIT 1
+SELECT DISTINCT `contacts`.`person_id` FROM `contacts` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `aspect_memberships`.`aspect_id` IN (SELECT `aspects`.`id` FROM `aspects` INNER JOIN `aspect_visibilities` ON `aspects`.`id` = `aspect_visibilities`.`aspect_id` WHERE `aspect_visibilities`.`shareable_id` = 1556 AND `aspect_visibilities`.`shareable_type` = 'Post')
+SELECT `contacts`.`person_id` FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE AND `contacts`.`id` = 2
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:10:02' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:10:02' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT `tags`.`id` FROM `tags` INNER JOIN `tag_followings` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tag_followings`.`user_id` = 1 ORDER BY tags.name
+SELECT `blocks`.* FROM `blocks` WHERE `blocks`.`user_id` = 1
+SELECT  DISTINCT posts.*, posts.id FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`public` = TRUE AND (taggings.tag_id IN (440)) AND (posts.author_id NOT IN (2)) AND (posts.created_at < '2020-04-28 06:10:02.279367') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.*, posts.id FROM `posts` INNER JOIN `mentions` ON `mentions`.`mentions_container_id` = `posts`.`id` AND `mentions`.`mentions_container_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 1 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1)) AND `mentions`.`person_id` = 1 AND (posts.created_at < '2020-04-28 06:10:02.279367') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`old_person_id` = 4601 AND `account_migrations`.`new_person_id` = 4603 LIMIT 1
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`old_person_id` = 4601 LIMIT 1
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`new_person_id` = 4603 LIMIT 1
+SELECT `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1 AND (photos.created_at < '2020-04-28 06:04:25.129172') AND `photos`.`pending` = FALSE ORDER BY photos.created_at DESC, created_at DESC
+SELECT  DISTINCT `people`.* FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 485 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 485) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 485 AND `aspect_memberships`.`aspect_id` IN (319, 320)) LIMIT 15 OFFSET 0
+SELECT  `pods`.* FROM `pods` WHERE `pods`.`scheduled_check` = TRUE ORDER BY `pods`.`id` ASC LIMIT 1000
+SELECT  DISTINCT `people`.* FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 488 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 488) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 488 AND `aspect_memberships`.`aspect_id` = 321) AND `contacts`.`user_id` = 488 AND `aspect_memberships`.`aspect_id` = 322) LIMIT 15 OFFSET 0
+SELECT  DISTINCT posts.*, posts.id FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`public` = TRUE AND (taggings.tag_id IN (NULL)) AND (posts.created_at < '2020-04-28 06:10:02.601936') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` IN (3, 2) AND (`share_visibilities`.`user_id` = 1 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:10:02' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:10:02' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT `photos`.* FROM `photos` WHERE `photos`.`author_id` = 3
+SELECT COUNT(*) FROM `aspects` INNER JOIN `aspect_memberships` ON `aspects`.`id` = `aspect_memberships`.`aspect_id` WHERE `aspect_memberships`.`contact_id` = 1032
+SELECT  `users`.* FROM `users` INNER JOIN `contacts` ON `users`.`id` = `contacts`.`user_id` WHERE `contacts`.`id` = 1032 LIMIT 1
+SELECT `tag_followings`.* FROM `tag_followings` WHERE `tag_followings`.`id` = 106
+SELECT `services`.* FROM `services` WHERE `services`.`id` = 62
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`id` = 761
+SELECT `aspect_memberships`.* FROM `aspect_memberships` WHERE `aspect_memberships`.`aspect_id` = 761
+SELECT `aspect_visibilities`.* FROM `aspect_visibilities` WHERE `aspect_visibilities`.`aspect_id` = 761
+SELECT `user_preferences`.* FROM `user_preferences` WHERE `user_preferences`.`id` IN (59, 58, 60)
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`id` IN (626, 627)
+SELECT `blocks`.* FROM `blocks` WHERE `blocks`.`id` = 51
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 3 AND `posts`.`public` = TRUE AND (posts.created_at < '2020-04-29 10:13:09') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  1 AS one FROM `participations` WHERE `participations`.`author_id` = 1 AND `participations`.`target_id` = 797 LIMIT 1
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 797 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE AND `likes`.`author_id` = 1 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'e1915b306b4401384b7a08e9fe568a11' AND `posts`.`author_id` = 1 LIMIT 1
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 797 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 1 DESC LIMIT 30
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'e1915b306b4401384b7a08e9fe568a11' ORDER BY author_id = 1 DESC LIMIT 30
+SELECT COUNT(*) FROM `photos` WHERE `photos`.`author_id` = 3 AND `photos`.`public` = TRUE AND `photos`.`pending` = FALSE
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 452 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 452) AND (      profiles.full_name LIKE '%closed%' OR       people.diaspora_handle LIKE 'closed%' ) AND `people`.`closed_account` = FALSE LIMIT 15 OFFSET 0
+SELECT `poll_answers`.* FROM `poll_answers` WHERE `poll_answers`.`poll_id` = 75 ORDER BY id ASC
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 1 AND (posts.created_at < '2020-04-29 10:13:06') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at desc, posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT `likes`.* FROM `likes` WHERE `likes`.`author_id` = 1 AND 1=0 AND `likes`.`target_type` = 'Post'
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `profiles`.`searchable` = TRUE AND (      profiles.full_name LIKE '%unsearchable@example.org%' OR       people.diaspora_handle LIKE 'unsearchable@example.org%' ) AND `people`.`closed_account` = FALSE LIMIT 15 OFFSET 0
+SELECT  `users`.* FROM `users` WHERE (last_seen < '2018-04-29 06:06:51.015336' and locked_at is null and remove_after is null) ORDER BY `users`.`last_seen` ASC LIMIT 1
+SELECT  `reports`.* FROM `reports` WHERE `reports`.`id` = 263 ORDER BY `reports`.`id` ASC LIMIT 1
+SELECT  DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE (`share_visibilities`.`user_id` = 568 OR (`photos`.`public` = TRUE OR `photos`.`author_id` = 1949)) AND `photos`.`guid` = '95b1d5b06b4401384b7908e9fe568a11' ORDER BY `photos`.`id` ASC LIMIT 1
+SELECT  `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9, `profiles`.`id` AS t2_r0, `profiles`.`diaspora_handle` AS t2_r1, `profiles`.`first_name` AS t2_r2, `profiles`.`last_name` AS t2_r3, `profiles`.`image_url` AS t2_r4, `profiles`.`image_url_small` AS t2_r5, `profiles`.`image_url_medium` AS t2_r6, `profiles`.`birthday` AS t2_r7, `profiles`.`gender` AS t2_r8, `profiles`.`bio` AS t2_r9, `profiles`.`searchable` AS t2_r10, `profiles`.`person_id` AS t2_r11, `profiles`.`created_at` AS t2_r12, `profiles`.`updated_at` AS t2_r13, `profiles`.`location` AS t2_r14, `profiles`.`full_name` AS t2_r15, `profiles`.`nsfw` AS t2_r16, `profiles`.`public_details` AS t2_r17 FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` LEFT OUTER JOIN `aspect_memberships` ON `aspect_memberships`.`aspect_id` = 3 AND `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `contacts`.`user_id` = 3 ORDER BY contact_id IS NOT NULL DESC, profiles.first_name ASC, profiles.last_name ASC, profiles.diaspora_handle ASC LIMIT 25 OFFSET 0
+SELECT  `services`.* FROM `services` WHERE `services`.`type` = 'Services::Twitter' AND `services`.`uid` = '1' LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`target_id` IS NULL AND `participations`.`target_type` = 'Post' AND `participations`.`author_id` = 3 LIMIT 1
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('bash') OR LOWER(name) = LOWER('script') OR LOWER(name) = LOWER('network') OR LOWER(name) = LOWER('ip') OR LOWER(name) = LOWER('grep') OR LOWER(name) = LOWER('sed') OR LOWER(name) = LOWER('regexp') OR LOWER(name) = LOWER('linux'))
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('acapella') OR LOWER(name) = LOWER('movie') OR LOWER(name) = LOWER('dub'))
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('youtube') OR LOWER(name) = LOWER('video') OR LOWER(name) = LOWER('car') OR LOWER(name) = LOWER('engine') OR LOWER(name) = LOWER('stopmotion'))
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('jquery') OR LOWER(name) = LOWER('ie') OR LOWER(name) = LOWER('browser') OR LOWER(name) = LOWER('web'))
+
+
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('nokia') OR LOWER(name) = LOWER('meego') OR LOWER(name) = LOWER('maemo') OR LOWER(name) = LOWER('mer') OR LOWER(name) = LOWER('linux') OR LOWER(name) = LOWER('smartphone'))
+
+
+
+SELECT  1 AS one FROM `users` WHERE `users`.`email` = 'foo123@example.com' LIMIT 1
+SELECT  1 AS one FROM `users` WHERE `users`.`username` = 'foo123' LIMIT 1
+SELECT COUNT(*) FROM `photos` WHERE `photos`.`author_id` = 1 AND (photos.created_at < '2020-04-29 10:13:06.010882') AND `photos`.`pending` = FALSE
+SELECT  1 AS one FROM `photos` WHERE `photos`.`status_message_guid` = '632d30906b4401384b7908e9fe568a11' LIMIT 1
+SELECT `contacts`.`person_id` FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE AND `contacts`.`person_id` IN (5003, 5001, 5002)
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`id` IN (1, 684) ORDER BY order_id ASC
+SELECT DISTINCT people.id FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `aspect_memberships`.`aspect_id` IN (3, 4)
+SELECT COUNT(*) FROM `posts` WHERE `posts`.`created_at` BETWEEN '2020-04-14 16:00:00' AND '2020-04-21 16:00:00'
+SELECT COUNT(*) FROM `comments` WHERE `comments`.`created_at` BETWEEN '2020-04-14 16:00:00' AND '2020-04-21 16:00:00'
+SELECT COUNT(*) FROM `aspect_memberships` WHERE `aspect_memberships`.`created_at` BETWEEN '2020-04-14 16:00:00' AND '2020-04-21 16:00:00'
+SELECT COUNT(*) FROM `users` WHERE `users`.`created_at` BETWEEN '2020-04-14 16:00:00' AND '2020-04-21 16:00:00'
+SELECT  `o_auth_applications`.* FROM `o_auth_applications` WHERE `o_auth_applications`.`id` = 1400 LIMIT 1
+SELECT  `ppid`.* FROM `ppid` WHERE `ppid`.`user_id` = 2016 AND `ppid`.`identifier` = 'https://example.com/uri' LIMIT 1
+SELECT  1 AS one FROM `ppid` WHERE `ppid`.`identifier` = 'https://example.com/uri' AND `ppid`.`user_id` = 2016 LIMIT 1
+SELECT  1 AS one FROM `ppid` WHERE `ppid`.`guid` = '28b6f61cc6a0cbebe5544d48a8190f00' LIMIT 1
+SELECT `people`.* FROM `people` WHERE `people`.`id` IN (3, 2)
+SELECT `profiles`.* FROM `profiles` WHERE `profiles`.`person_id` IN (2, 3)
+SELECT  `account_migrations`.* FROM `account_migrations` WHERE `account_migrations`.`id` = 38 LIMIT 1
+SELECT  1 AS one FROM `account_deletions` WHERE `account_deletions`.`person_id` = 2230 LIMIT 1
+SELECT  `conversations`.* FROM `conversations` WHERE `conversations`.`id` = 253 LIMIT 1
+
+SELECT  `tag_followings`.* FROM `tag_followings` WHERE `tag_followings`.`user_id` = 1 AND `tag_followings`.`tag_id` = 893 LIMIT 1
+
+
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`guid` = 'd71572f06c2f01384b7d08e9fe568a11' LIMIT 1
+
+
+SELECT COUNT(*) FROM `contacts` INNER JOIN `aspect_memberships` ON `contacts`.`id` = `aspect_memberships`.`contact_id` WHERE `aspect_memberships`.`aspect_id` = 3
+SELECT COUNT(*) FROM `contacts` WHERE `contacts`.`user_id` = 3 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = FALSE
+SELECT COUNT(DISTINCT `contacts`.`id`) FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 1945
+SELECT `likes`.* FROM `likes` WHERE `likes`.`target_id` = 1675 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 1 DESC
+SELECT `tags`.`name` FROM `tags` INNER JOIN `tag_followings` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tag_followings`.`user_id` = 1578 ORDER BY tags.name
+SELECT  `o_embed_caches`.* FROM `o_embed_caches` WHERE `o_embed_caches`.`url` = 'http://www.flickr.com/photos/bees/2341623661' LIMIT 1
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 452 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 452) AND (      profiles.full_name LIKE '%closed%' OR       people.diaspora_handle LIKE 'closed%' ) AND `people`.`closed_account` = FALSE
+SELECT  `services`.* FROM `services` WHERE `services`.`uid` = '2' ORDER BY `services`.`id` ASC LIMIT 1
+SELECT COUNT(*) FROM `people` INNER JOIN `conversation_visibilities` ON `people`.`id` = `conversation_visibilities`.`person_id` WHERE `conversation_visibilities`.`conversation_id` = 239
+SELECT  `users`.* FROM `users` WHERE `users`.`username` = 'alice' ORDER BY `users`.`id` ASC LIMIT 1
+SELECT `conversation_visibilities`.* FROM `conversation_visibilities` WHERE `conversation_visibilities`.`conversation_id` = 237
+SELECT  1 AS one FROM `aspect_memberships` WHERE `aspect_memberships`.`contact_id` = 2 AND `aspect_memberships`.`aspect_id` = 1 LIMIT 1
+SELECT  `aspect_memberships`.`id` FROM `aspect_memberships` WHERE `aspect_memberships`.`contact_id` = 2 AND `aspect_memberships`.`aspect_id` = 1 LIMIT 1
+SELECT DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE `photos`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 OR `photos`.`public` = TRUE) AND (photos.created_at < '2020-04-28 06:10:37.402058') AND `photos`.`pending` = FALSE ORDER BY photos.created_at DESC, created_at DESC
+SELECT `posts`.`id` FROM `posts` WHERE `posts`.`author_id` = 6
+SELECT `posts`.* FROM `posts` WHERE `posts`.`id` = 1129
+SELECT `comments`.* FROM `comments` WHERE `comments`.`commentable_id` = 1129 AND `comments`.`commentable_type` = 'Post'
+SELECT `references`.* FROM `references` WHERE `references`.`source_id` = 1129 AND `references`.`source_type` = 'Post'
+SELECT `references`.* FROM `references` WHERE `references`.`target_id` = 1129 AND `references`.`target_type` = 'Post'
+SELECT `taggings`.* FROM `taggings` WHERE `taggings`.`taggable_id` = 1129 AND `taggings`.`taggable_type` = 'Post' AND `taggings`.`context` = 'tags'
+SELECT `photos`.`id` FROM `photos` WHERE `photos`.`author_id` = 6
+SELECT `photos`.* FROM `photos` WHERE `photos`.`id` = 847
+SELECT `profiles`.* FROM `profiles` WHERE `profiles`.`image_url` = 'http://localhost:9887/uploads/images/thumb_large_9228421c662faad3e2ea.png'
+SELECT `mentions`.`id` FROM `mentions` WHERE `mentions`.`person_id` = 6
+SELECT `mentions`.* FROM `mentions` WHERE `mentions`.`id` = 251
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`target_type` = 'Mention' AND `notifications`.`target_id` = 251
+SELECT `participations`.`id` FROM `participations` WHERE `participations`.`author_id` = 6
+SELECT `participations`.* FROM `participations` WHERE `participations`.`id` = 179
+SELECT `roles`.`id` FROM `roles` WHERE `roles`.`person_id` = 6
+SELECT `roles`.* FROM `roles` WHERE `roles`.`id` = 59
+SELECT `blocks`.`id` FROM `blocks` WHERE `blocks`.`person_id` = 6
+SELECT `conversation_visibilities`.`id` FROM `conversation_visibilities` WHERE `conversation_visibilities`.`person_id` = 6
+SELECT `conversation_visibilities`.* FROM `conversation_visibilities` WHERE `conversation_visibilities`.`id` IN (147, 148)
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 1788 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 5504)) AND (taggings.tag_id IN (869)) AND (posts.created_at < '2020-04-29 10:20:34.236993') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT `mentions`.* FROM `mentions` WHERE `mentions`.`mentions_container_type` = 'Post' AND `mentions`.`mentions_container_id` = 2320
+SELECT `likes`.* FROM `likes` WHERE `likes`.`author_id` = 5504 AND `likes`.`target_id` = 2320 AND `likes`.`target_type` = 'Post'
+SELECT  `messages`.* FROM `messages` WHERE `messages`.`conversation_id` = 12 ORDER BY created_at ASC LIMIT 15 OFFSET 0
+SELECT  `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9, `profiles`.`id` AS t2_r0, `profiles`.`diaspora_handle` AS t2_r1, `profiles`.`first_name` AS t2_r2, `profiles`.`last_name` AS t2_r3, `profiles`.`image_url` AS t2_r4, `profiles`.`image_url_small` AS t2_r5, `profiles`.`image_url_medium` AS t2_r6, `profiles`.`birthday` AS t2_r7, `profiles`.`gender` AS t2_r8, `profiles`.`bio` AS t2_r9, `profiles`.`searchable` AS t2_r10, `profiles`.`person_id` AS t2_r11, `profiles`.`created_at` AS t2_r12, `profiles`.`updated_at` AS t2_r13, `profiles`.`location` AS t2_r14, `profiles`.`full_name` AS t2_r15, `profiles`.`nsfw` AS t2_r16, `profiles`.`public_details` AS t2_r17 FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 1945 ORDER BY profiles.first_name ASC, profiles.last_name ASC, profiles.diaspora_handle ASC LIMIT 15 OFFSET 0
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`id` = 216 AND `photos`.`public` = TRUE ORDER BY `photos`.`id` ASC LIMIT 1
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `profiles`.`searchable` = TRUE AND (      profiles.full_name LIKE '%unsearchable@example.org%' OR       people.diaspora_handle LIKE 'unsearchable@example.org%' ) AND `people`.`closed_account` = FALSE
+SELECT `roles`.* FROM `roles` WHERE `roles`.`name` IN ('moderator', 'admin')
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`author_id` = 1 AND `likes`.`target_type` = 'Post' AND `likes`.`target_id` = 418 LIMIT 1
+SELECT `people`.* FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 1231 AND (people.owner_id IS NULL)
+SELECT `pods`.* FROM `pods` WHERE `pods`.`id` = 1
+SELECT  1 AS one FROM `authorizations` WHERE `authorizations`.`user_id` = 1087 AND `authorizations`.`id` != 680 AND `authorizations`.`o_auth_application_id` = 688 LIMIT 1
+SELECT `likes`.* FROM `likes` WHERE `likes`.`target_id` = 2415 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE
+SELECT `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '0f558be06c3101384b8408e9fe568a11'
+SELECT `participations`.* FROM `participations` WHERE `participations`.`target_id` = 2415 AND `participations`.`target_type` = 'Post' AND `participations`.`author_id` = 3
+SELECT `people`.* FROM `people` INNER JOIN `roles` ON `roles`.`person_id` = `people`.`id` WHERE `roles`.`name` = 'spotlight'
+SELECT  `like_signatures`.* FROM `like_signatures` WHERE `like_signatures`.`like_id` = 143 LIMIT 1
+SELECT  `account_deletions`.* FROM `account_deletions` WHERE `account_deletions`.`person_id` = 5935 LIMIT 1
+
+SELECT  `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('foo')) ORDER BY `tags`.`id` ASC LIMIT 1
+SELECT  `pods`.* FROM `pods` WHERE `pods`.`host` = 'example.com' AND `pods`.`port` = 3000 LIMIT 1
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`o_auth_application_id` = 830 AND `authorizations`.`user_id` = 1 AND `authorizations`.`redirect_uri` = 'http://localhost:3000/' LIMIT 1
+SELECT  1 AS one FROM `photos` WHERE `photos`.`author_id` = 1 LIMIT 1
+SELECT  1 AS one FROM `comments` WHERE `comments`.`guid` = 'de796d806c3001384b8408e9fe568a11' AND `comments`.`author_id` = 5262 LIMIT 1
+SELECT  `signature_orders`.* FROM `signature_orders` WHERE `signature_orders`.`order` = 'parent_guid author text guid created_at edited_at new_property' LIMIT 1
+SELECT  1 AS one FROM `signature_orders` WHERE `signature_orders`.`order` = 'parent_guid author text guid created_at edited_at new_property' LIMIT 1
+SELECT  1 AS one FROM `poll_participations` WHERE `poll_participations`.`guid` = 'fec901606b4401384b7d08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `polls` WHERE `polls`.`guid` = 'fe6fcdc06b4401384b7d08e9fe568a11' AND `polls`.`id` != 47 LIMIT 1
+SELECT  `contacts`.* FROM `contacts` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `contacts`.`user_id` = 2 AND `aspect_memberships`.`id` = -1 ORDER BY `contacts`.`id` ASC LIMIT 1
+SELECT COUNT(*) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `profiles`.`id` AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' INNER JOIN `tags` ON `tags`.`id` = `taggings`.`tag_id` WHERE `tags`.`name` = 'cats' AND (profiles.searchable IS TRUE)
+SELECT  `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `profiles`.`id` AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' INNER JOIN `tags` ON `tags`.`id` = `taggings`.`tag_id` WHERE `tags`.`name` = 'cats' AND (profiles.searchable IS TRUE) LIMIT 15 OFFSET 0
+SELECT `aspects`.* FROM `aspects` INNER JOIN `aspect_memberships` ON `aspects`.`id` = `aspect_memberships`.`aspect_id` WHERE `aspect_memberships`.`contact_id` = 2
+SELECT  `conversation_visibilities`.* FROM `conversation_visibilities` WHERE `conversation_visibilities`.`conversation_id` = 196 AND `conversation_visibilities`.`person_id` = 1 AND (unread > 0) ORDER BY `conversation_visibilities`.`id` ASC LIMIT 1
+SELECT  `participations`.* FROM `participations` WHERE `participations`.`id` = 266 LIMIT 1
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`commentable_id` = 1182 AND `comments`.`commentable_type` = 'Post' ORDER BY created_at DESC LIMIT 3
+SELECT `pods`.* FROM `pods` WHERE `pods`.`id` IN (1, 257)
+SELECT `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '080212506c3101384b8408e9fe568a11' ORDER BY author_id = 1 DESC
+SELECT `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '07a3c5606c3101384b8408e9fe568a11' ORDER BY author_id = 3 DESC
+SELECT  1 AS one FROM `blocks` WHERE `blocks`.`person_id` = 5677 AND `blocks`.`user_id` = 1834 LIMIT 1
+SELECT  `conversations`.* FROM `conversations` WHERE `conversations`.`guid` = '165a60f06c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  `comment_signatures`.* FROM `comment_signatures` WHERE `comment_signatures`.`comment_id` = 431 LIMIT 1
+SELECT  `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1786 AND `aspects`.`name` = 'Friends' ORDER BY order_id ASC LIMIT 1
+SELECT  `users`.* FROM `users` WHERE `users`.`email` = 'bob@moms.com' LIMIT 1
+SELECT  `tags`.* FROM `tags` INNER JOIN `tag_followings` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tag_followings`.`user_id` = 1599 AND `tags`.`name` = 'e965a5b6-b9c8-44d6-b370-62d5fcb562b4' ORDER BY tags.name LIMIT 1
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`target_type` = 'Person' AND `notifications`.`target_id` = 3505 AND `notifications`.`unread` = TRUE
+SELECT `aspects`.* FROM `aspects` INNER JOIN aspects as a2 ON (aspects.name = a2.name AND aspects.user_id=1553         AND a2.user_id=1554)
+SELECT `contacts`.* FROM `contacts` INNER JOIN contacts as c2 ON (contacts.person_id = c2.person_id AND contacts.user_id=1553 AND c2.user_id=1554)
+SELECT `tag_followings`.* FROM `tag_followings` INNER JOIN tag_followings as t2 ON (tag_followings.tag_id = t2.tag_id AND tag_followings.user_id=1553 AND t2.user_id=1554)
+SELECT COUNT(*) FROM `poll_answers` WHERE `poll_answers`.`poll_id` = 51
+SELECT  1 AS one FROM `account_migrations` WHERE `account_migrations`.`old_person_id` IS NULL LIMIT 1
+SELECT COUNT(*) FROM `reports` WHERE `reports`.`reviewed` = FALSE
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 AND `aspects`.`id` IN (SELECT `aspects`.`id` FROM `aspects` WHERE `aspects`.`user_id` = 1 ORDER BY order_id ASC) ORDER BY order_id ASC
+SELECT  `users`.* FROM `users` WHERE `users`.`email` = 'bob12902c5@pivotallabs.com' ORDER BY `users`.`id` ASC LIMIT 1
+SELECT `contacts`.* FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`person_id` IN (3, 2, 1907)
+SELECT  `conversation_visibilities`.* FROM `conversation_visibilities` WHERE `conversation_visibilities`.`person_id` = 1 AND `conversation_visibilities`.`conversation_id` = 237 ORDER BY `conversation_visibilities`.`id` ASC LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE (posts.created_at < '2020-04-28 06:08:07.990384') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `profiles`.`id` AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' INNER JOIN `tags` ON `tags`.`id` = `taggings`.`tag_id` WHERE `tags`.`name` = '894e03fd82' AND (profiles.searchable IS TRUE) AND `people`.`closed_account` = FALSE LIMIT 15 OFFSET 0
+SELECT `authorizations`.* FROM `authorizations` WHERE `authorizations`.`o_auth_application_id` IN (SELECT `o_auth_applications`.`id` FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` = '3d7a214b06c9e3f3dcc928f3412b853e') AND `authorizations`.`user_id` = 1
+SELECT  1 AS one FROM `likes` WHERE `likes`.`target_id` = 1243 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE LIMIT 1
+SELECT `likes`.* FROM `likes` WHERE `likes`.`target_id` = 1243 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 3310 DESC
+SELECT  `aspects`.* FROM `aspects` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`aspect_id` = `aspects`.`id` WHERE `aspects`.`user_id` = 1 AND `aspect_memberships`.`id` = 370 ORDER BY order_id ASC LIMIT 1
+
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` ON `conversation_visibilities`.`conversation_id` = `conversations`.`id` WHERE `conversation_visibilities`.`person_id` = 2 AND `conversation_visibilities`.`conversation_id` = 190 ORDER BY `conversations`.`id` ASC LIMIT 1
+SELECT `messages`.* FROM `messages` WHERE `messages`.`conversation_id` = 48 ORDER BY created_at ASC
+SELECT `people`.`owner_id` FROM `people` INNER JOIN `conversation_visibilities` ON `people`.`id` = `conversation_visibilities`.`person_id` WHERE `conversation_visibilities`.`conversation_id` = 48 AND (people.owner_id IS NOT NULL) AND `people`.`id` != 1
+
+SELECT  `tags`.`name` FROM `tags` WHERE (name LIKE 'apipartyt%') ORDER BY name ASC LIMIT 15 OFFSET 0
+SELECT  `people`.* FROM `people` WHERE `people`.`diaspora_handle` = 'alice@localhost:9887' AND `people`.`closed_account` = FALSE AND `people`.`owner_id` IS NOT NULL ORDER BY `people`.`id` ASC LIMIT 1
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1 AND (photos.created_at < '2020-04-28 06:10:43.731375') AND `photos`.`id` = 214 ORDER BY photos.created_at DESC LIMIT 1
+SELECT  DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE `photos`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 OR `photos`.`public` = TRUE) AND (photos.created_at < '2020-04-28 06:10:44.392233') AND `photos`.`id` = 772831 ORDER BY photos.created_at DESC LIMIT 1
+SELECT  `open_graph_caches`.* FROM `open_graph_caches` WHERE `open_graph_caches`.`url` = 'http://www.we-support-open-graph.com' LIMIT 1
+SELECT  DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE `photos`.`author_id` = 1 AND (`share_visibilities`.`user_id` = 1925 OR `photos`.`public` = TRUE) AND (photos.created_at < '2020-04-28 06:21:34.008422') AND `photos`.`pending` = FALSE AND (created_at < '2021-04-28T06:21:34.000Z') ORDER BY photos.created_at DESC, created_at DESC LIMIT 15
+SELECT `people`.* FROM `people` INNER JOIN `notification_actors` ON `people`.`id` = `notification_actors`.`person_id` WHERE `notification_actors`.`notification_id` = 389
+SELECT people.id FROM `people` INNER JOIN `roles` ON `roles`.`person_id` = `people`.`id` WHERE `roles`.`name` = 'spotlight'
+SELECT  posts.id FROM `posts` WHERE `posts`.`public` = TRUE AND 1=0 AND (posts.created_at < '2020-04-28 06:10:02.279367') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT DISTINCT `people`.* FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `aspect_memberships`.`aspect_id` IN (1, 27)
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1 AND `photos`.`public` = TRUE AND `photos`.`pending` = FALSE AND (created_at < '2021-04-28T06:21:32.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 5808 AND (photos.created_at < '2020-04-28 06:21:35.651702') AND `photos`.`pending` = FALSE AND (created_at < '2021-04-28T06:21:35.000Z') ORDER BY photos.created_at DESC, created_at DESC LIMIT 15
+SELECT  1 AS one FROM `tag_followings` WHERE `tag_followings`.`tag_id` = 861 AND `tag_followings`.`user_id` = 1785 LIMIT 1
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1 AND `photos`.`id` = 240 ORDER BY `photos`.`id` ASC LIMIT 1
+SELECT  1 AS one FROM `tag_followings` WHERE `tag_followings`.`user_id` = 1 LIMIT 1
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`id` = 380
+SELECT `contacts`.* FROM `contacts` INNER JOIN `aspect_memberships` ON `contacts`.`id` = `aspect_memberships`.`contact_id` WHERE `aspect_memberships`.`aspect_id` = 658
+SELECT `photos`.* FROM `photos` WHERE `photos`.`pending` = TRUE AND (created_at < '2020-04-29 11:21:02.436683')
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 1227 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 3264 DESC LIMIT 15 OFFSET 0
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 1229 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 3270 DESC LIMIT 15 OFFSET 0
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-29 10:16:09' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN aspect_visibilities ON aspect_visibilities.shareable_id = posts.id AND  aspect_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 1 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (`aspect_visibilities`.`aspect_id` IN (1) OR `posts`.`public` = TRUE) AND `posts`.`created_at` < '2020-04-29 10:16:09' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT  `poll_answers`.* FROM `poll_answers` WHERE `poll_answers`.`id` = -1 LIMIT 1
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` ON `conversations`.`id` = `conversation_visibilities`.`conversation_id` INNER JOIN `people` ON `conversation_visibilities`.`person_id` = `people`.`id` WHERE `people`.`owner_id` = 1 AND `conversations`.`id` = -1 ORDER BY `conversations`.`id` ASC LIMIT 1
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` = 'Reshare' AND `posts`.`created_at` < '2020-04-29 10:16:09' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN aspect_visibilities ON aspect_visibilities.shareable_id = posts.id AND  aspect_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 1 AND `posts`.`type` = 'Reshare' AND (`aspect_visibilities`.`aspect_id` IN (1) OR `posts`.`public` = TRUE) AND `posts`.`created_at` < '2020-04-29 10:16:09' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT `posts`.`guid` FROM `posts` INNER JOIN `participations` ON `participations`.`target_id` = `posts`.`id` AND `participations`.`target_type` = 'Post' WHERE `participations`.`author_id` = 5060
+SELECT  `contacts`.* FROM `contacts` WHERE `contacts`.`person_id` = 1 ORDER BY `contacts`.`id` ASC LIMIT 20
+SELECT `authorizations`.* FROM `authorizations` WHERE `authorizations`.`o_auth_application_id` IN (SELECT `o_auth_applications`.`id` FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` IS NULL) AND `authorizations`.`user_id` = 1
+SELECT  `users`.* FROM `users` WHERE `users`.`reset_password_token` = '2ae2377abf237b29f9b06fe52c78ecdf7277a4508e610039df0d44174e4f6773' ORDER BY `users`.`id` ASC LIMIT 1
+SELECT  `comments`.* FROM `comments` INNER JOIN posts ON (commentable_type = 'Post' AND posts.id = commentable_id) WHERE `comments`.`author_id` != 2882 AND (posts.author_id = 2882) ORDER BY `comments`.`id` ASC LIMIT 20
+SELECT  `likes`.* FROM `likes` INNER JOIN posts ON (target_type = 'Post' AND posts.id = target_id) WHERE `likes`.`author_id` != 2882 AND (posts.author_id = 2882) ORDER BY `likes`.`id` ASC LIMIT 20
+SELECT  `poll_participations`.* FROM `poll_participations` INNER JOIN `polls` ON `polls`.`id` = `poll_participations`.`poll_id` INNER JOIN `posts` ON `posts`.`id` = `polls`.`status_message_id` AND `posts`.`type` IN ('StatusMessage') WHERE `poll_participations`.`author_id` != 2882 AND (posts.author_id = 2882) ORDER BY `poll_participations`.`id` ASC LIMIT 20
+SELECT  `poll_participation_signatures`.* FROM `poll_participation_signatures` WHERE `poll_participation_signatures`.`poll_participation_id` = 25 LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`guid` = '67d426f06c3001384b7e08e9fe568a11' ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT `people`.* FROM `people` WHERE `people`.`diaspora_handle` = 'bob-person-1358b0a28f@example.net' AND `people`.`closed_account` = FALSE
+SELECT COUNT(*) FROM `messages` WHERE `messages`.`conversation_id` = 12
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 2029 AND `photos`.`guid` = 'a3efea006b4401384b7908e9fe568a11' ORDER BY `photos`.`id` ASC LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` IS NULL LIMIT 1
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`id` IS NULL LIMIT 1
+SELECT  1 AS one FROM `likes` WHERE `likes`.`target_id` = 2451 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE AND `likes`.`author_id` = 5864 LIMIT 1
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`id` = 112 ORDER BY `notifications`.`id` ASC LIMIT 1
+SELECT  DISTINCT posts.* FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND (`share_visibilities`.`user_id` = 1 OR `posts`.`public` = TRUE) AND (posts.created_at < '2020-04-28 06:37:11.986615') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at desc, posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT `mentions`.* FROM `mentions` WHERE `mentions`.`mentions_container_type` = 'Post' AND `mentions`.`mentions_container_id` IN (661, 660, 659, 658, 657, 656, 655, 654, 653, 652, 651, 650, 649, 648, 647)
+SELECT `likes`.* FROM `likes` WHERE `likes`.`author_id` = 1 AND `likes`.`target_id` IN (661, 660, 659, 658, 657, 656, 655, 654, 653, 652, 651, 650, 649, 648, 647) AND `likes`.`target_type` = 'Post'
+SELECT  1 AS one FROM `tag_followings` WHERE `tag_followings`.`user_id` = 1587 AND `tag_followings`.`tag_id` = 825 LIMIT 1
+SELECT  1 AS one FROM `authorizations` WHERE `authorizations`.`user_id` = 1 AND `authorizations`.`o_auth_application_id` = 808 LIMIT 1
+SELECT  `contacts`.* FROM `contacts` WHERE `contacts`.`user_id` = 302 ORDER BY `contacts`.`id` ASC LIMIT 100
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 1464 ORDER BY `posts`.`id` ASC LIMIT 20
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`author_id` = 1464 ORDER BY `comments`.`id` ASC LIMIT 20
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`author_id` = 1464 ORDER BY `likes`.`id` ASC LIMIT 20
+SELECT  `poll_participations`.* FROM `poll_participations` WHERE `poll_participations`.`author_id` = 1464 ORDER BY `poll_participations`.`id` ASC LIMIT 20
+SELECT  1 AS one FROM `people` INNER JOIN `conversation_visibilities` ON `people`.`id` = `conversation_visibilities`.`person_id` WHERE `conversation_visibilities`.`conversation_id` = 98 AND `people`.`id` = 3 LIMIT 1
+SELECT  DISTINCT `posts`.* FROM `posts` LEFT OUTER JOIN participations ON participations.target_id = posts.id AND participations.target_type = 'Post' WHERE (`participations`.`author_id` = 1047 OR `posts`.`author_id` = 1047) AND (posts.interacted_at < '2020-04-28 06:05:28') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.interacted_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT `posts`.* FROM `posts` LEFT OUTER JOIN participations ON participations.target_id = posts.id AND participations.target_type = 'Post' WHERE (`participations`.`author_id` = 1047 OR `posts`.`author_id` = 1047) AND (posts.interacted_at < '2020-04-28 06:05:28') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.interacted_at < '2021-04-28T06:05:27.000Z') ORDER BY posts.interacted_at DESC, posts.id DESC LIMIT 15
+
+
+SELECT  1 AS one FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = 'db7369b06b4401384b7a08e9fe568a11' AND `posts`.`id` != 764 AND `posts`.`author_id` = 3 LIMIT 1
+SELECT  1 AS one FROM `users` WHERE `users`.`authentication_token` = 'dQTvUvvqgt-6VbxWwdRHgRRw9aGhCw' LIMIT 1
+
+SELECT COUNT(*) FROM `notifications` WHERE `notifications`.`recipient_id` = 1
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 ORDER BY updated_at desc LIMIT 25 OFFSET 0
+SELECT `notification_actors`.* FROM `notification_actors` WHERE `notification_actors`.`notification_id` = 61
+SELECT  DISTINCT `posts`.* FROM `posts` LEFT OUTER JOIN participations ON participations.target_id = posts.id AND participations.target_type = 'Post' WHERE (`participations`.`author_id` = 1069 OR `posts`.`author_id` = 1069) AND (posts.interacted_at < '2020-04-28 06:05:33') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.interacted_at < '2021-04-28T06:05:32.000Z') ORDER BY posts.interacted_at DESC, posts.id DESC LIMIT 15
+SELECT  `signature_orders`.* FROM `signature_orders` WHERE `signature_orders`.`id` = 3 LIMIT 1
+
+SELECT  1 AS one FROM `blocks` WHERE `blocks`.`user_id` = 1 AND `blocks`.`person_id` IS NULL LIMIT 1
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE 1=0 AND (`share_visibilities`.`user_id` = 666 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:09:41' ORDER BY posts.created_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` WHERE `posts`.`author_id` = 2419 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-28 06:09:41' ORDER BY posts.created_at DESC LIMIT 15) ORDER BY created_at DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` IN (110, 108, 109, 110, 108, 109, 108) AND (posts.created_at < '2020-04-28 06:04:56') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` IN (110, 108, 109, 110, 108, 109, 108) AND (posts.created_at < '2020-04-28 06:04:56') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:04:55.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT DISTINCT people.id FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE 1=0
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` IN (118, 119, 119, 118) AND (posts.created_at < '2020-04-28 06:05:00') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.created_at < '2021-04-28T06:04:59.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT `profiles`.* FROM `profiles` WHERE (EXTRACT(MONTH FROM birthday) = 9) AND (EXTRACT(DAY FROM birthday) = 9)
+SELECT `contacts`.* FROM `contacts` WHERE `contacts`.`person_id` = 3 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE
+SELECT  1 AS one FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`guid` = 'b57af2b06b4401384b7908e9fe568a11' AND `posts`.`author_id` = 2226 LIMIT 1
+SELECT  `roles`.* FROM `roles` WHERE `roles`.`name` = 'admin' ORDER BY `roles`.`id` ASC LIMIT 1
+SELECT  `users`.* FROM `users` WHERE `users`.`locked_at` IS NULL ORDER BY `users`.`id` ASC LIMIT 1
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1919 AND (created_at < '2021-04-28T06:08:12.000Z') ORDER BY created_at DESC LIMIT 15
+
+SELECT `mentions`.* FROM `mentions` WHERE `mentions`.`id` IN (244, 245)
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`author_id` = 1912 AND `photos`.`public` = TRUE AND (created_at < '2021-04-28T06:08:09.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT COUNT(*) FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`public` = TRUE
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`public` = TRUE AND (created_at > '2019-04-29T03:11:39.992Z') ORDER BY created_at ASC LIMIT 2
+
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`public` = TRUE AND (created_at < '2020-04-29T10:11:40.544Z') ORDER BY created_at DESC LIMIT 2
+SELECT  `blocks`.* FROM `blocks` WHERE `blocks`.`user_id` = 1 AND `blocks`.`id` = 10 LIMIT 1
+SELECT COUNT(*) FROM `tags` WHERE (name LIKE 'apipartyt%')
+SELECT  1 AS one FROM `comments` WHERE `comments`.`guid` = 'e3a774806b4401384b7a08e9fe568a11' AND `comments`.`id` != 310 LIMIT 1
+SELECT DISTINCT profiles.last_name AS alias_0, `contacts`.`id` FROM `contacts` LEFT OUTER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` LEFT OUTER JOIN `aspects` ON `aspects`.`id` = `aspect_memberships`.`aspect_id` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 3 AND `contacts`.`receiving` = TRUE ORDER BY profiles.last_name ASC LIMIT 25 OFFSET 0
+SELECT `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `aspects`.`id` AS t1_r0, `aspects`.`name` AS t1_r1, `aspects`.`user_id` AS t1_r2, `aspects`.`created_at` AS t1_r3, `aspects`.`updated_at` AS t1_r4, `aspects`.`order_id` AS t1_r5, `aspects`.`post_default` AS t1_r6, `people`.`id` AS t2_r0, `people`.`guid` AS t2_r1, `people`.`diaspora_handle` AS t2_r2, `people`.`serialized_public_key` AS t2_r3, `people`.`owner_id` AS t2_r4, `people`.`created_at` AS t2_r5, `people`.`updated_at` AS t2_r6, `people`.`closed_account` AS t2_r7, `people`.`fetch_status` AS t2_r8, `people`.`pod_id` AS t2_r9, `profiles`.`id` AS t3_r0, `profiles`.`diaspora_handle` AS t3_r1, `profiles`.`first_name` AS t3_r2, `profiles`.`last_name` AS t3_r3, `profiles`.`image_url` AS t3_r4, `profiles`.`image_url_small` AS t3_r5, `profiles`.`image_url_medium` AS t3_r6, `profiles`.`birthday` AS t3_r7, `profiles`.`gender` AS t3_r8, `profiles`.`bio` AS t3_r9, `profiles`.`searchable` AS t3_r10, `profiles`.`person_id` AS t3_r11, `profiles`.`created_at` AS t3_r12, `profiles`.`updated_at` AS t3_r13, `profiles`.`location` AS t3_r14, `profiles`.`full_name` AS t3_r15, `profiles`.`nsfw` AS t3_r16, `profiles`.`public_details` AS t3_r17 FROM `contacts` LEFT OUTER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` LEFT OUTER JOIN `aspects` ON `aspects`.`id` = `aspect_memberships`.`aspect_id` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 3 AND `contacts`.`receiving` = TRUE AND `contacts`.`id` IN (1, 3) ORDER BY profiles.last_name ASC
+SELECT  `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` WHERE (      profiles.full_name LIKE '%robert22761abda5%' OR       people.diaspora_handle LIKE 'robert22761abda5%' ) AND `contacts`.`user_id` = 3 AND `people`.`closed_account` = FALSE ORDER BY contacts.user_id IS NULL, profiles.last_name ASC, profiles.first_name ASC LIMIT 15
+SELECT  `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` WHERE (      profiles.full_name LIKE '%robert22791cca2e%' OR       people.diaspora_handle LIKE 'robert22791cca2e%' ) AND `contacts`.`user_id` = 3 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE AND `people`.`closed_account` = FALSE ORDER BY contacts.user_id IS NULL, profiles.last_name ASC, profiles.first_name ASC LIMIT 15
+SELECT  `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9, `profiles`.`id` AS t2_r0, `profiles`.`diaspora_handle` AS t2_r1, `profiles`.`first_name` AS t2_r2, `profiles`.`last_name` AS t2_r3, `profiles`.`image_url` AS t2_r4, `profiles`.`image_url_small` AS t2_r5, `profiles`.`image_url_medium` AS t2_r6, `profiles`.`birthday` AS t2_r7, `profiles`.`gender` AS t2_r8, `profiles`.`bio` AS t2_r9, `profiles`.`searchable` AS t2_r10, `profiles`.`person_id` AS t2_r11, `profiles`.`created_at` AS t2_r12, `profiles`.`updated_at` AS t2_r13, `profiles`.`location` AS t2_r14, `profiles`.`full_name` AS t2_r15, `profiles`.`nsfw` AS t2_r16, `profiles`.`public_details` AS t2_r17 FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `contacts`.`user_id` = 3 AND `contacts`.`receiving` = TRUE ORDER BY profiles.first_name ASC, profiles.last_name ASC, profiles.diaspora_handle ASC LIMIT 25 OFFSET 0
+SELECT  1 AS one FROM `conversations` WHERE `conversations`.`guid` = 'e36ba4206c3001384b8408e9fe568a11' AND `conversations`.`author_id` = 1 LIMIT 1
+SELECT `conversations`.`id` FROM `conversations` WHERE `conversations`.`guid` = 'e36ba4206c3001384b8408e9fe568a11'
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`unread` = TRUE ORDER BY updated_at desc LIMIT 25 OFFSET 0
+SELECT COUNT(*) FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`type` = 'Notifications::StartedSharing'
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`type` = 'Notifications::StartedSharing' ORDER BY updated_at desc LIMIT 25 OFFSET 0
+SELECT `comments`.* FROM `comments` WHERE `comments`.`id` = 163
+SELECT `notification_actors`.* FROM `notification_actors` WHERE `notification_actors`.`notification_id` IN (102, 103)
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` IN (1, 2) AND (`share_visibilities`.`user_id` = 3 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`created_at` < '2020-04-29 10:16:05' ORDER BY posts.created_at DESC LIMIT 40) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN aspect_visibilities ON aspect_visibilities.shareable_id = posts.id AND  aspect_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (`aspect_visibilities`.`aspect_id` IN (3, 4) OR `posts`.`public` = TRUE) AND `posts`.`created_at` < '2020-04-29 10:16:05' ORDER BY posts.created_at DESC LIMIT 40) ORDER BY created_at DESC LIMIT 40
+SELECT  1 AS one FROM `contacts` WHERE `contacts`.`user_id` = 2 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE LIMIT 1
+SELECT COUNT(*) FROM (SELECT DISTINCT `conversation_visibilities`.`id` FROM `conversation_visibilities` LEFT OUTER JOIN `conversations` ON `conversations`.`id` = `conversation_visibilities`.`conversation_id` WHERE `conversation_visibilities`.`person_id` = 2) subquery_for_count
+SELECT  1 AS one FROM `likes` WHERE `likes`.`guid` = 'e11be9b06c3001384b8408e9fe568a11' AND `likes`.`author_id` = 5289 LIMIT 1
+SELECT  `conversation_visibilities`.`id` AS t0_r0, `conversation_visibilities`.`conversation_id` AS t0_r1, `conversation_visibilities`.`person_id` AS t0_r2, `conversation_visibilities`.`unread` AS t0_r3, `conversation_visibilities`.`created_at` AS t0_r4, `conversation_visibilities`.`updated_at` AS t0_r5, `conversations`.`id` AS t1_r0, `conversations`.`subject` AS t1_r1, `conversations`.`guid` AS t1_r2, `conversations`.`author_id` AS t1_r3, `conversations`.`created_at` AS t1_r4, `conversations`.`updated_at` AS t1_r5 FROM `conversation_visibilities` LEFT OUTER JOIN `conversations` ON `conversations`.`id` = `conversation_visibilities`.`conversation_id` WHERE `conversation_visibilities`.`person_id` = 1 ORDER BY conversations.updated_at DESC LIMIT 15 OFFSET 0
+SELECT `people`.* FROM `people` INNER JOIN `conversation_visibilities` ON `people`.`id` = `conversation_visibilities`.`person_id` WHERE `conversation_visibilities`.`conversation_id` = 193
+(SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` IN (1, 2) AND (`share_visibilities`.`user_id` = 3 AND `share_visibilities`.`shareable_type` = 'Post' AND `share_visibilities`.`hidden` = FALSE OR `posts`.`public` = TRUE) AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`updated_at` < '2020-04-29 10:16:05' ORDER BY posts.updated_at DESC LIMIT 15) UNION ALL (SELECT DISTINCT posts.id, posts.updated_at AS updated_at, posts.created_at AS created_at FROM `posts` LEFT OUTER JOIN aspect_visibilities ON aspect_visibilities.shareable_id = posts.id AND  aspect_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 3 AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (`aspect_visibilities`.`aspect_id` IN (3, 4) OR `posts`.`public` = TRUE) AND `posts`.`updated_at` < '2020-04-29 10:16:05' ORDER BY posts.updated_at DESC LIMIT 15) ORDER BY updated_at DESC LIMIT 15
+SELECT SUM(`poll_answers`.`vote_count`) FROM `poll_answers` WHERE `poll_answers`.`poll_id` = 105
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 ORDER BY updated_at desc LIMIT 5 OFFSET 0
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 ORDER BY updated_at desc LIMIT 2 OFFSET 0
+SELECT `tags`.* FROM `tags` WHERE (LOWER(name) = LOWER('nsfw'))
+SELECT `people`.* FROM `people` INNER JOIN `contacts` ON `people`.`id` = `contacts`.`person_id` WHERE `contacts`.`user_id` = 1 AND (people.owner_id IS NULL)
+SELECT `people`.* FROM `people` INNER JOIN `posts` ON `posts`.`author_id` = `people`.`id` WHERE `posts`.`root_guid` = '18a7b7e06c3001384b7e08e9fe568a11' AND `posts`.`type` = 'Reshare' AND (people.owner_id IS NULL)
+SELECT `people`.* FROM `people` INNER JOIN `posts` ON `posts`.`author_id` = `people`.`id` WHERE 1=0 AND `posts`.`type` = 'Reshare' AND (people.owner_id IS NULL)
+
+
+SELECT COUNT(*) FROM `posts` WHERE `posts`.`author_id` = 1
+SELECT  1 AS one FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` = '657d216dc78998dfb179e87c5b8baae0' LIMIT 1
+SELECT  1 AS one FROM `o_auth_applications` WHERE `o_auth_applications`.`client_name` = 'diaspora client' AND `o_auth_applications`.`redirect_uris` = '\"http://localhost\"' LIMIT 1
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`guid` = '3f2843906c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  1 AS one FROM `poll_participations` WHERE `poll_participations`.`guid` = '3fa929206c3001384b7e08e9fe568a11' AND `poll_participations`.`author_id` = 4017 LIMIT 1
+SELECT `poll_answers`.`id` FROM `poll_answers` WHERE `poll_answers`.`guid` = '3f9be3f06c3001384b7e08e9fe568a11'
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `profiles`.`id` AND `taggings`.`taggable_type` = 'Profile' AND `taggings`.`context` = 'tags' INNER JOIN `tags` ON `tags`.`id` = `taggings`.`tag_id` WHERE `tags`.`name` = '894e03fd82' AND (profiles.searchable IS TRUE) AND `people`.`closed_account` = FALSE
+
+SELECT `user_preferences`.* FROM `user_preferences` WHERE `user_preferences`.`user_id` = 1
+SELECT  `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 187 ORDER BY order_id ASC LIMIT 15 OFFSET 0
+SELECT  1 AS one FROM `messages` WHERE `messages`.`guid` = 'e4860dd06c3001384b8408e9fe568a11' AND `messages`.`author_id` = 5325 LIMIT 1
+SELECT  1 AS one FROM `participations` WHERE `participations`.`guid` = 'ddcd6d906c3001384b8408e9fe568a11' AND `participations`.`author_id` = 5252 LIMIT 1
+SELECT  `o_auth_applications`.* FROM `o_auth_applications` WHERE `o_auth_applications`.`client_name` = 'Diaspora Test Client decfa2' LIMIT 1
+SELECT `users`.`serialized_private_key` FROM `users` WHERE `users`.`id` = 3
+SELECT `messages`.`author_id` FROM `messages` WHERE `messages`.`conversation_id` = 252 ORDER BY created_at ASC
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`public` = TRUE AND (taggings.tag_id IN (866)) AND (posts.created_at < '2020-04-29 10:20:33.648778') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  COUNT(*) AS count_all, `taggings`.`tag_id` AS taggings_tag_id FROM `taggings` INNER JOIN `tags` ON `tags`.`id` = `taggings`.`tag_id` GROUP BY `taggings`.`tag_id` ORDER BY count(taggings.id) DESC LIMIT 50
+SELECT `tags`.* FROM `tags` WHERE `tags`.`id` IN (1, 2)
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`id` IN (3, 4)
+
+SELECT  `likes`.* FROM `likes` WHERE `likes`.`target_id` = 2411 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 3 DESC LIMIT 30
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`root_guid` = '0f0de0806c3101384b8408e9fe568a11' ORDER BY author_id = 3 DESC LIMIT 30
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `comments` ON `comments`.`commentable_id` = `posts`.`id` AND `comments`.`commentable_type` = 'Post' WHERE `comments`.`author_id` = 1017 AND (posts.created_at < '2020-04-28 06:05:18') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `comments` ON `comments`.`commentable_id` = `posts`.`id` AND `comments`.`commentable_type` = 'Post' WHERE `comments`.`author_id` = 1017 AND (posts.created_at < '2020-04-28 06:05:18') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:05:17.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT `users`.* FROM `users` WHERE (exported_at < '2020-04-15 00:00:00.000183')
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `comments` ON `comments`.`commentable_id` = `posts`.`id` AND `comments`.`commentable_type` = 'Post' WHERE `comments`.`author_id` = 1009 AND (posts.created_at < '2020-04-28 06:05:14') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.created_at < '2021-04-28T06:05:13.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` WHERE `posts`.`id` IN (134, 132, 133) AND (posts.created_at < '2020-04-28 06:05:08') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` WHERE `posts`.`id` IN (134, 132, 133) AND (posts.created_at < '2020-04-28 06:05:08') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:05:07.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `account_deletions`.* FROM `account_deletions` WHERE `account_deletions`.`id` = 5 LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`diaspora_handle` = 'delicious@pod.net' ORDER BY `people`.`id` ASC LIMIT 1
+SELECT  `poll_participations`.* FROM `poll_participations` WHERE `poll_participations`.`poll_id` = 104 AND `poll_participations`.`author_id` = 4252 LIMIT 1
+SELECT  `open_graph_caches`.* FROM `open_graph_caches` WHERE `open_graph_caches`.`id` = 7 LIMIT 1
+SELECT  `o_embed_caches`.* FROM `o_embed_caches` WHERE `o_embed_caches`.`id` = 5 LIMIT 1
+SELECT COUNT(*) FROM `pods` WHERE `pods`.`status` = 0
+SELECT COUNT(*) FROM `pods` WHERE `pods`.`status` > 1 AND `pods`.`status` != 6
+SELECT `mentions`.`id` FROM `mentions` WHERE `mentions`.`mentions_container_id` = 2556 AND `mentions`.`mentions_container_type` = 'Post' AND `mentions`.`person_id` = 1
+SELECT `mentions`.`id` FROM `mentions` INNER JOIN comments ON mentions_container_id = comments.id AND mentions_container_type = 'Comment' WHERE `comments`.`commentable_id` = 2556 AND `comments`.`commentable_type` = 'Post'
+SELECT  `comments`.* FROM `comments` WHERE `comments`.`commentable_id` = 2302 AND `comments`.`commentable_type` = 'Post' AND (created_at > '1900-01-01T00:00:00.000Z') ORDER BY created_at ASC LIMIT 15
+
+SELECT DISTINCT `mentions`.`id` AS t0_r0, `mentions`.`mentions_container_id` AS t0_r1, `mentions`.`person_id` AS t0_r2, `mentions`.`mentions_container_type` AS t0_r3, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9 FROM `mentions` INNER JOIN `people` ON `people`.`id` = `mentions`.`person_id` LEFT OUTER JOIN comments ON       comments.author_id = people.id AND comments.commentable_type = 'Post' AND comments.commentable_id = 1424 LEFT OUTER JOIN likes ON       likes.author_id = people.id AND likes.target_type = 'Post' AND likes.target_id = 1424 WHERE `mentions`.`mentions_container_id` = 418 AND `mentions`.`mentions_container_type` = 'Comment' AND `people`.`owner_id` IS NOT NULL AND `mentions`.`person_id` != 3 AND (comments.id IS NOT NULL OR likes.id IS NOT NULL OR people.id = 1)
+
+SELECT COUNT(*) FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `users`.`username` LIKE '%bob110193fc40%'
+SELECT `users`.* FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `users`.`username` LIKE '%bob110193fc40%'
+SELECT  1 AS one FROM `reports` WHERE `reports`.`reviewed` = FALSE LIMIT 1
+SELECT `reports`.* FROM `reports` WHERE `reports`.`reviewed` = FALSE
+SELECT COUNT(*) FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `profiles`.`birthday` > '2007-04-29'
+SELECT `users`.* FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `profiles`.`birthday` > '2007-04-29'
+SELECT COUNT(*) FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `users`.`email` LIKE '%bob11232c6e0e@pivotallabs.com%'
+SELECT `users`.* FROM `users` INNER JOIN `people` ON `people`.`owner_id` = `users`.`id` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` WHERE `users`.`email` LIKE '%bob11232c6e0e@pivotallabs.com%'
+SELECT  `aspect_memberships`.* FROM `aspect_memberships` WHERE `aspect_memberships`.`contact_id` = 580 ORDER BY `aspect_memberships`.`id` ASC LIMIT 1
+SELECT `likes`.* FROM `likes` WHERE `likes`.`target_id` = 1245 AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE ORDER BY author_id = 3316 DESC
+SELECT  DISTINCT posts.* FROM `posts` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`author_id` = 1 AND (`share_visibilities`.`user_id` = 1970 OR `posts`.`public` = TRUE) AND (created_at < '2021-04-28T06:21:44.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 5878 AND (created_at < '2021-04-28T06:21:48.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 5871 AND `posts`.`public` = TRUE AND (created_at < '2021-04-28T06:21:46.000Z') ORDER BY created_at DESC LIMIT 15
+
+SELECT  `notifications`.* FROM `notifications` WHERE (recipient_id = 842  AND created_at >= '2020-04-30') AND (created_at < '2021-04-29T10:11:48.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT  `notifications`.* FROM `notifications` WHERE (recipient_id = 844 ) AND (created_at < '2021-04-29T10:11:49.000Z') ORDER BY created_at DESC LIMIT 15
+SELECT  `notifications`.* FROM `notifications` WHERE (recipient_id = 848 AND unread = true ) AND (created_at < '2021-04-29T10:11:51.000Z') ORDER BY created_at DESC LIMIT 15
+
+SELECT  `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 1 ORDER BY order_id ASC LIMIT 1
+SELECT `users`.* FROM `users` WHERE (exported_photos_at < '2020-04-15 00:00:00.001975')
+
+SELECT `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`unread` = TRUE
+SELECT `o_auth_applications`.* FROM `o_auth_applications` INNER JOIN `authorizations` ON `o_auth_applications`.`id` = `authorizations`.`o_auth_application_id` WHERE `authorizations`.`user_id` = 1208
+SELECT  `authorizations`.* FROM `authorizations` WHERE `authorizations`.`o_auth_application_id` IN (SELECT `o_auth_applications`.`id` FROM `o_auth_applications` WHERE `o_auth_applications`.`client_id` = 'cd97793e18b4e2a301f86672a0750544') AND `authorizations`.`user_id` = 1208 LIMIT 1
+SELECT  `people`.* FROM `people` WHERE `people`.`guid` = '146112106c3001384b7e08e9fe568a11' AND `people`.`closed_account` = FALSE AND `people`.`owner_id` IS NOT NULL LIMIT 1
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`id` = 2544 AND `posts`.`public` = TRUE LIMIT 1
+
+SELECT  `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 1 AND contacts.person_id = people.id WHERE (      profiles.full_name LIKE '%korth%' OR       people.diaspora_handle LIKE 'korth%' ) AND (profiles.searchable = true OR contacts.user_id = 1) AND `people`.`closed_account` = FALSE ORDER BY contacts.user_id IS NULL, profiles.last_name ASC, profiles.first_name ASC LIMIT 15
+SELECT COUNT(*) FROM `aspects` WHERE `aspects`.`user_id` = 485 AND `aspects`.`id` = 319
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 485 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 485) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 485 AND `aspect_memberships`.`aspect_id` = 319)
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `contacts` ON `contacts`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 488 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 488) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 488 AND `aspect_memberships`.`aspect_id` = 321) AND `contacts`.`user_id` = 488 AND `aspect_memberships`.`aspect_id` = 322)
+SELECT COUNT(*) FROM `aspects` WHERE `aspects`.`user_id` = 485 AND `aspects`.`id` IN (319, 320)
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` WHERE `people`.`id` IN (SELECT `people`.`id` FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`contact_id` = `contacts_people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 485 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 485) AND (      profiles.full_name LIKE '%my% aspect% contact%' OR       people.diaspora_handle LIKE 'myaspectcontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 485 AND `aspect_memberships`.`aspect_id` IN (319, 320))
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 129 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1035)) AND (taggings.tag_id IN (368)) AND (posts.created_at < '2020-04-28 06:05:24') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:05:23.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 127 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1031)) AND (taggings.tag_id IN (367)) AND (posts.created_at < '2020-04-28 06:05:22') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.created_at < '2021-04-28T06:05:21.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`public` = TRUE AND (posts.created_at < '2020-04-28 06:06:45') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `people`.* FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 1 AND contacts.person_id = people.id WHERE (      profiles.full_name LIKE '%korth%' OR       people.diaspora_handle LIKE 'korth%' ) AND (profiles.searchable = true OR contacts.user_id = 1) AND `people`.`closed_account` = FALSE ORDER BY contacts.user_id IS NULL, profiles.last_name ASC, profiles.first_name ASC LIMIT 15 OFFSET 0
+SELECT COUNT(*) AS count_all, DATE(created_at) AS date_created_at FROM `posts` WHERE (created_at >= '2020-04-08') GROUP BY DATE(created_at) ORDER BY DATE(created_at) ASC
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 491 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 491) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 491
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 515 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 515) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 515 AND `contacts`.`receiving` = TRUE
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 497 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 497) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 497 AND `contacts`.`receiving` = TRUE AND `contacts`.`user_id` = 497 AND `contacts`.`sharing` = TRUE
+
+SELECT COUNT(DISTINCT `people`.`id`) FROM `people` INNER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `contacts` `contacts_people` ON `contacts_people`.`person_id` = `people`.`id` LEFT OUTER JOIN contacts ON contacts.user_id = 503 AND contacts.person_id = people.id WHERE (profiles.searchable = true OR contacts.user_id = 503) AND (      profiles.full_name LIKE '%a% contact%' OR       people.diaspora_handle LIKE 'acontact%' ) AND `people`.`closed_account` = FALSE AND `contacts`.`user_id` = 503 AND `contacts`.`sharing` = TRUE
+SELECT  `photos`.* FROM `photos` WHERE `photos`.`id` = 246 AND `photos`.`author_id` = 1 ORDER BY `photos`.`id` ASC LIMIT 1
+SELECT  `messages`.* FROM `messages` WHERE `messages`.`id` = 63 LIMIT 1
+SELECT  `users`.* FROM `users` WHERE 1=0 ORDER BY `users`.`id` ASC LIMIT 1000
+SELECT  `users`.* FROM `users` WHERE `users`.`id` IN (685, 686) ORDER BY `users`.`id` ASC LIMIT 1000
+SELECT  `tags`.* FROM `tags` WHERE (name LIKE 'ra%') ORDER BY name ASC LIMIT 9
+SELECT `photos`.* FROM `photos` WHERE `photos`.`id` = 1191 AND `photos`.`author_id` = 1
+SELECT  1 AS one FROM `tag_followings` INNER JOIN `tags` ON `tags`.`id` = `tag_followings`.`tag_id` WHERE `tags`.`name` = 'partytimeexcellent' AND `tag_followings`.`user_id` = 1 LIMIT 1
+SELECT  `notifications`.* FROM `notifications` WHERE `notifications`.`recipient_id` = 1 AND `notifications`.`target_type` = 'Post' AND `notifications`.`target_id` = 226 AND `notifications`.`unread` = TRUE LIMIT 1
+SELECT COUNT(*) FROM `users`
+SELECT  `posts`.* FROM `posts` INNER JOIN `likes` ON `likes`.`target_id` = `posts`.`id` AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE WHERE `likes`.`author_id` = 1101 AND (posts.created_at < '2020-04-28 06:05:42') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` INNER JOIN `likes` ON `likes`.`target_id` = `posts`.`id` AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE WHERE `likes`.`author_id` = 1101 AND (posts.created_at < '2020-04-28 06:05:42') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:05:41.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`author_id` = 1 AND `posts`.`public` = TRUE ORDER BY created_at DESC LIMIT 25
+SELECT  `posts`.* FROM `posts` INNER JOIN `likes` ON `likes`.`target_id` = `posts`.`id` AND `likes`.`target_type` = 'Post' AND `likes`.`positive` = TRUE WHERE `likes`.`author_id` = 1099 AND (posts.created_at < '2020-04-28 06:05:41') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.created_at < '2021-04-28T06:05:40.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `mentions` ON `mentions`.`mentions_container_id` = `posts`.`id` AND `mentions`.`mentions_container_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 153 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1083)) AND `mentions`.`person_id` = 1083 AND (posts.created_at < '2020-04-28 06:05:37') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `mentions` ON `mentions`.`mentions_container_id` = `posts`.`id` AND `mentions`.`mentions_container_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 153 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1083)) AND `mentions`.`person_id` = 1083 AND (posts.created_at < '2020-04-28 06:05:37') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND (posts.created_at < '2021-04-28T06:05:36.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `mentions` ON `mentions`.`mentions_container_id` = `posts`.`id` AND `mentions`.`mentions_container_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 152 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1081)) AND `mentions`.`person_id` = 1081 AND (posts.created_at < '2020-04-28 06:05:36') AND `posts`.`type` IN ('StatusMessage', 'Reshare') AND `posts`.`public` = TRUE AND (posts.created_at < '2021-04-28T06:05:35.000Z') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+
+SELECT `contacts`.`person_id` FROM `contacts` WHERE `contacts`.`user_id` = 1 AND `contacts`.`sharing` = TRUE AND `contacts`.`receiving` = TRUE AND `contacts`.`id` IN (1070, 1071)
+SELECT  `services`.* FROM `services` WHERE `services`.`user_id` = 1 AND `services`.`id` = 61 LIMIT 1
+SELECT  `reports`.* FROM `reports` WHERE `reports`.`id` = 33 LIMIT 1
+SELECT  `contacts`.`id` AS t0_r0, `contacts`.`user_id` AS t0_r1, `contacts`.`person_id` AS t0_r2, `contacts`.`created_at` AS t0_r3, `contacts`.`updated_at` AS t0_r4, `contacts`.`sharing` AS t0_r5, `contacts`.`receiving` AS t0_r6, `people`.`id` AS t1_r0, `people`.`guid` AS t1_r1, `people`.`diaspora_handle` AS t1_r2, `people`.`serialized_public_key` AS t1_r3, `people`.`owner_id` AS t1_r4, `people`.`created_at` AS t1_r5, `people`.`updated_at` AS t1_r6, `people`.`closed_account` AS t1_r7, `people`.`fetch_status` AS t1_r8, `people`.`pod_id` AS t1_r9, `profiles`.`id` AS t2_r0, `profiles`.`diaspora_handle` AS t2_r1, `profiles`.`first_name` AS t2_r2, `profiles`.`last_name` AS t2_r3, `profiles`.`image_url` AS t2_r4, `profiles`.`image_url_small` AS t2_r5, `profiles`.`image_url_medium` AS t2_r6, `profiles`.`birthday` AS t2_r7, `profiles`.`gender` AS t2_r8, `profiles`.`bio` AS t2_r9, `profiles`.`searchable` AS t2_r10, `profiles`.`person_id` AS t2_r11, `profiles`.`created_at` AS t2_r12, `profiles`.`updated_at` AS t2_r13, `profiles`.`location` AS t2_r14, `profiles`.`full_name` AS t2_r15, `profiles`.`nsfw` AS t2_r16, `profiles`.`public_details` AS t2_r17 FROM `contacts` LEFT OUTER JOIN `people` ON `people`.`id` = `contacts`.`person_id` LEFT OUTER JOIN `profiles` ON `profiles`.`person_id` = `people`.`id` INNER JOIN `aspect_memberships` ON `aspect_memberships`.`aspect_id` = 251 AND `aspect_memberships`.`contact_id` = `contacts`.`id` WHERE `contacts`.`user_id` = 332 ORDER BY contact_id IS NOT NULL DESC, profiles.first_name ASC, profiles.last_name ASC, profiles.diaspora_handle ASC LIMIT 15 OFFSET 0
+
+
+
+
+SELECT `photos`.* FROM `photos` WHERE `photos`.`author_id` = 3 AND `photos`.`public` = TRUE AND `photos`.`pending` = FALSE ORDER BY created_at DESC
+SELECT `aspects`.* FROM `aspects` WHERE `aspects`.`user_id` = 70 AND `aspects`.`name` = 'generic' ORDER BY order_id ASC
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`public` = TRUE AND `posts`.`guid` = '154767806c3001384b7e08e9fe568a11' LIMIT 1
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` ON `conversation_visibilities`.`conversation_id` = `conversations`.`id` WHERE `conversation_visibilities`.`person_id` = 5159 AND `conversation_visibilities`.`unread` = 1 AND (conversations.created_at < '2021-04-29T10:19:18.000Z') ORDER BY conversations.created_at DESC LIMIT 15
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` ON `conversation_visibilities`.`conversation_id` = `conversations`.`id` WHERE `conversation_visibilities`.`person_id` = 5164 AND (conversations.created_at < '2021-04-29T10:19:20.000Z') ORDER BY conversations.created_at DESC LIMIT 15
+SELECT  `polls`.* FROM `polls` INNER JOIN `posts` ON `posts`.`id` = `polls`.`status_message_id` AND `posts`.`type` IN ('StatusMessage') WHERE `posts`.`public` = TRUE AND `polls`.`guid` = '153344106c3001384b7e08e9fe568a11' LIMIT 1
+
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = posts.id AND share_visibilities.shareable_type = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND (`share_visibilities`.`user_id` = 434 OR (`posts`.`public` = TRUE OR `posts`.`author_id` = 1662)) AND (taggings.tag_id IN (400)) AND (posts.created_at < '2021-04-28T06:07:34.000Z') ORDER BY posts.created_at DESC LIMIT 15
+SELECT  `conversations`.* FROM `conversations` INNER JOIN `conversation_visibilities` ON `conversation_visibilities`.`conversation_id` = `conversations`.`id` WHERE (conversations.created_at >= '2020-04-29 10:19:15 UTC') AND `conversation_visibilities`.`person_id` = 5149 AND (conversations.created_at < '2021-04-29T10:19:15.000Z') ORDER BY conversations.created_at DESC LIMIT 15
+SELECT  DISTINCT posts.* FROM `posts` WHERE `posts`.`id` = 458 AND (posts.created_at < '2020-04-28 06:08:00') AND `posts`.`type` IN ('StatusMessage', 'Reshare') ORDER BY posts.created_at DESC, posts.id DESC LIMIT 15
+SELECT  `posts`.* FROM `posts` WHERE `posts`.`type` IN ('Reshare') AND `posts`.`author_id` = 1 AND `posts`.`root_guid` = '88227fc06b4401384b7908e9fe568a11' ORDER BY `posts`.`id` ASC LIMIT 1
+SELECT  DISTINCT posts.* FROM `posts` INNER JOIN `taggings` ON `taggings`.`taggable_id` = `posts`.`id` AND `taggings`.`taggable_type` = 'Post' WHERE `posts`.`type` IN ('StatusMessage') AND `posts`.`public` = TRUE AND (taggings.tag_id IN (400)) AND (posts.created_at < '2021-04-28T06:07:34.000Z') ORDER BY posts.created_at DESC LIMIT 15
+SELECT COUNT(*) FROM ( SELECT DISTINCT photos.* FROM `photos` LEFT OUTER JOIN share_visibilities ON share_visibilities.shareable_id = photos.id AND share_visibilities.shareable_type = 'Photo' WHERE `photos`.`author_id` = 3499 AND ( `share_visibilities`.`user_id` = 1 OR `photos`.`public` = TRUE ) AND ( photos.created_at < '2020-04-29 10:13:01.826963' ) AND `photos`.`pending` = FALSE ) subquery_for_count
+SELECT     `posts`.`id`   FROM     `posts`     INNER JOIN `comments` ON `comments`.`commentable_id` = `posts`.`id`     AND `comments`.`commentable_type` = 'Post'   WHERE     `posts`.`type` IN ('StatusMessage')     AND `comments`.`author_id` = 10   GROUP BY     posts.id
+SELECT     DISTINCT posts.id   FROM     `posts`     INNER JOIN `comments` ON `comments`.`commentable_id` = `posts`.`id`     AND `comments`.`commentable_type` = 'Post'   WHERE     `posts`.`type` IN ('StatusMessage')     AND `comments`.`author_id` = 106

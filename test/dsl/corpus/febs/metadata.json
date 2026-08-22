@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "febs",
+  "source_dialect": "mysql",
+  "statement_count": 62,
+  "translated_count": 62,
+  "maximum_statement_id": 106,
+  "schema_patches": {
+    "FOREIGN_KEY": 5,
+    "UNIQUE": 2
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

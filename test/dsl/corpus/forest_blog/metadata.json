@@ -1,0 +1,16 @@
+{
+  "kind": "wetune_workload",
+  "application": "forest_blog",
+  "source_dialect": "mysql",
+  "statement_count": 63,
+  "translated_count": 63,
+  "maximum_statement_id": 102,
+  "schema_patches": {
+    "FOREIGN_KEY": 2,
+    "NOT_NULL": 6,
+    "UNIQUE": 1
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

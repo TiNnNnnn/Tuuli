@@ -88,15 +88,26 @@ private:
 	// reused as the normalized view of Filter(p, Filter(p, child)). rgfUsed marks
 	// conjuncts consumed at least once and rgulAssigned stores each selection.
 	BOOL FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters, ULONG ulFilter,
-				 CExpressionArray *pdrgpexprConj, BOOL *rgfUsed,
+				 CExpressionArray *pdrgpexprConj, const CDSLOp *popBase,
+				 CExpression *pexprBase, BOOL *rgfUsed,
 				 ULONG *rgulAssigned) const;
 
 	// Check source-side equality constraints between a proposed Filter binding
 	// and filters already assigned on this branch.
 	BOOL FAssignmentCompatible(const CDSLOp **rgpopFilters, ULONG ulFilter,
 						   CExpressionArray *pdrgpexprConj,
-						   const ULONG *rgulAssigned,
+						   const ULONG *rgulAssigned, const CDSLOp *popBase,
+						   CExpression *pexprBase,
 						   CExpression *pexprCandidate) const;
+
+	// If a source AttrsEq connects this Filter's attrs to a direct Join key,
+	// reject conjunct candidates that use different columns before committing
+	// bindings. This extends constraint-aware backtracking across the Filter/base
+	// boundary without adding rollback state to CDSLModel.
+	BOOL FBaseAssignmentCompatible(const CDSLOp *popFilter,
+								   const CDSLOp *popBase,
+								   CExpression *pexprBase,
+								   CExpression *pexprCandidate) const;
 
 	// bind one DSL Filter op's <p a> symbols to conjunct pexprConj (pred + its
 	// used columns). Returns false on an incompatible equality-class rebind.

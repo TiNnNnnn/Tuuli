@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "pybbs",
+  "source_dialect": "mysql",
+  "statement_count": 46,
+  "translated_count": 46,
+  "maximum_statement_id": 66,
+  "schema_patches": {
+    "NOT_NULL": 1,
+    "UNIQUE": 3
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

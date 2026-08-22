@@ -1,0 +1,23 @@
+{
+  "kind": "wetune_workload",
+  "application": "fatfreecrm",
+  "source_dialect": "mysql",
+  "statement_count": 197,
+  "translated_count": 197,
+  "maximum_statement_id": 200,
+  "schema_patches": {
+    "FOREIGN_KEY": 8,
+    "NOT_NULL": 56,
+    "UNIQUE": 1
+  },
+  "skipped_schema_patches": [
+    {
+      "type": "UNIQUE",
+      "table": "group_users",
+      "columns": "group_id,user_id",
+      "reason": "table_not_found"
+    }
+  ],
+  "repairs": [],
+  "translation_failures": []
+}

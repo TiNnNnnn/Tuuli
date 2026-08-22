@@ -19,6 +19,7 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarIdent.h"
 
 using namespace gpopt;
 
@@ -158,6 +159,55 @@ FUsedColumnsEqual(CExpression *pexprFirst, CExpression *pexprSecond)
 	return pcrsFirst->Size() == pcrsSecond->Size() &&
 		   pcrsFirst->ContainsAll(pcrsSecond);
 }
+
+BOOL
+FUsedColumnsEqual(CMemoryPool *mp, CExpression *pexpr,
+				  CColRefArray *pdrgpcr)
+{
+	CColRefSet *pcrsUsed = pexpr->DeriveUsedColumns();
+	CColRefSet *pcrsExpected = GPOS_NEW(mp) CColRefSet(mp);
+	pcrsExpected->Include(pdrgpcr);
+	BOOL fEqual = pcrsUsed->Size() == pcrsExpected->Size() &&
+				  pcrsUsed->ContainsAll(pcrsExpected);
+	pcrsExpected->Release();
+	return fEqual;
+}
+
+void
+ExtractJoinKeys(CMemoryPool *mp, CExpression *pexprJoin,
+				CColRefArray *pdrgpcrLeft, CColRefArray *pdrgpcrRight)
+{
+	CColRefSet *pcrsLeft = (*pexprJoin)[0]->DeriveOutputColumns();
+	CExpressionArray *pdrgpexprConj =
+		CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprJoin)[2]);
+	for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+	{
+		CExpression *pexprConj = (*pdrgpexprConj)[ul];
+		if (2 != pexprConj->Arity() ||
+			!CPredicateUtils::FPlainEquality(pexprConj))
+		{
+			continue;
+		}
+
+		CColRef *pcrFirst = const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexprConj)[0]->Pop())->Pcr());
+		CColRef *pcrSecond = const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexprConj)[1]->Pop())->Pcr());
+		BOOL fFirstLeft = pcrsLeft->FMember(pcrFirst);
+		BOOL fSecondLeft = pcrsLeft->FMember(pcrSecond);
+		if (fFirstLeft && !fSecondLeft)
+		{
+			pdrgpcrLeft->Append(pcrFirst);
+			pdrgpcrRight->Append(pcrSecond);
+		}
+		else if (fSecondLeft && !fFirstLeft)
+		{
+			pdrgpcrLeft->Append(pcrSecond);
+			pdrgpcrRight->Append(pcrFirst);
+		}
+	}
+	pdrgpexprConj->Release();
+}
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -259,9 +309,59 @@ CDSLFilterMatcher::FMatchPushedDownInnerJoin(
 }
 
 BOOL
+CDSLFilterMatcher::FBaseAssignmentCompatible(
+	const CDSLOp *popFilter, const CDSLOp *popBase,
+	CExpression *pexprBase, CExpression *pexprCandidate) const
+{
+	if (nullptr == m_prule || nullptr == popBase || nullptr == pexprBase ||
+		(EdslopInnerJoin != popBase->Edslop() &&
+		 EdslopLeftJoin != popBase->Edslop()) ||
+		3 != pexprBase->Arity() || nullptr == popBase->Pdrgpsym() ||
+		2 != popBase->Pdrgpsym()->Size() || nullptr == popFilter->Pdrgpsym() ||
+		2 != popFilter->Pdrgpsym()->Size())
+	{
+		return true;
+	}
+
+	const COperator::EOperatorId eopidExpected =
+		EdslopInnerJoin == popBase->Edslop()
+			? COperator::EopLogicalInnerJoin
+			: COperator::EopLogicalLeftOuterJoin;
+	if (eopidExpected != pexprBase->Pop()->Eopid())
+	{
+		return true;
+	}
+
+	const CDSLSymbol *psymFilterAttrs = (*popFilter->Pdrgpsym())[1];
+	BOOL fLinkedLeft = FDirectEquality(
+		m_prule, EdslconAttrsEq, psymFilterAttrs,
+		(*popBase->Pdrgpsym())[0]);
+	BOOL fLinkedRight = FDirectEquality(
+		m_prule, EdslconAttrsEq, psymFilterAttrs,
+		(*popBase->Pdrgpsym())[1]);
+	if (!fLinkedLeft && !fLinkedRight)
+	{
+		return true;
+	}
+
+	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	ExtractJoinKeys(m_mp, pexprBase, pdrgpcrLeft, pdrgpcrRight);
+	BOOL fCompatible =
+		(fLinkedLeft && 0 < pdrgpcrLeft->Size() &&
+		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrLeft)) ||
+		(fLinkedRight && 0 < pdrgpcrRight->Size() &&
+		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrRight));
+	pdrgpcrRight->Release();
+	pdrgpcrLeft->Release();
+	return fCompatible;
+}
+
+BOOL
 CDSLFilterMatcher::FAssignmentCompatible(
 	const CDSLOp **rgpopFilters, ULONG ulFilter,
 	CExpressionArray *pdrgpexprConj, const ULONG *rgulAssigned,
+	const CDSLOp *popBase, CExpression *pexprBase,
 	CExpression *pexprCandidate) const
 {
 	CDSLSymbolArray *pdrgpsymCandidate =
@@ -293,12 +393,14 @@ CDSLFilterMatcher::FAssignmentCompatible(
 			return false;
 		}
 	}
-	return true;
+	return FBaseAssignmentCompatible(rgpopFilters[ulFilter], popBase,
+								 pexprBase, pexprCandidate);
 }
 
 BOOL
 CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 						   ULONG ulFilter, CExpressionArray *pdrgpexprConj,
+						   const CDSLOp *popBase, CExpression *pexprBase,
 						   BOOL *rgfUsed, ULONG *rgulAssigned) const
 {
 	if (ulFilter == ulFilters)
@@ -326,7 +428,8 @@ CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 			}
 			CExpression *pexprCandidate = (*pdrgpexprConj)[ul];
 			if (!FAssignmentCompatible(rgpopFilters, ulFilter, pdrgpexprConj,
-								   rgulAssigned, pexprCandidate))
+								   rgulAssigned, popBase, pexprBase,
+								   pexprCandidate))
 			{
 				continue;
 			}
@@ -334,7 +437,8 @@ CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 			rgfUsed[ul] = true;
 			rgulAssigned[ulFilter] = ul;
 			if (FAssign(rgpopFilters, ulFilters, ulFilter + 1,
-						pdrgpexprConj, rgfUsed, rgulAssigned))
+						pdrgpexprConj, popBase, pexprBase, rgfUsed,
+						rgulAssigned))
 			{
 				return true;
 			}
@@ -436,7 +540,7 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 
 		// 3a. assign each DSL Filter to a distinct conjunct (subset + reorder).
 		if (FAssign(rgpopFilters, ulFilters, 0 /*ulFilter*/, pdrgpexprConj,
-					rgfUsed, rgulAssigned))
+					popBase, (*pexprSelect)[0], rgfUsed, rgulAssigned))
 		{
 			BOOL fBound = true;
 			for (ULONG ul = 0; fBound && ul < ulFilters; ul++)

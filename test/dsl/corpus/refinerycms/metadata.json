@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "refinerycms",
+  "source_dialect": "mysql",
+  "statement_count": 67,
+  "translated_count": 67,
+  "maximum_statement_id": 69,
+  "schema_patches": {
+    "FOREIGN_KEY": 3,
+    "NOT_NULL": 7
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

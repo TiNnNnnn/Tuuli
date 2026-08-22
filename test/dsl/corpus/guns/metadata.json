@@ -1,0 +1,22 @@
+{
+  "kind": "wetune_workload",
+  "application": "guns",
+  "source_dialect": "mysql",
+  "statement_count": 61,
+  "translated_count": 61,
+  "maximum_statement_id": 87,
+  "schema_patches": {
+    "FOREIGN_KEY": 1,
+    "UNIQUE": 1
+  },
+  "skipped_schema_patches": [
+    {
+      "type": "FOREIGN_KEY",
+      "table": "sys_memu",
+      "columns": "pcode",
+      "reason": "table_not_found"
+    }
+  ],
+  "repairs": [],
+  "translation_failures": []
+}

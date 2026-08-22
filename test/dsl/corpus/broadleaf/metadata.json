@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "broadleaf",
+  "source_dialect": "mysql",
+  "statement_count": 367,
+  "translated_count": 367,
+  "maximum_statement_id": 506,
+  "schema_patches": {
+    "NOT_NULL": 172,
+    "UNIQUE": 5
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

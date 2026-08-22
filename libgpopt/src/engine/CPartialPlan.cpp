@@ -117,7 +117,13 @@ CPartialPlan::ExtractChildrenCostingInfo(CMemoryPool *mp, ICostModel *pcm,
 				child_stats->Width(mp, prppChild->PcrsRequired()).Get();
 			pci->SetChildWidth(ulIndex, dWidthChild);
 			pci->SetChildRebinds(ulIndex, child_stats->NumRebinds().Get());
-			pci->SetChildCost(ulIndex, m_pccChild->Cost().Get());
+			// A newly inserted Cascades alternative can expose a child context
+			// before it has received a final cost (GPOPT_INVALID_COST == -0.5).
+			// This routine computes a lower bound only, so zero is the conservative
+			// bound: it may defer pruning but can never prune a valid plan early.
+			DOUBLE dCostChild = m_pccChild->Cost().Get();
+			pci->SetChildCost(ulIndex,
+						 0.0 > dCostChild ? 0.0 : dCostChild);
 			child_stats->AddRef();
 			pci->SetChildStats(
 				ulIndex, GPOS_NEW(mp) ICostModel::CCostingStats(child_stats));
@@ -141,7 +147,7 @@ CPartialPlan::ExtractChildrenCostingInfo(CMemoryPool *mp, ICostModel *pcm,
 
 		// use child group's cost lower bound as the child cost
 		DOUBLE dCostChild = pgroupChild->CostLowerBound(mp, prppChild).Get();
-		pci->SetChildCost(ulIndex, dCostChild);
+		pci->SetChildCost(ulIndex, 0.0 > dCostChild ? 0.0 : dCostChild);
 
 		// Propagate child group stats so per-key NDV / histogram lookups in
 		// the cost model see real distribution info even on the lower-bound

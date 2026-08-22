@@ -9,6 +9,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +70,55 @@ def safe_name(case_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", case_id).strip("._") or "case"
 
 
+def parameter_count(query: str) -> int:
+    """Return the highest $n parameter outside SQL strings and comments."""
+    parameters: list[int] = []
+    index = 0
+    while index < len(query):
+        if query[index] in {"'", '"'}:
+            quote = query[index]
+            index += 1
+            while index < len(query):
+                if query[index] == quote:
+                    if index + 1 < len(query) and query[index + 1] == quote:
+                        index += 2
+                        continue
+                    index += 1
+                    break
+                index += 1
+            continue
+        if query.startswith("--", index):
+            newline = query.find("\n", index + 2)
+            index = len(query) if newline < 0 else newline + 1
+            continue
+        if query.startswith("/*", index):
+            end = query.find("*/", index + 2)
+            index = len(query) if end < 0 else end + 2
+            continue
+        if query[index] == "$" and index + 1 < len(query) and query[index + 1].isdigit():
+            end = index + 2
+            while end < len(query) and query[end].isdigit():
+                end += 1
+            parameters.append(int(query[index + 1 : end]))
+            index = end
+            continue
+        index += 1
+    return max(parameters, default=0)
+
+
+def render_trace_query(query: str) -> str:
+    query = query.rstrip().rstrip(";")
+    count = parameter_count(query)
+    if count == 0:
+        return f"EXPLAIN (COSTS OFF)\n{query};\n"
+    arguments = ", ".join("NULL" for _ in range(count))
+    return (
+        f"PREPARE dsl_trace_case AS\n{query};\n"
+        f"EXPLAIN (COSTS OFF) EXECUTE dsl_trace_case({arguments});\n"
+        "DEALLOCATE dsl_trace_case;\n"
+    )
+
+
 def tail_text(path: Path, maximum: int = 2000) -> str:
     try:
         with path.open("rb") as stream:
@@ -80,6 +130,27 @@ def tail_text(path: Path, maximum: int = 2000) -> str:
         return ""
 
 
+def orca_fallback_reason(path: Path) -> str | None:
+    """Return a reason when EXPLAIN was produced by PostgreSQL, not ORCA."""
+    marker = "Falling back to Postgres-based planner because GPORCA does not support"
+    used_orca = False
+    internal_error: str | None = None
+    try:
+        with path.open(encoding="utf-8", errors="replace") as stream:
+            for line in stream:
+                used_orca = used_orca or "Optimizer: pg_orca" in line
+                position = line.find(marker)
+                if position >= 0:
+                    return line[position:].rstrip('\n\r\",')
+                if internal_error is None and ',ERROR,"' in line:
+                    internal_error = line.split(',ERROR,"', 1)[1].rstrip('\n\r\",')
+    except OSError:
+        pass
+    if used_orca:
+        return None
+    return internal_error or "ORCA did not produce the EXPLAIN plan"
+
+
 def parse_args() -> argparse.Namespace:
     script_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser()
@@ -88,8 +159,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("schema", type=Path)
     parser.add_argument("--pg-config", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--trace-runner", type=Path, default=script_dir / "trace_one.sh")
+    parser.add_argument(
+        "--trace-runner", type=Path, default=script_dir / "trace_corpus.sh"
+    )
     parser.add_argument("--base-port", type=int, default=55440)
+    parser.add_argument(
+        "--statement-timeout",
+        type=int,
+        default=60000,
+        help="per-case PostgreSQL statement timeout in milliseconds",
+    )
     parser.add_argument(
         "--case",
         dest="case_ids",
@@ -103,8 +182,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.max < 0 or not 1 <= args.base_port <= 65535:
-        print("invalid --max or --base-port", file=sys.stderr)
+    if args.max < 0 or not 1 <= args.base_port <= 65535 or args.statement_timeout <= 0:
+        print("invalid --max, --base-port, or --statement-timeout", file=sys.stderr)
         return 2
     try:
         cases = read_manifest(args.manifest)
@@ -131,24 +210,47 @@ def main() -> int:
     case_reports: list[dict[str, Any]] = []
     candidate_records: list[dict[str, Any]] = []
 
-    for index, case in enumerate(cases):
-        case_id = case["case_id"]
-        stem = safe_name(case_id)
-        query_path = args.output_dir / f"{stem}.sql"
-        log_path = args.output_dir / f"{stem}.log"
-        query_path.write_text(case["query"].rstrip().rstrip(";") + ";\n", encoding="utf-8")
+    if not cases:
+        candidate_jsonl.write_text("", encoding="utf-8")
+        report = {
+            "kind": "corpus_comparison",
+            "manifest": str(args.manifest),
+            "attempted": 0,
+            "passed": 0,
+            "failed": 0,
+            "cases": [],
+        }
+        (args.output_dir / "report.json").write_text(
+            json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
+
+    stems: dict[str, str] = {}
+    with tempfile.TemporaryDirectory(prefix="pgorca-corpus-queries.") as directory:
+        query_dir = Path(directory)
+        for case in cases:
+            case_id = case["case_id"]
+            stem = safe_name(case_id)
+            if stem in stems:
+                print(f"case ids map to the same filename: {stems[stem]}, {case_id}", file=sys.stderr)
+                return 2
+            stems[stem] = case_id
+            (query_dir / f"{stem}.sql").write_text(
+                render_trace_query(case["query"]), encoding="utf-8"
+            )
 
         environment = os.environ.copy()
         environment["PG_CONFIG"] = str(pg_config)
-        environment["DSL_TRACE_PORT"] = str(args.base_port + index % 1000)
-        environment["DSL_TRACE_ALLOW_EMPTY"] = "1"
+        environment["DSL_TRACE_PORT"] = str(args.base_port)
+        environment["DSL_TRACE_STATEMENT_TIMEOUT"] = str(args.statement_timeout)
         process = subprocess.run(
             [
                 str(trace_runner),
                 str(rules_path),
                 str(schema_path),
-                str(query_path.resolve()),
-                str(log_path.resolve()),
+                str(query_dir.resolve()),
+                str(args.output_dir.resolve()),
             ],
             text=True,
             stdout=subprocess.PIPE,
@@ -156,16 +258,52 @@ def main() -> int:
             env=environment,
             check=False,
         )
+    if process.returncode != 0:
+        print(process.stderr.strip()[-4000:], file=sys.stderr)
+        return 2
 
-        if process.returncode != 0:
+    statuses: dict[str, int] = {}
+    status_path = args.output_dir / "status.tsv"
+    try:
+        with status_path.open(encoding="utf-8") as stream:
+            for line_number, line in enumerate(stream, 1):
+                fields = line.rstrip("\n").split("\t")
+                if len(fields) != 2:
+                    raise ValueError(f"{status_path}:{line_number}: invalid status row")
+                statuses[fields[0]] = int(fields[1])
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 2
+
+    for case in cases:
+        case_id = case["case_id"]
+        stem = safe_name(case_id)
+        log_path = args.output_dir / "logs" / f"{stem}.log"
+        returncode = statuses.get(stem)
+        if returncode is None:
+            case_reports.append(
+                {"case_id": case_id, "status": "trace_error", "detail": "missing status"}
+            )
+            continue
+        if returncode != 0:
             detail = tail_text(log_path)
             case_reports.append(
                 {
                     "case_id": case_id,
                     "status": "query_error",
-                    "returncode": process.returncode,
-                    "stderr": process.stderr.strip()[-2000:],
+                    "returncode": returncode,
                     "detail": detail,
+                }
+            )
+            continue
+
+        fallback = orca_fallback_reason(log_path)
+        if fallback is not None:
+            case_reports.append(
+                {
+                    "case_id": case_id,
+                    "status": "orca_fallback",
+                    "detail": fallback,
                 }
             )
             continue

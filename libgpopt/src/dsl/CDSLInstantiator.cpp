@@ -32,6 +32,7 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -123,6 +124,57 @@ FNullScalarConst(const CExpression *pexpr)
 {
 	return nullptr != pexpr && COperator::EopScalarConst == pexpr->Pop()->Eopid() &&
 		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
+}
+
+// Re-resolve comparison operators after a column remap changes operand types.
+// PexprCopyWithRemappedColumns replaces CScalarIdent nodes but intentionally
+// preserves the original CScalarCmp operator mdid, which is invalid for (for
+// example) an int4 join key remapped to an int8 key. CUtils selects the target
+// comparison operator and inserts casts using the active metadata accessor.
+CExpression *
+PexprRebuildComparisons(CMemoryPool *mp, CExpression *pexpr)
+{
+	if (COperator::EopScalarCmp == pexpr->Pop()->Eopid())
+	{
+		if (2 != pexpr->Arity())
+		{
+			return nullptr;
+		}
+		const IMDType::ECmpType ecmpt =
+			CScalarCmp::PopConvert(pexpr->Pop())->ParseCmpType();
+		if (IMDType::EcmptOther <= ecmpt)
+		{
+			return nullptr;
+		}
+		CExpression *pexprLeft = PexprRebuildComparisons(mp, (*pexpr)[0]);
+		if (nullptr == pexprLeft)
+		{
+			return nullptr;
+		}
+		CExpression *pexprRight = PexprRebuildComparisons(mp, (*pexpr)[1]);
+		if (nullptr == pexprRight)
+		{
+			pexprLeft->Release();
+			return nullptr;
+		}
+		return CUtils::PexprScalarCmp(mp, pexprLeft, pexprRight, ecmpt);
+	}
+
+	CExpressionArray *pdrgpexprChildren =
+		GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CExpression *pexprChild =
+			PexprRebuildComparisons(mp, (*pexpr)[ul]);
+		if (nullptr == pexprChild)
+		{
+			pdrgpexprChildren->Release();
+			return nullptr;
+		}
+		pdrgpexprChildren->Append(pexprChild);
+	}
+	pexpr->Pop()->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pdrgpexprChildren);
 }
 
 // Rebuild a matched GbAgg while removing only aggregate DISTINCT semantics.
@@ -434,17 +486,14 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 
 	UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
 	BOOL fRemap = false;
+	BOOL fTypeChange = false;
 	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
 	{
 		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
 		CColRef *pcrTo = (*pdrgpcrTo)[ul];
-		if (!pcrFrom->RetrieveType()->MDId()->Equals(
-				pcrTo->RetrieveType()->MDId()) ||
-			pcrFrom->TypeModifier() != pcrTo->TypeModifier())
-		{
-			phm->Release();
-			return nullptr;
-		}
+		fTypeChange = fTypeChange ||
+			!pcrFrom->RetrieveType()->MDId()->Equals(
+				pcrTo->RetrieveType()->MDId());
 		if (pcrFrom != pcrTo)
 		{
 			BOOL fInserted GPOS_ASSERTS_ONLY = phm->Insert(
@@ -463,6 +512,13 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 	CExpression *pexprRemapped = pexprBound->PexprCopyWithRemappedColumns(
 		m_mp, phm, false /*must_exist*/);
 	phm->Release();
+	if (fTypeChange)
+	{
+		CExpression *pexprTyped =
+			PexprRebuildComparisons(m_mp, pexprRemapped);
+		pexprRemapped->Release();
+		return pexprTyped;
+	}
 	return pexprRemapped;
 }
 

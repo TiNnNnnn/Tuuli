@@ -1,0 +1,16 @@
+{
+  "kind": "wetune_workload",
+  "application": "homeland",
+  "source_dialect": "postgres",
+  "statement_count": 143,
+  "translated_count": 143,
+  "maximum_statement_id": 143,
+  "schema_patches": {
+    "FOREIGN_KEY": 8,
+    "NOT_NULL": 24,
+    "UNIQUE": 3
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}

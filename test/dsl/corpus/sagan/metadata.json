@@ -1,0 +1,15 @@
+{
+  "kind": "wetune_workload",
+  "application": "sagan",
+  "source_dialect": "mysql",
+  "statement_count": 25,
+  "translated_count": 25,
+  "maximum_statement_id": 41,
+  "schema_patches": {
+    "FOREIGN_KEY": 3,
+    "NOT_NULL": 2
+  },
+  "skipped_schema_patches": [],
+  "repairs": [],
+  "translation_failures": []
+}
