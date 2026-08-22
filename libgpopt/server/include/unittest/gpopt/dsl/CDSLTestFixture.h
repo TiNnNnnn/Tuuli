@@ -141,6 +141,10 @@ public:
 	// join matcher can split into left/right keys. Caller owns the result.
 	CExpression *PexprEqPred(CColRef *pcrLeft, CColRef *pcrRight);
 
+	// Equality between an int4 column and a constant, built without a metadata
+	// cache lookup for the scalar operator.
+	CExpression *PexprEqConst(CColRef *pcrLeft, INT value);
+
 	//------------------------------------------------------------------
 	// logical nodes
 	//------------------------------------------------------------------

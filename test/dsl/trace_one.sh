@@ -51,7 +51,11 @@ trap cleanup EXIT
 MONSOON_DSL_RULES="$RULES_FILE" \
     "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
     -o "-c listen_addresses='' -c logging_collector=off -k $SOCKET_DIR -p $PORT" \
-    start >/dev/null
+    start >/dev/null || {
+        echo "PostgreSQL startup log:" >&2
+        tail -n 40 "$SERVER_LOG" >&2 || true
+        fail "temporary PostgreSQL server did not start"
+    }
 SERVER_STARTED=1
 
 PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d postgres)
@@ -71,6 +75,12 @@ PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d pos
 } >"$RUN_SQL"
 
 "${PSQL[@]}" -q -f "$RUN_SQL" >"$OUTPUT_LOG" 2>&1
-grep -Fq "DSL_TRACE " "$OUTPUT_LOG" || fail "no DSL_TRACE records were produced"
+if ! grep -Fq "DSL_TRACE " "$OUTPUT_LOG"; then
+    if [[ ${DSL_TRACE_ALLOW_EMPTY:-0} = 1 ]]; then
+        echo "pgORCA trace contains no DSL application records" >&2
+    else
+        fail "no DSL_TRACE records were produced"
+    fi
+fi
 
 echo "pgORCA trace written to $OUTPUT_LOG"

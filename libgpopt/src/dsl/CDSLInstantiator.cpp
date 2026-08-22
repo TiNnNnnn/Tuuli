@@ -487,8 +487,38 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	}
 
 	CExpression *pexprProjList = pmodel->PexprProjList(psymSchema);
-	if (nullptr == pexprProjList ||
-		!pexprChild->DeriveOutputColumns()->ContainsAll(
+	if (nullptr == pexprProjList)
+	{
+		// A Proj* source is represented by GbAgg and therefore has no matched
+		// CScalarProjectList to reuse.  In the common corpus rule
+		// Proj*(Input) -> Proj(Input), the target Proj is a pass-through view of
+		// the same bound attrs/schema. ORCA has no column-pruning logical Project,
+		// so return the child here; PexprInstantiate will apply the memo-safe
+		// Select(child, TRUE) dedup-drop shell.
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		if (!pmodel->FDedupDrop() || nullptr == pdrgpcrAttrs ||
+			nullptr == pdrgpcrSchema || 0 == pdrgpcrSchema->Size() ||
+			!FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsSchema->Include(pdrgpcrSchema);
+		const BOOL fContains =
+			pexprChild->DeriveOutputColumns()->ContainsAll(pcrsSchema);
+		pcrsSchema->Release();
+		if (!fContains)
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+		return pexprChild;
+	}
+
+	if (!pexprChild->DeriveOutputColumns()->ContainsAll(
 			pexprProjList->DeriveUsedColumns()))
 	{
 		pexprChild->Release();

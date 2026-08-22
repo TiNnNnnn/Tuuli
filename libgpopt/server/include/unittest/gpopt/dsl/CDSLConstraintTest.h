@@ -42,6 +42,7 @@ public:
 
 	// Unique(t,a): admit when a is a key of t; reject when t has no such key
 	static GPOS_RESULT EresUnittest_UniqueAdmit();
+	static GPOS_RESULT EresUnittest_UniqueAdmitOnFixedKey();
 	static GPOS_RESULT EresUnittest_UniqueReject();
 
 	// NotNull(t,a): admit when a's columns are non-nullable; reject when nullable

@@ -210,44 +210,6 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 namespace
 {
 void
-OsPrintJsonString(IOstream &os, const WCHAR *wsz)
-{
-	os << "\"";
-	for (const WCHAR *pwc = wsz; WCHAR_EOS != *pwc; ++pwc)
-	{
-		switch (*pwc)
-		{
-			case L'\"':
-				os << "\\\"";
-				break;
-			case L'\\':
-				os << "\\\\";
-				break;
-			case L'\b':
-				os << "\\b";
-				break;
-			case L'\f':
-				os << "\\f";
-				break;
-			case L'\n':
-				os << "\\n";
-				break;
-			case L'\r':
-				os << "\\r";
-				break;
-			case L'\t':
-				os << "\\t";
-				break;
-			default:
-				// DSL and ORCA plan printers do not emit other control characters.
-				// Replace one defensively so the trace remains valid JSON.
-				os << (0x20 > *pwc ? L'?' : *pwc);
-		}
-	}
-	os << "\"";
-}
-
-void
 TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
 			 const CDSLRule *prule, const CDSLModel *pmodel,
 			 const CExpression *pexprSrc, const CExpression *pexprTgt)
@@ -262,48 +224,16 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
 
 	// Machine-readable line for differential testing against WeTune. Keep the
 	// established DSL_RULE block below for humans and existing e2e assertions.
-	CWStringDynamic strRule(mp);
-	COstreamString osRule(&strRule);
-	prule->OsPrint(osRule);
-	CWStringDynamic strSource(mp);
-	COstreamString osSource(&strSource);
-	pexprSrc->OsPrint(osSource);
-	CWStringDynamic strTarget(mp);
-	if (nullptr != pexprTgt)
-	{
-		COstreamString osTarget(&strTarget);
-		pexprTgt->OsPrint(osTarget);
-	}
-
+	// Keep this record below the trace subsystem's fixed-size line buffer. Full
+	// rules and plans can be arbitrarily large and are printed in the human
+	// DSL_RULE block below; embedding them here would make the JSON invalid when
+	// the trace buffer inserts a physical newline. The compact record also makes
+	// accidental publication of machine traces less likely to expose rule text.
 	os << "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\","
 		  "\"rule_id\":"
 	   << ulRuleId << ",\"status\":\"" << szStage
 	   << "\",\"binding_count\":" << (nullptr == pmodel ? 0 : pmodel->Size())
-	   << ",\"rule\":";
-	OsPrintJsonString(os, strRule.GetBuffer());
-	os << ",\"source_plan\":";
-	OsPrintJsonString(os, strSource.GetBuffer());
-	os << ",\"source_subplan\":";
-	OsPrintJsonString(os, strSource.GetBuffer());
-	os << ",\"target_plan\":";
-	if (nullptr == pexprTgt)
-	{
-		os << "null";
-	}
-	else
-	{
-		OsPrintJsonString(os, strTarget.GetBuffer());
-	}
-	os << ",\"target_subplan\":";
-	if (nullptr == pexprTgt)
-	{
-		os << "null";
-	}
-	else
-	{
-		OsPrintJsonString(os, strTarget.GetBuffer());
-	}
-	os << "}" << std::endl;
+	   << "}" << std::endl;
 
 	os << "DSL_RULE id=" << ulRuleId << " stage=" << szStage;
 	if (nullptr != pmodel)

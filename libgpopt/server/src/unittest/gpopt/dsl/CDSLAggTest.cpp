@@ -44,6 +44,12 @@ using namespace gpopt;
 	"Input<t2>|"                                                            \
 	"AttrsSub(a0,t0);Unique(t0,a0);TableEq(t2,t0)"
 
+#define GPOPT_DSL_DISTINCT_TO_PROJ_RULE                                     \
+	"Proj*<a0 s0>(Input<t0>)|"                                              \
+	"Proj<a1 s1>(Input<t1>)|"                                               \
+	"AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);"                         \
+	"AttrsEq(a1,a0);SchemaEq(s1,s0)"
+
 #define GPOPT_DSL_AGG_IDENTITY_RULE                                         \
 	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
 	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
@@ -120,6 +126,8 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateProducesSelectOverChild),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_InstantiateDedupToPlainProj),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsNonEmptyAggList),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
@@ -130,6 +138,53 @@ CDSLAggTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateDedupToPlainProj()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_DISTINCT_TO_PROJ_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	BuildDedupGbAgg(fix, true /*fUniqueKey*/, &pexprGet, &pexprGbAgg);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalSelect != pexprTgt->Pop()->Eopid() ||
+			(*pexprTgt)[0] != pexprGet)
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

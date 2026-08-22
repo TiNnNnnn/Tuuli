@@ -98,12 +98,49 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubAdmit),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubReject),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueAdmit),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueReject),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullAdmit),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullReject),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|Unique(t0,a0);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CTableDescriptor *ptabdesc = fix.PtabdescCreate("t0", 3, 0 /*ulKeyCol*/);
+	CColRefArray *pdrgpcrOut = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(ptabdesc, "t0", &pdrgpcrOut);
+	CExpression *pexprPred = fix.PexprEqConst((*pdrgpcrOut)[0], 10);
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprGet, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	// c1 is not a key by itself, but fixing the real key c0 to one constant
+	// guarantees that the Select has at most one row, so c1 is unique there.
+	BindTableAndAttr(pmodel, PsymByName(prule, "t0"), pexprSelect,
+					 PsymByName(prule, "a0"), (*pdrgpcrOut)[1], mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = checker.FCheck(prule, pmodel) ? GPOS_OK : GPOS_FAILED;
+
+	pmodel->Release();
+	pexprSelect->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

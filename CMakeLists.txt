@@ -187,6 +187,16 @@ if(PG_ORCA_BUNDLED_ANTLR4)
     set(ANTLR4_INSTALL       OFF CACHE BOOL "" FORCE)
     set(ANTLR_BUILD_CPP_TESTS OFF CACHE BOOL "" FORCE)
     set(WITH_DEMO            OFF CACHE BOOL "" FORCE)
+    # The vendored runtime defaults to libc++ whenever Clang is used on Linux.
+    # Linux CI and normal distro toolchains use Clang with libstdc++; forcing
+    # libc++ there makes even standard headers such as <algorithm> unavailable
+    # unless a second C++ standard library is installed.
+    set(WITH_LIBCXX          OFF CACHE BOOL
+        "Build the bundled ANTLR runtime with libc++ instead of libstdc++")
+    # ANTLR 4.8 declares cmake_minimum_required(VERSION 2.8). CMake 4 no
+    # longer enables policies older than 3.5 unless this floor is explicit.
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING
+        "Oldest CMake policy version accepted by bundled dependencies")
     set(CMAKE_SKIP_INSTALL_RULES_BACKUP "${CMAKE_SKIP_INSTALL_RULES}")
     set(CMAKE_SKIP_INSTALL_RULES TRUE)
     add_subdirectory(third_party/antlr4/runtime/Cpp EXCLUDE_FROM_ALL)

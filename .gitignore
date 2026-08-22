@@ -6,6 +6,7 @@ __pycache__/
 *.o
 *.so
 *.dylib
+__pycache__/
 .mcp.json
 .claude/
 CLAUDE.md

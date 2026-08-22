@@ -25,6 +25,8 @@
 #include "gpopt/metadata/CTableDescriptor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/IMDRelation.h"
 
@@ -154,6 +156,75 @@ FColArraysSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
 	}
 	return true;
 }
+
+BOOL
+FPredicateFixesColumn(CExpression *pexprPred, const CColRef *pcr)
+{
+	if (CPredicateUtils::FAnd(pexprPred))
+	{
+		for (ULONG ul = 0; ul < pexprPred->Arity(); ul++)
+		{
+			if (FPredicateFixesColumn((*pexprPred)[ul], pcr))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	if (!CPredicateUtils::FPlainEqualityIdentConstWithoutCast(pexprPred))
+	{
+		return false;
+	}
+
+	CExpression *pexprLeft = (*pexprPred)[0];
+	CExpression *pexprRight = (*pexprPred)[1];
+	if (COperator::EopScalarConst == pexprLeft->Pop()->Eopid())
+	{
+		return COperator::EopScalarIdent == pexprRight->Pop()->Eopid() &&
+			   CScalarIdent::PopConvert(pexprRight->Pop())->Pcr() == pcr;
+	}
+	return COperator::EopScalarIdent == pexprLeft->Pop()->Eopid() &&
+		   COperator::EopScalarConst == pexprRight->Pop()->Eopid() &&
+		   CScalarIdent::PopConvert(pexprLeft->Pop())->Pcr() == pcr;
+}
+
+BOOL
+FFilterFixesColumn(CExpression *pexpr, const CColRef *pcr)
+{
+	if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
+		2 != pexpr->Arity())
+	{
+		return false;
+	}
+	return FPredicateFixesColumn((*pexpr)[1], pcr) ||
+		   FFilterFixesColumn((*pexpr)[0], pcr);
+}
+
+BOOL
+FFixedKeyMakesAtMostOneRow(CMemoryPool *mp, CExpression *pexpr,
+							CKeyCollection *pkc)
+{
+	if (nullptr == pkc)
+	{
+		return false;
+	}
+
+	for (ULONG ulKey = 0; ulKey < pkc->Keys(); ulKey++)
+	{
+		CColRefArray *pdrgpcrKey = pkc->PdrgpcrKey(mp, ulKey);
+		BOOL fFixed = 0 < pdrgpcrKey->Size();
+		for (ULONG ulCol = 0; fFixed && ulCol < pdrgpcrKey->Size(); ulCol++)
+		{
+			fFixed = FFilterFixesColumn(pexpr, (*pdrgpcrKey)[ulCol]);
+		}
+		pdrgpcrKey->Release();
+		if (fFixed)
+		{
+			return true;
+		}
+	}
+	return false;
+}
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -279,10 +350,20 @@ CDSLConstraintChecker::FCheckUnique(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	CKeyCollection *pkc = pexprTable->DeriveKeyCollection();
+	// Select preserves every child key. Deriving the complete property handle on
+	// the Select also asks metadata for its scalar comparison operator, which is
+	// unnecessary here (and unavailable in the programmatic test provider).
+	CExpression *pexprKeySource = pexprTable;
+	while (COperator::EopLogicalSelect == pexprKeySource->Pop()->Eopid() &&
+		   2 == pexprKeySource->Arity())
+	{
+		pexprKeySource = (*pexprKeySource)[0];
+	}
+	CKeyCollection *pkc = pexprKeySource->DeriveKeyCollection();
 	// no keys derived => the uniqueness assertion cannot be confirmed => reject.
-	BOOL fHolds =
-		(nullptr != pkc) && pkc->FKey(pcrsAttrs, false /*fExactMatch*/);
+	BOOL fHolds = nullptr != pkc &&
+				  (pkc->FKey(pcrsAttrs, false /*fExactMatch*/) ||
+				   FFixedKeyMakesAtMostOneRow(m_mp, pexprTable, pkc));
 	pcrsAttrs->Release();
 	return fHolds;
 }

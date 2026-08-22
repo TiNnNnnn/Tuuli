@@ -119,6 +119,9 @@ jobs:
       - name: Run DSL unit tests
         run: ctest --test-dir build --output-on-failure --no-tests=error -R '^gpopt_dsl_test$'
 
+      - name: Run trace framework self-tests
+        run: python3 test/dsl/test_trace_framework.py
+
       - name: Install extension
         run: sudo cmake --install build
 
@@ -127,12 +130,23 @@ jobs:
           PG_CONFIG: /usr/lib/postgresql/18/bin/pg_config
         run: test/dsl/e2e.sh
 
+      - name: Run public real-SQL trace corpus
+        run: |
+          python3 test/dsl/run_trace_corpus.py \
+            test/dsl/corpus/calcite/framework_cases.jsonl \
+            test/dsl/rules/framework.rules \
+            test/dsl/corpus/calcite/schema.sql \
+            --pg-config /usr/lib/postgresql/18/bin/pg_config \
+            --output-dir build/dsl-corpus
+
       - name: Upload DSL E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: dsl-e2e-results
-          path: build/dsl-e2e/
+          path: |
+            build/dsl-e2e/
+            build/dsl-corpus/
 
   build-centos:
     name: centos-stream9 / gcc / Debug + tests

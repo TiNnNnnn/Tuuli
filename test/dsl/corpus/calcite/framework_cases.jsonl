@@ -1,0 +1,4 @@
+{"kind":"differential_case","case_id":"calcite_tests:175","query":"SELECT DEPT.NAME AS C1 FROM DEPT AS DEPT WHERE DEPT.NAME > 'b' GROUP BY DEPT.NAME HAVING DEPT.NAME > 'c' AND (COUNT(*) > 30 OR DEPT.NAME < 'z')","expected_applications":[{"rule_id":16,"status":"applied"}]}
+{"kind":"differential_case","case_id":"calcite_tests:89","query":"SELECT t.ENAME, COUNT(*) FROM (SELECT * FROM EMP AS EMP UNION ALL SELECT * FROM EMP AS EMP0) AS t GROUP BY t.ENAME","expected_applications":[{"rule_id":21,"status":"applied"}]}
+{"kind":"differential_case","case_id":"calcite_tests:299","query":"SELECT * FROM DEPT AS DEPT UNION SELECT * FROM DEPT AS DEPT0","expected_applications":[{"rule_id":25,"status":"applied"}]}
+{"kind":"differential_case","case_id":"calcite_tests:9","query":"SELECT DEPT.DEPTNO, DEPT.DEPTNO FROM DEPT AS DEPT ORDER BY DEPT.DEPTNO LIMIT 10000 OFFSET 1","expected_applications":[{"rule_id":38,"status":"applied"}]}

@@ -53,6 +53,10 @@ public:
 	// is gone, the child Get is reused (pointer identity), output cols preserved.
 	static GPOS_RESULT EresUnittest_InstantiateProducesSelectOverChild();
 
+	// The corpus spelling keeps an explicit plain Proj target. Since its source
+	// Proj* has no ORCA project list, instantiate it as a pass-through dedup drop.
+	static GPOS_RESULT EresUnittest_InstantiateDedupToPlainProj();
+
 	// the rule must NOT fire when the grouping column is not a key (dedup is not
 	// redundant): match succeeds structurally but Unique(t0,a0) gates the check.
 	static GPOS_RESULT EresUnittest_RejectsWithoutUnique();

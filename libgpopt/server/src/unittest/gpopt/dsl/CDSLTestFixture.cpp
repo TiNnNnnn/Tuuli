@@ -314,6 +314,22 @@ CDSLTestFixture::PexprEqPred(CColRef *pcrLeft, CColRef *pcrRight)
 		pexprLeft, pexprRight);
 }
 
+CExpression *
+CDSLTestFixture::PexprEqConst(CColRef *pcrLeft, INT value)
+{
+	CExpression *pexprLeft = GPOS_NEW(m_mp)
+		CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrLeft));
+	CExpression *pexprRight = CUtils::PexprScalarConstInt4(m_mp, value);
+	IMDId *pmdidEq = m_pmdtypeInt4->GetMdidForCmpType(IMDType::EcmptEq);
+	pmdidEq->AddRef();
+	CWStringConst *pstrEq = GPOS_NEW(m_mp) CWStringConst(GPOS_WSZ_LIT("="));
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp)
+			CScalarCmp(m_mp, pmdidEq, pstrEq, IMDType::EcmptEq),
+		pexprLeft, pexprRight);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLTestFixture::PexprLogicalSelect
