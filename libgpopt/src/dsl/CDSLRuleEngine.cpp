@@ -71,7 +71,7 @@ CDSLRuleEngine::BucketByRoot()
 	for (ULONG ul = 0; ul < ulRules; ul++)
 	{
 		CDSLRule *prule = (*m_pdrgprule)[ul];
-		ULONG rgulOpid[2] = {(ULONG) prule->EopidSrcRoot(), 0};
+		ULONG rgulOpid[3] = {(ULONG) prule->EopidSrcRoot(), 0, 0};
 		ULONG ulBuckets = 1;
 		// HAVING is Select(GbAgg,predicate) in ORCA, while the DSL source root
 		// remains Agg. Route Agg-rooted rules to both physical expression shapes.
@@ -89,6 +89,11 @@ CDSLRuleEngine::BucketByRoot()
 		if (EdslopInSubFilter == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+			// WeTune may canonicalize a correlated EXISTS equality to InSubFilter,
+			// while native ORCA unnests it as LeftSemiApply. Route the data rule to
+			// that shell as well; the matcher still performs the full shape check.
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiApply;
 		}
 
 		for (ULONG ulBucket = 0; ulBucket < ulBuckets; ulBucket++)

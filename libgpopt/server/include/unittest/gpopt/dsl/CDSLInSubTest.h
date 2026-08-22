@@ -17,6 +17,8 @@ public:
 	static GPOS_RESULT EresUnittest_PreApplyCorpusElimination();
 	static GPOS_RESULT EresUnittest_PostApplyCorpusElimination();
 	static GPOS_RESULT EresUnittest_PreApplyRepeatedInElimination();
+	static GPOS_RESULT EresUnittest_CorrelatedExistsCanonicalization();
+	static GPOS_RESULT EresUnittest_PostApplyCorrelatedExistsCanonicalization();
 	static GPOS_RESULT EresUnittest_PostApplyRepeatedInElimination();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();

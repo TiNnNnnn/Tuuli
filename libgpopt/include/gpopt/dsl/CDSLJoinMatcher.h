@@ -20,13 +20,12 @@
 //		     For each PLAIN-EQUALITY conjunct (both sides CScalarIdent), extract the
 //		     two CColRefs and split them into left/right key sets by which side's
 //		     column belongs to the left subtree's output columns. NON-equi conjuncts
-//		     are recorded as residual (CDSLModel::SetResidualConjuncts) so the
-//		     instantiator preserves them — dropping a predicate = wrong plan.
+//		     remain in the complete predicate recorded for this Join node.
 //		  3. Bind the first <a> to the left key columns, the second <a> to the right
 //		     key columns (CDSLModel::FBind, arrays — same as Filter's <a>).
 //		  4. Recurse child[0] and child[1] back through the generic matcher.
-//		  5. Record the WHOLE predicate subtree (child[2]) on the model
-//		     (CDSLModel::SetJoinPred) so the instantiator can graft the exact
+//		  5. Record the WHOLE predicate subtree (child[2]) under this Join's attrs
+//		     pair (CDSLModel::FSetJoinPred) so the instantiator can graft the exact
 //		     equi + non-equi predicate onto the rebuilt join.
 //
 //		Like Filter/Proj, join carries scalar structure (the predicate) that only

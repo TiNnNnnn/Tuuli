@@ -16,11 +16,13 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -80,11 +82,146 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyRepeatedInElimination),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_CorrelatedExistsCanonicalization),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::
+						   EresUnittest_PostApplyCorrelatedExistsCanonicalization),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PostApplyRepeatedInElimination),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_RejectsDifferentTable),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PostApplyIdentity)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_CorrelatedExistsCanonicalization()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	// Both aliases use a nullable table. The correlated equality implies that
+	// only non-null key values can pass; the representation adapter must make
+	// those guards explicit before an InSub-elimination rule removes the
+	// subquery.
+	CTableDescriptor *ptabdesc = fix.PtabdescCreate(
+		"correlated_exists_same", 2, 0 /*key*/, true /*nullable*/);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter = fix.PexprLogicalGet(
+		ptabdesc, "correlated_exists_outer", &pdrgpcrOuter);
+	ptabdesc->AddRef();
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner = fix.PexprLogicalGet(
+		ptabdesc, "correlated_exists_inner", &pdrgpcrInner);
+
+	CExpression *pexprEq =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprInnerSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprEq);
+	pexprEq->Release();
+	pexprInner->Release();
+	CColRefArray *pdrgpcrExistsProject =
+		GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrExistsProject->Append((*pdrgpcrInner)[1]);
+	CExpression *pexprExistsProject =
+		fix.PexprLogicalProject(pexprInnerSelect, pdrgpcrExistsProject);
+	pdrgpcrExistsProject->Release();
+	pexprInnerSelect->Release();
+	CExpression *pexprExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprExistsProject);
+	CExpression *pexprSource =
+		fix.PexprLogicalSelect(pexprOuter, pexprExists);
+	pexprOuter->Release();
+	pexprExists->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_CORPUS_INSUB_ELIM_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(CPredicateUtils::FNotNullCheckOnColumn(
+		(*pexprTarget)[1], (*pdrgpcrOuter)[0]));
+	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
+		pexprTarget->DeriveOutputColumns()));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_PostApplyCorrelatedExistsCanonicalization()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CTableDescriptor *ptabdesc = fix.PtabdescCreate(
+		"correlated_exists_apply_same", 2, 0 /*key*/, true /*nullable*/);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuterGet = fix.PexprLogicalGet(
+		ptabdesc, "correlated_exists_apply_outer", &pdrgpcrOuter);
+	CExpression *pexprOuterNotNull = CUtils::PexprIsNotNull(
+		mp, CUtils::PexprScalarIdent(mp, (*pdrgpcrOuter)[0]));
+	CExpression *pexprOuter =
+		fix.PexprLogicalSelect(pexprOuterGet, pexprOuterNotNull);
+	pexprOuterGet->Release();
+	pexprOuterNotNull->Release();
+
+	ptabdesc->AddRef();
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInnerGet = fix.PexprLogicalGet(
+		ptabdesc, "correlated_exists_apply_inner", &pdrgpcrInner);
+	CExpression *pexprEq =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprInnerSelect =
+		fix.PexprLogicalSelect(pexprInnerGet, pexprEq);
+	pexprInnerGet->Release();
+	pexprEq->Release();
+	CColRefArray *pdrgpcrProject = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProject->Append((*pdrgpcrInner)[1]);
+	CExpression *pexprInnerProject =
+		fix.PexprLogicalProject(pexprInnerSelect, pdrgpcrProject);
+	pdrgpcrProject->Release();
+	pexprInnerSelect->Release();
+
+	CExpression *pexprSource =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+			mp, pexprOuter, pexprInnerProject, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubqueryExists);
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_CORPUS_INSUB_ELIM_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(CPredicateUtils::FNotNullCheckOnColumn(
+		(*pexprTarget)[1], (*pdrgpcrOuter)[0]));
+	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
+		pexprTarget->DeriveOutputColumns()));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT

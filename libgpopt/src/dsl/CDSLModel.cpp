@@ -20,13 +20,13 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	  m_pdrgpexprResidual(nullptr),
 	  m_pdrgpexprExistsResidual(nullptr),
 	  m_pdrgpexprInSubResidual(nullptr),
-	  m_pexprJoinPred(nullptr),
 	  m_fDedupDrop(false)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
 	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 }
 
@@ -41,11 +41,11 @@ CDSLModel::~CDSLModel()
 	m_phmSymToRef->Release();
 	m_phmInSubPred->Release();
 	m_phmProjList->Release();
+	m_phmJoinPred->Release();
 	m_pdrgpexprUnionBindings->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
-	CRefCount::SafeRelease(m_pexprJoinPred);
 }
 
 void
@@ -153,17 +153,55 @@ CDSLModel::AddUnionBinding(CExpression *pexprUnion)
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLModel::SetJoinPred
+//		CDSLModel::FSetJoinPred
 //
 //	@doc:
-//		Take ownership of a matched join's predicate subtree (join match, M2). A
-//		second call replaces the previous one (released).
+//		Index one source Join predicate by both attrs symbols. Existing bindings are
+//		accepted only when they carry the same scalar tree.
 //---------------------------------------------------------------------------
-void
-CDSLModel::SetJoinPred(CExpression *pexpr)
+BOOL
+CDSLModel::FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
+						 const CDSLSymbol *psymRightAttrs,
+						 CExpression *pexpr)
 {
-	CRefCount::SafeRelease(m_pexprJoinPred);
-	m_pexprJoinPred = pexpr;
+	GPOS_ASSERT(nullptr != psymLeftAttrs);
+	GPOS_ASSERT(nullptr != psymRightAttrs);
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
+	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
+	if ((nullptr != pexprLeft && !pexprLeft->Matches(pexpr)) ||
+		(nullptr != pexprRight && !pexprRight->Matches(pexpr)))
+	{
+		return false;
+	}
+	if (nullptr == pexprLeft)
+	{
+		pexpr->AddRef();
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmJoinPred->Insert(
+			const_cast<CDSLSymbol *>(psymLeftAttrs), pexpr);
+		GPOS_ASSERT(fInserted);
+	}
+	if (psymRightAttrs != psymLeftAttrs && nullptr == pexprRight)
+	{
+		pexpr->AddRef();
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmJoinPred->Insert(
+			const_cast<CDSLSymbol *>(psymRightAttrs), pexpr);
+		GPOS_ASSERT(fInserted);
+	}
+	return true;
+}
+
+CExpression *
+CDSLModel::PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
+						 const CDSLSymbol *psymRightAttrs) const
+{
+	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
+	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
+	return nullptr != pexprLeft && nullptr != pexprRight &&
+			   pexprLeft->Matches(pexprRight)
+		   ? pexprLeft
+		   : nullptr;
 }
 
 //---------------------------------------------------------------------------

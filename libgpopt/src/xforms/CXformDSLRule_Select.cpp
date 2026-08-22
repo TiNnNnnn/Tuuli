@@ -105,8 +105,8 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		// phases creates competing alternatives for one memo group. When native
 		// unnesting is available, defer every such operator to its Apply shell;
 		// when it is disabled, retain the Select path so DSL can replace unnesting.
-		// This policy is based solely on operator representation capability and is
-		// independent of rule depth or a particular source/target fragment.
+		// Representation adapters that cross EXISTS/IN forms are also registered in
+		// the corresponding Apply bucket by CDSLRuleEngine::BucketByRoot.
 		if (GPOPT_FENABLED_XFORM(CXform::ExfSelect2Apply) &&
 			CDSLOpKindTable::FHasPreUnnestRepresentation(
 				popSrcRoot->Edslop()))

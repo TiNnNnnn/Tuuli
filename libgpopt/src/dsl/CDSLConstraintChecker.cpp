@@ -225,6 +225,35 @@ FFixedKeyMakesAtMostOneRow(CMemoryPool *mp, CExpression *pexpr,
 	}
 	return false;
 }
+
+BOOL
+FSelectionChainRejectsNull(CMemoryPool *mp, CExpression *pexpr,
+						   const CColRef *pcr)
+{
+	// Only inspect Selects above the bound relation. Descending through an
+	// arbitrary relational child is unsafe: a lower Select may reject NULL, but
+	// a parent outer join can null-extend that same column again.
+	CExpression *pexprCurrent = pexpr;
+	while (COperator::EopLogicalSelect == pexprCurrent->Pop()->Eopid() &&
+		   2 == pexprCurrent->Arity())
+	{
+		CExpression *pexprPred = (*pexprCurrent)[1];
+		if (pexprPred->DeriveUsedColumns()->FMember(pcr))
+		{
+			CColRefSet *pcrs = GPOS_NEW(mp) CColRefSet(mp);
+			pcrs->Include(const_cast<CColRef *>(pcr));
+			BOOL fRejects =
+				CPredicateUtils::FNullRejecting(mp, pexprPred, pcrs);
+			pcrs->Release();
+			if (fRejects)
+			{
+				return true;
+			}
+		}
+		pexprCurrent = (*pexprCurrent)[0];
+	}
+	return false;
+}
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -414,7 +443,15 @@ CDSLConstraintChecker::FCheckNotNull(const CDSLConstraint *pcon,
 	}
 
 	CColRefSet *pcrsNotNull = pexprTable->DeriveNotNullColumns();
-	BOOL fHolds = pcrsNotNull->ContainsAll(pcrsAttrs);
+	BOOL fHolds = true;
+	CColRefArray *pdrgpcrAttrs = pcrsAttrs->Pdrgpcr(m_mp);
+	for (ULONG ul = 0; fHolds && ul < pdrgpcrAttrs->Size(); ul++)
+	{
+		CColRef *pcr = (*pdrgpcrAttrs)[ul];
+		fHolds = pcrsNotNull->FMember(pcr) ||
+				 FSelectionChainRejectsNull(m_mp, pexprTable, pcr);
+	}
+	pdrgpcrAttrs->Release();
 	pcrsAttrs->Release();
 	return fHolds;
 }

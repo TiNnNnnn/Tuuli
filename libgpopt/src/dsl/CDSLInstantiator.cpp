@@ -378,7 +378,15 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
-	CExpression *pexprJoinPred = pmodel->PexprJoinPred();
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return nullptr;
+	}
+	const CDSLSymbol *psymLeft = PsymResolve((*pdrgpsym)[0]);
+	const CDSLSymbol *psymRight = PsymResolve((*pdrgpsym)[1]);
+	CExpression *pexprJoinPred =
+		pmodel->PexprJoinPred(psymLeft, psymRight);
 	if (nullptr == pexprJoinPred)
 	{
 		return nullptr;

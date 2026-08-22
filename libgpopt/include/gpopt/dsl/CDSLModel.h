@@ -75,6 +75,7 @@ private:
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
 	CDSLSymbolToExpressionMap *m_phmProjList;
+	CDSLSymbolToExpressionMap *m_phmJoinPred;
 
 	// Every matched Union/Union* expression, in source-tree traversal order.
 	// The operator owns the ordered output-column array and one ordered input
@@ -105,15 +106,6 @@ private:
 	// global slot would let a later match overwrite an earlier one. Values are
 	// opaque and AddRef'd; they preserve computed-column value subtrees that
 	// attrs/schema bindings alone cannot represent.
-	// the whole join-predicate scalar subtree (child[2]) of a matched
-	// CLogicalInnerJoin / CLogicalLeftOuterJoin. WeTune's Join<a a> models only the
-	// equi-join key columns as attrs symbols, but ORCA's join predicate also carries
-	// non-equi conjuncts (and the exact comparison ops) those symbols do not capture.
-	// So the join matcher (M2) records the whole predicate here (opaque, AddRef'd —
-	// exactly like Proj records its list) and the instantiator AddRef-grafts it onto
-	// the rebuilt join. Owns one ref; NULL until a Join match records it.
-	CExpression *m_pexprJoinPred;
-
 	// set by the Agg matcher when the matched source root is a pure-dedup
 	// CLogicalGbAgg (empty agg list) whose grouping columns form a key — i.e. a
 	// redundant SELECT DISTINCT. The instantiator then drops the GbAgg by wrapping
@@ -227,17 +219,16 @@ public:
 	// join predicate (Join match — M2 produces, instantiator consumes)
 	//------------------------------------------------------------------
 
-	// record the join-predicate subtree (child[2]) of a matched join. Takes
-	// ownership of one ref of pexpr; replaces any previous set.
-	void SetJoinPred(CExpression *pexpr);
+	// Record one source Join predicate under both of that node's attrs symbols.
+	// This keeps nested Join predicates independent while allowing target-side
+	// AttrsEq aliases (including swaps) to find the source predicate.
+	BOOL FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
+					  const CDSLSymbol *psymRightAttrs, CExpression *pexpr);
 
-	// the join-predicate subtree recorded by the join matcher; NULL if no join was
-	// matched. Does NOT transfer ownership.
-	CExpression *
-	PexprJoinPred() const
-	{
-		return m_pexprJoinPred;
-	}
+	// Return the predicate shared by a resolved attrs pair, or NULL if the pair
+	// did not come from one matched source Join. Does not AddRef.
+	CExpression *PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
+						   const CDSLSymbol *psymRightAttrs) const;
 
 	//------------------------------------------------------------------
 	// dedup drop (Agg match — Agg matcher produces, instantiator consumes)

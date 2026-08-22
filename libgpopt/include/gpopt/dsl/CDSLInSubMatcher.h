@@ -41,6 +41,15 @@ private:
 	// Caller owns the returned expression.
 	CExpression *PexprComparison(CExpression *pexprAny) const;
 
+	// ORCA can retain a correlated EXISTS whose inner predicate is a single
+	// cross-relation equality, while WeTune canonicalizes the same SQL to
+	// InSubFilter. Match that representation without depending on the native
+	// subquery-to-Apply xforms. The adapter materializes the equality's implied
+	// NOT NULL filters on both inputs, so eliminating the InSub cannot lose SQL's
+	// NULL filtering semantics.
+	BOOL FMatchCorrelatedExists(const CDSLOp *pop, CExpression *pexpr,
+							 CDSLModel *pmodel) const;
+
 public:
 	CDSLInSubMatcher(const CDSLInSubMatcher &) = delete;
 

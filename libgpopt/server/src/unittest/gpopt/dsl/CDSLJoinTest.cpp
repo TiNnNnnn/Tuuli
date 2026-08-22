@@ -42,6 +42,12 @@ using namespace gpopt;
 	"TableEq(t4,t0);TableEq(t5,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);" \
 	"Reference(t0,a0,t1,a1)"
 
+#define GPOPT_DSL_NESTED_JOIN_IDENTITY_RULE                              \
+	"InnerJoin<a0 a1>(InnerJoin<a2 a3>(Input<t0>,Input<t1>),Input<t2>)|" \
+	"InnerJoin<a4 a5>(InnerJoin<a6 a7>(Input<t3>,Input<t4>),Input<t5>)|" \
+	"TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);"                       \
+	"AttrsEq(a4,a0);AttrsEq(a5,a1);AttrsEq(a6,a2);AttrsEq(a7,a3)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -81,6 +87,8 @@ CDSLJoinTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NonEquiPredicateResidual),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NoFireOnWrongRoot),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK),
@@ -130,7 +138,7 @@ CDSLJoinTest::EresUnittest_MatchBindsJoinKeys()
 		CColRefArray *pdrgpcrR = pmodel->PdrgpcrAttrs(psymRight);
 		if (nullptr == pdrgpcrL || 1 != pdrgpcrL->Size() ||
 			nullptr == pdrgpcrR || 1 != pdrgpcrR->Size() ||
-			nullptr == pmodel->PexprJoinPred())
+			nullptr == pmodel->PexprJoinPred(psymLeft, psymRight))
 		{
 			eres = GPOS_FAILED;
 		}
@@ -206,6 +214,61 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 	return eres;
 }
 
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_NESTED_JOIN_IDENTITY_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcr0 = nullptr;
+	CColRefArray *pdrgpcr1 = nullptr;
+	CColRefArray *pdrgpcr2 = nullptr;
+	CExpression *pexpr0 = fix.PexprLogicalGet("nested_t0", 2, &pdrgpcr0);
+	CExpression *pexpr1 = fix.PexprLogicalGet("nested_t1", 2, &pdrgpcr1);
+	CExpression *pexpr2 = fix.PexprLogicalGet("nested_t2", 2, &pdrgpcr2);
+	CExpression *pexprInnerPred =
+		fix.PexprEqPred((*pdrgpcr0)[0], (*pdrgpcr1)[0]);
+	CExpression *pexprInner =
+		fix.PexprLogicalInnerJoin(pexpr0, pexpr1, pexprInnerPred);
+	CExpression *pexprOuterPred =
+		fix.PexprEqPred((*pdrgpcr0)[1], (*pdrgpcr2)[1]);
+	CExpression *pexprSource =
+		fix.PexprLogicalInnerJoin(pexprInner, pexpr2, pexprOuterPred);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				(*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT((*pexprTarget)[2]->Matches(pexprOuterPred));
+	GPOS_ASSERT((*(*pexprTarget)[0])[2]->Matches(pexprInnerPred));
+	GPOS_ASSERT(!pexprOuterPred->Matches(pexprInnerPred));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	pexprSource->Release();
+	pexprOuterPred->Release();
+	pexprInner->Release();
+	pexprInnerPred->Release();
+	pexpr0->Release();
+	pexpr1->Release();
+	pexpr2->Release();
+	prule->Release();
+	return GPOS_OK;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLJoinTest::EresUnittest_NonEquiPredicateResidual
@@ -258,12 +321,11 @@ CDSLJoinTest::EresUnittest_NonEquiPredicateResidual()
 	}
 	else
 	{
-		// one equi key each side, and the non-equi atom recorded as residual.
+		// One equi key each side; the complete node-local predicate retains the
+		// non-equi atom.
 		CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->PopRoot()->Pdrgpsym();
 		CColRefArray *pdrgpcrL = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
-		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
-		if (nullptr == pdrgpcrL || 1 != pdrgpcrL->Size() ||
-			nullptr == pdrgpexprResidual || 1 != pdrgpexprResidual->Size())
+		if (nullptr == pdrgpcrL || 1 != pdrgpcrL->Size())
 		{
 			eres = GPOS_FAILED;
 		}
@@ -272,6 +334,7 @@ CDSLJoinTest::EresUnittest_NonEquiPredicateResidual()
 			CDSLInstantiator inst(mp);
 			pexprTgt = inst.PexprInstantiate(prule, pmodel);
 			if (nullptr == pexprTgt ||
+				!(*pexprTgt)[2]->Matches((*pexprJoin)[2]) ||
 				!pexprJoin->DeriveOutputColumns()->Equals(
 					pexprTgt->DeriveOutputColumns()))
 			{

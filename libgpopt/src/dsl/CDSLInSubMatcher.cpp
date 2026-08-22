@@ -11,9 +11,12 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 
 #include <vector>
 
@@ -28,6 +31,56 @@ FPlainEqAny(CExpression *pexpr)
 		   2 == pexpr->Arity() &&
 		   IMDType::EcmptEq == CUtils::ParseCmpType(
 				CScalarSubqueryAny::PopConvert(pexpr->Pop())->MdIdOp());
+}
+
+BOOL
+FDirectExistsConjunct(CExpression *pexpr)
+{
+	return COperator::EopScalarSubqueryExists == pexpr->Pop()->Eopid() &&
+		   1 == pexpr->Arity();
+}
+
+BOOL
+FPredicateRejectsNull(CMemoryPool *mp, CExpressionArray *pdrgpexpr,
+					  CColRef *pcr)
+{
+	CColRefSet *pcrs = GPOS_NEW(mp) CColRefSet(mp);
+	pcrs->Include(pcr);
+	BOOL fRejects = false;
+	for (ULONG ul = 0; ul < pdrgpexpr->Size() && !fRejects; ul++)
+	{
+		CExpression *pexprPred = (*pdrgpexpr)[ul];
+		fRejects = pexprPred->DeriveUsedColumns()->FMember(pcr) &&
+				   CPredicateUtils::FNullRejecting(mp, pexprPred, pcrs);
+	}
+	pcrs->Release();
+	return fRejects;
+}
+
+// Build Select(rel, conjunction) and consume the conjunct array. A synthesized
+// IS NOT NULL predicate is added only when the existing predicates do not
+// already reject NULL for pcrRequiredNotNull.
+CExpression *
+PexprSelectWithNotNull(CMemoryPool *mp, CExpression *pexprRel,
+					   CExpressionArray *pdrgpexprConj,
+					   CColRef *pcrRequiredNotNull)
+{
+	if (!pexprRel->DeriveNotNullColumns()->FMember(pcrRequiredNotNull) &&
+		!FPredicateRejectsNull(mp, pdrgpexprConj, pcrRequiredNotNull))
+	{
+		pdrgpexprConj->Append(CUtils::PexprIsNotNull(
+			mp, CUtils::PexprScalarIdent(mp, pcrRequiredNotNull)));
+	}
+	if (0 == pdrgpexprConj->Size())
+	{
+		pdrgpexprConj->Release();
+		pexprRel->AddRef();
+		return pexprRel;
+	}
+	pexprRel->AddRef();
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprRel,
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj));
 }
 }  // namespace
 
@@ -93,6 +146,146 @@ CDSLInSubMatcher::PexprComparison(CExpression *pexprAny) const
 }
 
 BOOL
+CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
+							  CExpression *pexpr,
+							  CDSLModel *pmodel) const
+{
+	CExpressionArray *pdrgpexprOuterConj =
+		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
+	CExpression *pexprExists = nullptr;
+	ULONG ulExists = 0;
+	for (ULONG ul = 0; ul < pdrgpexprOuterConj->Size(); ul++)
+	{
+		if (FDirectExistsConjunct((*pdrgpexprOuterConj)[ul]))
+		{
+			pexprExists = (*pdrgpexprOuterConj)[ul];
+			ulExists++;
+		}
+	}
+	if (1 != ulExists)
+	{
+		pdrgpexprOuterConj->Release();
+		return false;
+	}
+
+	// EXISTS ignores its SELECT list. ORCA may retain that list as one or more
+	// LogicalProject shells (for example SELECT 1) or fold a pass-through list
+	// away entirely. WeTune's EXISTS-to-InSub canonicalization projects the
+	// correlation key instead, so peel these semantically irrelevant shells and
+	// recover the correlated Select below them.
+	CExpression *pexprInnerSelect = (*pexprExists)[0];
+	while (COperator::EopLogicalProject ==
+			   pexprInnerSelect->Pop()->Eopid() &&
+		   2 == pexprInnerSelect->Arity())
+	{
+		pexprInnerSelect = (*pexprInnerSelect)[0];
+	}
+	if (COperator::EopLogicalSelect !=
+			pexprInnerSelect->Pop()->Eopid() ||
+		2 != pexprInnerSelect->Arity())
+	{
+		pdrgpexprOuterConj->Release();
+		return false;
+	}
+
+	CExpression *pexprOuterRel = (*pexpr)[0];
+	CExpression *pexprInnerRel = (*pexprInnerSelect)[0];
+	CColRefSet *pcrsOuter = pexprOuterRel->DeriveOutputColumns();
+	CColRefSet *pcrsInner = pexprInnerRel->DeriveOutputColumns();
+	CExpressionArray *pdrgpexprInnerConj =
+		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexprInnerSelect)[1]);
+	CExpression *pexprCorrelation = nullptr;
+	CColRef *pcrOuter = nullptr;
+	CColRef *pcrInner = nullptr;
+	ULONG ulCorrelation = 0;
+	for (ULONG ul = 0; ul < pdrgpexprInnerConj->Size(); ul++)
+	{
+		CExpression *pexprConj = (*pdrgpexprInnerConj)[ul];
+		if (2 != pexprConj->Arity() ||
+			!CPredicateUtils::FPlainEquality(pexprConj) ||
+			COperator::EopScalarIdent != (*pexprConj)[0]->Pop()->Eopid() ||
+			COperator::EopScalarIdent != (*pexprConj)[1]->Pop()->Eopid())
+		{
+			continue;
+		}
+		CColRef *pcr0 = const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexprConj)[0]->Pop())->Pcr());
+		CColRef *pcr1 = const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexprConj)[1]->Pop())->Pcr());
+		if (pcrsOuter->FMember(pcr0) && pcrsInner->FMember(pcr1))
+		{
+			pexprCorrelation = pexprConj;
+			pcrOuter = pcr0;
+			pcrInner = pcr1;
+			ulCorrelation++;
+		}
+		else if (pcrsOuter->FMember(pcr1) && pcrsInner->FMember(pcr0))
+		{
+			pexprCorrelation = pexprConj;
+			pcrOuter = pcr1;
+			pcrInner = pcr0;
+			ulCorrelation++;
+		}
+	}
+	if (1 != ulCorrelation)
+	{
+		pdrgpexprOuterConj->Release();
+		pdrgpexprInnerConj->Release();
+		return false;
+	}
+
+	// Canonical InSub inputs exclude the correlation equality. Preserve every
+	// other predicate and make the equality's NULL rejection explicit on both
+	// sides. These filters become part of the Input bindings, so any target that
+	// removes InSub still retains the necessary SQL semantics.
+	CExpressionArray *pdrgpexprOuterResidual =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	for (ULONG ul = 0; ul < pdrgpexprOuterConj->Size(); ul++)
+	{
+		CExpression *pexprConj = (*pdrgpexprOuterConj)[ul];
+		if (pexprConj != pexprExists)
+		{
+			pexprConj->AddRef();
+			pdrgpexprOuterResidual->Append(pexprConj);
+		}
+	}
+	CExpressionArray *pdrgpexprInnerResidual =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	for (ULONG ul = 0; ul < pdrgpexprInnerConj->Size(); ul++)
+	{
+		CExpression *pexprConj = (*pdrgpexprInnerConj)[ul];
+		if (pexprConj != pexprCorrelation)
+		{
+			pexprConj->AddRef();
+			pdrgpexprInnerResidual->Append(pexprConj);
+		}
+	}
+	CExpression *pexprOuterInput = PexprSelectWithNotNull(
+		m_mp, pexprOuterRel, pdrgpexprOuterResidual, pcrOuter);
+	CExpression *pexprInnerInput = PexprSelectWithNotNull(
+		m_mp, pexprInnerRel, pdrgpexprInnerResidual, pcrInner);
+
+	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrOuter->Append(pcrOuter);
+	BOOL fMatched = pmodel->FBind((*pop->Pdrgpsym())[0], pdrgpcrOuter) &&
+		m_pmatcher->FMatch((*pop)[0], pexprOuterInput, pmodel) &&
+		FMatchInner((*pop)[1], pexprInnerInput, pcrInner, pmodel);
+	pdrgpcrOuter->Release();
+	if (fMatched)
+	{
+		pexprCorrelation->AddRef();
+		fMatched = pmodel->FSetInSubPred((*pop->Pdrgpsym())[0],
+									 pexprCorrelation);
+	}
+
+	pexprOuterInput->Release();
+	pexprInnerInput->Release();
+	pdrgpexprOuterConj->Release();
+	pdrgpexprInnerConj->Release();
+	return fMatched;
+}
+
+BOOL
 CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 						 CDSLModel *pmodel) const
 {
@@ -116,6 +309,19 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		}
 
 		CExpressionArray *pdrgpexprConj =
+			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
+		BOOL fHasDirectExists = false;
+		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+		{
+			fHasDirectExists = fHasDirectExists ||
+							   FDirectExistsConjunct((*pdrgpexprConj)[ul]);
+		}
+		pdrgpexprConj->Release();
+		if (fHasDirectExists)
+		{
+			return FMatchCorrelatedExists(pop, pexpr, pmodel);
+		}
+		pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
 		// WeTune represents chained WHERE ... IN (...) AND ... IN (...) as nested
 		// InSubFilter nodes, while PostgreSQL flattens them into sibling ANY
@@ -203,6 +409,35 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			pmodel->SetInSubResidualConjuncts(pdrgpexprResidual);
 		}
 		pdrgpexprConj->Release();
+		return fMatched;
+	}
+
+	// Post-Apply: LeftSemiApplyIn(outer, inner, equality-predicate).
+	// A correlated EXISTS equality reaches the sibling LeftSemiApply shape after
+	// native unnesting. Recreate its pre-unnest view transiently and feed it to
+	// the same representation adapter, keeping one canonical implementation of
+	// predicate extraction, NULL guards and symbol binding.
+	if (COperator::EopLogicalLeftSemiApply == pexpr->Pop()->Eopid())
+	{
+		if (3 != pexpr->Arity() || !CUtils::FScalarConstTrue((*pexpr)[2]))
+		{
+			return false;
+		}
+		CLogicalApply *popApply = CLogicalApply::PopConvert(pexpr->Pop());
+		if (COperator::EopScalarSubqueryExists != popApply->EopidOriginSubq())
+		{
+			return false;
+		}
+
+		(*pexpr)[1]->AddRef();
+		CExpression *pexprExists = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarSubqueryExists(m_mp), (*pexpr)[1]);
+		(*pexpr)[0]->AddRef();
+		CExpression *pexprSelect = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), (*pexpr)[0],
+			pexprExists);
+		BOOL fMatched = FMatchCorrelatedExists(pop, pexprSelect, pmodel);
+		pexprSelect->Release();
 		return fMatched;
 	}
 

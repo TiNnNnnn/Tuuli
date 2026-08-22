@@ -156,15 +156,15 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		return false;
 	}
 
-	// record residual (non-equi / un-orientable) conjuncts (ownership transferred).
-	pmodel->SetResidualConjuncts(pdrgpexprResidual);
+	// The complete predicate already retains every residual conjunct. Do not put
+	// Join residuals in the Filter-global residual slot: nested joins/filters must
+	// not overwrite or inherit one another's predicates.
+	pdrgpexprResidual->Release();
 
-	// record the whole predicate subtree so the instantiator grafts the exact
-	// equi + non-equi predicate back (AddRef — the model keeps its own ref).
+	// Record by this Join node's attrs pair, so nested joins retain independent
+	// predicates and target-side AttrsEq aliases can find the right one.
 	CExpression *pexprPred = (*pexprJoin)[2];
-	pexprPred->AddRef();
-	pmodel->SetJoinPred(pexprPred);
-	return true;
+	return pmodel->FSetJoinPred(psymLeft, psymRight, pexprPred);
 }
 
 // EOF

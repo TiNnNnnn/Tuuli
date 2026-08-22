@@ -78,12 +78,15 @@ CREATE TABLE dsl_insub_outer(id int PRIMARY KEY, v int NOT NULL);
 CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
 INSERT INTO dsl_insub_outer VALUES (1,10),(2,20),(3,30);
 INSERT INTO dsl_insub_inner VALUES (1),(3);
+CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
+INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 CREATE TABLE dsl_agg_outer(g int, v int);
 CREATE TABLE dsl_exists_inner(x int);
 INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
 INSERT INTO dsl_exists_inner VALUES (5),(20);
 ANALYZE dsl_insub_outer;
 ANALYZE dsl_insub_inner;
+ANALYZE dsl_correlated_exists;
 ANALYZE dsl_agg_outer;
 ANALYZE dsl_exists_inner;
 "
@@ -102,6 +105,16 @@ FROM dsl_insub_outer o
 WHERE id IN (SELECT id FROM dsl_insub_outer i)
   AND v > 10
 ORDER BY id
+"
+
+CORRELATED_EXISTS_QUERY="
+SELECT payload
+FROM dsl_correlated_exists o
+WHERE EXISTS (
+    SELECT 1
+    FROM dsl_correlated_exists i
+    WHERE i.k = o.k)
+ORDER BY payload
 "
 
 AGG_HAVING_QUERY="
@@ -365,6 +378,28 @@ if (( $(count_plan_joins "$OUTPUT_DIR/self-in-on-native-off.plan") != 0 )); then
 fi
 assert_same_rows "self-IN" "$SELF_IN_QUERY" $'2,20\n3,30' off
 
+# WeTune canonicalizes a correlated EXISTS equality to InSubFilter, whereas
+# native ORCA keeps it as EXISTS/LeftSemiApply. The Apply-stage representation
+# adapter must therefore run after native Select2Apply. The
+# nullable row is the semantic guard: dropping EXISTS without retaining the
+# implied IS NOT NULL predicate would incorrectly return payload=20.
+run_explain "$OUTPUT_DIR/correlated-exists-off.plan" off on \
+    "$CORRELATED_EXISTS_QUERY"
+run_explain "$OUTPUT_DIR/correlated-exists-on.plan" on on \
+    "$CORRELATED_EXISTS_QUERY" on
+assert_contains "$OUTPUT_DIR/correlated-exists-off.plan" "Optimizer: pg_orca"
+assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" "Optimizer: pg_orca"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/correlated-exists-on.plan" "CXformDSLRule_Exists"
+assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" \
+    '"rule_id":8,"status":"applied"'
+assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" "IS NULL"
+if (( $(count_plan_joins "$OUTPUT_DIR/correlated-exists-on.plan") != 0 )); then
+    fail "correlated EXISTS DSL rewrite should eliminate the join"
+fi
+assert_same_rows "correlated EXISTS adapter" "$CORRELATED_EXISTS_QUERY" \
+    $'10\n30' on
+
 # Agg/HAVING is an identity-shaped framework probe: the observable plan need
 # not change, so xform trace proves that generic match/check/instantiate ran.
 run_explain "$OUTPUT_DIR/agg-having-off.plan" off on "$AGG_HAVING_QUERY" on
@@ -462,6 +497,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, Agg/HAVING, Agg/HAVING/EXISTS, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"
