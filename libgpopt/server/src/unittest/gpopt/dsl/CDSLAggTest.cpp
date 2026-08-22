@@ -30,6 +30,7 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -115,6 +116,34 @@ BuildRealGbAgg(CDSLTestFixture &fix, CExpression **ppGet,
 	*ppcrAggOut = pcrAggOut;
 }
 
+static void
+BuildDistinctGbAgg(CDSLTestFixture &fix, BOOL fUniqueKey,
+				   CExpression **ppGet, CExpression **ppGbAgg)
+{
+	CMemoryPool *mp = fix.Pmp();
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"t0", 2, &pdrgpcrInput,
+		fUniqueKey ? 0 /*ulKeyCol*/ : gpos::ulong_max);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_distinct_c1");
+	CExpression *pexprGbAgg = fix.PexprLogicalGbAgg(
+		pexprGet, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[1]);
+	pdrgpcrGroup->Release();
+
+	CExpression *pexprPrEl = (*(*pexprGbAgg)[1])[0];
+	CExpression *pexprFunc = (*pexprPrEl)[0];
+	CScalarAggFunc::PopConvert(pexprFunc->Pop())->SetIsDistinct(true);
+	(*pexprFunc)[EaggfuncIndexDistinct]->PdrgPexpr()->Append(
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSortGroupClause(
+					mp, 0 /*tle_sort_group_ref*/, 96 /*eqop*/, 97 /*sortop*/,
+					false /*nulls_first*/, true /*hashable*/)));
+	*ppGet = pexprGet;
+	*ppGbAgg = pexprGbAgg;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLAggTest::EresUnittest
@@ -130,6 +159,10 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_InstantiateDedupToPlainProj),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsNonEmptyAggList),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_InstantiateDistinctAggregateToPlain),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_DistinctAggregateRejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
@@ -592,6 +625,99 @@ CDSLAggTest::EresUnittest_RejectsNonEmptyAggList()
 	if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel))
 	{
 		// a GbAgg that computes an aggregate is not a pure dedup => must not match
+		eres = GPOS_FAILED;
+	}
+
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateDistinctAggregateToPlain()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_DISTINCT_TO_PROJ_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	BuildDistinctGbAgg(fix, true /*fUniqueKey*/, &pexprGet, &pexprGbAgg);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel) ||
+		pmodel->PexprDistinctAgg() != pexprGbAgg ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		CExpression *pexprSourceFunc =
+			(*(*(*pexprGbAgg)[1])[0])[0];
+		CExpression *pexprTargetFunc = nullptr;
+		if (nullptr != pexprTgt &&
+			COperator::EopLogicalGbAgg == pexprTgt->Pop()->Eopid())
+		{
+			pexprTargetFunc = (*(*(*pexprTgt)[1])[0])[0];
+		}
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalGbAgg != pexprTgt->Pop()->Eopid() ||
+			(*pexprTgt)[0] != pexprGet ||
+			nullptr == pexprTargetFunc ||
+			!CScalarAggFunc::PopConvert(pexprSourceFunc->Pop())->IsDistinct() ||
+			CScalarAggFunc::PopConvert(pexprTargetFunc->Pop())->IsDistinct() ||
+			0 != (*pexprTargetFunc)[EaggfuncIndexDistinct]->Arity())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprGet->Release();
+	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_DistinctAggregateRejectsWithoutUnique()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_DISTINCT_TO_PROJ_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprGbAgg = nullptr;
+	BuildDistinctGbAgg(fix, false /*fUniqueKey*/, &pexprGet, &pexprGbAgg);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGbAgg, pmodel) ||
+		checker.FCheck(prule, pmodel))
+	{
 		eres = GPOS_FAILED;
 	}
 

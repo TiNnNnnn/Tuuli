@@ -82,13 +82,16 @@ CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
 INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 CREATE TABLE dsl_agg_outer(g int, v int);
 CREATE TABLE dsl_exists_inner(x int);
+CREATE TABLE dsl_dqa(empno int PRIMARY KEY, deptno int NOT NULL);
 INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
 INSERT INTO dsl_exists_inner VALUES (5),(20);
+INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
 ANALYZE dsl_insub_outer;
 ANALYZE dsl_insub_inner;
 ANALYZE dsl_correlated_exists;
 ANALYZE dsl_agg_outer;
 ANALYZE dsl_exists_inner;
+ANALYZE dsl_dqa;
 "
 
 REPEATED_IN_QUERY="
@@ -135,6 +138,13 @@ HAVING max(v) > 5
        FROM dsl_exists_inner
        WHERE x = max(v))
 ORDER BY g
+"
+
+DQA_QUERY="
+SELECT empno, count(*), count(DISTINCT deptno)
+FROM dsl_dqa
+GROUP BY empno
+ORDER BY empno
 "
 
 UNION_QUERY="
@@ -426,6 +436,21 @@ assert_xform_produced_alternative \
     "$OUTPUT_DIR/agg-exists-on-native-off.plan" "CXformDSLRule_Select"
 assert_same_rows "Agg/HAVING/EXISTS" "$AGG_EXISTS_QUERY" $'1,20' off
 
+# WeTune's inner Proj* for a DISTINCT aggregate is virtual in ORCA: the live
+# GbAgg carries IsDistinct on its scalar aggregate instead. The trace proves
+# that the ordinary Proj* rule produced the flag-cleared alternative; row
+# comparison checks the representation adapter end to end.
+run_explain "$OUTPUT_DIR/dqa-off.plan" off on "$DQA_QUERY" on
+run_explain "$OUTPUT_DIR/dqa-on.plan" on on "$DQA_QUERY" on
+assert_not_contains "$OUTPUT_DIR/dqa-off.plan" "CXformDSLRule_Agg"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/dqa-on.plan" "CXformDSLRule_Agg"
+assert_contains "$OUTPUT_DIR/dqa-on.plan" \
+    "Rule: Proj*<a0 s0>(Input<t0>)"
+assert_contains "$OUTPUT_DIR/dqa-on.plan" '"rule_id":43,"status":"applied"'
+assert_same_rows "DISTINCT aggregate adapter" "$DQA_QUERY" \
+    $'1,1,1\n2,1,1\n3,1,1' on
+
 # Union is symbol-free in the DSL but ORCA carries an ordered output/input
 # column map on the logical operator. The data rule swaps two branches over the
 # same base relation; a non-empty alternative proves the generic shell,
@@ -497,6 +522,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

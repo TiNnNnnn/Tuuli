@@ -36,3 +36,8 @@ SortAsc<a1>(SortAsc<a0>(Input<t0>))|SortAsc<a2>(Input<t1>)|AttrsSub(a0,t0);Attrs
 # ORDER BY + LIMIT/OFFSET is one fused CLogicalLimit. The ordinary MONSOON
 # syntax remains Limit(Sort(Input)); the adapter splits/fuses it at runtime.
 Limit<n0 n1>(SortAsc<a0>(Input<t0>))|Limit<n2 n3>(SortAsc<a1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a1,a0);ScalarEq(n2,n0);ScalarEq(n3,n1)
+
+# WeTune represents DISTINCT aggregate input as Agg(Proj*(Input)); ORCA stores
+# the same fact on CScalarAggFunc. This ordinary rule probes that representation
+# adapter and the Unique gate, without any aggregate-function-specific rule.
+Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)

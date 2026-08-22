@@ -61,9 +61,16 @@ public:
 	// redundant): match succeeds structurally but Unique(t0,a0) gates the check.
 	static GPOS_RESULT EresUnittest_RejectsWithoutUnique();
 
-	// a GbAgg that computes an aggregate function (non-empty agg list) is not a
-	// pure dedup: the Agg matcher rejects it (out of scope for this milestone).
+	// a non-DISTINCT aggregate does not represent WeTune's inner Proj* and must
+	// therefore still be rejected by the dedup matcher.
 	static GPOS_RESULT EresUnittest_RejectsNonEmptyAggList();
+
+	// WeTune's Agg(Proj*) representation matches ORCA's DISTINCT aggregate and
+	// instantiation removes only the aggregate DISTINCT flag.
+	static GPOS_RESULT EresUnittest_InstantiateDistinctAggregateToPlain();
+
+	// The representation adapter remains gated by the rule's Unique constraint.
+	static GPOS_RESULT EresUnittest_DistinctAggregateRejectsWithoutUnique();
 
 	// Bare Agg<a a f s p> binds the five corpus symbols against a real GbAgg.
 	static GPOS_RESULT EresUnittest_MatchBindsRealAgg();

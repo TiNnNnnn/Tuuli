@@ -12,6 +12,7 @@
 #include "gpos/base.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -81,6 +82,101 @@ CDSLAggMatcher::PdrgpcrGrouping(CExpression *pexprAgg) const
 	return pdrgpcr;
 }
 
+BOOL
+CDSLAggMatcher::FMatchDistinctAggDedup(const CDSLOp *popAgg,
+									 CExpression *pexprAgg,
+									 CDSLModel *pmodel) const
+{
+	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	CExpression *pexprAggList = (*pexprAgg)[1];
+	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
+		nullptr != popGbAgg->PdrgpcrMinimal() ||
+		COperator::EopScalarProjectList != pexprAggList->Pop()->Eopid() ||
+		0 == pexprAggList->Arity() || 1 != popAgg->UlChildren())
+	{
+		return false;
+	}
+
+	// WeTune inserts one deduplicated projection below Agg when the query has a
+	// DISTINCT aggregate. One Proj* cannot describe independent DQA domains, so
+	// multiple DQAs are accepted only when they reference the same column set.
+	CColRefSet *pcrsDistinctArgs = nullptr;
+	BOOL fValid = true;
+	for (ULONG ul = 0; ul < pexprAggList->Arity() && fValid; ul++)
+	{
+		CExpression *pexprPrEl = (*pexprAggList)[ul];
+		if (COperator::EopScalarProjectElement != pexprPrEl->Pop()->Eopid() ||
+			1 != pexprPrEl->Arity() ||
+			COperator::EopScalarAggFunc != (*pexprPrEl)[0]->Pop()->Eopid())
+		{
+			fValid = false;
+			break;
+		}
+		CExpression *pexprFunc = (*pexprPrEl)[0];
+		CScalarAggFunc *popFunc =
+			CScalarAggFunc::PopConvert(pexprFunc->Pop());
+		if (!popFunc->IsDistinct())
+		{
+			continue;
+		}
+
+		CColRefSet *pcrsUsed = pexprFunc->DeriveUsedColumns();
+		if (nullptr == pcrsDistinctArgs)
+		{
+			pcrsDistinctArgs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+			pcrsDistinctArgs->Include(pcrsUsed);
+		}
+		else if (!pcrsDistinctArgs->Equals(pcrsUsed))
+		{
+			fValid = false;
+		}
+	}
+	if (!fValid || nullptr == pcrsDistinctArgs)
+	{
+		CRefCount::SafeRelease(pcrsDistinctArgs);
+		return false;
+	}
+
+	// The virtual Proj* key is (grouping columns, DISTINCT arguments), exactly
+	// the tuple domain deduplicated within each group. The rule's ordinary
+	// Unique(t,a) constraint remains responsible for proving redundancy.
+	CColRefArray *pdrgpcrAttrs = PdrgpcrGrouping(pexprAgg);
+	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAttrs->Include(pdrgpcrAttrs);
+	CColRefSetIter crsi(*pcrsDistinctArgs);
+	while (crsi.Advance())
+	{
+		CColRef *pcr = crsi.Pcr();
+		if (!pcrsAttrs->FMember(pcr))
+		{
+			pdrgpcrAttrs->Append(pcr);
+			pcrsAttrs->Include(pcr);
+		}
+	}
+	pcrsAttrs->Release();
+	pcrsDistinctArgs->Release();
+
+	CColRefSet *pcrsVirtual = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsVirtual->Include(pdrgpcrAttrs);
+	BOOL fAttrsValid = 0 < pdrgpcrAttrs->Size() &&
+					   (*pexprAgg)[0]->DeriveOutputColumns()->ContainsAll(
+						   pcrsVirtual);
+	pcrsVirtual->Release();
+	CDSLSymbolArray *pdrgpsym = popAgg->Pdrgpsym();
+	if (!fAttrsValid || nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		pdrgpcrAttrs->Release();
+		return false;
+	}
+
+	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrAttrs) &&
+				  pmodel->FBind((*pdrgpsym)[1], pdrgpcrAttrs);
+	pdrgpcrAttrs->Release();
+	return fBound &&
+		   m_pmatcher->FMatch((*popAgg)[0], (*pexprAgg)[0], pmodel) &&
+		   pmodel->FSetDistinctAgg(pexprAgg);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLAggMatcher::FMatch
@@ -95,7 +191,7 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 	// handled separately by FMatchAggregate.
 	if (0 != (*pexprAgg)[1]->Arity())
 	{
-		return false;
+		return FMatchDistinctAggDedup(popAgg, pexprAgg, pmodel);
 	}
 
 	// fire only on the ORIGINAL user-level global dedup, exactly like native

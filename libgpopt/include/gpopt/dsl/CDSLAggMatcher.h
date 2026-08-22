@@ -76,6 +76,12 @@ private:
 	BOOL FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 					 CDSLModel *pmodel) const;
 
+	// WeTune represents DISTINCT aggregate inputs as an inner Proj*. ORCA keeps
+	// the same deduplication as CScalarAggFunc::IsDistinct on the outer GbAgg.
+	BOOL FMatchDistinctAggDedup(const CDSLOp *popAgg,
+							 CExpression *pexprAgg,
+							 CDSLModel *pmodel) const;
+
 	// Agg<a a f s p> / Agg<a a a f s p>: bind group-by inputs, aggregate
 	// inputs, optional explicit aggregate outputs, aggregate expressions, output
 	// schema, and the implicit TRUE HAVING predicate, then recurse.

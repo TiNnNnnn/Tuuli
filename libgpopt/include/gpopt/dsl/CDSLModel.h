@@ -113,6 +113,11 @@ private:
 	// CXformSimplifyGbAgg::FDropGbAgg. No artifact to own — just a bit.
 	BOOL m_fDedupDrop;
 
+	// Original GbAgg when a Proj* source is matched against WeTune's virtual
+	// dedup projection below a DISTINCT aggregate. The target removes that
+	// virtual Proj*, so instantiation rebuilds this aggregate with DQA flags off.
+	CExpression *m_pexprDistinctAgg;
+
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
@@ -248,6 +253,14 @@ public:
 	FDedupDrop() const
 	{
 		return m_fDedupDrop;
+	}
+
+	BOOL FSetDistinctAgg(CExpression *pexprAgg);
+
+	CExpression *
+	PexprDistinctAgg() const
+	{
+		return m_pexprDistinctAgg;
 	}
 };
 }  // namespace gpopt

@@ -20,7 +20,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	  m_pdrgpexprResidual(nullptr),
 	  m_pdrgpexprExistsResidual(nullptr),
 	  m_pdrgpexprInSubResidual(nullptr),
-	  m_fDedupDrop(false)
+	  m_fDedupDrop(false),
+	  m_pexprDistinctAgg(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
@@ -46,6 +47,7 @@ CDSLModel::~CDSLModel()
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
+	CRefCount::SafeRelease(m_pexprDistinctAgg);
 }
 
 void
@@ -202,6 +204,19 @@ CDSLModel::PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
 			   pexprLeft->Matches(pexprRight)
 		   ? pexprLeft
 		   : nullptr;
+}
+
+BOOL
+CDSLModel::FSetDistinctAgg(CExpression *pexprAgg)
+{
+	GPOS_ASSERT(nullptr != pexprAgg);
+	if (nullptr != m_pexprDistinctAgg)
+	{
+		return m_pexprDistinctAgg == pexprAgg;
+	}
+	pexprAgg->AddRef();
+	m_pexprDistinctAgg = pexprAgg;
+	return true;
 }
 
 //---------------------------------------------------------------------------

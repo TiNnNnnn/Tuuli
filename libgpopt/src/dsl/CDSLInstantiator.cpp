@@ -34,6 +34,7 @@
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarValuesList.h"
 
 using namespace gpopt;
 
@@ -121,6 +122,90 @@ FNullScalarConst(const CExpression *pexpr)
 {
 	return nullptr != pexpr && COperator::EopScalarConst == pexpr->Pop()->Eopid() &&
 		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
+}
+
+// Rebuild a matched GbAgg while removing only aggregate DISTINCT semantics.
+// The relational child, grouping metadata, output columns, ordinary/direct
+// arguments and ORDER BY metadata are preserved; the DISTINCT flag and its
+// sort-group metadata are cleared on freshly built aggregate operators.
+CExpression *
+PexprWithoutDistinctAgg(CMemoryPool *mp, CExpression *pexprAgg)
+{
+	GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid());
+	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	CExpression *pexprOldList = (*pexprAgg)[1];
+	CExpressionArray *pdrgpexprNewElems =
+		GPOS_NEW(mp) CExpressionArray(mp);
+
+	for (ULONG ul = 0; ul < pexprOldList->Arity(); ul++)
+	{
+		CExpression *pexprOldElem = (*pexprOldList)[ul];
+		CExpression *pexprOldFunc = (*pexprOldElem)[0];
+		CScalarAggFunc *popOldFunc =
+			CScalarAggFunc::PopConvert(pexprOldFunc->Pop());
+		if (!popOldFunc->IsDistinct())
+		{
+			pexprOldElem->AddRef();
+			pdrgpexprNewElems->Append(pexprOldElem);
+			continue;
+		}
+
+		popOldFunc->MDId()->AddRef();
+		popOldFunc->GetArgTypes()->AddRef();
+		IMDId *pmdidResolved = nullptr;
+		if (popOldFunc->FHasAmbiguousReturnType())
+		{
+			pmdidResolved = popOldFunc->MdidType();
+			pmdidResolved->AddRef();
+		}
+		CScalarAggFunc *popNewFunc = CUtils::PopAggFunc(
+			mp, popOldFunc->MDId(),
+			GPOS_NEW(mp)
+				CWStringConst(mp, popOldFunc->PstrAggFunc()->GetBuffer()),
+			false /*is_distinct*/, popOldFunc->Eaggfuncstage(),
+			popOldFunc->FSplit(), pmdidResolved, popOldFunc->AggKind(),
+			popOldFunc->GetArgTypes(), popOldFunc->FRepSafe(),
+			popOldFunc->IsAggStar());
+		CExpressionArray *pdrgpexprArgs = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG ulArg = 0; ulArg < pexprOldFunc->Arity(); ulArg++)
+		{
+			if (EaggfuncIndexDistinct == ulArg)
+			{
+				pdrgpexprArgs->Append(GPOS_NEW(mp) CExpression(
+					mp, GPOS_NEW(mp) CScalarValuesList(mp),
+					GPOS_NEW(mp) CExpressionArray(mp)));
+				continue;
+			}
+			CExpression *pexprArg = (*pexprOldFunc)[ulArg];
+			pexprArg->AddRef();
+			pdrgpexprArgs->Append(pexprArg);
+		}
+		CExpression *pexprNewFunc =
+			GPOS_NEW(mp) CExpression(mp, popNewFunc, pdrgpexprArgs);
+		pexprOldElem->Pop()->AddRef();
+		pdrgpexprNewElems->Append(GPOS_NEW(mp) CExpression(
+			mp, pexprOldElem->Pop(), pexprNewFunc));
+	}
+
+	CExpression *pexprNewList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprNewElems);
+	// The adapter only matches the original user-level global aggregate. Keep
+	// its constructor form and stage: passing a null minimal-group array to the
+	// split-aggregate overload would silently turn it into the full group set.
+	GPOS_ASSERT(nullptr == popGbAgg->PdrgpcrMinimal());
+	popGbAgg->Pdrgpcr()->AddRef();
+	CColRefArray *pdrgpcrArgDQA = popGbAgg->PdrgpcrArgDQA();
+	if (nullptr != pdrgpcrArgDQA)
+	{
+		pdrgpcrArgDQA->AddRef();
+	}
+	CLogicalGbAgg *popNewAgg = GPOS_NEW(mp) CLogicalGbAgg(
+		mp, popGbAgg->Pdrgpcr(), popGbAgg->Egbaggtype(),
+		popGbAgg->FGeneratesDuplicates(), pdrgpcrArgDQA,
+		popGbAgg->AggStage());
+	(*pexprAgg)[0]->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, popNewAgg, (*pexprAgg)[0],
+									pexprNewList);
 }
 
 // A set-op's output identities are anchored to its first input. Reordering
@@ -1233,7 +1318,34 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	GPOS_ASSERT(nullptr != pmodel);
 
 	BuildAliasMap(prule);
-	CExpression *pexprTgt = PexprBuild(prule->PfragTgt()->PopRoot(), pmodel);
+	const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
+	const CDSLOp *popTgtRoot = prule->PfragTgt()->PopRoot();
+	const BOOL fVirtualDqaSource =
+		EdslopProj == popSrcRoot->Edslop() && popSrcRoot->FDistinct() &&
+		1 == popSrcRoot->UlChildren() &&
+		EdslopInput == (*popSrcRoot)[0]->Edslop();
+	const BOOL fVirtualDqaTarget =
+		EdslopInput == popTgtRoot->Edslop() ||
+		(EdslopProj == popTgtRoot->Edslop() && !popTgtRoot->FDistinct() &&
+		 1 == popTgtRoot->UlChildren() &&
+		 EdslopInput == (*popTgtRoot)[0]->Edslop());
+	CExpression *pexprTgt = nullptr;
+	if (nullptr != pmodel->PexprDistinctAgg())
+	{
+		// A DQA GbAgg is the ORCA representation of the *outer* WeTune
+		// Agg(Proj*) pair. Only a rule replacing that virtual source root can be
+		// reconstructed without inventing or discarding the surrounding Agg.
+		if (!fVirtualDqaSource || !fVirtualDqaTarget)
+		{
+			return nullptr;
+		}
+		pexprTgt = PexprWithoutDistinctAgg(
+			m_mp, pmodel->PexprDistinctAgg());
+	}
+	else
+	{
+		pexprTgt = PexprBuild(popTgtRoot, pmodel);
+	}
 
 	// EXISTS/IN are represented before decorrelation as one conjunct of a
 	// CLogicalSelect. Their matchers retain every sibling conjunct. When the
@@ -1241,8 +1353,8 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	// those residuals at the corresponding structural position. An eliminating
 	// rule (for example InSubFilter(...) -> Input<...>) has no target-side
 	// builder at which to do that, so restore the source Select shell here.
-	const EDslOpKind edslopSrc = prule->PfragSrc()->PopRoot()->Edslop();
-	const EDslOpKind edslopTgt = prule->PfragTgt()->PopRoot()->Edslop();
+	const EDslOpKind edslopSrc = popSrcRoot->Edslop();
+	const EDslOpKind edslopTgt = popTgtRoot->Edslop();
 	CExpressionArray *pdrgpexprResidual = nullptr;
 	if (EdslopExists == edslopSrc && EdslopExists != edslopTgt)
 	{
