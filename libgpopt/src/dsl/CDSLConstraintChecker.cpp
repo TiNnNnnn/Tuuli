@@ -24,6 +24,7 @@
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/metadata/CTableDescriptor.h"
 #include "gpopt/operators/CExpression.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -596,6 +597,69 @@ PexprOwningGetForAttrs(const CDSLSymbol *psymTable,
 	return pexprOwner;
 }
 
+// Prove that the referred subtree still contains every value vector of the
+// bound base columns.  A pass-through Project and a grouping aggregate that
+// groups on all referenced columns preserve that coverage; Select/HAVING,
+// joins and other row-reducing operators do not.  This is the missing lineage
+// distinction between an unfiltered SELECT DISTINCT key domain and an
+// arbitrary derived relation over the same base Get.
+static BOOL
+FReferredSubtreeCoversAttrs(CExpression *pexpr, CExpression *pexprOwner,
+							const CColRefArray *pdrgpcrAttrs)
+{
+	if (nullptr == pexpr || nullptr == pexprOwner || nullptr == pdrgpcrAttrs)
+	{
+		return false;
+	}
+
+	if (pexpr == pexprOwner)
+	{
+		return COperator::EopLogicalGet == pexpr->Pop()->Eopid() &&
+			   !CLogicalGet::PopConvert(pexpr->Pop())->HasSecurityQuals();
+	}
+
+	for (ULONG ul = 0; ul < pdrgpcrAttrs->Size(); ul++)
+	{
+		if (!pexpr->DeriveOutputColumns()->FMember((*pdrgpcrAttrs)[ul]))
+		{
+			return false;
+		}
+	}
+
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopLogicalProject:
+			return 0 < pexpr->Arity() &&
+				   FReferredSubtreeCoversAttrs((*pexpr)[0], pexprOwner,
+									   pdrgpcrAttrs);
+
+		case COperator::EopLogicalGbAgg:
+		{
+			CColRefArray *pdrgpcrGroup =
+				CLogicalGbAgg::PopConvert(pexpr->Pop())->Pdrgpcr();
+			for (ULONG ul = 0; ul < pdrgpcrAttrs->Size(); ul++)
+			{
+				BOOL fGrouped = false;
+				for (ULONG ulGroup = 0;
+					 ulGroup < pdrgpcrGroup->Size() && !fGrouped; ulGroup++)
+				{
+					fGrouped = ((*pdrgpcrAttrs)[ul] == (*pdrgpcrGroup)[ulGroup]);
+				}
+				if (!fGrouped)
+				{
+					return false;
+				}
+			}
+			return 0 < pexpr->Arity() &&
+				   FReferredSubtreeCoversAttrs((*pexpr)[0], pexprOwner,
+									   pdrgpcrAttrs);
+		}
+
+		default:
+			return false;
+	}
+}
+
 BOOL
 CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 									   const CDSLModel *pmodel) const
@@ -642,27 +706,26 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 	}
 
 	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
+	CExpression *pexprReferred = pmodel->PexprTable(psymTab1);
+	CColRefArray *pdrgpcrReferred = pmodel->PdrgpcrAttrs(psymAttr1);
+	const BOOL fReferredCovers = FReferredSubtreeCoversAttrs(
+		pexprReferred, pexprGet1, pdrgpcrReferred);
 
 	// Inclusion in the same unfiltered base relation is true without an
-	// explicit FK: every value vector produced by the referring subtree occurs
-	// in that base relation itself.  Keep the referred side deliberately strict.
-	// A Select, security qualification, join or other wrapper may remove rows and
-	// therefore cannot use this shortcut.  The normal FK path below remains
-	// available for different relations.
-	CExpression *pexprReferred = pmodel->PexprTable(psymTab1);
+	// explicit FK: every value vector produced by the referring subtree occurs in
+	// the complete key domain on the referred side. The same coverage proof is
+	// also required for a declared FK: an FK into a filtered derived relation is
+	// not an inclusion dependency at the point where the rule is applied.
 	BOOL fHolds = pmdidRel0->Equals(pmdidRel1) &&
 				  FSameAttnoSequence(paisLocal, paisRef) &&
-				  pexprReferred == pexprGet1 &&
-				  COperator::EopLogicalGet == pexprReferred->Pop()->Eopid() &&
-				  !CLogicalGet::PopConvert(pexprReferred->Pop())
-					   ->HasSecurityQuals();
+				  fReferredCovers;
 	// RetrieveRel raises ExmiMDCacheEntryNotFound when the relation isn't cached
 	// (e.g. the synthetic programmatic-test fixture registers only scalar types).
 	// A best-effort FK check must never abort optimization, so swallow that one
 	// exception and treat it as "cannot confirm the FK" => reject.
 	GPOS_TRY
 	{
-		if (!fHolds)
+		if (!fHolds && fReferredCovers)
 		{
 			const IMDRelation *prel = pmda->RetrieveRel(pmdidRel0);
 			const ULONG ulFK = prel->ForeignKeyCount();

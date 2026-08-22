@@ -3515,8 +3515,21 @@ CExpressionPreprocessor::PexprPreprocess(
 	GPOS_CHECK_ABORT;
 	pexprCollapsed->Release();
 
-	// eliminate empty subtrees
-	CExpression *pexprPruned = PexprPruneEmptySubtrees(mp, pexprWithPreds);
+	// Empty-subtree pruning irreversibly replaces the complete logical shape by
+	// a ConstTableGet before Cascades. When a DSL library is loaded, retain that
+	// shape so data rules can inspect contradictory Filters and empty Join inputs
+	// first. This is library-capability based rather than rule/SQL-specific, and
+	// applies equally with DSL application OFF and ON.
+	CExpression *pexprPruned = nullptr;
+	if (nullptr != pengineDSL && 0 < pengineDSL->UlRules())
+	{
+		pexprWithPreds->AddRef();
+		pexprPruned = pexprWithPreds;
+	}
+	else
+	{
+		pexprPruned = PexprPruneEmptySubtrees(mp, pexprWithPreds);
+	}
 	GPOS_CHECK_ABORT;
 	pexprWithPreds->Release();
 

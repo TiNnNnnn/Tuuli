@@ -28,7 +28,7 @@ CREATE TABLE emp
     hiredate integer NOT NULL,
     sal integer NOT NULL,
     comm integer NOT NULL,
-    deptno integer REFERENCES dept (deptno),
+    deptno integer NOT NULL REFERENCES dept (deptno),
     slacker integer
 );
 

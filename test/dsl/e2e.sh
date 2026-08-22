@@ -185,6 +185,24 @@ LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
 ORDER BY c.id
 "
 
+EMPTY_FK_LEFT_JOIN_QUERY="
+SELECT c.id, p.id
+FROM (
+    SELECT *
+    FROM dsl_fk_child
+    WHERE FALSE
+) AS c
+LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
+"
+
+RIGHT_REJECTED_FULL_JOIN_QUERY="
+SELECT c.id, p.id
+FROM dsl_fk_parent AS p
+FULL JOIN dsl_fk_child AS c ON p.id = c.parent_id
+WHERE c.id > 0
+ORDER BY c.id
+"
+
 UNUSED_UNIQUE_LEFT_JOIN_QUERY="
 SELECT p.id
 FROM dsl_fk_parent AS p
@@ -214,6 +232,16 @@ FK_INNER_JOIN_QUERY="
 SELECT c.id
 FROM dsl_fk_child AS c
 INNER JOIN dsl_fk_parent AS p ON c.parent_id = p.id
+"
+
+DERIVED_REFERRED_FK_INNER_JOIN_QUERY="
+SELECT c.id
+FROM dsl_fk_child AS c
+INNER JOIN (
+    SELECT parent_id
+    FROM dsl_fk_child
+    GROUP BY parent_id
+) AS covered_keys ON c.parent_id = covered_keys.parent_id
 "
 
 NORMALIZED_DUPLICATE_FILTER_QUERY="
@@ -577,6 +605,38 @@ assert_not_contains "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" \
 assert_same_rows "nullable FK LeftJoin guard" \
     "$NULLABLE_FK_LEFT_JOIN_QUERY" $'1,10\n2,' on
 
+# Empty-subtree pruning must not replace the relational source by a
+# ConstTableGet before the DSL gets a chance to inspect it. The existing
+# LeftJoin rule remains fully guarded by NotNull/Reference; both engines return
+# no rows, while only DSL ON attributes the structural rewrite.
+run_explain "$OUTPUT_DIR/empty-fk-leftjoin-off.plan" off on \
+    "$EMPTY_FK_LEFT_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/empty-fk-leftjoin-on.plan" on on \
+    "$EMPTY_FK_LEFT_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/empty-fk-leftjoin-off.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_contains "$OUTPUT_DIR/empty-fk-leftjoin-on.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_same_rows "empty FK LeftJoin preservation" \
+    "$EMPTY_FK_LEFT_JOIN_QUERY" '' on
+
+# A predicate that null-rejects the right side of FullJoin exposes the
+# equivalent Right-as-outer LeftJoin view inside the DSL Select shell. This
+# tests DSL representation adaptation without changing ORCA's native FullJoin
+# normalizer or the data rule.
+run_explain "$OUTPUT_DIR/right-rejected-fulljoin-off.plan" off on \
+    "$RIGHT_REJECTED_FULL_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" on on \
+    "$RIGHT_REJECTED_FULL_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/right-rejected-fulljoin-off.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_contains "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" "CXformDSLRule_Select"
+assert_same_rows "right-rejected FullJoin adapter" \
+    "$RIGHT_REJECTED_FULL_JOIN_QUERY" $'1,10\n2,10\n3,20' on
+
 # Left-join pruning normally runs before Cascades. Because the loaded DSL
 # library contains LeftJoin source patterns, both OFF and ON retain that shape;
 # only ON may attribute and apply the data rule that removes the unique,
@@ -654,6 +714,23 @@ if (( $(count_plan_joins "$OUTPUT_DIR/fk-innerjoin-on.plan") != 0 )); then
 fi
 assert_same_rows "pass-through Project FK inner-join removal" \
     "$FK_INNER_JOIN_QUERY" $'1\n2\n3' on
+
+# GROUP BY all referenced columns preserves the complete value domain of an
+# unfiltered base relation. Reference follows that lineage through the derived
+# referred side, while the ordinary Project-rooted rule removes the redundant
+# self-domain join.
+run_explain "$OUTPUT_DIR/derived-referred-fk-off.plan" off on \
+    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/derived-referred-fk-on.plan" on on \
+    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/derived-referred-fk-off.plan" \
+    '"rule_id":84,"status":"applied"'
+assert_contains "$OUTPUT_DIR/derived-referred-fk-on.plan" \
+    '"rule_id":84,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/derived-referred-fk-on.plan" "CXformDSLRule_Project"
+assert_same_rows "derived referred FK key domain" \
+    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" $'1\n2\n3' on
 
 # PostgreSQL removes the repeated predicate before ORCA xforms see it. The DSL
 # matcher exposes the equivalent two-Filter source view, while target
@@ -795,6 +872,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, capability-preserved unique LeftJoin removal, pass-through Project FK InnerJoin removal, DISTINCT and ordinary Project join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, chained Proj/Proj*, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived/empty-FK LeftJoin, right-rejected FullJoin adaptation, capability-preserved unique LeftJoin removal, base and derived-domain Project FK InnerJoin removal, DISTINCT and ordinary Project join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, chained Proj/Proj*, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

@@ -123,6 +123,15 @@ CDSLRuleEngine::BucketByRoot()
 					(ULONG) COperator::EopLogicalInnerJoin;
 			}
 		}
+		// A null-rejecting Select over FullJoin is semantically a Select over a
+		// LeftJoin that preserves the rejected side. Keep this representation
+		// adaptation in the DSL shell rather than changing ORCA's native
+		// normalizer; the Select shell constructs and validates the temporary
+		// LeftJoin view before applying any data rule.
+		if (EdslopLeftJoin == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+		}
 
 		for (ULONG ulBucket = 0; ulBucket < ulBuckets; ulBucket++)
 		{

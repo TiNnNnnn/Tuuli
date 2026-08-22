@@ -197,9 +197,33 @@ if(PG_ORCA_BUNDLED_ANTLR4)
     # longer enables policies older than 3.5 unless this floor is explicit.
     set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING
         "Oldest CMake policy version accepted by bundled dependencies")
+
+    # ANTLR 4.8 explicitly selects OLD behavior for several CMake 3.x
+    # policies. CMake 4 removed those OLD implementations, so merely raising
+    # CMAKE_POLICY_VERSION_MINIMUM is insufficient and configuration aborts.
+    # Keep the pinned runtime sources untouched: on CMake 4+, build a private
+    # compatibility copy with the obsolete policy selections changed to NEW.
+    set(_antlr4_build_src "${_antlr4_src}")
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 4.0)
+        set(_antlr4_build_src
+            "${CMAKE_BINARY_DIR}/_deps/antlr4-runtime-cpp-src")
+        file(COPY "${_antlr4_src}/" DESTINATION "${_antlr4_build_src}")
+        file(READ "${_antlr4_build_src}/CMakeLists.txt" _antlr4_cmake)
+        foreach(_policy CMP0042 CMP0045 CMP0054 CMP0059)
+            string(REPLACE
+                "CMAKE_POLICY(SET ${_policy} OLD)"
+                "CMAKE_POLICY(SET ${_policy} NEW)"
+                _antlr4_cmake "${_antlr4_cmake}")
+        endforeach()
+        file(WRITE "${_antlr4_build_src}/CMakeLists.txt" "${_antlr4_cmake}")
+    endif()
+
     set(CMAKE_SKIP_INSTALL_RULES_BACKUP "${CMAKE_SKIP_INSTALL_RULES}")
     set(CMAKE_SKIP_INSTALL_RULES TRUE)
-    add_subdirectory(third_party/antlr4/runtime/Cpp EXCLUDE_FROM_ALL)
+    add_subdirectory(
+        "${_antlr4_build_src}"
+        "${CMAKE_BINARY_DIR}/third_party/antlr4/runtime/Cpp"
+        EXCLUDE_FROM_ALL)
     set(CMAKE_SKIP_INSTALL_RULES "${CMAKE_SKIP_INSTALL_RULES_BACKUP}")
 
     # The static runtime target is "antlr4_static".
@@ -210,7 +234,7 @@ if(PG_ORCA_BUNDLED_ANTLR4)
 
     set(ANTLR4_LIB     antlr4_static)
     # The runtime headers live under runtime/src; expose them to consumers.
-    set(ANTLR4_INCLUDE "${_antlr4_src}/runtime/src")
+    set(ANTLR4_INCLUDE "${_antlr4_build_src}/runtime/src")
     message(STATUS "ANTLR4 C++ runtime: bundled static build")
 else()
     find_package(antlr4-runtime CONFIG REQUIRED)
