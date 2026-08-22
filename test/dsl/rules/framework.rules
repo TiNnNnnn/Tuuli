@@ -41,3 +41,8 @@ Limit<n0 n1>(SortAsc<a0>(Input<t0>))|Limit<n2 n3>(SortAsc<a1>(Input<t1>))|TableE
 # the same fact on CScalarAggFunc. This ordinary rule probes that representation
 # adapter and the Unique gate, without any aggregate-function-specific rule.
 Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)
+
+# A NOT NULL foreign key guarantees that every left row has an inner match.
+# The FK-owning relation may be wrapped by Select/GbAgg; Reference follows the
+# bound key columns to their unique base Get rather than requiring a bare table.
+LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)

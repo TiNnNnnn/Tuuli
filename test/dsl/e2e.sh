@@ -83,15 +83,28 @@ INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 CREATE TABLE dsl_agg_outer(g int, v int);
 CREATE TABLE dsl_exists_inner(x int);
 CREATE TABLE dsl_dqa(empno int PRIMARY KEY, deptno int NOT NULL);
+CREATE TABLE dsl_fk_parent(id int PRIMARY KEY);
+CREATE TABLE dsl_fk_child(
+    id int PRIMARY KEY,
+    parent_id int NOT NULL REFERENCES dsl_fk_parent(id));
+CREATE TABLE dsl_fk_nullable_child(
+    id int PRIMARY KEY,
+    parent_id int REFERENCES dsl_fk_parent(id));
 INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
 INSERT INTO dsl_exists_inner VALUES (5),(20);
 INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
+INSERT INTO dsl_fk_parent VALUES (10),(20);
+INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
+INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);
 ANALYZE dsl_insub_outer;
 ANALYZE dsl_insub_inner;
 ANALYZE dsl_correlated_exists;
 ANALYZE dsl_agg_outer;
 ANALYZE dsl_exists_inner;
 ANALYZE dsl_dqa;
+ANALYZE dsl_fk_parent;
+ANALYZE dsl_fk_child;
+ANALYZE dsl_fk_nullable_child;
 "
 
 REPEATED_IN_QUERY="
@@ -145,6 +158,25 @@ SELECT empno, count(*), count(DISTINCT deptno)
 FROM dsl_dqa
 GROUP BY empno
 ORDER BY empno
+"
+
+DERIVED_FK_LEFT_JOIN_QUERY="
+SELECT c.parent_id, p.id
+FROM (
+    SELECT parent_id
+    FROM dsl_fk_child
+    WHERE id > 0
+    GROUP BY parent_id
+) AS c
+LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
+ORDER BY c.parent_id
+"
+
+NULLABLE_FK_LEFT_JOIN_QUERY="
+SELECT c.id, p.id
+FROM dsl_fk_nullable_child AS c
+LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
+ORDER BY c.id
 "
 
 UNION_QUERY="
@@ -451,6 +483,31 @@ assert_contains "$OUTPUT_DIR/dqa-on.plan" '"rule_id":43,"status":"applied"'
 assert_same_rows "DISTINCT aggregate adapter" "$DQA_QUERY" \
     $'1,1,1\n2,1,1\n3,1,1' on
 
+# Reference must follow a bound join key through GbAgg(Select(Get)) to its
+# unique owning base table. The NOT NULL check remains independent, so nullable
+# foreign keys cannot use this LeftJoin -> InnerJoin rule.
+run_explain "$OUTPUT_DIR/derived-fk-leftjoin-off.plan" off on \
+    "$DERIVED_FK_LEFT_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" on on \
+    "$DERIVED_FK_LEFT_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/derived-fk-leftjoin-off.plan" \
+    "CXformDSLRule_LeftJoin"
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" "CXformDSLRule_LeftJoin"
+assert_contains "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" \
+    "Rule: LeftJoin<a0 a1>(Input<t0>,Input<t1>)"
+assert_contains "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_same_rows "derived FK LeftJoin to InnerJoin" \
+    "$DERIVED_FK_LEFT_JOIN_QUERY" $'10,10\n20,20' on
+
+run_explain "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" on on \
+    "$NULLABLE_FK_LEFT_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" \
+    '"rule_id":48,"status":"applied"'
+assert_same_rows "nullable FK LeftJoin guard" \
+    "$NULLABLE_FK_LEFT_JOIN_QUERY" $'1,10\n2,' on
+
 # Union is symbol-free in the DSL but ORCA carries an ordered output/input
 # column map on the logical operator. The data rule swaps two branches over the
 # same base relation; a non-empty alternative proves the generic shell,
@@ -522,6 +579,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

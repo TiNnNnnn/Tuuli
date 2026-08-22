@@ -524,18 +524,40 @@ FSameAttnoSet(const IntPtrArray *paisFst, const IntPtrArray *paisSnd)
 	return true;
 }
 
-// resolve the relation MDId of the subtree bound to a table symbol; NULL if the
-// subtree is not a plain CLogicalGet (conservative — cannot confirm the FK).
-static IMDId *
-PmdidRelFromTableSym(const CDSLSymbol *psymTable, const CDSLModel *pmodel)
+// Resolve the one base Get that owns every column bound to the attrs symbol.
+// Unary relational wrappers such as Select, pass-through Project and GbAgg
+// retain table CColRefs, so requiring the table symbol itself to be a bare Get
+// unnecessarily rejects valid FK proofs. Computed columns, mixed owners and
+// columns not present below the bound subtree remain conservatively rejected.
+static CExpression *
+PexprOwningGetForAttrs(const CDSLSymbol *psymTable,
+					   const CDSLSymbol *psymAttrs,
+					   const CDSLModel *pmodel)
 {
 	CExpression *pexpr = pmodel->PexprTable(psymTable);
-	if (nullptr == pexpr ||
-		COperator::EopLogicalGet != pexpr->Pop()->Eopid())
+	CColRefArray *pdrgpcr = pmodel->PdrgpcrAttrs(psymAttrs);
+	if (nullptr == pexpr || nullptr == pdrgpcr || 0 == pdrgpcr->Size())
 	{
 		return nullptr;
 	}
-	return CLogicalGet::PopConvert(pexpr->Pop())->Ptabdesc()->MDId();
+
+	CExpression *pexprOwner = nullptr;
+	for (ULONG ul = 0; ul < pdrgpcr->Size(); ul++)
+	{
+		CColRef *pcr = (*pdrgpcr)[ul];
+		if (CColRef::EcrtTable != pcr->Ecrt())
+		{
+			return nullptr;
+		}
+		CExpression *pexprCurrent = PexprOwningGetInSubtree(pexpr, pcr);
+		if (nullptr == pexprCurrent ||
+			(nullptr != pexprOwner && pexprOwner != pexprCurrent))
+		{
+			return nullptr;
+		}
+		pexprOwner = pexprCurrent;
+	}
+	return pexprOwner;
 }
 
 BOOL
@@ -560,12 +582,18 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	IMDId *pmdidRel0 = PmdidRelFromTableSym(psymTab0, pmodel);
-	IMDId *pmdidRel1 = PmdidRelFromTableSym(psymTab1, pmodel);
-	if (nullptr == pmdidRel0 || nullptr == pmdidRel1)
+	CExpression *pexprGet0 =
+		PexprOwningGetForAttrs(psymTab0, psymAttr0, pmodel);
+	CExpression *pexprGet1 =
+		PexprOwningGetForAttrs(psymTab1, psymAttr1, pmodel);
+	if (nullptr == pexprGet0 || nullptr == pexprGet1)
 	{
 		return false;
 	}
+	IMDId *pmdidRel0 =
+		CLogicalGet::PopConvert(pexprGet0->Pop())->Ptabdesc()->MDId();
+	IMDId *pmdidRel1 =
+		CLogicalGet::PopConvert(pexprGet1->Pop())->Ptabdesc()->MDId();
 
 	IntPtrArray *paisLocal = GPOS_NEW(m_mp) IntPtrArray(m_mp);
 	IntPtrArray *paisRef = GPOS_NEW(m_mp) IntPtrArray(m_mp);
