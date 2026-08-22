@@ -40,8 +40,13 @@ public:
 	// conjunct left as residual; attrs symbols bind to the conjunct's columns.
 	static GPOS_RESULT EresUnittest_SubsetMatchWithResidual();
 
-	// too many DSL Filters (2) for the conjuncts (1) — no match, no residual.
-	static GPOS_RESULT EresUnittest_MoreFiltersThanConjunctsFails();
+	// Ambiguous conjunct order must backtrack until source AttrsEq is satisfied;
+	// a failed candidate must not poison the final model bindings.
+	static GPOS_RESULT EresUnittest_ConstraintAwareBacktracking();
+
+	// ORCA normalizes Filter(p,Filter(p,x)) to one conjunct; both placeholders
+	// may bind that same conjunct and it is consumed only once.
+	static GPOS_RESULT EresUnittest_NormalizedDuplicateFilterMatchesOnce();
 };	// class CDSLFilterSplitTest
 }  // namespace gpopt
 

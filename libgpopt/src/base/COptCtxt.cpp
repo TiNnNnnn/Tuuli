@@ -51,7 +51,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_has_master_only_tables(false),
 	  m_has_replicated_tables(false),
 	  m_scanid_to_part_map(nullptr),
-	  m_selector_id_counter(0)
+	  m_selector_id_counter(0),
+	  m_dsl_trace_events(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != col_factory);
@@ -66,6 +67,7 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	m_direct_dispatchable_filters = GPOS_NEW(mp) CExpressionArray(mp);
 	m_scanid_to_part_map = GPOS_NEW(m_mp) UlongToBitSetMap(m_mp);
 	m_part_selector_info = GPOS_NEW(m_mp) SPartSelectorInfo(m_mp);
+	m_dsl_trace_events = GPOS_NEW(m_mp) CBitSet(m_mp);
 }
 
 
@@ -89,6 +91,7 @@ COptCtxt::~COptCtxt()
 	CRefCount::SafeRelease(m_direct_dispatchable_filters);
 	m_scanid_to_part_map->Release();
 	m_part_selector_info->Release();
+	m_dsl_trace_events->Release();
 }
 
 

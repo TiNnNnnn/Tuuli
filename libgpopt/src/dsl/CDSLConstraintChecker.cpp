@@ -304,6 +304,21 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 		return false;
 	}
 
+	// Matching binds only source-fragment symbols. An AttrsSub that describes a
+	// target operator's attrs is a construction-time well-formedness condition,
+	// not a source applicability premise. Defer it just as WeTune's Model does;
+	// operator builders subsequently require the instantiated predicate/attrs to
+	// be produced by the rebuilt child. Missing source symbols remain a hard
+	// matcher error.
+	if (nullptr == pmodel->PvalLookup(psymAttrs))
+	{
+		return EdslsideTarget == psymAttrs->Eside();
+	}
+	if (nullptr == pmodel->PvalLookup(psymSource))
+	{
+		return EdslsideTarget == psymSource->Eside();
+	}
+
 	CColRefSet *pcrsAttrs = PcrsFromAttrsSym(psymAttrs, pmodel);
 	if (nullptr == pcrsAttrs)
 	{
@@ -524,6 +539,27 @@ FSameAttnoSet(const IntPtrArray *paisFst, const IntPtrArray *paisSnd)
 	return true;
 }
 
+// Reference is an inclusion dependency over an ordered column vector.  It is
+// reflexive when both sides name the same base relation and the same attnos in
+// the same order; unlike FK metadata comparison, a mere set equality is not
+// sufficient here because (a,b) and (b,a) need not contain the same tuples.
+static BOOL
+FSameAttnoSequence(const IntPtrArray *paisFst, const IntPtrArray *paisSnd)
+{
+	if (paisFst->Size() != paisSnd->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < paisFst->Size(); ul++)
+	{
+		if (*(*paisFst)[ul] != *(*paisSnd)[ul])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 // Resolve the one base Get that owns every column bound to the attrs symbol.
 // Unary relational wrappers such as Select, pass-through Project and GbAgg
 // retain table CColRefs, so requiring the table symbol itself to be a bare Get
@@ -607,23 +643,38 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 
 	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
 
-	BOOL fHolds = false;
+	// Inclusion in the same unfiltered base relation is true without an
+	// explicit FK: every value vector produced by the referring subtree occurs
+	// in that base relation itself.  Keep the referred side deliberately strict.
+	// A Select, security qualification, join or other wrapper may remove rows and
+	// therefore cannot use this shortcut.  The normal FK path below remains
+	// available for different relations.
+	CExpression *pexprReferred = pmodel->PexprTable(psymTab1);
+	BOOL fHolds = pmdidRel0->Equals(pmdidRel1) &&
+				  FSameAttnoSequence(paisLocal, paisRef) &&
+				  pexprReferred == pexprGet1 &&
+				  COperator::EopLogicalGet == pexprReferred->Pop()->Eopid() &&
+				  !CLogicalGet::PopConvert(pexprReferred->Pop())
+					   ->HasSecurityQuals();
 	// RetrieveRel raises ExmiMDCacheEntryNotFound when the relation isn't cached
 	// (e.g. the synthetic programmatic-test fixture registers only scalar types).
 	// A best-effort FK check must never abort optimization, so swallow that one
 	// exception and treat it as "cannot confirm the FK" => reject.
 	GPOS_TRY
 	{
-		const IMDRelation *prel = pmda->RetrieveRel(pmdidRel0);
-		const ULONG ulFK = prel->ForeignKeyCount();
-		for (ULONG ul = 0; ul < ulFK && !fHolds; ul++)
+		if (!fHolds)
 		{
-			const CMDForeignKey *pfk = prel->ForeignKeyAt(ul);
-			if (pfk->RefMdid()->Equals(pmdidRel1) &&
-				FSameAttnoSet(pfk->LocalAttnos(), paisLocal) &&
-				FSameAttnoSet(pfk->RefAttnos(), paisRef))
+			const IMDRelation *prel = pmda->RetrieveRel(pmdidRel0);
+			const ULONG ulFK = prel->ForeignKeyCount();
+			for (ULONG ul = 0; ul < ulFK && !fHolds; ul++)
 			{
-				fHolds = true;
+				const CMDForeignKey *pfk = prel->ForeignKeyAt(ul);
+				if (pfk->RefMdid()->Equals(pmdidRel1) &&
+					FSameAttnoSet(pfk->LocalAttnos(), paisLocal) &&
+					FSameAttnoSet(pfk->RefAttnos(), paisRef))
+				{
+					fHolds = true;
+				}
 			}
 		}
 	}

@@ -46,3 +46,24 @@ Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);Unique(t0,a0);Tab
 # The FK-owning relation may be wrapped by Select/GbAgg; Reference follows the
 # bound key columns to their unique base Get rather than requiring a bare table.
 LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)
+
+# MONSOON/dataset/rules/6t2n_normal_reduce.txt:21. Inner-join equality makes
+# either key a valid DISTINCT/GROUP BY key. SchemaEq preserves the source-facing
+# column while target attrs select the opposite join-key representative.
+Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0)
+
+# ORCA canonicalizes duplicate predicates before xform exploration. This probe
+# verifies that a two-Filter DSL source can use the normalized single-conjunct
+# view and instantiate its one-Filter target without duplicating residuals.
+Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Filter<p2 a2>(Input<t1>)|AttrsEq(a0,a1);PredicateEq(p0,p1);AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);PredicateEq(p2,p0)
+
+# A single-side Filter is normally pushed below an inner join before ORCA's
+# exploration phase. This ordinary rule verifies the reversible Select(Join)
+# view and target predicate rebinding from the right key to the left key.
+Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a1,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);AttrsSub(a5,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0)
+
+# Reference is an inclusion dependency, so R.a -> R.a holds without explicit
+# FK metadata when the referred binding is the complete base relation. This
+# ordinary rule exercises that constraint while moving a predicate between two
+# equality-equivalent aliases of the same table.
+Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|TableEq(t0,t1);AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0)

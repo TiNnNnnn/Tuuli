@@ -92,6 +92,10 @@ CDSLJoinTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NonEquiPredicateResidual),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NoFireOnWrongRoot),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_ReferenceAcceptsReflexiveBaseColumn),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_ReferenceRejectsFilteredReflexiveTarget),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -431,6 +435,114 @@ CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK()
 	else if (checker.FCheck(prule, pmodel))
 	{
 		// but the Reference constraint must gate the fire (no FK => reject)
+		eres = GPOS_FAILED;
+	}
+
+	pmodel->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprJoin->Release();
+	prule->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLJoinTest::EresUnittest_ReferenceAcceptsReflexiveBaseColumn
+//
+//	@doc:
+//		Two aliases of one base relation satisfy Reference(t0,a0,t1,a1) when
+//		the bound attribute vectors name the same column.  No FK metadata is
+//		needed: inclusion of a relation's column in itself is reflexive.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_ReferenceAcceptsReflexiveBaseColumn()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_JOIN_REFERENCE_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CTableDescriptor *ptabdesc =
+		fix.PtabdescCreate("self_reference", 2, gpos::ulong_max, false);
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet(ptabdesc, "self_reference_left", &pdrgpcrLeft);
+	ptabdesc->AddRef();
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet(ptabdesc, "self_reference_right", &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres =
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) &&
+				checker.FCheck(prule, pmodel)
+			? GPOS_OK
+			: GPOS_FAILED;
+
+	pmodel->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprJoin->Release();
+	prule->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLJoinTest::EresUnittest_ReferenceRejectsFilteredReflexiveTarget
+//
+//	@doc:
+//		The reflexive shortcut must not treat a filtered alias as the complete
+//		referred relation: the filter may have removed a value from the inclusion
+//		dependency's target domain.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_ReferenceRejectsFilteredReflexiveTarget()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_JOIN_REFERENCE_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CTableDescriptor *ptabdesc =
+		fix.PtabdescCreate("filtered_self_reference", 2, gpos::ulong_max, false);
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft = fix.PexprLogicalGet(
+		ptabdesc, "filtered_self_reference_left", &pdrgpcrLeft);
+	ptabdesc->AddRef();
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRightGet = fix.PexprLogicalGet(
+		ptabdesc, "filtered_self_reference_right", &pdrgpcrRight);
+	CExpression *pexprFilterPred = fix.PexprPredAtom((*pdrgpcrRight)[1]);
+	CExpression *pexprRight =
+		fix.PexprLogicalSelect(pexprRightGet, pexprFilterPred);
+	pexprRightGet->Release();
+	pexprFilterPred->Release();
+	CExpression *pexprJoinPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprJoinPred);
+	pexprJoinPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) ||
+		checker.FCheck(prule, pmodel))
+	{
 		eres = GPOS_FAILED;
 	}
 

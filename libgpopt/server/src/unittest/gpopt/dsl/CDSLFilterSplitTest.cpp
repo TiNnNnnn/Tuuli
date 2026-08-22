@@ -74,10 +74,81 @@ CDSLFilterSplitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLFilterSplitTest::EresUnittest_SubsetMatchWithResidual),
 		GPOS_UNITTEST_FUNC(
-			CDSLFilterSplitTest::EresUnittest_MoreFiltersThanConjunctsFails),
+			CDSLFilterSplitTest::EresUnittest_ConstraintAwareBacktracking),
+		GPOS_UNITTEST_FUNC(
+			CDSLFilterSplitTest::
+				EresUnittest_NormalizedDuplicateFilterMatchesOnce),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLFilterSplitTest::EresUnittest_ConstraintAwareBacktracking
+//
+//	@doc:
+//		The first two conjuncts use different columns while the first and third
+//		use the same column. AttrsEq(a0,a1) therefore requires the matcher to
+//		backtrack from the tempting first pair and commit the equal-column pair.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLFilterSplitTest::EresUnittest_ConstraintAwareBacktracking()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Input<t1>|"
+		"AttrsEq(a0,a1);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOut = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("t0", 2, &pdrgpcrOut);
+	CColRef *rgpcr[] = {(*pdrgpcrOut)[0], (*pdrgpcrOut)[1],
+						(*pdrgpcrOut)[0]};
+	CExpression *pexprPred = fix.PexprConjunctionOfAtoms(rgpcr, 3);
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprGet, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLOp *popRoot = prule->PfragSrc()->PopRoot();
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(popRoot, pexprSelect, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLOp *popInner = (*popRoot)[0];
+		CColRefArray *pdrgpcrA0 =
+			pmodel->PdrgpcrAttrs((*popInner->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrA1 =
+			pmodel->PdrgpcrAttrs((*popRoot->Pdrgpsym())[1]);
+		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
+		if (nullptr == pdrgpcrA0 || nullptr == pdrgpcrA1 ||
+			1 != pdrgpcrA0->Size() || 1 != pdrgpcrA1->Size() ||
+			(*pdrgpcrA0)[0] != (*pdrgpcrA1)[0] ||
+			nullptr == pdrgpexprResidual ||
+			1 != pdrgpexprResidual->Size() ||
+			!(*pdrgpexprResidual)[0]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrOut)[1]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	pmodel->Release();
+	pexprGet->Release();
+	pexprSelect->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------
@@ -264,14 +335,15 @@ CDSLFilterSplitTest::EresUnittest_SubsetMatchWithResidual()
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLFilterSplitTest::EresUnittest_MoreFiltersThanConjunctsFails
+//		CDSLFilterSplitTest::EresUnittest_NormalizedDuplicateFilterMatchesOnce
 //
 //	@doc:
-//		2 DSL Filters cannot subset-match a single conjunct — no match, and no
-//		residual recorded (the match aborted before recording).
+//		ORCA removes duplicate AND children before DSL xforms. Two source Filter
+//		variables may therefore bind the same remaining conjunct; it is consumed
+//		once and produces no residual.
 //---------------------------------------------------------------------------
 GPOS_RESULT
-CDSLFilterSplitTest::EresUnittest_MoreFiltersThanConjunctsFails()
+CDSLFilterSplitTest::EresUnittest_NormalizedDuplicateFilterMatchesOnce()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -297,10 +369,23 @@ CDSLFilterSplitTest::EresUnittest_MoreFiltersThanConjunctsFails()
 	CDSLOp *popRoot = prule->PfragSrc()->PopRoot();
 
 	GPOS_RESULT eres = GPOS_OK;
-	if (matcher.FMatch(popRoot, pexprSelect, pmodel) ||
-		nullptr != pmodel->PdrgpexprResidual())
+	if (!matcher.FMatch(popRoot, pexprSelect, pmodel))
 	{
 		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLOp *popInner = (*popRoot)[0];
+		CExpression *pexprP0 =
+			pmodel->PexprPred((*popInner->Pdrgpsym())[0]);
+		CExpression *pexprP1 =
+			pmodel->PexprPred((*popRoot->Pdrgpsym())[0]);
+		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
+		if (nullptr == pexprP0 || pexprP0 != pexprP1 ||
+			nullptr == pdrgpexprResidual || 0 != pdrgpexprResidual->Size())
+		{
+			eres = GPOS_FAILED;
+		}
 	}
 
 	pmodel->Release();

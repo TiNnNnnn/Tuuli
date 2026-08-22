@@ -132,8 +132,22 @@ private:
 	// (required by CDynamicPhysicalScan for recomputing statistics for DPE)
 	SPartSelectorInfo *m_part_selector_info;
 
+	// Compact DSL trace events already emitted in this optimization. The key is
+	// rule_id * 4 + stage, so repeated Cascades attempts do not exhaust the trace
+	// buffer. Verbose tracing bypasses this set.
+	CBitSet *m_dsl_trace_events;
+
 public:
 	COptCtxt(COptCtxt &) = delete;
+
+	// Mark one compact DSL rule/stage event. Returns true only for its first
+	// occurrence in this optimization context.
+	BOOL
+	FMarkDSLTraceEvent(ULONG ulRuleId, ULONG ulStage)
+	{
+		GPOS_ASSERT(ulStage < 4);
+		return !m_dsl_trace_events->ExchangeSet(ulRuleId * 4 + ulStage);
+	}
 
 	// ctor
 	COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,

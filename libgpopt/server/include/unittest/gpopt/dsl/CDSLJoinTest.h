@@ -52,6 +52,11 @@ public:
 	// (FCheckReference cannot confirm the FK => reject). Live FK verification is
 	// exercised at base C (see doc M2 verification §C).
 	static GPOS_RESULT EresUnittest_ReferenceRejectsWithoutFK();
+
+	// Reference(R,a,R,a) is a reflexive inclusion dependency when the referred
+	// binding is the complete base relation, but not when that side is filtered.
+	static GPOS_RESULT EresUnittest_ReferenceAcceptsReflexiveBaseColumn();
+	static GPOS_RESULT EresUnittest_ReferenceRejectsFilteredReflexiveTarget();
 };	// class CDSLJoinTest
 }  // namespace gpopt
 

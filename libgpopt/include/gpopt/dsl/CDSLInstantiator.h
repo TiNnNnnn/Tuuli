@@ -80,6 +80,10 @@ private:
 	// constraints (owned; released in dtor).
 	CDSLSymbolAliasMap *m_phmAlias;
 
+	// Rule currently being instantiated (not owned). Used to associate a target
+	// Filter's predicate template with the attrs vector of its source Filter.
+	const CDSLRule *m_prule;
+
 	// populate m_phmAlias from the rule's equality constraints. An *Eq(x,y) links
 	// x and y; whichever side was declared on the target aliases the other.
 	void BuildAliasMap(const CDSLRule *prule);
@@ -87,6 +91,14 @@ private:
 	// resolve a (possibly target-side) symbol to the source symbol whose binding
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
+
+	// Find the source Filter that owns psymPred, then copy its bound predicate
+	// while remapping source Filter attrs to the target Filter attrs. Returns
+	// NULL when the vectors are incompatible.
+	const CDSLOp *PopSourceFilterForPredicate(
+		const CDSLOp *pop, const CDSLSymbol *psymPred) const;
+	CExpression *PexprBuildFilterPredicate(const CDSLOp *popFilter,
+										 const CDSLModel *pmodel) const;
 
 	// recursively build the target subtree rooted at pop, reading bindings from
 	// pmodel (resolving target symbols through the alias map). Returns NULL if a
@@ -97,7 +109,8 @@ private:
 	CExpression *PexprBuildInput(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
 
-	// Filter<p a>: Select(child, p-conjunct AND residuals).
+	// Flatten a target Filter chain into one Select whose conjunction contains
+	// each target predicate plus matcher residuals exactly once.
 	CExpression *PexprBuildFilter(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const;
 

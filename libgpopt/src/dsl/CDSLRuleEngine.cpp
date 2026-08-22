@@ -18,6 +18,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/base/COptCtxt.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
@@ -71,7 +72,7 @@ CDSLRuleEngine::BucketByRoot()
 	for (ULONG ul = 0; ul < ulRules; ul++)
 	{
 		CDSLRule *prule = (*m_pdrgprule)[ul];
-		ULONG rgulOpid[3] = {(ULONG) prule->EopidSrcRoot(), 0, 0};
+		ULONG rgulOpid[4] = {(ULONG) prule->EopidSrcRoot(), 0, 0, 0};
 		ULONG ulBuckets = 1;
 		// HAVING is Select(GbAgg,predicate) in ORCA, while the DSL source root
 		// remains Agg. Route Agg-rooted rules to both physical expression shapes.
@@ -94,6 +95,24 @@ CDSLRuleEngine::BucketByRoot()
 			// that shell as well; the matcher still performs the full shape check.
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiApply;
+		}
+		// Inner-join predicate pushdown changes Filter(InnerJoin(...)) into
+		// InnerJoin(..., Select(...), ...) before DSL exploration. Route such
+		// rules to the InnerJoin shell as well; CDSLFilterMatcher performs the
+		// full, constraint-guided representation check.
+		if (EdslopFilter == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			const CDSLOp *popBase = prule->PfragSrc()->PopRoot();
+			while (EdslopFilter == popBase->Edslop() &&
+				   1 == popBase->UlChildren())
+			{
+				popBase = (*popBase)[0];
+			}
+			if (EdslopInnerJoin == popBase->Edslop())
+			{
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalInnerJoin;
+			}
 		}
 
 		for (ULONG ulBucket = 0; ulBucket < ulBuckets; ulBucket++)
@@ -214,12 +233,47 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 
 namespace
 {
+enum EDslTraceStage
+{
+	EdsltraceMatchRejected = 0,
+	EdsltraceConstraintRejected,
+	EdsltraceInstantiateRejected,
+	EdsltraceApplied
+};
+
+const CHAR *
+SzDSLTraceStage(EDslTraceStage edsltrace)
+{
+	switch (edsltrace)
+	{
+		case EdsltraceMatchRejected:
+			return "match_rejected";
+		case EdsltraceConstraintRejected:
+			return "constraint_rejected";
+		case EdsltraceInstantiateRejected:
+			return "instantiate_rejected";
+		case EdsltraceApplied:
+			return "applied";
+	}
+	GPOS_ASSERT(!"invalid DSL trace stage");
+	return "invalid";
+}
+
 void
-TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
+TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			 const CDSLRule *prule, const CDSLModel *pmodel,
 			 const CExpression *pexprSrc, const CExpression *pexprTgt)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+
+	const CHAR *szStage = SzDSLTraceStage(edsltrace);
+	const BOOL fVerbose = GPOS_FTRACE(EopttracePrintXformResults);
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	if (!fVerbose && nullptr != poctxt &&
+		!poctxt->FMarkDSLTraceEvent(ulRuleId, (ULONG) edsltrace))
 	{
 		return;
 	}
@@ -236,9 +290,23 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
 	// accidental publication of machine traces less likely to expose rule text.
 	os << "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\","
 		  "\"rule_id\":"
-	   << ulRuleId << ",\"status\":\"" << szStage
-	   << "\",\"binding_count\":" << (nullptr == pmodel ? 0 : pmodel->Size())
-	   << "}" << std::endl;
+	   << ulRuleId << ",\"status\":\"" << szStage << "\"";
+	if (fVerbose)
+	{
+		os << ",\"binding_count\":"
+		   << (nullptr == pmodel ? 0 : pmodel->Size());
+	}
+	os << "}" << std::endl;
+
+	// Rejected candidates can number in the thousands during Cascades
+	// exploration. Their compact record above is sufficient to classify the
+	// failed stage and map back to the source rule by id. Reprinting the full
+	// rule for every rejection can exhaust the trace buffer and truncate a later
+	// JSON record. Keep verbose rule text and generated plans for actual rewrites.
+	if (nullptr == pexprTgt || !fVerbose)
+	{
+		return;
+	}
 
 	os << "DSL_RULE id=" << ulRuleId << " stage=" << szStage;
 	if (nullptr != pmodel)
@@ -269,14 +337,14 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	if (!FMatch(prule, pexpr, pmodel))
 	{
-		TraceDSLRule(mp, ulRuleId, "match_rejected", prule, pmodel, pexpr,
+		TraceDSLRule(mp, ulRuleId, EdsltraceMatchRejected, prule, pmodel, pexpr,
 					 nullptr);
 		pmodel->Release();
 		return nullptr;
 	}
 	if (!FCheckConstraints(prule, pmodel, pexpr))
 	{
-		TraceDSLRule(mp, ulRuleId, "constraint_rejected", prule, pmodel, pexpr,
+		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel, pexpr,
 					 nullptr);
 		pmodel->Release();
 		return nullptr;
@@ -284,7 +352,9 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 
 	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
 	TraceDSLRule(mp, ulRuleId,
-				 nullptr == pexprTgt ? "instantiate_rejected" : "applied", prule,
+				 nullptr == pexprTgt ? EdsltraceInstantiateRejected
+									 : EdsltraceApplied,
+				 prule,
 				 pmodel, pexpr, pexprTgt);
 	pmodel->Release();
 	return pexprTgt;
@@ -306,7 +376,7 @@ CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
 	// match the source fragment's root template against the live expression.
 	// The matcher allocates any transient work in the model's (per-optimization)
 	// pool — NOT the engine's long-lived library pool.
-	CDSLMatcher matcher(pmodel->Pmp());
+	CDSLMatcher matcher(pmodel->Pmp(), prule);
 	CDSLOp *pop_src_root = prule->PfragSrc()->PopRoot();
 	return matcher.FMatch(pop_src_root, pexpr, pmodel);
 }

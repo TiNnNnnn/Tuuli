@@ -16,6 +16,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 
@@ -109,23 +110,196 @@ CDSLFilterMatcher::FBindFilterSymbols(const CDSLOp *popFilter,
 //		CDSLFilterMatcher::FAssign
 //
 //	@doc:
-//		Assign DSL Filters[ulFilter..ulFilters) to distinct unused conjuncts,
-//		backtracking on failure. This is the subset + reorder core (WeTune's
-//		grouped/free sub-matchers, doc §2): every DSL Filter must claim some
-//		conjunct, no two share one, and equality-class binding must stay
-//		consistent (FBind rejects incompatible rebinds).
-//
-//		NOTE: bindings made on a failed branch are left in the model; because a
-//		symbol only ever binds to one artifact within a rule (equality classes),
-//		re-binding the SAME symbol to the SAME conjunct on the successful branch
-//		is a no-op success, so stale bindings from abandoned branches are
-//		harmless for the well-formed rules we admit. (A future tightening could
-//		snapshot/rollback; not needed for correctness here.)
+//		Assign DSL Filters[ulFilter..ulFilters) to compatible conjuncts,
+//		preferring distinct conjuncts before normalized duplicate reuse and
+//		backtracking on failure. Search is deliberately side-effect free: writing
+//		bindings while exploring poisoned later branches because CDSLModel has no
+//		rollback operation. Once a complete compatible assignment is found,
+//		FMatch commits every binding exactly once.
 //---------------------------------------------------------------------------
+namespace
+{
+BOOL
+FDirectEquality(const CDSLRule *prule, EDslConstraintKind edslcon,
+				const CDSLSymbol *psymFirst, const CDSLSymbol *psymSecond)
+{
+	if (psymFirst == psymSecond)
+	{
+		return true;
+	}
+	if (nullptr == prule)
+	{
+		return false;
+	}
+	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (edslcon != pcon->Edslcon())
+		{
+			continue;
+		}
+		CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+		if (2 == pdrgpsym->Size() &&
+			((psymFirst == (*pdrgpsym)[0] && psymSecond == (*pdrgpsym)[1]) ||
+			 (psymFirst == (*pdrgpsym)[1] && psymSecond == (*pdrgpsym)[0])))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
+FUsedColumnsEqual(CExpression *pexprFirst, CExpression *pexprSecond)
+{
+	CColRefSet *pcrsFirst = pexprFirst->DeriveUsedColumns();
+	CColRefSet *pcrsSecond = pexprSecond->DeriveUsedColumns();
+	return pcrsFirst->Size() == pcrsSecond->Size() &&
+		   pcrsFirst->ContainsAll(pcrsSecond);
+}
+}  // namespace
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLFilterMatcher::FMatchPushedDownInnerJoin
+//
+//	@doc:
+//		ORCA pushes a predicate that references one inner-join input below the
+//		join before exploration. Reconstruct a temporary, equivalent
+//		Select(InnerJoin) view so an ordinary Filter-rooted DSL rule can still be
+//		matched. The selected input's Select is peeled as a whole; unconsumed
+//		conjuncts become ordinary Filter residuals and are restored by the target
+//		instantiator. This is safe only for inner joins and predicates whose used
+//		columns are produced entirely by that input.
+//---------------------------------------------------------------------------
+BOOL
+CDSLFilterMatcher::FMatchPushedDownInnerJoin(
+	const CDSLOp *popFilterRoot, CExpression *pexprJoin,
+	CDSLModel *pmodel) const
+{
+	if (nullptr == m_prule ||
+		COperator::EopLogicalInnerJoin != pexprJoin->Pop()->Eopid() ||
+		3 != pexprJoin->Arity())
+	{
+		return false;
+	}
+
+	const CDSLOp *rgpopFilters[GPOPT_DSL_MAX_FILTER_CHAIN];
+	ULONG ulFilters = 0;
+	const CDSLOp *popBase = PopCollectChain(
+		popFilterRoot, rgpopFilters, GPOPT_DSL_MAX_FILTER_CHAIN, &ulFilters);
+	if (nullptr == popBase || EdslopInnerJoin != popBase->Edslop() ||
+		2 != popBase->UlChildren() || nullptr == popBase->Pdrgpsym() ||
+		2 != popBase->Pdrgpsym()->Size())
+	{
+		return false;
+	}
+
+	// An explicit source AttrsEq connects every pulled Filter's referenced attrs
+	// to the join-key side from which it may have been pushed. This avoids
+	// guessing from rule ids or SQL text and rejects unconstrained movement.
+	BOOL rgfEligible[2] = {true, true};
+	for (ULONG ulSide = 0; ulSide < 2; ulSide++)
+	{
+		const CDSLSymbol *psymJoinAttrs = (*popBase->Pdrgpsym())[ulSide];
+		for (ULONG ulFilter = 0; ulFilter < ulFilters; ulFilter++)
+		{
+			CDSLSymbolArray *pdrgpsymFilter =
+				rgpopFilters[ulFilter]->Pdrgpsym();
+			if (nullptr == pdrgpsymFilter || 2 != pdrgpsymFilter->Size() ||
+				!FDirectEquality(m_prule, EdslconAttrsEq,
+							 (*pdrgpsymFilter)[1], psymJoinAttrs))
+			{
+				rgfEligible[ulSide] = false;
+				break;
+			}
+		}
+	}
+
+	ULONG ulSelected = 2;
+	for (ULONG ulSide = 0; ulSide < 2; ulSide++)
+	{
+		CExpression *pexprInput = (*pexprJoin)[ulSide];
+		if (!rgfEligible[ulSide] ||
+			COperator::EopLogicalSelect != pexprInput->Pop()->Eopid() ||
+			2 != pexprInput->Arity() ||
+			!(*pexprInput)[0]->DeriveOutputColumns()->ContainsAll(
+				(*pexprInput)[1]->DeriveUsedColumns()))
+		{
+			continue;
+		}
+		ulSelected = ulSide;
+		break;
+	}
+	if (2 == ulSelected)
+	{
+		return false;
+	}
+
+	CExpression *pexprPushedSelect = (*pexprJoin)[ulSelected];
+	CExpression *pexprLeft =
+		(0 == ulSelected) ? (*pexprPushedSelect)[0] : (*pexprJoin)[0];
+	CExpression *pexprRight =
+		(1 == ulSelected) ? (*pexprPushedSelect)[0] : (*pexprJoin)[1];
+	pexprJoin->Pop()->AddRef();
+	pexprLeft->AddRef();
+	pexprRight->AddRef();
+	(*pexprJoin)[2]->AddRef();
+	CExpression *pexprVirtualJoin = GPOS_NEW(m_mp) CExpression(
+		m_mp, pexprJoin->Pop(), pexprLeft, pexprRight, (*pexprJoin)[2]);
+
+	(*pexprPushedSelect)[1]->AddRef();
+	CExpression *pexprVirtualSelect = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprVirtualJoin,
+		(*pexprPushedSelect)[1]);
+	BOOL fMatched = FMatch(popFilterRoot, pexprVirtualSelect, pmodel);
+	pexprVirtualSelect->Release();
+	return fMatched;
+}
+
+BOOL
+CDSLFilterMatcher::FAssignmentCompatible(
+	const CDSLOp **rgpopFilters, ULONG ulFilter,
+	CExpressionArray *pdrgpexprConj, const ULONG *rgulAssigned,
+	CExpression *pexprCandidate) const
+{
+	CDSLSymbolArray *pdrgpsymCandidate =
+		rgpopFilters[ulFilter]->Pdrgpsym();
+	GPOS_ASSERT(nullptr != pdrgpsymCandidate &&
+				2 == pdrgpsymCandidate->Size());
+	const CDSLSymbol *psymPredCandidate = (*pdrgpsymCandidate)[0];
+	const CDSLSymbol *psymAttrsCandidate = (*pdrgpsymCandidate)[1];
+
+	for (ULONG ulPrevious = 0; ulPrevious < ulFilter; ulPrevious++)
+	{
+		CDSLSymbolArray *pdrgpsymPrevious =
+			rgpopFilters[ulPrevious]->Pdrgpsym();
+		GPOS_ASSERT(nullptr != pdrgpsymPrevious &&
+					2 == pdrgpsymPrevious->Size());
+		CExpression *pexprPrevious =
+			(*pdrgpexprConj)[rgulAssigned[ulPrevious]];
+
+		if (FDirectEquality(m_prule, EdslconAttrsEq, psymAttrsCandidate,
+						(*pdrgpsymPrevious)[1]) &&
+			!FUsedColumnsEqual(pexprCandidate, pexprPrevious))
+		{
+			return false;
+		}
+		if (FDirectEquality(m_prule, EdslconPredicateEq,
+						psymPredCandidate, (*pdrgpsymPrevious)[0]) &&
+			!pexprCandidate->Matches(pexprPrevious))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 BOOL
 CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 						   ULONG ulFilter, CExpressionArray *pdrgpexprConj,
-						   BOOL *rgfUsed, CDSLModel *pmodel) const
+						   BOOL *rgfUsed, ULONG *rgulAssigned) const
 {
 	if (ulFilter == ulFilters)
 	{
@@ -133,29 +307,41 @@ CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 		return true;
 	}
 
-	const CDSLOp *popFilter = rgpopFilters[ulFilter];
 	const ULONG ulConj = pdrgpexprConj->Size();
 
-	for (ULONG ul = 0; ul < ulConj; ul++)
+	// Prefer a structural 1:1 assignment. If none works, allow reuse: ORCA's
+	// predicate normalizer removes duplicate AND children before xforms run, so
+	// Filter(p, Filter(p, child)) has the canonical view Select(child, p). DSL
+	// variables are not required to bind different values, making this a valid
+	// specialization of the source pattern rather than a weakened constraint.
+	for (ULONG ulPass = 0; ulPass < 2; ulPass++)
 	{
-		if (rgfUsed[ul])
+		for (ULONG ul = 0; ul < ulConj; ul++)
 		{
-			continue;
-		}
-		if (!FBindFilterSymbols(popFilter, (*pdrgpexprConj)[ul], pmodel))
-		{
-			// this conjunct is incompatible with popFilter's already-bound
-			// equality class; try the next conjunct.
-			continue;
-		}
+			const BOOL fAlreadyUsed = rgfUsed[ul];
+			if ((0 == ulPass && fAlreadyUsed) ||
+				(1 == ulPass && !fAlreadyUsed))
+			{
+				continue;
+			}
+			CExpression *pexprCandidate = (*pdrgpexprConj)[ul];
+			if (!FAssignmentCompatible(rgpopFilters, ulFilter, pdrgpexprConj,
+								   rgulAssigned, pexprCandidate))
+			{
+				continue;
+			}
 
-		rgfUsed[ul] = true;
-		if (FAssign(rgpopFilters, ulFilters, ulFilter + 1, pdrgpexprConj,
-					rgfUsed, pmodel))
-		{
-			return true;
+			rgfUsed[ul] = true;
+			rgulAssigned[ulFilter] = ul;
+			if (FAssign(rgpopFilters, ulFilters, ulFilter + 1,
+						pdrgpexprConj, rgfUsed, rgulAssigned))
+			{
+				return true;
+			}
+			// A conjunct selected by an earlier Filter remains consumed when this
+			// branch releases its virtual duplicate assignment.
+			rgfUsed[ul] = fAlreadyUsed;
 		}
-		rgfUsed[ul] = false;  // backtrack
 	}
 	return false;
 }
@@ -203,7 +389,16 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	GPOS_ASSERT(EdslopFilter == popFilterRoot->Edslop());
 	GPOS_ASSERT(nullptr != pexprSelect);
 
-	// the live node must be a Select carrying (relational child, predicate).
+	// A Filter above an inner join may already have been pushed into one input.
+	// Expose a temporary pre-pushdown view before applying the ordinary Select
+	// matcher below.
+	if (COperator::EopLogicalInnerJoin == pexprSelect->Pop()->Eopid())
+	{
+		return FMatchPushedDownInnerJoin(popFilterRoot, pexprSelect, pmodel);
+	}
+
+	// Otherwise the live node must be a Select carrying (relational child,
+	// predicate).
 	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
 		2 != pexprSelect->Arity())
 	{
@@ -228,10 +423,12 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	const ULONG ulConj = pdrgpexprConj->Size();
 
 	BOOL fMatched = false;
-	// a subset match needs at least as many conjuncts as DSL Filters.
-	if (ulFilters <= ulConj)
+	// A shorter normalized conjunction may represent a longer Filter chain when
+	// duplicate predicates were eliminated before xform exploration.
+	if (0 < ulConj)
 	{
 		BOOL *rgfUsed = GPOS_NEW_ARRAY(m_mp, BOOL, ulConj);
+		ULONG *rgulAssigned = GPOS_NEW_ARRAY(m_mp, ULONG, ulFilters);
 		for (ULONG ul = 0; ul < ulConj; ul++)
 		{
 			rgfUsed[ul] = false;
@@ -239,10 +436,18 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 
 		// 3a. assign each DSL Filter to a distinct conjunct (subset + reorder).
 		if (FAssign(rgpopFilters, ulFilters, 0 /*ulFilter*/, pdrgpexprConj,
-					rgfUsed, pmodel))
+					rgfUsed, rgulAssigned))
 		{
+			BOOL fBound = true;
+			for (ULONG ul = 0; fBound && ul < ulFilters; ul++)
+			{
+				fBound = FBindFilterSymbols(
+					rgpopFilters[ul], (*pdrgpexprConj)[rgulAssigned[ul]],
+					pmodel);
+			}
 			// 3b. the chain base recurses against the Select's relational child.
-			if (m_pmatcher->FMatch(popBase, (*pexprSelect)[0], pmodel))
+			if (fBound &&
+				m_pmatcher->FMatch(popBase, (*pexprSelect)[0], pmodel))
 			{
 				// 3c. carry the unconsumed conjuncts forward.
 				RecordResidual(pdrgpexprConj, rgfUsed, pmodel);
@@ -250,6 +455,7 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 			}
 		}
 
+		GPOS_DELETE_ARRAY(rgulAssigned);
 		GPOS_DELETE_ARRAY(rgfUsed);
 	}
 

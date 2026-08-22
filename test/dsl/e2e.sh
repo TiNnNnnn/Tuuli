@@ -90,12 +90,16 @@ CREATE TABLE dsl_fk_child(
 CREATE TABLE dsl_fk_nullable_child(
     id int PRIMARY KEY,
     parent_id int REFERENCES dsl_fk_parent(id));
+CREATE TABLE dsl_eq_left(k int NOT NULL);
+CREATE TABLE dsl_eq_right(k int NOT NULL);
 INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
 INSERT INTO dsl_exists_inner VALUES (5),(20);
 INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
 INSERT INTO dsl_fk_parent VALUES (10),(20);
 INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
 INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);
+INSERT INTO dsl_eq_left VALUES (1),(1),(2),(3);
+INSERT INTO dsl_eq_right VALUES (1),(2),(2),(4);
 ANALYZE dsl_insub_outer;
 ANALYZE dsl_insub_inner;
 ANALYZE dsl_correlated_exists;
@@ -105,6 +109,8 @@ ANALYZE dsl_dqa;
 ANALYZE dsl_fk_parent;
 ANALYZE dsl_fk_child;
 ANALYZE dsl_fk_nullable_child;
+ANALYZE dsl_eq_left;
+ANALYZE dsl_eq_right;
 "
 
 REPEATED_IN_QUERY="
@@ -177,6 +183,37 @@ SELECT c.id, p.id
 FROM dsl_fk_nullable_child AS c
 LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
 ORDER BY c.id
+"
+
+DISTINCT_JOIN_KEY_QUERY="
+SELECT l.k
+FROM dsl_eq_left AS l
+INNER JOIN dsl_eq_right AS r ON l.k = r.k
+GROUP BY l.k
+ORDER BY l.k
+"
+
+NORMALIZED_DUPLICATE_FILTER_QUERY="
+SELECT empno
+FROM dsl_dqa
+WHERE deptno = 10 AND deptno = 10
+ORDER BY empno
+"
+
+PUSHDOWN_JOIN_FILTER_QUERY="
+SELECT l.k, r.k
+FROM dsl_eq_left AS l
+INNER JOIN dsl_eq_right AS r ON l.k = r.k
+WHERE r.k = 2
+ORDER BY l.k, r.k
+"
+
+REFLEXIVE_REFERENCE_QUERY="
+SELECT l.k, r.k
+FROM dsl_eq_left AS l
+INNER JOIN dsl_eq_left AS r ON l.k = r.k
+WHERE l.k > 1 AND r.k > 2
+ORDER BY l.k, r.k
 "
 
 UNION_QUERY="
@@ -508,6 +545,75 @@ assert_not_contains "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" \
 assert_same_rows "nullable FK LeftJoin guard" \
     "$NULLABLE_FK_LEFT_JOIN_QUERY" $'1,10\n2,' on
 
+# A Proj* target may group on an equality-equivalent join key while SchemaEq
+# keeps the source-facing column. The generated compute-scalar restores that
+# schema, so this is an executable target rather than trace-only instantiation.
+run_explain "$OUTPUT_DIR/distinct-join-key-off.plan" off on \
+    "$DISTINCT_JOIN_KEY_QUERY" on
+run_explain "$OUTPUT_DIR/distinct-join-key-on.plan" on on \
+    "$DISTINCT_JOIN_KEY_QUERY" on
+assert_not_contains "$OUTPUT_DIR/distinct-join-key-off.plan" \
+    '"rule_id":53,"status":"applied"'
+assert_contains "$OUTPUT_DIR/distinct-join-key-on.plan" \
+    '"rule_id":53,"status":"applied"'
+assert_contains "$OUTPUT_DIR/distinct-join-key-on.plan" \
+    "CScalarProjectElement"
+assert_same_rows "DISTINCT join-key substitution" \
+    "$DISTINCT_JOIN_KEY_QUERY" $'1\n2' on
+
+# PostgreSQL removes the repeated predicate before ORCA xforms see it. The DSL
+# matcher exposes the equivalent two-Filter source view, while target
+# instantiation flattens back to one Select and attaches residuals only once.
+run_explain "$OUTPUT_DIR/normalized-duplicate-filter-off.plan" off on \
+    "$NORMALIZED_DUPLICATE_FILTER_QUERY" on
+run_explain "$OUTPUT_DIR/normalized-duplicate-filter-on.plan" on on \
+    "$NORMALIZED_DUPLICATE_FILTER_QUERY" on
+assert_not_contains "$OUTPUT_DIR/normalized-duplicate-filter-off.plan" \
+    '"rule_id":58,"status":"applied"'
+assert_contains "$OUTPUT_DIR/normalized-duplicate-filter-on.plan" \
+    '"rule_id":58,"status":"applied"'
+assert_same_rows "normalized duplicate Filter" \
+    "$NORMALIZED_DUPLICATE_FILTER_QUERY" $'1\n2' on
+
+# Predicate preprocessing pushes r.k=2 into a join input, so a Select-rooted
+# shell cannot observe the source rule shape. The InnerJoin shell exposes the
+# equivalent pre-pushdown view; target instantiation then rebinds the predicate
+# template to l.k. The unit test asserts exact CColRef replacement, while this
+# test proves an actual data rule application and executable results.
+run_explain "$OUTPUT_DIR/pushdown-join-filter-off.plan" off on \
+    "$PUSHDOWN_JOIN_FILTER_QUERY" on
+run_explain "$OUTPUT_DIR/pushdown-join-filter-on.plan" on on \
+    "$PUSHDOWN_JOIN_FILTER_QUERY" on
+assert_not_contains "$OUTPUT_DIR/pushdown-join-filter-off.plan" \
+    'Rule: Filter<p0 a2>(InnerJoin<a0 a1>'
+assert_contains "$OUTPUT_DIR/pushdown-join-filter-on.plan" \
+    'Rule: Filter<p0 a2>(InnerJoin<a0 a1>'
+assert_contains "$OUTPUT_DIR/pushdown-join-filter-on.plan" \
+    '"rule_id":63,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/pushdown-join-filter-on.plan" "CXformDSLRule_InnerJoin"
+assert_same_rows "pushed-down join Filter" \
+    "$PUSHDOWN_JOIN_FILTER_QUERY" $'2,2\n2,2' on
+
+# A self-relation column references itself even without an explicit FK. The
+# rule remains guarded by strict table/attribute identity, and the checker only
+# accepts an unfiltered base Get as the referred surface. This verifies the
+# metadata-independent reflexive Reference path on a real optimizer tree.
+run_explain "$OUTPUT_DIR/reflexive-reference-off.plan" off on \
+    "$REFLEXIVE_REFERENCE_QUERY" on
+run_explain "$OUTPUT_DIR/reflexive-reference-on.plan" on on \
+    "$REFLEXIVE_REFERENCE_QUERY" on
+assert_not_contains "$OUTPUT_DIR/reflexive-reference-off.plan" \
+    'Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)'
+assert_contains "$OUTPUT_DIR/reflexive-reference-on.plan" \
+    'Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)'
+assert_contains "$OUTPUT_DIR/reflexive-reference-on.plan" \
+    '"rule_id":69,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/reflexive-reference-on.plan" "CXformDSLRule_InnerJoin"
+assert_same_rows "reflexive Reference" \
+    "$REFLEXIVE_REFERENCE_QUERY" $'3,3' on
+
 # Union is symbol-free in the DSL but ORCA carries an ordered output/input
 # column map on the logical operator. The data rule swaps two branches over the
 # same base relation; a non-empty alternative proves the generic shell,
@@ -579,6 +685,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, DISTINCT join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

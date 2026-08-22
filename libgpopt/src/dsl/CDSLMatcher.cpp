@@ -278,7 +278,7 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// (doc §2) and is why Filter does not go through the generic child recursion.
 	if (EdslopFilter == pop->Edslop())
 	{
-		CDSLFilterMatcher fm(m_mp, this);
+		CDSLFilterMatcher fm(m_mp, this, m_prule);
 		return fm.FMatch(pop, pexpr, pmodel);
 	}
 

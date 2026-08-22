@@ -32,6 +32,7 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
@@ -258,7 +259,8 @@ PexprRemapSetOpChild(CMemoryPool *mp, CExpression *pexpr,
 //	@function:
 //		CDSLInstantiator::CDSLInstantiator
 //---------------------------------------------------------------------------
-CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp) : m_mp(mp), m_phmAlias(nullptr)
+CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
+	: m_mp(mp), m_phmAlias(nullptr), m_prule(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmAlias = GPOS_NEW(mp) CDSLSymbolAliasMap(mp);
@@ -356,6 +358,93 @@ CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 	return (nullptr != psymSrc) ? psymSrc : psym;
 }
 
+const CDSLOp *
+CDSLInstantiator::PopSourceFilterForPredicate(
+	const CDSLOp *pop, const CDSLSymbol *psymPred) const
+{
+	if (EdslopFilter == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
+		2 == pop->Pdrgpsym()->Size() && (*pop->Pdrgpsym())[0] == psymPred)
+	{
+		return pop;
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		const CDSLOp *popFound =
+			PopSourceFilterForPredicate((*pop)[ul], psymPred);
+		if (nullptr != popFound)
+		{
+			return popFound;
+		}
+	}
+	return nullptr;
+}
+
+CExpression *
+CDSLInstantiator::PexprBuildFilterPredicate(
+	const CDSLOp *popFilter, const CDSLModel *pmodel) const
+{
+	GPOS_ASSERT(nullptr != m_prule);
+	CDSLSymbolArray *pdrgpsymTarget = popFilter->Pdrgpsym();
+	if (nullptr == pdrgpsymTarget || 2 != pdrgpsymTarget->Size())
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbol *psymSourcePred = PsymResolve((*pdrgpsymTarget)[0]);
+	CExpression *pexprBound = pmodel->PexprPred(psymSourcePred);
+	const CDSLOp *popSourceFilter = PopSourceFilterForPredicate(
+		m_prule->PfragSrc()->PopRoot(), psymSourcePred);
+	if (nullptr == pexprBound || nullptr == popSourceFilter ||
+		nullptr == popSourceFilter->Pdrgpsym() ||
+		2 != popSourceFilter->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbol *psymSourceAttrs = (*popSourceFilter->Pdrgpsym())[1];
+	const CDSLSymbol *psymTargetAttrs = PsymResolve((*pdrgpsymTarget)[1]);
+	CColRefArray *pdrgpcrFrom = pmodel->PdrgpcrAttrs(psymSourceAttrs);
+	CColRefArray *pdrgpcrTo = pmodel->PdrgpcrAttrs(psymTargetAttrs);
+	if (nullptr == pdrgpcrFrom || nullptr == pdrgpcrTo ||
+		pdrgpcrFrom->Size() != pdrgpcrTo->Size())
+	{
+		return nullptr;
+	}
+
+	UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	BOOL fRemap = false;
+	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
+	{
+		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
+		CColRef *pcrTo = (*pdrgpcrTo)[ul];
+		if (!pcrFrom->RetrieveType()->MDId()->Equals(
+				pcrTo->RetrieveType()->MDId()) ||
+			pcrFrom->TypeModifier() != pcrTo->TypeModifier())
+		{
+			phm->Release();
+			return nullptr;
+		}
+		if (pcrFrom != pcrTo)
+		{
+			BOOL fInserted GPOS_ASSERTS_ONLY = phm->Insert(
+				GPOS_NEW(m_mp) ULONG(pcrFrom->Id()), pcrTo);
+			GPOS_ASSERT(fInserted);
+			fRemap = true;
+		}
+	}
+
+	if (!fRemap)
+	{
+		phm->Release();
+		pexprBound->AddRef();
+		return pexprBound;
+	}
+	CExpression *pexprRemapped = pexprBound->PexprCopyWithRemappedColumns(
+		m_mp, phm, false /*must_exist*/);
+	phm->Release();
+	return pexprRemapped;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuildInput
@@ -388,39 +477,43 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 //		CDSLInstantiator::PexprBuildFilter
 //
 //	@doc:
-//		Filter<p a>: Select(child, predicate). The predicate is the conjunct
-//		bound to p (resolved through the alias map) CONJOINED with every residual
-//		conjunct the matcher preserved, so no predicate is dropped.
+//		A target Filter chain maps to one ORCA Select. Collect every bound target
+//		predicate, append matcher residuals once, remove normalized duplicates, and
+//		build a single conjunction. Rebuilding one Select per DSL Filter would both
+//		misrepresent ORCA and repeat residual predicates at every nesting level.
 //---------------------------------------------------------------------------
 CExpression *
 CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 								   const CDSLModel *pmodel) const
 {
-	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() || 1 != pop->UlChildren())
+	CExpressionArray *pdrgpexpr = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	const CDSLOp *popCurrent = pop;
+	while (nullptr != popCurrent && EdslopFilter == popCurrent->Edslop())
 	{
-		return nullptr;
+		CDSLSymbolArray *pdrgpsym = popCurrent->Pdrgpsym();
+		if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+			1 != popCurrent->UlChildren())
+		{
+			pdrgpexpr->Release();
+			return nullptr;
+		}
+		CExpression *pexprPredBound =
+			PexprBuildFilterPredicate(popCurrent, pmodel);
+		if (nullptr == pexprPredBound)
+		{
+			pdrgpexpr->Release();
+			return nullptr;
+		}
+		pdrgpexpr->Append(pexprPredBound);
+		popCurrent = (*popCurrent)[0];
 	}
-	const CDSLSymbol *psymPred = PsymResolve((*pdrgpsym)[0]);
 
-	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	CExpression *pexprChild = PexprBuild(popCurrent, pmodel);
 	if (nullptr == pexprChild)
 	{
+		pdrgpexpr->Release();
 		return nullptr;
 	}
-
-	CExpression *pexprPredBound = pmodel->PexprPred(psymPred);
-	if (nullptr == pexprPredBound)
-	{
-		pexprChild->Release();
-		return nullptr;
-	}
-
-	// collect the target predicate's conjuncts: the bound conjunct + residuals.
-	CExpressionArray *pdrgpexpr = GPOS_NEW(m_mp) CExpressionArray(m_mp);
-	pexprPredBound->AddRef();
-	pdrgpexpr->Append(pexprPredBound);
-
 	CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
 	if (nullptr != pdrgpexprResidual)
 	{
@@ -432,9 +525,27 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 			pdrgpexpr->Append(pexprR);
 		}
 	}
+	// Both remapped target predicates and untouched residuals must be evaluable
+	// over the rebuilt child. This is the construction-time half of target-side
+	// AttrsSub checking.
+	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+	{
+		if (!pexprChild->DeriveOutputColumns()->ContainsAll(
+				(*pdrgpexpr)[ul]->DeriveUsedColumns()))
+		{
+			pexprChild->Release();
+			pdrgpexpr->Release();
+			return nullptr;
+		}
+	}
 
-	// build one conjunctive predicate (single conjunct -> itself; many -> And).
-	CExpression *pexprPred = CPredicateUtils::PexprConjunction(m_mp, pdrgpexpr);
+	// Duplicate Filter predicates may already have been collapsed in the source
+	// ORCA expression. Keep the target in that same canonical representation.
+	CExpressionArray *pdrgpexprDedup =
+		CUtils::PdrgpexprDedup(m_mp, pdrgpexpr);
+	pdrgpexpr->Release();
+	CExpression *pexprPred =
+		CPredicateUtils::PexprConjunction(m_mp, pdrgpexprDedup);
 
 	return GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprChild, pexprPred);
@@ -551,7 +662,7 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
 		if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema ||
 			0 == pdrgpcrSchema->Size() ||
-			!FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
+			pdrgpcrAttrs->Size() != pdrgpcrSchema->Size())
 		{
 			pexprChild->Release();
 			return nullptr;
@@ -559,24 +670,86 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 		CColRefSet *pcrsChild = pexprChild->DeriveOutputColumns();
 		CColRefSet *pcrsGrouping = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		pcrsGrouping->Include(pdrgpcrSchema);
+		// The target attrs may deliberately name an equivalent join-key column
+		// while SchemaEq keeps the source projection schema. Proj* has no scalar
+		// project list in ORCA; its concrete operation is therefore grouping by
+		// the resolved attrs. Requiring attrs == schema rejected precisely these
+		// proven column-substitution rules before they could enter the memo.
+		pcrsGrouping->Include(pdrgpcrAttrs);
 		BOOL fValid = pcrsChild->ContainsAll(pcrsGrouping);
-		pcrsGrouping->Release();
 		if (!fValid)
 		{
+			pcrsGrouping->Release();
 			pexprChild->Release();
 			return nullptr;
 		}
+		for (ULONG ul = 0; ul < pdrgpcrSchema->Size(); ul++)
+		{
+			CColRef *pcrOutput = (*pdrgpcrSchema)[ul];
+			CColRef *pcrInput = (*pdrgpcrAttrs)[ul];
+			if (pcrOutput != pcrInput &&
+				(!pcrOutput->RetrieveType()->MDId()->Equals(
+					 pcrInput->RetrieveType()->MDId()) ||
+				 pcrOutput->TypeModifier() != pcrInput->TypeModifier()))
+			{
+				pcrsGrouping->Release();
+				pexprChild->Release();
+				return nullptr;
+			}
+		}
 
-		pdrgpcrSchema->AddRef();
+		// The rewritten key is already the rule-selected minimal grouping. Keep
+		// that provenance on the generated GbAgg so the Proj* source matcher does
+		// not consume its own result and alternate equivalent join keys forever.
+		pdrgpcrAttrs->AddRef();
+		pdrgpcrAttrs->AddRef();
 		CExpression *pexprEmptyList = GPOS_NEW(m_mp) CExpression(
 			m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp),
 			GPOS_NEW(m_mp) CExpressionArray(m_mp));
-		return GPOS_NEW(m_mp) CExpression(
+		CExpression *pexprGbAgg = GPOS_NEW(m_mp) CExpression(
 			m_mp,
 			GPOS_NEW(m_mp) CLogicalGbAgg(
-				m_mp, pdrgpcrSchema, COperator::EgbaggtypeGlobal),
+				m_mp, pdrgpcrAttrs, pdrgpcrAttrs,
+				COperator::EgbaggtypeGlobal),
 			pexprChild, pexprEmptyList);
+
+		if (FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
+		{
+			pcrsGrouping->Release();
+			return pexprGbAgg;
+		}
+
+		// Restore the source-visible schema after grouping on substituted keys.
+		// CLogicalProject is compute-scalar (not column pruning), but that is
+		// sufficient: the memo's required columns request the original schema and
+		// the substituted grouping columns may remain as harmless extra outputs.
+		CExpressionArray *pdrgpexprPrEl =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG ul = 0; ul < pdrgpcrSchema->Size(); ul++)
+		{
+			CColRef *pcrOutput = (*pdrgpcrSchema)[ul];
+			CColRef *pcrInput = (*pdrgpcrAttrs)[ul];
+			if (pcrOutput == pcrInput || pcrsGrouping->FMember(pcrOutput))
+			{
+				continue;
+			}
+			pdrgpexprPrEl->Append(GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CScalarProjectElement(m_mp, pcrOutput),
+				GPOS_NEW(m_mp) CExpression(
+					m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrInput))));
+		}
+		if (0 == pdrgpexprPrEl->Size())
+		{
+			pcrsGrouping->Release();
+			pdrgpexprPrEl->Release();
+			return pexprGbAgg;
+		}
+		pcrsGrouping->Release();
+		CExpression *pexprProjectList = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprGbAgg,
+			pexprProjectList);
 	}
 
 	CExpression *pexprProjList = pmodel->PexprProjList(psymSchema);
@@ -1317,6 +1490,7 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pmodel);
 
+	m_prule = prule;
 	BuildAliasMap(prule);
 	const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
 	const CDSLOp *popTgtRoot = prule->PfragTgt()->PopRoot();

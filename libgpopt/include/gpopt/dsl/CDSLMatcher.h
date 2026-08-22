@@ -58,6 +58,10 @@ class CDSLMatcher
 {
 private:
 	CMemoryPool *m_mp;
+	// Complete rule owning the source template. Optional for low-level matcher
+	// tests, but present in the rule engine so operator matchers can honor
+	// source-side constraints while exploring ambiguous bindings.
+	const CDSLRule *m_prule;
 
 	// Input<t>: bind the single table symbol to the whole subtree (any
 	// relational subtree qualifies; no node-type check — WeTune INPUT branch).
@@ -87,9 +91,16 @@ private:
 public:
 	CDSLMatcher(const CDSLMatcher &) = delete;
 
-	explicit CDSLMatcher(CMemoryPool *mp) : m_mp(mp)
+	explicit CDSLMatcher(CMemoryPool *mp, const CDSLRule *prule = nullptr)
+		: m_mp(mp), m_prule(prule)
 	{
 		GPOS_ASSERT(nullptr != mp);
+	}
+
+	const CDSLRule *
+	Prule() const
+	{
+		return m_prule;
 	}
 
 	// match one DSL op subtree against one live expression, populating pmodel.

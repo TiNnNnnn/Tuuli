@@ -12,6 +12,10 @@ QUERY_FILE=$3
 OUTPUT_LOG=$4
 PG_CONFIG=${PG_CONFIG:-$(command -v pg_config || true)}
 PORT=${DSL_TRACE_PORT:-55440}
+TRACE_XFORMS=off
+if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
+    TRACE_XFORMS=on
+fi
 
 fail()
 {
@@ -67,8 +71,8 @@ PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d pos
     echo "SET pg_orca.enable_orca=on;"
     echo "SET pg_orca.enable_dsl_rule=on;"
     echo "SET pg_orca.trace_dsl_rule=on;"
-    echo "SET optimizer_print_xform=on;"
-    echo "SET optimizer_print_xform_results=on;"
+    echo "SET optimizer_print_xform=$TRACE_XFORMS;"
+    echo "SET optimizer_print_xform_results=$TRACE_XFORMS;"
     echo "SET client_min_messages=log;"
     echo "EXPLAIN (COSTS OFF)"
     cat "$QUERY_FILE"

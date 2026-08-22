@@ -38,6 +38,14 @@ public:
 	// re-conjoins the bound conjunct + 2 residuals (no predicate dropped).
 	static GPOS_RESULT EresUnittest_ResidualConjunctsPreserved();
 
+	// A multi-Filter target becomes one Select; repeated bound predicates and
+	// residuals occur once in its conjunction.
+	static GPOS_RESULT EresUnittest_TargetFilterChainFlattened();
+
+	// A Filter pushed into one InnerJoin input is exposed as the equivalent
+	// source view; target attrs remap the predicate to the opposite join key.
+	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();
+
 	// the reused base subtree is grafted (the target's Get child is the same
 	// bound subtree the source matched).
 	static GPOS_RESULT EresUnittest_BaseSubtreeReused();

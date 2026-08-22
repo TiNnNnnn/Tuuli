@@ -56,7 +56,9 @@ class CDSLMatcher;
 //		CDSLFilterMatcher
 //
 //	@doc:
-//		Matches a DSL Filter chain against an ORCA CLogicalSelect. Constructed per
+//		Matches a DSL Filter chain against an ORCA CLogicalSelect. For an inner
+//		join whose single-side Filter was already pushed into an input, it also
+//		exposes the equivalent pre-pushdown Select(Join) view. Constructed per
 //		match attempt with the transient pool and a back-reference to the generic
 //		matcher (so the chain base can recurse). Owns no state beyond those.
 //---------------------------------------------------------------------------
@@ -68,6 +70,10 @@ private:
 	// generic matcher to recurse the chain's base op into (not owned)
 	const CDSLMatcher *m_pmatcher;
 
+	// complete rule (not owned), used only to constrain ambiguous conjunct
+	// assignments by source-side AttrsEq/PredicateEq declarations.
+	const CDSLRule *m_prule;
+
 	// collect the maximal run of Filter ops starting at popFilterRoot, following
 	// child[0], into rgpopFilters (non-owning; the rule IR outlives the match).
 	// Writes the count to *pulFilters and returns the first non-Filter op (the
@@ -77,11 +83,20 @@ private:
 								  const CDSLOp **rgpopFilters, ULONG ulCapacity,
 								  ULONG *pulFilters) const;
 
-	// try to assign DSL Filters[ulFilter..] to distinct unused conjuncts,
-	// backtracking. rgfUsed marks consumed conjuncts. Binds <p>/<a> on success.
+	// try to assign DSL Filters[ulFilter..] to conjuncts, backtracking without
+	// mutating the model. Distinct conjuncts are preferred, but a conjunct may be
+	// reused as the normalized view of Filter(p, Filter(p, child)). rgfUsed marks
+	// conjuncts consumed at least once and rgulAssigned stores each selection.
 	BOOL FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters, ULONG ulFilter,
 				 CExpressionArray *pdrgpexprConj, BOOL *rgfUsed,
-				 CDSLModel *pmodel) const;
+				 ULONG *rgulAssigned) const;
+
+	// Check source-side equality constraints between a proposed Filter binding
+	// and filters already assigned on this branch.
+	BOOL FAssignmentCompatible(const CDSLOp **rgpopFilters, ULONG ulFilter,
+						   CExpressionArray *pdrgpexprConj,
+						   const ULONG *rgulAssigned,
+						   CExpression *pexprCandidate) const;
 
 	// bind one DSL Filter op's <p a> symbols to conjunct pexprConj (pred + its
 	// used columns). Returns false on an incompatible equality-class rebind.
@@ -93,20 +108,30 @@ private:
 	void RecordResidual(CExpressionArray *pdrgpexprConj, const BOOL *rgfUsed,
 						CDSLModel *pmodel) const;
 
+	// Match Filter(InnerJoin(...)) against the equivalent live
+	// InnerJoin(..., Select(...), ...) representation produced by predicate
+	// pushdown. Only a side selected by source AttrsEq(Filter.attrs,
+	// Join.side_keys) is eligible.
+	BOOL FMatchPushedDownInnerJoin(const CDSLOp *popFilterRoot,
+								 CExpression *pexprJoin,
+								 CDSLModel *pmodel) const;
+
 public:
 	CDSLFilterMatcher(const CDSLFilterMatcher &) = delete;
 
-	CDSLFilterMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher)
-		: m_mp(mp), m_pmatcher(pmatcher)
+	CDSLFilterMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher,
+					  const CDSLRule *prule)
+		: m_mp(mp), m_pmatcher(pmatcher), m_prule(prule)
 	{
 		GPOS_ASSERT(nullptr != mp);
 		GPOS_ASSERT(nullptr != pmatcher);
 	}
 
-	// match a Filter-rooted DSL template against a live CLogicalSelect. Returns
-	// true iff the whole chain (and its base) matched; populates pmodel with the
-	// <p>/<a> bindings, residual conjuncts, and the base subtree bindings.
-	BOOL FMatch(const CDSLOp *popFilterRoot, CExpression *pexprSelect,
+	// Match a Filter-rooted DSL template against a live CLogicalSelect or the
+	// equivalent pushed-down inner-join view. Returns true iff the whole chain
+	// (and its base) matched; populates pmodel with the <p>/<a> bindings,
+	// residual conjuncts, and the base subtree bindings.
+	BOOL FMatch(const CDSLOp *popFilterRoot, CExpression *pexpr,
 				CDSLModel *pmodel) const;
 };
 }  // namespace gpopt
