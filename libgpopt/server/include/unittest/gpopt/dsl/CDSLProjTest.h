@@ -39,6 +39,7 @@ public:
 	// Target Proj attrs may select an equivalent join-key column. The scalar
 	// project expression must change while its defined output/schema stays fixed.
 	static GPOS_RESULT EresUnittest_InstantiateRebindsTargetAttrs();
+	static GPOS_RESULT EresUnittest_PreservesHiddenLimitShell();
 
 	// A memo-safe Select(TRUE) produced by dedup removal exposes an identity Proj
 	// view over its pure Proj* child, allowing a second DSL rule to consume it.

@@ -286,6 +286,70 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 }
 
 BOOL
+CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
+									 CExpression *pexpr,
+									 CDSLModel *pmodel) const
+{
+	if (EdslopInnerJoin != (*pop)[0]->Edslop() ||
+		COperator::EopLogicalInnerJoin != pexpr->Pop()->Eopid() ||
+		3 != pexpr->Arity())
+	{
+		return false;
+	}
+
+	// Require one unambiguous pushed Apply. If both inputs contain a direct
+	// Apply, choosing either one would mutate the model before the alternative
+	// can be probed. Such a shape is left to its ordinary memo alternatives.
+	ULONG ulApplyChild = 2;
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		if (COperator::EopLogicalLeftSemiApplyIn ==
+			(*pexpr)[ul]->Pop()->Eopid())
+		{
+			if (2 != ulApplyChild)
+			{
+				return false;
+			}
+			ulApplyChild = ul;
+		}
+	}
+	if (2 == ulApplyChild)
+	{
+		return false;
+	}
+
+	CExpression *pexprApply = (*pexpr)[ulApplyChild];
+	if (3 != pexprApply->Arity())
+	{
+		return false;
+	}
+
+	// Replace the pushed Apply child by its outer input, preserving the live
+	// join operator and predicate exactly. Then place that virtual Join back
+	// under the same Apply operator and reuse the ordinary post-Apply matcher.
+	pexpr->Pop()->AddRef();
+	CExpression *pexprLeft =
+		(0 == ulApplyChild) ? (*pexprApply)[0] : (*pexpr)[0];
+	CExpression *pexprRight =
+		(1 == ulApplyChild) ? (*pexprApply)[0] : (*pexpr)[1];
+	pexprLeft->AddRef();
+	pexprRight->AddRef();
+	(*pexpr)[2]->AddRef();
+	CExpression *pexprJoin = GPOS_NEW(m_mp) CExpression(
+		m_mp, pexpr->Pop(), pexprLeft, pexprRight, (*pexpr)[2]);
+
+	pexprApply->Pop()->AddRef();
+	(*pexprApply)[1]->AddRef();
+	(*pexprApply)[2]->AddRef();
+	CExpression *pexprInSub = GPOS_NEW(m_mp) CExpression(
+		m_mp, pexprApply->Pop(), pexprJoin, (*pexprApply)[1],
+		(*pexprApply)[2]);
+	BOOL fMatched = FMatch(pop, pexprInSub, pmodel);
+	pexprInSub->Release();
+	return fMatched;
+}
+
+BOOL
 CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 						 CDSLModel *pmodel) const
 {
@@ -298,6 +362,11 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		1 != pop->Pdrgpsym()->Size())
 	{
 		return false;
+	}
+
+	if (COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid())
+	{
+		return FMatchPushedDownInnerJoin(pop, pexpr, pmodel);
 	}
 
 	// Pre-Apply: Select(outer, ... AND outer_expr = ANY(inner) AND ...).

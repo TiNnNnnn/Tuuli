@@ -19,6 +19,7 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -175,6 +176,78 @@ CDSLProjMatcher::PdrgpcrAttrs(CExpression *pexprProjList) const
 	return pdrgpcr;
 }
 
+BOOL
+CDSLProjMatcher::FMatchProjectOverAgg(const CDSLOp *popProj,
+								  CExpression *pexprProject,
+								  CDSLModel *pmodel) const
+{
+	if (1 != popProj->UlChildren() ||
+		EdslopInput == (*popProj)[0]->Edslop() ||
+		EdslopProj == (*popProj)[0]->Edslop() ||
+		EdslopAgg == (*popProj)[0]->Edslop() ||
+		COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
+		2 != pexprProject->Arity() ||
+		COperator::EopLogicalGbAgg != (*pexprProject)[0]->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = popProj->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+
+	// A split aggregate is a unary Global(Local(...)) chain. Collect every
+	// grouping column and scalar dependency, then retain only columns produced by
+	// the deepest relational input. Intermediate aggregate outputs disappear in
+	// that intersection; genuine input arguments remain.
+	CColRefSet *pcrsRequired = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CExpression *pexprRel = (*pexprProject)[0];
+	ULONG ulAggNodes = 0;
+	while (COperator::EopLogicalGbAgg == pexprRel->Pop()->Eopid() &&
+		   2 == pexprRel->Arity())
+	{
+		CLogicalGbAgg *popGbAgg =
+			CLogicalGbAgg::PopConvert(pexprRel->Pop());
+		// Local aggregates are optimizer-generated implementation alternatives.
+		// Re-inserting a captured Global(Local(...)) chain as a fresh logical
+		// result exposes Local GbAgg to exploration xforms that accept only Global.
+		// Match the canonical unsplit Global shell; native splitting can happen
+		// again after the rewritten input enters the memo.
+		if (0 < ulAggNodes ||
+			COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype())
+		{
+			pcrsRequired->Release();
+			return false;
+		}
+		ulAggNodes++;
+		if (nullptr != popGbAgg->Pdrgpcr())
+		{
+			pcrsRequired->Include(popGbAgg->Pdrgpcr());
+		}
+		pcrsRequired->Include((*pexprRel)[1]->DeriveUsedColumns());
+		pexprRel = (*pexprRel)[0];
+	}
+	pcrsRequired->Intersection(pexprRel->DeriveOutputColumns());
+	CColRefArray *pdrgpcrRequired = pcrsRequired->Pdrgpcr(m_mp);
+	pcrsRequired->Release();
+
+	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	const CDSLSymbol *psymSchema = (*pdrgpsym)[1];
+	BOOL fMatched = pmodel->FBind(psymAttrs, pdrgpcrRequired) &&
+		pmodel->FBind(psymSchema, pdrgpcrRequired) &&
+		m_pmatcher->FMatch((*popProj)[0], pexprRel, pmodel);
+	pdrgpcrRequired->Release();
+	if (!fMatched)
+	{
+		return false;
+	}
+
+	pexprProject->AddRef();
+	return pmodel->FSetProjAggShell(psymSchema, pexprProject);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjMatcher::FMatch
@@ -197,6 +270,14 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		2 != pexprProject->Arity())
 	{
 		return false;
+	}
+	if (1 == popProj->UlChildren() &&
+		EdslopInput != (*popProj)[0]->Edslop() &&
+		EdslopProj != (*popProj)[0]->Edslop() &&
+		EdslopAgg != (*popProj)[0]->Edslop() &&
+		COperator::EopLogicalGbAgg == (*pexprProject)[0]->Pop()->Eopid())
+	{
+		return FMatchProjectOverAgg(popProj, pexprProject, pmodel);
 	}
 
 	// Proj schema is <a s> — attrs first, schema second (validated at parse).
@@ -232,15 +313,40 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		return false;
 	}
 
-	// the relational child recurses through the generic matcher (Proj has exactly
-	// one relational child; the template's UlChildren() is 1).
+	// PostgreSQL keeps the target-list Project above ORDER/LIMIT, whereas WeTune's
+	// tree exposes the Project directly above the relation to be rewritten. Peel
+	// an unmentioned Limit chain only for matching and retain its root in the
+	// model; the instantiator restores the exact operators, order and scalars.
 	if (1 != popProj->UlChildren())
 	{
 		return false;
 	}
-	if (!m_pmatcher->FMatch((*popProj)[0], (*pexprProject)[0], pmodel))
+	CExpression *pexprRel = (*pexprProject)[0];
+	CExpression *pexprLimitShell = nullptr;
+	if (EdslopLimit != (*popProj)[0]->Edslop() &&
+		EdslopSort != (*popProj)[0]->Edslop())
+	{
+		while (COperator::EopLogicalLimit == pexprRel->Pop()->Eopid() &&
+			   3 == pexprRel->Arity())
+		{
+			if (nullptr == pexprLimitShell)
+			{
+				pexprLimitShell = pexprRel;
+			}
+			pexprRel = (*pexprRel)[0];
+		}
+	}
+	if (!m_pmatcher->FMatch((*popProj)[0], pexprRel, pmodel))
 	{
 		return false;
+	}
+	if (nullptr != pexprLimitShell)
+	{
+		pexprLimitShell->AddRef();
+		if (!pmodel->FSetProjLimitShell(psymSchema, pexprLimitShell))
+		{
+			return false;
+		}
 	}
 
 	// record the whole project-list subtree so the instantiator can graft it back

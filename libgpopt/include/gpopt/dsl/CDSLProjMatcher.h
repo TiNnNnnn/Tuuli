@@ -81,6 +81,13 @@ private:
 								 CExpression *pexprSelect,
 								 CDSLModel *pmodel) const;
 
+	// ORCA omits WeTune's input-column projection below an aggregate. Derive
+	// that projection from grouping columns and aggregate arguments, then match
+	// the structured DSL child against the aggregate input.
+	BOOL FMatchProjectOverAgg(const CDSLOp *popProj,
+						  CExpression *pexprProject,
+						  CDSLModel *pmodel) const;
+
 public:
 	CDSLProjMatcher(const CDSLProjMatcher &) = delete;
 

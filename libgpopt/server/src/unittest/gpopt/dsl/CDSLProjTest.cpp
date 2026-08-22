@@ -25,6 +25,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -100,6 +101,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs),
 		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_PreservesHiddenLimitShell),
+		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup),
@@ -107,6 +110,79 @@ CDSLProjTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_PreservesHiddenLimitShell()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_REBIND_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("limit_rebind_left", 2, &pdrgpcrLeft);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("limit_rebind_right", 2, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	pexprJoin->AddRef();
+	CExpression *pexprLimit = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalLimit(
+			mp, GPOS_NEW(mp) COrderSpec(mp), true /*global*/,
+			true /*has count*/, false /*top DML*/),
+		pexprJoin, CUtils::PexprScalarConstInt8(mp, 0),
+		CUtils::PexprScalarConstInt8(mp, 10));
+	CColRefArray *pdrgpcrProject = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProject->Append((*pdrgpcrLeft)[0]);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprLimit, pdrgpcrProject);
+	pdrgpcrProject->Release();
+	pexprLimit->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalLimit != (*pexprTarget)[0]->Pop()->Eopid() ||
+			COperator::EopLogicalInnerJoin !=
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid() ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
+	pexprJoin->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

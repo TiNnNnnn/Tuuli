@@ -75,6 +75,8 @@ private:
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
 	CDSLSymbolToExpressionMap *m_phmProjList;
+	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
+	CDSLSymbolToExpressionMap *m_phmProjAggShell;
 	CDSLSymbolToExpressionMap *m_phmJoinPred;
 
 	// Every matched Union/Union* expression, in source-tree traversal order.
@@ -205,6 +207,19 @@ public:
 	// The project-list subtree for one Proj schema symbol; NULL if it was not
 	// matched. Does NOT transfer ownership.
 	CExpression *PexprProjList(const CDSLSymbol *psymSchema) const;
+
+	// ORCA can place an unmentioned Sort/Limit shell between Project and its
+	// relational child. Record it by Project schema so target construction can
+	// preserve the shell after rewriting the child.
+	BOOL FSetProjLimitShell(const CDSLSymbol *psymSchema,
+						 CExpression *pexpr);
+	CExpression *PexprProjLimitShell(const CDSLSymbol *psymSchema) const;
+
+	// Project(GbAgg(...)) can represent a DSL projection over the aggregate's
+	// required input columns. Preserve the whole live shell around a rewritten
+	// aggregate input.
+	BOOL FSetProjAggShell(const CDSLSymbol *psymSchema, CExpression *pexpr);
+	CExpression *PexprProjAggShell(const CDSLSymbol *psymSchema) const;
 
 	//------------------------------------------------------------------
 	// set-op mappings (Union match produces, instantiator consumes)

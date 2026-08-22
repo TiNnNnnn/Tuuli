@@ -50,6 +50,12 @@ private:
 	BOOL FMatchCorrelatedExists(const CDSLOp *pop, CExpression *pexpr,
 							 CDSLModel *pmodel) const;
 
+	// Inner-join predicate pushdown can turn InSub(Join(left,right),inner)
+	// into Join(ApplyIn(left,inner),right). Reconstruct the former only as a
+	// transient matcher view; the live memo expression remains unchanged.
+	BOOL FMatchPushedDownInnerJoin(const CDSLOp *pop, CExpression *pexpr,
+								 CDSLModel *pmodel) const;
+
 public:
 	CDSLInSubMatcher(const CDSLInSubMatcher &) = delete;
 

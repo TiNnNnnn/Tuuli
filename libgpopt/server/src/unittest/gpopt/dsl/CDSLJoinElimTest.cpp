@@ -31,6 +31,8 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -121,12 +123,90 @@ CDSLJoinElimTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLJoinElimTest::EresUnittest_LeftJoinElimFires),
 		GPOS_UNITTEST_FUNC(
+			CDSLJoinElimTest::EresUnittest_LeftJoinElimBelowAgg),
+		GPOS_UNITTEST_FUNC(
 			CDSLJoinElimTest::EresUnittest_LeftJoinElimRejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinElimTest::EresUnittest_InnerJoinElimRejectsWithoutFK),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLJoinElimTest::EresUnittest_LeftJoinElimBelowAgg()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_LEFTJOIN_ELIM_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrT0 = nullptr;
+	CExpression *pexprGetT0 =
+		fix.PexprLogicalGet("agg_t0", 2, &pdrgpcrT0);
+	CColRefArray *pdrgpcrT1 = nullptr;
+	CExpression *pexprGetT1 =
+		fix.PexprLogicalGet("agg_t1", 2, &pdrgpcrT1, 0 /*unique key*/);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrT0)[0], (*pdrgpcrT1)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalLeftOuterJoin(pexprGetT0, pexprGetT1, pexprPred);
+	pexprPred->Release();
+
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrT0)[1]);
+	pdrgpcrGroup->AddRef();
+	CExpression *pexprEmptyList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp),
+		GPOS_NEW(mp) CExpressionArray(mp));
+	pexprJoin->AddRef();
+	CExpression *pexprAgg = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalGbAgg(
+			mp, pdrgpcrGroup, COperator::EgbaggtypeGlobal),
+		pexprJoin, pexprEmptyList);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprAgg, pdrgpcrGroup);
+	pexprAgg->Release();
+	pdrgpcrGroup->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg != (*pexprTarget)[0]->Pop()->Eopid() ||
+			COperator::EopLogicalGet !=
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid() ||
+			(*(*pexprTarget)[0])[0] != pexprGetT0 ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
+	pexprJoin->Release();
+	pexprGetT0->Release();
+	pexprGetT1->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

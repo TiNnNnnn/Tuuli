@@ -20,6 +20,7 @@ public:
 	static GPOS_RESULT EresUnittest_CorrelatedExistsCanonicalization();
 	static GPOS_RESULT EresUnittest_PostApplyCorrelatedExistsCanonicalization();
 	static GPOS_RESULT EresUnittest_PostApplyRepeatedInElimination();
+	static GPOS_RESULT EresUnittest_PushedDownJoinRemap();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();
 };

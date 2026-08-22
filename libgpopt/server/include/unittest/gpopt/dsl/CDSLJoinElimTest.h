@@ -64,6 +64,7 @@ public:
 	// LeftJoin elimination (rules.txt line 205) fires end-to-end under Unique:
 	// match + check + instantiate produce Proj(Get t0) with the join and t1 gone.
 	static GPOS_RESULT EresUnittest_LeftJoinElimFires();
+	static GPOS_RESULT EresUnittest_LeftJoinElimBelowAgg();
 
 	// the same rule must NOT fire when t1's join key is not unique (the Unique
 	// guard would let the join duplicate left rows).

@@ -95,6 +95,16 @@ CDSLRuleEngine::BucketByRoot()
 			// that shell as well; the matcher still performs the full shape check.
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiApply;
+			// Inner-join predicate pushdown may place the ApplyIn in one join
+			// input. The InSub matcher reconstructs and validates the original
+			// InSub(InnerJoin(...), ...) view without changing the memo tree.
+			if (2 == prule->PfragSrc()->PopRoot()->UlChildren() &&
+				EdslopInnerJoin ==
+					(*prule->PfragSrc()->PopRoot())[0]->Edslop())
+			{
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalInnerJoin;
+			}
 		}
 		// Dropping a redundant Proj* uses Select(child, TRUE) as a memo-safe
 		// identity-Proj marker. Route ordinary Proj-rooted rules to Select as well

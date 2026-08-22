@@ -888,6 +888,27 @@ CXformUtils::ImplementMergeJoin(CXformContext *pxfctxt, CXformResult *pxfres,
 					break;
 				}
 			}
+			// The shared cache stores extracted hash keys, which may have had
+			// binary-coercible casts stripped. Validating only those arrays can
+			// therefore admit a MergeJoin whose actual scalar predicate still
+			// contains casts; PdxlnMergeJoin later (correctly) rejects it. Keep
+			// the cache-hit path identical to the first-build path by checking
+			// every original conjunct against the current child orientation.
+			if (mj_compatible)
+			{
+				CExpressionArray *pdrgpexprPreds =
+					CPredicateUtils::PdrgpexprConjuncts(mp, (*pexpr)[2]);
+				for (ULONG ul = 0; ul < pdrgpexprPreds->Size(); ul++)
+				{
+					if (!CPhysicalJoin::FMergeJoinCompatible(
+							(*pdrgpexprPreds)[ul], (*pexpr)[0], (*pexpr)[1]))
+					{
+						mj_compatible = false;
+						break;
+					}
+				}
+				pdrgpexprPreds->Release();
+			}
 			if (mj_compatible)
 			{
 				AddHashOrMergeJoinAlternative<T>(

@@ -27,6 +27,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
 	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmProjLimitShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmProjAggShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 }
@@ -42,6 +44,8 @@ CDSLModel::~CDSLModel()
 	m_phmSymToRef->Release();
 	m_phmInSubPred->Release();
 	m_phmProjList->Release();
+	m_phmProjLimitShell->Release();
+	m_phmProjAggShell->Release();
 	m_phmJoinPred->Release();
 	m_pdrgpexprUnionBindings->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
@@ -141,6 +145,64 @@ CDSLModel::PexprProjList(const CDSLSymbol *psymSchema) const
 	GPOS_ASSERT(nullptr != psymSchema);
 	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
 	return m_phmProjList->Find(psymSchema);
+}
+
+BOOL
+CDSLModel::FSetProjLimitShell(const CDSLSymbol *psymSchema,
+							 CExpression *pexpr)
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprExisting = m_phmProjLimitShell->Find(psymSchema);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmProjLimitShell->Insert(
+		const_cast<CDSLSymbol *>(psymSchema), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprProjLimitShell(const CDSLSymbol *psymSchema) const
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	return m_phmProjLimitShell->Find(psymSchema);
+}
+
+BOOL
+CDSLModel::FSetProjAggShell(const CDSLSymbol *psymSchema,
+						   CExpression *pexpr)
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprExisting = m_phmProjAggShell->Find(psymSchema);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmProjAggShell->Insert(
+		const_cast<CDSLSymbol *>(psymSchema), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprProjAggShell(const CDSLSymbol *psymSchema) const
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	return m_phmProjAggShell->Find(psymSchema);
 }
 
 void

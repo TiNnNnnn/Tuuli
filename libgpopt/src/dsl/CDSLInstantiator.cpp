@@ -177,6 +177,142 @@ PexprRebuildComparisons(CMemoryPool *mp, CExpression *pexpr)
 	return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pdrgpexprChildren);
 }
 
+// Find the only source InSub node whose predicate was bound by the matcher.
+// A direct target-to-source AttrsEq lookup is preferred by the caller; this
+// conservative fallback supports proven rewrites which move IN across an
+// equality join and therefore name the other join-key attrs on the target.
+const CDSLOp *
+PopOnlyBoundInSub(const CDSLOp *pop, const CDSLModel *pmodel,
+				  ULONG *pulMatches)
+{
+	const CDSLOp *popFound = nullptr;
+	if (EdslopInSubFilter == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
+		1 == pop->Pdrgpsym()->Size() &&
+		nullptr != pmodel->PexprInSubPred((*pop->Pdrgpsym())[0]))
+	{
+		(*pulMatches)++;
+		popFound = pop;
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		const CDSLOp *popChild =
+			PopOnlyBoundInSub((*pop)[ul], pmodel, pulMatches);
+		if (nullptr != popChild)
+		{
+			popFound = popChild;
+		}
+	}
+	return popFound;
+}
+
+CExpression *
+PexprRemapInSubPredicate(CMemoryPool *mp, CExpression *pexprPred,
+						 const CColRefArray *pdrgpcrFrom,
+						 const CColRefArray *pdrgpcrTo)
+{
+	if (nullptr == pdrgpcrFrom || nullptr == pdrgpcrTo ||
+		pdrgpcrFrom->Size() != pdrgpcrTo->Size())
+	{
+		return nullptr;
+	}
+
+	UlongToColRefMap *phm = GPOS_NEW(mp) UlongToColRefMap(mp);
+	BOOL fRemap = false;
+	BOOL fTypeChange = false;
+	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
+	{
+		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
+		CColRef *pcrTo = (*pdrgpcrTo)[ul];
+		fTypeChange = fTypeChange ||
+			!pcrFrom->RetrieveType()->MDId()->Equals(
+				pcrTo->RetrieveType()->MDId());
+		if (pcrFrom != pcrTo)
+		{
+			BOOL fInserted GPOS_ASSERTS_ONLY = phm->Insert(
+				GPOS_NEW(mp) ULONG(pcrFrom->Id()), pcrTo);
+			GPOS_ASSERT(fInserted);
+			fRemap = true;
+		}
+	}
+
+	if (!fRemap)
+	{
+		phm->Release();
+		pexprPred->AddRef();
+		return pexprPred;
+	}
+	CExpression *pexprRemapped = pexprPred->PexprCopyWithRemappedColumns(
+		mp, phm, false /*must_exist*/);
+	phm->Release();
+	if (fTypeChange)
+	{
+		CExpression *pexprTyped =
+			PexprRebuildComparisons(mp, pexprRemapped);
+		pexprRemapped->Release();
+		return pexprTyped;
+	}
+	return pexprRemapped;
+}
+
+// Copy a recorded LogicalLimit chain while replacing its deepest relational
+// child. Operators retain their exact order specs/global flags and scalar
+// offset/count expressions; the recorded source tree itself is never mutated.
+CExpression *
+PexprRestoreLimitShell(CMemoryPool *mp, CExpression *pexprShell,
+					   CExpression *pexprChild)
+{
+	GPOS_ASSERT(COperator::EopLogicalLimit == pexprShell->Pop()->Eopid());
+	GPOS_ASSERT(3 == pexprShell->Arity());
+
+	CExpression *pexprRestoredChild = nullptr;
+	if (COperator::EopLogicalLimit == (*pexprShell)[0]->Pop()->Eopid() &&
+		3 == (*pexprShell)[0]->Arity())
+	{
+		pexprRestoredChild =
+			PexprRestoreLimitShell(mp, (*pexprShell)[0], pexprChild);
+	}
+	else
+	{
+		pexprChild->AddRef();
+		pexprRestoredChild = pexprChild;
+	}
+	pexprShell->Pop()->AddRef();
+	(*pexprShell)[1]->AddRef();
+	(*pexprShell)[2]->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, pexprShell->Pop(),
+									pexprRestoredChild, (*pexprShell)[1],
+									(*pexprShell)[2]);
+}
+
+// Restore Project(GbAgg(...)) or Project(GlobalGbAgg(LocalGbAgg(...))) around
+// a rewritten deepest input. All scalar lists and aggregate operator metadata
+// are shared immutably with the matched expression.
+CExpression *
+PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
+							CExpression *pexprChild)
+{
+	const COperator::EOperatorId eopid = pexprShell->Pop()->Eopid();
+	GPOS_ASSERT(COperator::EopLogicalProject == eopid ||
+				COperator::EopLogicalGbAgg == eopid);
+	GPOS_ASSERT(2 == pexprShell->Arity());
+
+	CExpression *pexprRestoredChild = nullptr;
+	if (COperator::EopLogicalGbAgg == (*pexprShell)[0]->Pop()->Eopid())
+	{
+		pexprRestoredChild = PexprRestoreProjectAggShell(
+			mp, (*pexprShell)[0], pexprChild);
+	}
+	else
+	{
+		pexprChild->AddRef();
+		pexprRestoredChild = pexprChild;
+	}
+	pexprShell->Pop()->AddRef();
+	(*pexprShell)[1]->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, pexprShell->Pop(),
+									pexprRestoredChild, (*pexprShell)[1]);
+}
+
 // Rebuild a matched GbAgg while removing only aggregate DISTINCT semantics.
 // The relational child, grouping metadata, output columns, ordinary/direct
 // arguments and ORDER BY metadata are preserved; the DISTINCT flag and its
@@ -730,6 +866,23 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+	CExpression *pexprAggShell = pmodel->PexprProjAggShell(psymSchema);
+	if (nullptr != pexprAggShell)
+	{
+		CExpression *pexprRestored =
+			PexprRestoreProjectAggShell(m_mp, pexprAggShell, pexprChild);
+		pexprChild->Release();
+		return pexprRestored;
+	}
+	CExpression *pexprLimitShell =
+		pmodel->PexprProjLimitShell(psymSchema);
+	if (nullptr != pexprLimitShell)
+	{
+		CExpression *pexprWrapped =
+			PexprRestoreLimitShell(m_mp, pexprLimitShell, pexprChild);
+		pexprChild->Release();
+		pexprChild = pexprWrapped;
+	}
 
 	// Proj* is ORCA's pure-dedup Global GbAgg. Unlike the special root-level
 	// elimination rule, a Proj* nested in Union/Join must be rebuilt, not dropped.
@@ -1367,12 +1520,46 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
 	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
-	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
-	CExpression *pexprPred = pmodel->PexprInSubPred(psymAttrs);
+	const CDSLSymbol *psymTargetAttrs =
+		PsymResolve((*pop->Pdrgpsym())[0]);
+	const CDSLSymbol *psymSourceAttrs = psymTargetAttrs;
+	CExpression *pexprPredBound =
+		pmodel->PexprInSubPred(psymSourceAttrs);
+	if (nullptr == pexprPredBound)
+	{
+		ULONG ulBoundInSub = 0;
+		const CDSLOp *popSourceInSub = PopOnlyBoundInSub(
+			m_prule->PfragSrc()->PopRoot(), pmodel, &ulBoundInSub);
+		if (1 == ulBoundInSub && nullptr != popSourceInSub)
+		{
+			psymSourceAttrs = (*popSourceInSub->Pdrgpsym())[0];
+			pexprPredBound = pmodel->PexprInSubPred(psymSourceAttrs);
+		}
+	}
+	CColRefArray *pdrgpcrSourceAttrs =
+		pmodel->PdrgpcrAttrs(psymSourceAttrs);
+	CColRefArray *pdrgpcrTargetAttrs =
+		pmodel->PdrgpcrAttrs(psymTargetAttrs);
+	CExpression *pexprPred =
+		(nullptr == pexprPredBound)
+			? nullptr
+			: PexprRemapInSubPredicate(m_mp, pexprPredBound,
+									 pdrgpcrSourceAttrs,
+									 pdrgpcrTargetAttrs);
 	if (nullptr == pexprOuter || nullptr == pexprInner || nullptr == pexprPred)
 	{
 		CRefCount::SafeRelease(pexprOuter);
 		CRefCount::SafeRelease(pexprInner);
+		CRefCount::SafeRelease(pexprPred);
+		return nullptr;
+	}
+	if (nullptr == pdrgpcrTargetAttrs ||
+		!FColSetContainsArray(pexprOuter->DeriveOutputColumns(),
+						  pdrgpcrTargetAttrs))
+	{
+		pexprOuter->Release();
+		pexprInner->Release();
+		pexprPred->Release();
 		return nullptr;
 	}
 
@@ -1386,12 +1573,12 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 		pcrsInnerUsed->Release();
 		pexprOuter->Release();
 		pexprInner->Release();
+		pexprPred->Release();
 		return nullptr;
 	}
 	CColRef *pcrInner = pcrsInnerUsed->PcrFirst();
 	pcrsInnerUsed->Release();
 
-	pexprPred->AddRef();
 	CExpression *pexprResult =
 		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
 			m_mp, pexprOuter, pexprInner, pcrInner,
