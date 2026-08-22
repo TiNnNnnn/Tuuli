@@ -1,0 +1,30 @@
+{
+  "description": "Equivalent two-Filter view after PostgreSQL predicate normalization",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":58,\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":58,\"status\":\"applied\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

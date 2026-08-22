@@ -1,0 +1,38 @@
+{
+  "description": "Computed Project target substitutes an equality-equivalent join key",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "Rule: Proj<a2 s0>(InnerJoin<a0 a1>"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: Proj<a2 s0>(InnerJoin<a0 a1>",
+        "\"rule_id\":79,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}

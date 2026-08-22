@@ -1,0 +1,34 @@
+{
+  "description": "Reference lineage through GbAgg and Select",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: LeftJoin<a0 a1>(Input<t0>,Input<t1>)",
+        "\"rule_id\":48,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "10,10",
+      "20,20"
+    ],
+    "postgres_output": [
+      "10,10",
+      "20,20"
+    ]
+  }
+}

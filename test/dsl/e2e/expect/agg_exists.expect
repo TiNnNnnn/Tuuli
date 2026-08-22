@@ -1,0 +1,46 @@
+{
+  "description": "EXISTS across Agg and Project with sibling HAVING conjunct",
+  "plans": [
+    {
+      "name": "off-native-on",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on-native-on",
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "off-native-off",
+      "dsl": false,
+      "native": false,
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on-native-off",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "1,20"
+    ],
+    "postgres_output": [
+      "1,20"
+    ]
+  }
+}

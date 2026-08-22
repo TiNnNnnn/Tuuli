@@ -1,0 +1,32 @@
+{
+  "description": "Metadata-independent reflexive Reference on the same table",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)",
+        "\"rule_id\":69,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "3,3"
+    ],
+    "postgres_output": [
+      "3,3"
+    ]
+  }
+}

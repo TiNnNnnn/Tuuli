@@ -1,0 +1,40 @@
+{
+  "description": "Mapping-aware UnionAll branch rewrite",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "CXformDSLRule_UnionAll"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_UnionAll"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "2",
+      "3"
+    ]
+  }
+}

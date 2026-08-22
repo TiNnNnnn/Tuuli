@@ -1,0 +1,60 @@
+{
+  "description": "Eliminating InSub target preserves a residual predicate",
+  "plans": [
+    {
+      "name": "off-native-on",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "joins": 1
+    },
+    {
+      "name": "on-native-on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ],
+      "joins": 0
+    },
+    {
+      "name": "off-native-off",
+      "dsl": false,
+      "native": false,
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on-native-off",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "stage=applied bindings=",
+        "Rule: InSubFilter",
+        "Generated:",
+        "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\"",
+        "\"rule_id\":8,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "2,20",
+      "3,30"
+    ],
+    "postgres_output": [
+      "2,20",
+      "3,30"
+    ]
+  }
+}

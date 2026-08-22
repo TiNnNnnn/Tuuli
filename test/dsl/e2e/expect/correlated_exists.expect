@@ -1,0 +1,35 @@
+{
+  "description": "Correlated EXISTS adapter retains the implied null guard",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_id\":8,\"status\":\"applied\"",
+        "IS NULL"
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "output": [
+      "10",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "30"
+    ]
+  }
+}

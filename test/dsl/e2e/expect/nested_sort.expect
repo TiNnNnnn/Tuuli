@@ -1,0 +1,36 @@
+{
+  "description": "Nested Sort elimination through the Limit shell",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "CXformDSLRule_Limit"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: SortAsc<a1>(SortAsc<a0>(Input<t0>))",
+        "stage=applied bindings="
+      ],
+      "alternative": [
+        "CXformDSLRule_Limit"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ]
+  }
+}

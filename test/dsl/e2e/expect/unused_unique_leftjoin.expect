@@ -1,0 +1,35 @@
+{
+  "description": "Unique unreferenced inner side removal",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":90,\"status\":\"applied\""
+      ],
+      "joins": 1
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":90,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

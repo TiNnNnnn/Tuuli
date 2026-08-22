@@ -1,0 +1,31 @@
+{
+  "description": "Proj-star target substitutes an equality-equivalent join key",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":53,\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":53,\"status\":\"applied\"",
+        "CScalarProjectElement"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

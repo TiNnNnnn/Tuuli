@@ -1,0 +1,12 @@
+{
+  "description": "TableEq rejects two different inner relations",
+  "plans": [
+    {
+      "name": "on-native-off",
+      "native": false,
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "description": "Agg and HAVING identity-shaped framework probe",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "CXformDSLRule_Select"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,20"
+    ],
+    "postgres_output": [
+      "1,20"
+    ]
+  }
+}

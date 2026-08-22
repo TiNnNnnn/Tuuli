@@ -1,0 +1,34 @@
+{
+  "description": "Join shell reconstructs a predicate pushed into one input",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "Rule: Filter<p0 a2>(InnerJoin<a0 a1>"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: Filter<p0 a2>(InnerJoin<a0 a1>",
+        "\"rule_id\":63,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ]
+  }
+}

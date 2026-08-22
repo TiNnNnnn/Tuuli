@@ -1,0 +1,38 @@
+{
+  "description": "Mapping-aware Union distinct branch rewrite",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "CXformDSLRule_Union"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_Union"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

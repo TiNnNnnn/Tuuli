@@ -1,0 +1,22 @@
+{
+  "description": "Nullable FK rejects the NotNull-guarded LeftJoin rule",
+  "plans": [
+    {
+      "name": "on",
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":48,\"status\":\"applied\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,10",
+      "2,"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,"
+    ]
+  }
+}

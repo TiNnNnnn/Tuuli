@@ -1,0 +1,35 @@
+{
+  "description": "Null-rejected FullJoin exposes an equivalent LeftJoin view",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":48,\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":48,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,10",
+      "2,10",
+      "3,20"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,10",
+      "3,20"
+    ]
+  }
+}

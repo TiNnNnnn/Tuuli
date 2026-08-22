@@ -1,0 +1,33 @@
+{
+  "description": "A generated Proj alternative feeds a second DSL rule",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":74,\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":43,\"status\":\"applied\"",
+        "\"rule_id\":74,\"status\":\"applied\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

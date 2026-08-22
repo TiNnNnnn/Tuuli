@@ -1,0 +1,34 @@
+{
+  "description": "Fused Limit and Sort view over CLogicalLimit",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "CXformDSLRule_Limit"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: Limit",
+        "stage=applied bindings="
+      ],
+      "alternative": [
+        "CXformDSLRule_Limit"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "description": "Count-less Sort view over CLogicalLimit",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "CXformDSLRule_Limit"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Rule: SortAsc"
+      ],
+      "alternative": [
+        "CXformDSLRule_Limit"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

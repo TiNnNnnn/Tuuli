@@ -1,0 +1,24 @@
+{
+  "description": "DSL-visible empty subtree retains the LeftJoin source shape",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":48,\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":48,\"status\":\"applied\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [],
+    "postgres_output": []
+  }
+}

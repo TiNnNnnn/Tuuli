@@ -1,0 +1,47 @@
+{
+  "description": "Duplicate InSub removal with native and causal controls",
+  "plans": [
+    {
+      "name": "off-native-on",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "on-native-on",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "joins": 1
+    },
+    {
+      "name": "off-native-off",
+      "dsl": false,
+      "native": false,
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on-native-off",
+      "native": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "joins": 1
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "1,10",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "3,30"
+    ]
+  }
+}

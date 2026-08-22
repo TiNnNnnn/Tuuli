@@ -4,16 +4,51 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/framework.rules}"
-OUTPUT_DIR="${DSL_E2E_OUTPUT_DIR:-$REPO_ROOT/build/dsl-e2e}"
+SQL_DIR="${DSL_E2E_SQL_DIR:-$SCRIPT_DIR/e2e/sql}"
+EXPECT_DIR="${DSL_E2E_EXPECT_DIR:-$SCRIPT_DIR/e2e/expect}"
+RESULT_DIR="${DSL_E2E_RESULT_DIR:-$SCRIPT_DIR/e2e/output}"
+DIFF_DIR="${DSL_E2E_DIFF_DIR:-$SCRIPT_DIR/e2e/diff}"
+ARTIFACT_DIR="${DSL_E2E_OUTPUT_DIR:-$REPO_ROOT/build/dsl-e2e}"
 PG_CONFIG="${PG_CONFIG:-$(command -v pg_config || true)}"
 PORT="${DSL_E2E_PORT:-55439}"
-REPLACEMENT_XFORMS="CXformSelect2Apply, CXformProject2Apply"
 
 fail()
 {
     echo "DSL E2E FAILED: $*" >&2
     exit 1
 }
+
+usage()
+{
+    cat <<EOF
+Usage: $0 [-t CASE]...
+
+  -t, --test CASE  Run one case name or pattern; may be repeated
+  -h, --help       Show this help
+EOF
+}
+
+SELECTED_CASES="${DSL_E2E_CASES:-}"
+while (( $# > 0 )); do
+    case "$1" in
+        -t|--test)
+            (( $# >= 2 )) || fail "$1 requires a case name or pattern"
+            if [[ -n "$SELECTED_CASES" ]]; then
+                SELECTED_CASES+=",$2"
+            else
+                SELECTED_CASES="$2"
+            fi
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            fail "unknown argument: $1"
+            ;;
+    esac
+done
 
 if [[ -z "$PG_CONFIG" || ! -x "$PG_CONFIG" ]]; then
     fail "PG_CONFIG must point to an executable pg_config"
@@ -32,11 +67,11 @@ for program in initdb pg_ctl psql; do
     fi
 done
 
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$ARTIFACT_DIR" "$RESULT_DIR" "$DIFF_DIR"
 DSL_E2E_ROOT="$(mktemp -d /tmp/pgorca-dsl-e2e.XXXXXX)"
 DATA_DIR="$DSL_E2E_ROOT/data"
 SOCKET_DIR="$DSL_E2E_ROOT/socket"
-SERVER_LOG="$OUTPUT_DIR/postgresql.log"
+SERVER_LOG="$ARTIFACT_DIR/postgresql.log"
 SERVER_STARTED=0
 mkdir -p "$SOCKET_DIR"
 : >"$SERVER_LOG"
@@ -55,7 +90,7 @@ cleanup()
 trap cleanup EXIT
 
 "$PG_BINDIR/initdb" -D "$DATA_DIR" --no-locale --encoding=UTF8 --auth=trust \
-    >"$OUTPUT_DIR/initdb.log"
+    >"$ARTIFACT_DIR/initdb.log"
 
 MONSOON_DSL_RULES="$RULE_FILE" \
     "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
@@ -72,806 +107,24 @@ PSQL=(
     -d postgres
 )
 
-"${PSQL[@]}" -q -c "
-CREATE EXTENSION pg_orca;
-CREATE TABLE dsl_insub_outer(id int PRIMARY KEY, v int NOT NULL);
-CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
-INSERT INTO dsl_insub_outer VALUES (1,10),(2,20),(3,30);
-INSERT INTO dsl_insub_inner VALUES (1),(3);
-CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
-INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
-CREATE TABLE dsl_agg_outer(g int, v int);
-CREATE TABLE dsl_exists_inner(x int);
-CREATE TABLE dsl_dqa(empno int PRIMARY KEY, deptno int NOT NULL);
-CREATE TABLE dsl_fk_parent(id int PRIMARY KEY);
-CREATE TABLE dsl_fk_child(
-    id int PRIMARY KEY,
-    parent_id int NOT NULL REFERENCES dsl_fk_parent(id));
-CREATE TABLE dsl_fk_nullable_child(
-    id int PRIMARY KEY,
-    parent_id int REFERENCES dsl_fk_parent(id));
-CREATE TABLE dsl_eq_left(k int NOT NULL);
-CREATE TABLE dsl_eq_right(k int NOT NULL);
-INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
-INSERT INTO dsl_exists_inner VALUES (5),(20);
-INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
-INSERT INTO dsl_fk_parent VALUES (10),(20);
-INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
-INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);
-INSERT INTO dsl_eq_left VALUES (1),(1),(2),(3);
-INSERT INTO dsl_eq_right VALUES (1),(2),(2),(4);
-ANALYZE dsl_insub_outer;
-ANALYZE dsl_insub_inner;
-ANALYZE dsl_correlated_exists;
-ANALYZE dsl_agg_outer;
-ANALYZE dsl_exists_inner;
-ANALYZE dsl_dqa;
-ANALYZE dsl_fk_parent;
-ANALYZE dsl_fk_child;
-ANALYZE dsl_fk_nullable_child;
-ANALYZE dsl_eq_left;
-ANALYZE dsl_eq_right;
-"
+"${PSQL[@]}" -q -f "$SQL_DIR/_setup.sql"
 
-REPEATED_IN_QUERY="
-SELECT id, v
-FROM dsl_insub_outer o
-WHERE id IN (SELECT id FROM dsl_insub_inner i1)
-  AND id IN (SELECT id FROM dsl_insub_inner i2)
-ORDER BY id
-"
-
-SELF_IN_QUERY="
-SELECT id, v
-FROM dsl_insub_outer o
-WHERE id IN (SELECT id FROM dsl_insub_outer i)
-  AND v > 10
-ORDER BY id
-"
-
-CORRELATED_EXISTS_QUERY="
-SELECT payload
-FROM dsl_correlated_exists o
-WHERE EXISTS (
-    SELECT 1
-    FROM dsl_correlated_exists i
-    WHERE i.k = o.k)
-ORDER BY payload
-"
-
-AGG_HAVING_QUERY="
-SELECT g, max(v) AS max_v
-FROM dsl_agg_outer
-GROUP BY g
-HAVING max(v) > 5
-ORDER BY g
-"
-
-AGG_EXISTS_QUERY="
-SELECT g, max(v) AS max_v
-FROM dsl_agg_outer
-GROUP BY g
-HAVING max(v) > 5
-   AND EXISTS (
-       SELECT x + 1
-       FROM dsl_exists_inner
-       WHERE x = max(v))
-ORDER BY g
-"
-
-DQA_QUERY="
-SELECT empno, count(*), count(DISTINCT deptno)
-FROM dsl_dqa
-GROUP BY empno
-ORDER BY empno
-"
-
-DERIVED_FK_LEFT_JOIN_QUERY="
-SELECT c.parent_id, p.id
-FROM (
-    SELECT parent_id
-    FROM dsl_fk_child
-    WHERE id > 0
-    GROUP BY parent_id
-) AS c
-LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
-ORDER BY c.parent_id
-"
-
-NULLABLE_FK_LEFT_JOIN_QUERY="
-SELECT c.id, p.id
-FROM dsl_fk_nullable_child AS c
-LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
-ORDER BY c.id
-"
-
-EMPTY_FK_LEFT_JOIN_QUERY="
-SELECT c.id, p.id
-FROM (
-    SELECT *
-    FROM dsl_fk_child
-    WHERE FALSE
-) AS c
-LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
-"
-
-RIGHT_REJECTED_FULL_JOIN_QUERY="
-SELECT c.id, p.id
-FROM dsl_fk_parent AS p
-FULL JOIN dsl_fk_child AS c ON p.id = c.parent_id
-WHERE c.id > 0
-ORDER BY c.id
-"
-
-UNUSED_UNIQUE_LEFT_JOIN_QUERY="
-SELECT p.id
-FROM dsl_fk_parent AS p
-LEFT JOIN (
-    SELECT parent_id
-    FROM dsl_fk_child
-    GROUP BY parent_id
-) AS c ON p.id = c.parent_id
-"
-
-DISTINCT_JOIN_KEY_QUERY="
-SELECT l.k
-FROM dsl_eq_left AS l
-INNER JOIN dsl_eq_right AS r ON l.k = r.k
-GROUP BY l.k
-ORDER BY l.k
-"
-
-PROJECT_JOIN_KEY_QUERY="
-SELECT l.k + 0 AS projected_k
-FROM dsl_eq_left AS l
-INNER JOIN dsl_eq_right AS r ON l.k = r.k
-ORDER BY projected_k
-"
-
-FK_INNER_JOIN_QUERY="
-SELECT c.id
-FROM dsl_fk_child AS c
-INNER JOIN dsl_fk_parent AS p ON c.parent_id = p.id
-"
-
-DERIVED_REFERRED_FK_INNER_JOIN_QUERY="
-SELECT c.id
-FROM dsl_fk_child AS c
-INNER JOIN (
-    SELECT parent_id
-    FROM dsl_fk_child
-    GROUP BY parent_id
-) AS covered_keys ON c.parent_id = covered_keys.parent_id
-"
-
-NORMALIZED_DUPLICATE_FILTER_QUERY="
-SELECT empno
-FROM dsl_dqa
-WHERE deptno = 10 AND deptno = 10
-ORDER BY empno
-"
-
-PUSHDOWN_JOIN_FILTER_QUERY="
-SELECT l.k, r.k
-FROM dsl_eq_left AS l
-INNER JOIN dsl_eq_right AS r ON l.k = r.k
-WHERE r.k = 2
-ORDER BY l.k, r.k
-"
-
-REFLEXIVE_REFERENCE_QUERY="
-SELECT l.k, r.k
-FROM dsl_eq_left AS l
-INNER JOIN dsl_eq_left AS r ON l.k = r.k
-WHERE l.k > 1 AND r.k > 2
-ORDER BY l.k, r.k
-"
-
-PROJ_CHAIN_QUERY="
-SELECT q.k
-FROM (
-    SELECT k FROM dsl_eq_left GROUP BY k
-) AS q
-GROUP BY q.k
-ORDER BY q.k
-"
-
-UNION_QUERY="
-SELECT id
-FROM (
-    SELECT id FROM dsl_insub_outer WHERE id <= 2
-    UNION ALL
-    SELECT id FROM dsl_insub_outer WHERE id >= 2
-) AS union_rows
-ORDER BY id
-"
-
-UNION_DISTINCT_QUERY="
-SELECT id
-FROM (
-    SELECT id FROM dsl_insub_outer WHERE id <= 2
-    UNION
-    SELECT id FROM dsl_insub_outer WHERE id >= 2
-) AS union_rows
-ORDER BY id
-"
-
-SORT_QUERY="
-SELECT id
-FROM dsl_insub_outer
-ORDER BY id
-"
-
-NESTED_SORT_QUERY="
-SELECT id, v
-FROM (
-    SELECT id, v
-    FROM dsl_insub_outer
-    ORDER BY v
-) AS ordered_inner
-ORDER BY id
-"
-
-ORDER_LIMIT_QUERY="
-SELECT id
-FROM dsl_insub_outer
-ORDER BY id
-LIMIT 2 OFFSET 1
-"
-
-run_explain()
-{
-    local output_file=$1
-    local dsl_enabled=$2
-    local native_enabled=$3
-    local query=$4
-    local trace_xforms=${5:-off}
-    local native_sql="SET pg_orca.dsl_only_xforms='';"
-
-    if [[ "$native_enabled" = "off" ]]; then
-        native_sql="SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';"
-    fi
-
-    "${PSQL[@]}" -q -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule=$dsl_enabled;
-$native_sql
-SET optimizer_print_xform=$trace_xforms;
-SET optimizer_print_xform_results=$trace_xforms;
-SET pg_orca.trace_dsl_rule=$trace_xforms;
-SET client_min_messages=log;
-EXPLAIN (COSTS OFF) $query;
-" >"$output_file" 2>&1
-}
-
-assert_contains()
-{
-    local file=$1
-    local text=$2
-    grep -Fq "$text" "$file" || fail "$file does not contain: $text"
-}
-
-assert_not_contains()
-{
-    local file=$1
-    local text=$2
-    if grep -Fq "$text" "$file"; then
-        fail "$file unexpectedly contains: $text"
-    fi
-}
-
-assert_xform_produced_alternative()
-{
-    local file=$1
-    local xform=$2
-
-    awk -v xform="$xform" '
-        index($0, "Xform: " xform) {
-            in_xform = 1
-            in_alternatives = 0
-            next
-        }
-        in_xform && index($0, "TRACE,\"Xform:") {
-            in_xform = 0
-        }
-        in_xform && /^Alternatives:/ {
-            in_alternatives = 1
-            next
-        }
-        in_xform && in_alternatives && /^0:/ {
-            found = 1
-        }
-        END { exit(found ? 0 : 1) }
-    ' "$file" || fail "$xform produced no alternative in $file"
-}
-
-count_plan_joins()
-{
-    grep -Ec \
-        '^[[:space:]]*(->[[:space:]]*)?(((Hash|Merge)([[:space:]]+(Left|Right|Full|Semi|Anti))?[[:space:]]+Join)|Nested Loop([[:space:]]+(Left|Right|Full|Semi|Anti)[[:space:]]+Join)?)' \
-        "$1" || true
-}
-
-assert_same_rows()
-{
-    local case_name=$1
-    local query=$2
-    local expected=$3
-    local native_enabled=$4
-    local native_sql="SET pg_orca.dsl_only_xforms='';"
-    local dsl_rows
-    local postgres_rows
-
-    if [[ "$native_enabled" = "off" ]]; then
-        native_sql="SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';"
-    fi
-
-    dsl_rows="$("${PSQL[@]}" -qAt -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule=on;
-$native_sql
-COPY ($query) TO STDOUT WITH (FORMAT csv);
-")"
-    postgres_rows="$("${PSQL[@]}" -qAt -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=off;
-COPY ($query) TO STDOUT WITH (FORMAT csv);
-")"
-
-    if [[ "$dsl_rows" != "$postgres_rows" ]]; then
-        fail "$case_name: DSL and PostgreSQL returned different rows"
-    fi
-    if [[ "$dsl_rows" != "$expected" ]]; then
-        fail "$case_name: unexpected result rows: $dsl_rows"
-    fi
-}
-
-# Normal ON/OFF comparison: native ORCA first unnests the subqueries, then the
-# post-Apply DSL rule removes the duplicate join.
-run_explain "$OUTPUT_DIR/dsl-off-native-on.plan" off on "$REPEATED_IN_QUERY"
-run_explain "$OUTPUT_DIR/dsl-on-native-on.plan" on on "$REPEATED_IN_QUERY"
-
-assert_contains "$OUTPUT_DIR/dsl-off-native-on.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/dsl-on-native-on.plan" "Optimizer: pg_orca"
-
-off_join_count="$(count_plan_joins "$OUTPUT_DIR/dsl-off-native-on.plan")"
-on_join_count="$(count_plan_joins "$OUTPUT_DIR/dsl-on-native-on.plan")"
-if (( off_join_count < 2 )); then
-    fail "DSL OFF baseline should contain at least two joins, found $off_join_count"
-fi
-if (( on_join_count != 1 )); then
-    fail "DSL ON plan should contain exactly one join, found $on_join_count"
+CASE_ARGS=()
+if [[ -n "$SELECTED_CASES" ]]; then
+    CASE_ARGS=(--cases "$SELECTED_CASES")
 fi
 
-# Causal control: with the native subquery-to-Apply xform disabled, pg_orca can
-# only produce a plan when the loaded DSL rule performs the rewrite itself.
-run_explain "$OUTPUT_DIR/dsl-off-native-off.plan" off off "$REPEATED_IN_QUERY"
-run_explain "$OUTPUT_DIR/dsl-on-native-off.plan" on off "$REPEATED_IN_QUERY"
+python3 "$SCRIPT_DIR/run_e2e_cases.py" \
+    --psql "$PG_BINDIR/psql" \
+    --host "$SOCKET_DIR" \
+    --port "$PORT" \
+    --sql-dir "$SQL_DIR" \
+    --expect-dir "$EXPECT_DIR" \
+    --result-dir "$RESULT_DIR" \
+    --diff-dir "$DIFF_DIR" \
+    --artifact-dir "$ARTIFACT_DIR" \
+    "${CASE_ARGS[@]}"
 
-assert_not_contains "$OUTPUT_DIR/dsl-off-native-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/dsl-on-native-off.plan" "Optimizer: pg_orca"
-causal_join_count="$(count_plan_joins "$OUTPUT_DIR/dsl-on-native-off.plan")"
-if (( causal_join_count != 1 )); then
-    fail "causal DSL ON plan should contain exactly one join, found $causal_join_count"
-fi
-
-# Execute the causally rewritten query and compare it with PostgreSQL's planner.
-dsl_rows="$("${PSQL[@]}" -qAt -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule=on;
-SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';
-COPY ($REPEATED_IN_QUERY) TO STDOUT WITH (FORMAT csv);
-")"
-postgres_rows="$("${PSQL[@]}" -qAt -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=off;
-COPY ($REPEATED_IN_QUERY) TO STDOUT WITH (FORMAT csv);
-")"
-expected_rows=$'1,10\n3,30'
-
-if [[ "$dsl_rows" != "$postgres_rows" ]]; then
-    fail "DSL and PostgreSQL returned different rows"
-fi
-if [[ "$dsl_rows" != "$expected_rows" ]]; then
-    fail "unexpected result rows: $dsl_rows"
-fi
-
-# A different real rule exercises the same InSub matcher with a one-node source
-# and an eliminating target. This guards against implementing only the repeated
-# IN tree shape. The residual v > 10 predicate must survive elimination.
-run_explain "$OUTPUT_DIR/self-in-off-native-on.plan" off on "$SELF_IN_QUERY"
-run_explain "$OUTPUT_DIR/self-in-on-native-on.plan" on on "$SELF_IN_QUERY" on
-assert_contains "$OUTPUT_DIR/self-in-off-native-on.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/self-in-on-native-on.plan" "Optimizer: pg_orca"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/self-in-on-native-on.plan" "CXformDSLRule_InSub"
-self_off_join_count="$(count_plan_joins "$OUTPUT_DIR/self-in-off-native-on.plan")"
-self_on_join_count="$(count_plan_joins "$OUTPUT_DIR/self-in-on-native-on.plan")"
-if (( self_off_join_count < 1 )); then
-    fail "self-IN DSL OFF baseline should contain a join"
-fi
-if (( self_on_join_count != 0 )); then
-    fail "self-IN DSL ON should eliminate the join, found $self_on_join_count"
-fi
-
-run_explain "$OUTPUT_DIR/self-in-off-native-off.plan" off off "$SELF_IN_QUERY"
-run_explain "$OUTPUT_DIR/self-in-on-native-off.plan" on off "$SELF_IN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/self-in-off-native-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Optimizer: pg_orca"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/self-in-on-native-off.plan" "CXformDSLRule_Select"
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "stage=applied bindings="
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Rule: InSubFilter"
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Generated:"
-# Machine-readable differential trace. Rule ids are physical lines in the
-# loaded file, so framework.rules:8 aligns with WeTune's loadBank ids.
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" \
-    'DSL_TRACE {"kind":"application","engine":"pgorca"'
-assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" \
-    '"rule_id":8,"status":"applied"'
-if (( $(count_plan_joins "$OUTPUT_DIR/self-in-on-native-off.plan") != 0 )); then
-    fail "causal self-IN DSL ON should eliminate the join"
-fi
-assert_same_rows "self-IN" "$SELF_IN_QUERY" $'2,20\n3,30' off
-
-# WeTune canonicalizes a correlated EXISTS equality to InSubFilter, whereas
-# native ORCA keeps it as EXISTS/LeftSemiApply. The Apply-stage representation
-# adapter must therefore run after native Select2Apply. The
-# nullable row is the semantic guard: dropping EXISTS without retaining the
-# implied IS NOT NULL predicate would incorrectly return payload=20.
-run_explain "$OUTPUT_DIR/correlated-exists-off.plan" off on \
-    "$CORRELATED_EXISTS_QUERY"
-run_explain "$OUTPUT_DIR/correlated-exists-on.plan" on on \
-    "$CORRELATED_EXISTS_QUERY" on
-assert_contains "$OUTPUT_DIR/correlated-exists-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" "Optimizer: pg_orca"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/correlated-exists-on.plan" "CXformDSLRule_Exists"
-assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" \
-    '"rule_id":8,"status":"applied"'
-assert_contains "$OUTPUT_DIR/correlated-exists-on.plan" "IS NULL"
-if (( $(count_plan_joins "$OUTPUT_DIR/correlated-exists-on.plan") != 0 )); then
-    fail "correlated EXISTS DSL rewrite should eliminate the join"
-fi
-assert_same_rows "correlated EXISTS adapter" "$CORRELATED_EXISTS_QUERY" \
-    $'10\n30' on
-
-# Agg/HAVING is an identity-shaped framework probe: the observable plan need
-# not change, so xform trace proves that generic match/check/instantiate ran.
-run_explain "$OUTPUT_DIR/agg-having-off.plan" off on "$AGG_HAVING_QUERY" on
-run_explain "$OUTPUT_DIR/agg-having-on.plan" on on "$AGG_HAVING_QUERY" on
-assert_contains "$OUTPUT_DIR/agg-having-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/agg-having-on.plan" "Optimizer: pg_orca"
-assert_not_contains "$OUTPUT_DIR/agg-having-off.plan" "CXformDSLRule_Select"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/agg-having-on.plan" "CXformDSLRule_Select"
-assert_same_rows "Agg/HAVING" "$AGG_HAVING_QUERY" $'1,20' on
-
-# The real Exists(Agg,Proj) corpus rule crosses matcher/instantiator boundaries.
-# With native unnesting disabled, only the Select-stage DSL representation can
-# make the query optimizable; the sibling HAVING conjunct is also preserved.
-run_explain "$OUTPUT_DIR/agg-exists-off-native-on.plan" off on "$AGG_EXISTS_QUERY"
-run_explain "$OUTPUT_DIR/agg-exists-on-native-on.plan" on on "$AGG_EXISTS_QUERY"
-assert_contains "$OUTPUT_DIR/agg-exists-off-native-on.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/agg-exists-on-native-on.plan" "Optimizer: pg_orca"
-run_explain "$OUTPUT_DIR/agg-exists-off-native-off.plan" off off "$AGG_EXISTS_QUERY"
-run_explain "$OUTPUT_DIR/agg-exists-on-native-off.plan" on off "$AGG_EXISTS_QUERY" on
-assert_not_contains "$OUTPUT_DIR/agg-exists-off-native-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/agg-exists-on-native-off.plan" "Optimizer: pg_orca"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/agg-exists-on-native-off.plan" "CXformDSLRule_Select"
-assert_same_rows "Agg/HAVING/EXISTS" "$AGG_EXISTS_QUERY" $'1,20' off
-
-# WeTune's inner Proj* for a DISTINCT aggregate is virtual in ORCA: the live
-# GbAgg carries IsDistinct on its scalar aggregate instead. The trace proves
-# that the ordinary Proj* rule produced the flag-cleared alternative; row
-# comparison checks the representation adapter end to end.
-run_explain "$OUTPUT_DIR/dqa-off.plan" off on "$DQA_QUERY" on
-run_explain "$OUTPUT_DIR/dqa-on.plan" on on "$DQA_QUERY" on
-assert_not_contains "$OUTPUT_DIR/dqa-off.plan" "CXformDSLRule_Agg"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/dqa-on.plan" "CXformDSLRule_Agg"
-assert_contains "$OUTPUT_DIR/dqa-on.plan" \
-    "Rule: Proj*<a0 s0>(Input<t0>)"
-assert_contains "$OUTPUT_DIR/dqa-on.plan" '"rule_id":43,"status":"applied"'
-assert_same_rows "DISTINCT aggregate adapter" "$DQA_QUERY" \
-    $'1,1,1\n2,1,1\n3,1,1' on
-
-# Reference must follow a bound join key through GbAgg(Select(Get)) to its
-# unique owning base table. The NOT NULL check remains independent, so nullable
-# foreign keys cannot use this LeftJoin -> InnerJoin rule.
-run_explain "$OUTPUT_DIR/derived-fk-leftjoin-off.plan" off on \
-    "$DERIVED_FK_LEFT_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" on on \
-    "$DERIVED_FK_LEFT_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/derived-fk-leftjoin-off.plan" \
-    "CXformDSLRule_LeftJoin"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" "CXformDSLRule_LeftJoin"
-assert_contains "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" \
-    "Rule: LeftJoin<a0 a1>(Input<t0>,Input<t1>)"
-assert_contains "$OUTPUT_DIR/derived-fk-leftjoin-on.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_same_rows "derived FK LeftJoin to InnerJoin" \
-    "$DERIVED_FK_LEFT_JOIN_QUERY" $'10,10\n20,20' on
-
-run_explain "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" on on \
-    "$NULLABLE_FK_LEFT_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_same_rows "nullable FK LeftJoin guard" \
-    "$NULLABLE_FK_LEFT_JOIN_QUERY" $'1,10\n2,' on
-
-# Empty-subtree pruning must not replace the relational source by a
-# ConstTableGet before the DSL gets a chance to inspect it. The existing
-# LeftJoin rule remains fully guarded by NotNull/Reference; both engines return
-# no rows, while only DSL ON attributes the structural rewrite.
-run_explain "$OUTPUT_DIR/empty-fk-leftjoin-off.plan" off on \
-    "$EMPTY_FK_LEFT_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/empty-fk-leftjoin-on.plan" on on \
-    "$EMPTY_FK_LEFT_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/empty-fk-leftjoin-off.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_contains "$OUTPUT_DIR/empty-fk-leftjoin-on.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_same_rows "empty FK LeftJoin preservation" \
-    "$EMPTY_FK_LEFT_JOIN_QUERY" '' on
-
-# A predicate that null-rejects the right side of FullJoin exposes the
-# equivalent Right-as-outer LeftJoin view inside the DSL Select shell. This
-# tests DSL representation adaptation without changing ORCA's native FullJoin
-# normalizer or the data rule.
-run_explain "$OUTPUT_DIR/right-rejected-fulljoin-off.plan" off on \
-    "$RIGHT_REJECTED_FULL_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" on on \
-    "$RIGHT_REJECTED_FULL_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/right-rejected-fulljoin-off.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_contains "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" \
-    '"rule_id":48,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/right-rejected-fulljoin-on.plan" "CXformDSLRule_Select"
-assert_same_rows "right-rejected FullJoin adapter" \
-    "$RIGHT_REJECTED_FULL_JOIN_QUERY" $'1,10\n2,10\n3,20' on
-
-# Left-join pruning normally runs before Cascades. Because the loaded DSL
-# library contains LeftJoin source patterns, both OFF and ON retain that shape;
-# only ON may attribute and apply the data rule that removes the unique,
-# unreferenced inner side.
-run_explain "$OUTPUT_DIR/unused-unique-leftjoin-off.plan" off on \
-    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" on on \
-    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" on
-if [[ "$(count_plan_joins "$OUTPUT_DIR/unused-unique-leftjoin-off.plan")" -ne 1 ]]; then
-    fail "DSL OFF should retain the unique unused LeftJoin"
-fi
-if [[ "$(count_plan_joins "$OUTPUT_DIR/unused-unique-leftjoin-on.plan")" -ne 0 ]]; then
-    fail "DSL ON should remove the unique unused LeftJoin"
-fi
-assert_not_contains "$OUTPUT_DIR/unused-unique-leftjoin-off.plan" \
-    '"rule_id":90,"status":"applied"'
-assert_contains "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" \
-    '"rule_id":90,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" "CXformDSLRule_Project"
-assert_same_rows "unique unused LeftJoin removal" \
-    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" $'10\n20' on
-
-# A Proj* target may group on an equality-equivalent join key while SchemaEq
-# keeps the source-facing column. The generated compute-scalar restores that
-# schema, so this is an executable target rather than trace-only instantiation.
-run_explain "$OUTPUT_DIR/distinct-join-key-off.plan" off on \
-    "$DISTINCT_JOIN_KEY_QUERY" on
-run_explain "$OUTPUT_DIR/distinct-join-key-on.plan" on on \
-    "$DISTINCT_JOIN_KEY_QUERY" on
-assert_not_contains "$OUTPUT_DIR/distinct-join-key-off.plan" \
-    '"rule_id":53,"status":"applied"'
-assert_contains "$OUTPUT_DIR/distinct-join-key-on.plan" \
-    '"rule_id":53,"status":"applied"'
-assert_contains "$OUTPUT_DIR/distinct-join-key-on.plan" \
-    "CScalarProjectElement"
-assert_same_rows "DISTINCT join-key substitution" \
-    "$DISTINCT_JOIN_KEY_QUERY" $'1\n2' on
-
-# Unlike a pass-through SELECT list, this computed expression remains a real
-# CLogicalProject. The target Proj attrs select r.k instead of l.k; the unit test
-# checks the exact scalar CColRef and this test proves the data rule is applied
-# by Cascades and remains executable end to end.
-run_explain "$OUTPUT_DIR/project-join-key-off.plan" off on \
-    "$PROJECT_JOIN_KEY_QUERY" on
-run_explain "$OUTPUT_DIR/project-join-key-on.plan" on on \
-    "$PROJECT_JOIN_KEY_QUERY" on
-assert_not_contains "$OUTPUT_DIR/project-join-key-off.plan" \
-    'Rule: Proj<a2 s0>(InnerJoin<a0 a1>'
-assert_contains "$OUTPUT_DIR/project-join-key-on.plan" \
-    'Rule: Proj<a2 s0>(InnerJoin<a0 a1>'
-assert_contains "$OUTPUT_DIR/project-join-key-on.plan" \
-    '"rule_id":79,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/project-join-key-on.plan" "CXformDSLRule_Project"
-assert_same_rows "Project join-key substitution" \
-    "$PROJECT_JOIN_KEY_QUERY" $'1\n1\n2\n2' on
-
-# A pass-through SELECT list is normally only a required-column property in
-# ORCA. The DSL query-output Project surface makes the ordinary source visible;
-# all three metadata guards must pass before the FK join can be removed.
-run_explain "$OUTPUT_DIR/fk-innerjoin-off.plan" off on \
-    "$FK_INNER_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/fk-innerjoin-on.plan" on on \
-    "$FK_INNER_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/fk-innerjoin-off.plan" \
-    '"rule_id":84,"status":"applied"'
-assert_contains "$OUTPUT_DIR/fk-innerjoin-on.plan" \
-    '"rule_id":84,"status":"applied"'
-if (( $(count_plan_joins "$OUTPUT_DIR/fk-innerjoin-off.plan") != 1 )); then
-    fail "FK inner-join DSL OFF baseline should contain one join"
-fi
-if (( $(count_plan_joins "$OUTPUT_DIR/fk-innerjoin-on.plan") != 0 )); then
-    fail "FK inner-join DSL ON should eliminate the join"
-fi
-assert_same_rows "pass-through Project FK inner-join removal" \
-    "$FK_INNER_JOIN_QUERY" $'1\n2\n3' on
-
-# GROUP BY all referenced columns preserves the complete value domain of an
-# unfiltered base relation. Reference follows that lineage through the derived
-# referred side, while the ordinary Project-rooted rule removes the redundant
-# self-domain join.
-run_explain "$OUTPUT_DIR/derived-referred-fk-off.plan" off on \
-    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" on
-run_explain "$OUTPUT_DIR/derived-referred-fk-on.plan" on on \
-    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/derived-referred-fk-off.plan" \
-    '"rule_id":84,"status":"applied"'
-assert_contains "$OUTPUT_DIR/derived-referred-fk-on.plan" \
-    '"rule_id":84,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/derived-referred-fk-on.plan" "CXformDSLRule_Project"
-assert_same_rows "derived referred FK key domain" \
-    "$DERIVED_REFERRED_FK_INNER_JOIN_QUERY" $'1\n2\n3' on
-
-# PostgreSQL removes the repeated predicate before ORCA xforms see it. The DSL
-# matcher exposes the equivalent two-Filter source view, while target
-# instantiation flattens back to one Select and attaches residuals only once.
-run_explain "$OUTPUT_DIR/normalized-duplicate-filter-off.plan" off on \
-    "$NORMALIZED_DUPLICATE_FILTER_QUERY" on
-run_explain "$OUTPUT_DIR/normalized-duplicate-filter-on.plan" on on \
-    "$NORMALIZED_DUPLICATE_FILTER_QUERY" on
-assert_not_contains "$OUTPUT_DIR/normalized-duplicate-filter-off.plan" \
-    '"rule_id":58,"status":"applied"'
-assert_contains "$OUTPUT_DIR/normalized-duplicate-filter-on.plan" \
-    '"rule_id":58,"status":"applied"'
-assert_same_rows "normalized duplicate Filter" \
-    "$NORMALIZED_DUPLICATE_FILTER_QUERY" $'1\n2' on
-
-# Predicate preprocessing pushes r.k=2 into a join input, so a Select-rooted
-# shell cannot observe the source rule shape. The InnerJoin shell exposes the
-# equivalent pre-pushdown view; target instantiation then rebinds the predicate
-# template to l.k. The unit test asserts exact CColRef replacement, while this
-# test proves an actual data rule application and executable results.
-run_explain "$OUTPUT_DIR/pushdown-join-filter-off.plan" off on \
-    "$PUSHDOWN_JOIN_FILTER_QUERY" on
-run_explain "$OUTPUT_DIR/pushdown-join-filter-on.plan" on on \
-    "$PUSHDOWN_JOIN_FILTER_QUERY" on
-assert_not_contains "$OUTPUT_DIR/pushdown-join-filter-off.plan" \
-    'Rule: Filter<p0 a2>(InnerJoin<a0 a1>'
-assert_contains "$OUTPUT_DIR/pushdown-join-filter-on.plan" \
-    'Rule: Filter<p0 a2>(InnerJoin<a0 a1>'
-assert_contains "$OUTPUT_DIR/pushdown-join-filter-on.plan" \
-    '"rule_id":63,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/pushdown-join-filter-on.plan" "CXformDSLRule_InnerJoin"
-assert_same_rows "pushed-down join Filter" \
-    "$PUSHDOWN_JOIN_FILTER_QUERY" $'2,2\n2,2' on
-
-# A self-relation column references itself even without an explicit FK. The
-# rule remains guarded by strict table/attribute identity, and the checker only
-# accepts an unfiltered base Get as the referred surface. This verifies the
-# metadata-independent reflexive Reference path on a real optimizer tree.
-run_explain "$OUTPUT_DIR/reflexive-reference-off.plan" off on \
-    "$REFLEXIVE_REFERENCE_QUERY" on
-run_explain "$OUTPUT_DIR/reflexive-reference-on.plan" on on \
-    "$REFLEXIVE_REFERENCE_QUERY" on
-assert_not_contains "$OUTPUT_DIR/reflexive-reference-off.plan" \
-    'Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)'
-assert_contains "$OUTPUT_DIR/reflexive-reference-on.plan" \
-    'Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)'
-assert_contains "$OUTPUT_DIR/reflexive-reference-on.plan" \
-    '"rule_id":69,"status":"applied"'
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/reflexive-reference-on.plan" "CXformDSLRule_InnerJoin"
-assert_same_rows "reflexive Reference" \
-    "$REFLEXIVE_REFERENCE_QUERY" $'3,3' on
-
-# Rule 43 removes the redundant outer dedup and emits the memo-safe identity
-# Proj marker. Rule 74 must then consume that generated alternative and fold
-# Proj(Proj*) back to one Proj*. This is an actual two-step DSL rule chain.
-run_explain "$OUTPUT_DIR/proj-chain-off.plan" off on \
-    "$PROJ_CHAIN_QUERY" on
-run_explain "$OUTPUT_DIR/proj-chain-on.plan" on on \
-    "$PROJ_CHAIN_QUERY" on
-assert_not_contains "$OUTPUT_DIR/proj-chain-off.plan" \
-    '"rule_id":74,"status":"applied"'
-assert_contains "$OUTPUT_DIR/proj-chain-on.plan" \
-    '"rule_id":43,"status":"applied"'
-assert_contains "$OUTPUT_DIR/proj-chain-on.plan" \
-    '"rule_id":74,"status":"applied"'
-assert_same_rows "Proj DSL rule chain" \
-    "$PROJ_CHAIN_QUERY" $'1\n2\n3' on
-
-# Union is symbol-free in the DSL but ORCA carries an ordered output/input
-# column map on the logical operator. The data rule swaps two branches over the
-# same base relation; a non-empty alternative proves the generic shell,
-# matcher, constraint checker and mapping-aware instantiator all participated.
-run_explain "$OUTPUT_DIR/union-off.plan" off on "$UNION_QUERY" on
-run_explain "$OUTPUT_DIR/union-on.plan" on on "$UNION_QUERY" on
-assert_contains "$OUTPUT_DIR/union-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/union-on.plan" "Optimizer: pg_orca"
-assert_not_contains "$OUTPUT_DIR/union-off.plan" "CXformDSLRule_UnionAll"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/union-on.plan" "CXformDSLRule_UnionAll"
-assert_same_rows "Union/UnionAll" "$UNION_QUERY" $'1\n2\n2\n3' on
-
-run_explain "$OUTPUT_DIR/union-distinct-off.plan" off on "$UNION_DISTINCT_QUERY" on
-run_explain "$OUTPUT_DIR/union-distinct-on.plan" on on "$UNION_DISTINCT_QUERY" on
-assert_contains "$OUTPUT_DIR/union-distinct-off.plan" "Optimizer: pg_orca"
-assert_contains "$OUTPUT_DIR/union-distinct-on.plan" "Optimizer: pg_orca"
-assert_not_contains "$OUTPUT_DIR/union-distinct-off.plan" "CXformDSLRule_Union"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/union-distinct-on.plan" "CXformDSLRule_Union"
-assert_same_rows "Union/Union distinct" "$UNION_DISTINCT_QUERY" $'1\n2\n3' on
-
-# Sort and Limit are not independent logical operators in ORCA. These probes
-# prove that the shared CLogicalLimit shell sees both the count-less Sort view
-# and the fused Limit(Sort(...)) view, and that target reconstruction remains
-# executable with identical rows.
-run_explain "$OUTPUT_DIR/sort-off.plan" off on "$SORT_QUERY" on
-run_explain "$OUTPUT_DIR/sort-on.plan" on on "$SORT_QUERY" on
-assert_not_contains "$OUTPUT_DIR/sort-off.plan" "CXformDSLRule_Limit"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/sort-on.plan" "CXformDSLRule_Limit"
-assert_contains "$OUTPUT_DIR/sort-on.plan" "Rule: SortAsc"
-assert_same_rows "Sort adapter" "$SORT_QUERY" $'1\n2\n3' on
-
-run_explain "$OUTPUT_DIR/nested-sort-off.plan" off on "$NESTED_SORT_QUERY" on
-run_explain "$OUTPUT_DIR/nested-sort-on.plan" on on "$NESTED_SORT_QUERY" on
-assert_not_contains "$OUTPUT_DIR/nested-sort-off.plan" "CXformDSLRule_Limit"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/nested-sort-on.plan" "CXformDSLRule_Limit"
-assert_contains "$OUTPUT_DIR/nested-sort-on.plan" \
-    "Rule: SortAsc<a1>(SortAsc<a0>(Input<t0>))"
-assert_contains "$OUTPUT_DIR/nested-sort-on.plan" "stage=applied bindings="
-assert_same_rows "Nested Sort elimination" "$NESTED_SORT_QUERY" \
-    $'1,10\n2,20\n3,30' on
-
-run_explain "$OUTPUT_DIR/order-limit-off.plan" off on "$ORDER_LIMIT_QUERY" on
-run_explain "$OUTPUT_DIR/order-limit-on.plan" on on "$ORDER_LIMIT_QUERY" on
-assert_not_contains "$OUTPUT_DIR/order-limit-off.plan" "CXformDSLRule_Limit"
-assert_xform_produced_alternative \
-    "$OUTPUT_DIR/order-limit-on.plan" "CXformDSLRule_Limit"
-assert_contains "$OUTPUT_DIR/order-limit-on.plan" "Rule: Limit"
-assert_contains "$OUTPUT_DIR/order-limit-on.plan" "stage=applied bindings="
-assert_same_rows "Order/Limit fused adapter" "$ORDER_LIMIT_QUERY" $'2\n3' on
-
-# Constraint negative control: the second inner relation differs, so
-# TableEq(t1,t2) must reject the rule. Native unnesting is still disabled;
-# absence of the pg_orca annotation therefore means the expected fallback.
-"${PSQL[@]}" -q -c "
-LOAD 'pg_orca';
-SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule=on;
-SET pg_orca.dsl_only_xforms='$REPLACEMENT_XFORMS';
-EXPLAIN (COSTS OFF)
-SELECT id, v
-FROM dsl_insub_outer o
-WHERE id IN (SELECT id FROM dsl_insub_inner i1)
-  AND id IN (SELECT id FROM dsl_insub_outer i2)
-ORDER BY id;
-" >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
-assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
-
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived/empty-FK LeftJoin, right-rejected FullJoin adaptation, capability-preserved unique LeftJoin removal, base and derived-domain Project FK InnerJoin removal, DISTINCT and ordinary Project join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, chained Proj/Proj*, Union, Union*, Sort elimination, and fused Order/Limit"
-echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
-echo "Artifacts: $OUTPUT_DIR"
+echo "Actual output: $RESULT_DIR"
+echo "Diffs: $DIFF_DIR"
+echo "Detailed artifacts: $ARTIFACT_DIR"
