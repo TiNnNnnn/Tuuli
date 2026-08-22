@@ -22,6 +22,7 @@
 #include "gpopt/base/CConstraintInterval.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/exception.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpressionFactorizer.h"
@@ -3418,10 +3419,26 @@ CExpressionPreprocessor::PexprPreprocess(
 		pexprUnnested->Release();
 	}
 
-	// Left Outer Join Pruning
-	CExpression *pexprJoinPruned =
-		CLeftJoinPruningPreprocessor::PexprPreprocess(mp, pexprConvert2In,
-													  pcrsOutputAndOrderCols);
+	// Left Outer Join pruning is irreversible and runs before Cascades. If the
+	// loaded DSL library contains a LeftJoin anywhere in a source pattern, retain
+	// LOJs so the data-driven matcher gets the first chance to inspect them. This
+	// is capability-based (not rule/SQL-specific), and applies equally with DSL
+	// application OFF and ON so differential plans start from the same tree.
+	CDSLRuleEngine *pengineDSL = CDSLRuleEngine::Instance();
+	const BOOL fPreserveLeftJoins =
+		nullptr != pengineDSL &&
+		pengineDSL->FHasSourceOperator(EdslopLeftJoin);
+	CExpression *pexprJoinPruned = nullptr;
+	if (fPreserveLeftJoins)
+	{
+		pexprConvert2In->AddRef();
+		pexprJoinPruned = pexprConvert2In;
+	}
+	else
+	{
+		pexprJoinPruned = CLeftJoinPruningPreprocessor::PexprPreprocess(
+			mp, pexprConvert2In, pcrsOutputAndOrderCols);
+	}
 	GPOS_CHECK_ABORT;
 	pexprConvert2In->Release();
 

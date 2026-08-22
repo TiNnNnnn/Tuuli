@@ -185,12 +185,35 @@ LEFT JOIN dsl_fk_parent AS p ON c.parent_id = p.id
 ORDER BY c.id
 "
 
+UNUSED_UNIQUE_LEFT_JOIN_QUERY="
+SELECT p.id
+FROM dsl_fk_parent AS p
+LEFT JOIN (
+    SELECT parent_id
+    FROM dsl_fk_child
+    GROUP BY parent_id
+) AS c ON p.id = c.parent_id
+"
+
 DISTINCT_JOIN_KEY_QUERY="
 SELECT l.k
 FROM dsl_eq_left AS l
 INNER JOIN dsl_eq_right AS r ON l.k = r.k
 GROUP BY l.k
 ORDER BY l.k
+"
+
+PROJECT_JOIN_KEY_QUERY="
+SELECT l.k + 0 AS projected_k
+FROM dsl_eq_left AS l
+INNER JOIN dsl_eq_right AS r ON l.k = r.k
+ORDER BY projected_k
+"
+
+FK_INNER_JOIN_QUERY="
+SELECT c.id
+FROM dsl_fk_child AS c
+INNER JOIN dsl_fk_parent AS p ON c.parent_id = p.id
 "
 
 NORMALIZED_DUPLICATE_FILTER_QUERY="
@@ -214,6 +237,15 @@ FROM dsl_eq_left AS l
 INNER JOIN dsl_eq_left AS r ON l.k = r.k
 WHERE l.k > 1 AND r.k > 2
 ORDER BY l.k, r.k
+"
+
+PROJ_CHAIN_QUERY="
+SELECT q.k
+FROM (
+    SELECT k FROM dsl_eq_left GROUP BY k
+) AS q
+GROUP BY q.k
+ORDER BY q.k
 "
 
 UNION_QUERY="
@@ -545,6 +577,29 @@ assert_not_contains "$OUTPUT_DIR/nullable-fk-leftjoin-on.plan" \
 assert_same_rows "nullable FK LeftJoin guard" \
     "$NULLABLE_FK_LEFT_JOIN_QUERY" $'1,10\n2,' on
 
+# Left-join pruning normally runs before Cascades. Because the loaded DSL
+# library contains LeftJoin source patterns, both OFF and ON retain that shape;
+# only ON may attribute and apply the data rule that removes the unique,
+# unreferenced inner side.
+run_explain "$OUTPUT_DIR/unused-unique-leftjoin-off.plan" off on \
+    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" on on \
+    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" on
+if [[ "$(count_plan_joins "$OUTPUT_DIR/unused-unique-leftjoin-off.plan")" -ne 1 ]]; then
+    fail "DSL OFF should retain the unique unused LeftJoin"
+fi
+if [[ "$(count_plan_joins "$OUTPUT_DIR/unused-unique-leftjoin-on.plan")" -ne 0 ]]; then
+    fail "DSL ON should remove the unique unused LeftJoin"
+fi
+assert_not_contains "$OUTPUT_DIR/unused-unique-leftjoin-off.plan" \
+    '"rule_id":90,"status":"applied"'
+assert_contains "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" \
+    '"rule_id":90,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/unused-unique-leftjoin-on.plan" "CXformDSLRule_Project"
+assert_same_rows "unique unused LeftJoin removal" \
+    "$UNUSED_UNIQUE_LEFT_JOIN_QUERY" $'10\n20' on
+
 # A Proj* target may group on an equality-equivalent join key while SchemaEq
 # keeps the source-facing column. The generated compute-scalar restores that
 # schema, so this is an executable target rather than trace-only instantiation.
@@ -560,6 +615,45 @@ assert_contains "$OUTPUT_DIR/distinct-join-key-on.plan" \
     "CScalarProjectElement"
 assert_same_rows "DISTINCT join-key substitution" \
     "$DISTINCT_JOIN_KEY_QUERY" $'1\n2' on
+
+# Unlike a pass-through SELECT list, this computed expression remains a real
+# CLogicalProject. The target Proj attrs select r.k instead of l.k; the unit test
+# checks the exact scalar CColRef and this test proves the data rule is applied
+# by Cascades and remains executable end to end.
+run_explain "$OUTPUT_DIR/project-join-key-off.plan" off on \
+    "$PROJECT_JOIN_KEY_QUERY" on
+run_explain "$OUTPUT_DIR/project-join-key-on.plan" on on \
+    "$PROJECT_JOIN_KEY_QUERY" on
+assert_not_contains "$OUTPUT_DIR/project-join-key-off.plan" \
+    'Rule: Proj<a2 s0>(InnerJoin<a0 a1>'
+assert_contains "$OUTPUT_DIR/project-join-key-on.plan" \
+    'Rule: Proj<a2 s0>(InnerJoin<a0 a1>'
+assert_contains "$OUTPUT_DIR/project-join-key-on.plan" \
+    '"rule_id":79,"status":"applied"'
+assert_xform_produced_alternative \
+    "$OUTPUT_DIR/project-join-key-on.plan" "CXformDSLRule_Project"
+assert_same_rows "Project join-key substitution" \
+    "$PROJECT_JOIN_KEY_QUERY" $'1\n1\n2\n2' on
+
+# A pass-through SELECT list is normally only a required-column property in
+# ORCA. The DSL query-output Project surface makes the ordinary source visible;
+# all three metadata guards must pass before the FK join can be removed.
+run_explain "$OUTPUT_DIR/fk-innerjoin-off.plan" off on \
+    "$FK_INNER_JOIN_QUERY" on
+run_explain "$OUTPUT_DIR/fk-innerjoin-on.plan" on on \
+    "$FK_INNER_JOIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/fk-innerjoin-off.plan" \
+    '"rule_id":84,"status":"applied"'
+assert_contains "$OUTPUT_DIR/fk-innerjoin-on.plan" \
+    '"rule_id":84,"status":"applied"'
+if (( $(count_plan_joins "$OUTPUT_DIR/fk-innerjoin-off.plan") != 1 )); then
+    fail "FK inner-join DSL OFF baseline should contain one join"
+fi
+if (( $(count_plan_joins "$OUTPUT_DIR/fk-innerjoin-on.plan") != 0 )); then
+    fail "FK inner-join DSL ON should eliminate the join"
+fi
+assert_same_rows "pass-through Project FK inner-join removal" \
+    "$FK_INNER_JOIN_QUERY" $'1\n2\n3' on
 
 # PostgreSQL removes the repeated predicate before ORCA xforms see it. The DSL
 # matcher exposes the equivalent two-Filter source view, while target
@@ -613,6 +707,22 @@ assert_xform_produced_alternative \
     "$OUTPUT_DIR/reflexive-reference-on.plan" "CXformDSLRule_InnerJoin"
 assert_same_rows "reflexive Reference" \
     "$REFLEXIVE_REFERENCE_QUERY" $'3,3' on
+
+# Rule 43 removes the redundant outer dedup and emits the memo-safe identity
+# Proj marker. Rule 74 must then consume that generated alternative and fold
+# Proj(Proj*) back to one Proj*. This is an actual two-step DSL rule chain.
+run_explain "$OUTPUT_DIR/proj-chain-off.plan" off on \
+    "$PROJ_CHAIN_QUERY" on
+run_explain "$OUTPUT_DIR/proj-chain-on.plan" on on \
+    "$PROJ_CHAIN_QUERY" on
+assert_not_contains "$OUTPUT_DIR/proj-chain-off.plan" \
+    '"rule_id":74,"status":"applied"'
+assert_contains "$OUTPUT_DIR/proj-chain-on.plan" \
+    '"rule_id":43,"status":"applied"'
+assert_contains "$OUTPUT_DIR/proj-chain-on.plan" \
+    '"rule_id":74,"status":"applied"'
+assert_same_rows "Proj DSL rule chain" \
+    "$PROJ_CHAIN_QUERY" $'1\n2\n3' on
 
 # Union is symbol-free in the DSL but ORCA carries an ordered output/input
 # column map on the logical operator. The data rule swaps two branches over the
@@ -685,6 +795,6 @@ ORDER BY id;
 " >"$OUTPUT_DIR/tableeq-negative.plan" 2>&1
 assert_not_contains "$OUTPUT_DIR/tableeq-negative.plan" "Optimizer: pg_orca"
 
-echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, DISTINCT join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, Union, Union*, Sort elimination, and fused Order/Limit"
+echo "DSL E2E passed: repeated-IN, self-IN, correlated EXISTS, Agg/HAVING, Agg/HAVING/EXISTS, DISTINCT aggregate, derived-FK LeftJoin, capability-preserved unique LeftJoin removal, pass-through Project FK InnerJoin removal, DISTINCT and ordinary Project join-key substitution, normalized duplicate Filter, pushed-down join Filter rebinding, reflexive Reference, chained Proj/Proj*, Union, Union*, Sort elimination, and fused Order/Limit"
 echo "Repeated-IN joins: OFF=$off_join_count, ON=$on_join_count, causal ON=$causal_join_count"
 echo "Artifacts: $OUTPUT_DIR"

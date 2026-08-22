@@ -832,10 +832,20 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheck(const CDSLRule *prule,
-							  const CDSLModel *pmodel) const
+							  const CDSLModel *pmodel,
+							  const CDSLConstraint **ppconFailed,
+							  ULONG *pulFailed) const
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pmodel);
+	if (nullptr != ppconFailed)
+	{
+		*ppconFailed = nullptr;
+	}
+	if (nullptr != pulFailed)
+	{
+		*pulFailed = gpos::ulong_max;
+	}
 
 	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
 	if (nullptr == pdrgpcon)
@@ -848,6 +858,14 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 	{
 		if (!FCheckOne(prule, (*pdrgpcon)[ul], pmodel))
 		{
+			if (nullptr != ppconFailed)
+			{
+				*ppconFailed = (*pdrgpcon)[ul];
+			}
+			if (nullptr != pulFailed)
+			{
+				*pulFailed = ul;
+			}
 			return false;
 		}
 	}

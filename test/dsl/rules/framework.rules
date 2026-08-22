@@ -67,3 +67,24 @@ Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 
 # ordinary rule exercises that constraint while moving a predicate between two
 # equality-equivalent aliases of the same table.
 Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|TableEq(t0,t1);AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0)
+
+# A Proj* -> Proj result is carried as the memo-safe Select(child, TRUE)
+# identity marker. This ordinary follow-up rule proves that generated DSL
+# alternatives remain consumable by later DSL rules.
+Proj<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s2,s1)
+
+# MONSOON/dataset/rules/6t2n_normal_reduce.txt:37. A computed Project remains
+# explicit in ORCA; target attrs replace its input with the equality-equivalent
+# key from the other InnerJoin child while SchemaEq keeps its defined output.
+Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0)
+
+# MONSOON/dataset/rules/6t2n_normal_reduce.txt:6. This uses a pass-through SQL
+# SELECT list, so the query-output Project surface (rather than a computed
+# expression) must remain visible. The guards prove safe FK inner-join removal.
+Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)
+
+# MONSOON/dataset/rules/6t2n_normal_reduce.txt:18. The right side is unique and
+# no right column is projected, so the LeftJoin is redundant. This probe also
+# verifies that capability-aware preprocessing preserves the source shape for
+# DSL OFF/ON comparison instead of letting native LOJ pruning erase it first.
+Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)

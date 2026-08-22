@@ -72,7 +72,9 @@ private:
 	CColRefArray *PdrgpcrGrouping(CExpression *pexprAgg) const;
 
 	// Proj* special case: match a pure-dedup Global GbAgg with an empty
-	// aggregate project list and flag it for elimination.
+	// aggregate project list. A source-root match accepts only an original
+	// dedup, while a nested match may consume a complete Global dedup carrying
+	// minimal-grouping provenance from another memo alternative.
 	BOOL FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 					 CDSLModel *pmodel) const;
 

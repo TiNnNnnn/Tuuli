@@ -15,13 +15,72 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
 using namespace gpopt;
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjMatcher::FMatchTrivialSelectOverDedup
+//
+//	@doc:
+//		PexprInstantiate represents a removed DISTINCT as Select(child, TRUE),
+//		because a bare child cannot safely be inserted as a new memo alternative.
+//		That Select is also an identity projection of the pure-dedup child's full
+//		(grouping-only) output. Expose the ordinary Proj view here so DSL results
+//		can feed a later Proj(Proj*) rule. A non-TRUE predicate, aggregate-bearing
+//		GbAgg, split stage, or FD/minimal-generated GbAgg remains ineligible.
+//---------------------------------------------------------------------------
+BOOL
+CDSLProjMatcher::FMatchTrivialSelectOverDedup(const CDSLOp *popProj,
+								  CExpression *pexprSelect,
+								  CDSLModel *pmodel) const
+{
+	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
+		2 != pexprSelect->Arity() ||
+		!CUtils::FScalarConstTrue((*pexprSelect)[1]))
+	{
+		return false;
+	}
+
+	CExpression *pexprDedup = (*pexprSelect)[0];
+	if (COperator::EopLogicalGbAgg != pexprDedup->Pop()->Eopid() ||
+		2 != pexprDedup->Arity() || 0 != (*pexprDedup)[1]->Arity())
+	{
+		return false;
+	}
+	CLogicalGbAgg *popGbAgg =
+		CLogicalGbAgg::PopConvert(pexprDedup->Pop());
+	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
+		nullptr != popGbAgg->PdrgpcrMinimal() ||
+		nullptr == popGbAgg->Pdrgpcr() || 0 == popGbAgg->Pdrgpcr()->Size() ||
+		1 != popProj->UlChildren())
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = popProj->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrIdentity = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	for (ULONG ul = 0; ul < popGbAgg->Pdrgpcr()->Size(); ul++)
+	{
+		pdrgpcrIdentity->Append((*popGbAgg->Pdrgpcr())[ul]);
+	}
+	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrIdentity) &&
+				  pmodel->FBind((*pdrgpsym)[1], pdrgpcrIdentity);
+	pdrgpcrIdentity->Release();
+	return fBound &&
+		   m_pmatcher->FMatch((*popProj)[0], pexprDedup, pmodel);
+}
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -127,6 +186,11 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	GPOS_ASSERT(nullptr != popProj);
 	GPOS_ASSERT(EdslopProj == popProj->Edslop());
 	GPOS_ASSERT(nullptr != pexprProject);
+
+	if (COperator::EopLogicalSelect == pexprProject->Pop()->Eopid())
+	{
+		return FMatchTrivialSelectOverDedup(popProj, pexprProject, pmodel);
+	}
 
 	// the live node must be a Project carrying (relational child, project list).
 	if (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||

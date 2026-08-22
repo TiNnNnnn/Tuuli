@@ -96,6 +96,15 @@ CDSLRuleEngine::BucketByRoot()
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiApply;
 		}
+		// Dropping a redundant Proj* uses Select(child, TRUE) as a memo-safe
+		// identity-Proj marker. Route ordinary Proj-rooted rules to Select as well
+		// so a later DSL rule can consume the generated alternative. The Proj
+		// matcher accepts only TRUE over a pure, unsplit dedup GbAgg.
+		if (EdslopProj == prule->PfragSrc()->PopRoot()->Edslop() &&
+			!prule->PfragSrc()->PopRoot()->FDistinct())
+		{
+			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+		}
 		// Inner-join predicate pushdown changes Filter(InnerJoin(...)) into
 		// InnerJoin(..., Select(...), ...) before DSL exploration. Route such
 		// rules to the InnerJoin shell as well; CDSLFilterMatcher performs the
@@ -231,6 +240,54 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 	return nullptr == pulId ? 0 : *pulId;
 }
 
+BOOL
+CDSLRuleEngine::FHasOrdinaryProjSourceRoot() const
+{
+	for (ULONG ul = 0; ul < m_pdrgprule->Size(); ul++)
+	{
+		const CDSLOp *popRoot = (*m_pdrgprule)[ul]->PfragSrc()->PopRoot();
+		if (EdslopProj == popRoot->Edslop() && !popRoot->FDistinct())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+namespace
+{
+BOOL
+FContainsDSLOperator(const CDSLOp *pop, EDslOpKind edslop)
+{
+	if (pop->Edslop() == edslop)
+	{
+		return true;
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		if (FContainsDSLOperator((*pop)[ul], edslop))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+}  // namespace
+
+BOOL
+CDSLRuleEngine::FHasSourceOperator(EDslOpKind edslop) const
+{
+	for (ULONG ul = 0; ul < m_pdrgprule->Size(); ul++)
+	{
+		if (FContainsDSLOperator(
+				(*m_pdrgprule)[ul]->PfragSrc()->PopRoot(), edslop))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 namespace
 {
 enum EDslTraceStage
@@ -262,7 +319,9 @@ SzDSLTraceStage(EDslTraceStage edsltrace)
 void
 TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			 const CDSLRule *prule, const CDSLModel *pmodel,
-			 const CExpression *pexprSrc, const CExpression *pexprTgt)
+			 const CExpression *pexprSrc, const CExpression *pexprTgt,
+			 const CDSLConstraint *pconFailed = nullptr,
+			 ULONG ulFailed = gpos::ulong_max)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -295,6 +354,12 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	{
 		os << ",\"binding_count\":"
 		   << (nullptr == pmodel ? 0 : pmodel->Size());
+		if (nullptr != pconFailed)
+		{
+			os << ",\"failed_constraint\":\""
+			   << CDSLConstraintKindTable::SzName(pconFailed->Edslcon())
+			   << "\",\"failed_constraint_index\":" << ulFailed;
+		}
 	}
 	os << "}" << std::endl;
 
@@ -342,10 +407,12 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		pmodel->Release();
 		return nullptr;
 	}
-	if (!FCheckConstraints(prule, pmodel, pexpr))
+	const CDSLConstraint *pconFailed = nullptr;
+	ULONG ulFailed = gpos::ulong_max;
+	if (!FCheckConstraints(prule, pmodel, pexpr, &pconFailed, &ulFailed))
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel, pexpr,
-					 nullptr);
+					 nullptr, pconFailed, ulFailed);
 		pmodel->Release();
 		return nullptr;
 	}
@@ -384,8 +451,10 @@ CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
 BOOL
 CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
 								  const CDSLModel *pmodel,
-								  CExpression *  // pexpr (unused: constraints are
-											     // checked against bound model)
+								  CExpression *,  // pexpr unused: constraints are
+												  // checked against bound model
+								  const CDSLConstraint **ppconFailed,
+								  ULONG *pulFailed
 ) const
 {
 	GPOS_ASSERT(nullptr != prule);
@@ -395,7 +464,7 @@ CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
 	// the bound model + live metadata; equality-class constraints hold by
 	// construction (FBind enforced them during match). See CDSLConstraintChecker.
 	CDSLConstraintChecker checker(pmodel->Pmp());
-	return checker.FCheck(prule, pmodel);
+	return checker.FCheck(prule, pmodel, ppconFailed, pulFailed);
 }
 
 CExpression *

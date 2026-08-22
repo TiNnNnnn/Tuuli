@@ -128,6 +128,16 @@ public:
 	// owned by this engine.
 	ULONG UlRuleId(const CDSLRule *prule) const;
 
+	// Whether any loaded rule needs an ordinary (non-DISTINCT) Proj at the
+	// source root. QueryContext uses this to preserve the otherwise implicit
+	// top-level SQL projection as a memo-visible identity Project.
+	BOOL FHasOrdinaryProjSourceRoot() const;
+
+	// Whether any loaded source fragment contains the requested DSL operator at
+	// any depth. Preprocessing uses this capability query to avoid irreversibly
+	// deleting shapes that a data rule must inspect in the memo.
+	BOOL FHasSourceOperator(EDslOpKind edslop) const;
+
 	//------------------------------------------------------------------
 	// three-stage rewrite
 	//------------------------------------------------------------------
@@ -138,7 +148,9 @@ public:
 
 	// ②: check the rule's constraints against the bound model / live metadata.
 	BOOL FCheckConstraints(const CDSLRule *prule, const CDSLModel *pmodel,
-						   CExpression *pexpr) const;
+						   CExpression *pexpr,
+						   const CDSLConstraint **ppconFailed = nullptr,
+						   ULONG *pulFailed = nullptr) const;
 
 	// ③: instantiate the rule's target template under the bound model, in mp.
 	CExpression *PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,

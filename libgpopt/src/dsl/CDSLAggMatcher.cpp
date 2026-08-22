@@ -194,16 +194,23 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 		return FMatchDistinctAggDedup(popAgg, pexprAgg, pmodel);
 	}
 
-	// fire only on the ORIGINAL user-level global dedup, exactly like native
-	// CXformSimplifyGbAgg::Exfp: skip scalar aggs (no grouping), skip the
-	// FD-annotated / split-generated aggs (PdrgpcrMinimal set — Local and
-	// intermediate stages produced by CXformSplitGbAgg), and require Global.
-	// Firing on the split-generated stages would insert dedup-drop alternatives
-	// into groups where they are invalid and break memo plan extraction
-	// (CMemo.cpp PocLookupBest returns null).
+	// A source-root Proj* is an operator-eliminating rule. Keep that case on the
+	// ORIGINAL user-level global dedup, exactly like native
+	// CXformSimplifyGbAgg::Exfp: a split/DSL-generated aggregate carries
+	// PdrgpcrMinimal and dropping it at its own memo group is invalid.
+	//
+	// A nested Proj*, however, is consumed as part of a larger source such as
+	// Proj(Proj*). The larger xform replaces the outer group and reconstructs the
+	// target dedup, so a complete Global dedup remains a faithful Proj* view even
+	// when it carries minimal-grouping provenance. Allowing it here is what lets
+	// one DSL alternative feed a later structural rule without weakening the
+	// dangerous root-level drop gate. Local/intermediate stages remain rejected.
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	const CDSLRule *prule = m_pmatcher->Prule();
+	const BOOL fSourceRoot =
+		nullptr == prule || popAgg == prule->PfragSrc()->PopRoot();
 	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
-		nullptr != popGbAgg->PdrgpcrMinimal() ||
+		(fSourceRoot && nullptr != popGbAgg->PdrgpcrMinimal()) ||
 		nullptr == popGbAgg->Pdrgpcr() || 0 == popGbAgg->Pdrgpcr()->Size())
 	{
 		return false;

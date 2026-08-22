@@ -17,11 +17,18 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -30,6 +37,24 @@ using namespace gpopt;
 #define GPOPT_DSL_PROJ_IDENTITY_RULE                            \
 	"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"            \
 	"TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)"
+
+#define GPOPT_DSL_PROJ_DEDUP_CHAIN_RULE                                  \
+	"Proj<a1 s1>(Proj*<a0 s0>(Input<t0>))|"                              \
+	"Proj*<a2 s2>(Input<t1>)|"                                           \
+	"AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,s0);"                    \
+	"TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s2,s1)"
+
+#define GPOPT_DSL_PROJ_REBIND_RULE                                      \
+	"Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"               \
+	"Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|"               \
+	"AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);"   \
+	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);"      \
+	"AttrsEq(a5,a1);SchemaEq(s1,s0)"
+
+#define GPOPT_DSL_ROOT_DEDUP_DROP_RULE                                  \
+	"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"                    \
+	"AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);"       \
+	"SchemaEq(s1,s0)"
 
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
@@ -72,10 +97,190 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_MatchBindsProjectedColumns),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_InstantiatePreservesOutput),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup
+//
+//	@doc:
+//		A complete Global dedup with PdrgpcrMinimal is a valid nested Proj* view,
+//		but must not be eligible for root-level dedup deletion.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *pruleNested =
+		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_DEDUP_CHAIN_RULE);
+	CDSLRule *pruleRoot =
+		PdslruleParseLocal(mp, GPOPT_DSL_ROOT_DEDUP_DROP_RULE);
+	GPOS_ASSERT(nullptr != pruleNested && nullptr != pruleRoot);
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"generated_dedup", 2, &pdrgpcrInput, gpos::ulong_max);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+
+	CExpressionArray *pdrgpexprEmpty = GPOS_NEW(mp) CExpressionArray(mp);
+	CExpression *pexprEmptyList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprEmpty);
+	pdrgpcrGroup->AddRef();
+	pdrgpcrGroup->AddRef();
+	pexprGet->AddRef();
+	CExpression *pexprGeneratedDedup = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalGbAgg(
+			mp, pdrgpcrGroup, pdrgpcrGroup,
+			COperator::EgbaggtypeGlobal),
+		pexprGet, pexprEmptyList);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprGeneratedDedup, pdrgpcrGroup);
+
+	CDSLModel *pmodelNested = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherNested(mp, pruleNested);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcherNested.FMatch(
+			pruleNested->PfragSrc()->PopRoot(), pexprProject, pmodelNested) ||
+		!checker.FCheck(pruleNested, pmodelNested))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(pruleNested, pmodelNested);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalGbAgg != pexprTarget->Pop()->Eopid() ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// The same provenance-marked aggregate cannot be deleted by a rule whose
+	// source root itself is Proj*.
+	CDSLModel *pmodelRoot = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherRoot(mp, pruleRoot);
+	if (matcherRoot.FMatch(
+			pruleRoot->PfragSrc()->PopRoot(), pexprGeneratedDedup, pmodelRoot))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodelRoot->Release();
+	pmodelNested->Release();
+	pexprProject->Release();
+	pexprGeneratedDedup->Release();
+	pexprGet->Release();
+	pdrgpcrGroup->Release();
+	pruleRoot->Release();
+	pruleNested->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_REBIND_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("rebind_left", 2, &pdrgpcrLeft);
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("rebind_right", 2, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	CColRef *pcrOutput = fix.PcrCreateInt4("projected_key");
+	CExpression *pexprSourceScalar = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarIdent(mp, (*pdrgpcrLeft)[0]));
+	CExpression *pexprSourceElem = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectElement(mp, pcrOutput),
+		pexprSourceScalar);
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprElems->Append(pexprSourceElem);
+	CExpression *pexprSourceList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+	pexprJoin->AddRef();
+	CExpression *pexprProject = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprJoin, pexprSourceList);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			CExpression *pexprTargetElem = (*(*pexprTarget)[1])[0];
+			CScalarProjectElement *popTargetElem =
+				CScalarProjectElement::PopConvert(pexprTargetElem->Pop());
+			CScalarIdent *popTargetIdent =
+				CScalarIdent::PopConvert((*pexprTargetElem)[0]->Pop());
+			if (pcrOutput != popTargetElem->Pcr() ||
+				(*pdrgpcrRight)[0] != popTargetIdent->Pcr())
+			{
+				eres = GPOS_FAILED;
+			}
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
+	pexprJoin->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------
@@ -190,6 +395,71 @@ CDSLProjTest::EresUnittest_InstantiatePreservesOutput()
 	pmodel->Release();
 	pexprGet->Release();
 	pexprProject->Release();
+	prule->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain
+//
+//	@doc:
+//		A previous Proj* -> Proj rewrite is inserted into the memo as
+//		Select(pure-dedup, TRUE). Match that safe identity-Proj view and prove the
+//		next Proj(Proj*) -> Proj* rule can instantiate a valid single dedup.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_DEDUP_CHAIN_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"dedup_chain", 2, &pdrgpcrInput, gpos::ulong_max);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	CExpression *pexprDedup =
+		fix.PexprLogicalGbAgg(pexprGet, pdrgpcrGroup);
+	pdrgpcrGroup->Release();
+	CExpression *pexprTrue = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *pexprMarker =
+		fix.PexprLogicalSelect(pexprDedup, pexprTrue);
+	pexprTrue->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprMarker, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalGbAgg != pexprTarget->Pop()->Eopid() ||
+			!pexprMarker->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprGet->Release();
+	pexprDedup->Release();
+	pexprMarker->Release();
 	prule->Release();
 	return eres;
 }

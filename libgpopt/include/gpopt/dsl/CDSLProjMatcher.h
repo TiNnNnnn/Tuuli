@@ -74,6 +74,13 @@ private:
 	// columns. Caller owns the returned ref. NULL if not a project list.
 	CColRefArray *PdrgpcrAttrs(CExpression *pexprProjList) const;
 
+	// A dedup-drop target is represented in the memo as Select(child, TRUE).
+	// When child is a pure global dedup GbAgg, expose that marker as the
+	// equivalent identity Proj so a following DSL rule can consume it.
+	BOOL FMatchTrivialSelectOverDedup(const CDSLOp *popProj,
+								 CExpression *pexprSelect,
+								 CDSLModel *pmodel) const;
+
 public:
 	CDSLProjMatcher(const CDSLProjMatcher &) = delete;
 
@@ -84,10 +91,9 @@ public:
 		GPOS_ASSERT(nullptr != pmatcher);
 	}
 
-	// match a Proj-rooted DSL template against a live CLogicalProject. Returns
-	// true iff the projected-column symbols bound consistently and the relational
-	// child matched. Populates pmodel with the <a>/<s> bindings and the child
-	// bindings.
+	// Match a Proj-rooted DSL template against a live CLogicalProject, or against
+	// the memo-safe Select(TRUE, pure-dedup) identity view produced by an earlier
+	// DSL dedup drop. Returns true iff symbols and the relational child match.
 	BOOL FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 				CDSLModel *pmodel) const;
 };

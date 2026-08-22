@@ -99,8 +99,12 @@ public:
 		GPOS_ASSERT(nullptr != mp);
 	}
 
-	// check every constraint of prule against pmodel; true iff all hold.
-	BOOL FCheck(const CDSLRule *prule, const CDSLModel *pmodel) const;
+	// Check every constraint of prule against pmodel; true iff all hold. When
+	// requested, report (without transferring ownership) the first failed
+	// constraint and its zero-based position for verbose differential traces.
+	BOOL FCheck(const CDSLRule *prule, const CDSLModel *pmodel,
+				const CDSLConstraint **ppconFailed = nullptr,
+				ULONG *pulFailed = nullptr) const;
 };
 }  // namespace gpopt
 

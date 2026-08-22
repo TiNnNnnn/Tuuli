@@ -36,8 +36,20 @@ public:
 	// equal the source's (output-column invariant).
 	static GPOS_RESULT EresUnittest_InstantiatePreservesOutput();
 
-	// a Select-shaped input does NOT fire a Proj-rooted rule (operator-identity
-	// gate) — the trigger/no-trigger discriminator.
+	// Target Proj attrs may select an equivalent join-key column. The scalar
+	// project expression must change while its defined output/schema stays fixed.
+	static GPOS_RESULT EresUnittest_InstantiateRebindsTargetAttrs();
+
+	// A memo-safe Select(TRUE) produced by dedup removal exposes an identity Proj
+	// view over its pure Proj* child, allowing a second DSL rule to consume it.
+	static GPOS_RESULT EresUnittest_TrivialSelectContinuesDedupChain();
+
+	// A nested Proj* may consume a complete Global dedup carrying minimal-group
+	// provenance, while the same expression remains forbidden for a root-level
+	// Proj* elimination rule.
+	static GPOS_RESULT EresUnittest_NestedProjStarConsumesGeneratedDedup();
+
+	// a non-trivial Select does NOT fire a Proj-rooted rule.
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();
 };	// class CDSLProjTest
 }  // namespace gpopt

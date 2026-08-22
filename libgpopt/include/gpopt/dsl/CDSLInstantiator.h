@@ -100,6 +100,12 @@ private:
 	CExpression *PexprBuildFilterPredicate(const CDSLOp *popFilter,
 										 const CDSLModel *pmodel) const;
 
+	// Find the source Proj that owns a schema symbol. Target Proj attrs can name
+	// a different (but constraint-equivalent) input vector, so its saved scalar
+	// project list must be rebound from this source Proj's attrs.
+	const CDSLOp *PopSourceProjForSchema(
+		const CDSLOp *pop, const CDSLSymbol *psymSchema) const;
+
 	// recursively build the target subtree rooted at pop, reading bindings from
 	// pmodel (resolving target symbols through the alias map). Returns NULL if a
 	// needed binding is missing or the operator kind is not yet supported.
@@ -120,11 +126,9 @@ private:
 	CExpression *PexprBuildJoin(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 
-	// Proj<a s>: Project(child, project-list). Grafts the SOURCE-matched
-	// project-list subtree (recorded on the model) over the rebuilt relational
-	// child, so the projected/computed columns — hence DeriveOutputColumns — are
-	// preserved exactly. A target that introduces NEW columns still needs column
-	// remapping; current rules conservatively reuse source column identities.
+	// Proj<a s>: Project(child, project-list). Rebuilds the SOURCE-matched list
+	// over the target child, remapping source attrs to the target attrs while
+	// preserving the project element output/schema columns.
 	CExpression *PexprBuildProj(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 

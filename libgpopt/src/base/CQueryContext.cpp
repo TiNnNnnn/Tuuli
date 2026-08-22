@@ -18,7 +18,12 @@
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/CDistributionSpecAny.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 
 using namespace gpopt;
 
@@ -187,18 +192,67 @@ CQueryContext::PqcGenerate(CMemoryPool *mp, CExpression *pexpr,
 		colref_array->Append(colref);
 	}
 
+	CExpression *pexprResult = pexpr;
+	COperator *popOriginalTop = PopTop(pexpr);
+	BOOL fDML = CUtils::FLogicalDML(pexpr->Pop());
+	CDSLRuleEngine *pengine = CDSLRuleEngine::Instance();
+	BOOL fHasSystemOutput = false;
+	for (ULONG ul = 0; ul < colref_array->Size(); ul++)
+	{
+		fHasSystemOutput =
+			fHasSystemOutput || (*colref_array)[ul]->IsSystemCol();
+	}
+
+	// ORCA normally carries a pass-through SELECT list only as the query's
+	// required-column property. That makes a source-root Proj rule invisible to
+	// Cascades even though the SQL/WeTune tree has a real projection boundary.
+	// When the loaded data rules need that surface, preserve it as fresh output
+	// aliases over the translated query. Requiring the fresh aliases prevents
+	// preprocessing from pruning the identity Project; keeping this disabled for
+	// DML/system columns and already-explicit Projects avoids changing special
+	// query contracts or adding redundant compute-scalar layers.
+	if (!fDML && !fHasSystemOutput && 0 < colref_array->Size() &&
+		nullptr != pengine && pengine->FHasOrdinaryProjSourceRoot() &&
+		COperator::EopLogicalProject != popOriginalTop->Eopid())
+	{
+		CColRefArray *pdrgpcrProjected = GPOS_NEW(mp) CColRefArray(mp);
+		CExpressionArray *pdrgpexprElems =
+			GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG ul = 0; ul < colref_array->Size(); ul++)
+		{
+			CColRef *pcrInput = (*colref_array)[ul];
+			CColRef *pcrOutput = col_factory->PcrCreate(
+				pcrInput->RetrieveType(), pcrInput->TypeModifier(),
+				pcrInput->Name());
+			pdrgpcrProjected->Append(pcrOutput);
+			pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
+				mp, GPOS_NEW(mp) CScalarProjectElement(mp, pcrOutput),
+				GPOS_NEW(mp) CExpression(
+					mp, GPOS_NEW(mp) CScalarIdent(mp, pcrInput))));
+		}
+		CExpression *pexprProjList = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+		pexpr->AddRef();
+		pexprResult = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalProject(mp), pexpr, pexprProjList);
+
+		colref_array->Release();
+		colref_array = pdrgpcrProjected;
+		pcrs->Release();
+		pcrs = GPOS_NEW(mp) CColRefSet(mp);
+		pcrs->Include(colref_array);
+	}
+
 	// Collect required properties (prpp) at the top level:
 
 	// By default no sort order requirement is added, unless the root operator in
 	// the input logical expression is a LIMIT. This is because Orca always
 	// attaches top level Sort to a LIMIT node.
 	COrderSpec *pos = nullptr;
-	CExpression *pexprResult = pexpr;
-	COperator *popTop = PopTop(pexpr);
-	if (COperator::EopLogicalLimit == popTop->Eopid())
+	if (COperator::EopLogicalLimit == popOriginalTop->Eopid())
 	{
 		// top level operator is a limit, copy order spec to query context
-		pos = CLogicalLimit::PopConvert(popTop)->Pos();
+		pos = CLogicalLimit::PopConvert(popOriginalTop)->Pos();
 		pos->AddRef();
 	}
 	else
@@ -209,7 +263,6 @@ CQueryContext::PqcGenerate(CMemoryPool *mp, CExpression *pexpr,
 
 	CDistributionSpec *pds = nullptr;
 
-	BOOL fDML = CUtils::FLogicalDML(pexpr->Pop());
 	poptctxt->MarkDMLQuery(fDML);
 
 	// DML commands do not have distribution requirement. Otherwise the
