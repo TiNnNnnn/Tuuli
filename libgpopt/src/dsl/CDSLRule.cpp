@@ -181,7 +181,8 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	: m_pfrag_src(pfrag_src),
 	  m_pfrag_tgt(pfrag_tgt),
 	  m_pdrgpcon(pdrgpcon),
-	  m_pstr_verdict(nullptr)
+	  m_pstr_verdict(nullptr),
+	  m_ul_source_line(0)
 {
 	GPOS_ASSERT(nullptr != pfrag_src);
 	GPOS_ASSERT(nullptr != pfrag_tgt);

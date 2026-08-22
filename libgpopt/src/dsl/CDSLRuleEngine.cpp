@@ -149,8 +149,10 @@ CDSLRuleEngine::Init(const CHAR *szPath)
 				CDSLRule *prule = (*pdrgprule)[ul];
 				prule->AddRef();
 				pengine->m_pdrgprule->Append(prule);
+				const ULONG ulRuleId =
+					0 == prule->UlSourceLine() ? ul + 1 : prule->UlSourceLine();
 				BOOL fInserted = pengine->m_phmRuleToId->Insert(
-					prule, GPOS_NEW(mp) ULONG(ul + 1));
+					prule, GPOS_NEW(mp) ULONG(ulRuleId));
 				GPOS_ASSERT(fInserted);
 				(void) fInserted;
 			}
@@ -208,9 +210,47 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 namespace
 {
 void
+OsPrintJsonString(IOstream &os, const WCHAR *wsz)
+{
+	os << "\"";
+	for (const WCHAR *pwc = wsz; WCHAR_EOS != *pwc; ++pwc)
+	{
+		switch (*pwc)
+		{
+			case L'\"':
+				os << "\\\"";
+				break;
+			case L'\\':
+				os << "\\\\";
+				break;
+			case L'\b':
+				os << "\\b";
+				break;
+			case L'\f':
+				os << "\\f";
+				break;
+			case L'\n':
+				os << "\\n";
+				break;
+			case L'\r':
+				os << "\\r";
+				break;
+			case L'\t':
+				os << "\\t";
+				break;
+			default:
+				// DSL and ORCA plan printers do not emit other control characters.
+				// Replace one defensively so the trace remains valid JSON.
+				os << (0x20 > *pwc ? L'?' : *pwc);
+		}
+	}
+	os << "\"";
+}
+
+void
 TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
 			 const CDSLRule *prule, const CDSLModel *pmodel,
-			 const CExpression *pexprTgt)
+			 const CExpression *pexprSrc, const CExpression *pexprTgt)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -219,6 +259,52 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, const CHAR *szStage,
 
 	CAutoTrace at(mp);
 	IOstream &os = at.Os();
+
+	// Machine-readable line for differential testing against WeTune. Keep the
+	// established DSL_RULE block below for humans and existing e2e assertions.
+	CWStringDynamic strRule(mp);
+	COstreamString osRule(&strRule);
+	prule->OsPrint(osRule);
+	CWStringDynamic strSource(mp);
+	COstreamString osSource(&strSource);
+	pexprSrc->OsPrint(osSource);
+	CWStringDynamic strTarget(mp);
+	if (nullptr != pexprTgt)
+	{
+		COstreamString osTarget(&strTarget);
+		pexprTgt->OsPrint(osTarget);
+	}
+
+	os << "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\","
+		  "\"rule_id\":"
+	   << ulRuleId << ",\"status\":\"" << szStage
+	   << "\",\"binding_count\":" << (nullptr == pmodel ? 0 : pmodel->Size())
+	   << ",\"rule\":";
+	OsPrintJsonString(os, strRule.GetBuffer());
+	os << ",\"source_plan\":";
+	OsPrintJsonString(os, strSource.GetBuffer());
+	os << ",\"source_subplan\":";
+	OsPrintJsonString(os, strSource.GetBuffer());
+	os << ",\"target_plan\":";
+	if (nullptr == pexprTgt)
+	{
+		os << "null";
+	}
+	else
+	{
+		OsPrintJsonString(os, strTarget.GetBuffer());
+	}
+	os << ",\"target_subplan\":";
+	if (nullptr == pexprTgt)
+	{
+		os << "null";
+	}
+	else
+	{
+		OsPrintJsonString(os, strTarget.GetBuffer());
+	}
+	os << "}" << std::endl;
+
 	os << "DSL_RULE id=" << ulRuleId << " stage=" << szStage;
 	if (nullptr != pmodel)
 	{
@@ -248,13 +334,14 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	if (!FMatch(prule, pexpr, pmodel))
 	{
-		TraceDSLRule(mp, ulRuleId, "match_rejected", prule, pmodel, nullptr);
+		TraceDSLRule(mp, ulRuleId, "match_rejected", prule, pmodel, pexpr,
+					 nullptr);
 		pmodel->Release();
 		return nullptr;
 	}
 	if (!FCheckConstraints(prule, pmodel, pexpr))
 	{
-		TraceDSLRule(mp, ulRuleId, "constraint_rejected", prule, pmodel,
+		TraceDSLRule(mp, ulRuleId, "constraint_rejected", prule, pmodel, pexpr,
 					 nullptr);
 		pmodel->Release();
 		return nullptr;
@@ -263,7 +350,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
 	TraceDSLRule(mp, ulRuleId,
 				 nullptr == pexprTgt ? "instantiate_rejected" : "applied", prule,
-				 pmodel, pexprTgt);
+				 pmodel, pexpr, pexprTgt);
 	pmodel->Release();
 	return pexprTgt;
 }

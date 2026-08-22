@@ -398,6 +398,7 @@ CDSLParserTest::EresUnittest_Loader()
 		mp, sz_buf, true /*fEqOnly*/, &stats, &strErrs);
 
 	BOOL ok = (nullptr != pdrg) && (1 == pdrg->Size()) &&
+			  (3 == (*pdrg)[0]->UlSourceLine()) &&
 			  (1 == stats.ul_admitted) && (1 == stats.ul_skipped) &&
 			  (0 == stats.ul_failed);
 	if (nullptr != pdrg)

@@ -201,6 +201,7 @@ private:
 	CDSLFragment *m_pfrag_tgt;			 // owned
 	CDSLConstraintArray *m_pdrgpcon;	 // owned
 	CWStringConst *m_pstr_verdict;		 // owned; may be NULL (e.g. "EQ")
+	ULONG m_ul_source_line;				 // physical one-based line in source file
 
 public:
 	CDSLRule(const CDSLRule &) = delete;
@@ -214,6 +215,8 @@ public:
 	CDSLFragment *PfragTgt() const { return m_pfrag_tgt; }
 	CDSLConstraintArray *Pdrgpcon() const { return m_pdrgpcon; }
 	const CWStringConst *PstrVerdict() const { return m_pstr_verdict; }
+	ULONG UlSourceLine() const { return m_ul_source_line; }
+	void SetSourceLine(ULONG ul_source_line) { m_ul_source_line = ul_source_line; }
 
 	// ORCA logical op at the source root — the bucket key the engine dispatches
 	// on (which shell xform owns this rule). EopSentinel for Input/subquery/etc.

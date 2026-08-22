@@ -94,6 +94,7 @@ CDSLRuleLoader::PdrgpdslruleLoadBuffer(CMemoryPool *mp, const CHAR *sz_content,
 			}
 			continue;
 		}
+		pdslrule->SetSourceLine(ul_lineno);
 		pdrgpdslrule->Append(pdslrule);
 		stats.ul_admitted++;
 	}

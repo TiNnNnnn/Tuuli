@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 4 ]]; then
+    echo "usage: $0 RULES_FILE SCHEMA_SQL QUERY_SQL OUTPUT_LOG" >&2
+    exit 2
+fi
+
+RULES_FILE=$1
+SCHEMA_FILE=$2
+QUERY_FILE=$3
+OUTPUT_LOG=$4
+PG_CONFIG=${PG_CONFIG:-$(command -v pg_config || true)}
+PORT=${DSL_TRACE_PORT:-55440}
+
+fail()
+{
+    echo "DSL trace failed: $*" >&2
+    exit 1
+}
+
+[[ -n "$PG_CONFIG" && -x "$PG_CONFIG" ]] || fail "PG_CONFIG is not executable"
+[[ -r "$RULES_FILE" ]] || fail "rules file is not readable: $RULES_FILE"
+[[ -r "$SCHEMA_FILE" ]] || fail "schema file is not readable: $SCHEMA_FILE"
+[[ -r "$QUERY_FILE" ]] || fail "query file is not readable: $QUERY_FILE"
+[[ "$PORT" =~ ^[0-9]+$ ]] || fail "DSL_TRACE_PORT must be numeric"
+
+PG_BINDIR=$($PG_CONFIG --bindir)
+TRACE_ROOT=$(mktemp -d /tmp/pgorca-dsl-trace.XXXXXX)
+DATA_DIR=$TRACE_ROOT/data
+SOCKET_DIR=$TRACE_ROOT/socket
+SERVER_LOG=$TRACE_ROOT/postgresql.log
+RUN_SQL=$TRACE_ROOT/run.sql
+SERVER_STARTED=0
+mkdir -p "$SOCKET_DIR" "$(dirname "$OUTPUT_LOG")"
+
+cleanup()
+{
+    if [[ $SERVER_STARTED -eq 1 ]]; then
+        "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" stop -m fast >/dev/null 2>&1 || true
+    fi
+    if [[ ${DSL_TRACE_KEEP_TMP:-0} = 1 ]]; then
+        echo "trace workspace preserved at $TRACE_ROOT" >&2
+    else
+        rm -rf -- "$TRACE_ROOT"
+    fi
+}
+trap cleanup EXIT
+
+"$PG_BINDIR/initdb" -D "$DATA_DIR" --no-locale --encoding=UTF8 --auth=trust >/dev/null
+MONSOON_DSL_RULES="$RULES_FILE" \
+    "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
+    -o "-c listen_addresses='' -c logging_collector=off -k $SOCKET_DIR -p $PORT" \
+    start >/dev/null
+SERVER_STARTED=1
+
+PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d postgres)
+"${PSQL[@]}" -q -c "CREATE EXTENSION pg_orca;"
+"${PSQL[@]}" -q -f "$SCHEMA_FILE"
+
+{
+    echo "LOAD 'pg_orca';"
+    echo "SET pg_orca.enable_orca=on;"
+    echo "SET pg_orca.enable_dsl_rule=on;"
+    echo "SET pg_orca.trace_dsl_rule=on;"
+    echo "SET optimizer_print_xform=on;"
+    echo "SET optimizer_print_xform_results=on;"
+    echo "SET client_min_messages=log;"
+    echo "EXPLAIN (COSTS OFF)"
+    cat "$QUERY_FILE"
+} >"$RUN_SQL"
+
+"${PSQL[@]}" -q -f "$RUN_SQL" >"$OUTPUT_LOG" 2>&1
+grep -Fq "DSL_TRACE " "$OUTPUT_LOG" || fail "no DSL_TRACE records were produced"
+
+echo "pgORCA trace written to $OUTPUT_LOG"

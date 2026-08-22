@@ -45,8 +45,9 @@ using COperatorIdToRuleArrayMap =
 	CHashMap<ULONG, CDSLRuleArray, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
 			 CleanupDelete<ULONG>, CleanupRelease<CDSLRuleArray> >;
 
-// Rule pointer -> stable one-based ordinal in the admitted library. Keys are
-// owned by m_pdrgprule; values are owned by this map.
+// Rule pointer -> physical one-based line in the source rule file. Keys are
+// owned by m_pdrgprule; values are owned by this map. Rules not loaded from a
+// file fall back to their stable admitted-library ordinal.
 using CDSLRuleToIdMap =
 	CHashMap<CDSLRule, ULONG, gpos::HashPtr<CDSLRule>,
 			 gpos::EqualPtr<CDSLRule>, CleanupNULL<CDSLRule>,
@@ -75,7 +76,7 @@ private:
 	// source-root EOperatorId -> rules with that root
 	COperatorIdToRuleArrayMap *m_phmOpidToRules;
 
-	// admitted rule pointer -> stable one-based library ordinal
+	// admitted rule pointer -> physical source line (or fallback ordinal)
 	CDSLRuleToIdMap *m_phmRuleToId;
 
 	// empty bucket returned for roots with no rules (avoids NULL checks in
@@ -123,8 +124,8 @@ public:
 	// total admitted rules (diagnostics)
 	ULONG UlRules() const { return m_pdrgprule->Size(); }
 
-	// Stable one-based ordinal in the admitted rule library. Returns zero only
-	// for a pointer that is not owned by this engine.
+	// Stable physical source line. Returns zero only for a pointer that is not
+	// owned by this engine.
 	ULONG UlRuleId(const CDSLRule *prule) const;
 
 	//------------------------------------------------------------------

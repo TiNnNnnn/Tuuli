@@ -354,6 +354,12 @@ assert_xform_produced_alternative \
 assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "stage=applied bindings="
 assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Rule: InSubFilter"
 assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" "Generated:"
+# Machine-readable differential trace. Rule ids are physical lines in the
+# loaded file, so framework.rules:8 aligns with WeTune's loadBank ids.
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" \
+    'DSL_TRACE {"kind":"application","engine":"pgorca"'
+assert_contains "$OUTPUT_DIR/self-in-on-native-off.plan" \
+    '"rule_id":8,"status":"applied"'
 if (( $(count_plan_joins "$OUTPUT_DIR/self-in-on-native-off.plan") != 0 )); then
     fail "causal self-IN DSL ON should eliminate the join"
 fi
