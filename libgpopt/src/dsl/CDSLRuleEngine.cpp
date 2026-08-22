@@ -373,12 +373,14 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	{
 		os << ",\"binding_count\":"
 		   << (nullptr == pmodel ? 0 : pmodel->Size());
-		if (nullptr != pconFailed)
-		{
-			os << ",\"failed_constraint\":\""
-			   << CDSLConstraintKindTable::SzName(pconFailed->Edslcon())
-			   << "\",\"failed_constraint_index\":" << ulFailed;
-		}
+	}
+	// Constraint identity is compact and essential for classifying corpus
+	// misses. Emit it even without the very expensive full xform trace.
+	if (nullptr != pconFailed)
+	{
+		os << ",\"failed_constraint\":\""
+		   << CDSLConstraintKindTable::SzName(pconFailed->Edslcon())
+		   << "\",\"failed_constraint_index\":" << ulFailed;
 	}
 	os << "}" << std::endl;
 

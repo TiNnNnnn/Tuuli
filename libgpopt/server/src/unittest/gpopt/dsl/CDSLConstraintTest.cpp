@@ -100,12 +100,65 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueAdmit),
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_UniqueAdmitThroughJoin),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueReject),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullAdmit),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_NotNullThroughLeftJoin),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullReject),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_UniqueAdmitThroughJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Proj*<a0 s0>(Input<t0>)|Input<t1>|Unique(t0,a0);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("left_t", 2, &pdrgpcrLeft, 0 /*key*/);
+	CTableDescriptor *ptabdescRight = fix.PtabdescCreate("right_t", 2);
+	CBitSet *pbsRightKey = GPOS_NEW(mp) CBitSet(mp);
+	(void) pbsRightKey->ExchangeSet(0);
+	(void) pbsRightKey->ExchangeSet(1);
+	(void) ptabdescRight->FAddKeySet(pbsRightKey);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRightGet =
+		fix.PexprLogicalGet(ptabdescRight, "right_t", &pdrgpcrRight);
+	CExpression *pexprFixed = fix.PexprEqConst((*pdrgpcrRight)[1], 7);
+	CExpression *pexprRight =
+		fix.PexprLogicalSelect(pexprRightGet, pexprFixed);
+	CExpression *pexprJoinPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprJoinPred);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	BindTableAndAttr(pmodel, PsymByName(prule, "t0"), pexprJoin,
+					 PsymByName(prule, "a0"), (*pdrgpcrLeft)[0], mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = checker.FCheck(prule, pmodel) ? GPOS_OK : GPOS_FAILED;
+
+	pmodel->Release();
+	pexprJoin->Release();
+	pexprJoinPred->Release();
+	pexprRight->Release();
+	pexprFixed->Release();
+	pexprRightGet->Release();
+	pexprLeft->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT
@@ -121,7 +174,11 @@ CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey()
 		return GPOS_FAILED;
 	}
 
-	CTableDescriptor *ptabdesc = fix.PtabdescCreate("t0", 3, 0 /*ulKeyCol*/);
+	CTableDescriptor *ptabdesc = fix.PtabdescCreate("t0", 3);
+	CBitSet *pbsKey = GPOS_NEW(mp) CBitSet(mp);
+	(void) pbsKey->ExchangeSet(0);
+	(void) pbsKey->ExchangeSet(1);
+	(void) ptabdesc->FAddKeySet(pbsKey);
 	CColRefArray *pdrgpcrOut = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet(ptabdesc, "t0", &pdrgpcrOut);
 	CExpression *pexprPred = fix.PexprEqConst((*pdrgpcrOut)[0], 10);
@@ -129,8 +186,8 @@ CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey()
 	pexprPred->Release();
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	// c1 is not a key by itself, but fixing the real key c0 to one constant
-	// guarantees that the Select has at most one row, so c1 is unique there.
+	// c1 is not a key by itself, but together with fixed c0 it covers the
+	// composite key (c0,c1), so c1 is unique within the selected rows.
 	BindTableAndAttr(pmodel, PsymByName(prule, "t0"), pexprSelect,
 					 PsymByName(prule, "a0"), (*pdrgpcrOut)[1], mp);
 	CDSLConstraintChecker checker(mp);
@@ -313,6 +370,52 @@ CDSLConstraintTest::EresUnittest_NotNullAdmit()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_NotNullThroughLeftJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|NotNull(t0,a0);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("left_t", 2, &pdrgpcrLeft);
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("right_t", 2, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalLeftOuterJoin(pexprLeft, pexprRight, pexprPred);
+
+	CDSLConstraintChecker checker(mp);
+	CDSLModel *pmodelLeft = GPOS_NEW(mp) CDSLModel(mp);
+	BindTableAndAttr(pmodelLeft, PsymByName(prule, "t0"), pexprJoin,
+					 PsymByName(prule, "a0"), (*pdrgpcrLeft)[0], mp);
+	BOOL fLeftAdmitted = checker.FCheck(prule, pmodelLeft);
+	pmodelLeft->Release();
+
+	CDSLModel *pmodelRight = GPOS_NEW(mp) CDSLModel(mp);
+	BindTableAndAttr(pmodelRight, PsymByName(prule, "t0"), pexprJoin,
+					 PsymByName(prule, "a0"), (*pdrgpcrRight)[0], mp);
+	BOOL fRightRejected = !checker.FCheck(prule, pmodelRight);
+	pmodelRight->Release();
+
+	pexprJoin->Release();
+	pexprPred->Release();
+	pexprRight->Release();
+	pexprLeft->Release();
+	prule->Release();
+	return fLeftAdmitted && fRightRejected ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

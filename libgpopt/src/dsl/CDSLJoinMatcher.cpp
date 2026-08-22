@@ -13,6 +13,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -22,6 +23,25 @@
 #include "gpopt/operators/CScalarIdent.h"
 
 using namespace gpopt;
+
+namespace
+{
+CColRef *
+PcrJoinKeyOperand(CExpression *pexpr)
+{
+	if (COperator::EopScalarIdent == pexpr->Pop()->Eopid())
+	{
+		return const_cast<CColRef *>(
+			CScalarIdent::PopConvert(pexpr->Pop())->Pcr());
+	}
+	if (CCastUtils::FBinaryCoercibleCastedScId(pexpr))
+	{
+		return const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr());
+	}
+	return nullptr;
+}
+}  // namespace
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -48,7 +68,7 @@ CDSLJoinMatcher::FSplitPredicate(CExpression *pexprPred,
 		// (arity 0) would abort. With CPatternTree the predicate tree is fully
 		// materialized, but guard defensively anyway.
 		if (2 != pexprConj->Arity() ||
-			!CPredicateUtils::FPlainEquality(pexprConj))
+			!CPredicateUtils::IsEqualityOp(pexprConj))
 		{
 			// non-equi conjunct: preserve as residual (AddRef — the array owns it).
 			pexprConj->AddRef();
@@ -56,11 +76,17 @@ CDSLJoinMatcher::FSplitPredicate(CExpression *pexprPred,
 			continue;
 		}
 
-		// plain equality over two CScalarIdents: recover both columns.
-		CColRef *pcr0 = const_cast<CColRef *>(
-			CScalarIdent::PopConvert((*pexprConj)[0]->Pop())->Pcr());
-		CColRef *pcr1 = const_cast<CColRef *>(
-			CScalarIdent::PopConvert((*pexprConj)[1]->Pop())->Pcr());
+		// Equality over identifiers, optionally hidden below binary-coercible
+		// casts, is still a positional join-key equality. Non-binary casts remain
+		// residual because they need not preserve the FK/uniqueness semantics.
+		CColRef *pcr0 = PcrJoinKeyOperand((*pexprConj)[0]);
+		CColRef *pcr1 = PcrJoinKeyOperand((*pexprConj)[1]);
+		if (nullptr == pcr0 || nullptr == pcr1)
+		{
+			pexprConj->AddRef();
+			pdrgpexprResidual->Append(pexprConj);
+			continue;
+		}
 
 		// orient by which column belongs to the left relation's output.
 		BOOL f0Left = pcrsLeft->FMember(pcr0);

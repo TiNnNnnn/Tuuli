@@ -15,6 +15,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from build_reference_manifest import build_manifest
 from compare_rule_traces import compare, read_records
+from import_wetune_workloads import postgres_schema, schema_catalog
 from run_trace_corpus import (
     orca_fallback_reason,
     parameter_count,
@@ -25,6 +26,20 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_postgres_unique_indexes_become_global_key_metadata(self) -> None:
+        schema = (
+            "CREATE TABLE t(a integer, b integer); "
+            "CREATE UNIQUE INDEX t_ab_idx ON t(a, b); "
+            "CREATE UNIQUE INDEX t_partial_idx ON t(a) WHERE b > 0;"
+        )
+
+        converted = postgres_schema(schema)
+        _, unique_keys = schema_catalog(converted)
+
+        self.assertIn("ADD CONSTRAINT t_ab_idx UNIQUE (a, b)", converted)
+        self.assertNotIn("t_partial_idx", converted)
+        self.assertEqual(unique_keys["t"], {("a", "b")})
+
     def test_reads_compact_trace_from_postgresql_log(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             trace = Path(directory) / "pgorca.log"

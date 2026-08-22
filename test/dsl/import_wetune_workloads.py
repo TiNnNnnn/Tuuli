@@ -262,6 +262,7 @@ def postgres_schema(schema_sql: str) -> str:
     parsed = sqlglot.parse(schema_sql, read="postgres", error_level=ErrorLevel.IGNORE)
     tables: list[str] = []
     constraints: list[str] = []
+    unique_constraints: list[str] = []
     for statement in parsed:
         if statement is None:
             continue
@@ -269,13 +270,50 @@ def postgres_schema(schema_sql: str) -> str:
         normalized = rendered.lstrip().upper()
         if normalized.startswith("CREATE TABLE"):
             tables.append(rendered.rstrip(";") + ";")
+        elif (
+            isinstance(statement, exp.Create)
+            and statement.args.get("kind") == "INDEX"
+            and bool(statement.args.get("unique"))
+            and isinstance(statement.this, exp.Index)
+        ):
+            # ORCA exposes UNIQUE constraints as relational keys, but not
+            # standalone PostgreSQL indexes. An unconditional unique index over
+            # plain columns proves exactly the same key property, so represent
+            # it as a constraint in the reduced corpus schema. Partial and
+            # expression indexes do not prove global Unique(attrs) and are
+            # deliberately omitted.
+            index = statement.this
+            table = index.args.get("table")
+            parameters = index.args.get("params")
+            columns: list[exp.Column] = []
+            if isinstance(table, exp.Table) and isinstance(
+                parameters, exp.IndexParameters
+            ) and parameters.args.get("where") is None:
+                for ordered in parameters.args.get("columns") or []:
+                    column = (
+                        ordered.this if isinstance(ordered, exp.Ordered) else ordered
+                    )
+                    if not isinstance(column, exp.Column):
+                        columns = []
+                        break
+                    columns.append(column)
+            if columns:
+                name = index.this.sql(dialect="postgres")
+                table_sql = table.sql(dialect="postgres")
+                columns_sql = ", ".join(
+                    column.sql(dialect="postgres") for column in columns
+                )
+                unique_constraints.append(
+                    f"ALTER TABLE ONLY {table_sql} ADD CONSTRAINT {name} "
+                    f"UNIQUE ({columns_sql});"
+                )
         elif normalized.startswith("ALTER TABLE") and "ADD CONSTRAINT" in normalized:
             if any(kind in normalized for kind in ("PRIMARY KEY", "UNIQUE", "FOREIGN KEY")):
                 constraints.append(rendered.rstrip(";") + ";")
 
     if not tables:
         raise ValueError("schema contains no PostgreSQL CREATE TABLE statements")
-    return "\n\n".join(tables + constraints) + "\n"
+    return "\n\n".join(tables + constraints + unique_constraints) + "\n"
 
 
 def render_lines(statements: dict[int, str]) -> str:
@@ -298,13 +336,38 @@ ALTER_UNIQUE = re.compile(
 )
 
 
-def schema_catalog(schema_sql: str) -> tuple[dict[str, set[str]], dict[str, set[tuple[str, ...]]]]:
+def schema_catalog(
+    schema_sql: str,
+) -> tuple[dict[str, set[str]], dict[str, set[tuple[str, ...]]]]:
     logging.getLogger("sqlglot").setLevel(logging.ERROR)
     tables: dict[str, set[str]] = {}
     unique_keys: dict[str, set[tuple[str, ...]]] = defaultdict(set)
     for statement in sqlglot.parse(
         schema_sql, read="postgres", error_level=ErrorLevel.IGNORE
     ):
+        if (
+            isinstance(statement, exp.Create)
+            and statement.args.get("kind") == "INDEX"
+            and bool(statement.args.get("unique"))
+            and isinstance(statement.this, exp.Index)
+        ):
+            table_expr = statement.this.args.get("table")
+            parameters = statement.this.args.get("params")
+            index_columns: list[str] = []
+            if isinstance(table_expr, exp.Table) and isinstance(
+                parameters, exp.IndexParameters
+            ) and parameters.args.get("where") is None:
+                for ordered in parameters.args.get("columns") or []:
+                    column_expr = (
+                        ordered.this if isinstance(ordered, exp.Ordered) else ordered
+                    )
+                    if not isinstance(column_expr, exp.Column):
+                        index_columns = []
+                        break
+                    index_columns.append(column_expr.name.lower())
+            if index_columns:
+                unique_keys[table_expr.name.lower()].add(tuple(index_columns))
+            continue
         if not (
             isinstance(statement, exp.Create)
             and statement.args.get("kind") == "TABLE"
@@ -329,9 +392,11 @@ def schema_catalog(schema_sql: str) -> tuple[dict[str, set[str]], dict[str, set[
                 )
             elif isinstance(definition, exp.UniqueColumnConstraint):
                 target = definition.this
-                expressions = target.expressions if isinstance(target, exp.Schema) else []
+                expressions = (
+                    target.expressions if isinstance(target, exp.Schema) else []
+                )
                 unique_keys[table].add(tuple(item.name.lower() for item in expressions))
-        tables[table] = column
+        tables[table] = columns
 
     for match in ALTER_UNIQUE.finditer(schema_sql):
         table = (match.group(1) or match.group(2)).lower()

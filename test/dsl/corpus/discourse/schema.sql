@@ -628,6 +628,234 @@ ALTER TABLE ONLY public.bookmarks ADD CONSTRAINT fk_rails_d8b54790ff FOREIGN KEY
 
 ALTER TABLE ONLY public.javascript_caches ADD CONSTRAINT fk_rails_ed33506dbd FOREIGN KEY (theme_field_id) REFERENCES public.theme_fields (id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY public.user_associated_accounts ADD CONSTRAINT associated_accounts_provider_user UNIQUE (provider_name, user_id);
+
+ALTER TABLE ONLY public.category_featured_topics ADD CONSTRAINT cat_featured_threads UNIQUE (category_id, topic_id);
+
+ALTER TABLE ONLY public.category_tag_groups ADD CONSTRAINT idx_category_tag_groups_ix1 UNIQUE (category_id, tag_group_id);
+
+ALTER TABLE ONLY public.category_tags ADD CONSTRAINT idx_category_tags_ix1 UNIQUE (category_id, tag_id);
+
+ALTER TABLE ONLY public.category_tags ADD CONSTRAINT idx_category_tags_ix2 UNIQUE (tag_id, category_id);
+
+ALTER TABLE ONLY public.category_users ADD CONSTRAINT idx_category_users_category_id_user_id UNIQUE (category_id, user_id);
+
+ALTER TABLE ONLY public.category_users ADD CONSTRAINT idx_category_users_user_id_category_id UNIQUE (user_id, category_id);
+
+ALTER TABLE ONLY public.tag_users ADD CONSTRAINT idx_tag_users_ix1 UNIQUE (user_id, tag_id, notification_level);
+
+ALTER TABLE ONLY public.tag_users ADD CONSTRAINT idx_tag_users_ix2 UNIQUE (tag_id, user_id, notification_level);
+
+ALTER TABLE ONLY public.post_uploads ADD CONSTRAINT idx_unique_post_uploads UNIQUE (post_id, upload_id);
+
+ALTER TABLE ONLY public.user_actions ADD CONSTRAINT idx_unique_rows UNIQUE (action_type, user_id, target_topic_id, target_post_id, acting_user_id);
+
+ALTER TABLE ONLY public.web_hook_event_types_hooks ADD CONSTRAINT idx_web_hook_event_types_hooks_on_ids UNIQUE (web_hook_event_type_id, web_hook_id);
+
+ALTER TABLE ONLY public.anonymous_users ADD CONSTRAINT index_anonymous_users_on_user_id UNIQUE (user_id);
+
+ALTER TABLE ONLY public.application_requests ADD CONSTRAINT index_application_requests_on_date_and_req_type UNIQUE (date, req_type);
+
+ALTER TABLE ONLY public.backup_draft_posts ADD CONSTRAINT index_backup_draft_posts_on_post_id UNIQUE (post_id);
+
+ALTER TABLE ONLY public.backup_draft_posts ADD CONSTRAINT index_backup_draft_posts_on_user_id_and_key UNIQUE (user_id, key);
+
+ALTER TABLE ONLY public.backup_draft_topics ADD CONSTRAINT index_backup_draft_topics_on_topic_id UNIQUE (topic_id);
+
+ALTER TABLE ONLY public.backup_draft_topics ADD CONSTRAINT index_backup_draft_topics_on_user_id UNIQUE (user_id);
+
+ALTER TABLE ONLY public.badge_types ADD CONSTRAINT index_badge_types_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.badges ADD CONSTRAINT index_badges_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.bookmarks ADD CONSTRAINT index_bookmarks_on_user_id_and_post_id UNIQUE (user_id, post_id);
+
+ALTER TABLE ONLY public.categories ADD CONSTRAINT index_categories_on_email_in UNIQUE (email_in);
+
+ALTER TABLE ONLY public.categories_web_hooks ADD CONSTRAINT index_categories_web_hooks_on_web_hook_id_and_category_id UNIQUE (web_hook_id, category_id);
+
+ALTER TABLE ONLY public.category_tag_stats ADD CONSTRAINT index_category_tag_stats_on_category_id_and_tag_id UNIQUE (category_id, tag_id);
+
+ALTER TABLE ONLY public.child_themes ADD CONSTRAINT index_child_themes_on_child_theme_id_and_parent_theme_id UNIQUE (child_theme_id, parent_theme_id);
+
+ALTER TABLE ONLY public.child_themes ADD CONSTRAINT index_child_themes_on_parent_theme_id_and_child_theme_id UNIQUE (parent_theme_id, child_theme_id);
+
+ALTER TABLE ONLY public.custom_emojis ADD CONSTRAINT index_custom_emojis_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.developers ADD CONSTRAINT index_developers_on_user_id UNIQUE (user_id);
+
+ALTER TABLE ONLY public.directory_items ADD CONSTRAINT index_directory_items_on_period_type_and_user_id UNIQUE (period_type, user_id);
+
+ALTER TABLE ONLY public.draft_sequences ADD CONSTRAINT index_draft_sequences_on_user_id_and_draft_key UNIQUE (user_id, draft_key);
+
+ALTER TABLE ONLY public.drafts ADD CONSTRAINT index_drafts_on_user_id_and_draft_key UNIQUE (user_id, draft_key);
+
+ALTER TABLE ONLY public.email_tokens ADD CONSTRAINT index_email_tokens_on_token UNIQUE (token);
+
+ALTER TABLE ONLY public.github_user_infos ADD CONSTRAINT index_github_user_infos_on_github_user_id UNIQUE (github_user_id);
+
+ALTER TABLE ONLY public.github_user_infos ADD CONSTRAINT index_github_user_infos_on_user_id UNIQUE (user_id);
+
+ALTER TABLE ONLY public.given_daily_likes ADD CONSTRAINT index_given_daily_likes_on_user_id_and_given_date UNIQUE (user_id, given_date);
+
+ALTER TABLE ONLY public.group_archived_messages ADD CONSTRAINT index_group_archived_messages_on_group_id_and_topic_id UNIQUE (group_id, topic_id);
+
+ALTER TABLE ONLY public.group_mentions ADD CONSTRAINT index_group_mentions_on_group_id_and_post_id UNIQUE (group_id, post_id);
+
+ALTER TABLE ONLY public.group_mentions ADD CONSTRAINT index_group_mentions_on_post_id_and_group_id UNIQUE (post_id, group_id);
+
+ALTER TABLE ONLY public.group_requests ADD CONSTRAINT index_group_requests_on_group_id_and_user_id UNIQUE (group_id, user_id);
+
+ALTER TABLE ONLY public.group_users ADD CONSTRAINT index_group_users_on_group_id_and_user_id UNIQUE (group_id, user_id);
+
+ALTER TABLE ONLY public.group_users ADD CONSTRAINT index_group_users_on_user_id_and_group_id UNIQUE (user_id, group_id);
+
+ALTER TABLE ONLY public.groups ADD CONSTRAINT index_groups_on_incoming_email UNIQUE (incoming_email);
+
+ALTER TABLE ONLY public.groups ADD CONSTRAINT index_groups_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.groups_web_hooks ADD CONSTRAINT index_groups_web_hooks_on_web_hook_id_and_group_id UNIQUE (web_hook_id, group_id);
+
+ALTER TABLE ONLY public.ignored_users ADD CONSTRAINT index_ignored_users_on_ignored_user_id_and_user_id UNIQUE (ignored_user_id, user_id);
+
+ALTER TABLE ONLY public.ignored_users ADD CONSTRAINT index_ignored_users_on_user_id_and_ignored_user_id UNIQUE (user_id, ignored_user_id);
+
+ALTER TABLE ONLY public.incoming_domains ADD CONSTRAINT index_incoming_domains_on_name_and_https_and_port UNIQUE (name, https, port);
+
+ALTER TABLE ONLY public.incoming_referers ADD CONSTRAINT index_incoming_referers_on_path_and_incoming_domain_id UNIQUE (path, incoming_domain_id);
+
+ALTER TABLE ONLY public.invites ADD CONSTRAINT index_invites_on_invite_key UNIQUE (invite_key);
+
+ALTER TABLE ONLY public.muted_users ADD CONSTRAINT index_muted_users_on_muted_user_id_and_user_id UNIQUE (muted_user_id, user_id);
+
+ALTER TABLE ONLY public.muted_users ADD CONSTRAINT index_muted_users_on_user_id_and_muted_user_id UNIQUE (user_id, muted_user_id);
+
+ALTER TABLE ONLY public.oauth2_user_infos ADD CONSTRAINT index_oauth2_user_infos_on_uid_and_provider UNIQUE (uid, provider);
+
+ALTER TABLE ONLY public.optimized_images ADD CONSTRAINT index_optimized_images_on_upload_id_and_width_and_height UNIQUE (upload_id, width, height);
+
+ALTER TABLE ONLY public.permalinks ADD CONSTRAINT index_permalinks_on_url UNIQUE (url);
+
+ALTER TABLE ONLY public.plugin_store_rows ADD CONSTRAINT index_plugin_store_rows_on_plugin_name_and_key UNIQUE (plugin_name, key);
+
+ALTER TABLE ONLY public.poll_options ADD CONSTRAINT index_poll_options_on_poll_id_and_digest UNIQUE (poll_id, digest);
+
+ALTER TABLE ONLY public.poll_votes ADD CONSTRAINT index_poll_votes_on_poll_id_and_poll_option_id_and_user_id UNIQUE (poll_id, poll_option_id, user_id);
+
+ALTER TABLE ONLY public.polls ADD CONSTRAINT index_polls_on_post_id_and_name UNIQUE (post_id, name);
+
+ALTER TABLE ONLY public.post_details ADD CONSTRAINT index_post_details_on_post_id_and_key UNIQUE (post_id, key);
+
+ALTER TABLE ONLY public.post_replies ADD CONSTRAINT index_post_replies_on_post_id_and_reply_post_id UNIQUE (post_id, reply_post_id);
+
+ALTER TABLE ONLY public.post_reply_keys ADD CONSTRAINT index_post_reply_keys_on_reply_key UNIQUE (reply_key);
+
+ALTER TABLE ONLY public.post_reply_keys ADD CONSTRAINT index_post_reply_keys_on_user_id_and_post_id UNIQUE (user_id, post_id);
+
+ALTER TABLE ONLY public.posts ADD CONSTRAINT index_posts_on_topic_id_and_post_number UNIQUE (topic_id, post_number);
+
+ALTER TABLE ONLY public.quoted_posts ADD CONSTRAINT index_quoted_posts_on_post_id_and_quoted_post_id UNIQUE (post_id, quoted_post_id);
+
+ALTER TABLE ONLY public.quoted_posts ADD CONSTRAINT index_quoted_posts_on_quoted_post_id_and_post_id UNIQUE (quoted_post_id, post_id);
+
+ALTER TABLE ONLY public.reviewable_claimed_topics ADD CONSTRAINT index_reviewable_claimed_topics_on_topic_id UNIQUE (topic_id);
+
+ALTER TABLE ONLY public.reviewables ADD CONSTRAINT index_reviewables_on_type_and_target_id UNIQUE (type, target_id);
+
+ALTER TABLE ONLY public.screened_emails ADD CONSTRAINT index_screened_emails_on_email UNIQUE (email);
+
+ALTER TABLE ONLY public.screened_ip_addresses ADD CONSTRAINT index_screened_ip_addresses_on_ip_address UNIQUE (ip_address);
+
+ALTER TABLE ONLY public.screened_urls ADD CONSTRAINT index_screened_urls_on_url UNIQUE (url);
+
+ALTER TABLE ONLY public.shared_drafts ADD CONSTRAINT index_shared_drafts_on_topic_id UNIQUE (topic_id);
+
+ALTER TABLE ONLY public.single_sign_on_records ADD CONSTRAINT index_single_sign_on_records_on_external_id UNIQUE (external_id);
+
+ALTER TABLE ONLY public.site_settings ADD CONSTRAINT index_site_settings_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.stylesheet_cache ADD CONSTRAINT index_stylesheet_cache_on_target_and_digest UNIQUE (target, digest);
+
+ALTER TABLE ONLY public.tag_group_memberships ADD CONSTRAINT index_tag_group_memberships_on_tag_group_id_and_tag_id UNIQUE (tag_group_id, tag_id);
+
+ALTER TABLE ONLY public.tags ADD CONSTRAINT index_tags_on_name UNIQUE (name);
+
+ALTER TABLE ONLY public.theme_modifier_sets ADD CONSTRAINT index_theme_modifier_sets_on_theme_id UNIQUE (theme_id);
+
+ALTER TABLE ONLY public.themes ADD CONSTRAINT index_themes_on_remote_theme_id UNIQUE (remote_theme_id);
+
+ALTER TABLE ONLY public.top_topics ADD CONSTRAINT index_top_topics_on_topic_id UNIQUE (topic_id);
+
+ALTER TABLE ONLY public.topic_allowed_groups ADD CONSTRAINT index_topic_allowed_groups_on_group_id_and_topic_id UNIQUE (group_id, topic_id);
+
+ALTER TABLE ONLY public.topic_allowed_groups ADD CONSTRAINT index_topic_allowed_groups_on_topic_id_and_group_id UNIQUE (topic_id, group_id);
+
+ALTER TABLE ONLY public.topic_allowed_users ADD CONSTRAINT index_topic_allowed_users_on_topic_id_and_user_id UNIQUE (topic_id, user_id);
+
+ALTER TABLE ONLY public.topic_allowed_users ADD CONSTRAINT index_topic_allowed_users_on_user_id_and_topic_id UNIQUE (user_id, topic_id);
+
+ALTER TABLE ONLY public.topic_embeds ADD CONSTRAINT index_topic_embeds_on_embed_url UNIQUE (embed_url);
+
+ALTER TABLE ONLY public.topic_groups ADD CONSTRAINT index_topic_groups_on_group_id_and_topic_id UNIQUE (group_id, topic_id);
+
+ALTER TABLE ONLY public.topic_invites ADD CONSTRAINT index_topic_invites_on_topic_id_and_invite_id UNIQUE (topic_id, invite_id);
+
+ALTER TABLE ONLY public.topic_tags ADD CONSTRAINT index_topic_tags_on_topic_id_and_tag_id UNIQUE (topic_id, tag_id);
+
+ALTER TABLE ONLY public.topic_users ADD CONSTRAINT index_topic_users_on_topic_id_and_user_id UNIQUE (topic_id, user_id);
+
+ALTER TABLE ONLY public.topic_users ADD CONSTRAINT index_topic_users_on_user_id_and_topic_id UNIQUE (user_id, topic_id);
+
+ALTER TABLE ONLY public.translation_overrides ADD CONSTRAINT index_translation_overrides_on_locale_and_translation_key UNIQUE (locale, translation_key);
+
+ALTER TABLE ONLY public.uploads ADD CONSTRAINT index_uploads_on_sha1 UNIQUE (sha1);
+
+ALTER TABLE ONLY public.user_api_keys ADD CONSTRAINT index_user_api_keys_on_client_id UNIQUE (client_id);
+
+ALTER TABLE ONLY public.user_api_keys ADD CONSTRAINT index_user_api_keys_on_key UNIQUE (key);
+
+ALTER TABLE ONLY public.user_archived_messages ADD CONSTRAINT index_user_archived_messages_on_user_id_and_topic_id UNIQUE (user_id, topic_id);
+
+ALTER TABLE ONLY public.user_auth_tokens ADD CONSTRAINT index_user_auth_tokens_on_auth_token UNIQUE (auth_token);
+
+ALTER TABLE ONLY public.user_auth_tokens ADD CONSTRAINT index_user_auth_tokens_on_prev_auth_token UNIQUE (prev_auth_token);
+
+ALTER TABLE ONLY public.user_emails ADD CONSTRAINT index_user_emails_on_email UNIQUE (email);
+
+ALTER TABLE ONLY public.user_options ADD CONSTRAINT index_user_options_on_user_id UNIQUE (user_id);
+
+ALTER TABLE ONLY public.user_security_keys ADD CONSTRAINT index_user_security_keys_on_credential_id UNIQUE (credential_id);
+
+ALTER TABLE ONLY public.user_uploads ADD CONSTRAINT index_user_uploads_on_upload_id_and_user_id UNIQUE (upload_id, user_id);
+
+ALTER TABLE ONLY public.user_visits ADD CONSTRAINT index_user_visits_on_user_id_and_visited_at UNIQUE (user_id, visited_at);
+
+ALTER TABLE ONLY public.user_warnings ADD CONSTRAINT index_user_warnings_on_topic_id UNIQUE (topic_id);
+
+ALTER TABLE ONLY public.users ADD CONSTRAINT index_users_on_secure_identifier UNIQUE (secure_identifier);
+
+ALTER TABLE ONLY public.users ADD CONSTRAINT index_users_on_username UNIQUE (username);
+
+ALTER TABLE ONLY public.users ADD CONSTRAINT index_users_on_username_lower UNIQUE (username_lower);
+
+ALTER TABLE ONLY public.watched_words ADD CONSTRAINT index_watched_words_on_action_and_word UNIQUE (action, word);
+
+ALTER TABLE ONLY public.web_crawler_requests ADD CONSTRAINT index_web_crawler_requests_on_date_and_user_agent UNIQUE (date, user_agent);
+
+ALTER TABLE ONLY public.post_timings ADD CONSTRAINT post_timings_unique UNIQUE (topic_id, post_number, user_id);
+
+ALTER TABLE ONLY public.theme_fields ADD CONSTRAINT theme_field_unique_index UNIQUE (theme_id, target_id, type_id, name);
+
+ALTER TABLE ONLY public.theme_translation_overrides ADD CONSTRAINT theme_translation_overrides_unique UNIQUE (theme_id, locale, translation_key);
+
+ALTER TABLE ONLY public.topic_views ADD CONSTRAINT uniq_ip_or_user_id_topic_views UNIQUE (user_id, ip_address, topic_id);
+
+ALTER TABLE ONLY public.topic_links ADD CONSTRAINT unique_post_links UNIQUE (topic_id, post_id, url);
+
+ALTER TABLE ONLY public.user_profile_views ADD CONSTRAINT unique_profile_view_user_or_ip UNIQUE (viewed_at, user_id, ip_address, user_profile_id);
+
+ALTER TABLE ONLY public.tags_web_hooks ADD CONSTRAINT web_hooks_tags UNIQUE (web_hook_id, tag_id);
+
 -- WeTune schema patches
 ALTER TABLE "skipped_email_logs" ALTER COLUMN "post_id" SET NOT NULL;
 ALTER TABLE "skipped_email_logs" ALTER COLUMN "user_id" SET NOT NULL;

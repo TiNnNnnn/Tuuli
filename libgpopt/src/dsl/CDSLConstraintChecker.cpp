@@ -17,7 +17,10 @@
 #include "naucrates/exception.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CColRefTable.h"
+#include "gpopt/base/CCastUtils.h"
+#include "gpopt/base/CPropConstraint.h"
 #include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/dsl/CDSLEnums.h"
@@ -26,6 +29,7 @@
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "naucrates/md/CMDForeignKey.h"
@@ -172,21 +176,27 @@ FPredicateFixesColumn(CExpression *pexprPred, const CColRef *pcr)
 		}
 		return false;
 	}
-	if (!CPredicateUtils::FPlainEqualityIdentConstWithoutCast(pexprPred))
+	if (!CPredicateUtils::IsEqualityOp(pexprPred))
 	{
 		return false;
 	}
 
 	CExpression *pexprLeft = (*pexprPred)[0];
 	CExpression *pexprRight = (*pexprPred)[1];
-	if (COperator::EopScalarConst == pexprLeft->Pop()->Eopid())
-	{
-		return COperator::EopScalarIdent == pexprRight->Pop()->Eopid() &&
-			   CScalarIdent::PopConvert(pexprRight->Pop())->Pcr() == pcr;
-	}
-	return COperator::EopScalarIdent == pexprLeft->Pop()->Eopid() &&
-		   COperator::EopScalarConst == pexprRight->Pop()->Eopid() &&
-		   CScalarIdent::PopConvert(pexprLeft->Pop())->Pcr() == pcr;
+	const BOOL fLeftConst =
+		COperator::EopScalarConst == pexprLeft->Pop()->Eopid() ||
+		CCastUtils::FBinaryCoercibleCastedConst(pexprLeft);
+	const BOOL fRightConst =
+		COperator::EopScalarConst == pexprRight->Pop()->Eopid() ||
+		CCastUtils::FBinaryCoercibleCastedConst(pexprRight);
+	return (fLeftConst &&
+			(CCastUtils::FBinaryCoercibleCastedScId(pexprRight,
+												 const_cast<CColRef *>(pcr)) ||
+			 CUtils::FScalarIdent(pexprRight, const_cast<CColRef *>(pcr)))) ||
+		   (fRightConst &&
+			(CCastUtils::FBinaryCoercibleCastedScId(pexprLeft,
+												 const_cast<CColRef *>(pcr)) ||
+			 CUtils::FScalarIdent(pexprLeft, const_cast<CColRef *>(pcr))));
 }
 
 BOOL
@@ -202,10 +212,11 @@ FFilterFixesColumn(CExpression *pexpr, const CColRef *pcr)
 }
 
 BOOL
-FFixedKeyMakesAtMostOneRow(CMemoryPool *mp, CExpression *pexpr,
-							CKeyCollection *pkc)
+FAttrsAndFixedColumnsCoverKey(CMemoryPool *mp, CExpression *pexpr,
+							  const CColRefSet *pcrsAttrs,
+							  CKeyCollection *pkc)
 {
-	if (nullptr == pkc)
+	if (nullptr == pcrsAttrs || nullptr == pkc)
 	{
 		return false;
 	}
@@ -213,18 +224,209 @@ FFixedKeyMakesAtMostOneRow(CMemoryPool *mp, CExpression *pexpr,
 	for (ULONG ulKey = 0; ulKey < pkc->Keys(); ulKey++)
 	{
 		CColRefArray *pdrgpcrKey = pkc->PdrgpcrKey(mp, ulKey);
-		BOOL fFixed = 0 < pdrgpcrKey->Size();
-		for (ULONG ulCol = 0; fFixed && ulCol < pdrgpcrKey->Size(); ulCol++)
+		BOOL fCovered = 0 < pdrgpcrKey->Size();
+		for (ULONG ulCol = 0; fCovered && ulCol < pdrgpcrKey->Size(); ulCol++)
 		{
-			fFixed = FFilterFixesColumn(pexpr, (*pdrgpcrKey)[ulCol]);
+			CColRef *pcrKey = (*pdrgpcrKey)[ulCol];
+			fCovered = pcrsAttrs->FMember(pcrKey) ||
+					   FFilterFixesColumn(pexpr, pcrKey);
 		}
 		pdrgpcrKey->Release();
-		if (fFixed)
+		if (fCovered)
 		{
 			return true;
 		}
 	}
 	return false;
+}
+
+const CColRef *
+PcrEqualityOperand(CExpression *pexpr)
+{
+	if (COperator::EopScalarIdent == pexpr->Pop()->Eopid())
+	{
+		return CScalarIdent::PopConvert(pexpr->Pop())->Pcr();
+	}
+	if (CCastUtils::FBinaryCoercibleCastedScId(pexpr))
+	{
+		return CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr();
+	}
+	return nullptr;
+}
+
+void
+CollectConnectedColumns(CExpression *pexprPred,
+						const CColRefSet *pcrsCandidate,
+						const CColRefSet *pcrsJoined,
+						CColRefSet *pcrsConnected)
+{
+	if (CPredicateUtils::FAnd(pexprPred))
+	{
+		for (ULONG ul = 0; ul < pexprPred->Arity(); ul++)
+		{
+			CollectConnectedColumns((*pexprPred)[ul], pcrsCandidate,
+								pcrsJoined, pcrsConnected);
+		}
+		return;
+	}
+	if (!CPredicateUtils::IsEqualityOp(pexprPred))
+	{
+		return;
+	}
+
+	const CColRef *pcrLeft = PcrEqualityOperand((*pexprPred)[0]);
+	const CColRef *pcrRight = PcrEqualityOperand((*pexprPred)[1]);
+	if (nullptr == pcrLeft || nullptr == pcrRight)
+	{
+		return;
+	}
+	if (pcrsCandidate->FMember(pcrLeft) && pcrsJoined->FMember(pcrRight))
+	{
+		pcrsConnected->Include(const_cast<CColRef *>(pcrLeft));
+	}
+	else if (pcrsCandidate->FMember(pcrRight) &&
+			 pcrsJoined->FMember(pcrLeft))
+	{
+		pcrsConnected->Include(const_cast<CColRef *>(pcrRight));
+	}
+}
+
+BOOL FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
+							  const CColRefSet *pcrsAttrs);
+
+BOOL
+FBinaryJoinPreservesUniqueAttrs(CMemoryPool *mp, CExpression *pexprJoin,
+								const CColRefSet *pcrsAttrs,
+								BOOL fAllowRightAnchor)
+{
+	if (3 != pexprJoin->Arity())
+	{
+		return false;
+	}
+
+	for (ULONG ulAnchor = 0; ulAnchor < 2; ulAnchor++)
+	{
+		if (1 == ulAnchor && !fAllowRightAnchor)
+		{
+			continue;
+		}
+		CExpression *pexprAnchor = (*pexprJoin)[ulAnchor];
+		CExpression *pexprOther = (*pexprJoin)[1 - ulAnchor];
+		if (!pexprAnchor->DeriveOutputColumns()->ContainsAll(pcrsAttrs) ||
+			!FExpressionUniqueOnAttrs(mp, pexprAnchor, pcrsAttrs))
+		{
+			continue;
+		}
+
+		CColRefSet *pcrsJoinCols = GPOS_NEW(mp) CColRefSet(mp);
+		CollectConnectedColumns((*pexprJoin)[2],
+							pexprOther->DeriveOutputColumns(),
+							pexprAnchor->DeriveOutputColumns(), pcrsJoinCols);
+		BOOL fOtherUnique =
+			FExpressionUniqueOnAttrs(mp, pexprOther, pcrsJoinCols);
+		pcrsJoinCols->Release();
+		if (fOtherUnique)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
+FNaryInnerJoinPreservesUniqueAttrs(CMemoryPool *mp, CExpression *pexprJoin,
+								   const CColRefSet *pcrsAttrs)
+{
+	CLogicalNAryJoin *popJoin =
+		CLogicalNAryJoin::PopConvert(pexprJoin->Pop());
+	if (popJoin->HasOuterJoinChildren() || pexprJoin->Arity() < 3)
+	{
+		return false;
+	}
+
+	const ULONG ulRelChildren = pexprJoin->Arity() - 1;
+	CExpression *pexprPred = (*pexprJoin)[ulRelChildren];
+	for (ULONG ulAnchor = 0; ulAnchor < ulRelChildren; ulAnchor++)
+	{
+		CExpression *pexprAnchor = (*pexprJoin)[ulAnchor];
+		if (!pexprAnchor->DeriveOutputColumns()->ContainsAll(pcrsAttrs) ||
+			!FExpressionUniqueOnAttrs(mp, pexprAnchor, pcrsAttrs))
+		{
+			continue;
+		}
+
+		CBitSet *pbsJoined = GPOS_NEW(mp) CBitSet(mp);
+		(void) pbsJoined->ExchangeSet(ulAnchor);
+		CColRefSet *pcrsJoined = GPOS_NEW(mp) CColRefSet(mp);
+		pcrsJoined->Include(pexprAnchor->DeriveOutputColumns());
+		ULONG ulJoined = 1;
+		BOOL fProgress = true;
+		while (ulJoined < ulRelChildren && fProgress)
+		{
+			fProgress = false;
+			for (ULONG ul = 0; ul < ulRelChildren; ul++)
+			{
+				if (pbsJoined->Get(ul))
+				{
+					continue;
+				}
+				CExpression *pexprCandidate = (*pexprJoin)[ul];
+				CColRefSet *pcrsJoinCols = GPOS_NEW(mp) CColRefSet(mp);
+				CollectConnectedColumns(pexprPred,
+								pexprCandidate->DeriveOutputColumns(),
+								pcrsJoined, pcrsJoinCols);
+				BOOL fUnique = FExpressionUniqueOnAttrs(
+					mp, pexprCandidate, pcrsJoinCols);
+				pcrsJoinCols->Release();
+				if (!fUnique)
+				{
+					continue;
+				}
+				(void) pbsJoined->ExchangeSet(ul);
+				pcrsJoined->Include(pexprCandidate->DeriveOutputColumns());
+				ulJoined++;
+				fProgress = true;
+			}
+		}
+		pbsJoined->Release();
+		pcrsJoined->Release();
+		if (ulJoined == ulRelChildren)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
+FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
+							 const CColRefSet *pcrsAttrs)
+{
+	CExpression *pexprKeySource = pexpr;
+	while (COperator::EopLogicalSelect == pexprKeySource->Pop()->Eopid() &&
+		   2 == pexprKeySource->Arity())
+	{
+		pexprKeySource = (*pexprKeySource)[0];
+	}
+
+	switch (pexprKeySource->Pop()->Eopid())
+	{
+		case COperator::EopLogicalInnerJoin:
+			return FBinaryJoinPreservesUniqueAttrs(
+				mp, pexprKeySource, pcrsAttrs, true /*fAllowRightAnchor*/);
+		case COperator::EopLogicalLeftOuterJoin:
+			return FBinaryJoinPreservesUniqueAttrs(
+				mp, pexprKeySource, pcrsAttrs, false /*fAllowRightAnchor*/);
+		case COperator::EopLogicalNAryJoin:
+			return FNaryInnerJoinPreservesUniqueAttrs(mp, pexprKeySource,
+											 pcrsAttrs);
+		default:
+			break;
+	}
+
+	CKeyCollection *pkc = pexprKeySource->DeriveKeyCollection();
+	return nullptr != pkc && FAttrsAndFixedColumnsCoverKey(
+							  mp, pexpr, pcrsAttrs, pkc);
 }
 
 BOOL
@@ -254,6 +456,80 @@ FSelectionChainRejectsNull(CMemoryPool *mp, CExpression *pexpr,
 		pexprCurrent = (*pexprCurrent)[0];
 	}
 	return false;
+}
+
+BOOL
+FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
+						 const CColRef *pcr)
+{
+	if (nullptr == pexpr ||
+		!pexpr->DeriveOutputColumns()->FMember(pcr))
+	{
+		return false;
+	}
+	if (pexpr->DeriveNotNullColumns()->FMember(pcr) ||
+		FSelectionChainRejectsNull(mp, pexpr, pcr))
+	{
+		return true;
+	}
+
+	// ORCA's root not-null property is deliberately conservative for several
+	// join shapes. Follow only children whose rows cannot be null-extended by
+	// the current operator; the opposite side of an outer join remains rejected.
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopLogicalSelect:
+		case COperator::EopLogicalProject:
+		case COperator::EopLogicalSequenceProject:
+		case COperator::EopLogicalLimit:
+			return 0 < pexpr->Arity() &&
+				   FExpressionProvesNotNull(mp, (*pexpr)[0], pcr);
+
+		case COperator::EopLogicalInnerJoin:
+		case COperator::EopLogicalInnerApply:
+			for (ULONG ul = 0; ul < 2 && ul < pexpr->Arity(); ul++)
+			{
+				if (FExpressionProvesNotNull(mp, (*pexpr)[ul], pcr))
+				{
+					return true;
+				}
+			}
+			return false;
+
+		case COperator::EopLogicalLeftOuterJoin:
+		case COperator::EopLogicalLeftOuterApply:
+		case COperator::EopLogicalLeftSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
+			return 0 < pexpr->Arity() &&
+				   FExpressionProvesNotNull(mp, (*pexpr)[0], pcr);
+
+		case COperator::EopLogicalRightOuterJoin:
+			return 1 < pexpr->Arity() &&
+				   FExpressionProvesNotNull(mp, (*pexpr)[1], pcr);
+
+		case COperator::EopLogicalNAryJoin:
+		{
+			CLogicalNAryJoin *popJoin =
+				CLogicalNAryJoin::PopConvert(pexpr->Pop());
+			if (popJoin->HasOuterJoinChildren() || pexpr->Arity() < 2)
+			{
+				return false;
+			}
+			const ULONG ulRelChildren = pexpr->Arity() - 1;
+			for (ULONG ul = 0; ul < ulRelChildren; ul++)
+			{
+				if (FExpressionProvesNotNull(mp, (*pexpr)[ul], pcr))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		default:
+			return false;
+	}
 }
 }  // namespace
 
@@ -395,20 +671,12 @@ CDSLConstraintChecker::FCheckUnique(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	// Select preserves every child key. Deriving the complete property handle on
-	// the Select also asks metadata for its scalar comparison operator, which is
-	// unnecessary here (and unavailable in the programmatic test provider).
-	CExpression *pexprKeySource = pexprTable;
-	while (COperator::EopLogicalSelect == pexprKeySource->Pop()->Eopid() &&
-		   2 == pexprKeySource->Arity())
-	{
-		pexprKeySource = (*pexprKeySource)[0];
-	}
-	CKeyCollection *pkc = pexprKeySource->DeriveKeyCollection();
-	// no keys derived => the uniqueness assertion cannot be confirmed => reject.
-	BOOL fHolds = nullptr != pkc &&
-				  (pkc->FKey(pcrsAttrs, false /*fExactMatch*/) ||
-				   FFixedKeyMakesAtMostOneRow(m_mp, pexprTable, pkc));
+	// In addition to directly derived keys, propagate uniqueness conservatively
+	// through joins whose other inputs are unique on their connecting columns.
+	// This covers normalized N-ary joins, for which ORCA does not derive a key
+	// collection, without assuming arbitrary join outputs are unique.
+	BOOL fHolds =
+		FExpressionUniqueOnAttrs(m_mp, pexprTable, pcrsAttrs);
 	pcrsAttrs->Release();
 	return fHolds;
 }
@@ -458,14 +726,12 @@ CDSLConstraintChecker::FCheckNotNull(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	CColRefSet *pcrsNotNull = pexprTable->DeriveNotNullColumns();
 	BOOL fHolds = true;
 	CColRefArray *pdrgpcrAttrs = pcrsAttrs->Pdrgpcr(m_mp);
 	for (ULONG ul = 0; fHolds && ul < pdrgpcrAttrs->Size(); ul++)
 	{
 		CColRef *pcr = (*pdrgpcrAttrs)[ul];
-		fHolds = pcrsNotNull->FMember(pcr) ||
-				 FSelectionChainRejectsNull(m_mp, pexprTable, pcr);
+		fHolds = FExpressionProvesNotNull(m_mp, pexprTable, pcr);
 	}
 	pdrgpcrAttrs->Release();
 	pcrsAttrs->Release();
@@ -484,7 +750,7 @@ CDSLConstraintChecker::FCheckNotNull(const CDSLConstraint *pcon,
 //		Live-metadata path (M2): resolve t0's bound subtree to its CLogicalGet ->
 //		CTableDescriptor -> relation MDId -> IMDRelation, then look for a foreign
 //		key whose referenced relation is t1's MDId and whose local/referenced attno
-//		sets equal the attnos of a0 / a1. FK metadata is populated only by
+//		pairs equal the bound a0 / a1 pairs. FK metadata is populated only by
 //		CMDRelationGPDB from a live relcache; the programmatic test fixture carries
 //		none, so on a synthetic relation ForeignKeyCount()==0 and this returns false
 //		(a Reference-guarded rule then simply does not fire — no regression).
@@ -515,22 +781,30 @@ FCollectAttnos(CMemoryPool *mp, const CDSLSymbol *psymAttrs,
 	return true;
 }
 
-// true iff the two attno arrays hold the same SET of attnos (order-independent).
+// Match an FK's local/referenced pairs against the bound join-key pairs. Pair
+// order is irrelevant because conjunct order is irrelevant, but correspondence
+// within each pair is essential for composite foreign keys.
 static BOOL
-FSameAttnoSet(const IntPtrArray *paisFst, const IntPtrArray *paisSnd)
+FSameAttnoPairs(const IntPtrArray *paisFkLocal,
+				const IntPtrArray *paisFkRef,
+				const IntPtrArray *paisBoundLocal,
+				const IntPtrArray *paisBoundRef)
 {
-	const ULONG ulFst = paisFst->Size();
-	if (ulFst != paisSnd->Size())
+	const ULONG ulKeys = paisFkLocal->Size();
+	if (ulKeys != paisFkRef->Size() ||
+		ulKeys != paisBoundLocal->Size() ||
+		ulKeys != paisBoundRef->Size())
 	{
 		return false;
 	}
-	for (ULONG ul = 0; ul < ulFst; ul++)
+	for (ULONG ul = 0; ul < ulKeys; ul++)
 	{
-		const INT iTarget = *(*paisFst)[ul];
 		BOOL fFound = false;
-		for (ULONG ulS = 0; ulS < paisSnd->Size() && !fFound; ulS++)
+		for (ULONG ulBound = 0; ulBound < ulKeys && !fFound; ulBound++)
 		{
-			fFound = (iTarget == *(*paisSnd)[ulS]);
+			fFound =
+				*(*paisFkLocal)[ul] == *(*paisBoundLocal)[ulBound] &&
+				*(*paisFkRef)[ul] == *(*paisBoundRef)[ulBound];
 		}
 		if (!fFound)
 		{
@@ -604,8 +878,98 @@ PexprOwningGetForAttrs(const CDSLSymbol *psymTable,
 // distinction between an unfiltered SELECT DISTINCT key domain and an
 // arbitrary derived relation over the same base Get.
 static BOOL
-FReferredSubtreeCoversAttrs(CExpression *pexpr, CExpression *pexprOwner,
-							const CColRefArray *pdrgpcrAttrs)
+FReferringDomainCoveredByFilter(CMemoryPool *mp,
+							CExpression *pexprReferring,
+							const CColRefArray *pdrgpcrLocal,
+							CExpression *pexprReferred,
+							const CColRefArray *pdrgpcrReferred,
+							CExpression *pexprFilter)
+{
+	if (nullptr == pexprReferring || nullptr == pdrgpcrLocal ||
+		nullptr == pexprReferred || nullptr == pdrgpcrReferred ||
+		nullptr == pexprFilter ||
+		pdrgpcrLocal->Size() != pdrgpcrReferred->Size())
+	{
+		return false;
+	}
+
+	// A filter on the referenced side preserves FK coverage when every column it
+	// constrains is a referenced key column and the referring side's domain is a
+	// subset after positional FK remapping. This handles normalized predicate
+	// pushdown (for example local_fk = 2 and referred_key = 2) without assuming
+	// that arbitrary filtered relations still contain the complete key domain.
+	CColRefSet *pcrsUsed = pexprFilter->DeriveUsedColumns();
+	if (0 == pcrsUsed->Size())
+	{
+		return false;
+	}
+	CColRefSetIter crsi(*pcrsUsed);
+	while (crsi.Advance())
+	{
+		CColRef *pcrReferred = crsi.Pcr();
+		BOOL fMatched = false;
+		for (ULONG ul = 0; ul < pdrgpcrReferred->Size(); ul++)
+		{
+			if (pcrReferred == (*pdrgpcrReferred)[ul])
+			{
+				fMatched = true;
+				break;
+			}
+		}
+		if (!fMatched)
+		{
+			return false;
+		}
+	}
+
+	CPropConstraint *ppcLocal = pexprReferring->DerivePropertyConstraint();
+	CPropConstraint *ppcReferred = pexprReferred->DerivePropertyConstraint();
+	CConstraint *pcnstrLocalRoot = ppcLocal->Pcnstr();
+	CConstraint *pcnstrReferredRoot = ppcReferred->Pcnstr();
+	if (nullptr == pcnstrLocalRoot || nullptr == pcnstrReferredRoot)
+	{
+		return false;
+	}
+
+	CColRefSetIter crsiConstraints(*pcrsUsed);
+	while (crsiConstraints.Advance())
+	{
+		CColRef *pcrReferred = crsiConstraints.Pcr();
+		ULONG ulMatch = 0;
+		while (pcrReferred != (*pdrgpcrReferred)[ulMatch])
+		{
+			ulMatch++;
+		}
+		CColRef *pcrLocal = (*pdrgpcrLocal)[ulMatch];
+		CConstraint *pcnstrReferred =
+			pcnstrReferredRoot->Pcnstr(mp, pcrReferred);
+		CConstraint *pcnstrLocal = pcnstrLocalRoot->Pcnstr(mp, pcrLocal);
+		if (nullptr == pcnstrReferred || nullptr == pcnstrLocal)
+		{
+			CRefCount::SafeRelease(pcnstrReferred);
+			CRefCount::SafeRelease(pcnstrLocal);
+			return false;
+		}
+		CConstraint *pcnstrMapped =
+			pcnstrReferred->PcnstrRemapForColumn(mp, pcrLocal);
+		BOOL fCovered = pcnstrMapped->Contains(pcnstrLocal);
+		pcnstrMapped->Release();
+		pcnstrReferred->Release();
+		pcnstrLocal->Release();
+		if (!fCovered)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+static BOOL
+FReferredSubtreeCoversAttrs(CMemoryPool *mp, CExpression *pexpr,
+							CExpression *pexprOwner,
+							const CColRefArray *pdrgpcrAttrs,
+							CExpression *pexprReferring,
+							const CColRefArray *pdrgpcrLocal)
 {
 	if (nullptr == pexpr || nullptr == pexprOwner || nullptr == pdrgpcrAttrs)
 	{
@@ -628,10 +992,20 @@ FReferredSubtreeCoversAttrs(CExpression *pexpr, CExpression *pexprOwner,
 
 	switch (pexpr->Pop()->Eopid())
 	{
+		case COperator::EopLogicalSelect:
+			return 1 < pexpr->Arity() &&
+				   FReferringDomainCoveredByFilter(
+					   mp, pexprReferring, pdrgpcrLocal, pexpr,
+					   pdrgpcrAttrs, (*pexpr)[1]) &&
+				   FReferredSubtreeCoversAttrs(
+					   mp, (*pexpr)[0], pexprOwner, pdrgpcrAttrs,
+					   pexprReferring, pdrgpcrLocal);
+
 		case COperator::EopLogicalProject:
 			return 0 < pexpr->Arity() &&
-				   FReferredSubtreeCoversAttrs((*pexpr)[0], pexprOwner,
-									   pdrgpcrAttrs);
+				   FReferredSubtreeCoversAttrs(
+					   mp, (*pexpr)[0], pexprOwner, pdrgpcrAttrs,
+					   pexprReferring, pdrgpcrLocal);
 
 		case COperator::EopLogicalGbAgg:
 		{
@@ -651,8 +1025,9 @@ FReferredSubtreeCoversAttrs(CExpression *pexpr, CExpression *pexprOwner,
 				}
 			}
 			return 0 < pexpr->Arity() &&
-				   FReferredSubtreeCoversAttrs((*pexpr)[0], pexprOwner,
-									   pdrgpcrAttrs);
+				   FReferredSubtreeCoversAttrs(
+					   mp, (*pexpr)[0], pexprOwner, pdrgpcrAttrs,
+					   pexprReferring, pdrgpcrLocal);
 		}
 
 		default:
@@ -707,9 +1082,12 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 
 	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
 	CExpression *pexprReferred = pmodel->PexprTable(psymTab1);
+	CExpression *pexprReferring = pmodel->PexprTable(psymTab0);
+	CColRefArray *pdrgpcrLocal = pmodel->PdrgpcrAttrs(psymAttr0);
 	CColRefArray *pdrgpcrReferred = pmodel->PdrgpcrAttrs(psymAttr1);
 	const BOOL fReferredCovers = FReferredSubtreeCoversAttrs(
-		pexprReferred, pexprGet1, pdrgpcrReferred);
+		m_mp, pexprReferred, pexprGet1, pdrgpcrReferred,
+		pexprReferring, pdrgpcrLocal);
 
 	// Inclusion in the same unfiltered base relation is true without an
 	// explicit FK: every value vector produced by the referring subtree occurs in
@@ -733,8 +1111,8 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 			{
 				const CMDForeignKey *pfk = prel->ForeignKeyAt(ul);
 				if (pfk->RefMdid()->Equals(pmdidRel1) &&
-					FSameAttnoSet(pfk->LocalAttnos(), paisLocal) &&
-					FSameAttnoSet(pfk->RefAttnos(), paisRef))
+					FSameAttnoPairs(pfk->LocalAttnos(), pfk->RefAttnos(),
+								   paisLocal, paisRef))
 				{
 					fHolds = true;
 				}
