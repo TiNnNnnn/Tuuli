@@ -21,6 +21,7 @@
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/search/CGroupExpression.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -43,10 +44,46 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_CapabilityMetadata),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_DSLProvenance),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_DSLProvenance()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	CGroupExpression *pgexprBase = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfInvalid, nullptr, false /*fIntermediate*/);
+	CGroupExpression *pgexprNative = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfSelect2Filter, pgexprBase, false /*fIntermediate*/);
+	CGroupExpression *pgexprDSL = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfDSLRuleSelect, pgexprNative, false /*fIntermediate*/);
+	CGroupExpression *pgexprNativeAfterDSL = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfSelect2Filter, pgexprDSL, false /*fIntermediate*/);
+
+	const BOOL fValid =
+		!CGroupExpression::FDSLRuleXform(CXform::ExfSelect2Filter) &&
+		CGroupExpression::FDSLRuleXform(CXform::ExfDSLRuleSelect) &&
+		CGroupExpression::FDSLRuleXform(CXform::ExfDSLRuleLimit) &&
+		!pgexprBase->FHasDSLProvenance() &&
+		!pgexprNative->FHasDSLProvenance() &&
+		pgexprDSL->FHasDSLProvenance() &&
+		pgexprNativeAfterDSL->FHasDSLProvenance();
+
+	pgexprNativeAfterDSL->Release();
+	pgexprDSL->Release();
+	pgexprNative->Release();
+	pgexprBase->Release();
+	return fValid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

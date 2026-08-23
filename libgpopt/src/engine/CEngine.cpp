@@ -385,10 +385,14 @@ CEngine::InsertXformResult(
 		CGroup *pgroupContainer =
 			PgroupInsert(pgroupOrigin, pexpr, exfidOrigin, pgexprOrigin,
 						 false /*fIntermediate*/);
+		const BOOL fDSLProvenance =
+			CGroupExpression::FDSLRuleXform(exfidOrigin) ||
+			pgexprOrigin->FHasDSLProvenance();
 		if (pgroupContainer != pgroupOrigin &&
 			FPossibleDuplicateGroups(pgroupContainer, pgroupOrigin) &&
-			!CGroup::FReachable(m_mp, pgroupContainer, pgroupOrigin) &&
-			!CGroup::FReachable(m_mp, pgroupOrigin, pgroupContainer))
+			(!fDSLProvenance ||
+			 (!CGroup::FReachable(m_mp, pgroupContainer, pgroupOrigin) &&
+			  !CGroup::FReachable(m_mp, pgroupOrigin, pgroupContainer))))
 		{
 			gpopt::CMemo::MarkDuplicates(pgroupOrigin, pgroupContainer);
 		}

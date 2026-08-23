@@ -533,7 +533,10 @@ CMemo::FRehash()
 				(nullptr == pgroupDup && nullptr == pgroupFoundDup) ||
 				(pgroupDup != pgroupFoundDup);
 
-			if (fMergeGroups &&
+			const BOOL fDSLProvenance =
+				pgexpr->FHasDSLProvenance() ||
+				pgexprFound->FHasDSLProvenance();
+			if (fMergeGroups && fDSLProvenance &&
 				(CGroup::FReachable(m_mp, pgroup, pgroupFound) ||
 				 CGroup::FReachable(m_mp, pgroupFound, pgroup)))
 			{

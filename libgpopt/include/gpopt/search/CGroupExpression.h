@@ -356,6 +356,13 @@ public:
 		return m_pgexprOrigin;
 	}
 
+	// whether an xform belongs to the shared DSL rule shell range
+	static BOOL FDSLRuleXform(CXform::EXformId exfid);
+
+	// whether this expression was produced by a DSL rule, directly or through
+	// a later native xform
+	BOOL FHasDSLProvenance() const;
+
 	// cost contexts hash table accessor
 	ShtCC &
 	Sht()

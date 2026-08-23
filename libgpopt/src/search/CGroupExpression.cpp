@@ -88,6 +88,44 @@ CGroupExpression::CGroupExpression(CMemoryPool *mp, COperator *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CGroupExpression::FDSLRuleXform
+//
+//	@doc:
+//		Check whether an xform is one of the shared DSL rule shells
+//---------------------------------------------------------------------------
+BOOL
+CGroupExpression::FDSLRuleXform(CXform::EXformId exfid)
+{
+	return CXform::ExfDSLRuleSelect <= exfid &&
+		   exfid <= CXform::ExfDSLRuleLimit;
+}
+
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CGroupExpression::FHasDSLProvenance
+//
+//	@doc:
+//		Check the immutable xform-origin chain for a DSL-produced expression
+//---------------------------------------------------------------------------
+BOOL
+CGroupExpression::FHasDSLProvenance() const
+{
+	const CGroupExpression *pgexpr = this;
+	while (nullptr != pgexpr)
+	{
+		if (FDSLRuleXform(pgexpr->ExfidOrigin()))
+		{
+			return true;
+		}
+		pgexpr = pgexpr->PgexprOrigin();
+	}
+	return false;
+}
+
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CGroupExpression::~CGroupExpression
 //
 //	@doc:
