@@ -21,6 +21,7 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/COptimizationContext.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CPhysicalAgg.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/search/CBinding.h"
@@ -878,33 +879,66 @@ CGroupExpression::Transform(
 	COptimizerConfig *optconfig =
 		COptCtxt::PoctxtFromTLS()->GetOptimizerConfig();
 	ULONG bindThreshold = optconfig->GetHint()->UlXformBindThreshold();
-	CExpression *pexprPattern = pxform->PexprPattern();
-	CExpression *pexpr = binding.PexprExtract(mp, this, pexprPattern, nullptr);
-	while (nullptr != pexpr)
+	// Every DSL shell uses the source trie before binding. Routed and adapted
+	// rules retain a conservative complete representative; native xforms keep
+	// the original CBinding enumeration unchanged.
+	if (FDSLRuleXform(pxform->Exfid()))
 	{
-		++(*pulNumberOfBindings);
-		ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
-		pxform->Transform(pxfctxt, pxfres, pexpr);
-		ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;
-		PrintXform(mp, pxform, pexpr, pxfres, ulNumResults);
-
-		if ((bindThreshold != 0 && (*pulNumberOfBindings) > bindThreshold) ||
-			pxform->IsApplyOnce() ||
-			(0 < pxfres->Pdrgpexpr()->Size() &&
-			 !CXformUtils::FApplyToNextBinding(pxform, pexpr)))
+		CDSLRuleEngine *pengine = CDSLRuleEngine::Instance();
+		GPOS_ASSERT(nullptr != pengine);
+		CExpressionArray *pdrgpexprBindings = pengine->PdrgpexprBindings(
+			mp, Pop()->Eopid(), this);
+		for (ULONG ul = 0; ul < pdrgpexprBindings->Size(); ul++)
 		{
-			// do not apply xform to other possible patterns
-			pexpr->Release();
-			break;
+			CExpression *pexpr = (*pdrgpexprBindings)[ul];
+			++(*pulNumberOfBindings);
+			ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
+			pxform->Transform(pxfctxt, pxfres, pexpr);
+			ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;
+			PrintXform(mp, pxform, pexpr, pxfres, ulNumResults);
+
+			if ((bindThreshold != 0 &&
+				 (*pulNumberOfBindings) > bindThreshold) ||
+				pxform->IsApplyOnce() ||
+				(0 < pxfres->Pdrgpexpr()->Size() &&
+				 !CXformUtils::FApplyToNextBinding(pxform, pexpr)))
+			{
+				break;
+			}
+			GPOS_CHECK_ABORT;
 		}
+		pdrgpexprBindings->Release();
+	}
+	else
+	{
+		CExpression *pexprPattern = pxform->PexprPattern();
+		CExpression *pexpr =
+			binding.PexprExtract(mp, this, pexprPattern, nullptr);
+		while (nullptr != pexpr)
+		{
+			++(*pulNumberOfBindings);
+			ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
+			pxform->Transform(pxfctxt, pxfres, pexpr);
+			ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;
+			PrintXform(mp, pxform, pexpr, pxfres, ulNumResults);
 
-		CExpression *pexprLast = pexpr;
-		pexpr = binding.PexprExtract(mp, this, pexprPattern, pexprLast);
+			if ((bindThreshold != 0 &&
+				 (*pulNumberOfBindings) > bindThreshold) ||
+				pxform->IsApplyOnce() ||
+				(0 < pxfres->Pdrgpexpr()->Size() &&
+				 !CXformUtils::FApplyToNextBinding(pxform, pexpr)))
+			{
+				// do not apply xform to other possible patterns
+				pexpr->Release();
+				break;
+			}
 
-		// release last extracted expression
-		pexprLast->Release();
-
-		GPOS_CHECK_ABORT;
+			CExpression *pexprLast = pexpr;
+			pexpr =
+				binding.PexprExtract(mp, this, pexprPattern, pexprLast);
+			pexprLast->Release();
+			GPOS_CHECK_ABORT;
+		}
 	}
 	pxfctxt->Release();
 

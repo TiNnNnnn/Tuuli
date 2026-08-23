@@ -50,11 +50,16 @@ private:
 	BOOL FMatchCorrelatedExists(const CDSLOp *pop, CExpression *pexpr,
 							 CDSLModel *pmodel) const;
 
-	// Inner-join predicate pushdown can turn InSub(Join(left,right),inner)
-	// into Join(ApplyIn(left,inner),right). Reconstruct the former only as a
+	// Predicate pushdown/unnesting can move either Select+ANY or ApplyIn below a
+	// binary/n-ary join spine. Reconstruct InSub(Join(...),inner) only as a
 	// transient matcher view; the live memo expression remains unchanged.
 	BOOL FMatchPushedDownInnerJoin(const CDSLOp *pop, CExpression *pexpr,
 								 CDSLModel *pmodel) const;
+
+	// Match one carrier (pre-unnest Select+ANY or post-unnest ApplyIn) after the
+	// router has pulled it above the source root join.
+	BOOL FMatchRoutedCarrier(const CDSLOp *pop, CExpression *pexprCarrier,
+							  CExpression *pexprRel, CDSLModel *pmodel) const;
 
 public:
 	CDSLInSubMatcher(const CDSLInSubMatcher &) = delete;

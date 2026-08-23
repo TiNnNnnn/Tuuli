@@ -15,6 +15,8 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLJoinSpineRouter.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -246,65 +248,86 @@ CDSLFilterMatcher::FMatchPushedDownInnerJoin(
 		return false;
 	}
 
-	// An explicit source AttrsEq connects every pulled Filter's referenced attrs
-	// to the join-key side from which it may have been pushed. This avoids
-	// guessing from rule ids or SQL text and rejects unconstrained movement.
-	BOOL rgfEligible[2] = {true, true};
-	for (ULONG ulSide = 0; ulSide < 2; ulSide++)
+	CDSLJoinSpineRouter::SRouteArray *pdrgproute =
+		CDSLJoinSpineRouter::Pdrgproute(
+			m_mp, pexprJoin, COperator::EopLogicalSelect);
+	BOOL fMatched = false;
+	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	ExtractJoinKeys(m_mp, pexprJoin, pdrgpcrLeft, pdrgpcrRight);
+	for (ULONG ulRoute = 0; ulRoute < pdrgproute->Size() && !fMatched;
+		 ulRoute++)
 	{
-		const CDSLSymbol *psymJoinAttrs = (*popBase->Pdrgpsym())[ulSide];
-		for (ULONG ulFilter = 0; ulFilter < ulFilters; ulFilter++)
-		{
-			CDSLSymbolArray *pdrgpsymFilter =
-				rgpopFilters[ulFilter]->Pdrgpsym();
-			if (nullptr == pdrgpsymFilter || 2 != pdrgpsymFilter->Size() ||
-				!FDirectEquality(m_prule, EdslconAttrsEq,
-							 (*pdrgpsymFilter)[1], psymJoinAttrs))
-			{
-				rgfEligible[ulSide] = false;
-				break;
-			}
-		}
-	}
-
-	ULONG ulSelected = 2;
-	for (ULONG ulSide = 0; ulSide < 2; ulSide++)
-	{
-		CExpression *pexprInput = (*pexprJoin)[ulSide];
-		if (!rgfEligible[ulSide] ||
-			COperator::EopLogicalSelect != pexprInput->Pop()->Eopid() ||
-			2 != pexprInput->Arity() ||
-			!(*pexprInput)[0]->DeriveOutputColumns()->ContainsAll(
-				(*pexprInput)[1]->DeriveUsedColumns()))
+		CDSLJoinSpineRouter::SRoute *proute = (*pdrgproute)[ulRoute];
+		CExpression *pexprPushedSelect = proute->m_pexprCarrier;
+		if (2 != pexprPushedSelect->Arity() ||
+			!(*pexprPushedSelect)[0]->DeriveOutputColumns()->ContainsAll(
+				(*pexprPushedSelect)[1]->DeriveUsedColumns()))
 		{
 			continue;
 		}
-		ulSelected = ulSide;
-		break;
-	}
-	if (2 == ulSelected)
-	{
-		return false;
-	}
 
-	CExpression *pexprPushedSelect = (*pexprJoin)[ulSelected];
-	CExpression *pexprLeft =
-		(0 == ulSelected) ? (*pexprPushedSelect)[0] : (*pexprJoin)[0];
-	CExpression *pexprRight =
-		(1 == ulSelected) ? (*pexprPushedSelect)[0] : (*pexprJoin)[1];
-	pexprJoin->Pop()->AddRef();
-	pexprLeft->AddRef();
-	pexprRight->AddRef();
-	(*pexprJoin)[2]->AddRef();
-	CExpression *pexprVirtualJoin = GPOS_NEW(m_mp) CExpression(
-		m_mp, pexprJoin->Pop(), pexprLeft, pexprRight, (*pexprJoin)[2]);
+		// Cheap rule-guided prefilter: only a conjunct using the source-declared
+		// root join-key side can have been pushed from Filter(InnerJoin). This
+		// prevents deep join trees from invoking the full matcher for every Select.
+		BOOL fEligible = false;
+		CExpressionArray *pdrgpexprConj = CPredicateUtils::PdrgpexprConjuncts(
+			m_mp, (*pexprPushedSelect)[1]);
+		for (ULONG ulConj = 0; ulConj < pdrgpexprConj->Size() && !fEligible;
+			 ulConj++)
+		{
+			CExpression *pexprConj = (*pdrgpexprConj)[ulConj];
+			for (ULONG ulSide = 0; ulSide < 2 && !fEligible; ulSide++)
+			{
+				const CDSLSymbol *psymJoinAttrs =
+					(*popBase->Pdrgpsym())[ulSide];
+				CColRefArray *pdrgpcrSide =
+					(0 == ulSide) ? pdrgpcrLeft : pdrgpcrRight;
+				BOOL fLinked = true;
+				for (ULONG ulFilter = 0; ulFilter < ulFilters; ulFilter++)
+				{
+					CDSLSymbolArray *pdrgpsymFilter =
+						rgpopFilters[ulFilter]->Pdrgpsym();
+					fLinked = fLinked && nullptr != pdrgpsymFilter &&
+						2 == pdrgpsymFilter->Size() &&
+						FDirectEquality(m_prule, EdslconAttrsEq,
+									(*pdrgpsymFilter)[1], psymJoinAttrs);
+				}
+				fEligible = fLinked && 0 < pdrgpcrSide->Size() &&
+					FUsedColumnsEqual(m_mp, pexprConj, pdrgpcrSide);
+			}
+		}
+		pdrgpexprConj->Release();
+		if (!fEligible)
+		{
+			continue;
+		}
 
-	(*pexprPushedSelect)[1]->AddRef();
-	CExpression *pexprVirtualSelect = GPOS_NEW(m_mp) CExpression(
-		m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprVirtualJoin,
-		(*pexprPushedSelect)[1]);
-	BOOL fMatched = FMatch(popFilterRoot, pexprVirtualSelect, pmodel);
-	pexprVirtualSelect->Release();
+		proute->m_pexprRel->AddRef();
+		(*pexprPushedSelect)[1]->AddRef();
+		CExpression *pexprVirtualSelect = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp),
+			proute->m_pexprRel, (*pexprPushedSelect)[1]);
+
+		// Probe in a disposable model. Rejected routes must not leave partial
+		// symbol bindings in the caller's model.
+		CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
+		fMatched = FMatch(popFilterRoot, pexprVirtualSelect, pmodelProbe);
+		if (fMatched && nullptr != m_prule)
+		{
+			CDSLConstraintChecker checker(m_mp);
+			fMatched = checker.FCheck(m_prule, pmodelProbe);
+		}
+		pmodelProbe->Release();
+		if (fMatched)
+		{
+			fMatched = FMatch(popFilterRoot, pexprVirtualSelect, pmodel);
+		}
+		pexprVirtualSelect->Release();
+	}
+	pdrgpcrRight->Release();
+	pdrgpcrLeft->Release();
+	pdrgproute->Release();
 	return fMatched;
 }
 

@@ -21,6 +21,8 @@ public:
 	static GPOS_RESULT EresUnittest_PostApplyCorrelatedExistsCanonicalization();
 	static GPOS_RESULT EresUnittest_PostApplyRepeatedInElimination();
 	static GPOS_RESULT EresUnittest_PushedDownJoinRemap();
+	static GPOS_RESULT EresUnittest_PreApplyBelowNAryJoinRemap();
+	static GPOS_RESULT EresUnittest_RejectsNullSupplyingRoute();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();
 };

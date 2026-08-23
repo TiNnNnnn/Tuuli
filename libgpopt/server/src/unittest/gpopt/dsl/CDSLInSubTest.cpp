@@ -18,6 +18,7 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -97,6 +98,10 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PushedDownJoinRemap),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap),
+		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_RejectsNullSupplyingRoute),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_RejectsDifferentTable),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PostApplyIdentity)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -125,10 +130,20 @@ CDSLInSubTest::EresUnittest_PushedDownJoinRemap()
 		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
 			mp, pexprLeft, pexprInner, (*pdrgpcrInner)[0],
 			COperator::EopScalarSubqueryAny, pexprInPred);
+	CColRefArray *pdrgpcrLojRight = nullptr;
+	CExpression *pexprLojRight =
+		fix.PexprLogicalGet("insub_loj_right", 1, &pdrgpcrLojRight, 0);
+	CExpression *pexprLojPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrLojRight)[0]);
+	CExpression *pexprLoj = fix.PexprLogicalLeftOuterJoin(
+		pexprPushedApply, pexprLojRight, pexprLojPred);
 	CExpression *pexprJoinPred =
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprSource = fix.PexprLogicalInnerJoin(
-		pexprPushedApply, pexprRight, pexprJoinPred);
+		pexprLoj, pexprRight, pexprJoinPred);
+	pexprLoj->Release();
+	pexprLojPred->Release();
+	pexprLojRight->Release();
 	pexprPushedApply->Release();
 	pexprRight->Release();
 	pexprJoinPred->Release();
@@ -150,6 +165,8 @@ CDSLInSubTest::EresUnittest_PushedDownJoinRemap()
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
 				(*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalLeftOuterJoin ==
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid());
 	CColRefSet *pcrsPred = (*pexprTarget)[2]->DeriveUsedColumns();
 	GPOS_ASSERT(!pcrsPred->FMember((*pdrgpcrLeft)[0]));
 	GPOS_ASSERT(pcrsPred->FMember((*pdrgpcrRight)[0]));
@@ -161,6 +178,129 @@ CDSLInSubTest::EresUnittest_PushedDownJoinRemap()
 	pmodel->Release();
 	prule->Release();
 	pexprSource->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_RejectsNullSupplyingRoute()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrPreserved = nullptr;
+	CExpression *pexprPreserved = fix.PexprLogicalGet(
+		"insub_loj_preserved", 1, &pdrgpcrPreserved, 0);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("insub_loj_nullable", 1, &pdrgpcrOuter, 0);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("insub_loj_inner", 1, &pdrgpcrInner, 0);
+	CExpression *pexprInPred =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			mp, pexprOuter, pexprInner, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubqueryAny, pexprInPred);
+	CExpression *pexprLojPred =
+		fix.PexprEqPred((*pdrgpcrPreserved)[0], (*pdrgpcrOuter)[0]);
+	CExpression *pexprLoj = fix.PexprLogicalLeftOuterJoin(
+		pexprPreserved, pexprApply, pexprLojPred);
+	pexprPreserved->Release();
+	pexprApply->Release();
+	pexprLojPred->Release();
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("insub_route_right", 1, &pdrgpcrRight, 0);
+	CExpression *pexprJoinPred =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprSource =
+		fix.PexprLogicalInnerJoin(pexprLoj, pexprRight, pexprJoinPred);
+	pexprLoj->Release();
+	pexprRight->Release();
+	pexprJoinPred->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_INSUB_JOIN_REMAP_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+								pmodel));
+
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("insub_nary_left", 1, &pdrgpcrLeft, 0);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("insub_nary_subquery", 1, &pdrgpcrInner, 0);
+	// Keep one local ref while ScalarSubqueryAny owns the other.
+	pexprInner->AddRef();
+	CExpression *pexprAny = PexprScalarAny(
+		mp, fix, pexprInner, (*pdrgpcrLeft)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprLeft, pexprAny);
+	pexprLeft->Release();
+	pexprAny->Release();
+
+	CColRefArray *pdrgpcrNaryRight = nullptr;
+	CExpression *pexprNaryRight = fix.PexprLogicalGet(
+		"insub_nary_sibling", 1, &pdrgpcrNaryRight, 0);
+	CExpressionArray *pdrgpexprNary = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprNary->Append(pexprSelect);
+	pdrgpexprNary->Append(pexprNaryRight);
+	pdrgpexprNary->Append(
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrNaryRight)[0]));
+	CExpression *pexprNary = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalNAryJoin(mp), pdrgpexprNary);
+
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("insub_nary_root_right", 1, &pdrgpcrRight, 0);
+	CExpression *pexprRootPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprSource =
+		fix.PexprLogicalInnerJoin(pexprNary, pexprRight, pexprRootPred);
+	pexprNary->Release();
+	pexprRight->Release();
+	pexprRootPred->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_INSUB_JOIN_REMAP_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+								pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				(*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalNAryJoin ==
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprInner->Release();
 	return GPOS_OK;
 }
 

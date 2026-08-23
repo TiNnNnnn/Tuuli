@@ -42,8 +42,8 @@ public:
 	// residuals occur once in its conjunction.
 	static GPOS_RESULT EresUnittest_TargetFilterChainFlattened();
 
-	// A Filter pushed into one InnerJoin input is exposed as the equivalent
-	// source view; target attrs remap the predicate to the opposite join key.
+	// A Filter pushed through a nested InnerJoin input is exposed as the
+	// equivalent source view; target attrs remap it to the opposite root key.
 	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();
 
 	// the reused base subtree is grafted (the target's Get child is the same

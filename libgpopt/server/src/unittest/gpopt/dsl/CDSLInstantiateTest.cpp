@@ -87,9 +87,9 @@ CDSLInstantiateTest::EresUnittest()
 //		CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped
 //
 //	@doc:
-//		The live ORCA tree has already pushed a right-key Filter below an inner
-//		join. Match it through the pre-pushdown view, peel the Select from the
-//		bound right Input, and instantiate the target predicate over the left key.
+//		The live ORCA tree has already pushed a right-key Filter through a nested
+//		inner join. Match it through the pre-pushdown view, peel the Select from
+//		the bound right Input, and instantiate the target over the left root key.
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
@@ -126,10 +126,17 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 		fix.PexprConjunctionOfAtoms(rgpcrRightPreds, 2);
 	CExpression *pexprRightSelect =
 		fix.PexprLogicalSelect(pexprRight, pexprRightPred);
+	CColRefArray *pdrgpcrRightExtra = nullptr;
+	CExpression *pexprRightExtra =
+		fix.PexprLogicalGet("right_extra_t", 1, &pdrgpcrRightExtra);
+	CExpression *pexprNestedPred =
+		fix.PexprEqPred((*pdrgpcrRight)[0], (*pdrgpcrRightExtra)[0]);
+	CExpression *pexprNestedRight = fix.PexprLogicalInnerJoin(
+		pexprRightSelect, pexprRightExtra, pexprNestedPred);
 	CExpression *pexprJoinPred =
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprJoin = fix.PexprLogicalInnerJoin(
-		pexprLeft, pexprRightSelect, pexprJoinPred);
+		pexprLeft, pexprNestedRight, pexprJoinPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
@@ -145,7 +152,12 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 			(*prule->PfragSrc()->PopRoot())[0];
 		const CDSLSymbol *psymRightTable =
 			(*(*popSourceJoin)[1]->Pdrgpsym())[0];
-		if (pmodel->PexprTable(psymRightTable) != pexprRight)
+		CExpression *pexprBoundRight = pmodel->PexprTable(psymRightTable);
+		if (nullptr == pexprBoundRight ||
+			COperator::EopLogicalInnerJoin !=
+				pexprBoundRight->Pop()->Eopid() ||
+			COperator::EopLogicalGet !=
+				(*pexprBoundRight)[0]->Pop()->Eopid())
 		{
 			eres = GPOS_FAILED;
 		}
@@ -171,7 +183,10 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 		if (nullptr == pexprTgt ||
 			COperator::EopLogicalSelect != pexprTgt->Pop()->Eopid() ||
 			COperator::EopLogicalInnerJoin != (*pexprTgt)[0]->Pop()->Eopid() ||
-			COperator::EopLogicalGet != (*(*pexprTgt)[0])[1]->Pop()->Eopid() ||
+			COperator::EopLogicalInnerJoin !=
+				(*(*pexprTgt)[0])[1]->Pop()->Eopid() ||
+			COperator::EopLogicalGet !=
+				(*(*(*pexprTgt)[0])[1])[0]->Pop()->Eopid() ||
 			!(*pexprTgt)[1]->DeriveUsedColumns()->FMember(
 				(*pdrgpcrLeft)[0]) ||
 			(*pexprTgt)[1]->DeriveUsedColumns()->FMember(
@@ -187,6 +202,9 @@ CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped()
 	pmodel->Release();
 	pexprJoin->Release();
 	pexprJoinPred->Release();
+	pexprNestedRight->Release();
+	pexprNestedPred->Release();
+	pexprRightExtra->Release();
 	pexprRightSelect->Release();
 	pexprRightPred->Release();
 	pexprRight->Release();

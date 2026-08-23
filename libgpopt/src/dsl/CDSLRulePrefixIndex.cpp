@@ -6,6 +6,9 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 
+#include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
+
 using namespace gpopt;
 
 CDSLRulePrefixIndex::SExactEdge::~SExactEdge()
@@ -381,6 +384,359 @@ CDSLRulePrefixIndex::PdrgpruleCandidates(CMemoryPool *mp,
 	}
 	pdrgpentry->Release();
 	return pdrgprule;
+}
+
+CExpression *
+CDSLRulePrefixIndex::PexprRepresentative(CMemoryPool *mp, CGroup *pgroup,
+									 ULONG ulDepth)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pgroup);
+
+	CGroupProxy gp(pgroup);
+	CGroupExpression *pgexpr = nullptr;
+	if (pgroup->FScalar())
+	{
+		pgexpr = gp.PgexprFirst();
+	}
+	else
+	{
+		// Prefer a native/original alternative. DSL-produced alternatives are
+		// semantically equivalent, but choosing them as opaque Input witnesses can
+		// feed a rewrite back into itself and make attribution/order less stable.
+		for (CGroupExpression *pgexprCurrent = gp.PgexprNextLogical(nullptr);
+			 nullptr != pgexprCurrent;
+			 pgexprCurrent = gp.PgexprNextLogical(pgexprCurrent))
+		{
+			if (nullptr == pgexpr)
+			{
+				pgexpr = pgexprCurrent;
+			}
+			if (!pgexprCurrent->FHasDSLProvenance())
+			{
+				pgexpr = pgexprCurrent;
+				break;
+			}
+		}
+	}
+	GPOS_ASSERT(nullptr != pgexpr);
+	return PexprRepresentative(mp, pgexpr, ulDepth);
+}
+
+CExpression *
+CDSLRulePrefixIndex::PexprRepresentative(CMemoryPool *mp,
+									 CGroupExpression *pgexpr, ULONG ulDepth)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pgexpr);
+
+	// Memo expressions are expected to form an acyclic child-group graph. Keep
+	// a defensive ceiling: a group-bound leaf still carries the group's complete
+	// derived relational properties and can be grafted into an xform result
+	// without recursive memo insertion.
+	if (128 <= ulDepth)
+	{
+		pgexpr->Pop()->AddRef();
+		return GPOS_NEW(mp) CExpression(mp, pgexpr->Pop(), pgexpr);
+	}
+
+	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
+	{
+		pdrgpexpr->Append(
+			PexprRepresentative(mp, (*pgexpr)[ul], ulDepth + 1));
+	}
+	pgexpr->Pop()->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, pgexpr->Pop(), pgexpr, pdrgpexpr,
+								  nullptr /*prpp*/, nullptr /*input_stats*/);
+}
+
+CDSLRulePrefixIndex::SBindingStateArray *
+CDSLRulePrefixIndex::PdrgpstateConsumeGroup(CMemoryPool *mp,
+										const SNode *pnode,
+										CGroup *pgroup) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pnode);
+	GPOS_ASSERT(nullptr != pgroup);
+
+	SBindingStateArray *pdrgpstate = GPOS_NEW(mp) SBindingStateArray(mp);
+
+	// Input consumes the entire equivalence group. Preserve each top-level memo
+	// alternative because its group-expression identity affects safe duplicate-
+	// group merging and therefore final plan selection. Descendants still use one
+	// stable representative each, avoiding the recursive Cartesian product which
+	// made CPatternTree binding unbounded.
+	if (nullptr != pnode->m_pnodeInput)
+	{
+		CGroupProxy gpInput(pgroup);
+		if (pgroup->FScalar())
+		{
+			pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
+				pnode->m_pnodeInput,
+				PexprRepresentative(mp, gpInput.PgexprFirst())));
+		}
+		else
+		{
+			for (CGroupExpression *pgexprInput =
+					 gpInput.PgexprNextLogical(nullptr);
+				 nullptr != pgexprInput;
+				 pgexprInput = gpInput.PgexprNextLogical(pgexprInput))
+			{
+				pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
+					pnode->m_pnodeInput,
+					PexprRepresentative(mp, pgexprInput)));
+			}
+		}
+	}
+
+	CGroupProxy gp(pgroup);
+	if (pgroup->FScalar())
+	{
+		CGroupExpression *pgexpr = gp.PgexprFirst();
+		SBindingStateArray *pdrgpstateCurrent =
+			PdrgpstateConsumeGExpr(mp, pnode, pgexpr);
+		for (ULONG ul = 0; ul < pdrgpstateCurrent->Size(); ul++)
+		{
+			SBindingState *pstate = (*pdrgpstateCurrent)[ul];
+			pstate->m_pexpr->AddRef();
+			pdrgpstate->Append(GPOS_NEW(mp)
+				SBindingState(pstate->m_pnode, pstate->m_pexpr));
+		}
+		pdrgpstateCurrent->Release();
+		return pdrgpstate;
+	}
+
+	for (CGroupExpression *pgexpr = gp.PgexprNextLogical(nullptr);
+		 nullptr != pgexpr; pgexpr = gp.PgexprNextLogical(pgexpr))
+	{
+		SBindingStateArray *pdrgpstateCurrent =
+			PdrgpstateConsumeGExpr(mp, pnode, pgexpr);
+		for (ULONG ul = 0; ul < pdrgpstateCurrent->Size(); ul++)
+		{
+			SBindingState *pstate = (*pdrgpstateCurrent)[ul];
+			pstate->m_pexpr->AddRef();
+			pdrgpstate->Append(GPOS_NEW(mp)
+				SBindingState(pstate->m_pnode, pstate->m_pexpr));
+		}
+		pdrgpstateCurrent->Release();
+	}
+	return pdrgpstate;
+}
+
+void
+CDSLRulePrefixIndex::AppendWrappedStates(
+	CMemoryPool *mp, CGroupExpression *pgexprWrapper,
+	SBindingStateArray *pdrgpstateInner,
+	SBindingStateArray *pdrgpstateResult)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pgexprWrapper);
+	GPOS_ASSERT(nullptr != pdrgpstateInner);
+	GPOS_ASSERT(nullptr != pdrgpstateResult);
+
+	for (ULONG ulState = 0; ulState < pdrgpstateInner->Size(); ulState++)
+	{
+		SBindingState *pstate = (*pdrgpstateInner)[ulState];
+		CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+		pstate->m_pexpr->AddRef();
+		pdrgpexpr->Append(pstate->m_pexpr);
+		for (ULONG ulChild = 1; ulChild < pgexprWrapper->Arity(); ulChild++)
+		{
+			pdrgpexpr->Append(
+				PexprRepresentative(mp, (*pgexprWrapper)[ulChild]));
+		}
+		pgexprWrapper->Pop()->AddRef();
+		CExpression *pexpr = GPOS_NEW(mp) CExpression(
+			mp, pgexprWrapper->Pop(), pgexprWrapper, pdrgpexpr,
+			nullptr /*prpp*/, nullptr /*input_stats*/);
+		pdrgpstateResult->Append(
+			GPOS_NEW(mp) SBindingState(pstate->m_pnode, pexpr));
+	}
+}
+
+CDSLRulePrefixIndex::SBindingStateArray *
+CDSLRulePrefixIndex::PdrgpstateConsumeProjectChild(
+	CMemoryPool *mp, const SNode *pnode, CGroup *pgroup,
+	ULONG ulAdapterFlags) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pnode);
+	GPOS_ASSERT(nullptr != pgroup);
+
+	SBindingStateArray *pdrgpstateResult =
+		PdrgpstateConsumeGroup(mp, pnode, pgroup);
+	CGroupProxy gp(pgroup);
+	for (CGroupExpression *pgexpr = gp.PgexprNextLogical(nullptr);
+		 nullptr != pgexpr; pgexpr = gp.PgexprNextLogical(pgexpr))
+	{
+		if (0 != (ulAdapterFlags & SExactEdge::EafProjectPeelLimit) &&
+			COperator::EopLogicalLimit == pgexpr->Pop()->Eopid() &&
+			3 == pgexpr->Arity())
+		{
+			// Limit chains are one fused ORCA representation of nested DSL
+			// Sort/Limit views. Recurse so every peeled depth remains visible.
+			SBindingStateArray *pdrgpstateInner =
+				PdrgpstateConsumeProjectChild(mp, pnode, (*pgexpr)[0],
+					ulAdapterFlags);
+			AppendWrappedStates(mp, pgexpr, pdrgpstateInner,
+							pdrgpstateResult);
+			pdrgpstateInner->Release();
+		}
+
+		if (0 != (ulAdapterFlags & SExactEdge::EafProjectPeelAgg) &&
+			COperator::EopLogicalGbAgg == pgexpr->Pop()->Eopid() &&
+			2 == pgexpr->Arity())
+		{
+			SBindingStateArray *pdrgpstateInner =
+				PdrgpstateConsumeGroup(mp, pnode, (*pgexpr)[0]);
+			AppendWrappedStates(mp, pgexpr, pdrgpstateInner,
+							pdrgpstateResult);
+			pdrgpstateInner->Release();
+		}
+	}
+	return pdrgpstateResult;
+}
+
+CDSLRulePrefixIndex::SBindingStateArray *
+CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
+										const SNode *pnode,
+										CGroupExpression *pgexpr) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pnode);
+	GPOS_ASSERT(nullptr != pgexpr);
+
+	SBindingStateArray *pdrgpstateResult =
+		GPOS_NEW(mp) SBindingStateArray(mp);
+
+	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
+	{
+		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
+		if (pedge->m_eopid != pgexpr->Pop()->Eopid() ||
+			pgexpr->Arity() < pedge->m_ulChildren)
+		{
+			continue;
+		}
+
+		SChildBindingStateArray *pdrgpstateChildren =
+			GPOS_NEW(mp) SChildBindingStateArray(mp);
+		pdrgpstateChildren->Append(GPOS_NEW(mp) SChildBindingState(
+			pedge->m_pnodeChild, GPOS_NEW(mp) CExpressionArray(mp)));
+
+		for (ULONG ulChild = 0;
+			 ulChild < pedge->m_ulChildren &&
+			 0 < pdrgpstateChildren->Size();
+			 ulChild++)
+		{
+			SChildBindingStateArray *pdrgpstateNext =
+				GPOS_NEW(mp) SChildBindingStateArray(mp);
+			for (ULONG ulState = 0; ulState < pdrgpstateChildren->Size();
+				 ulState++)
+			{
+				SChildBindingState *pstate = (*pdrgpstateChildren)[ulState];
+				SBindingStateArray *pdrgpchild =
+					(0 == ulChild && SExactEdge::EafNone !=
+									 pedge->m_ulAdapterFlags)
+						? PdrgpstateConsumeProjectChild(
+							  mp, pstate->m_pnode, (*pgexpr)[ulChild],
+							  pedge->m_ulAdapterFlags)
+						: PdrgpstateConsumeGroup(
+							  mp, pstate->m_pnode, (*pgexpr)[ulChild]);
+				for (ULONG ulBinding = 0; ulBinding < pdrgpchild->Size();
+					 ulBinding++)
+				{
+					SBindingState *pchild = (*pdrgpchild)[ulBinding];
+					CExpressionArray *pdrgpexpr =
+						GPOS_NEW(mp) CExpressionArray(mp);
+					for (ULONG ulExisting = 0;
+						 ulExisting < pstate->m_pdrgpexpr->Size(); ulExisting++)
+					{
+						CExpression *pexprExisting =
+							(*pstate->m_pdrgpexpr)[ulExisting];
+						pexprExisting->AddRef();
+						pdrgpexpr->Append(pexprExisting);
+					}
+					pchild->m_pexpr->AddRef();
+					pdrgpexpr->Append(pchild->m_pexpr);
+					pdrgpstateNext->Append(GPOS_NEW(mp) SChildBindingState(
+						pchild->m_pnode, pdrgpexpr));
+				}
+				pdrgpchild->Release();
+			}
+			pdrgpstateChildren->Release();
+			pdrgpstateChildren = pdrgpstateNext;
+		}
+
+		for (ULONG ulState = 0; ulState < pdrgpstateChildren->Size();
+			 ulState++)
+		{
+			SChildBindingState *pstate = (*pdrgpstateChildren)[ulState];
+			for (ULONG ulChild = pedge->m_ulChildren;
+				 ulChild < pgexpr->Arity(); ulChild++)
+			{
+				pstate->m_pdrgpexpr->Append(
+					PexprRepresentative(mp, (*pgexpr)[ulChild]));
+			}
+			pgexpr->Pop()->AddRef();
+			pstate->m_pdrgpexpr->AddRef();
+			CExpression *pexpr = GPOS_NEW(mp) CExpression(
+				mp, pgexpr->Pop(), pgexpr, pstate->m_pdrgpexpr,
+				nullptr /*prpp*/, nullptr /*input_stats*/);
+			pdrgpstateResult->Append(
+				GPOS_NEW(mp) SBindingState(pstate->m_pnode, pexpr));
+		}
+		pdrgpstateChildren->Release();
+	}
+	return pdrgpstateResult;
+}
+
+BOOL
+CDSLRulePrefixIndex::FContainsEquivalentBinding(
+	const CExpressionArray *pdrgpexpr, CExpression *pexpr)
+{
+	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+	{
+		if ((*pdrgpexpr)[ul]->Matches(pexpr))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+CExpressionArray *
+CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
+									   CGroupExpression *pgexprRoot) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pgexprRoot);
+
+	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+
+	// Always retain one conservative full binding. It covers routed rules and
+	// prefixes which deliberately terminate at a representation adapter.
+	CExpression *pexprRepresentative =
+		PexprRepresentative(mp, pgexprRoot);
+	pdrgpexpr->Append(pexprRepresentative);
+
+	SBindingStateArray *pdrgpstate =
+		PdrgpstateConsumeGExpr(mp, m_pnodeRoot, pgexprRoot);
+	for (ULONG ul = 0; ul < pdrgpstate->Size(); ul++)
+	{
+		SBindingState *pstate = (*pdrgpstate)[ul];
+		// A state without a terminal rule is only a partial prefix and must not
+		// invoke the shell yet.
+		if (0 == pstate->m_pnode->m_pdrgpentry->Size() ||
+			FContainsEquivalentBinding(pdrgpexpr, pstate->m_pexpr))
+		{
+			continue;
+		}
+		pstate->m_pexpr->AddRef();
+		pdrgpexpr->Append(pstate->m_pexpr);
+	}
+	pdrgpstate->Release();
+	return pdrgpexpr;
 }
 
 // EOF

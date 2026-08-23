@@ -119,10 +119,9 @@ private:
 	void RecordResidual(CExpressionArray *pdrgpexprConj, const BOOL *rgfUsed,
 						CDSLModel *pmodel) const;
 
-	// Match Filter(InnerJoin(...)) against the equivalent live
-	// InnerJoin(..., Select(...), ...) representation produced by predicate
-	// pushdown. Only a side selected by source AttrsEq(Filter.attrs,
-	// Join.side_keys) is eligible.
+	// Match Filter(InnerJoin(...)) against a Select pushed anywhere along a safe
+	// inner/preserved join spine. Only a conjunct selected by source
+	// AttrsEq(Filter.attrs, Join.side_keys) is eligible.
 	BOOL FMatchPushedDownInnerJoin(const CDSLOp *popFilterRoot,
 								 CExpression *pexprJoin,
 								 CDSLModel *pmodel) const;

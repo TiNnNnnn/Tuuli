@@ -137,6 +137,13 @@ public:
 									 COperator::EOperatorId eopid,
 									 CExpression *pexpr) const;
 
+	// Trie-driven memo bindings for a DSL shell. This is deliberately separate
+	// from ORCA's generic CBinding path, so native xforms retain their exact
+	// binding enumeration semantics. Caller owns the returned array.
+	CExpressionArray *PdrgpexprBindings(CMemoryPool *mp,
+									 COperator::EOperatorId eopid,
+									 CGroupExpression *pgexprRoot) const;
+
 	// total admitted rules (diagnostics)
 	ULONG UlRules() const { return m_pdrgprule->Size(); }
 

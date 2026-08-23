@@ -28,6 +28,9 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CGroup;
+class CGroupExpression;
+
 class CDSLRulePrefixIndex
 {
 private:
@@ -74,6 +77,38 @@ private:
 	using SExactEdgeArray = CDynamicPtrArray<SExactEdge, CleanupDelete>;
 	using SNodeArray = CDynamicPtrArray<const SNode, CleanupNULL>;
 
+	struct SBindingState
+	{
+		const SNode *m_pnode;
+		CExpression *m_pexpr;  // owned
+
+		SBindingState(const SNode *pnode, CExpression *pexpr)
+			: m_pnode(pnode), m_pexpr(pexpr)
+		{
+		}
+
+		~SBindingState() { m_pexpr->Release(); }
+	};
+
+	struct SChildBindingState
+	{
+		const SNode *m_pnode;
+		CExpressionArray *m_pdrgpexpr;  // owned
+
+		SChildBindingState(const SNode *pnode,
+						 CExpressionArray *pdrgpexpr)
+			: m_pnode(pnode), m_pdrgpexpr(pdrgpexpr)
+		{
+		}
+
+		~SChildBindingState() { m_pdrgpexpr->Release(); }
+	};
+
+	using SBindingStateArray =
+		CDynamicPtrArray<SBindingState, CleanupDelete>;
+	using SChildBindingStateArray =
+		CDynamicPtrArray<SChildBindingState, CleanupDelete>;
+
 	struct SNode
 	{
 		SExactEdgeArray *m_pdrgpedgeExact;  // owned
@@ -118,6 +153,38 @@ private:
 
 	static INT ICompareRuleEntries(const void *pvLeft, const void *pvRight);
 
+	// Build one deterministic complete representative for an opaque Input
+	// group. Unlike CPatternTree binding this does not enumerate the Cartesian
+	// product below a wildcard whose internal shape is irrelevant to the DSL.
+	static CExpression *PexprRepresentative(CMemoryPool *mp, CGroup *pgroup,
+										 ULONG ulDepth = 0);
+	static CExpression *PexprRepresentative(CMemoryPool *mp,
+										 CGroupExpression *pgexpr,
+										 ULONG ulDepth = 0);
+
+	// Consume one relational memo group (or one fixed root group expression)
+	// while advancing through the serialized source-template trie.
+	SBindingStateArray *PdrgpstateConsumeGroup(CMemoryPool *mp,
+										 const SNode *pnode,
+										 CGroup *pgroup) const;
+	SBindingStateArray *PdrgpstateConsumeGExpr(
+		CMemoryPool *mp, const SNode *pnode,
+		CGroupExpression *pgexpr) const;
+
+	// Project's DSL view may look through fused Limit/Sort shells and one
+	// canonical GbAgg shell. Consume the exposed relation while rebuilding the
+	// exact memo wrappers around every selected binding.
+	SBindingStateArray *PdrgpstateConsumeProjectChild(
+		CMemoryPool *mp, const SNode *pnode, CGroup *pgroup,
+		ULONG ulAdapterFlags) const;
+	static void AppendWrappedStates(CMemoryPool *mp,
+								 CGroupExpression *pgexprWrapper,
+								 SBindingStateArray *pdrgpstateInner,
+								 SBindingStateArray *pdrgpstateResult);
+
+	static BOOL FContainsEquivalentBinding(const CExpressionArray *pdrgpexpr,
+										 CExpression *pexpr);
+
 public:
 	CDSLRulePrefixIndex(const CDSLRulePrefixIndex &) = delete;
 
@@ -132,6 +199,13 @@ public:
 	// Caller owns the returned array. It owns one ref for every returned rule.
 	CDSLRuleArray *PdrgpruleCandidates(CMemoryPool *mp,
 								  CExpression *pexpr) const;
+
+	// Build memo bindings by walking the source trie before invoking a DSL
+	// shell. Exact prefixes enumerate only matching memo alternatives; Input
+	// wildcards retain each top-level alternative but use one representative
+	// below it, avoiding recursive Cartesian expansion. Caller owns the array.
+	CExpressionArray *PdrgpexprBindings(CMemoryPool *mp,
+									 CGroupExpression *pgexprRoot) const;
 
 	ULONG UlNodes() const { return m_ulNodes; }
 	ULONG UlRules() const { return m_ulRules; }

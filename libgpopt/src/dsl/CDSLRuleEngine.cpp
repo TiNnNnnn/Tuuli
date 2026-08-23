@@ -283,6 +283,22 @@ CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 	return pindex->PdrgpruleCandidates(mp, pexpr);
 }
 
+CExpressionArray *
+CDSLRuleEngine::PdrgpexprBindings(CMemoryPool *mp,
+								  COperator::EOperatorId eopid,
+								  CGroupExpression *pgexprRoot) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pgexprRoot);
+	const ULONG ulOpid = (ULONG) eopid;
+	CDSLRulePrefixIndex *pindex = m_phmOpidToPrefixIndex->Find(&ulOpid);
+	if (nullptr == pindex)
+	{
+		return GPOS_NEW(mp) CExpressionArray(mp);
+	}
+	return pindex->PdrgpexprBindings(mp, pgexprRoot);
+}
+
 ULONG
 CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 {

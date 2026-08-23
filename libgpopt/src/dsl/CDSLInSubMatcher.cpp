@@ -9,6 +9,8 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLJoinSpineRouter.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -286,6 +288,74 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 }
 
 BOOL
+CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
+									 CExpression *pexprCarrier,
+									 CExpression *pexprRel,
+									 CDSLModel *pmodel) const
+{
+	CExpression *pexprInSub = nullptr;
+	if (COperator::EopLogicalSelect == pexprCarrier->Pop()->Eopid())
+	{
+		if (2 != pexprCarrier->Arity())
+		{
+			return false;
+		}
+		CExpressionArray *pdrgpexprConj =
+			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexprCarrier)[1]);
+		BOOL fHasAny = false;
+		for (ULONG ul = 0; ul < pdrgpexprConj->Size() && !fHasAny; ul++)
+		{
+			fHasAny = FPlainEqAny((*pdrgpexprConj)[ul]);
+		}
+		pdrgpexprConj->Release();
+		if (!fHasAny)
+		{
+			return false;
+		}
+		pexprCarrier->Pop()->AddRef();
+		pexprRel->AddRef();
+		(*pexprCarrier)[1]->AddRef();
+		pexprInSub = GPOS_NEW(m_mp) CExpression(
+			m_mp, pexprCarrier->Pop(), pexprRel, (*pexprCarrier)[1]);
+	}
+	else if (COperator::EopLogicalLeftSemiApplyIn ==
+			 pexprCarrier->Pop()->Eopid())
+	{
+		if (3 != pexprCarrier->Arity())
+		{
+			return false;
+		}
+		pexprCarrier->Pop()->AddRef();
+		pexprRel->AddRef();
+		(*pexprCarrier)[1]->AddRef();
+		(*pexprCarrier)[2]->AddRef();
+		pexprInSub = GPOS_NEW(m_mp) CExpression(
+			m_mp, pexprCarrier->Pop(), pexprRel, (*pexprCarrier)[1],
+			(*pexprCarrier)[2]);
+	}
+	else
+	{
+		return false;
+	}
+
+	CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
+	BOOL fMatched = FMatch(pop, pexprInSub, pmodelProbe);
+	const CDSLRule *prule = m_pmatcher->Prule();
+	if (fMatched && nullptr != prule)
+	{
+		CDSLConstraintChecker checker(m_mp);
+		fMatched = checker.FCheck(prule, pmodelProbe);
+	}
+	pmodelProbe->Release();
+	if (fMatched)
+	{
+		fMatched = FMatch(pop, pexprInSub, pmodel);
+	}
+	pexprInSub->Release();
+	return fMatched;
+}
+
+BOOL
 CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
 									 CExpression *pexpr,
 									 CDSLModel *pmodel) const
@@ -297,55 +367,26 @@ CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
 		return false;
 	}
 
-	// Require one unambiguous pushed Apply. If both inputs contain a direct
-	// Apply, choosing either one would mutate the model before the alternative
-	// can be probed. Such a shape is left to its ordinary memo alternatives.
-	ULONG ulApplyChild = 2;
-	for (ULONG ul = 0; ul < 2; ul++)
+	BOOL fMatched = false;
+	const COperator::EOperatorId rgeopidCarrier[] = {
+		COperator::EopLogicalLeftSemiApplyIn,
+		COperator::EopLogicalSelect};
+	for (ULONG ulCarrier = 0;
+		 ulCarrier < GPOS_ARRAY_SIZE(rgeopidCarrier) && !fMatched;
+		 ulCarrier++)
 	{
-		if (COperator::EopLogicalLeftSemiApplyIn ==
-			(*pexpr)[ul]->Pop()->Eopid())
+		CDSLJoinSpineRouter::SRouteArray *pdrgproute =
+			CDSLJoinSpineRouter::Pdrgproute(
+				m_mp, pexpr, rgeopidCarrier[ulCarrier]);
+		for (ULONG ulRoute = 0;
+			 ulRoute < pdrgproute->Size() && !fMatched; ulRoute++)
 		{
-			if (2 != ulApplyChild)
-			{
-				return false;
-			}
-			ulApplyChild = ul;
+			CDSLJoinSpineRouter::SRoute *proute = (*pdrgproute)[ulRoute];
+			fMatched = FMatchRoutedCarrier(
+				pop, proute->m_pexprCarrier, proute->m_pexprRel, pmodel);
 		}
+		pdrgproute->Release();
 	}
-	if (2 == ulApplyChild)
-	{
-		return false;
-	}
-
-	CExpression *pexprApply = (*pexpr)[ulApplyChild];
-	if (3 != pexprApply->Arity())
-	{
-		return false;
-	}
-
-	// Replace the pushed Apply child by its outer input, preserving the live
-	// join operator and predicate exactly. Then place that virtual Join back
-	// under the same Apply operator and reuse the ordinary post-Apply matcher.
-	pexpr->Pop()->AddRef();
-	CExpression *pexprLeft =
-		(0 == ulApplyChild) ? (*pexprApply)[0] : (*pexpr)[0];
-	CExpression *pexprRight =
-		(1 == ulApplyChild) ? (*pexprApply)[0] : (*pexpr)[1];
-	pexprLeft->AddRef();
-	pexprRight->AddRef();
-	(*pexpr)[2]->AddRef();
-	CExpression *pexprJoin = GPOS_NEW(m_mp) CExpression(
-		m_mp, pexpr->Pop(), pexprLeft, pexprRight, (*pexpr)[2]);
-
-	pexprApply->Pop()->AddRef();
-	(*pexprApply)[1]->AddRef();
-	(*pexprApply)[2]->AddRef();
-	CExpression *pexprInSub = GPOS_NEW(m_mp) CExpression(
-		m_mp, pexprApply->Pop(), pexprJoin, (*pexprApply)[1],
-		(*pexprApply)[2]);
-	BOOL fMatched = FMatch(pop, pexprInSub, pmodel);
-	pexprInSub->Release();
 	return fMatched;
 }
 
