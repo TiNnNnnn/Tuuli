@@ -20,7 +20,8 @@ using namespace gpos;
 class CDSLMatcher;
 
 // Match WeTune's plain InSubFilter<a>(outer,inner) both before ORCA subquery
-// unnesting (Select + ScalarSubqueryAny) and after it (LeftSemiApplyIn).
+// unnesting (Select + ScalarSubqueryAny) and after it (LeftSemiApplyIn). Shared
+// structural decoding and join-spine routing live in CDSLMatchView.
 class CDSLInSubMatcher
 {
 private:

@@ -8,6 +8,7 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLimit.h"
@@ -101,9 +102,7 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
 			CExpression *pexprConj = (*pdrgpexprConj)[ul];
-			if (COperator::EopScalarSubqueryExists ==
-					pexprConj->Pop()->Eopid() &&
-				1 == pexprConj->Arity())
+			if (CDSLMatchView::FDirectExists(pexprConj))
 			{
 				pexprExists = pexprConj;
 				ulExists++;

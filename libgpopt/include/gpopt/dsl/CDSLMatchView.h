@@ -1,0 +1,118 @@
+//---------------------------------------------------------------------------
+//	MONSOON DSL rule engine
+//
+//	@filename:
+//		CDSLMatchView.h
+//
+//	@doc:
+//		Central, read-only adapters between ORCA's normalized expression shapes
+//		and the logical shapes exposed by the rule DSL. Views never modify the
+//		memo and never depend on a rule id. Operator matchers retain ownership of
+//		symbol binding and semantic checks; this class only decodes or constructs
+//		transient equivalent representations.
+//---------------------------------------------------------------------------
+#ifndef GPOPT_CDSLMatchView_H
+#define GPOPT_CDSLMatchView_H
+
+#include "gpos/base.h"
+#include "gpos/common/CDynamicPtrArray.h"
+
+#include "gpopt/operators/CExpression.h"
+
+namespace gpopt
+{
+using namespace gpos;
+
+class COrderSpec;
+
+class CDSLMatchView
+{
+public:
+	// Non-owning aggregate/HAVING projection of either GbAgg or
+	// Select(GbAgg, predicate).
+	struct SAggregate
+	{
+		CExpression *m_pexprAgg;
+		CExpression *m_pexprHaving;
+	};
+
+	// Non-owning projection of ORCA's fused LogicalLimit representation.
+	struct SOrderLimit
+	{
+		CExpression *m_pexprChild;
+		CExpression *m_pexprOffset;
+		CExpression *m_pexprCount;
+		const COrderSpec *m_pos;
+		BOOL m_fHasLimit;
+	};
+
+	// Owned route produced by pulling one carrier above a safe join spine.
+	struct SJoinSpineRoute
+	{
+		CExpression *m_pexprRel;
+		CExpression *m_pexprCarrier;
+
+		SJoinSpineRoute(CExpression *pexprRel, CExpression *pexprCarrier)
+			: m_pexprRel(pexprRel), m_pexprCarrier(pexprCarrier)
+		{
+		}
+
+		~SJoinSpineRoute()
+		{
+			m_pexprCarrier->Release();
+			m_pexprRel->Release();
+		}
+	};
+
+	using SJoinSpineRouteArray =
+		CDynamicPtrArray<SJoinSpineRoute, CleanupDelete>;
+
+private:
+	static SJoinSpineRouteArray *PdrgprouteJoinSpine(
+		CMemoryPool *mp, CExpression *pexpr,
+		COperator::EOperatorId eopidCarrier, ULONG ulDepth);
+
+public:
+	CDSLMatchView() = delete;
+
+	// Decode a direct GbAgg, or (when allowed) Select(GbAgg, HAVING).
+	static BOOL FAggregate(CExpression *pexpr, BOOL fAllowHaving,
+						 SAggregate *pview);
+
+	// Decode one safe global LogicalLimit, including its fused order property.
+	static BOOL FOrderLimit(CExpression *pexpr, SOrderLimit *pview);
+
+	// Recognize the memo-safe identity marker Select(pure-global-dedup, TRUE).
+	// The returned expression and grouping array are non-owning.
+	static BOOL FDedupIdentity(CExpression *pexpr,
+						   CExpression **ppexprDedup,
+						   CColRefArray **ppdrgpcrGrouping);
+
+	// Peel an unmentioned chain of LogicalLimit shells below a Project. Both
+	// returned pointers are non-owning; the first shell is NULL when none exists.
+	static CExpression *PexprPeelOrderLimit(CExpression *pexpr,
+										 CExpression **ppexprFirstShell);
+
+	// Scalar subquery shape predicates shared by Exists and InSub adapters.
+	static BOOL FDirectExists(CExpression *pexpr);
+	static BOOL FPlainEqAny(CExpression *pexpr);
+
+	// Clone a Select or LeftSemiApplyIn carrier with a replacement outer
+	// relation. The caller owns the returned transient expression.
+	static CExpression *PexprRebaseInSubCarrier(CMemoryPool *mp,
+										  CExpression *pexprCarrier,
+										  CExpression *pexprRel);
+
+	// Return every safe view obtained by pulling one carrier from a join spine.
+	// Inner paths are transparent; an outer join is crossed only on its preserved
+	// side. Every route owns its reconstructed relation and carrier reference.
+	static SJoinSpineRouteArray *PdrgprouteJoinSpine(
+		CMemoryPool *mp, CExpression *pexpr,
+		COperator::EOperatorId eopidCarrier)
+	{
+		return PdrgprouteJoinSpine(mp, pexpr, eopidCarrier, 0);
+	}
+};
+}  // namespace gpopt
+
+#endif  // !GPOPT_CDSLMatchView_H

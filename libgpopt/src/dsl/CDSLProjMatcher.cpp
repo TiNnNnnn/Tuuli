@@ -15,11 +15,10 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
-#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
-#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -43,24 +42,10 @@ CDSLProjMatcher::FMatchTrivialSelectOverDedup(const CDSLOp *popProj,
 								  CExpression *pexprSelect,
 								  CDSLModel *pmodel) const
 {
-	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
-		2 != pexprSelect->Arity() ||
-		!CUtils::FScalarConstTrue((*pexprSelect)[1]))
-	{
-		return false;
-	}
-
-	CExpression *pexprDedup = (*pexprSelect)[0];
-	if (COperator::EopLogicalGbAgg != pexprDedup->Pop()->Eopid() ||
-		2 != pexprDedup->Arity() || 0 != (*pexprDedup)[1]->Arity())
-	{
-		return false;
-	}
-	CLogicalGbAgg *popGbAgg =
-		CLogicalGbAgg::PopConvert(pexprDedup->Pop());
-	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
-		nullptr != popGbAgg->PdrgpcrMinimal() ||
-		nullptr == popGbAgg->Pdrgpcr() || 0 == popGbAgg->Pdrgpcr()->Size() ||
+	CExpression *pexprDedup = nullptr;
+	CColRefArray *pdrgpcrGrouping = nullptr;
+	if (!CDSLMatchView::FDedupIdentity(
+			pexprSelect, &pexprDedup, &pdrgpcrGrouping) ||
 		1 != popProj->UlChildren())
 	{
 		return false;
@@ -72,9 +57,9 @@ CDSLProjMatcher::FMatchTrivialSelectOverDedup(const CDSLOp *popProj,
 		return false;
 	}
 	CColRefArray *pdrgpcrIdentity = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	for (ULONG ul = 0; ul < popGbAgg->Pdrgpcr()->Size(); ul++)
+	for (ULONG ul = 0; ul < pdrgpcrGrouping->Size(); ul++)
 	{
-		pdrgpcrIdentity->Append((*popGbAgg->Pdrgpcr())[ul]);
+		pdrgpcrIdentity->Append((*pdrgpcrGrouping)[ul]);
 	}
 	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrIdentity) &&
 				  pmodel->FBind((*pdrgpsym)[1], pdrgpcrIdentity);
@@ -326,15 +311,8 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	if (EdslopLimit != (*popProj)[0]->Edslop() &&
 		EdslopSort != (*popProj)[0]->Edslop())
 	{
-		while (COperator::EopLogicalLimit == pexprRel->Pop()->Eopid() &&
-			   3 == pexprRel->Arity())
-		{
-			if (nullptr == pexprLimitShell)
-			{
-				pexprLimitShell = pexprRel;
-			}
-			pexprRel = (*pexprRel)[0];
-		}
+		pexprRel = CDSLMatchView::PexprPeelOrderLimit(
+			pexprRel, &pexprLimitShell);
 	}
 	if (!m_pmatcher->FMatch((*popProj)[0], pexprRel, pmodel))
 	{

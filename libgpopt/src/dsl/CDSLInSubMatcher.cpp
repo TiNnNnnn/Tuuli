@@ -10,7 +10,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
-#include "gpopt/dsl/CDSLJoinSpineRouter.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -26,22 +26,6 @@ using namespace gpopt;
 
 namespace
 {
-BOOL
-FPlainEqAny(CExpression *pexpr)
-{
-	return COperator::EopScalarSubqueryAny == pexpr->Pop()->Eopid() &&
-		   2 == pexpr->Arity() &&
-		   IMDType::EcmptEq == CUtils::ParseCmpType(
-				CScalarSubqueryAny::PopConvert(pexpr->Pop())->MdIdOp());
-}
-
-BOOL
-FDirectExistsConjunct(CExpression *pexpr)
-{
-	return COperator::EopScalarSubqueryExists == pexpr->Pop()->Eopid() &&
-		   1 == pexpr->Arity();
-}
-
 BOOL
 FPredicateRejectsNull(CMemoryPool *mp, CExpressionArray *pdrgpexpr,
 					  CColRef *pcr)
@@ -158,7 +142,7 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 	ULONG ulExists = 0;
 	for (ULONG ul = 0; ul < pdrgpexprOuterConj->Size(); ul++)
 	{
-		if (FDirectExistsConjunct((*pdrgpexprOuterConj)[ul]))
+		if (CDSLMatchView::FDirectExists((*pdrgpexprOuterConj)[ul]))
 		{
 			pexprExists = (*pdrgpexprOuterConj)[ul];
 			ulExists++;
@@ -305,18 +289,13 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 		BOOL fHasAny = false;
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size() && !fHasAny; ul++)
 		{
-			fHasAny = FPlainEqAny((*pdrgpexprConj)[ul]);
+			fHasAny = CDSLMatchView::FPlainEqAny((*pdrgpexprConj)[ul]);
 		}
 		pdrgpexprConj->Release();
 		if (!fHasAny)
 		{
 			return false;
 		}
-		pexprCarrier->Pop()->AddRef();
-		pexprRel->AddRef();
-		(*pexprCarrier)[1]->AddRef();
-		pexprInSub = GPOS_NEW(m_mp) CExpression(
-			m_mp, pexprCarrier->Pop(), pexprRel, (*pexprCarrier)[1]);
 	}
 	else if (COperator::EopLogicalLeftSemiApplyIn ==
 			 pexprCarrier->Pop()->Eopid())
@@ -325,18 +304,14 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 		{
 			return false;
 		}
-		pexprCarrier->Pop()->AddRef();
-		pexprRel->AddRef();
-		(*pexprCarrier)[1]->AddRef();
-		(*pexprCarrier)[2]->AddRef();
-		pexprInSub = GPOS_NEW(m_mp) CExpression(
-			m_mp, pexprCarrier->Pop(), pexprRel, (*pexprCarrier)[1],
-			(*pexprCarrier)[2]);
 	}
 	else
 	{
 		return false;
 	}
+	pexprInSub =
+		CDSLMatchView::PexprRebaseInSubCarrier(m_mp, pexprCarrier, pexprRel);
+	GPOS_ASSERT(nullptr != pexprInSub);
 
 	CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
 	BOOL fMatched = FMatch(pop, pexprInSub, pmodelProbe);
@@ -375,13 +350,13 @@ CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
 		 ulCarrier < GPOS_ARRAY_SIZE(rgeopidCarrier) && !fMatched;
 		 ulCarrier++)
 	{
-		CDSLJoinSpineRouter::SRouteArray *pdrgproute =
-			CDSLJoinSpineRouter::Pdrgproute(
+		CDSLMatchView::SJoinSpineRouteArray *pdrgproute =
+			CDSLMatchView::PdrgprouteJoinSpine(
 				m_mp, pexpr, rgeopidCarrier[ulCarrier]);
 		for (ULONG ulRoute = 0;
 			 ulRoute < pdrgproute->Size() && !fMatched; ulRoute++)
 		{
-			CDSLJoinSpineRouter::SRoute *proute = (*pdrgproute)[ulRoute];
+			CDSLMatchView::SJoinSpineRoute *proute = (*pdrgproute)[ulRoute];
 			fMatched = FMatchRoutedCarrier(
 				pop, proute->m_pexprCarrier, proute->m_pexprRel, pmodel);
 		}
@@ -424,7 +399,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
 			fHasDirectExists = fHasDirectExists ||
-							   FDirectExistsConjunct((*pdrgpexprConj)[ul]);
+				CDSLMatchView::FDirectExists((*pdrgpexprConj)[ul]);
 		}
 		pdrgpexprConj->Release();
 		if (fHasDirectExists)
@@ -462,7 +437,8 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			for (ULONG ulConj = 0; ulConj < pdrgpexprConj->Size(); ulConj++)
 			{
 				CExpression *pexprConj = (*pdrgpexprConj)[ulConj];
-				if (rgfUsed[ulConj] || !FPlainEqAny(pexprConj))
+				if (rgfUsed[ulConj] ||
+					!CDSLMatchView::FPlainEqAny(pexprConj))
 				{
 					continue;
 				}

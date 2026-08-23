@@ -16,7 +16,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
-#include "gpopt/dsl/CDSLJoinSpineRouter.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -248,8 +248,8 @@ CDSLFilterMatcher::FMatchPushedDownInnerJoin(
 		return false;
 	}
 
-	CDSLJoinSpineRouter::SRouteArray *pdrgproute =
-		CDSLJoinSpineRouter::Pdrgproute(
+	CDSLMatchView::SJoinSpineRouteArray *pdrgproute =
+		CDSLMatchView::PdrgprouteJoinSpine(
 			m_mp, pexprJoin, COperator::EopLogicalSelect);
 	BOOL fMatched = false;
 	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
@@ -258,7 +258,7 @@ CDSLFilterMatcher::FMatchPushedDownInnerJoin(
 	for (ULONG ulRoute = 0; ulRoute < pdrgproute->Size() && !fMatched;
 		 ulRoute++)
 	{
-		CDSLJoinSpineRouter::SRoute *proute = (*pdrgproute)[ulRoute];
+		CDSLMatchView::SJoinSpineRoute *proute = (*pdrgproute)[ulRoute];
 		CExpression *pexprPushedSelect = proute->m_pexprCarrier;
 		if (2 != pexprPushedSelect->Arity() ||
 			!(*pexprPushedSelect)[0]->DeriveOutputColumns()->ContainsAll(

@@ -15,6 +15,7 @@
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CScalarAggFunc.h"
@@ -382,18 +383,9 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 				EdslopAgg == popAgg->Edslop());
 	GPOS_ASSERT(nullptr != pexprAgg);
 
-	CExpression *pexprGbAgg = pexprAgg;
-	CExpression *pexprHaving = nullptr;
-	if (EdslopAgg == popAgg->Edslop() &&
-		COperator::EopLogicalSelect == pexprAgg->Pop()->Eopid() &&
-		2 == pexprAgg->Arity())
-	{
-		pexprGbAgg = (*pexprAgg)[0];
-		pexprHaving = (*pexprAgg)[1];
-	}
-
-	if (COperator::EopLogicalGbAgg != pexprGbAgg->Pop()->Eopid() ||
-		2 != pexprGbAgg->Arity())
+	CDSLMatchView::SAggregate view;
+	if (!CDSLMatchView::FAggregate(
+			pexprAgg, EdslopAgg == popAgg->Edslop(), &view))
 	{
 		return false;
 	}
@@ -401,9 +393,10 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 	if (EdslopProj == popAgg->Edslop())
 	{
 		return popAgg->FDistinct() &&
-			   FMatchDedup(popAgg, pexprGbAgg, pmodel);
+			   FMatchDedup(popAgg, view.m_pexprAgg, pmodel);
 	}
-	return FMatchAggregate(popAgg, pexprGbAgg, pexprHaving, pmodel);
+	return FMatchAggregate(popAgg, view.m_pexprAgg, view.m_pexprHaving,
+						   pmodel);
 }
 
 // EOF

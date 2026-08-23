@@ -18,9 +18,10 @@
 //		    EOperatorId must equal pexpr->Pop()->Eopid(); then its own symbols are
 //		    bound and its RELATIONAL children are matched positionally.
 //
-//		Per-operator SYMBOL binding that needs operator-specific structural
-//		knowledge is delegated to dedicated collaborators, kept in their own
-//		files (see docs/WETUNE_ORCA_PER_OP_THREESTAGE.md):
+//		ORCA-to-DSL representation differences are decoded centrally by
+//		CDSLMatchView. Per-operator SYMBOL binding and semantic validation remain
+//		delegated to dedicated collaborators (see
+//		docs/WETUNE_ORCA_PER_OP_THREESTAGE.md):
 //		  * Filter <p a>              -> CDSLFilterMatcher   (conjunct split; #25)
 //		  * InnerJoin/LeftJoin <a a>  -> join-key extraction (#27)
 //		  * Proj <a s> / Agg <a a f s p> -> attrs/schema binding (#27)

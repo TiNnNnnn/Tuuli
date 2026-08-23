@@ -57,8 +57,8 @@ class CDSLMatcher;
 //
 //	@doc:
 //		Matches a DSL Filter chain against an ORCA CLogicalSelect. For an inner
-//		join whose single-side Filter was already pushed into an input, it also
-//		exposes the equivalent pre-pushdown Select(Join) view. Constructed per
+//		join whose single-side Filter was already pushed into an input, it consumes
+//		the equivalent pre-pushdown Select(Join) view from CDSLMatchView. Constructed per
 //		match attempt with the transient pool and a back-reference to the generic
 //		matcher (so the chain base can recurse). Owns no state beyond those.
 //---------------------------------------------------------------------------
