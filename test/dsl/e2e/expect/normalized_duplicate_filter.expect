@@ -13,7 +13,10 @@
       "name": "on",
       "trace": true,
       "contains": [
-        "\"rule_id\":58,\"status\":\"applied\""
+        "\"rule_id\":58,\"status\":\"duplicate\"",
+        "\"kind\":\"memo_summary\"",
+        "\"kind\":\"rule_summary\"",
+        "\"binding_attempts\":"
       ]
     }
   ],

@@ -607,6 +607,10 @@ public:
 	// determine if a pair of groups are duplicates
 	static BOOL FDuplicateGroups(CGroup *pgroupFst, CGroup *pgroupSnd);
 
+	// determine whether the relational memo graph has a path between groups
+	static BOOL FReachable(CMemoryPool *mp, CGroup *pgroupStart,
+						 CGroup *pgroupTarget);
+
 	// print function
 	IOstream &OsPrint(IOstream &os) const;
 

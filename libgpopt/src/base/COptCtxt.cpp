@@ -52,7 +52,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_has_replicated_tables(false),
 	  m_scanid_to_part_map(nullptr),
 	  m_selector_id_counter(0),
-	  m_dsl_trace_events(nullptr)
+	  m_dsl_trace_events(nullptr),
+	  m_dsl_rule_trace_counters(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != col_factory);
@@ -68,6 +69,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	m_scanid_to_part_map = GPOS_NEW(m_mp) UlongToBitSetMap(m_mp);
 	m_part_selector_info = GPOS_NEW(m_mp) SPartSelectorInfo(m_mp);
 	m_dsl_trace_events = GPOS_NEW(m_mp) CBitSet(m_mp);
+	m_dsl_rule_trace_counters =
+		GPOS_NEW(m_mp) UlongToDSLRuleTraceCountersMap(m_mp);
 }
 
 
@@ -92,6 +95,32 @@ COptCtxt::~COptCtxt()
 	m_scanid_to_part_map->Release();
 	m_part_selector_info->Release();
 	m_dsl_trace_events->Release();
+	m_dsl_rule_trace_counters->Release();
+}
+
+
+//---------------------------------------------------------------------------
+//	@function:
+//		COptCtxt::RecordDSLRuleTrace
+//
+//	@doc:
+//		Record an uncompacted DSL rule attempt for query-level diagnostics
+//---------------------------------------------------------------------------
+void
+COptCtxt::RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
+						 ULONG ulBoundSymbols)
+{
+	GPOS_ASSERT(ulStage < 5);
+	SDSLRuleTraceCounters *pcounters =
+		m_dsl_rule_trace_counters->Find(&ulRuleId);
+	if (nullptr == pcounters)
+	{
+		pcounters = GPOS_NEW(m_mp) SDSLRuleTraceCounters();
+		(void) m_dsl_rule_trace_counters->Insert(
+			GPOS_NEW(m_mp) ULONG(ulRuleId), pcounters);
+	}
+	pcounters->m_stage_attempts[ulStage]++;
+	pcounters->m_bound_symbols += ulBoundSymbols;
 }
 
 

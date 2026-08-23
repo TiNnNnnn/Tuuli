@@ -37,7 +37,8 @@
 //		Proj/Agg introduce fresh columns). ONE exception: an operator-eliminating
 //		rule (e.g. Filter(Input<t0>) -> Input<t1>) yields a target whose ROOT is a
 //		reused memo subtree, which violates Cascades' "result root must be freshly
-//		built" contract; PexprFreshRoot re-roots it with an identity remap. We
+//		built" contract; PexprFreshRoot copies only its operator and keeps the
+//		already-bound children. We
 //		trust the MONSOON EQ proof, so no equivalence re-check.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLInstantiator_H

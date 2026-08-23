@@ -522,9 +522,32 @@ CMemo::FRehash()
 
 		GPOS_ASSERT(pgexprFound != pgexpr);
 
+		CGroup *pgroup = pgexpr->Pgroup();
+		CGroup *pgroupFound = pgexprFound->Pgroup();
+		BOOL fMergeGroups = false;
+		if (pgroupFound != pgroup)
+		{
+			CGroup *pgroupDup = pgroup->PgroupDuplicate();
+			CGroup *pgroupFoundDup = pgroupFound->PgroupDuplicate();
+			fMergeGroups =
+				(nullptr == pgroupDup && nullptr == pgroupFoundDup) ||
+				(pgroupDup != pgroupFoundDup);
+
+			if (fMergeGroups &&
+				(CGroup::FReachable(m_mp, pgroup, pgroupFound) ||
+				 CGroup::FReachable(m_mp, pgroupFound, pgroup)))
+			{
+				// The equal expression remains a valid alternative in its owner
+				// group, but merging the two groups would collapse an ancestor and
+				// descendant into a memo cycle. Leave it out of the canonical hash
+				// table; exploration is complete and implementation still visits the
+				// owning group's expression list.
+				continue;
+			}
+		}
+
 		// mark duplicate group expression
 		pgexpr->SetDuplicate(pgexprFound);
-		CGroup *pgroup = pgexpr->Pgroup();
 
 		// move group expression to duplicates list in owner group
 		{
@@ -534,17 +557,10 @@ CMemo::FRehash()
 		}
 
 		// check if we need also to mark duplicate groups
-		CGroup *pgroupFound = pgexprFound->Pgroup();
-		if (pgroupFound != pgroup)
+		if (fMergeGroups)
 		{
-			CGroup *pgroupDup = pgroup->PgroupDuplicate();
-			CGroup *pgroupFoundDup = pgroupFound->PgroupDuplicate();
-			if ((nullptr == pgroupDup && nullptr == pgroupFoundDup) ||
-				(pgroupDup != pgroupFoundDup))
-			{
-				MarkDuplicates(pgroup, pgroupFound);
-				fNewDupGroups = true;
-			}
+			MarkDuplicates(pgroup, pgroupFound);
+			fNewDupGroups = true;
 		}
 
 		GPOS_CHECK_ABORT;

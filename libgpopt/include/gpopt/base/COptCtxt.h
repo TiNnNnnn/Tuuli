@@ -13,6 +13,7 @@
 #define GPOPT_COptCtxt_H
 
 #include "gpos/base.h"
+#include "gpos/common/CHashMapIter.h"
 #include "gpos/task/CTaskLocalStorageObject.h"
 
 #include "gpopt/base/CCTEInfo.h"
@@ -29,6 +30,37 @@ using namespace gpos;
 using UlongToBitSetMap =
 	CHashMap<ULONG, CBitSet, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
 			 CleanupDelete<ULONG>, CleanupRelease<CBitSet>>;
+
+struct SDSLRuleTraceCounters
+{
+	ULONG m_stage_attempts[5];
+	ULONG m_bound_symbols;
+
+	SDSLRuleTraceCounters() : m_stage_attempts{0, 0, 0, 0, 0}, m_bound_symbols(0)
+	{
+	}
+
+	ULONG
+	UlAttempts() const
+	{
+		ULONG ulAttempts = 0;
+		for (ULONG ul = 0; ul < 5; ul++)
+		{
+			ulAttempts += m_stage_attempts[ul];
+		}
+		return ulAttempts;
+	}
+};
+
+using UlongToDSLRuleTraceCountersMap =
+	CHashMap<ULONG, SDSLRuleTraceCounters, gpos::HashValue<ULONG>,
+			 gpos::Equals<ULONG>, CleanupDelete<ULONG>,
+			 CleanupDelete<SDSLRuleTraceCounters>>;
+
+using UlongToDSLRuleTraceCountersMapIter =
+	CHashMapIter<ULONG, SDSLRuleTraceCounters, gpos::HashValue<ULONG>,
+				 gpos::Equals<ULONG>, CleanupDelete<ULONG>,
+				 CleanupDelete<SDSLRuleTraceCounters>>;
 
 // forward declarations
 class CColRefSet;
@@ -133,9 +165,12 @@ private:
 	SPartSelectorInfo *m_part_selector_info;
 
 	// Compact DSL trace events already emitted in this optimization. The key is
-	// rule_id * 4 + stage, so repeated Cascades attempts do not exhaust the trace
+	// rule_id * 5 + stage, so repeated Cascades attempts do not exhaust the trace
 	// buffer. Verbose tracing bypasses this set.
 	CBitSet *m_dsl_trace_events;
+
+	// Uncompacted per-rule counters used to explain search-space growth.
+	UlongToDSLRuleTraceCountersMap *m_dsl_rule_trace_counters;
 
 public:
 	COptCtxt(COptCtxt &) = delete;
@@ -145,8 +180,17 @@ public:
 	BOOL
 	FMarkDSLTraceEvent(ULONG ulRuleId, ULONG ulStage)
 	{
-		GPOS_ASSERT(ulStage < 4);
-		return !m_dsl_trace_events->ExchangeSet(ulRuleId * 4 + ulStage);
+		GPOS_ASSERT(ulStage < 5);
+		return !m_dsl_trace_events->ExchangeSet(ulRuleId * 5 + ulStage);
+	}
+
+	void RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
+						ULONG ulBoundSymbols);
+
+	UlongToDSLRuleTraceCountersMap *
+	PdrgDSLRuleTraceCounters() const
+	{
+		return m_dsl_rule_trace_counters;
 	}
 
 	// ctor

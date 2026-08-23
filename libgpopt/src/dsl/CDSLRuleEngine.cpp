@@ -314,7 +314,8 @@ enum EDslTraceStage
 	EdsltraceMatchRejected = 0,
 	EdsltraceConstraintRejected,
 	EdsltraceInstantiateRejected,
-	EdsltraceApplied
+	EdsltraceApplied,
+	EdsltraceDuplicate
 };
 
 const CHAR *
@@ -330,6 +331,8 @@ SzDSLTraceStage(EDslTraceStage edsltrace)
 			return "instantiate_rejected";
 		case EdsltraceApplied:
 			return "applied";
+		case EdsltraceDuplicate:
+			return "duplicate";
 	}
 	GPOS_ASSERT(!"invalid DSL trace stage");
 	return "invalid";
@@ -350,6 +353,12 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	const CHAR *szStage = SzDSLTraceStage(edsltrace);
 	const BOOL fVerbose = GPOS_FTRACE(EopttracePrintXformResults);
 	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	if (nullptr != poctxt)
+	{
+		poctxt->RecordDSLRuleTrace(
+			ulRuleId, (ULONG) edsltrace,
+			nullptr == pmodel ? 0 : pmodel->Size());
+	}
 	if (!fVerbose && nullptr != poctxt &&
 		!poctxt->FMarkDSLTraceEvent(ulRuleId, (ULONG) edsltrace))
 	{
@@ -439,6 +448,18 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	}
 
 	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
+	if (nullptr != pexprTgt && pexprTgt->Matches(pexpr))
+	{
+		// A representational adapter can rebuild a rule's target into the exact
+		// source tree (for example when an output-column Project must remain over
+		// a collapsed dedup layer). Re-inserting it cannot add an alternative and
+		// may repeatedly fire as native xforms enumerate equivalent children.
+		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
+					 pexprTgt);
+		pexprTgt->Release();
+		pmodel->Release();
+		return nullptr;
+	}
 	TraceDSLRule(mp, ulRuleId,
 				 nullptr == pexprTgt ? EdsltraceInstantiateRejected
 									 : EdsltraceApplied,

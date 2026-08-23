@@ -13,10 +13,8 @@
       "name": "on",
       "trace": true,
       "contains": [
-        "Rule: SortAsc"
-      ],
-      "alternative": [
-        "CXformDSLRule_Limit"
+        "Rule: SortAsc",
+        "stage=duplicate bindings="
       ]
     }
   ],

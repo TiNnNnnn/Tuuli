@@ -12,6 +12,7 @@
 
 #include "gpos/base.h"
 #include "gpos/common/CAutoTimer.h"
+#include "gpos/common/CHashMapIter.h"
 #include "gpos/common/syslibwrapper.h"
 #include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
@@ -385,7 +386,9 @@ CEngine::InsertXformResult(
 			PgroupInsert(pgroupOrigin, pexpr, exfidOrigin, pgexprOrigin,
 						 false /*fIntermediate*/);
 		if (pgroupContainer != pgroupOrigin &&
-			FPossibleDuplicateGroups(pgroupContainer, pgroupOrigin))
+			FPossibleDuplicateGroups(pgroupContainer, pgroupOrigin) &&
+			!CGroup::FReachable(m_mp, pgroupContainer, pgroupOrigin) &&
+			!CGroup::FReachable(m_mp, pgroupOrigin, pgroupContainer))
 		{
 			gpopt::CMemo::MarkDuplicates(pgroupOrigin, pgroupContainer);
 		}
@@ -2077,6 +2080,46 @@ CEngine::OsPrintMemoryConsumption(IOstream &os, const CHAR *szHeader) const
 void
 CEngine::ProcessTraceFlags()
 {
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		{
+			CAutoTrace at(m_mp);
+			at.Os() << "DSL_TRACE {\"kind\":\"memo_summary\","
+						  "\"engine\":\"pgorca\",\"stage\":"
+					<< m_ulCurrSearchStage << ",\"groups\":"
+					<< (ULONG) m_pmemo->UlpGroups() << ",\"duplicate_groups\":"
+					<< m_pmemo->UlDuplicateGroups()
+					<< ",\"group_expressions\":" << m_pmemo->UlGrpExprs()
+					<< "}" << std::endl;
+		}
+
+		UlongToDSLRuleTraceCountersMap *pcounters =
+			COptCtxt::PoctxtFromTLS()->PdrgDSLRuleTraceCounters();
+		UlongToDSLRuleTraceCountersMapIter iter(pcounters);
+		while (iter.Advance())
+		{
+			const ULONG *pulRuleId = iter.Key();
+			const SDSLRuleTraceCounters *prule = iter.Value();
+			GPOS_ASSERT(nullptr != pulRuleId && nullptr != prule);
+			CAutoTrace at(m_mp);
+			at.Os() << "DSL_TRACE {\"kind\":\"rule_summary\","
+						  "\"engine\":\"pgorca\",\"stage\":"
+					<< m_ulCurrSearchStage << ",\"rule_id\":" << *pulRuleId
+					<< ",\"binding_attempts\":" << prule->UlAttempts()
+					<< ",\"bound_symbols\":" << prule->m_bound_symbols
+					<< ",\"match_rejected\":"
+					<< prule->m_stage_attempts[0]
+					<< ",\"constraint_rejected\":"
+					<< prule->m_stage_attempts[1]
+					<< ",\"instantiate_rejected\":"
+					<< prule->m_stage_attempts[2]
+					<< ",\"generated_alternatives\":"
+					<< prule->m_stage_attempts[3]
+					<< ",\"duplicate_alternatives\":"
+					<< prule->m_stage_attempts[4] << "}" << std::endl;
+		}
+	}
+
 	if (GPOS_FTRACE(EopttracePrintMemoAfterOptimization))
 	{
 		{

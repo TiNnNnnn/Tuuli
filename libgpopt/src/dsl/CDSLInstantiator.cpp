@@ -1809,11 +1809,12 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 //		trips the "A valid group is expected" assertion. CHILDREN may freely reuse
 //		memo subtrees. Operator-eliminating rules (e.g. Filter(Input<t0>) ->
 //		Input<t1>) build a target whose root IS a reused memo subtree, so we must
-//		re-root it. PexprCopyWithRemappedColumns with an EMPTY mapping is the
-//		standard ORCA primitive that does exactly this: every node (root included)
-//		is GPOS_NEW'd afresh, and with must_exist=false unmapped CColRefs pass
-//		through unchanged, so DeriveOutputColumns is preserved (output-col
-//		invariant holds). Fresh-rooted targets (Filter/Join) are returned as-is.
+//		re-root it. Copy only the root operator and keep its memo-bound children.
+//		Deep-copying the subtree would make CEngine recursively insert every level
+//		again; equivalent-group merging can then turn an ordinary ancestor/child
+//		chain into a circular memo dependency. An empty column map preserves the
+//		root's CColRefs and therefore its output-column invariant. Fresh-rooted
+//		targets (Filter/Join) are returned as-is.
 //---------------------------------------------------------------------------
 CExpression *
 CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
@@ -1824,11 +1825,23 @@ CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
 		return pexpr;
 	}
 
-	// re-root via an identity remap (empty mapping => colrefs pass through).
+	// Re-root via an identity operator remap (empty mapping => colrefs pass
+	// through), while grafting the existing memo-bound children unchanged.
 	UlongToColRefMap *colref_mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
-	CExpression *pexprFresh = pexpr->PexprCopyWithRemappedColumns(
+	COperator *popFresh = pexpr->Pop()->PopCopyWithRemappedColumns(
 		m_mp, colref_mapping, false /*must_exist*/);
 	colref_mapping->Release();
+
+	CExpressionArray *pdrgpexprChildren =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp, pexpr->Arity());
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CExpression *pexprChild = (*pexpr)[ul];
+		pexprChild->AddRef();
+		pdrgpexprChildren->Append(pexprChild);
+	}
+	CExpression *pexprFresh = GPOS_NEW(m_mp)
+		CExpression(m_mp, popFresh, pdrgpexprChildren);
 	pexpr->Release();
 	return pexprFresh;
 }

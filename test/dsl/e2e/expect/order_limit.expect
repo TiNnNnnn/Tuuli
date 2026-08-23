@@ -14,10 +14,7 @@
       "trace": true,
       "contains": [
         "Rule: Limit",
-        "stage=applied bindings="
-      ],
-      "alternative": [
-        "CXformDSLRule_Limit"
+        "stage=duplicate bindings="
       ]
     }
   ],

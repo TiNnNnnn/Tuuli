@@ -41,6 +41,59 @@ FORCE_GENERATE_DBGSTR(CGroup);
 
 #define GPOPT_OPTCTXT_HT_BUCKETS 100
 
+namespace
+{
+CGroup *
+PgroupDuplicateMaster(CGroup *pgroup)
+{
+	while (nullptr != pgroup->PgroupDuplicate())
+	{
+		pgroup = pgroup->PgroupDuplicate();
+	}
+	return pgroup;
+}
+
+BOOL
+FReachable(CGroup *pgroupStart, CGroup *pgroupTarget, CBitSet *pbsVisited)
+{
+	GPOS_CHECK_STACK_SIZE;
+	GPOS_CHECK_ABORT;
+	pgroupStart = PgroupDuplicateMaster(pgroupStart);
+	pgroupTarget = PgroupDuplicateMaster(pgroupTarget);
+	if (pgroupStart == pgroupTarget)
+	{
+		return true;
+	}
+	if (pbsVisited->ExchangeSet(pgroupStart->Id()))
+	{
+		return false;
+	}
+
+	CGroupExpression *pgexpr = nullptr;
+	{
+		CGroupProxy gp(pgroupStart);
+		pgexpr = gp.PgexprNextLogical(nullptr);
+	}
+	while (nullptr != pgexpr)
+	{
+		for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
+		{
+			CGroup *pgroupChild = (*pgexpr)[ul];
+			if (!pgroupChild->FScalar() &&
+				FReachable(pgroupChild, pgroupTarget, pbsVisited))
+			{
+				return true;
+			}
+		}
+		{
+			CGroupProxy gp(pgroupStart);
+			pgexpr = gp.PgexprNextLogical(pgexpr);
+		}
+	}
+	return false;
+}
+}  // namespace
+
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -837,6 +890,30 @@ CGroup::FDuplicateGroups(CGroup *pgroupFst, CGroup *pgroupSnd)
 		   // both groups have the same duplicate group
 		   (nullptr != pgroupFstDup && nullptr != pgroupSndDup &&
 			pgroupFstDup == pgroupSndDup);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CGroup::FReachable
+//
+//	@doc:
+//		Determine whether the relational memo graph has a path between groups
+//---------------------------------------------------------------------------
+BOOL
+CGroup::FReachable(CMemoryPool *mp, CGroup *pgroupStart,
+				   CGroup *pgroupTarget)
+{
+	// Scalar groups do not participate in the relational dependency graph.
+	// In particular, FRehash invokes this helper for both kinds of groups.
+	if (pgroupStart->FScalar() || pgroupTarget->FScalar())
+	{
+		return false;
+	}
+
+	CBitSet *pbsVisited = GPOS_NEW(mp) CBitSet(mp);
+	BOOL fReachable = ::FReachable(pgroupStart, pgroupTarget, pbsVisited);
+	pbsVisited->Release();
+	return fReachable;
 }
 
 

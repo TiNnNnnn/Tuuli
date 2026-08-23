@@ -14,7 +14,7 @@
       "contains": [
         "Optimizer: pg_orca"
       ],
-      "joins": 1
+      "joins": 2
     },
     {
       "name": "off-native-off",

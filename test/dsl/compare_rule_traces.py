@@ -68,9 +68,16 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
 
     # pgORCA logs every bucket candidate, including structural match rejection.
     candidate_matched = keys_of(
-        candidate_apps, key, {"constraint_rejected", "instantiate_rejected", "applied"}
+        candidate_apps,
+        key,
+        {
+            "constraint_rejected",
+            "instantiate_rejected",
+            "applied",
+            "duplicate",
+        },
     )
-    candidate_rewritten = keys_of(candidate_apps, key, {"applied"})
+    candidate_rewritten = keys_of(candidate_apps, key, {"applied", "duplicate"})
 
     reference_matched_set = set(reference_matched)
     reference_rewritten_set = set(reference_rewritten)

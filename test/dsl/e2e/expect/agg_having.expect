@@ -16,10 +16,8 @@
       "name": "on",
       "trace": true,
       "contains": [
-        "Optimizer: pg_orca"
-      ],
-      "alternative": [
-        "CXformDSLRule_Select"
+        "Optimizer: pg_orca",
+        "stage=duplicate bindings="
       ]
     }
   ],

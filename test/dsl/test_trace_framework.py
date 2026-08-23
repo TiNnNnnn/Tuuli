@@ -78,6 +78,40 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(report["shared_matched"], [8])
         self.assertEqual(report["missing_rewritten"], [8])
 
+    def test_equivalent_duplicate_satisfies_reference_rewrite(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "duplicate"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["shared_matched"], [8])
+        self.assertEqual(report["shared_rewritten"], [8])
+        self.assertEqual(report["missing_rewritten"], [])
+
+    def test_search_summaries_do_not_change_rule_alignment(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "applied"},
+            {
+                "kind": "memo_summary",
+                "groups": 12,
+                "group_expressions": 18,
+            },
+            {
+                "kind": "rule_summary",
+                "rule_id": 8,
+                "binding_attempts": 7,
+                "generated_alternatives": 1,
+            },
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["shared_rewritten"], [8])
+        self.assertEqual(report["candidate_extra"], [])
+
     def test_cascades_extra_rewrite_does_not_hide_missing_reference(self) -> None:
         reference = [
             {"kind": "application", "rule_id": 8, "status": "applied"},
