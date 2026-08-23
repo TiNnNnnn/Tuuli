@@ -108,15 +108,9 @@ def parameter_count(query: str) -> int:
 
 def render_trace_query(query: str) -> str:
     query = query.rstrip().rstrip(";")
-    count = parameter_count(query)
-    if count == 0:
+    if parameter_count(query) == 0:
         return f"EXPLAIN (COSTS OFF)\n{query};\n"
-    arguments = ", ".join("NULL" for _ in range(count))
-    return (
-        f"PREPARE dsl_trace_case AS\n{query};\n"
-        f"EXPLAIN (COSTS OFF) EXECUTE dsl_trace_case({arguments});\n"
-        "DEALLOCATE dsl_trace_case;\n"
-    )
+    return f"EXPLAIN (GENERIC_PLAN, COSTS OFF)\n{query};\n"
 
 
 def tail_text(path: Path, maximum: int = 2000) -> str:

@@ -2120,7 +2120,11 @@ CEngine::ProcessTraceFlags()
 					<< ",\"generated_alternatives\":"
 					<< prule->m_stage_attempts[3]
 					<< ",\"duplicate_alternatives\":"
-					<< prule->m_stage_attempts[4] << "}" << std::endl;
+					<< prule->m_stage_attempts[4]
+					<< ",\"budget_exhausted\":"
+					<< prule->m_stage_attempts[5]
+					<< ",\"budget_skipped\":"
+					<< prule->m_stage_attempts[6] << "}" << std::endl;
 		}
 	}
 

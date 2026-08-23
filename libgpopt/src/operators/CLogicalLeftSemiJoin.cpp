@@ -62,6 +62,10 @@ CLogicalLeftSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfLeftSemiJoin2HashJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfSemiJoin2IndexGetApply);
 
+	// MONSOON DSL-rule shell: the shared InSub matcher also recognizes the
+	// decorrelated single-column semi-join representation.
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInSub);
+
 	return xform_set;
 }
 

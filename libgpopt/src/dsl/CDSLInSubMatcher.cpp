@@ -13,6 +13,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -272,6 +273,68 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 }
 
 BOOL
+CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
+								 CDSLModel *pmodel) const
+{
+	if (COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid() ||
+		3 != pexpr->Arity())
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsOuter = (*pexpr)[0]->DeriveOutputColumns();
+	CColRefSet *pcrsInner = (*pexpr)[1]->DeriveOutputColumns();
+	CExpressionArray *pdrgpexprConj =
+		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[2]);
+	CColRef *pcrOuter = nullptr;
+	CColRef *pcrInner = nullptr;
+	if (1 == pdrgpexprConj->Size())
+	{
+		CExpression *pexprCmp = (*pdrgpexprConj)[0];
+		if (2 == pexprCmp->Arity() &&
+			CPredicateUtils::FPlainEquality(pexprCmp) &&
+			COperator::EopScalarIdent == (*pexprCmp)[0]->Pop()->Eopid() &&
+			COperator::EopScalarIdent == (*pexprCmp)[1]->Pop()->Eopid())
+		{
+			CColRef *pcr0 = const_cast<CColRef *>(
+				CScalarIdent::PopConvert((*pexprCmp)[0]->Pop())->Pcr());
+			CColRef *pcr1 = const_cast<CColRef *>(
+				CScalarIdent::PopConvert((*pexprCmp)[1]->Pop())->Pcr());
+			if (pcrsOuter->FMember(pcr0) && pcrsInner->FMember(pcr1))
+			{
+				pcrOuter = pcr0;
+				pcrInner = pcr1;
+			}
+			else if (pcrsOuter->FMember(pcr1) && pcrsInner->FMember(pcr0))
+			{
+				pcrOuter = pcr1;
+				pcrInner = pcr0;
+			}
+		}
+	}
+	pdrgpexprConj->Release();
+	if (nullptr == pcrOuter || nullptr == pcrInner)
+	{
+		return false;
+	}
+
+	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrOuter->Append(pcrOuter);
+	BOOL fMatched =
+		pmodel->FBind((*pop->Pdrgpsym())[0], pdrgpcrOuter) &&
+		m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+		FMatchInner((*pop)[1], (*pexpr)[1], pcrInner, pmodel);
+	pdrgpcrOuter->Release();
+	if (!fMatched)
+	{
+		return false;
+	}
+
+	(*pexpr)[2]->AddRef();
+	return pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], (*pexpr)[2]);
+}
+
+BOOL
 CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 									 CExpression *pexprCarrier,
 									 CExpression *pexprRel,
@@ -298,6 +361,14 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 		}
 	}
 	else if (COperator::EopLogicalLeftSemiApplyIn ==
+			 pexprCarrier->Pop()->Eopid())
+	{
+		if (3 != pexprCarrier->Arity())
+		{
+			return false;
+		}
+	}
+	else if (COperator::EopLogicalLeftSemiJoin ==
 			 pexprCarrier->Pop()->Eopid())
 	{
 		if (3 != pexprCarrier->Arity())
@@ -345,6 +416,7 @@ CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
 	BOOL fMatched = false;
 	const COperator::EOperatorId rgeopidCarrier[] = {
 		COperator::EopLogicalLeftSemiApplyIn,
+		COperator::EopLogicalLeftSemiJoin,
 		COperator::EopLogicalSelect};
 	for (ULONG ulCarrier = 0;
 		 ulCarrier < GPOS_ARRAY_SIZE(rgeopidCarrier) && !fMatched;
@@ -383,6 +455,10 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	if (COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid())
 	{
 		return FMatchPushedDownInnerJoin(pop, pexpr, pmodel);
+	}
+	if (COperator::EopLogicalLeftSemiJoin == pexpr->Pop()->Eopid())
+	{
+		return FMatchSemiJoin(pop, pexpr, pmodel);
 	}
 
 	// Pre-Apply: Select(outer, ... AND outer_expr = ANY(inner) AND ...).

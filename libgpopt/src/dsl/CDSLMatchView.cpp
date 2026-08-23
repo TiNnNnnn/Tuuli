@@ -170,6 +170,19 @@ CDSLMatchView::PexprRebaseInSubCarrier(CMemoryPool *mp,
 			(*pexprCarrier)[2]);
 	}
 
+	if (COperator::EopLogicalLeftSemiJoin ==
+			pexprCarrier->Pop()->Eopid() &&
+		3 == pexprCarrier->Arity())
+	{
+		pexprCarrier->Pop()->AddRef();
+		pexprRel->AddRef();
+		(*pexprCarrier)[1]->AddRef();
+		(*pexprCarrier)[2]->AddRef();
+		return GPOS_NEW(mp) CExpression(
+			mp, pexprCarrier->Pop(), pexprRel, (*pexprCarrier)[1],
+			(*pexprCarrier)[2]);
+	}
+
 	return nullptr;
 }
 

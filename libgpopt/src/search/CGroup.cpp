@@ -78,7 +78,13 @@ FReachable(CGroup *pgroupStart, CGroup *pgroupTarget, CBitSet *pbsVisited)
 	{
 		for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
 		{
-			CGroup *pgroupChild = (*pgexpr)[ul];
+			// Read the dependency edge directly.  FReachable is also called
+			// while FRehash is moving duplicate expressions between lists; at
+			// that point a child group may temporarily have no expressions and
+			// no duplicate link yet.  CGroupExpression::operator[] is intended
+			// for the stable optimization phase and asserts in that transient
+			// state.  Duplicate masters are resolved at the next recursive call.
+			CGroup *pgroupChild = (*pgexpr->Pdrgpgroup())[ul];
 			if (!pgroupChild->FScalar() &&
 				FReachable(pgroupChild, pgroupTarget, pbsVisited))
 			{

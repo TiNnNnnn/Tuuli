@@ -125,12 +125,91 @@ CDSLJoinElimTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinElimTest::EresUnittest_LeftJoinElimBelowAgg),
 		GPOS_UNITTEST_FUNC(
+			CDSLJoinElimTest::EresUnittest_AggregateInputRemapped),
+		GPOS_UNITTEST_FUNC(
 			CDSLJoinElimTest::EresUnittest_LeftJoinElimRejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinElimTest::EresUnittest_InnerJoinElimRejectsWithoutFK),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLJoinElimTest::EresUnittest_AggregateInputRemapped()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		"Proj<a3 s1>(Input<t2>)|"
+		"AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);"
+		"AttrsSub(a2,t0);TableEq(t2,t1);AttrsEq(a3,a1);SchemaEq(s1,s0)");
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("agg_remap_left", 1, &pdrgpcrLeft);
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("agg_remap_right", 1, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	CColRefArray *pdrgpcrGrouping = GPOS_NEW(mp) CColRefArray(mp);
+	CColRef *pcrAgg = fix.PcrCreateInt4("agg_output");
+	CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+		pexprJoin, pdrgpcrGrouping, pcrAgg, (*pdrgpcrLeft)[0]);
+	pdrgpcrGrouping->Release();
+	CColRefArray *pdrgpcrProject = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProject->Append(pcrAgg);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprAgg, pdrgpcrProject);
+	pdrgpcrProject->Release();
+	pexprAgg->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg != (*pexprTarget)[0]->Pop()->Eopid() ||
+			COperator::EopLogicalGet !=
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid() ||
+			(*(*pexprTarget)[0])[0] != pexprRight ||
+			!(*(*pexprTarget)[0])[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrRight)[0]) ||
+			(*(*pexprTarget)[0])[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrLeft)[0]) ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
+	pexprJoin->Release();
+	pexprRight->Release();
+	pexprLeft->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

@@ -100,6 +100,9 @@ private:
 		const CDSLOp *pop, const CDSLSymbol *psymPred) const;
 	CExpression *PexprBuildFilterPredicate(const CDSLOp *popFilter,
 										 const CDSLModel *pmodel) const;
+	CExpression *PexprBuildFilterCarrier(const CDSLOp *popFilter,
+									 const CDSLModel *pmodel,
+									 CExpression *pexprOuter) const;
 
 	// Find the source Proj that owns a schema symbol. Target Proj attrs can name
 	// a different (but constraint-equivalent) input vector, so its saved scalar

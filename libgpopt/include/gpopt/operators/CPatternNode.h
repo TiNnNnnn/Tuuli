@@ -32,6 +32,7 @@ public:
 	{
 		EmtMatchInnerOrLeftOuterJoin,
 		EmtMatchSemiOrAntiSemiJoin,
+		EmtMatchInSubApplyOrSemiJoin,
 		EmtSentinel
 	};
 
@@ -100,6 +101,10 @@ public:
 			case EmtMatchSemiOrAntiSemiJoin:
 				return COperator::EopLogicalLeftSemiJoin == opid ||
 					   COperator::EopLogicalLeftAntiSemiJoin == opid;
+
+			case EmtMatchInSubApplyOrSemiJoin:
+				return COperator::EopLogicalLeftSemiApplyIn == opid ||
+					   COperator::EopLogicalLeftSemiJoin == opid;
 
 			default:
 				return false;

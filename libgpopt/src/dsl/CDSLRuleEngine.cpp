@@ -76,7 +76,7 @@ CDSLRuleEngine::BucketByRoot()
 	for (ULONG ul = 0; ul < ulRules; ul++)
 	{
 		CDSLRule *prule = (*m_pdrgprule)[ul];
-		ULONG rgulOpid[4] = {(ULONG) prule->EopidSrcRoot(), 0, 0, 0};
+		ULONG rgulOpid[8] = {(ULONG) prule->EopidSrcRoot()};
 		ULONG ulBuckets = 1;
 		// HAVING is Select(GbAgg,predicate) in ORCA, while the DSL source root
 		// remains Agg. Route Agg-rooted rules to both physical expression shapes.
@@ -99,6 +99,11 @@ CDSLRuleEngine::BucketByRoot()
 			// that shell as well; the matcher still performs the full shape check.
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiApply;
+			// A decorrelated IN/EXISTS equality is represented as a logical
+			// semi join. The InSub matcher validates the single-column equality
+			// before exposing this post-unnest representation to a data rule.
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiJoin;
 			// Inner-join predicate pushdown may place the ApplyIn in one join
 			// input. The InSub matcher reconstructs and validates the original
 			// InSub(InnerJoin(...), ...) view without changing the memo tree.
@@ -135,6 +140,12 @@ CDSLRuleEngine::BucketByRoot()
 			{
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalInnerJoin;
+				// WeTune models IN/EXISTS nodes as members of the Filter chain.
+				// Route the post-unnest carriers to the same Filter matcher.
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalLeftSemiApplyIn;
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
 		}
 		// A null-rejecting Select over FullJoin is semantically a Select over a
@@ -363,7 +374,9 @@ enum EDslTraceStage
 	EdsltraceConstraintRejected,
 	EdsltraceInstantiateRejected,
 	EdsltraceApplied,
-	EdsltraceDuplicate
+	EdsltraceDuplicate,
+	EdsltraceBudgetExhausted,
+	EdsltraceBudgetSkipped
 };
 
 const CHAR *
@@ -381,6 +394,10 @@ SzDSLTraceStage(EDslTraceStage edsltrace)
 			return "applied";
 		case EdsltraceDuplicate:
 			return "duplicate";
+		case EdsltraceBudgetExhausted:
+			return "budget_exhausted";
+		case EdsltraceBudgetSkipped:
+			return "budget_skipped";
 	}
 	GPOS_ASSERT(!"invalid DSL trace stage");
 	return "invalid";
@@ -475,8 +492,18 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexpr);
 
-	const ULONG ulRuleId =
-		GPOS_FTRACE(EopttracePrintDSLRule) ? UlRuleId(prule) : 0;
+	// Rule identity also keys query-level budgets, so it must remain stable even
+	// when trace emission is disabled.
+	const ULONG ulRuleId = UlRuleId(prule);
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	if (poctxt->FDSLAlternativeBudgetExhausted(ulRuleId))
+	{
+		// This binding was deliberately not inspected. Keep it distinct from
+		// budget_exhausted, which follows a complete source match and target build.
+		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetSkipped, prule, nullptr,
+					 pexpr, nullptr);
+		return nullptr;
+	}
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	if (!FMatch(prule, pexpr, pmodel))
 	{
@@ -504,6 +531,15 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// may repeatedly fire as native xforms enumerate equivalent children.
 		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
 					 pexprTgt);
+		pexprTgt->Release();
+		pmodel->Release();
+		return nullptr;
+	}
+	if (nullptr != pexprTgt &&
+		!poctxt->FReserveDSLAlternative(ulRuleId))
+	{
+		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetExhausted, prule, pmodel,
+					 pexpr, pexprTgt);
 		pexprTgt->Release();
 		pmodel->Release();
 		return nullptr;

@@ -73,6 +73,7 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
         {
             "constraint_rejected",
             "instantiate_rejected",
+            "budget_exhausted",
             "applied",
             "duplicate",
         },

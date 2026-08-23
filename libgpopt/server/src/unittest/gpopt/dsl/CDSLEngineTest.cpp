@@ -25,7 +25,9 @@
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPatternTree.h"
+#include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -50,6 +52,8 @@ CDSLEngineTest::EresUnittest()
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_CapabilityMetadata),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_DSLProvenance),
+		GPOS_UNITTEST_FUNC(
+			CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
@@ -253,6 +257,47 @@ CDSLEngineTest::EresUnittest_DSLProvenance()
 	pgexprDSL->Release();
 	pgexprNative->Release();
 	pgexprBase->Release();
+	return fValid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	CGroup *pgroupParent = GPOS_NEW(mp) CGroup(mp);
+	CGroup *pgroupEmpty = GPOS_NEW(mp) CGroup(mp);
+	CGroup *pgroupOther = GPOS_NEW(mp) CGroup(mp);
+	{
+		CGroupProxy gp(pgroupParent);
+		gp.SetId(0);
+	}
+	{
+		CGroupProxy gp(pgroupEmpty);
+		gp.SetId(1);
+	}
+	{
+		CGroupProxy gp(pgroupOther);
+		gp.SetId(2);
+	}
+
+	CGroupArray *pdrgpgroup = GPOS_NEW(mp) CGroupArray(mp);
+	pdrgpgroup->Append(pgroupEmpty);
+	CGroupExpression *pgexpr = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pdrgpgroup,
+		CXform::ExfInvalid, nullptr, false /*fIntermediate*/);
+	{
+		CGroupProxy gp(pgroupParent);
+		gp.Insert(pgexpr);
+	}
+
+	const BOOL fValid = CGroup::FReachable(mp, pgroupParent, pgroupEmpty) &&
+						!CGroup::FReachable(mp, pgroupParent, pgroupOther);
+
+	pgroupOther->Release();
+	pgroupEmpty->Release();
+	pgroupParent->Release();
 	return fValid ? GPOS_OK : GPOS_FAILED;
 }
 

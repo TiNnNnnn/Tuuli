@@ -177,6 +177,10 @@ bool  pg_orca_enable_dynamic_tablescan = true;
  */
 bool  pg_orca_enable_dsl_rule = false;
 
+/* Query-level search-space guard for DSL-generated logical alternatives. */
+int   pg_orca_dsl_rule_max_alternatives = 0;
+int   pg_orca_dsl_rule_max_alternatives_per_rule = 0;
+
 /*
  * Comma-separated native xforms that are suppressed for a DSL replacement
  * experiment.  Unlike disable_xform(), this is query configuration: it is
@@ -853,6 +857,24 @@ void _PG_init(void)
         NULL,
         &pg_orca_enable_dsl_rule,
         false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomIntVariable(
+        "pg_orca.dsl_rule_max_alternatives",
+        "Maximum DSL-generated logical alternatives per query (0 = unlimited).",
+        NULL,
+        &pg_orca_dsl_rule_max_alternatives,
+        0, 0, INT_MAX,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomIntVariable(
+        "pg_orca.dsl_rule_max_alternatives_per_rule",
+        "Maximum DSL-generated logical alternatives per rule and query (0 = unlimited).",
+        NULL,
+        &pg_orca_dsl_rule_max_alternatives_per_rule,
+        0, 0, INT_MAX,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

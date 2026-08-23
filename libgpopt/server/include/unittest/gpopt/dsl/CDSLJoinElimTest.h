@@ -65,6 +65,7 @@ public:
 	// match + check + instantiate produce Proj(Get t0) with the join and t1 gone.
 	static GPOS_RESULT EresUnittest_LeftJoinElimFires();
 	static GPOS_RESULT EresUnittest_LeftJoinElimBelowAgg();
+	static GPOS_RESULT EresUnittest_AggregateInputRemapped();
 
 	// the same rule must NOT fire when t1's join key is not unique (the Unique
 	// guard would let the join duplicate left rows).

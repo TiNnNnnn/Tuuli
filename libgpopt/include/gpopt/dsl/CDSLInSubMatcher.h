@@ -51,6 +51,11 @@ private:
 	BOOL FMatchCorrelatedExists(const CDSLOp *pop, CExpression *pexpr,
 							 CDSLModel *pmodel) const;
 
+	// Match the decorrelated single-column semi-join representation shared by
+	// IN and correlated EXISTS in WHERE context.
+	BOOL FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
+					 CDSLModel *pmodel) const;
+
 	// Predicate pushdown/unnesting can move either Select+ANY or ApplyIn below a
 	// binary/n-ary join spine. Reconstruct InSub(Join(...),inner) only as a
 	// transient matcher view; the live memo expression remains unchanged.

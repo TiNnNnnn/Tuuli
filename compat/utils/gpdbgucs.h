@@ -30,6 +30,8 @@ extern int  optimizer_mdcache_size;
 extern int  optimizer_segments;
 extern int  optimizer_cte_inlining_bound;
 extern int  pg_orca_cost_model;	/* 0 = gpdb, 1 = pg */
+extern int  pg_orca_dsl_rule_max_alternatives;
+extern int  pg_orca_dsl_rule_max_alternatives_per_rule;
 
 /* --- double GUCs --- */
 extern double optimizer_sort_factor;

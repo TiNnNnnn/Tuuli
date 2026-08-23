@@ -406,6 +406,10 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model)
 		(ULONG) 10;  /* optimizer_push_group_by_below_setop_threshold */
 	ULONG xform_bind_threshold = (ULONG) 0;  /* optimizer_xform_bind_threshold */
 	ULONG skew_factor = (ULONG) 0;  /* optimizer_skew_factor */
+	ULONG dsl_rule_max_alternatives =
+		(ULONG) pg_orca_dsl_rule_max_alternatives;
+	ULONG dsl_rule_max_alternatives_per_rule =
+		(ULONG) pg_orca_dsl_rule_max_alternatives_per_rule;
 
 	return GPOS_NEW(mp) COptimizerConfig(
 		GPOS_NEW(mp)
@@ -421,7 +425,8 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model)
 				  false, /* don't create Assert nodes for constraints, we'll
 								      * enforce them ourselves in the executor */
 				  push_group_by_below_setop_threshold, xform_bind_threshold,
-				  skew_factor),
+				  skew_factor, dsl_rule_max_alternatives,
+				  dsl_rule_max_alternatives_per_rule),
 		GPOS_NEW(mp) CWindowOids(mp, OID(F_ROW_NUMBER), OID(F_RANK_), OID(F_DENSE_RANK_)));
 }
 

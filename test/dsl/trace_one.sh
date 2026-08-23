@@ -16,6 +16,8 @@ TRACE_XFORMS=off
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
     TRACE_XFORMS=on
 fi
+MAX_ALTERNATIVES=${DSL_TRACE_MAX_ALTERNATIVES:-0}
+MAX_ALTERNATIVES_PER_RULE=${DSL_TRACE_MAX_ALTERNATIVES_PER_RULE:-0}
 
 fail()
 {
@@ -28,6 +30,8 @@ fail()
 [[ -r "$SCHEMA_FILE" ]] || fail "schema file is not readable: $SCHEMA_FILE"
 [[ -r "$QUERY_FILE" ]] || fail "query file is not readable: $QUERY_FILE"
 [[ "$PORT" =~ ^[0-9]+$ ]] || fail "DSL_TRACE_PORT must be numeric"
+[[ "$MAX_ALTERNATIVES" =~ ^[0-9]+$ ]] || fail "DSL_TRACE_MAX_ALTERNATIVES must be numeric"
+[[ "$MAX_ALTERNATIVES_PER_RULE" =~ ^[0-9]+$ ]] || fail "DSL_TRACE_MAX_ALTERNATIVES_PER_RULE must be numeric"
 
 PG_BINDIR=$($PG_CONFIG --bindir)
 TRACE_ROOT=$(mktemp -d /tmp/pgorca-dsl-trace.XXXXXX)
@@ -70,6 +74,8 @@ PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d pos
     echo "LOAD 'pg_orca';"
     echo "SET pg_orca.enable_orca=on;"
     echo "SET pg_orca.enable_dsl_rule=on;"
+    echo "SET pg_orca.dsl_rule_max_alternatives=$MAX_ALTERNATIVES;"
+    echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"
     echo "SET pg_orca.trace_dsl_rule=on;"
     echo "SET optimizer_print_xform=$TRACE_XFORMS;"
     echo "SET optimizer_print_xform_results=$TRACE_XFORMS;"

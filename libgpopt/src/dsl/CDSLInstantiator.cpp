@@ -20,9 +20,11 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -284,12 +286,47 @@ PexprRestoreLimitShell(CMemoryPool *mp, CExpression *pexprShell,
 									(*pexprShell)[2]);
 }
 
-// Restore Project(GbAgg(...)) or Project(GlobalGbAgg(LocalGbAgg(...))) around
-// a rewritten deepest input. All scalar lists and aggregate operator metadata
-// are shared immutably with the matched expression.
+// Remap only the scalar inputs of a project list. Project-element operators
+// define the shell's stable output schema and must not be substituted merely
+// because an equivalent input column is selected by the target rule.
+CExpression *
+PexprRemapProjectListInputs(CMemoryPool *mp, CExpression *pexprList,
+							 UlongToColRefMap *colref_mapping)
+{
+	if (COperator::EopScalarProjectList != pexprList->Pop()->Eopid())
+	{
+		return nullptr;
+	}
+
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
+	{
+		CExpression *pexprElem = (*pexprList)[ul];
+		if (COperator::EopScalarProjectElement !=
+				pexprElem->Pop()->Eopid() ||
+			1 != pexprElem->Arity())
+		{
+			pdrgpexprElems->Release();
+			return nullptr;
+		}
+		CExpression *pexprScalar =
+			(*pexprElem)[0]->PexprCopyWithRemappedColumns(
+				mp, colref_mapping, false /*must_exist*/);
+		pexprElem->Pop()->AddRef();
+		pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
+			mp, pexprElem->Pop(), pexprScalar));
+	}
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+}
+
+// Restore Project(GbAgg(...)) around a rewritten deepest input. Aggregate
+// grouping/argument columns follow the target attrs, while project-element
+// output columns remain the source schema exposed to parent operators.
 CExpression *
 PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
-							CExpression *pexprChild)
+							CExpression *pexprChild,
+							UlongToColRefMap *colref_mapping)
 {
 	const COperator::EOperatorId eopid = pexprShell->Pop()->Eopid();
 	GPOS_ASSERT(COperator::EopLogicalProject == eopid ||
@@ -300,17 +337,57 @@ PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
 	if (COperator::EopLogicalGbAgg == (*pexprShell)[0]->Pop()->Eopid())
 	{
 		pexprRestoredChild = PexprRestoreProjectAggShell(
-			mp, (*pexprShell)[0], pexprChild);
+			mp, (*pexprShell)[0], pexprChild, colref_mapping);
 	}
 	else
 	{
 		pexprChild->AddRef();
 		pexprRestoredChild = pexprChild;
 	}
-	pexprShell->Pop()->AddRef();
-	(*pexprShell)[1]->AddRef();
-	return GPOS_NEW(mp) CExpression(mp, pexprShell->Pop(),
-									pexprRestoredChild, (*pexprShell)[1]);
+	if (nullptr == pexprRestoredChild)
+	{
+		return nullptr;
+	}
+
+	COperator *popRestored = nullptr;
+	if (COperator::EopLogicalGbAgg == eopid)
+	{
+		popRestored = pexprShell->Pop()->PopCopyWithRemappedColumns(
+			mp, colref_mapping, false /*must_exist*/);
+		CColRefArray *pdrgpcrGrouping =
+			CLogicalGbAgg::PopConvert(popRestored)->Pdrgpcr();
+		CColRefSet *pcrsGrouping = GPOS_NEW(mp) CColRefSet(mp);
+		pcrsGrouping->Include(pdrgpcrGrouping);
+		const BOOL fGroupingAvailable =
+			pexprRestoredChild->DeriveOutputColumns()->ContainsAll(
+				pcrsGrouping);
+		pcrsGrouping->Release();
+		if (!fGroupingAvailable)
+		{
+			popRestored->Release();
+			pexprRestoredChild->Release();
+			return nullptr;
+		}
+	}
+	else
+	{
+		pexprShell->Pop()->AddRef();
+		popRestored = pexprShell->Pop();
+	}
+
+	CExpression *pexprList = PexprRemapProjectListInputs(
+		mp, (*pexprShell)[1], colref_mapping);
+	if (nullptr == pexprList ||
+		!pexprRestoredChild->DeriveOutputColumns()->ContainsAll(
+			pexprList->DeriveUsedColumns()))
+	{
+		CRefCount::SafeRelease(pexprList);
+		popRestored->Release();
+		pexprRestoredChild->Release();
+		return nullptr;
+	}
+	return GPOS_NEW(mp) CExpression(mp, popRestored,
+									pexprRestoredChild, pexprList);
 }
 
 // Rebuild a matched GbAgg while removing only aggregate DISTINCT semantics.
@@ -658,6 +735,63 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 	return pexprRemapped;
 }
 
+CExpression *
+CDSLInstantiator::PexprBuildFilterCarrier(
+	const CDSLOp *popFilter, const CDSLModel *pmodel,
+	CExpression *pexprOuter) const
+{
+	CDSLSymbolArray *pdrgpsym = popFilter->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return nullptr;
+	}
+	const CDSLSymbol *psymSourcePred = PsymResolve((*pdrgpsym)[0]);
+	CExpression *pexprCarrier =
+		pmodel->PexprFilterCarrier(psymSourcePred);
+	CExpression *pexprPred = PexprBuildFilterPredicate(popFilter, pmodel);
+	if (nullptr == pexprCarrier || nullptr == pexprPred ||
+		3 != pexprCarrier->Arity())
+	{
+		CRefCount::SafeRelease(pexprPred);
+		return nullptr;
+	}
+
+	CExpression *pexprInner = (*pexprCarrier)[1];
+	pexprOuter->AddRef();
+	pexprInner->AddRef();
+	if (COperator::EopLogicalLeftSemiApplyIn ==
+			pexprCarrier->Pop()->Eopid())
+	{
+		CLogicalApply *popApply =
+			CLogicalApply::PopConvert(pexprCarrier->Pop());
+		CColRefArray *pdrgpcrInner = popApply->PdrgPcrInner();
+		if (nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
+		{
+			pexprOuter->Release();
+			pexprInner->Release();
+			pexprPred->Release();
+			return nullptr;
+		}
+		return CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			m_mp, pexprOuter, pexprInner, (*pdrgpcrInner)[0],
+			popApply->EopidOriginSubq(), pexprPred);
+	}
+	if (COperator::EopLogicalLeftSemiJoin == pexprCarrier->Pop()->Eopid())
+	{
+		CXform::EXformId exfidOrigin =
+			CLogicalLeftSemiJoin::PopConvert(pexprCarrier->Pop())
+				->OriginXform();
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp, exfidOrigin),
+			pexprOuter, pexprInner, pexprPred);
+	}
+
+	pexprOuter->Release();
+	pexprInner->Release();
+	pexprPred->Release();
+	return nullptr;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuildInput
@@ -701,6 +835,7 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 {
 	CExpressionArray *pdrgpexpr = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	const CDSLOp *popCurrent = pop;
+	const CDSLOp *popCarrierFilter = nullptr;
 	while (nullptr != popCurrent && EdslopFilter == popCurrent->Edslop())
 	{
 		CDSLSymbolArray *pdrgpsym = popCurrent->Pdrgpsym();
@@ -710,14 +845,28 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 			pdrgpexpr->Release();
 			return nullptr;
 		}
-		CExpression *pexprPredBound =
-			PexprBuildFilterPredicate(popCurrent, pmodel);
-		if (nullptr == pexprPredBound)
+		const CDSLSymbol *psymSourcePred =
+			PsymResolve((*pdrgpsym)[0]);
+		if (nullptr != pmodel->PexprFilterCarrier(psymSourcePred))
 		{
-			pdrgpexpr->Release();
-			return nullptr;
+			if (nullptr != popCarrierFilter)
+			{
+				pdrgpexpr->Release();
+				return nullptr;
+			}
+			popCarrierFilter = popCurrent;
 		}
-		pdrgpexpr->Append(pexprPredBound);
+		else
+		{
+			CExpression *pexprPredBound =
+				PexprBuildFilterPredicate(popCurrent, pmodel);
+			if (nullptr == pexprPredBound)
+			{
+				pdrgpexpr->Release();
+				return nullptr;
+			}
+			pdrgpexpr->Append(pexprPredBound);
+		}
 		popCurrent = (*popCurrent)[0];
 	}
 
@@ -726,6 +875,18 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 	{
 		pdrgpexpr->Release();
 		return nullptr;
+	}
+	if (nullptr != popCarrierFilter)
+	{
+		CExpression *pexprWrapped = PexprBuildFilterCarrier(
+			popCarrierFilter, pmodel, pexprChild);
+		pexprChild->Release();
+		pexprChild = pexprWrapped;
+		if (nullptr == pexprChild)
+		{
+			pdrgpexpr->Release();
+			return nullptr;
+		}
 	}
 	CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
 	if (nullptr != pdrgpexprResidual)
@@ -750,6 +911,11 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 			pdrgpexpr->Release();
 			return nullptr;
 		}
+	}
+	if (0 == pdrgpexpr->Size())
+	{
+		pdrgpexpr->Release();
+		return pexprChild;
 	}
 
 	// Duplicate Filter predicates may already have been collapsed in the source
@@ -869,8 +1035,70 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	CExpression *pexprAggShell = pmodel->PexprProjAggShell(psymSchema);
 	if (nullptr != pexprAggShell)
 	{
-		CExpression *pexprRestored =
-			PexprRestoreProjectAggShell(m_mp, pexprAggShell, pexprChild);
+		const CDSLOp *popSourceProj = PopSourceProjForSchema(
+			m_prule->PfragSrc()->PopRoot(), psymSchema);
+		if (nullptr == popSourceProj || nullptr == popSourceProj->Pdrgpsym() ||
+			2 != popSourceProj->Pdrgpsym()->Size())
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+		CColRefArray *pdrgpcrSourceAttrs = pmodel->PdrgpcrAttrs(
+			(*popSourceProj->Pdrgpsym())[0]);
+		CColRefArray *pdrgpcrTargetAttrs =
+			pmodel->PdrgpcrAttrs(psymAttrs);
+		if (nullptr == pdrgpcrSourceAttrs ||
+			nullptr == pdrgpcrTargetAttrs ||
+			pdrgpcrSourceAttrs->Size() != pdrgpcrTargetAttrs->Size())
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		UlongToColRefMap *colref_mapping =
+			GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+		CColRefSet *pcrsTarget = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		BOOL fValid = true;
+		for (ULONG ul = 0; fValid && ul < pdrgpcrSourceAttrs->Size(); ul++)
+		{
+			CColRef *pcrSource = (*pdrgpcrSourceAttrs)[ul];
+			CColRef *pcrTarget = (*pdrgpcrTargetAttrs)[ul];
+			pcrsTarget->Include(pcrTarget);
+			if (!pcrSource->RetrieveType()->MDId()->Equals(
+					pcrTarget->RetrieveType()->MDId()) ||
+				pcrSource->TypeModifier() != pcrTarget->TypeModifier())
+			{
+				fValid = false;
+				break;
+			}
+			if (pcrSource == pcrTarget)
+			{
+				continue;
+			}
+			const ULONG ulSourceId = pcrSource->Id();
+			CColRef *pcrExisting = colref_mapping->Find(&ulSourceId);
+			if (nullptr != pcrExisting)
+			{
+				fValid = pcrExisting == pcrTarget;
+				continue;
+			}
+			BOOL fInserted GPOS_ASSERTS_ONLY = colref_mapping->Insert(
+				GPOS_NEW(m_mp) ULONG(ulSourceId), pcrTarget);
+			GPOS_ASSERT(fInserted);
+		}
+		fValid = fValid &&
+			pexprChild->DeriveOutputColumns()->ContainsAll(pcrsTarget);
+		pcrsTarget->Release();
+		if (!fValid)
+		{
+			colref_mapping->Release();
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		CExpression *pexprRestored = PexprRestoreProjectAggShell(
+			m_mp, pexprAggShell, pexprChild, colref_mapping);
+		colref_mapping->Release();
 		pexprChild->Release();
 		return pexprRestored;
 	}

@@ -126,6 +126,11 @@ private:
 								 CExpression *pexprJoin,
 								 CDSLModel *pmodel) const;
 
+	// Match WeTune's SimpleFilter view of a single-column IN/semi-join carrier.
+	BOOL FMatchSubqueryCarrier(const CDSLOp *popFilterRoot,
+							 CExpression *pexprCarrier,
+							 CDSLModel *pmodel) const;
+
 public:
 	CDSLFilterMatcher(const CDSLFilterMatcher &) = delete;
 

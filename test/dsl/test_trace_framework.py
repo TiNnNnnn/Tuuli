@@ -90,6 +90,28 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(report["shared_rewritten"], [8])
         self.assertEqual(report["missing_rewritten"], [])
 
+    def test_budget_exhausted_is_matched_but_not_rewritten(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "budget_exhausted"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["missing_matched"], [])
+        self.assertEqual(report["missing_rewritten"], [8])
+
+    def test_budget_skipped_is_not_a_structural_match(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "budget_skipped"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["missing_matched"], [8])
+        self.assertEqual(report["missing_rewritten"], [8])
+
     def test_search_summaries_do_not_change_rule_alignment(self) -> None:
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
         candidate = [
@@ -248,12 +270,14 @@ class TraceFrameworkTest(unittest.TestCase):
 
         self.assertEqual(parameter_count(query), 2)
 
-    def test_parameterized_trace_uses_a_generic_prepared_plan(self) -> None:
+    def test_parameterized_trace_uses_explain_generic_plan(self) -> None:
         rendered = render_trace_query("SELECT * FROM t WHERE a = $1 LIMIT $2")
 
-        self.assertIn("PREPARE dsl_trace_case AS", rendered)
-        self.assertIn("EXECUTE dsl_trace_case(NULL, NULL)", rendered)
-        self.assertTrue(rendered.endswith("DEALLOCATE dsl_trace_case;\n"))
+        self.assertEqual(
+            rendered,
+            "EXPLAIN (GENERIC_PLAN, COSTS OFF)\n"
+            "SELECT * FROM t WHERE a = $1 LIMIT $2;\n",
+        )
 
     def test_plain_trace_query_is_explained_directly(self) -> None:
         self.assertEqual(

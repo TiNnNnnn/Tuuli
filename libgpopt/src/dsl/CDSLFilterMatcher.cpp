@@ -14,11 +14,14 @@
 #include "gpos/base.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -332,6 +335,58 @@ CDSLFilterMatcher::FMatchPushedDownInnerJoin(
 }
 
 BOOL
+CDSLFilterMatcher::FMatchSubqueryCarrier(
+	const CDSLOp *popFilterRoot, CExpression *pexprCarrier,
+	CDSLModel *pmodel) const
+{
+	const COperator::EOperatorId eopid = pexprCarrier->Pop()->Eopid();
+	if ((COperator::EopLogicalLeftSemiApplyIn != eopid &&
+		 COperator::EopLogicalLeftSemiJoin != eopid) ||
+		3 != pexprCarrier->Arity() ||
+		CUtils::HasOuterRefs((*pexprCarrier)[1]))
+	{
+		return false;
+	}
+
+	const CDSLOp *rgpopFilters[GPOPT_DSL_MAX_FILTER_CHAIN];
+	ULONG ulFilters = 0;
+	const CDSLOp *popBase = PopCollectChain(
+		popFilterRoot, rgpopFilters, GPOPT_DSL_MAX_FILTER_CHAIN, &ulFilters);
+	if (1 != ulFilters || nullptr == popBase ||
+		nullptr == rgpopFilters[0]->Pdrgpsym() ||
+		2 != rgpopFilters[0]->Pdrgpsym()->Size())
+	{
+		return false;
+	}
+
+	CExpression *pexprPred = (*pexprCarrier)[2];
+	CColRefSet *pcrsOuterUsed =
+		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprPred->DeriveUsedColumns());
+	pcrsOuterUsed->Exclude((*pexprCarrier)[1]->DeriveOutputColumns());
+	CColRefArray *pdrgpcrOuter = pcrsOuterUsed->Pdrgpcr(m_mp);
+	pcrsOuterUsed->Release();
+	if (1 != pdrgpcrOuter->Size())
+	{
+		pdrgpcrOuter->Release();
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = rgpopFilters[0]->Pdrgpsym();
+	const CDSLSymbol *psymPred = (*pdrgpsym)[0];
+	BOOL fMatched = pmodel->FBind(psymPred, pexprPred) &&
+		pmodel->FBind((*pdrgpsym)[1], pdrgpcrOuter) &&
+		m_pmatcher->FMatch(popBase, (*pexprCarrier)[0], pmodel);
+	pdrgpcrOuter->Release();
+	if (!fMatched)
+	{
+		return false;
+	}
+
+	pexprCarrier->AddRef();
+	return pmodel->FSetFilterCarrier(psymPred, pexprCarrier);
+}
+
+BOOL
 CDSLFilterMatcher::FBaseAssignmentCompatible(
 	const CDSLOp *popFilter, const CDSLOp *popBase,
 	CExpression *pexprBase, CExpression *pexprCandidate) const
@@ -522,6 +577,11 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	if (COperator::EopLogicalInnerJoin == pexprSelect->Pop()->Eopid())
 	{
 		return FMatchPushedDownInnerJoin(popFilterRoot, pexprSelect, pmodel);
+	}
+	if (COperator::EopLogicalLeftSemiApplyIn == pexprSelect->Pop()->Eopid() ||
+		COperator::EopLogicalLeftSemiJoin == pexprSelect->Pop()->Eopid())
+	{
+		return FMatchSubqueryCarrier(popFilterRoot, pexprSelect, pmodel);
 	}
 
 	// Otherwise the live node must be a Select carrying (relational child,

@@ -53,7 +53,9 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_scanid_to_part_map(nullptr),
 	  m_selector_id_counter(0),
 	  m_dsl_trace_events(nullptr),
-	  m_dsl_rule_trace_counters(nullptr)
+	  m_dsl_rule_trace_counters(nullptr),
+	  m_ulDSLGeneratedAlternatives(0),
+	  m_dsl_generated_alternatives_by_rule(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != col_factory);
@@ -71,6 +73,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	m_dsl_trace_events = GPOS_NEW(m_mp) CBitSet(m_mp);
 	m_dsl_rule_trace_counters =
 		GPOS_NEW(m_mp) UlongToDSLRuleTraceCountersMap(m_mp);
+	m_dsl_generated_alternatives_by_rule =
+		GPOS_NEW(m_mp) UlongToUlongMap(m_mp);
 }
 
 
@@ -96,6 +100,7 @@ COptCtxt::~COptCtxt()
 	m_part_selector_info->Release();
 	m_dsl_trace_events->Release();
 	m_dsl_rule_trace_counters->Release();
+	m_dsl_generated_alternatives_by_rule->Release();
 }
 
 
@@ -110,7 +115,7 @@ void
 COptCtxt::RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 						 ULONG ulBoundSymbols)
 {
-	GPOS_ASSERT(ulStage < 5);
+	GPOS_ASSERT(ulStage < 7);
 	SDSLRuleTraceCounters *pcounters =
 		m_dsl_rule_trace_counters->Find(&ulRuleId);
 	if (nullptr == pcounters)
@@ -121,6 +126,51 @@ COptCtxt::RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 	}
 	pcounters->m_stage_attempts[ulStage]++;
 	pcounters->m_bound_symbols += ulBoundSymbols;
+}
+
+BOOL
+COptCtxt::FDSLAlternativeBudgetExhausted(ULONG ulRuleId)
+{
+	const ULONG ulMax =
+		m_optimizer_config->GetHint()->UlDSLRuleMaxAlternatives();
+	if (0 != ulMax && m_ulDSLGeneratedAlternatives >= ulMax)
+	{
+		return true;
+	}
+
+	const ULONG ulMaxPerRule =
+		m_optimizer_config->GetHint()->UlDSLRuleMaxAlternativesPerRule();
+	ULONG *pulGenerated =
+		m_dsl_generated_alternatives_by_rule->Find(&ulRuleId);
+	if (0 != ulMaxPerRule && nullptr != pulGenerated &&
+		*pulGenerated >= ulMaxPerRule)
+	{
+		return true;
+	}
+	return false;
+}
+
+BOOL
+COptCtxt::FReserveDSLAlternative(ULONG ulRuleId)
+{
+	if (FDSLAlternativeBudgetExhausted(ulRuleId))
+	{
+		return false;
+	}
+
+	ULONG *pulGenerated =
+		m_dsl_generated_alternatives_by_rule->Find(&ulRuleId);
+	if (nullptr == pulGenerated)
+	{
+		(void) m_dsl_generated_alternatives_by_rule->Insert(
+			GPOS_NEW(m_mp) ULONG(ulRuleId), GPOS_NEW(m_mp) ULONG(1));
+	}
+	else
+	{
+		(*pulGenerated)++;
+	}
+	m_ulDSLGeneratedAlternatives++;
+	return true;
 }
 
 

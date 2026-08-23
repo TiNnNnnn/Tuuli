@@ -33,10 +33,11 @@ using UlongToBitSetMap =
 
 struct SDSLRuleTraceCounters
 {
-	ULONG m_stage_attempts[5];
+	ULONG m_stage_attempts[7];
 	ULONG m_bound_symbols;
 
-	SDSLRuleTraceCounters() : m_stage_attempts{0, 0, 0, 0, 0}, m_bound_symbols(0)
+	SDSLRuleTraceCounters()
+		: m_stage_attempts{0, 0, 0, 0, 0, 0, 0}, m_bound_symbols(0)
 	{
 	}
 
@@ -44,7 +45,7 @@ struct SDSLRuleTraceCounters
 	UlAttempts() const
 	{
 		ULONG ulAttempts = 0;
-		for (ULONG ul = 0; ul < 5; ul++)
+		for (ULONG ul = 0; ul < 7; ul++)
 		{
 			ulAttempts += m_stage_attempts[ul];
 		}
@@ -61,6 +62,10 @@ using UlongToDSLRuleTraceCountersMapIter =
 	CHashMapIter<ULONG, SDSLRuleTraceCounters, gpos::HashValue<ULONG>,
 				 gpos::Equals<ULONG>, CleanupDelete<ULONG>,
 				 CleanupDelete<SDSLRuleTraceCounters>>;
+
+using UlongToUlongMap =
+	CHashMap<ULONG, ULONG, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
+			 CleanupDelete<ULONG>, CleanupDelete<ULONG>>;
 
 // forward declarations
 class CColRefSet;
@@ -172,6 +177,10 @@ private:
 	// Uncompacted per-rule counters used to explain search-space growth.
 	UlongToDSLRuleTraceCountersMap *m_dsl_rule_trace_counters;
 
+	ULONG m_ulDSLGeneratedAlternatives;
+
+	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
+
 public:
 	COptCtxt(COptCtxt &) = delete;
 
@@ -180,12 +189,20 @@ public:
 	BOOL
 	FMarkDSLTraceEvent(ULONG ulRuleId, ULONG ulStage)
 	{
-		GPOS_ASSERT(ulStage < 5);
-		return !m_dsl_trace_events->ExchangeSet(ulRuleId * 5 + ulStage);
+		GPOS_ASSERT(ulStage < 7);
+		return !m_dsl_trace_events->ExchangeSet(ulRuleId * 7 + ulStage);
 	}
 
 	void RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 						ULONG ulBoundSymbols);
+
+	// Reserve one query-level DSL alternative. A zero configured maximum means
+	// unlimited. The counter is query-local because COptCtxt lives in TLS.
+	BOOL FReserveDSLAlternative(ULONG ulRuleId);
+
+	// Return true once either the query-wide or per-rule generation budget has
+	// already been consumed. This permits an early exit before matching work.
+	BOOL FDSLAlternativeBudgetExhausted(ULONG ulRuleId);
 
 	UlongToDSLRuleTraceCountersMap *
 	PdrgDSLRuleTraceCounters() const
