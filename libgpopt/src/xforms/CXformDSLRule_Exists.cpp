@@ -54,8 +54,8 @@ CXformDSLRule_Exists::Transform(CXformContext *pxfctxt,
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != peng);
 
-	const CDSLRuleArray *pdrgprule = peng->PdrgpruleForRoot(
-		COperator::EopLogicalLeftSemiApply);
+	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
+		mp, COperator::EopLogicalLeftSemiApply, pexpr);
 	for (ULONG ul = 0; ul < pdrgprule->Size(); ul++)
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
@@ -65,6 +65,7 @@ CXformDSLRule_Exists::Transform(CXformContext *pxfctxt,
 			pxfres->Add(pexprTgt);
 		}
 	}
+	pdrgprule->Release();
 }
 
 // EOF

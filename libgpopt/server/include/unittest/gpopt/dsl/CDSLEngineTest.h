@@ -47,6 +47,10 @@ public:
 	// engine buckets a loaded library by source-root EOperatorId
 	static GPOS_RESULT EresUnittest_Bucketing();
 
+	// variable-depth template trie honors Input wildcard, filters mismatching
+	// deeper prefixes, preserves fallback rules and restores file order
+	static GPOS_RESULT EresUnittest_PrefixIndex();
+
 	// subquery phase routing is an operator capability, independent of rule shape
 	static GPOS_RESULT EresUnittest_SubqueryRepresentationCapability();
 

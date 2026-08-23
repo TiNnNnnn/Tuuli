@@ -92,8 +92,8 @@ CXformDSLRule_InnerJoin::Transform(CXformContext *pxfctxt,
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != peng);  // Exfp gated on a non-null engine
 
-	const CDSLRuleArray *pdrgprule =
-		peng->PdrgpruleForRoot(COperator::EopLogicalInnerJoin);
+	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
+		mp, COperator::EopLogicalInnerJoin, pexpr);
 
 	const ULONG ulRules = pdrgprule->Size();
 	for (ULONG ul = 0; ul < ulRules; ul++)
@@ -108,6 +108,7 @@ CXformDSLRule_InnerJoin::Transform(CXformContext *pxfctxt,
 			pxfres->Add(pexprTgt);
 		}
 	}
+	pdrgprule->Release();
 }
 
 // EOF

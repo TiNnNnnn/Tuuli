@@ -49,8 +49,8 @@ CXformDSLRule_Limit::Transform(CXformContext *pxfctxt,
 
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != peng);
-	const CDSLRuleArray *pdrgprule
-		= peng->PdrgpruleForRoot(COperator::EopLogicalLimit);
+	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
+		pxfctxt->Pmp(), COperator::EopLogicalLimit, pexpr);
 	for (ULONG ul = 0; ul < pdrgprule->Size(); ul++)
 	{
 		CExpression *pexprTgt
@@ -60,6 +60,7 @@ CXformDSLRule_Limit::Transform(CXformContext *pxfctxt,
 			pxfres->Add(pexprTgt);
 		}
 	}
+	pdrgprule->Release();
 }
 
 // EOF

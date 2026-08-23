@@ -34,12 +34,15 @@ CDSLRuleEngine::CDSLRuleEngine(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgprule(nullptr),
 	  m_phmOpidToRules(nullptr),
+	  m_phmOpidToPrefixIndex(nullptr),
 	  m_phmRuleToId(nullptr),
 	  m_pdrgpruleEmpty(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_pdrgprule = GPOS_NEW(mp) CDSLRuleArray(mp);
 	m_phmOpidToRules = GPOS_NEW(mp) COperatorIdToRuleArrayMap(mp);
+	m_phmOpidToPrefixIndex =
+		GPOS_NEW(mp) COperatorIdToRulePrefixIndexMap(mp);
 	m_phmRuleToId = GPOS_NEW(mp) CDSLRuleToIdMap(mp);
 	m_pdrgpruleEmpty = GPOS_NEW(mp) CDSLRuleArray(mp);
 }
@@ -51,6 +54,7 @@ CDSLRuleEngine::CDSLRuleEngine(CMemoryPool *mp)
 CDSLRuleEngine::~CDSLRuleEngine()
 {
 	m_phmOpidToRules->Release();
+	m_phmOpidToPrefixIndex->Release();
 	m_phmRuleToId->Release();
 	m_pdrgprule->Release();
 	m_pdrgpruleEmpty->Release();
@@ -156,10 +160,22 @@ CDSLRuleEngine::BucketByRoot()
 					m_phmOpidToRules->Insert(pulKey, pdrgpruleBucket);
 				GPOS_ASSERT(fInserted);
 				(void) fInserted;
+
+				CDSLRulePrefixIndex *pindex =
+					GPOS_NEW(m_mp) CDSLRulePrefixIndex(m_mp);
+				ULONG *pulIndexKey = GPOS_NEW(m_mp) ULONG(ulOpid);
+				fInserted =
+					m_phmOpidToPrefixIndex->Insert(pulIndexKey, pindex);
+				GPOS_ASSERT(fInserted);
+				(void) fInserted;
 			}
 
 			prule->AddRef();
 			pdrgpruleBucket->Append(prule);
+			CDSLRulePrefixIndex *pindex =
+				m_phmOpidToPrefixIndex->Find(&ulOpid);
+			GPOS_ASSERT(nullptr != pindex);
+			pindex->Insert(prule, ul, (COperator::EOperatorId) ulOpid);
 		}
 	}
 }
@@ -249,6 +265,22 @@ CDSLRuleEngine::PdrgpruleForRoot(COperator::EOperatorId eopid) const
 		return m_pdrgpruleEmpty;
 	}
 	return pdrgprule;
+}
+
+CDSLRuleArray *
+CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
+									COperator::EOperatorId eopid,
+									CExpression *pexpr) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexpr);
+	const ULONG ulOpid = (ULONG) eopid;
+	CDSLRulePrefixIndex *pindex = m_phmOpidToPrefixIndex->Find(&ulOpid);
+	if (nullptr == pindex)
+	{
+		return GPOS_NEW(mp) CDSLRuleArray(mp);
+	}
+	return pindex->PdrgpruleCandidates(mp, pexpr);
 }
 
 ULONG

@@ -32,6 +32,7 @@
 
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/COperator.h"
 
@@ -44,6 +45,12 @@ using namespace gpos;
 using COperatorIdToRuleArrayMap =
 	CHashMap<ULONG, CDSLRuleArray, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
 			 CleanupDelete<ULONG>, CleanupRelease<CDSLRuleArray> >;
+
+// EOperatorId -> immutable source-template prefix trie for that shell bucket.
+using COperatorIdToRulePrefixIndexMap =
+	CHashMap<ULONG, CDSLRulePrefixIndex, gpos::HashValue<ULONG>,
+			 gpos::Equals<ULONG>, CleanupDelete<ULONG>,
+			 CleanupDelete<CDSLRulePrefixIndex> >;
 
 // Rule pointer -> physical one-based line in the source rule file. Keys are
 // owned by m_pdrgprule; values are owned by this map. Rules not loaded from a
@@ -75,6 +82,9 @@ private:
 
 	// source-root EOperatorId -> rules with that root
 	COperatorIdToRuleArrayMap *m_phmOpidToRules;
+
+	// same buckets organized as variable-depth source-template prefix tries
+	COperatorIdToRulePrefixIndexMap *m_phmOpidToPrefixIndex;
 
 	// admitted rule pointer -> physical source line (or fallback ordinal)
 	CDSLRuleToIdMap *m_phmRuleToId;
@@ -120,6 +130,12 @@ public:
 
 	// rules whose SOURCE root maps to eopid (never NULL; empty bucket if none)
 	const CDSLRuleArray *PdrgpruleForRoot(COperator::EOperatorId eopid) const;
+
+	// Candidate rules selected by the source-template prefix trie. Caller owns
+	// the returned array; rule order remains the physical rule-file order.
+	CDSLRuleArray *PdrgpruleCandidates(CMemoryPool *mp,
+									 COperator::EOperatorId eopid,
+									 CExpression *pexpr) const;
 
 	// total admitted rules (diagnostics)
 	ULONG UlRules() const { return m_pdrgprule->Size(); }

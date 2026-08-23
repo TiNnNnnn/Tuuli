@@ -17,10 +17,14 @@
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CPatternTree.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
@@ -41,6 +45,7 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_UnionShellsDispatch),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_LimitShellDispatch),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_Bucketing),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_PrefixIndex),
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_CapabilityMetadata),
@@ -49,6 +54,171 @@ CDSLEngineTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+namespace
+{
+CExpression *
+PexprPrefixLeaf(CMemoryPool *mp)
+{
+	return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp));
+}
+
+CExpression *
+PexprPrefixJoin(CMemoryPool *mp, CExpression *pexprLeft,
+				CExpression *pexprRight)
+{
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), pexprLeft, pexprRight,
+		PexprPrefixLeaf(mp));
+}
+
+CDSLRule *
+PrulePrefix(CMemoryPool *mp, const CHAR *szRule)
+{
+	return CDSLRuleParser::PdslruleParse(mp, szRule, "EQ", nullptr);
+}
+}  // namespace
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_PrefixIndex()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	CDSLRule *pruleAny = PrulePrefix(
+		mp,
+		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *pruleLeft = PrulePrefix(
+		mp,
+		"InnerJoin<a0 a1>(InnerJoin<a2 a3>(Input<t0>,Input<t1>),Input<t2>)|"
+		"Input<t3>|TableEq(t3,t0)");
+	CDSLRule *pruleRight = PrulePrefix(
+		mp,
+		"InnerJoin<a0 a1>(Input<t0>,InnerJoin<a2 a3>(Input<t1>,Input<t2>))|"
+		"Input<t3>|TableEq(t3,t0)");
+	CDSLRule *pruleFallback = PrulePrefix(
+		mp,
+		"Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == pruleAny || nullptr == pruleLeft ||
+		nullptr == pruleRight || nullptr == pruleFallback)
+	{
+		CRefCount::SafeRelease(pruleAny);
+		CRefCount::SafeRelease(pruleLeft);
+		CRefCount::SafeRelease(pruleRight);
+		CRefCount::SafeRelease(pruleFallback);
+		return GPOS_FAILED;
+	}
+
+	CDSLRulePrefixIndex *pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	// Deliberately insert out of order: returned candidates must follow ordinal.
+	pindex->Insert(pruleRight, 2, COperator::EopLogicalInnerJoin);
+	pindex->Insert(pruleFallback, 3, COperator::EopLogicalInnerJoin);
+	pindex->Insert(pruleAny, 0, COperator::EopLogicalInnerJoin);
+	pindex->Insert(pruleLeft, 1, COperator::EopLogicalInnerJoin);
+
+	CExpression *pexpr = PexprPrefixJoin(
+		mp,
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	CDSLRuleArray *pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	BOOL fValid =
+		1 == pindex->UlFallbackRules() && 3 == pdrgprule->Size() &&
+		pruleAny == (*pdrgprule)[0] && pruleLeft == (*pdrgprule)[1] &&
+		pruleFallback == (*pdrgprule)[2];
+
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleFallback->Release();
+	pruleRight->Release();
+	pruleLeft->Release();
+	pruleAny->Release();
+
+	// Filter chains normalize to one Select. The trie indexes the stable Select
+	// prefix and then distinguishes the exposed base relation. An Input base is
+	// still the general wildcard candidate.
+	CDSLRule *pruleFilterLeft = PrulePrefix(
+		mp,
+		"Filter<p0 a2>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	CDSLRule *pruleFilterInner = PrulePrefix(
+		mp,
+		"Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	CDSLRule *pruleFilterAny = PrulePrefix(
+		mp,
+		"Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Input<t1>|"
+		"TableEq(t1,t0)");
+	if (nullptr == pruleFilterLeft || nullptr == pruleFilterInner ||
+		nullptr == pruleFilterAny)
+	{
+		CRefCount::SafeRelease(pruleFilterLeft);
+		CRefCount::SafeRelease(pruleFilterInner);
+		CRefCount::SafeRelease(pruleFilterAny);
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleFilterLeft, 0, COperator::EopLogicalSelect);
+	pindex->Insert(pruleFilterInner, 1, COperator::EopLogicalSelect);
+	pindex->Insert(pruleFilterAny, 2, COperator::EopLogicalSelect);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp),
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 2 == pdrgprule->Size() &&
+			 pruleFilterInner == (*pdrgprule)[0] &&
+			 pruleFilterAny == (*pdrgprule)[1];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleFilterAny->Release();
+	pruleFilterInner->Release();
+	pruleFilterLeft->Release();
+
+	// Ordinary root Proj has a stable Project prefix even though its matcher may
+	// peel representation shells below it. The direct child path remains fully
+	// discriminated for the common case.
+	CDSLRule *pruleProjLeft = PrulePrefix(
+		mp,
+		"Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	CDSLRule *pruleProjInner = PrulePrefix(
+		mp,
+		"Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	CDSLRule *pruleProjAny = PrulePrefix(
+		mp,
+		"Proj<a0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == pruleProjLeft || nullptr == pruleProjInner ||
+		nullptr == pruleProjAny)
+	{
+		CRefCount::SafeRelease(pruleProjLeft);
+		CRefCount::SafeRelease(pruleProjInner);
+		CRefCount::SafeRelease(pruleProjAny);
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleProjLeft, 0, COperator::EopLogicalProject);
+	pindex->Insert(pruleProjInner, 1, COperator::EopLogicalProject);
+	pindex->Insert(pruleProjAny, 2, COperator::EopLogicalProject);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp),
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 2 == pdrgprule->Size() &&
+			 pruleProjInner == (*pdrgprule)[0] &&
+			 pruleProjAny == (*pdrgprule)[1];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleProjAny->Release();
+	pruleProjInner->Release();
+	pruleProjLeft->Release();
+
+	return fValid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

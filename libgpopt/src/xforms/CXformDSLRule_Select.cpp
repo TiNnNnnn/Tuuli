@@ -163,8 +163,8 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != peng);  // Exfp gated on a non-null engine
 
-	const CDSLRuleArray *pdrgprule =
-		peng->PdrgpruleForRoot(COperator::EopLogicalSelect);
+	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
+		mp, COperator::EopLogicalSelect, pexpr);
 
 	const ULONG ulRules = pdrgprule->Size();
 	for (ULONG ul = 0; ul < ulRules; ul++)
@@ -201,6 +201,7 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 			pxfres->Add(pexprTgt);
 		}
 	}
+	pdrgprule->Release();
 }
 
 // EOF

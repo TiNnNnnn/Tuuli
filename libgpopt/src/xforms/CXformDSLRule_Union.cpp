@@ -43,8 +43,8 @@ CXformDSLRule_Union::Transform(CXformContext *pxfctxt,
 
 	CMemoryPool *mp = pxfctxt->Pmp();
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
-	const CDSLRuleArray *pdrgprule =
-		peng->PdrgpruleForRoot(COperator::EopLogicalUnion);
+	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
+		pxfctxt->Pmp(), COperator::EopLogicalUnion, pexpr);
 	for (ULONG ul = 0; ul < pdrgprule->Size(); ul++)
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
@@ -54,4 +54,5 @@ CXformDSLRule_Union::Transform(CXformContext *pxfctxt,
 			pxfres->Add(pexprTgt);
 		}
 	}
+	pdrgprule->Release();
 }
