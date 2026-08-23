@@ -1,0 +1,2 @@
+# WeTune workload SQL/schema translation used by test_trace_framework.py.
+sqlglot==23.12.1

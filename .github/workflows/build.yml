@@ -84,6 +84,12 @@ jobs:
         with:
           submodules: recursive
 
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: test/dsl/requirements.txt
+
       - name: Add PostgreSQL apt repository (pgdg)
         run: |
           sudo apt-get update
@@ -120,7 +126,9 @@ jobs:
         run: ctest --test-dir build --output-on-failure --no-tests=error -R '^gpopt_dsl_test$'
 
       - name: Run trace framework self-tests
-        run: python3 test/dsl/test_trace_framework.py
+        run: |
+          python3 -m pip install -r test/dsl/requirements.txt
+          python3 test/dsl/test_trace_framework.py
 
       - name: Install extension
         run: sudo cmake --install build
