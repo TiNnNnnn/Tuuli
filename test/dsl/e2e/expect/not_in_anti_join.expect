@@ -1,0 +1,39 @@
+{
+  "description": "PG18 executes uncorrelated NOT IN through a NULL-aware NL anti join",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformImplementLeftAntiSemiCorrelatedApplyNotIn"
+      ],
+      "contains": [
+        "Nested Loop Anti Join",
+        "IS NOT FALSE",
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on",
+      "disable_xforms": [
+        "CXformImplementLeftAntiSemiCorrelatedApplyNotIn"
+      ],
+      "contains": [
+        "Nested Loop Anti Join",
+        "IS NOT FALSE",
+        "Optimizer: pg_orca"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformImplementLeftAntiSemiCorrelatedApplyNotIn"
+    ],
+    "output": [
+      "0"
+    ],
+    "postgres_output": [
+      "0"
+    ]
+  }
+}

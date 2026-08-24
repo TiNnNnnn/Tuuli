@@ -1,0 +1,30 @@
+{
+  "description": "Correlated NOT IN preserves empty-set and NULL semantics",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on",
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ]
+  }
+}

@@ -88,3 +88,9 @@ Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsS
 # verifies that capability-aware preprocessing preserves the source shape for
 # DSL OFF/ON comparison instead of letting native LOJ pruning erase it first.
 Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)
+
+# MONSOON/dataset/rules/6t2n_normal_reduce.txt:27. An inner-join equality lets
+# IN use the key from either side. The UNION ALL inner exercises the post-unnest
+# SemiJoin carrier and correlated SetOp property boundary without rule-specific
+# engine code.
+InSubFilter<a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a5>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),Input<t5>)|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1)

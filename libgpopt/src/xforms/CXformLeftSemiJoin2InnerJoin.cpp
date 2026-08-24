@@ -107,6 +107,18 @@ CXformLeftSemiJoin2InnerJoin::Transform(CXformContext *pxfctxt,
 	CExpression *pexprOuter = (*pexpr)[0];
 	CExpression *pexprInner = (*pexpr)[1];
 	CExpression *pexprScalar = (*pexpr)[2];
+	CColRefSet *pcrsJoinOutput = GPOS_NEW(mp) CColRefSet(
+		mp, *pexprOuter->DeriveOutputColumns());
+	pcrsJoinOutput->Union(pexprInner->DeriveOutputColumns());
+	const BOOL fPredicateCovered =
+		pcrsJoinOutput->ContainsAll(pexprScalar->DeriveUsedColumns());
+	pcrsJoinOutput->Release();
+	if (!fPredicateCovered)
+	{
+		// A swapped SemiJoin may carry references supplied by a surrounding
+		// join. They cannot become grouping columns of this inner child.
+		return;
+	}
 
 	pexprOuter->AddRef();
 	pexprInner->AddRef();

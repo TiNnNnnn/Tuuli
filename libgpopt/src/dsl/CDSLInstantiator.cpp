@@ -320,9 +320,62 @@ PexprRemapProjectListInputs(CMemoryPool *mp, CExpression *pexprList,
 		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
 }
 
+// A GbAgg grouping CColRef is both an input identity and an output identity.
+// Replacing it in the operator would leak the target-side column into the
+// parent memo group. When a rewritten child no longer produces a grouping
+// column, define that stable source identity from its mapped target column in a
+// projection below the aggregate instead. The projection is omitted when all
+// grouping identities remain available.
+CExpression *
+PexprEnsureAggGroupingColumns(CMemoryPool *mp, CExpression *pexprChild,
+							  CColRefArray *pdrgpcrGrouping,
+							  UlongToColRefMap *colref_mapping)
+{
+	CColRefSet *pcrsChild = pexprChild->DeriveOutputColumns();
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < pdrgpcrGrouping->Size(); ul++)
+	{
+		CColRef *pcrSource = (*pdrgpcrGrouping)[ul];
+		if (pcrsChild->FMember(pcrSource))
+		{
+			continue;
+		}
+
+		const ULONG ulSourceId = pcrSource->Id();
+		CColRef *pcrTarget = colref_mapping->Find(&ulSourceId);
+		if (nullptr == pcrTarget || !pcrsChild->FMember(pcrTarget) ||
+			!pcrSource->RetrieveType()->MDId()->Equals(
+				pcrTarget->RetrieveType()->MDId()) ||
+			pcrSource->TypeModifier() != pcrTarget->TypeModifier())
+		{
+			pdrgpexprElems->Release();
+			return nullptr;
+		}
+
+		CExpression *pexprIdent = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarIdent(mp, pcrTarget));
+		pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectElement(mp, pcrSource),
+			pexprIdent));
+	}
+
+	if (0 == pdrgpexprElems->Size())
+	{
+		pdrgpexprElems->Release();
+		pexprChild->AddRef();
+		return pexprChild;
+	}
+
+	CExpression *pexprList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+	pexprChild->AddRef();
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprChild, pexprList);
+}
+
 // Restore Project(GbAgg(...)) around a rewritten deepest input. Aggregate
-// grouping/argument columns follow the target attrs, while project-element
-// output columns remain the source schema exposed to parent operators.
+// scalar arguments follow the target attrs, while grouping and project-element
+// output identities remain the source schema exposed to parent operators.
 CExpression *
 PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
 							CExpression *pexprChild,
@@ -352,22 +405,18 @@ PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
 	COperator *popRestored = nullptr;
 	if (COperator::EopLogicalGbAgg == eopid)
 	{
-		popRestored = pexprShell->Pop()->PopCopyWithRemappedColumns(
-			mp, colref_mapping, false /*must_exist*/);
-		CColRefArray *pdrgpcrGrouping =
-			CLogicalGbAgg::PopConvert(popRestored)->Pdrgpcr();
-		CColRefSet *pcrsGrouping = GPOS_NEW(mp) CColRefSet(mp);
-		pcrsGrouping->Include(pdrgpcrGrouping);
-		const BOOL fGroupingAvailable =
-			pexprRestoredChild->DeriveOutputColumns()->ContainsAll(
-				pcrsGrouping);
-		pcrsGrouping->Release();
-		if (!fGroupingAvailable)
+		CLogicalGbAgg *popGbAgg =
+			CLogicalGbAgg::PopConvert(pexprShell->Pop());
+		CExpression *pexprGroupingChild = PexprEnsureAggGroupingColumns(
+			mp, pexprRestoredChild, popGbAgg->Pdrgpcr(), colref_mapping);
+		pexprRestoredChild->Release();
+		pexprRestoredChild = pexprGroupingChild;
+		if (nullptr == pexprRestoredChild)
 		{
-			popRestored->Release();
-			pexprRestoredChild->Release();
 			return nullptr;
 		}
+		pexprShell->Pop()->AddRef();
+		popRestored = pexprShell->Pop();
 	}
 	else
 	{
@@ -375,8 +424,23 @@ PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
 		popRestored = pexprShell->Pop();
 	}
 
-	CExpression *pexprList = PexprRemapProjectListInputs(
-		mp, (*pexprShell)[1], colref_mapping);
+	CExpression *pexprList = nullptr;
+	// A restored aggregate exposes its stable source identities again, so an
+	// outer Project should keep using its original scalar inputs when they are
+	// available. Aggregate arguments, by contrast, consume the rewritten child
+	// and must follow the target-side mapping.
+	if (COperator::EopLogicalProject == eopid &&
+		pexprRestoredChild->DeriveOutputColumns()->ContainsAll(
+			(*pexprShell)[1]->DeriveUsedColumns()))
+	{
+		(*pexprShell)[1]->AddRef();
+		pexprList = (*pexprShell)[1];
+	}
+	else
+	{
+		pexprList = PexprRemapProjectListInputs(
+			mp, (*pexprShell)[1], colref_mapping);
+	}
 	if (nullptr == pexprList ||
 		!pexprRestoredChild->DeriveOutputColumns()->ContainsAll(
 			pexprList->DeriveUsedColumns()))
@@ -1768,6 +1832,8 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 		pmodel->PdrgpcrAttrs(psymSourceAttrs);
 	CColRefArray *pdrgpcrTargetAttrs =
 		pmodel->PdrgpcrAttrs(psymTargetAttrs);
+	CExpression *pexprCarrier =
+		pmodel->PexprInSubCarrier(psymSourceAttrs);
 	CExpression *pexprPred =
 		(nullptr == pexprPredBound)
 			? nullptr
@@ -1807,10 +1873,24 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 	CColRef *pcrInner = pcrsInnerUsed->PcrFirst();
 	pcrsInnerUsed->Release();
 
-	CExpression *pexprResult =
-		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+	CExpression *pexprResult = nullptr;
+	if (nullptr != pexprCarrier &&
+		COperator::EopLogicalLeftSemiJoin ==
+			pexprCarrier->Pop()->Eopid())
+	{
+		CXform::EXformId exfidOrigin =
+			CLogicalLeftSemiJoin::PopConvert(pexprCarrier->Pop())
+				->OriginXform();
+		pexprResult = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp, exfidOrigin),
+			pexprOuter, pexprInner, pexprPred);
+	}
+	else
+	{
+		pexprResult = CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
 			m_mp, pexprOuter, pexprInner, pcrInner,
 			COperator::EopScalarSubqueryAny, pexprPred);
+	}
 
 	CExpressionArray *pdrgpexprResidual =
 		pmodel->PdrgpexprInSubResidual();

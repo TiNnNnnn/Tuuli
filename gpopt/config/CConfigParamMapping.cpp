@@ -509,6 +509,11 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 		traceflag_bitset->Union(hash_join_bitset);
 		hash_join_bitset->Release();
 	}
+	// PostgreSQL 18 has no null-aware hash anti join executor. Keep NOT IN on
+	// the nested-loop implementation; DXL-to-Plan translation makes its join
+	// quals NULL-aware before mapping it to ordinary JOIN_ANTI.
+	traceflag_bitset->ExchangeSet(GPOPT_DISABLE_XFORM_TF(
+		CXform::ExfLeftAntiSemiJoinNotIn2HashJoinNotIn));
 
 	if (!enable_dynamic_tablescan)
 	{

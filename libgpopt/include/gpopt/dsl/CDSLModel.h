@@ -74,6 +74,7 @@ private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
+	CDSLSymbolToExpressionMap *m_phmInSubCarrier;
 	CDSLSymbolToExpressionMap *m_phmFilterCarrier;
 	CDSLSymbolToExpressionMap *m_phmProjList;
 	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
@@ -188,6 +189,11 @@ public:
 
 	// Look up the predicate for a resolved source attrs symbol. No AddRef.
 	CExpression *PexprInSubPred(const CDSLSymbol *psymAttrs) const;
+
+	// Record the post-unnest Apply/SemiJoin representation used to match one
+	// InSubFilter. Target construction preserves that phase representation.
+	BOOL FSetInSubCarrier(const CDSLSymbol *psymAttrs, CExpression *pexpr);
+	CExpression *PexprInSubCarrier(const CDSLSymbol *psymAttrs) const;
 
 	// A WeTune SimpleFilter may be represented by a relational subquery-filter
 	// carrier in ORCA. Record it by the Filter predicate symbol so target

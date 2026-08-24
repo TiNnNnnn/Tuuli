@@ -72,6 +72,19 @@ def native_setting(enabled: bool) -> str:
     return f"SET pg_orca.dsl_only_xforms='{value}';"
 
 
+def disabled_xform_settings(expected: dict[str, object]) -> str:
+    statements = []
+    for xform in expected.get("disable_xforms", []):
+        if not isinstance(xform, str) or not re.fullmatch(r"[A-Za-z0-9_]+", xform):
+            raise ValueError(f"invalid xform name: {xform!r}")
+        # DO avoids adding the disable_xform() result row to COPY output while
+        # retaining the setting in this psql session.
+        statements.append(
+            f"DO $dsl$ BEGIN PERFORM disable_xform('{xform}'); END $dsl$;"
+        )
+    return "\n".join(statements)
+
+
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
@@ -82,6 +95,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
 {native_setting(bool(plan.get('native', True)))}
+{disabled_xform_settings(plan)}
 SET optimizer_print_xform={trace};
 SET optimizer_print_xform_results={trace};
 SET pg_orca.trace_dsl_rule={trace};
@@ -111,7 +125,7 @@ def produced_alternative(output: str, xform: str) -> bool:
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
-        for key in ("name", "dsl", "native", "trace")
+        for key in ("name", "dsl", "native", "trace", "disable_xforms")
         if key in expected
     }
     if "contains" in expected:
@@ -144,6 +158,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
 {native_setting(bool(expected.get('native', True)))}
+{disabled_xform_settings(expected)}
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
         tuples_only=True,
@@ -157,7 +172,11 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
         tuples_only=True,
     )
-    actual = {key: expected[key] for key in ("native",) if key in expected}
+    actual = {
+        key: expected[key]
+        for key in ("native", "disable_xforms")
+        if key in expected
+    }
     actual["output"] = dsl_rows.splitlines()
     actual["postgres_output"] = postgres_rows.splitlines()
     return actual

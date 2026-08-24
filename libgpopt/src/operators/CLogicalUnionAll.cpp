@@ -253,17 +253,26 @@ CLogicalUnionAll::PcrsStat(CMemoryPool *mp,
 		return pcrsInput;
 	}
 
+	// A correlated parent may also request statistics for outer columns.
+	// UnionAll can map only columns that it actually produces.
+	CColRefSet *pcrsOutputRequired =
+		GPOS_NEW(mp) CColRefSet(mp, *pcrsInput);
+	CColRefSet *pcrsOutput = GPOS_NEW(mp) CColRefSet(mp, m_pdrgpcrOutput);
+	pcrsOutputRequired->Intersection(pcrsOutput);
+	pcrsOutput->Release();
+
 	CColRefSet *pcrsChildInput = (*m_pdrgpcrsInput)[child_index];
-	if (pcrsChildInput->ContainsAll(pcrsInput))
+	if (pcrsChildInput->ContainsAll(pcrsOutputRequired))
 	{
-		pcrsInput->AddRef();
-		return pcrsInput;
+		return pcrsOutputRequired;
 	}
 	else
 	{
 		UlongToColRefMap *mapping = CUtils::PhmulcrMapping(
 			mp, m_pdrgpcrOutput, (*m_pdrgpdrgpcrInput)[child_index]);
-		CColRefSet *pcrs = CUtils::PcrsRemap(mp, pcrsInput, mapping, true);
+		CColRefSet *pcrs =
+			CUtils::PcrsRemap(mp, pcrsOutputRequired, mapping, true);
+		pcrsOutputRequired->Release();
 		mapping->Release();
 		return pcrs;
 	}

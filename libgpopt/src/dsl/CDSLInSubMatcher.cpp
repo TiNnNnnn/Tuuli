@@ -330,8 +330,15 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
+	const CDSLSymbol *psymAttrs = (*pop->Pdrgpsym())[0];
 	(*pexpr)[2]->AddRef();
-	return pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], (*pexpr)[2]);
+	BOOL fStored = pmodel->FSetInSubPred(psymAttrs, (*pexpr)[2]);
+	if (fStored)
+	{
+		pexpr->AddRef();
+		fStored = pmodel->FSetInSubCarrier(psymAttrs, pexpr);
+	}
+	return fStored;
 }
 
 BOOL
@@ -636,8 +643,15 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		{
 			return false;
 		}
+		const CDSLSymbol *psymAttrs = (*pop->Pdrgpsym())[0];
 		(*pexpr)[2]->AddRef();
-		return pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], (*pexpr)[2]);
+		BOOL fStored = pmodel->FSetInSubPred(psymAttrs, (*pexpr)[2]);
+		if (fStored)
+		{
+			pexpr->AddRef();
+			fStored = pmodel->FSetInSubCarrier(psymAttrs, pexpr);
+		}
+		return fStored;
 	}
 
 	return false;

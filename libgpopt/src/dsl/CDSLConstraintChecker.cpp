@@ -881,13 +881,11 @@ static BOOL
 FReferringDomainCoveredByFilter(CMemoryPool *mp,
 							CExpression *pexprReferring,
 							const CColRefArray *pdrgpcrLocal,
-							CExpression *pexprReferred,
 							const CColRefArray *pdrgpcrReferred,
 							CExpression *pexprFilter)
 {
 	if (nullptr == pexprReferring || nullptr == pdrgpcrLocal ||
-		nullptr == pexprReferred || nullptr == pdrgpcrReferred ||
-		nullptr == pexprFilter ||
+		nullptr == pdrgpcrReferred || nullptr == pexprFilter ||
 		pdrgpcrLocal->Size() != pdrgpcrReferred->Size())
 	{
 		return false;
@@ -922,17 +920,50 @@ FReferringDomainCoveredByFilter(CMemoryPool *mp,
 		}
 	}
 
-	CPropConstraint *ppcLocal = pexprReferring->DerivePropertyConstraint();
-	CPropConstraint *ppcReferred = pexprReferred->DerivePropertyConstraint();
-	CConstraint *pcnstrLocalRoot = ppcLocal->Pcnstr();
-	CConstraint *pcnstrReferredRoot = ppcReferred->Pcnstr();
-	if (nullptr == pcnstrLocalRoot || nullptr == pcnstrReferredRoot)
+	// Derive the admitted key domain from this filter predicate itself. Using
+	// the Select's combined property would be unsound when the predicate is not
+	// constraint-convertible (for example a quantified subquery): in that case
+	// the property can contain only inherited base-table constraints and make an
+	// arbitrary row-reducing filter look domain preserving.
+	// Constraint derivation deliberately skips unsupported AND children. That is
+	// useful for estimation, but an inclusion-dependency proof must account for
+	// every conjunct: an omitted conjunct can further reduce the referred key
+	// domain. Require each flattened conjunct to be representable before using
+	// the combined constraint.
+	CExpressionArray *pdrgpexprConj =
+		CPredicateUtils::PdrgpexprConjuncts(mp, pexprFilter);
+	BOOL fFullyConstrained = true;
+	for (ULONG ul = 0; fFullyConstrained && ul < pdrgpexprConj->Size(); ul++)
+	{
+		CColRefSetArray *pdrgpcrsConj = nullptr;
+		CConstraint *pcnstrConj = CConstraint::PcnstrFromScalarExpr(
+			mp, (*pdrgpexprConj)[ul], &pdrgpcrsConj);
+		fFullyConstrained = nullptr != pcnstrConj &&
+			!pcnstrConj->IsConstraintUnbounded();
+		CRefCount::SafeRelease(pcnstrConj);
+		CRefCount::SafeRelease(pdrgpcrsConj);
+	}
+	pdrgpexprConj->Release();
+	if (!fFullyConstrained)
 	{
 		return false;
 	}
 
+	CColRefSetArray *pdrgpcrsFilter = nullptr;
+	CConstraint *pcnstrFilterRoot = CConstraint::PcnstrFromScalarExpr(
+		mp, pexprFilter, &pdrgpcrsFilter);
+	CPropConstraint *ppcLocal = pexprReferring->DerivePropertyConstraint();
+	CConstraint *pcnstrLocalRoot = ppcLocal->Pcnstr();
+	if (nullptr == pcnstrLocalRoot || nullptr == pcnstrFilterRoot)
+	{
+		CRefCount::SafeRelease(pdrgpcrsFilter);
+		CRefCount::SafeRelease(pcnstrFilterRoot);
+		return false;
+	}
+
+	BOOL fCovered = true;
 	CColRefSetIter crsiConstraints(*pcrsUsed);
-	while (crsiConstraints.Advance())
+	while (fCovered && crsiConstraints.Advance())
 	{
 		CColRef *pcrReferred = crsiConstraints.Pcr();
 		ULONG ulMatch = 0;
@@ -942,26 +973,25 @@ FReferringDomainCoveredByFilter(CMemoryPool *mp,
 		}
 		CColRef *pcrLocal = (*pdrgpcrLocal)[ulMatch];
 		CConstraint *pcnstrReferred =
-			pcnstrReferredRoot->Pcnstr(mp, pcrReferred);
+			pcnstrFilterRoot->Pcnstr(mp, pcrReferred);
 		CConstraint *pcnstrLocal = pcnstrLocalRoot->Pcnstr(mp, pcrLocal);
 		if (nullptr == pcnstrReferred || nullptr == pcnstrLocal)
 		{
 			CRefCount::SafeRelease(pcnstrReferred);
 			CRefCount::SafeRelease(pcnstrLocal);
-			return false;
+			fCovered = false;
+			continue;
 		}
 		CConstraint *pcnstrMapped =
 			pcnstrReferred->PcnstrRemapForColumn(mp, pcrLocal);
-		BOOL fCovered = pcnstrMapped->Contains(pcnstrLocal);
+		fCovered = pcnstrMapped->Contains(pcnstrLocal);
 		pcnstrMapped->Release();
 		pcnstrReferred->Release();
 		pcnstrLocal->Release();
-		if (!fCovered)
-		{
-			return false;
-		}
 	}
-	return true;
+	pcnstrFilterRoot->Release();
+	CRefCount::SafeRelease(pdrgpcrsFilter);
+	return fCovered;
 }
 
 static BOOL
@@ -995,7 +1025,7 @@ FReferredSubtreeCoversAttrs(CMemoryPool *mp, CExpression *pexpr,
 		case COperator::EopLogicalSelect:
 			return 1 < pexpr->Arity() &&
 				   FReferringDomainCoveredByFilter(
-					   mp, pexprReferring, pdrgpcrLocal, pexpr,
+					   mp, pexprReferring, pdrgpcrLocal,
 					   pdrgpcrAttrs, (*pexpr)[1]) &&
 				   FReferredSubtreeCoversAttrs(
 					   mp, (*pexpr)[0], pexprOwner, pdrgpcrAttrs,

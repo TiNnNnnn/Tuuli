@@ -16,6 +16,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from build_reference_manifest import build_manifest
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
+from run_e2e_cases import disabled_xform_settings
 from run_trace_corpus import (
     orca_fallback_reason,
     parameter_count,
@@ -26,6 +27,19 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_e2e_can_force_a_physical_xform_path_without_result_rows(self) -> None:
+        self.assertEqual(
+            disabled_xform_settings(
+                {"disable_xforms": ["CXformImplementLeftAntiSemiJoin"]}
+            ),
+            "DO $dsl$ BEGIN PERFORM disable_xform("
+            "'CXformImplementLeftAntiSemiJoin'); END $dsl$;",
+        )
+
+    def test_e2e_rejects_unsafe_xform_names(self) -> None:
+        with self.assertRaisesRegex(ValueError, "invalid xform name"):
+            disabled_xform_settings({"disable_xforms": ["x'); DROP TABLE t; --"]})
+
     def test_postgres_unique_indexes_become_global_key_metadata(self) -> None:
         schema = (
             "CREATE TABLE t(a integer, b integer); "

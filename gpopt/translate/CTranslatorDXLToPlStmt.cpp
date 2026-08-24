@@ -2399,6 +2399,23 @@ CTranslatorDXLToPlStmt::TranslateDXLNLJoin(
 		join_filter_dxlnode,
 		nullptr,  // translate context for the base table
 		child_contexts, output_context);
+	if (EdxljtLeftAntiSemijoinNotIn == dxl_nlj->GetJoinType())
+	{
+		// PostgreSQL 18 has no distinct null-aware anti join executor. A NOT IN
+		// inner row suppresses its outer row when the comparison is TRUE or
+		// UNKNOWN, so make each conjunct match unless it is explicitly FALSE.
+		// For a conjunction this is equivalent to wrapping the complete predicate:
+		// any FALSE conjunct prevents a match, while TRUE/NULL-only conjuncts do.
+		ListCell *lc = nullptr;
+		ForEach(lc, join->joinqual)
+		{
+			BooleanTest *test = MakeNode(BooleanTest);
+			test->arg = static_cast<Expr *>(lfirst(lc));
+			test->booltesttype = IS_NOT_FALSE;
+			test->location = -1;
+			lfirst(lc) = test;
+		}
+	}
 
 	// create nest loop params for index nested loop joins
 	if (dxl_nlj->IsIndexNLJ())
@@ -6748,9 +6765,9 @@ CTranslatorDXLToPlStmt::GetGPDBJoinTypeFromDXLJoinType(EdxlJoinType join_type)
 			jt = JOIN_ANTI;
 			break;
 		case EdxljtLeftAntiSemijoinNotIn:
-			/* JOIN_LASJ_NOTIN does not exist in PG18 yet; fall back */
-			GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
-					   GPOS_WSZ_LIT("LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18"));
+			// The PG18 integration disables null-aware hash anti joins and wraps
+			// NL join quals in IS NOT FALSE before using the standard anti executor.
+			jt = JOIN_ANTI;
 			break;
 		case EdxljtRightAntiSemijoin:
 			jt = JOIN_RIGHT_ANTI;

@@ -1,0 +1,39 @@
+{
+  "description": "InSub join-key remap preserves a post-unnest SetOp carrier",
+  "plans": [
+    {
+      "name": "off-native-on",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on-native-on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "stage=applied bindings=",
+        "Rule: InSubFilter",
+        "Generated:"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}

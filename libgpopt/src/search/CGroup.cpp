@@ -1068,18 +1068,32 @@ CGroup::MergeGroup()
 	{
 		return;
 	}
-	GPOS_ASSERT(FExplored());
 	GPOS_ASSERT(!FImplemented());
 
 	// resolve target group
 	ResolveDuplicateMaster();
 	CGroup *pgroupTarget = m_pgroupDuplicate;
+	// Rehash can also discover equivalence between groups that became
+	// unreachable before their exploration jobs ran. Such groups may both still
+	// be unexplored; merging them is safe, and their state remains unchanged
+	// unless the target equivalence class has already been explored.
 
 	// move group expressions from this group to target
 	while (!m_listGExprs.IsEmpty())
 	{
 		CGroupExpression *pgexpr = m_listGExprs.RemoveHead();
 		m_ulGExprs--;
+
+		if (pgroupTarget->FExplored() && !pgexpr->FExplored())
+		{
+			// Group merge runs after exploration has quiesced. An expression from
+			// an unreachable duplicate group has not had a group-expression job,
+			// but its equivalence class was explored through the target group.
+			// Preserve it as an implementation alternative while maintaining the
+			// invariant that every expression in an explored group is explored.
+			pgexpr->SetState(CGroupExpression::estExploring);
+			pgexpr->SetState(CGroupExpression::estExplored);
+		}
 
 		pgexpr->Reset(pgroupTarget, pgroupTarget->m_ulGExprs++);
 		pgroupTarget->Insert(pgexpr);

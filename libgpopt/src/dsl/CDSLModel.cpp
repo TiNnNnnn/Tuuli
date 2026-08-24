@@ -26,6 +26,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
 	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmInSubCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmFilterCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjLimitShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
@@ -44,6 +45,7 @@ CDSLModel::~CDSLModel()
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
 	m_phmInSubPred->Release();
+	m_phmInSubCarrier->Release();
 	m_phmFilterCarrier->Release();
 	m_phmProjList->Release();
 	m_phmProjLimitShell->Release();
@@ -89,6 +91,35 @@ CDSLModel::PexprInSubPred(const CDSLSymbol *psymAttrs) const
 	GPOS_ASSERT(nullptr != psymAttrs);
 	GPOS_ASSERT(EdslsymAttrs == psymAttrs->Esymkind());
 	return m_phmInSubPred->Find(psymAttrs);
+}
+
+BOOL
+CDSLModel::FSetInSubCarrier(const CDSLSymbol *psymAttrs,
+							 CExpression *pexpr)
+{
+	GPOS_ASSERT(nullptr != psymAttrs);
+	GPOS_ASSERT(EdslsymAttrs == psymAttrs->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CExpression *pexprExisting = m_phmInSubCarrier->Find(psymAttrs);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmInSubCarrier->Insert(
+		const_cast<CDSLSymbol *>(psymAttrs), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprInSubCarrier(const CDSLSymbol *psymAttrs) const
+{
+	GPOS_ASSERT(nullptr != psymAttrs);
+	GPOS_ASSERT(EdslsymAttrs == psymAttrs->Esymkind());
+	return m_phmInSubCarrier->Find(psymAttrs);
 }
 
 BOOL

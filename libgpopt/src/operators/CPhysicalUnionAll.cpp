@@ -198,7 +198,17 @@ CPhysicalUnionAll::PcrsRequired(CMemoryPool *mp,
 								ULONG			   // ulOptReq
 )
 {
-	return MapOutputColRefsToInput(mp, pcrsRequired, child_index);
+	// Required properties may include correlated columns supplied outside this
+	// SetOp. Only locally produced output columns can be mapped to a child.
+	CColRefSet *pcrsLocalRequired =
+		GPOS_NEW(mp) CColRefSet(mp, *pcrsRequired);
+	CColRefSet *pcrsOutput = GPOS_NEW(mp) CColRefSet(mp, m_pdrgpcrOutput);
+	pcrsLocalRequired->Intersection(pcrsOutput);
+	pcrsOutput->Release();
+	CColRefSet *pcrsChild =
+		MapOutputColRefsToInput(mp, pcrsLocalRequired, child_index);
+	pcrsLocalRequired->Release();
+	return pcrsChild;
 }
 
 //---------------------------------------------------------------------------

@@ -66,6 +66,7 @@ public:
 	static GPOS_RESULT EresUnittest_LeftJoinElimFires();
 	static GPOS_RESULT EresUnittest_LeftJoinElimBelowAgg();
 	static GPOS_RESULT EresUnittest_AggregateInputRemapped();
+	static GPOS_RESULT EresUnittest_MinimalGroupingAggregateRemapped();
 
 	// the same rule must NOT fire when t1's join key is not unique (the Unique
 	// guard would let the join duplicate left rows).

@@ -161,7 +161,7 @@ CDSLInSubTest::EresUnittest_DecorrelatedSemiJoinRemap()
 	CDSLInstantiator instantiator(mp);
 	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiJoin ==
 				pexprTarget->Pop()->Eopid());
 	CColRefSet *pcrsPred = (*pexprTarget)[2]->DeriveUsedColumns();
 	GPOS_ASSERT(!pcrsPred->FMember((*pdrgpcrLeft)[0]));
