@@ -70,16 +70,24 @@ CLogicalLeftAntiSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
-	(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinAntiSemiJoinSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinSemiJoinSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinInnerJoinSwap);
+	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinAntiSemiJoinSwap);
+		(void) xform_set->ExchangeSet(
+			CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap);
+		(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinSemiJoinSwap);
+		(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinInnerJoinSwap);
+	}
 	(void) xform_set->ExchangeSet(CXform::ExfLeftAntiSemiJoin2CrossProduct);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftAntiSemiJoin2NLJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftAntiSemiJoin2HashJoin);
 	(void) xform_set->ExchangeSet(
 		CXform::ExfLeftAntiSemiJoin2HashJoinBuildOuter);
 	(void) xform_set->ExchangeSet(CXform::ExfSemiJoin2IndexGetApply);
+	if (FDPHyperRegionRoot())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+	}
 	return xform_set;
 }
 

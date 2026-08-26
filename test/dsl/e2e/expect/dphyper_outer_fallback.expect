@@ -1,5 +1,5 @@
 {
-  "description": "DPHyper replacement treats an outer-join subtree as an opaque atom while enumerating its enclosing inner-join region",
+  "description": "DPHyper replacement enumerates a CD-C-safe mixed LeftOuter/Inner join region without losing outer-join direction",
   "plans": [
     {
       "name": "replacement-boundary",
@@ -9,7 +9,7 @@
       "trace": true,
       "contains": [
         "DPHyper: status=applied",
-        "nodes=2",
+        "nodes=3",
         "mode=replacement",
         "Xform: CXformImplementInnerJoin"
       ],
@@ -18,6 +18,25 @@
         "Xform: CXformExpandNAryJoinDPv2",
         "Xform: CXformInnerJoinCommutativity",
         "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "mixed-budget-native-fallback",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_pair_budget": 1,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=fallback reason=pair_budget",
+        "pairs=1 budget=1",
+        "owner=native_binary",
+        "Xform: CXformInnerJoinCommutativity"
+      ],
+      "not_contains": [
+        "DPHyper: status=applied",
+        "Xform: CXformExpandNAryJoinDPv2"
       ],
       "joins": 2
     }

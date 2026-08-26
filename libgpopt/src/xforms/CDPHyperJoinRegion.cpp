@@ -33,6 +33,28 @@ FAtomMatches(CExpression *left, CExpression *right)
 	return left->Matches(right);
 }
 
+BOOL
+FCommutativeJoin(COperator::EOperatorId join_type)
+{
+	return COperator::EopLogicalInnerJoin == join_type ||
+		   COperator::EopLogicalFullOuterJoin == join_type;
+}
+
+CBitSet *
+PbsMap(CMemoryPool *mp, const CBitSet *source,
+	   const std::vector<ULONG> &mapping)
+{
+	CBitSet *mapped = GPOS_NEW(mp) CBitSet(mp);
+	CBitSetIter iter(*source);
+	while (iter.Advance())
+	{
+		GPOS_ASSERT(iter.Bit() < mapping.size() &&
+					gpos::ulong_max != mapping[iter.Bit()]);
+		(void) mapped->ExchangeSet(mapping[iter.Bit()]);
+	}
+	return mapped;
+}
+
 template <class Match>
 BOOL
 FUnorderedMatches(CExpressionArray *left, CExpressionArray *right,
@@ -67,13 +89,15 @@ FUnorderedMatches(CExpressionArray *left, CExpressionArray *right,
 
 CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 	CMemoryPool *mp, CExpressionArray *atoms, CExpressionArray *predicates,
-	const CDPHyperGraph *graph)
+	const CDPHyperGraph *graph, const CJoinRegionSpec *spec)
 	: m_mp(mp),
 	  m_atoms(GPOS_NEW(mp) CExpressionArray(mp)),
 	  m_predicates(GPOS_NEW(mp) CExpressionArray(mp)),
 	  m_hash(0)
 {
 	GPOS_ASSERT(nullptr != graph && 0 == graph->DirectedEdgeCount() % 2);
+	GPOS_ASSERT_IMP(nullptr != spec && !spec->PureInner(),
+					spec->EdgeCount() == graph->DirectedEdgeCount() / 2);
 	std::vector<ULONG> atom_hashes;
 	std::vector<ULONG> predicate_hashes;
 	std::vector<ULONG> edge_hashes;
@@ -96,16 +120,58 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 	for (ULONG edge = 0; edge < graph->DirectedEdgeCount(); edge += 2)
 	{
 		const CDPHyperGraph::SEdge *graph_edge = graph->Edge(edge);
-		m_edges.emplace_back(GPOS_NEW(mp)
-							 CBitSet(mp, *graph_edge->m_left),
-						 GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_right));
-		const ULONG smaller = std::min(graph_edge->m_left->Size(),
-									 graph_edge->m_right->Size());
-		const ULONG larger = std::max(graph_edge->m_left->Size(),
-								  graph_edge->m_right->Size());
-		edge_hashes.push_back(CombineHashes(
-			gpos::HashValue<ULONG>(&smaller),
-			gpos::HashValue<ULONG>(&larger)));
+		const ULONG edge_id = edge / 2;
+		const CJoinRegionSpec::CEdge *spec_edge =
+			(nullptr != spec && !spec->PureInner()) ? spec->Edge(edge_id)
+												 : nullptr;
+		SEdge snapshot{nullptr == spec_edge
+						   ? COperator::EopLogicalInnerJoin
+						   : spec_edge->JoinType(),
+					   GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_left),
+					   GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_right),
+					   {}};
+		if (nullptr != spec_edge)
+		{
+			for (const CJoinRegionSpec::CConflictRule *rule :
+				 spec_edge->ConflictRules())
+			{
+				snapshot.m_conflict_rules.push_back(
+					{GPOS_NEW(mp) CBitSet(mp, *rule->Activate()),
+					 GPOS_NEW(mp) CBitSet(mp, *rule->Required())});
+			}
+		}
+		m_edges.push_back(snapshot);
+
+		ULONG left_size = graph_edge->m_left->Size();
+		ULONG right_size = graph_edge->m_right->Size();
+		if (FCommutativeJoin(snapshot.m_join_type) && left_size > right_size)
+		{
+			std::swap(left_size, right_size);
+		}
+		const ULONG join_type = snapshot.m_join_type;
+		ULONG edge_hash = gpos::HashValue<ULONG>(&join_type);
+		edge_hash = CombineHashes(
+			edge_hash, gpos::HashValue<ULONG>(&left_size));
+		edge_hash = CombineHashes(
+			edge_hash, gpos::HashValue<ULONG>(&right_size));
+		std::vector<ULONG> rule_hashes;
+		for (const SConflictRule &rule : snapshot.m_conflict_rules)
+		{
+			const ULONG activate_size = rule.m_activate->Size();
+			const ULONG required_size = rule.m_required->Size();
+			rule_hashes.push_back(CombineHashes(
+				gpos::HashValue<ULONG>(&activate_size),
+				gpos::HashValue<ULONG>(&required_size)));
+		}
+		std::sort(rule_hashes.begin(), rule_hashes.end());
+		const ULONG rule_count = rule_hashes.size();
+		edge_hash = CombineHashes(
+			edge_hash, gpos::HashValue<ULONG>(&rule_count));
+		for (ULONG rule_hash : rule_hashes)
+		{
+			edge_hash = CombineHashes(edge_hash, rule_hash);
+		}
+		edge_hashes.push_back(edge_hash);
 	}
 	std::sort(atom_hashes.begin(), atom_hashes.end());
 	std::sort(predicate_hashes.begin(), predicate_hashes.end());
@@ -136,10 +202,15 @@ CDPHyperGraphFingerprint::~CDPHyperGraphFingerprint()
 {
 	m_atoms->Release();
 	m_predicates->Release();
-	for (const auto &edge : m_edges)
+	for (const SEdge &edge : m_edges)
 	{
-		edge.first->Release();
-		edge.second->Release();
+		edge.m_left->Release();
+		edge.m_right->Release();
+		for (const SConflictRule &rule : edge.m_conflict_rules)
+		{
+			rule.m_activate->Release();
+			rule.m_required->Release();
+		}
 	}
 }
 
@@ -164,22 +235,12 @@ CDPHyperGraphFingerprint::Matches(
 		if (atom == m_atoms->Size())
 		{
 			std::vector<BOOL> used_edges(other->m_edges.size(), false);
-			for (const auto &edge : m_edges)
+			for (const SEdge &edge : m_edges)
 			{
 				CAutoRef<CBitSet> mapped_left(
-					GPOS_NEW(m_mp) CBitSet(m_mp));
+					PbsMap(m_mp, edge.m_left, mapping));
 				CAutoRef<CBitSet> mapped_right(
-					GPOS_NEW(m_mp) CBitSet(m_mp));
-				CBitSetIter left_iter(*edge.first);
-				while (left_iter.Advance())
-				{
-					(void) mapped_left->ExchangeSet(mapping[left_iter.Bit()]);
-				}
-				CBitSetIter right_iter(*edge.second);
-				while (right_iter.Advance())
-				{
-					(void) mapped_right->ExchangeSet(mapping[right_iter.Bit()]);
-				}
+					PbsMap(m_mp, edge.m_right, mapping));
 
 				BOOL found = false;
 				for (ULONG other_edge = 0; other_edge < other->m_edges.size();
@@ -189,11 +250,57 @@ CDPHyperGraphFingerprint::Matches(
 					{
 						continue;
 					}
-					const auto &candidate = other->m_edges[other_edge];
-					if ((mapped_left->Equals(candidate.first) &&
-						 mapped_right->Equals(candidate.second)) ||
-						(mapped_left->Equals(candidate.second) &&
-						 mapped_right->Equals(candidate.first)))
+					const SEdge &candidate = other->m_edges[other_edge];
+					if (edge.m_join_type != candidate.m_join_type ||
+						edge.m_conflict_rules.size() !=
+							candidate.m_conflict_rules.size())
+					{
+						continue;
+					}
+					const BOOL direct =
+						mapped_left->Equals(candidate.m_left) &&
+						mapped_right->Equals(candidate.m_right);
+					const BOOL reverse =
+						FCommutativeJoin(edge.m_join_type) &&
+						mapped_left->Equals(candidate.m_right) &&
+						mapped_right->Equals(candidate.m_left);
+					if (!direct && !reverse)
+					{
+						continue;
+					}
+
+					std::vector<BOOL> used_rules(
+						candidate.m_conflict_rules.size(), false);
+					BOOL rules_match = true;
+					for (const SConflictRule &rule : edge.m_conflict_rules)
+					{
+						CAutoRef<CBitSet> mapped_activate(
+							PbsMap(m_mp, rule.m_activate, mapping));
+						CAutoRef<CBitSet> mapped_required(
+							PbsMap(m_mp, rule.m_required, mapping));
+						BOOL rule_found = false;
+						for (ULONG candidate_rule = 0;
+							 candidate_rule < candidate.m_conflict_rules.size();
+							 ++candidate_rule)
+						{
+							const SConflictRule &other_rule =
+								candidate.m_conflict_rules[candidate_rule];
+							if (!used_rules[candidate_rule] &&
+								mapped_activate->Equals(other_rule.m_activate) &&
+								mapped_required->Equals(other_rule.m_required))
+							{
+								used_rules[candidate_rule] = true;
+								rule_found = true;
+								break;
+							}
+						}
+						if (!rule_found)
+						{
+							rules_match = false;
+							break;
+						}
+					}
+					if (rules_match)
 					{
 						used_edges[other_edge] = true;
 						found = true;
@@ -705,5 +812,6 @@ CDPHyperJoinRegion::Pfp() const
 {
 	GPOS_ASSERT(nullptr != m_graph);
 	return GPOS_NEW(m_mp)
-		CDPHyperGraphFingerprint(m_mp, m_components, m_conjuncts, m_graph);
+		CDPHyperGraphFingerprint(m_mp, m_components, m_conjuncts, m_graph,
+								 m_spec);
 }

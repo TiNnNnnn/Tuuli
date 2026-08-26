@@ -133,7 +133,10 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 	const COperator::EOperatorId op_id = expr->Pop()->Eopid();
 	const BOOL is_join = COperator::EopLogicalInnerJoin == op_id ||
 						 (include_complex && FCDCSupportedJoin(op_id));
-	if (!is_join && 0 == expr->Arity() && nullptr != expr->Pgexpr())
+	// A Memo group leaf may carry a join operator but deliberately has no
+	// children. Keep it as an opaque group reference; the region extractor
+	// reconstructs marked members from their owning groups later.
+	if (0 == expr->Arity() && nullptr != expr->Pgexpr())
 	{
 		expr->Pop()->AddRef();
 		return GPOS_NEW(mp) CExpression(mp, expr->Pop(), expr->Pgexpr());

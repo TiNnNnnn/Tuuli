@@ -865,6 +865,42 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 		!outer_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
 	CDPHyperJoinRegion outer_eligibility(mp, &outer_spec, 100);
 	GPOS_UNITTEST_ASSERT(outer_eligibility.Build());
+
+	// Graph topology alone is insufficient for mixed regions.  Preserve the
+	// logical join kind and the direction of non-commutative edges in Memo
+	// ownership fingerprints.
+	CJoinRegionSpec binary_inner_spec(mp);
+	GPOS_UNITTEST_ASSERT(binary_inner_spec.Build(join01));
+	CDPHyperJoinRegion binary_inner_region(mp, &binary_inner_spec, 100);
+	GPOS_UNITTEST_ASSERT(binary_inner_region.Build());
+	CJoinRegionSpec binary_outer_spec(mp);
+	GPOS_UNITTEST_ASSERT(binary_outer_spec.Build(loj01));
+	CDPHyperJoinRegion binary_outer_region(mp, &binary_outer_spec, 100);
+	GPOS_UNITTEST_ASSERT(binary_outer_region.Build());
+	CDPHyperGraphFingerprint *binary_inner_fingerprint =
+		binary_inner_region.Pfp();
+	CDPHyperGraphFingerprint *binary_outer_fingerprint =
+		binary_outer_region.Pfp();
+	GPOS_UNITTEST_ASSERT(
+		!binary_inner_fingerprint->Matches(binary_outer_fingerprint));
+	GPOS_UNITTEST_ASSERT(binary_inner_fingerprint->HashValue() !=
+						 binary_outer_fingerprint->HashValue());
+
+	CExpression *reversed_loj =
+		fix.PexprLogicalLeftOuterJoin(get1, get0, pred01);
+	CJoinRegionSpec reversed_outer_spec(mp);
+	GPOS_UNITTEST_ASSERT(reversed_outer_spec.Build(reversed_loj));
+	CDPHyperJoinRegion reversed_outer_region(mp, &reversed_outer_spec, 100);
+	GPOS_UNITTEST_ASSERT(reversed_outer_region.Build());
+	CDPHyperGraphFingerprint *reversed_outer_fingerprint =
+		reversed_outer_region.Pfp();
+	GPOS_UNITTEST_ASSERT(
+		!binary_outer_fingerprint->Matches(reversed_outer_fingerprint));
+	GPOS_DELETE(reversed_outer_fingerprint);
+	GPOS_DELETE(binary_outer_fingerprint);
+	GPOS_DELETE(binary_inner_fingerprint);
+	reversed_loj->Release();
+
 	std::vector<CDPHyperJoinRegion::SApplicableEdge> outer_edges =
 		outer_eligibility.ApplicableEdges(node0.Value(), node1.Value());
 	GPOS_UNITTEST_ASSERT(1 == outer_edges.size());

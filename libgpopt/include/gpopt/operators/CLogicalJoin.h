@@ -168,7 +168,7 @@ public:
 	}
 
 	CXform::EXformId
-	OriginXform()
+	OriginXform() const
 	{
 		return m_origin_xform;
 	}

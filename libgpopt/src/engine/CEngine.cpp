@@ -37,7 +37,9 @@
 #include "gpopt/minidump/CSerializableStackTrace.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogical.h"
+#include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CPattern.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/operators/CPhysicalAgg.h"
@@ -407,14 +409,19 @@ CEngine::InsertXformResult(
 	while (nullptr != pexpr)
 	{
 		CExpression *pexprInsert = pexpr;
-		if (CGroupExpression::FDSLRuleXform(exfidOrigin) &&
+		const BOOL join_region_ingress =
+			nullptr != dynamic_cast<CLogicalApply *>(pgexprOrigin->Pop()) &&
+			nullptr != dynamic_cast<CLogicalJoin *>(pexpr->Pop());
+		if ((CGroupExpression::FDSLRuleXform(exfidOrigin) ||
+			 join_region_ingress) &&
 			COptCtxt::PoctxtFromTLS()
 				->GetOptimizerConfig()
 				->GetHint()
 				->FEnableDPHyper())
 		{
 			pexprInsert =
-				CJoinRegionSpec::PexprMarkDPHyperRegions(m_mp, pexpr);
+				CJoinRegionSpec::PexprMarkDPHyperRegions(
+					m_mp, pexpr, true /*include complex*/);
 		}
 		CGroup *pgroupContainer =
 			PgroupInsert(pgroupOrigin, pexprInsert, exfidOrigin, pgexprOrigin,

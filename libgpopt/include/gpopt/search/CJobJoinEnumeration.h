@@ -5,7 +5,7 @@
 //	@doc:
 //		Specialized Cascades exploration job for whole join regions. Unlike a
 //		local xform binding, it enumerates CSG-CMP pairs once and inserts every
-//		legal binary InnerJoin alternative into shared subset groups in Memo.
+//		legal typed binary-join alternative into shared subset groups in Memo.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CJobJoinEnumeration_H
 #define GPOPT_CJobJoinEnumeration_H
@@ -36,10 +36,12 @@ private:
 						  CDPHyperJoinRegion *region,
 						  const std::vector<CGroup *> &component_groups,
 						  const CJoinRegionSpec *spec,
-						  const std::vector<CGroup *> &skeleton_groups);
+						  const std::vector<CGroup *> &skeleton_groups,
+						  const std::vector<CGroupExpression *> &region_members);
 	void MaterializeNativeFallback(
 		CSchedulerContext *psc, CDPHyperJoinRegion *region,
-		const std::vector<CGroup *> &component_groups);
+		const std::vector<CGroup *> &component_groups,
+		const CJoinRegionSpec *spec);
 
 public:
 	CJobJoinEnumeration(const CJobJoinEnumeration &) = delete;

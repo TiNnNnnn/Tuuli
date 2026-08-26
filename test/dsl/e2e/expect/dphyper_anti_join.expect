@@ -1,0 +1,33 @@
+{
+  "description": "Apply decorrelation creates a LeftAntiSemi DPHyper owner that preserves the directional edge",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "root=CLogicalLeftAntiSemiJoin nodes=2",
+        "mode=replacement",
+        "Xform: CXformLeftAntiSemiJoin2HashJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformAntiSemiJoinInnerJoinSwap"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2"
+    ]
+  }
+}

@@ -54,10 +54,14 @@ CLogicalLeftSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
-	(void) xform_set->ExchangeSet(CXform::ExfSemiJoinSemiJoinSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfSemiJoinAntiSemiJoinSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfSemiJoinAntiSemiJoinNotInSwap);
-	(void) xform_set->ExchangeSet(CXform::ExfSemiJoinInnerJoinSwap);
+	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfSemiJoinSemiJoinSwap);
+		(void) xform_set->ExchangeSet(CXform::ExfSemiJoinAntiSemiJoinSwap);
+		(void) xform_set->ExchangeSet(
+			CXform::ExfSemiJoinAntiSemiJoinNotInSwap);
+		(void) xform_set->ExchangeSet(CXform::ExfSemiJoinInnerJoinSwap);
+	}
 	(void) xform_set->ExchangeSet(CXform::ExfLeftSemiJoin2InnerJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftSemiJoin2InnerJoinUnderGb);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftSemiJoin2CrossProduct);
@@ -68,6 +72,10 @@ CLogicalLeftSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 	// MONSOON DSL-rule shell: the shared InSub matcher also recognizes the
 	// decorrelated single-column semi-join representation.
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInSub);
+	if (FDPHyperRegionRoot())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+	}
 
 	return xform_set;
 }

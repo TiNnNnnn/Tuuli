@@ -85,12 +85,19 @@ CLogicalLeftOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 		CXform::ExfLeftOuter2InnerUnionAllLeftAntiSemiJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfJoin2BitmapIndexGetApply);
 	(void) xform_set->ExchangeSet(CXform::ExfJoin2IndexGetApply);
-	(void) xform_set->ExchangeSet(CXform::ExfLeftJoin2RightJoin);
+	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfLeftJoin2RightJoin);
+	}
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowLeftUnionAll);
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowRightUnionAll);
 
 	// MONSOON DSL-rule shell
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleLeftJoin);
+	if (FDPHyperRegionRoot())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+	}
 
 	return xform_set;
 }

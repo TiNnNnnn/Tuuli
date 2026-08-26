@@ -1,0 +1,41 @@
+{
+  "description": "DPHyper preserves FullOuter semantics in a mixed InnerJoin region",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=3",
+        "mode=replacement",
+        "Xform: CXformFullOuterJoin2HashJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformFullJoinCommutativity"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,3"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,3"
+    ]
+  }
+}

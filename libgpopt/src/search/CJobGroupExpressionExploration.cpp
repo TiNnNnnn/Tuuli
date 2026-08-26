@@ -11,8 +11,11 @@
 
 #include "gpopt/search/CJobGroupExpressionExploration.h"
 
+#include "gpos/common/CAutoRef.h"
+
 #include "gpopt/engine/CEngine.h"
 #include "gpopt/operators/CLogical.h"
+#include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CJobFactory.h"
@@ -25,6 +28,79 @@
 
 
 using namespace gpopt;
+
+namespace
+{
+void
+ClearDPHyperJoinEnumeration(CXformSet *xform_set,
+							COperator::EOperatorId op_id)
+{
+	switch (op_id)
+	{
+		case COperator::EopLogicalInnerJoin:
+			(void) xform_set->ExchangeClear(
+				CXform::ExfInnerJoinCommutativity);
+			(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
+			(void) xform_set->ExchangeClear(CXform::ExfInnerJoinSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfInnerJoinAntiSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfInnerJoinAntiSemiJoinNotInSwap);
+			break;
+		case COperator::EopLogicalLeftOuterJoin:
+			(void) xform_set->ExchangeClear(CXform::ExfLeftJoin2RightJoin);
+			break;
+		case COperator::EopLogicalLeftSemiJoin:
+			(void) xform_set->ExchangeClear(CXform::ExfSemiJoinSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfSemiJoinAntiSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfSemiJoinAntiSemiJoinNotInSwap);
+			(void) xform_set->ExchangeClear(CXform::ExfSemiJoinInnerJoinSwap);
+			break;
+		case COperator::EopLogicalLeftAntiSemiJoin:
+			(void) xform_set->ExchangeClear(
+				CXform::ExfAntiSemiJoinAntiSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfAntiSemiJoinSemiJoinSwap);
+			(void) xform_set->ExchangeClear(
+				CXform::ExfAntiSemiJoinInnerJoinSwap);
+			break;
+		case COperator::EopLogicalFullOuterJoin:
+			(void) xform_set->ExchangeClear(
+				CXform::ExfFullJoinCommutativity);
+			break;
+		default:
+			GPOS_ASSERT(!"Unsupported DPHyper join-region root");
+	}
+}
+
+BOOL
+FScheduleDPHyperBeforeChildren(CSchedulerContext *psc,
+							 CGroupExpression *gexpr, CJob *parent)
+{
+	if (CGroupExpression::EdphUnrequested != gexpr->DPHyperStatus())
+	{
+		return false;
+	}
+	CAutoRef<CXformSet> candidates(
+		CLogical::PopConvert(gexpr->Pop())
+			->PxfsCandidates(psc->GetGlobalMemoryPool()));
+	candidates->Intersection(CXformFactory::Pxff()->PxfsExploration());
+	candidates->Intersection(psc->Peng()->PxfsCurrentStage());
+	if (!candidates->Get(CXform::ExfExpandNAryJoinDPHyper))
+	{
+		// The stage or xform-disable policy declined ownership. Marked joins
+		// retain all native join rewrites because no success status is published.
+		return false;
+	}
+	gexpr->SetDPHyperStatus(CGroupExpression::EdphScheduled);
+	CJobJoinEnumeration::ScheduleJob(psc, gexpr, parent);
+	return true;
+}
+}  // namespace
 
 // State transition diagram for group expression exploration job state machine;
 //
@@ -177,6 +253,17 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 	// intersect them with required xforms and schedule jobs
 	xform_set->Intersection(CXformFactory::Pxff()->PxfsExploration());
 	xform_set->Intersection(psc->Peng()->PxfsCurrentStage());
+	if (COperator::EopLogicalNAryJoin != pop->Eopid())
+	{
+		CLogicalJoin *join = dynamic_cast<CLogicalJoin *>(pop);
+		if (nullptr != join && join->FDPHyperRegionMember() &&
+			!join->FDPHyperRegionRoot() &&
+			CGroupExpression::EdphSucceeded == m_pgexpr->DPHyperStatus() &&
+			!GPOS_FTRACE(EopttraceDPHyperShadow))
+		{
+			ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
+		}
+	}
 	if (xform_set->Get(CXform::ExfExpandNAryJoinDPHyper))
 	{
 		// DPHyper is a whole-region job, not a binding-at-a-time xform. Remove
@@ -217,10 +304,10 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 			if (CGroupExpression::EdphNativeFallback ==
 				m_pgexpr->DPHyperStatus())
 			{
-				GPOS_ASSERT(COperator::EopLogicalInnerJoin == pop->Eopid());
-				(void) xform_set->ExchangeClear(
-					CXform::ExfInnerJoinCommutativity);
-				(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
+				if (COperator::EopLogicalNAryJoin != pop->Eopid())
+				{
+					ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
+				}
 			}
 			else if (COperator::EopLogicalNAryJoin == pop->Eopid())
 			{
@@ -232,10 +319,7 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 			}
 			else
 			{
-				GPOS_ASSERT(COperator::EopLogicalInnerJoin == pop->Eopid());
-				(void) xform_set->ExchangeClear(
-					CXform::ExfInnerJoinCommutativity);
-				(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
+				ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
 			}
 		}
 	}
@@ -286,6 +370,10 @@ CJobGroupExpressionExploration::EevtExploreChildren(CSchedulerContext *psc,
 	CJobGroupExpressionExploration *pjgee = PjConvert(pjOwner);
 	if (!pjgee->FChildrenScheduled())
 	{
+		if (FScheduleDPHyperBeforeChildren(psc, pjgee->m_pgexpr, pjgee))
+		{
+			return eevExploringChildren;
+		}
 		pjgee->m_pgexpr->SetState(CGroupExpression::estExploring);
 		pjgee->ScheduleChildGroupsJobs(psc);
 

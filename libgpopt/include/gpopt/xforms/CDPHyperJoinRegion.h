@@ -3,9 +3,9 @@
 //		CDPHyperJoinRegion.h
 //
 //	@doc:
-//		Pure-inner NAryJoin region adapted to a DPHyp hypergraph. Predicate
-//		eligibility is represented independently from the enumerator so graph
-//		construction and Memo materialization can be tested separately.
+//		Binary or NAry join region adapted to a DPHyp hypergraph. Predicate and
+//		CD-C eligibility are represented independently from the enumerator so
+//		graph construction and Memo materialization can be tested separately.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDPHyperJoinRegion_H
 #define GPOPT_CDPHyperJoinRegion_H
@@ -28,17 +28,32 @@ class CJoinRegionSpec;
 class CDPHyperGraphFingerprint
 {
 private:
+	struct SConflictRule
+	{
+		CBitSet *m_activate;
+		CBitSet *m_required;
+	};
+
+	struct SEdge
+	{
+		COperator::EOperatorId m_join_type;
+		CBitSet *m_left;
+		CBitSet *m_right;
+		std::vector<SConflictRule> m_conflict_rules;
+	};
+
 	CMemoryPool *m_mp;
 	CExpressionArray *m_atoms;
 	CExpressionArray *m_predicates;
-	std::vector<std::pair<CBitSet *, CBitSet *>> m_edges;
+	std::vector<SEdge> m_edges;
 	ULONG m_hash;
 
 public:
 	CDPHyperGraphFingerprint(const CDPHyperGraphFingerprint &) = delete;
 	CDPHyperGraphFingerprint(CMemoryPool *mp, CExpressionArray *atoms,
-								 CExpressionArray *predicates,
-								 const CDPHyperGraph *graph);
+							 CExpressionArray *predicates,
+							 const CDPHyperGraph *graph,
+							 const CJoinRegionSpec *spec);
 	~CDPHyperGraphFingerprint();
 
 	BOOL Matches(const CDPHyperGraphFingerprint *other) const;

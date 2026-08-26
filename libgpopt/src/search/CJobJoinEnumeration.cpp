@@ -156,6 +156,22 @@ PgexprLogicalRepresentative(CGroup *group)
 	return proxy.PgexprNextLogical(nullptr);
 }
 
+BOOL
+FSupportedDPHyperJoin(COperator::EOperatorId op_id)
+{
+	switch (op_id)
+	{
+		case COperator::EopLogicalInnerJoin:
+		case COperator::EopLogicalLeftOuterJoin:
+		case COperator::EopLogicalLeftSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoin:
+		case COperator::EopLogicalFullOuterJoin:
+			return true;
+		default:
+			return false;
+	}
+}
+
 CGroupExpression *
 PgexprDPHyperRegionMember(CGroup *group)
 {
@@ -163,9 +179,8 @@ PgexprDPHyperRegionMember(CGroup *group)
 	CGroupExpression *gexpr = nullptr;
 	while (nullptr != (gexpr = proxy.PgexprNextLogical(gexpr)))
 	{
-		if (COperator::EopLogicalInnerJoin == gexpr->Pop()->Eopid() &&
-			CLogicalInnerJoin::PopConvert(gexpr->Pop())
-				->FDPHyperRegionMember())
+		if (FSupportedDPHyperJoin(gexpr->Pop()->Eopid()) &&
+			CLogicalJoin::PopConvert(gexpr->Pop())->FDPHyperRegionMember())
 		{
 			return gexpr;
 		}
@@ -179,13 +194,15 @@ PgexprDPHyperRegionMember(CGroup *group)
 // walk over GetFirstExpr() for one maximal join region.
 CExpression *
 PexprBinaryJoinRegion(CMemoryPool *mp, CGroupExpression *gexpr,
-					  std::vector<CGroup *> *skeleton_groups)
+					  std::vector<CGroup *> *skeleton_groups,
+					  std::vector<CGroupExpression *> *region_members)
 {
 	GPOS_ASSERT(nullptr != gexpr);
 	GPOS_ASSERT(nullptr != skeleton_groups);
-	GPOS_ASSERT(COperator::EopLogicalInnerJoin == gexpr->Pop()->Eopid());
-	GPOS_ASSERT(CLogicalInnerJoin::PopConvert(gexpr->Pop())
-					->FDPHyperRegionMember());
+	GPOS_ASSERT(nullptr != region_members);
+	GPOS_ASSERT(FSupportedDPHyperJoin(gexpr->Pop()->Eopid()));
+	GPOS_ASSERT(
+		CLogicalJoin::PopConvert(gexpr->Pop())->FDPHyperRegionMember());
 
 	CExpression *children[2] = {nullptr, nullptr};
 	for (ULONG child = 0; child < 2; ++child)
@@ -194,7 +211,8 @@ PexprBinaryJoinRegion(CMemoryPool *mp, CGroupExpression *gexpr,
 			PgexprDPHyperRegionMember((*gexpr)[child]);
 		children[child] = nullptr == member
 						  ? PexprGroupLeaf(mp, (*gexpr)[child])
-						  : PexprBinaryJoinRegion(mp, member, skeleton_groups);
+						  : PexprBinaryJoinRegion(mp, member, skeleton_groups,
+										  region_members);
 		if (nullptr == children[child])
 		{
 			if (0 < child)
@@ -216,6 +234,7 @@ PexprBinaryJoinRegion(CMemoryPool *mp, CGroupExpression *gexpr,
 	// group for every original subtree, as Horn does while extracting its
 	// hypergraph, so an existing node-set is never rematerialized elsewhere.
 	skeleton_groups->push_back(gexpr->Pgroup());
+	region_members->push_back(gexpr);
 	gexpr->Pop()->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, gexpr->Pop(), children[0], children[1],
 									 predicate);
@@ -230,6 +249,29 @@ TraceUnsupported(CGroupExpression *pgexpr, const CHAR *reason,
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=fallback reason=%s group=%d nodes=%d",
 			reason, pgexpr->Pgroup()->Id(), node_count);
+	}
+}
+
+void
+PublishRegionStatus(
+	const std::vector<CGroupExpression *> &region_members,
+	CGroupExpression::EDPHyperStatus status)
+{
+	GPOS_ASSERT(CGroupExpression::EdphSucceeded == status ||
+				CGroupExpression::EdphFallback == status ||
+				CGroupExpression::EdphNativeFallback == status);
+	for (CGroupExpression *member : region_members)
+	{
+		if (CGroupExpression::EdphUnrequested == member->DPHyperStatus())
+		{
+			member->SetDPHyperStatus(CGroupExpression::EdphScheduled);
+		}
+		if (CGroupExpression::EdphScheduled == member->DPHyperStatus())
+		{
+			member->SetDPHyperStatus(status);
+		}
+		// A nested member may already own a completed smaller region. Preserve
+		// that terminal decision; the new maximal root publishes its own status.
 	}
 }
 }  // namespace
@@ -273,10 +315,19 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 	{
 		if (!FEnumerate(psc))
 		{
-			m_pgexpr->SetDPHyperStatus(
+			const CGroupExpression::EDPHyperStatus status =
 				m_native_fallback_materialized
 					? CGroupExpression::EdphNativeFallback
-					: CGroupExpression::EdphFallback);
+					: CGroupExpression::EdphFallback;
+			if (CGroupExpression::EdphScheduled ==
+				m_pgexpr->DPHyperStatus())
+			{
+				m_pgexpr->SetDPHyperStatus(status);
+			}
+			else
+			{
+				GPOS_ASSERT(status == m_pgexpr->DPHyperStatus());
+			}
 			return true;
 		}
 		m_materialized = true;
@@ -317,7 +368,15 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 		return false;
 	}
 
-	m_pgexpr->SetDPHyperStatus(CGroupExpression::EdphSucceeded);
+	if (CGroupExpression::EdphScheduled == m_pgexpr->DPHyperStatus())
+	{
+		m_pgexpr->SetDPHyperStatus(CGroupExpression::EdphSucceeded);
+	}
+	else
+	{
+		GPOS_ASSERT(CGroupExpression::EdphSucceeded ==
+						m_pgexpr->DPHyperStatus());
+	}
 	return true;
 }
 
@@ -329,6 +388,7 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 	CJoinRegionSpec *binary_spec = nullptr;
 	std::vector<CGroup *> component_groups;
 	std::vector<CGroup *> skeleton_groups;
+	std::vector<CGroupExpression *> region_members;
 
 	if (COperator::EopLogicalNAryJoin == m_pgexpr->Pop()->Eopid() &&
 		3 <= m_pgexpr->Arity())
@@ -389,19 +449,20 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 		components->Release();
 		conjuncts->Release();
 	}
-	else if (COperator::EopLogicalInnerJoin == m_pgexpr->Pop()->Eopid() &&
-			 CLogicalInnerJoin::PopConvert(m_pgexpr->Pop())
+	else if (FSupportedDPHyperJoin(m_pgexpr->Pop()->Eopid()) &&
+			 CLogicalJoin::PopConvert(m_pgexpr->Pop())
 				 ->FDPHyperRegionRoot())
 	{
 		CExpression *tree =
-			PexprBinaryJoinRegion(mp, m_pgexpr, &skeleton_groups);
+			PexprBinaryJoinRegion(mp, m_pgexpr, &skeleton_groups,
+							  &region_members);
 		if (nullptr == tree)
 		{
 			TraceUnsupported(m_pgexpr, "missing_predicate", 0);
 			return false;
 		}
 		binary_spec = GPOS_NEW(mp) CJoinRegionSpec(mp);
-		if (!binary_spec->Build(tree) || !binary_spec->PureInner())
+		if (!binary_spec->Build(tree) || !binary_spec->CDCSupported())
 		{
 			tree->Release();
 			GPOS_DELETE(binary_spec);
@@ -436,7 +497,8 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 	}
 
 	const BOOL success = FEnumerateRegion(psc, region, component_groups,
-									 binary_spec, skeleton_groups);
+									 binary_spec, skeleton_groups,
+									 region_members);
 	GPOS_DELETE(region);
 	GPOS_DELETE(binary_spec);
 	return success;
@@ -446,7 +508,8 @@ BOOL
 CJobJoinEnumeration::FEnumerateRegion(
 	CSchedulerContext *psc, CDPHyperJoinRegion *region,
 	const std::vector<CGroup *> &component_groups, const CJoinRegionSpec *spec,
-	const std::vector<CGroup *> &skeleton_groups)
+	const std::vector<CGroup *> &skeleton_groups,
+	const std::vector<CGroupExpression *> &region_members)
 {
 	GPOS_ASSERT(nullptr != region);
 	const ULONG node_count = region->NodeCount();
@@ -456,7 +519,12 @@ CJobJoinEnumeration::FEnumerateRegion(
 		COptCtxt::PoctxtFromTLS()->GetOptimizerConfig()->GetHint();
 	if (!region->Build())
 	{
-		MaterializeNativeFallback(psc, region, component_groups);
+		MaterializeNativeFallback(psc, region, component_groups, spec);
+		PublishRegionStatus(
+			region_members,
+			m_native_fallback_materialized
+				? CGroupExpression::EdphNativeFallback
+				: CGroupExpression::EdphFallback);
 		if (GPOS_FTRACE(EopttracePrintXformResults))
 		{
 			GPOS_TRACE_FORMAT(
@@ -483,7 +551,12 @@ CJobJoinEnumeration::FEnumerateRegion(
 	CDPHyperEnumerator enumerator(mp, region->Graph(), &plan);
 	if (enumerator.Enumerate() || !plan.Complete(node_count))
 	{
-		MaterializeNativeFallback(psc, region, component_groups);
+		MaterializeNativeFallback(psc, region, component_groups, spec);
+		PublishRegionStatus(
+			region_members,
+			m_native_fallback_materialized
+				? CGroupExpression::EdphNativeFallback
+				: CGroupExpression::EdphFallback);
 		if (GPOS_FTRACE(EopttracePrintXformResults))
 		{
 			GPOS_TRACE_FORMAT(
@@ -503,12 +576,14 @@ CJobJoinEnumeration::FEnumerateRegion(
 	const ULONG fingerprint_hash = fingerprint->HashValue();
 	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
 	{
+		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
 		if (GPOS_FTRACE(EopttracePrintXformResults))
 		{
 			GPOS_TRACE_FORMAT(
-				"DPHyper: status=reused group=%d nodes=%d fingerprint=%u "
+				"DPHyper: status=reused group=%d root=%s nodes=%d fingerprint=%u "
 				"mode=%s",
-				m_pgexpr->Pgroup()->Id(), node_count, fingerprint_hash,
+				m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
+				fingerprint_hash,
 				GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow"
 											 : "replacement");
 		}
@@ -609,24 +684,31 @@ CJobJoinEnumeration::FEnumerateRegion(
 	if (GPOS_FTRACE(EopttracePrintXformResults))
 	{
 		GPOS_TRACE_FORMAT(
-			"DPHyper: status=applied group=%d nodes=%d edges=%d "
+			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
 			"cartesian_edges=%d pairs=%d subsets=%d fingerprint=%u mode=%s",
-			m_pgexpr->Pgroup()->Id(), node_count,
+			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
 			plan.PairCount(), plan.SeenCount(), fingerprint_hash,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
+	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
 	return true;
 }
 
 void
 CJobJoinEnumeration::MaterializeNativeFallback(
 	CSchedulerContext *psc, CDPHyperJoinRegion *region,
-	const std::vector<CGroup *> &component_groups)
+	const std::vector<CGroup *> &component_groups,
+	const CJoinRegionSpec *spec)
 {
 	GPOS_ASSERT(nullptr != psc && nullptr != region);
 	GPOS_ASSERT(region->NodeCount() == component_groups.size());
-	if (GPOS_FTRACE(EopttraceDPHyperShadow))
+	// A mixed join skeleton cannot be represented by LogicalNAryJoin without
+	// losing join type and direction. Because DPHyper runs before child-group
+	// exploration, publishing ordinary fallback is sufficient: the preserved
+	// binary skeleton and all native swap xforms remain untouched.
+	if (GPOS_FTRACE(EopttraceDPHyperShadow) ||
+		(nullptr != spec && !spec->PureInner()))
 	{
 		return;
 	}
