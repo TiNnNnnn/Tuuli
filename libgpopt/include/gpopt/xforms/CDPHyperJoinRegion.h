@@ -58,6 +58,7 @@ private:
 	CExpressionArray *m_conjuncts;
 	std::vector<CBitSet *> m_predicate_covers;
 	std::vector<std::pair<CBitSet *, CBitSet *>> m_skeleton_edges;
+	const CJoinRegionSpec *m_spec;
 	CDPHyperGraph *m_graph;
 	ULONG m_edge_budget;
 	ULONG m_generated_edges;
@@ -90,6 +91,8 @@ public:
 							 BOOL include_residual) const;
 	CExpression *PexprAllPredicates() const;
 	CDPHyperGraphFingerprint *Pfp() const;
+	BOOL FPairApplicable(const CBitSet *left, const CBitSet *right,
+						 ULONG edge_id, BOOL *swapped = nullptr) const;
 
 	const CDPHyperGraph *
 	Graph() const

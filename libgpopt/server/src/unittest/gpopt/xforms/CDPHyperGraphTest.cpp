@@ -14,6 +14,9 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
@@ -89,6 +92,45 @@ public:
 	}
 };
 
+class CEligibilityReceiver : public IDPHyperReceiver
+{
+private:
+	const CDPHyperJoinRegion *m_region;
+	CDPHyperPlan m_plan;
+
+public:
+	CEligibilityReceiver(CMemoryPool *mp, const CDPHyperJoinRegion *region)
+		: m_region(region), m_plan(mp, 100)
+	{
+	}
+
+	BOOL
+	FoundSingleNode(ULONG node_id) override
+	{
+		return m_plan.FoundSingleNode(node_id);
+	}
+
+	BOOL
+	HasSeen(const CBitSet *nodes) const override
+	{
+		return m_plan.HasSeen(nodes);
+	}
+
+	BOOL
+	FoundSubgraphPair(const CBitSet *left, const CBitSet *right,
+					   ULONG edge_id) override
+	{
+		return m_region->FPairApplicable(left, right, edge_id) &&
+			   m_plan.FoundSubgraphPair(left, right, edge_id);
+	}
+
+	BOOL
+	Complete(ULONG node_count) const
+	{
+		return m_plan.Complete(node_count);
+	}
+};
+
 CBitSet *
 Pbs(CMemoryPool *mp, std::initializer_list<ULONG> nodes)
 {
@@ -115,6 +157,18 @@ FSet(const CBitSet *set, std::initializer_list<ULONG> nodes)
 		}
 	}
 	return true;
+}
+
+template <class TJoin>
+CExpression *
+PexprJoin(CMemoryPool *mp, CExpression *left, CExpression *right,
+		  CExpression *predicate)
+{
+	left->AddRef();
+	right->AddRef();
+	predicate->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) TJoin(mp), left, right,
+									 predicate);
 }
 
 void
@@ -623,6 +677,7 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	CExpression *get2 = fix.PexprLogicalGet("dph_s2", 1, &cols2);
 	CExpression *pred01 = fix.PexprEqPred((*cols0)[0], (*cols1)[0]);
 	CExpression *pred12 = fix.PexprEqPred((*cols1)[0], (*cols2)[0]);
+	CExpression *pred02 = fix.PexprEqPred((*cols0)[0], (*cols2)[0]);
 
 	CExpression *join01 = fix.PexprLogicalInnerJoin(get0, get1, pred01);
 	CExpression *root = fix.PexprLogicalInnerJoin(join01, get2, pred12);
@@ -741,12 +796,127 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	CJoinRegionSpec outer_spec(mp);
 	GPOS_UNITTEST_ASSERT(outer_spec.Build(outer_root));
 	GPOS_UNITTEST_ASSERT(!outer_spec.PureInner());
+	GPOS_UNITTEST_ASSERT(outer_spec.CDCSupported());
 	GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftOuterJoin ==
 						 outer_spec.Edge(0)->JoinType());
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->Left(), {0}));
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->Right(), {1}));
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->Left(), {0, 1}));
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->Right(), {2}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->SES(), {0, 1}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->TES(), {0, 1}));
+	// (A LOJ B) JOIN C cannot expose B before A. CD-C absorbs B -> A
+	// into the root TES, freezing the original outer subtree.
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->SES(), {1, 2}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->TES(), {0, 1, 2}));
+	GPOS_UNITTEST_ASSERT(outer_spec.Edge(1)->ConflictRules().empty());
+	CAutoRef<CBitSet> node0(Pbs(mp, {0}));
+	CAutoRef<CBitSet> node1(Pbs(mp, {1}));
+	CAutoRef<CBitSet> node2(Pbs(mp, {2}));
+	CAutoRef<CBitSet> nodes01(Pbs(mp, {0, 1}));
+	CAutoRef<CBitSet> nodes12(Pbs(mp, {1, 2}));
+	GPOS_UNITTEST_ASSERT(
+		outer_spec.Edge(0)->FApplicable(node0.Value(), node1.Value()));
+	GPOS_UNITTEST_ASSERT(
+		!outer_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
+	CDPHyperJoinRegion outer_eligibility(mp, &outer_spec, 100);
+	GPOS_UNITTEST_ASSERT(outer_eligibility.Build());
+	CEligibilityReceiver outer_receiver(mp, &outer_eligibility);
+	CDPHyperEnumerator outer_enumerator(
+		mp, outer_eligibility.Graph(), &outer_receiver);
+	GPOS_UNITTEST_ASSERT(!outer_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(outer_receiver.Complete(3));
+	GPOS_UNITTEST_ASSERT(outer_receiver.HasSeen(nodes01.Value()));
+	GPOS_UNITTEST_ASSERT(!outer_receiver.HasSeen(nodes12.Value()));
+
+	// (A JOIN B) LOJ C can associate to A JOIN (B LOJ C) because the
+	// outer predicate only needs B and C. No conflict widens its TES to A.
+	CExpression *safe_outer_root =
+		fix.PexprLogicalLeftOuterJoin(join01, get2, pred12);
+	CJoinRegionSpec safe_outer_spec(mp);
+	GPOS_UNITTEST_ASSERT(safe_outer_spec.Build(safe_outer_root));
+	GPOS_UNITTEST_ASSERT(FSet(safe_outer_spec.Edge(1)->SES(), {1, 2}));
+	GPOS_UNITTEST_ASSERT(FSet(safe_outer_spec.Edge(1)->TES(), {1, 2}));
+	GPOS_UNITTEST_ASSERT(
+		safe_outer_spec.Edge(1)->FApplicable(node1.Value(), node2.Value()));
+	GPOS_UNITTEST_ASSERT(
+		!safe_outer_spec.Edge(1)->FApplicable(node2.Value(), node1.Value()));
+	CDPHyperJoinRegion safe_outer_eligibility(mp, &safe_outer_spec, 100);
+	GPOS_UNITTEST_ASSERT(safe_outer_eligibility.Build());
+	CEligibilityReceiver safe_outer_receiver(mp, &safe_outer_eligibility);
+	CDPHyperEnumerator safe_outer_enumerator(
+		mp, safe_outer_eligibility.Graph(), &safe_outer_receiver);
+	GPOS_UNITTEST_ASSERT(!safe_outer_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(safe_outer_receiver.Complete(3));
+	GPOS_UNITTEST_ASSERT(safe_outer_receiver.HasSeen(nodes01.Value()));
+	GPOS_UNITTEST_ASSERT(safe_outer_receiver.HasSeen(nodes12.Value()));
+
+	// A LOJ (B JOIN C) cannot become (A LOJ B) JOIN C. The mirrored
+	// associative conflict is absorbed and expands the LOJ TES to all nodes.
+	CExpression *join12 = fix.PexprLogicalInnerJoin(get1, get2, pred12);
+	CExpression *right_outer_root =
+		fix.PexprLogicalLeftOuterJoin(get0, join12, pred01);
+	CJoinRegionSpec right_outer_spec(mp);
+	GPOS_UNITTEST_ASSERT(right_outer_spec.Build(right_outer_root));
+	GPOS_UNITTEST_ASSERT(FSet(right_outer_spec.Edge(1)->SES(), {0, 1}));
+	GPOS_UNITTEST_ASSERT(FSet(right_outer_spec.Edge(1)->TES(), {0, 1, 2}));
+	CDPHyperJoinRegion right_outer_eligibility(mp, &right_outer_spec, 100);
+	GPOS_UNITTEST_ASSERT(right_outer_eligibility.Build());
+	CEligibilityReceiver right_outer_receiver(mp,
+										&right_outer_eligibility);
+	CDPHyperEnumerator right_outer_enumerator(
+		mp, right_outer_eligibility.Graph(), &right_outer_receiver);
+	GPOS_UNITTEST_ASSERT(!right_outer_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(right_outer_receiver.Complete(3));
+	GPOS_UNITTEST_ASSERT(!right_outer_receiver.HasSeen(nodes01.Value()));
+	GPOS_UNITTEST_ASSERT(right_outer_receiver.HasSeen(nodes12.Value()));
+
+	// Semi/anti joins participate in CD-C but keep their right input
+	// directional. Moving an independent inner join into the preserved input
+	// is legal, so the root TES remains {A,C}; B is not pulled into it.
+	CExpression *semi01 = PexprJoin<CLogicalLeftSemiJoin>(
+		mp, get0, get1, pred01);
+	CExpression *semi_root =
+		fix.PexprLogicalInnerJoin(semi01, get2, pred02);
+	CJoinRegionSpec semi_spec(mp);
+	GPOS_UNITTEST_ASSERT(semi_spec.Build(semi_root));
+	GPOS_UNITTEST_ASSERT(semi_spec.CDCSupported());
+	GPOS_UNITTEST_ASSERT(FSet(semi_spec.Edge(1)->TES(), {0, 2}));
+	GPOS_UNITTEST_ASSERT(
+		semi_spec.Edge(0)->FApplicable(node0.Value(), node1.Value()));
+	GPOS_UNITTEST_ASSERT(
+		!semi_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
+
+	CExpression *anti01 = PexprJoin<CLogicalLeftAntiSemiJoin>(
+		mp, get0, get1, pred01);
+	CExpression *anti_root =
+		fix.PexprLogicalInnerJoin(anti01, get2, pred02);
+	CJoinRegionSpec anti_spec(mp);
+	GPOS_UNITTEST_ASSERT(anti_spec.Build(anti_root));
+	GPOS_UNITTEST_ASSERT(anti_spec.CDCSupported());
+	GPOS_UNITTEST_ASSERT(FSet(anti_spec.Edge(1)->TES(), {0, 2}));
+	GPOS_UNITTEST_ASSERT(
+		anti_spec.Edge(0)->FApplicable(node0.Value(), node1.Value()));
+	GPOS_UNITTEST_ASSERT(
+		!anti_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
+
+	// NOT IN is null-aware and cannot share ordinary anti-join algebra. Keep
+	// the descriptor intact but force the future enumerator to native fallback.
+	CExpression *notin01 = PexprJoin<CLogicalLeftAntiSemiJoinNotIn>(
+		mp, get0, get1, pred01);
+	CJoinRegionSpec notin_spec(mp);
+	GPOS_UNITTEST_ASSERT(notin_spec.Build(notin01));
+	GPOS_UNITTEST_ASSERT(!notin_spec.CDCSupported());
+
+	notin01->Release();
+	anti_root->Release();
+	anti01->Release();
+	semi_root->Release();
+	semi01->Release();
+
+	right_outer_root->Release();
+	join12->Release();
+	safe_outer_root->Release();
 
 	outer_root->Release();
 	loj01->Release();
@@ -757,6 +927,7 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	join01->Release();
 	pred01->Release();
 	pred12->Release();
+	pred02->Release();
 	get0->Release();
 	get1->Release();
 	get2->Release();

@@ -21,16 +21,50 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CColRefSet;
+
 class CJoinRegionSpec
 {
 public:
-	class CEdge
+	class CConflictRule
 	{
 	private:
+		CBitSet *m_activate;
+		CBitSet *m_required;
+
+	public:
+		CConflictRule(const CConflictRule &) = delete;
+		CConflictRule(CMemoryPool *mp, const CBitSet *activate,
+					  const CBitSet *required);
+		~CConflictRule();
+
+		const CBitSet *
+		Activate() const
+		{
+			return m_activate;
+		}
+
+		const CBitSet *
+		Required() const
+		{
+			return m_required;
+		}
+	};
+
+	class CEdge
+	{
+		friend class CJoinRegionSpec;
+
+	private:
+		CMemoryPool *m_mp;
 		COperator::EOperatorId m_join_type;
 		CBitSet *m_left;
 		CBitSet *m_right;
+		CBitSet *m_all;
+		CBitSet *m_ses;
+		CBitSet *m_tes;
 		CExpression *m_predicate;
+		std::vector<CConflictRule *> m_conflict_rules;
 
 	public:
 		CEdge(const CEdge &) = delete;
@@ -57,11 +91,39 @@ public:
 			return m_right;
 		}
 
+		const CBitSet *
+		All() const
+		{
+			return m_all;
+		}
+
+		const CBitSet *
+		SES() const
+		{
+			return m_ses;
+		}
+
+		const CBitSet *
+		TES() const
+		{
+			return m_tes;
+		}
+
+		const std::vector<CConflictRule *> &
+		ConflictRules() const
+		{
+			return m_conflict_rules;
+		}
+
 		CExpression *
 		Predicate() const
 		{
 			return m_predicate;
 		}
+
+		// Test whether this original join edge may connect the candidate inputs.
+		// Non-inner joins preserve the orientation of their TES partitions.
+		BOOL FApplicable(const CBitSet *left, const CBitSet *right) const;
 	};
 
 private:
@@ -70,9 +132,24 @@ private:
 	std::vector<CEdge *> m_edges;
 	BOOL m_built;
 	BOOL m_pure_inner;
+	BOOL m_cdc_supported;
 
 	static BOOL FSupportedBinaryJoin(COperator::EOperatorId op_id);
+	static BOOL FCDCSupportedJoin(COperator::EOperatorId op_id);
+	static BOOL FInnerJoin(COperator::EOperatorId op_id);
 	CBitSet *PbsCollect(CExpression *expr);
+	CBitSet *PbsPredicateCover(CExpression *predicate) const;
+	CColRefSet *PcrsNodes(const CBitSet *nodes) const;
+	BOOL FNullRejecting(const CEdge *edge, const CBitSet *nodes) const;
+	BOOL FAssociative(const CEdge *left, const CEdge *right) const;
+	BOOL FLeftAsscom(const CEdge *left, const CEdge *right) const;
+	BOOL FRightAsscom(const CEdge *left, const CEdge *right) const;
+	CBitSet *PbsIntersectIfNotDegenerate(const CBitSet *used,
+									 const CBitSet *available) const;
+	void AddConflictRule(CEdge *edge, const CBitSet *activate,
+					 const CBitSet *required);
+	void AbsorbConflictRules(CEdge *edge);
+	void BuildEligibility(CEdge *edge);
 
 public:
 	CJoinRegionSpec(const CJoinRegionSpec &) = delete;
@@ -119,6 +196,12 @@ public:
 	PureInner() const
 	{
 		return m_pure_inner;
+	}
+
+	BOOL
+	CDCSupported() const
+	{
+		return m_cdc_supported;
 	}
 };
 

@@ -236,6 +236,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	: m_mp(mp),
 	  m_components(components),
 	  m_conjuncts(conjuncts),
+	  m_spec(nullptr),
 	  m_graph(nullptr),
 	  m_edge_budget(edge_budget),
 	  m_generated_edges(0),
@@ -255,6 +256,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	: m_mp(mp),
 	  m_components(GPOS_NEW(mp) CExpressionArray(mp)),
 	  m_conjuncts(GPOS_NEW(mp) CExpressionArray(mp)),
+	  m_spec(spec),
 	  m_graph(nullptr),
 	  m_edge_budget(edge_budget),
 	  m_generated_edges(0),
@@ -262,7 +264,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	  m_edge_budget_exhausted(false)
 {
 	GPOS_ASSERT(nullptr != mp && nullptr != spec);
-	GPOS_ASSERT(spec->PureInner() && 1 < spec->NodeCount());
+	GPOS_ASSERT(1 < spec->NodeCount());
 	GPOS_ASSERT(0 < edge_budget);
 	for (ULONG node = 0; node < spec->NodeCount(); ++node)
 	{
@@ -521,6 +523,29 @@ CDPHyperJoinRegion::Build()
 {
 	GPOS_ASSERT(nullptr == m_graph);
 	m_graph = GPOS_NEW(m_mp) CDPHyperGraph(m_mp, m_components->Size());
+	if (nullptr != m_spec && !m_spec->PureInner())
+	{
+		GPOS_ASSERT(m_spec->CDCSupported());
+		for (ULONG edge_id = 0; edge_id < m_spec->EdgeCount(); ++edge_id)
+		{
+			if (m_generated_edges >= m_edge_budget)
+			{
+				m_edge_budget_exhausted = true;
+				return false;
+			}
+			const CJoinRegionSpec::CEdge *edge = m_spec->Edge(edge_id);
+			CAutoRef<CBitSet> left(
+				GPOS_NEW(m_mp) CBitSet(m_mp, *edge->TES()));
+			CAutoRef<CBitSet> right(
+				GPOS_NEW(m_mp) CBitSet(m_mp, *edge->TES()));
+			left->Intersection(edge->Left());
+			right->Intersection(edge->Right());
+			GPOS_ASSERT(0 < left->Size() && 0 < right->Size());
+			m_graph->AddEdge(left.Value(), right.Value(), edge_id);
+			++m_generated_edges;
+		}
+		return true;
+	}
 	m_predicate_covers.reserve(m_conjuncts->Size());
 	for (ULONG predicate = 0; predicate < m_conjuncts->Size(); ++predicate)
 	{
@@ -532,6 +557,36 @@ CDPHyperJoinRegion::Build()
 		}
 	}
 	return AddMissingSkeletonEdges() && AddCartesianComponentEdges();
+}
+
+BOOL
+CDPHyperJoinRegion::FPairApplicable(const CBitSet *left,
+									const CBitSet *right, ULONG edge_id,
+									BOOL *swapped) const
+{
+	if (nullptr != swapped)
+	{
+		*swapped = false;
+	}
+	if (nullptr == m_spec || m_spec->PureInner())
+	{
+		return true;
+	}
+	GPOS_ASSERT(edge_id < m_spec->EdgeCount());
+	const CJoinRegionSpec::CEdge *edge = m_spec->Edge(edge_id);
+	if (edge->FApplicable(left, right))
+	{
+		return true;
+	}
+	if (edge->FApplicable(right, left))
+	{
+		if (nullptr != swapped)
+		{
+			*swapped = true;
+		}
+		return true;
+	}
+	return false;
 }
 
 CExpression *
