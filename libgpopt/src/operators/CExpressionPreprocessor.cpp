@@ -983,6 +983,43 @@ CExpressionPreprocessor::PexprCollapseJoins(CMemoryPool *mp, CExpression *pexpr)
 	return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexprChildren);
 }
 
+// Mark maximal binary InnerJoin regions without replacing their operators by
+// an NAryJoin. This mirrors Horn's FindAndOptimizeJoin ownership rule: the
+// outermost contiguous join is the sole region owner, while its direct join
+// descendants are members used to recover the stable syntactic skeleton.
+CExpression *
+CExpressionPreprocessor::PexprMarkDPHyperJoinRegions(CMemoryPool *mp,
+												  CExpression *pexpr,
+												  BOOL parent_is_inner)
+{
+	GPOS_CHECK_STACK_SIZE;
+	GPOS_ASSERT(nullptr != mp && nullptr != pexpr);
+	const BOOL is_inner =
+		COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid();
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG child = 0; child < pexpr->Arity(); ++child)
+	{
+		const BOOL child_inside_region = is_inner && child < 2;
+		children->Append(PexprMarkDPHyperJoinRegions(
+			mp, (*pexpr)[child], child_inside_region));
+	}
+
+	COperator *pop = nullptr;
+	if (is_inner)
+	{
+		CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(pexpr->Pop());
+		pop = GPOS_NEW(mp) CLogicalInnerJoin(
+			mp, join->OriginXform(), true /*region member*/,
+			!parent_is_inner /*region root*/);
+	}
+	else
+	{
+		pexpr->Pop()->AddRef();
+		pop = pexpr->Pop();
+	}
+	return GPOS_NEW(mp) CExpression(mp, pop, children);
+}
+
 // collect the children of a join backbone into an array of logical leaf
 // nodes (leaves of the backbone, that is) and arrays of predicates, such
 // that we can still associate the correct ON predicates to the children
@@ -1419,6 +1456,15 @@ CExpressionPreprocessor::PexprOuterJoinToInnerJoin(CMemoryPool *mp,
 			pdrgpexprChildren->Append(pexprChildNew);
 		}
 
+		if (COperator::EopLogicalInnerJoin == pop->Eopid() &&
+			COptCtxt::PoctxtFromTLS()
+				->GetOptimizerConfig()
+				->GetHint()
+				->FEnableDPHyper())
+		{
+			pop->AddRef();
+			return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexprChildren);
+		}
 		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalNAryJoin(mp),
 										pdrgpexprChildren);
 	}
@@ -3504,8 +3550,21 @@ CExpressionPreprocessor::PexprPreprocess(
 	GPOS_CHECK_ABORT;
 	pexprNormalized1->Release();
 
-	// collapse cascaded inner and left outer joins
-	CExpression *pexprCollapsed = PexprCollapseJoins(mp, pexprLOJToIJ);
+	// DPHyper consumes the real binary join tree, like Horn's hypergraph
+	// builder. Native mode retains the established NAryJoin preprocessing.
+	CExpression *pexprCollapsed = nullptr;
+	if (COptCtxt::PoctxtFromTLS()
+			->GetOptimizerConfig()
+			->GetHint()
+			->FEnableDPHyper())
+	{
+		pexprCollapsed =
+			PexprMarkDPHyperJoinRegions(mp, pexprLOJToIJ, false);
+	}
+	else
+	{
+		pexprCollapsed = PexprCollapseJoins(mp, pexprLOJToIJ);
+	}
 	GPOS_CHECK_ABORT;
 	pexprLOJToIJ->Release();
 

@@ -1,18 +1,23 @@
 {
-  "description": "DPHyper replacement mode leaves mixed outer-join regions to native ORCA without partial alternatives",
+  "description": "DPHyper replacement treats an outer-join subtree as an opaque atom while enumerating its enclosing inner-join region",
   "plans": [
     {
-      "name": "replacement-fallback",
+      "name": "replacement-boundary",
       "dsl": false,
       "dphyper": true,
       "dphyper_shadow": false,
       "trace": true,
       "contains": [
-        "DPHyper: status=fallback reason=non_inner_join",
-        "Xform: CXformExpandNAryJoinDPv2"
+        "DPHyper: status=applied",
+        "nodes=2",
+        "mode=replacement",
+        "Xform: CXformImplementInnerJoin"
       ],
       "not_contains": [
-        "DPHyper: status=applied"
+        "DPHyper: status=fallback reason=non_inner_join",
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
       ],
       "joins": 2
     }

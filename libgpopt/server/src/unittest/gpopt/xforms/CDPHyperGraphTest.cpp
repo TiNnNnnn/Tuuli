@@ -13,9 +13,11 @@
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/test/CUnittest.h"
 
+#include "gpopt/base/CUtils.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
+#include "gpopt/xforms/CJoinRegionSpec.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -96,6 +98,23 @@ Pbs(CMemoryPool *mp, std::initializer_list<ULONG> nodes)
 		(void) set->ExchangeSet(node);
 	}
 	return set;
+}
+
+BOOL
+FSet(const CBitSet *set, std::initializer_list<ULONG> nodes)
+{
+	if (set->Size() != nodes.size())
+	{
+		return false;
+	}
+	for (ULONG node : nodes)
+	{
+		if (!set->Get(node))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void
@@ -301,6 +320,8 @@ CDPHyperGraphTest::EresUnittest()
 			CDPHyperGraphTest::EresUnittest_DifferentialHypergraphs),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_AtomicBudget),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_JoinRegion),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec),
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_CartesianComponents),
 		GPOS_UNITTEST_FUNC(
@@ -580,6 +601,95 @@ CDPHyperGraphTest::EresUnittest_JoinRegion()
 
 	components->Release();
 	conjuncts->Release();
+	pred01->Release();
+	pred12->Release();
+	get0->Release();
+	get1->Release();
+	get2->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *cols0 = nullptr;
+	CColRefArray *cols1 = nullptr;
+	CColRefArray *cols2 = nullptr;
+	CExpression *get0 = fix.PexprLogicalGet("dph_s0", 1, &cols0);
+	CExpression *get1 = fix.PexprLogicalGet("dph_s1", 1, &cols1);
+	CExpression *get2 = fix.PexprLogicalGet("dph_s2", 1, &cols2);
+	CExpression *pred01 = fix.PexprEqPred((*cols0)[0], (*cols1)[0]);
+	CExpression *pred12 = fix.PexprEqPred((*cols1)[0], (*cols2)[0]);
+
+	CExpression *join01 = fix.PexprLogicalInnerJoin(get0, get1, pred01);
+	CExpression *root = fix.PexprLogicalInnerJoin(join01, get2, pred12);
+	CJoinRegionSpec inner_spec(mp);
+	GPOS_UNITTEST_ASSERT(inner_spec.Build(root));
+	GPOS_UNITTEST_ASSERT(3 == inner_spec.NodeCount());
+	GPOS_UNITTEST_ASSERT(2 == inner_spec.EdgeCount());
+	GPOS_UNITTEST_ASSERT(inner_spec.PureInner());
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin ==
+						 inner_spec.Edge(0)->JoinType());
+	GPOS_UNITTEST_ASSERT(FSet(inner_spec.Edge(0)->Left(), {0}));
+	GPOS_UNITTEST_ASSERT(FSet(inner_spec.Edge(0)->Right(), {1}));
+	GPOS_UNITTEST_ASSERT(FSet(inner_spec.Edge(1)->Left(), {0, 1}));
+	GPOS_UNITTEST_ASSERT(FSet(inner_spec.Edge(1)->Right(), {2}));
+	CDPHyperJoinRegion binary_region(mp, &inner_spec, 100);
+	GPOS_UNITTEST_ASSERT(binary_region.Build());
+	GPOS_UNITTEST_ASSERT(3 == binary_region.NodeCount());
+	GPOS_UNITTEST_ASSERT(2 == binary_region.PredicateCount());
+	GPOS_UNITTEST_ASSERT(2 == binary_region.GeneratedEdgeCount());
+	CDPHyperPlan binary_plan(mp, 100);
+	CDPHyperEnumerator binary_enumerator(mp, binary_region.Graph(),
+									  &binary_plan);
+	GPOS_UNITTEST_ASSERT(!binary_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(binary_plan.Complete(binary_region.NodeCount()));
+	GPOS_UNITTEST_ASSERT(6 == binary_plan.SeenCount());
+
+	// Preserve an explicit predicate-free cut. Predicate-only component
+	// freezing would keep {1,2}|{0} and lose the original {0}|{1} CROSS edge.
+	CExpression *true_pred = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *cross01 = fix.PexprLogicalInnerJoin(get0, get1, true_pred);
+	CExpression *cross_root =
+		fix.PexprLogicalInnerJoin(cross01, get2, pred12);
+	CJoinRegionSpec cross_spec(mp);
+	GPOS_UNITTEST_ASSERT(cross_spec.Build(cross_root));
+	CDPHyperJoinRegion cross_region(mp, &cross_spec, 100);
+	GPOS_UNITTEST_ASSERT(cross_region.Build());
+	GPOS_UNITTEST_ASSERT(2 == cross_region.GeneratedEdgeCount());
+	GPOS_UNITTEST_ASSERT(1 == cross_region.CartesianEdgeCount());
+	CDPHyperPlan cross_plan(mp, 100);
+	CDPHyperEnumerator cross_enumerator(mp, cross_region.Graph(), &cross_plan);
+	GPOS_UNITTEST_ASSERT(!cross_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(cross_plan.Complete(cross_region.NodeCount()));
+	CAutoRef<CBitSet> cross01_nodes(Pbs(mp, {0, 1}));
+	GPOS_UNITTEST_ASSERT(cross_plan.HasSeen(cross01_nodes.Value()));
+
+	// An outer edge is retained with its directional boundary.  DPHyper may
+	// reject it initially, but the transient descriptor must not erase it.
+	CExpression *loj01 = fix.PexprLogicalLeftOuterJoin(get0, get1, pred01);
+	CExpression *outer_root =
+		fix.PexprLogicalInnerJoin(loj01, get2, pred12);
+	CJoinRegionSpec outer_spec(mp);
+	GPOS_UNITTEST_ASSERT(outer_spec.Build(outer_root));
+	GPOS_UNITTEST_ASSERT(!outer_spec.PureInner());
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftOuterJoin ==
+						 outer_spec.Edge(0)->JoinType());
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->Left(), {0}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(0)->Right(), {1}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->Left(), {0, 1}));
+	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->Right(), {2}));
+
+	outer_root->Release();
+	loj01->Release();
+	cross_root->Release();
+	cross01->Release();
+	true_pred->Release();
+	root->Release();
+	join01->Release();
 	pred01->Release();
 	pred12->Release();
 	get0->Release();

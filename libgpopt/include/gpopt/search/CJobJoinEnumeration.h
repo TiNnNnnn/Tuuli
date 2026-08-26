@@ -10,6 +10,8 @@
 #ifndef GPOPT_CJobJoinEnumeration_H
 #define GPOPT_CJobJoinEnumeration_H
 
+#include <vector>
+
 #include "gpopt/search/CJob.h"
 
 namespace gpopt
@@ -17,13 +19,27 @@ namespace gpopt
 using namespace gpos;
 
 class CGroupExpression;
+class CGroup;
+class CDPHyperJoinRegion;
+class CJoinRegionSpec;
 
 class CJobJoinEnumeration : public CJob
 {
 private:
 	CGroupExpression *m_pgexpr;
+	BOOL m_materialized;
+	BOOL m_native_fallback_materialized;
+	std::vector<CGroup *> m_intermediate_groups;
 
 	BOOL FEnumerate(CSchedulerContext *psc);
+	BOOL FEnumerateRegion(CSchedulerContext *psc,
+						  CDPHyperJoinRegion *region,
+						  const std::vector<CGroup *> &component_groups,
+						  const CJoinRegionSpec *spec,
+						  const std::vector<CGroup *> &skeleton_groups);
+	void MaterializeNativeFallback(
+		CSchedulerContext *psc, CDPHyperJoinRegion *region,
+		const std::vector<CGroup *> &component_groups);
 
 public:
 	CJobJoinEnumeration(const CJobJoinEnumeration &) = delete;

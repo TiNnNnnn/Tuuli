@@ -31,12 +31,20 @@ class CColRefSet;
 class CLogicalInnerJoin : public CLogicalJoin
 {
 private:
+	// Transient binary DPHyper-region ownership. A root is also a member;
+	// xform-generated alternatives are neither unless explicitly annotated by
+	// preprocessing.
+	BOOL m_dphyper_region_member;
+	BOOL m_dphyper_region_root;
+
 public:
 	CLogicalInnerJoin(const CLogicalInnerJoin &) = delete;
 
 	// ctor
 	explicit CLogicalInnerJoin(
-		CMemoryPool *mp, CXform::EXformId origin_xform = CXform::ExfSentinel);
+		CMemoryPool *mp, CXform::EXformId origin_xform = CXform::ExfSentinel,
+		BOOL dphyper_region_member = false,
+		BOOL dphyper_region_root = false);
 
 	// dtor
 	~CLogicalInnerJoin() override = default;
@@ -86,6 +94,18 @@ public:
 
 	// candidate set of xforms
 	CXformSet *PxfsCandidates(CMemoryPool *mp) const override;
+
+	BOOL
+	FDPHyperRegionMember() const
+	{
+		return m_dphyper_region_member;
+	}
+
+	BOOL
+	FDPHyperRegionRoot() const
+	{
+		return m_dphyper_region_root;
+	}
 
 	//-------------------------------------------------------------------------------------
 	//-------------------------------------------------------------------------------------

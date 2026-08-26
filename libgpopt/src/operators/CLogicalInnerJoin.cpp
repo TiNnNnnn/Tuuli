@@ -18,6 +18,7 @@
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
@@ -33,10 +34,15 @@ using namespace gpopt;
 //
 //---------------------------------------------------------------------------
 CLogicalInnerJoin::CLogicalInnerJoin(CMemoryPool *mp,
-									 CXform::EXformId origin_xform)
-	: CLogicalJoin(mp, origin_xform)
+									 CXform::EXformId origin_xform,
+									 BOOL dphyper_region_member,
+									 BOOL dphyper_region_root)
+	: CLogicalJoin(mp, origin_xform),
+	  m_dphyper_region_member(dphyper_region_member),
+	  m_dphyper_region_root(dphyper_region_root)
 {
 	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT_IMP(dphyper_region_root, dphyper_region_member);
 }
 
 
@@ -85,6 +91,10 @@ CLogicalInnerJoin::PxfsCandidates(CMemoryPool *mp) const
 
 	// MONSOON DSL-rule shell
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInnerJoin);
+	if (FDPHyperRegionRoot())
+	{
+		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+	}
 
 	return xform_set;
 }

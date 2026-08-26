@@ -162,9 +162,10 @@ CXformJoinAssociativity::CreatePredicates(CMemoryPool *mp, CExpression *pexpr,
 CXform::EXformPromise
 CXformJoinAssociativity::Exfp(CExpressionHandle &exprhdl) const
 {
+	CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(exprhdl.Pop());
 	if (!GPOS_FTRACE(EopttraceDPHyperShadow) &&
-		CXform::ExfExpandNAryJoinDPHyper ==
-			CLogicalJoin::PopConvert(exprhdl.Pop())->OriginXform())
+		(CXform::ExfExpandNAryJoinDPHyper == join->OriginXform() ||
+		 (join->FDPHyperRegionMember() && !join->FDPHyperRegionRoot())))
 	{
 		return CXform::ExfpNone;
 	}

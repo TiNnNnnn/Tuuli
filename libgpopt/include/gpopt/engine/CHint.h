@@ -64,6 +64,8 @@ private:
 
 	ULONG m_ulDPHyperPairBudget;
 
+	BOOL m_fEnableDPHyper;
+
 public:
 	CHint(const CHint &) = delete;
 
@@ -75,7 +77,8 @@ public:
 		  ULONG skew_factor, ULONG dsl_rule_max_alternatives = 0,
 		  ULONG dsl_rule_max_alternatives_per_rule = 0,
 		  ULONG dphyper_edge_budget = 100000,
-		  ULONG dphyper_pair_budget = 100000)
+		  ULONG dphyper_pair_budget = 100000,
+		  BOOL enable_dphyper = false)
 		: m_ulJoinArityForAssociativityCommutativity(
 			  join_arity_for_associativity_commutativity),
 		  m_ulArrayExpansionThreshold(array_expansion_threshold),
@@ -90,7 +93,8 @@ public:
 		  m_ulDSLRuleMaxAlternativesPerRule(
 			  dsl_rule_max_alternatives_per_rule),
 		  m_ulDPHyperEdgeBudget(dphyper_edge_budget),
-		  m_ulDPHyperPairBudget(dphyper_pair_budget)
+		  m_ulDPHyperPairBudget(dphyper_pair_budget),
+		  m_fEnableDPHyper(enable_dphyper)
 	{
 	}
 
@@ -184,6 +188,12 @@ public:
 	UlDPHyperPairBudget() const
 	{
 		return m_ulDPHyperPairBudget;
+	}
+
+	BOOL
+	FEnableDPHyper() const
+	{
+		return m_fEnableDPHyper;
 	}
 
 	// generate default hint configurations, which disables sort during insert on

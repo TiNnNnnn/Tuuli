@@ -32,6 +32,7 @@
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalCTEProducer.h"
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
@@ -3913,6 +3914,41 @@ CExpression *
 CUtils::PexprLogicalJoin(CMemoryPool *mp, EdxlJoinType edxljointype,
 						 CExpressionArray *pdrgpexpr)
 {
+	// Preserve a deterministic binary tree for the in-Cascades DPHyper path.
+	// The complete DXL predicate is attached to the top join; lower joins use
+	// TRUE. The later region builder redistributes conjuncts by referenced
+	// atoms, while the binary skeleton retains explicit CROSS JOIN boundaries.
+	if (EdxljtInner == edxljointype &&
+		COptCtxt::PoctxtFromTLS()
+			->GetOptimizerConfig()
+			->GetHint()
+			->FEnableDPHyper())
+	{
+		GPOS_ASSERT(3 <= pdrgpexpr->Size());
+		const ULONG component_count = pdrgpexpr->Size() - 1;
+		CExpression *predicate = (*pdrgpexpr)[component_count];
+		(*pdrgpexpr)[0]->AddRef();
+		CExpression *tree = (*pdrgpexpr)[0];
+		for (ULONG component = 1; component < component_count; ++component)
+		{
+			(*pdrgpexpr)[component]->AddRef();
+			CExpression *join_predicate = nullptr;
+			if (component + 1 == component_count)
+			{
+				predicate->AddRef();
+				join_predicate = predicate;
+			}
+			else
+			{
+				join_predicate = PexprScalarConstBool(mp, true);
+			}
+			tree = PexprLogicalJoin<CLogicalInnerJoin>(
+				mp, tree, (*pdrgpexpr)[component], join_predicate);
+		}
+		pdrgpexpr->Release();
+		return tree;
+	}
+
 	COperator *pop = nullptr;
 	switch (edxljointype)
 	{

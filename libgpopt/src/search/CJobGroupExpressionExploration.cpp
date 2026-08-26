@@ -184,6 +184,17 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 		// xform-disable control through the candidate-set intersections above.
 		(void) xform_set->ExchangeClear(
 			CXform::ExfExpandNAryJoinDPHyper);
+		if (COperator::EopLogicalNAryJoin == pop->Eopid() &&
+			CXform::ExfExpandNAryJoinDPHyper == m_pgexpr->ExfidOrigin())
+		{
+			// A failed binary DPHyper attempt materializes this NAryJoin solely
+			// as an exact bridge to the legacy enumerator. Do not recurse into
+			// DPHyper again; all native NAryJoin xforms remain candidates.
+			ScheduleTransformations(psc, xform_set);
+			xform_set->Release();
+			SetXformsScheduled();
+			return;
+		}
 		if (CGroupExpression::EdphUnrequested ==
 			m_pgexpr->DPHyperStatus())
 		{
@@ -194,17 +205,38 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 		}
 		GPOS_ASSERT(CGroupExpression::EdphScheduled !=
 					m_pgexpr->DPHyperStatus());
-		if (CGroupExpression::EdphSucceeded ==
-				m_pgexpr->DPHyperStatus() &&
+		if ((CGroupExpression::EdphSucceeded ==
+				 m_pgexpr->DPHyperStatus() ||
+			 CGroupExpression::EdphNativeFallback ==
+				 m_pgexpr->DPHyperStatus()) &&
 			!GPOS_FTRACE(EopttraceDPHyperShadow))
 		{
-			// The region has been enumerated completely into shared subset groups.
-			// Do not schedule a second owner for the same join-order space.
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
+			// Keep one join-enumeration owner: successful DPHyper suppresses the
+			// native ingress owner, while a materialized native fallback suppresses
+			// the original binary owner and lets its NAryJoin bridge enumerate.
+			if (CGroupExpression::EdphNativeFallback ==
+				m_pgexpr->DPHyperStatus())
+			{
+				GPOS_ASSERT(COperator::EopLogicalInnerJoin == pop->Eopid());
+				(void) xform_set->ExchangeClear(
+					CXform::ExfInnerJoinCommutativity);
+				(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
+			}
+			else if (COperator::EopLogicalNAryJoin == pop->Eopid())
+			{
+				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
+				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
+				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
+				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
+				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
+			}
+			else
+			{
+				GPOS_ASSERT(COperator::EopLogicalInnerJoin == pop->Eopid());
+				(void) xform_set->ExchangeClear(
+					CXform::ExfInnerJoinCommutativity);
+				(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
+			}
 		}
 	}
 	ScheduleTransformations(psc, xform_set);

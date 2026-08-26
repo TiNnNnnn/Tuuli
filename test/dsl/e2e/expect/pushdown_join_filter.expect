@@ -19,9 +19,29 @@
       "alternative": [
         "CXformDSLRule_InnerJoin"
       ]
+    },
+    {
+      "name": "on-dphyper-replacement",
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=replacement",
+        "\"rule_id\":63,\"status\":\"applied\""
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ]
     }
   ],
   "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
     "output": [
       "2,2",
       "2,2"

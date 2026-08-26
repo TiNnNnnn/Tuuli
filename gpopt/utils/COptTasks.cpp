@@ -429,7 +429,8 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model)
 				  push_group_by_below_setop_threshold, xform_bind_threshold,
 				  skew_factor, dsl_rule_max_alternatives,
 				  dsl_rule_max_alternatives_per_rule,
-				  dphyper_edge_budget, dphyper_pair_budget),
+				  dphyper_edge_budget, dphyper_pair_budget,
+				  pg_orca_enable_dphyper),
 		GPOS_NEW(mp) CWindowOids(mp, OID(F_ROW_NUMBER), OID(F_RANK_), OID(F_DENSE_RANK_)));
 }
 

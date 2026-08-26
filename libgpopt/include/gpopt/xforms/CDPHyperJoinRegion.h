@@ -10,6 +10,7 @@
 #ifndef GPOPT_CDPHyperJoinRegion_H
 #define GPOPT_CDPHyperJoinRegion_H
 
+#include <utility>
 #include <vector>
 
 #include "gpopt/operators/CExpression.h"
@@ -19,6 +20,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CJoinRegionSpec;
+
 class CDPHyperJoinRegion
 {
 private:
@@ -26,6 +29,7 @@ private:
 	CExpressionArray *m_components;
 	CExpressionArray *m_conjuncts;
 	std::vector<CBitSet *> m_predicate_covers;
+	std::vector<std::pair<CBitSet *, CBitSet *>> m_skeleton_edges;
 	CDPHyperGraph *m_graph;
 	ULONG m_edge_budget;
 	ULONG m_generated_edges;
@@ -37,6 +41,8 @@ private:
 	BOOL AddPredicatePartitionsRecursive(ULONG predicate_id,
 								 const std::vector<ULONG> &nodes, ULONG pos,
 								 CBitSet *left, CBitSet *right);
+	BOOL FPredicateCrosses(const CBitSet *left, const CBitSet *right) const;
+	BOOL AddMissingSkeletonEdges();
 	BOOL AddCartesianComponentEdges();
 
 public:
@@ -44,6 +50,8 @@ public:
 
 	CDPHyperJoinRegion(CMemoryPool *mp, CExpressionArray *components,
 					   CExpressionArray *conjuncts, ULONG edge_budget);
+	CDPHyperJoinRegion(CMemoryPool *mp, const CJoinRegionSpec *spec,
+					   ULONG edge_budget);
 	~CDPHyperJoinRegion();
 
 	// Build once. False means the exact generalized-edge expansion exceeded
@@ -52,6 +60,7 @@ public:
 
 	CExpression *PexprPredicate(const CBitSet *left, const CBitSet *right,
 							 BOOL include_residual) const;
+	CExpression *PexprAllPredicates() const;
 
 	const CDPHyperGraph *
 	Graph() const

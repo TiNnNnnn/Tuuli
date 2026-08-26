@@ -90,7 +90,8 @@ public:
 		EdphUnrequested = 0,
 		EdphScheduled,
 		EdphSucceeded,
-		EdphFallback
+		EdphFallback,
+		EdphNativeFallback
 	};
 
 #ifdef GPOS_DEBUG
@@ -263,7 +264,8 @@ public:
 		GPOS_ASSERT(
 			(EdphUnrequested == m_edph && EdphScheduled == status) ||
 			(EdphScheduled == m_edph &&
-			 (EdphSucceeded == status || EdphFallback == status)));
+			 (EdphSucceeded == status || EdphFallback == status ||
+			  EdphNativeFallback == status)));
 		m_edph = status;
 	}
 

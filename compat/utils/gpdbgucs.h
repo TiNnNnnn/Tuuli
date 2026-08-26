@@ -35,6 +35,9 @@ extern int  pg_orca_dsl_rule_max_alternatives_per_rule;
 extern int  pg_orca_dphyper_edge_budget;
 extern int  pg_orca_dphyper_pair_budget;
 
+/* --- bool GUCs --- */
+extern bool pg_orca_enable_dphyper;
+
 /* --- double GUCs --- */
 extern double optimizer_sort_factor;
 extern double optimizer_spilling_mem_threshold;

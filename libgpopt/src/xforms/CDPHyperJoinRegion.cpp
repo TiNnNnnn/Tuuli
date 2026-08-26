@@ -4,10 +4,12 @@
 //---------------------------------------------------------------------------
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
 
+#include "gpos/common/CAutoRef.h"
 #include "gpos/common/CBitSetIter.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/xforms/CJoinRegionSpec.h"
 
 using namespace gpopt;
 
@@ -31,6 +33,42 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	conjuncts->AddRef();
 }
 
+CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
+									   const CJoinRegionSpec *spec,
+									   ULONG edge_budget)
+	: m_mp(mp),
+	  m_components(GPOS_NEW(mp) CExpressionArray(mp)),
+	  m_conjuncts(GPOS_NEW(mp) CExpressionArray(mp)),
+	  m_graph(nullptr),
+	  m_edge_budget(edge_budget),
+	  m_generated_edges(0),
+	  m_cartesian_edges(0),
+	  m_edge_budget_exhausted(false)
+{
+	GPOS_ASSERT(nullptr != mp && nullptr != spec);
+	GPOS_ASSERT(spec->PureInner() && 1 < spec->NodeCount());
+	GPOS_ASSERT(0 < edge_budget);
+	for (ULONG node = 0; node < spec->NodeCount(); ++node)
+	{
+		spec->Atom(node)->AddRef();
+		m_components->Append(spec->Atom(node));
+	}
+	for (ULONG edge = 0; edge < spec->EdgeCount(); ++edge)
+	{
+		m_skeleton_edges.emplace_back(
+			GPOS_NEW(mp) CBitSet(mp, *spec->Edge(edge)->Left()),
+			GPOS_NEW(mp) CBitSet(mp, *spec->Edge(edge)->Right()));
+		CExpressionArray *edge_conjuncts = CPredicateUtils::PdrgpexprConjuncts(
+			mp, spec->Edge(edge)->Predicate());
+		for (ULONG conjunct = 0; conjunct < edge_conjuncts->Size(); ++conjunct)
+		{
+			(*edge_conjuncts)[conjunct]->AddRef();
+			m_conjuncts->Append((*edge_conjuncts)[conjunct]);
+		}
+		edge_conjuncts->Release();
+	}
+}
+
 CDPHyperJoinRegion::~CDPHyperJoinRegion()
 {
 	GPOS_DELETE(m_graph);
@@ -38,8 +76,52 @@ CDPHyperJoinRegion::~CDPHyperJoinRegion()
 	{
 		cover->Release();
 	}
+	for (const auto &edge : m_skeleton_edges)
+	{
+		edge.first->Release();
+		edge.second->Release();
+	}
 	m_components->Release();
 	m_conjuncts->Release();
+}
+
+BOOL
+CDPHyperJoinRegion::FPredicateCrosses(const CBitSet *left,
+									  const CBitSet *right) const
+{
+	CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
+	joined->Union(right);
+	for (const CBitSet *cover : m_predicate_covers)
+	{
+		if (1 < cover->Size() && joined->ContainsAll(cover) &&
+			!left->IsDisjoint(cover) && !right->IsDisjoint(cover))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
+CDPHyperJoinRegion::AddMissingSkeletonEdges()
+{
+	for (const auto &edge : m_skeleton_edges)
+	{
+		if (FPredicateCrosses(edge.first, edge.second))
+		{
+			continue;
+		}
+		if (m_generated_edges >= m_edge_budget)
+		{
+			m_edge_budget_exhausted = true;
+			return false;
+		}
+		m_graph->AddEdge(edge.first, edge.second,
+						 m_conjuncts->Size() + m_cartesian_edges);
+		++m_generated_edges;
+		++m_cartesian_edges;
+	}
+	return true;
 }
 
 CBitSet *
@@ -155,6 +237,27 @@ CDPHyperJoinRegion::AddCartesianComponentEdges()
 			}
 		}
 	}
+	// A binary-tree descriptor contributes exact, already-legal skeleton cuts.
+	// Include them in connectivity even when a predicate edge made the explicit
+	// skeleton edge redundant. This prevents inferred Cartesian edges from
+	// replacing the original CROSS JOIN boundary.
+	for (const auto &edge : m_skeleton_edges)
+	{
+		CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *edge.first));
+		joined->Union(edge.second);
+		CBitSetIter iter(*joined.Value());
+		GPOS_ASSERT(iter.Advance());
+		const ULONG first = iter.Bit();
+		while (iter.Advance())
+		{
+			const ULONG first_root = find_root(first);
+			const ULONG other_root = find_root(iter.Bit());
+			if (first_root != other_root)
+			{
+				parent[other_root] = first_root;
+			}
+		}
+	}
 
 	std::vector<CBitSet *> by_root(node_count, nullptr);
 	std::vector<CBitSet *> components;
@@ -212,7 +315,7 @@ CDPHyperJoinRegion::Build()
 			return false;
 		}
 	}
-	return AddCartesianComponentEdges();
+	return AddMissingSkeletonEdges() && AddCartesianComponentEdges();
 }
 
 CExpression *
@@ -238,5 +341,17 @@ CDPHyperJoinRegion::PexprPredicate(const CBitSet *left,
 		}
 	}
 	joined->Release();
+	return CPredicateUtils::PexprConjunction(m_mp, predicates);
+}
+
+CExpression *
+CDPHyperJoinRegion::PexprAllPredicates() const
+{
+	CExpressionArray *predicates = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	for (ULONG predicate = 0; predicate < m_conjuncts->Size(); ++predicate)
+	{
+		(*m_conjuncts)[predicate]->AddRef();
+		predicates->Append((*m_conjuncts)[predicate]);
+	}
 	return CPredicateUtils::PexprConjunction(m_mp, predicates);
 }
