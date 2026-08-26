@@ -66,6 +66,100 @@ def reference_records(case: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
+def rule_ids(path: Path) -> set[int]:
+    """Return admitted physical source lines using the loader's conventions."""
+    identifiers: set[int] = set()
+    with path.open(encoding="utf-8") as stream:
+        for line_number, line in enumerate(stream, 1):
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            fields = stripped.split("\t", 1)
+            if len(fields) == 2 and fields[1].strip() not in {"", "EQ"}:
+                continue
+            identifiers.add(line_number)
+    return identifiers
+
+
+def rule_count(path: Path) -> int:
+    return len(rule_ids(path))
+
+
+def validate_rule_ids(cases: list[dict[str, Any]], rules_path: Path) -> None:
+    available_ids = rule_ids(rules_path)
+    expected = {
+        application.get("rule_id")
+        for case in cases
+        for application in case.get(
+            "expected_applications", case.get("reference_applications", [])
+        )
+        if isinstance(application, dict)
+    }
+    invalid = sorted(
+        (
+            rule_id
+            for rule_id in expected
+            if not isinstance(rule_id, int)
+            or isinstance(rule_id, bool)
+            or rule_id not in available_ids
+        ),
+        key=str,
+    )
+    if invalid:
+        rendered = ", ".join(map(str, invalid))
+        raise ValueError(
+            f"manifest rule_id absent from supplied rule set "
+            f"({len(available_ids)} admitted rules): {rendered}; "
+            "check that the manifest and rules file were generated together"
+        )
+
+
+def trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
+    """Compact cumulative optimizer metrics without double-counting stages."""
+    memo_records = [record for record in records if record.get("kind") == "memo_summary"]
+    rule_records = [record for record in records if record.get("kind") == "rule_summary"]
+
+    per_rule: dict[int, dict[str, int]] = {}
+    rule_fields = (
+        "binding_attempts",
+        "generated_alternatives",
+        "duplicate_alternatives",
+        "budget_exhausted",
+        "budget_skipped",
+    )
+    for record in rule_records:
+        rule_id = record.get("rule_id")
+        if not isinstance(rule_id, int) or isinstance(rule_id, bool):
+            continue
+        counters = per_rule.setdefault(rule_id, {field: 0 for field in rule_fields})
+        # CEngine may print one cumulative summary per search stage. Taking the
+        # maximum per rule preserves the query total instead of summing prefixes.
+        for field in rule_fields:
+            value = record.get(field)
+            if isinstance(value, int) and not isinstance(value, bool):
+                counters[field] = max(counters[field], value)
+
+    metrics = {
+        "memo_stages": len(memo_records),
+        "peak_groups": 0,
+        "peak_duplicate_groups": 0,
+        "peak_group_expressions": 0,
+        "rules_attempted": len(per_rule),
+    }
+    for record in memo_records:
+        for field, target in (
+            ("groups", "peak_groups"),
+            ("duplicate_groups", "peak_duplicate_groups"),
+            ("group_expressions", "peak_group_expressions"),
+        ):
+            value = record.get(field)
+            if isinstance(value, int) and not isinstance(value, bool):
+                metrics[target] = max(metrics[target], value)
+    for field in rule_fields:
+        metrics[field] = sum(counters[field] for counters in per_rule.values())
+    return metrics
+
+
 def safe_name(case_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", case_id).strip("._") or "case"
 
@@ -124,6 +218,12 @@ def tail_text(path: Path, maximum: int = 2000) -> str:
         return ""
 
 
+def failed_query_status(detail: str) -> str:
+    if "canceling statement due to statement timeout" in detail:
+        return "timeout"
+    return "query_error"
+
+
 def orca_fallback_reason(path: Path) -> str | None:
     """Return a reason when EXPLAIN was produced by PostgreSQL, not ORCA."""
     marker = "Falling back to Postgres-based planner because GPORCA does not support"
@@ -170,17 +270,65 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help="run only the selected case_id; may be specified more than once",
     )
+    parser.add_argument(
+        "--disable-xform",
+        action="append",
+        default=[],
+        help="disable a native ORCA xform for each replayed case; may be repeated",
+    )
+    parser.add_argument(
+        "--dsl",
+        choices=("on", "off"),
+        default="on",
+        help="enable or disable DSL rewrites during replay (default: on)",
+    )
+    parser.add_argument(
+        "--max-alternatives",
+        type=int,
+        default=0,
+        help="query-wide DSL alternative budget; zero is unlimited",
+    )
+    parser.add_argument(
+        "--max-alternatives-per-rule",
+        type=int,
+        default=0,
+        help="per-rule DSL alternative budget; zero is unlimited",
+    )
     parser.add_argument("--max", type=int, default=0)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    if args.max < 0 or not 1 <= args.base_port <= 65535 or args.statement_timeout <= 0:
-        print("invalid --max, --base-port, or --statement-timeout", file=sys.stderr)
+    if (
+        args.max < 0
+        or args.max_alternatives < 0
+        or args.max_alternatives_per_rule < 0
+        or not 1 <= args.base_port <= 65535
+        or args.statement_timeout <= 0
+    ):
+        print(
+            "invalid --max, --max-alternatives, "
+            "--max-alternatives-per-rule, --base-port, or --statement-timeout",
+            file=sys.stderr,
+        )
+        return 2
+    invalid_xforms = [
+        name
+        for name in args.disable_xform
+        if not re.fullmatch(r"CXform[A-Za-z0-9_]+", name)
+    ]
+    if invalid_xforms:
+        print(f"invalid xform name: {', '.join(invalid_xforms)}", file=sys.stderr)
         return 2
     try:
         cases = read_manifest(args.manifest)
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 2
+    rules_path = args.rules.resolve()
+    try:
+        validate_rule_ids(cases, rules_path)
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
@@ -194,7 +342,6 @@ def main() -> int:
     if args.max:
         cases = cases[: args.max]
 
-    rules_path = args.rules.resolve()
     schema_path = args.schema.resolve()
     trace_runner = args.trace_runner.resolve()
     pg_config = args.pg_config.resolve()
@@ -209,6 +356,11 @@ def main() -> int:
         report = {
             "kind": "corpus_comparison",
             "manifest": str(args.manifest),
+            "rules": str(args.rules),
+            "dsl": args.dsl,
+            "disabled_xforms": args.disable_xform,
+            "max_alternatives": args.max_alternatives,
+            "max_alternatives_per_rule": args.max_alternatives_per_rule,
             "attempted": 0,
             "passed": 0,
             "failed": 0,
@@ -238,6 +390,12 @@ def main() -> int:
         environment["PG_CONFIG"] = str(pg_config)
         environment["DSL_TRACE_PORT"] = str(args.base_port)
         environment["DSL_TRACE_STATEMENT_TIMEOUT"] = str(args.statement_timeout)
+        environment["DSL_TRACE_DISABLE_XFORMS"] = ",".join(args.disable_xform)
+        environment["DSL_TRACE_DSL_ENABLED"] = args.dsl
+        environment["DSL_TRACE_MAX_ALTERNATIVES"] = str(args.max_alternatives)
+        environment["DSL_TRACE_MAX_ALTERNATIVES_PER_RULE"] = str(
+            args.max_alternatives_per_rule
+        )
         process = subprocess.run(
             [
                 str(trace_runner),
@@ -281,12 +439,24 @@ def main() -> int:
             continue
         if returncode != 0:
             detail = tail_text(log_path)
+            try:
+                partial_records = read_records(log_path)
+            except (OSError, ValueError):
+                partial_records = []
+            for record in partial_records:
+                record["case_id"] = case_id
+            candidate_records.extend(partial_records)
             case_reports.append(
                 {
                     "case_id": case_id,
-                    "status": "query_error",
+                    "status": failed_query_status(detail),
                     "returncode": returncode,
                     "detail": detail,
+                    "candidate_application_count": sum(
+                        record.get("kind") == "application"
+                        for record in partial_records
+                    ),
+                    "search_metrics": trace_metrics(partial_records),
                 }
             )
             continue
@@ -327,6 +497,7 @@ def main() -> int:
                 "inconclusive_budget": comparison["inconclusive_budget"],
                 "candidate_extra": comparison["candidate_extra"],
                 "candidate_application_count": comparison["candidate_application_count"],
+                "search_metrics": trace_metrics(parsed),
             }
         )
 
@@ -340,6 +511,11 @@ def main() -> int:
     report = {
         "kind": "corpus_comparison",
         "manifest": str(args.manifest),
+        "rules": str(args.rules),
+        "dsl": args.dsl,
+        "disabled_xforms": args.disable_xform,
+        "max_alternatives": args.max_alternatives,
+        "max_alternatives_per_rule": args.max_alternatives_per_rule,
         "attempted": len(case_reports),
         "passed": passed,
         "failed": failed,

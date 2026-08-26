@@ -15,6 +15,8 @@ PORT=${DSL_TRACE_PORT:-55440}
 STATEMENT_TIMEOUT=${DSL_TRACE_STATEMENT_TIMEOUT:-60000}
 MAX_ALTERNATIVES=${DSL_TRACE_MAX_ALTERNATIVES:-0}
 MAX_ALTERNATIVES_PER_RULE=${DSL_TRACE_MAX_ALTERNATIVES_PER_RULE:-0}
+DISABLE_XFORMS=${DSL_TRACE_DISABLE_XFORMS:-}
+DSL_ENABLED=${DSL_TRACE_DSL_ENABLED:-on}
 TRACE_XFORMS=off
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
     TRACE_XFORMS=on
@@ -37,6 +39,13 @@ fail()
     fail "DSL_TRACE_MAX_ALTERNATIVES must be a non-negative integer"
 [[ "$MAX_ALTERNATIVES_PER_RULE" =~ ^[0-9]+$ ]] || \
     fail "DSL_TRACE_MAX_ALTERNATIVES_PER_RULE must be a non-negative integer"
+IFS=',' read -r -a DISABLED_XFORM_NAMES <<< "$DISABLE_XFORMS"
+for XFORM_NAME in "${DISABLED_XFORM_NAMES[@]}"; do
+    [[ -z "$XFORM_NAME" || "$XFORM_NAME" =~ ^CXform[A-Za-z0-9_]+$ ]] || \
+        fail "DSL_TRACE_DISABLE_XFORMS contains an invalid xform name"
+done
+[[ "$DSL_ENABLED" = on || "$DSL_ENABLED" = off ]] || \
+    fail "DSL_TRACE_DSL_ENABLED must be on or off"
 
 PG_BINDIR=$($PG_CONFIG --bindir)
 TRACE_ROOT=$(mktemp -d /tmp/pgorca-dsl-corpus.XXXXXX)
@@ -86,7 +95,7 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
     {
         echo "LOAD 'pg_orca';"
         echo "SET pg_orca.enable_orca=on;"
-        echo "SET pg_orca.enable_dsl_rule=on;"
+        echo "SET pg_orca.enable_dsl_rule=$DSL_ENABLED;"
         echo "SET pg_orca.trace_dsl_rule=on;"
         echo "SET pg_orca.dsl_rule_max_alternatives=$MAX_ALTERNATIVES;"
         echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"
@@ -96,6 +105,11 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         echo "SET statement_timeout='${STATEMENT_TIMEOUT}ms';"
         echo "SET optimizer_enable_query_parameter=on;"
         echo "SET plan_cache_mode=force_generic_plan;"
+        for XFORM_NAME in "${DISABLED_XFORM_NAMES[@]}"; do
+            if [[ -n "$XFORM_NAME" ]]; then
+                echo "DO \$dsl\$ BEGIN PERFORM disable_xform('$XFORM_NAME'); END \$dsl\$;"
+            fi
+        done
         cat "$QUERY_FILE"
     } >"$RUN_SQL"
 

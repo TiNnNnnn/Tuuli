@@ -18,15 +18,111 @@ from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
 from run_e2e_cases import disabled_xform_settings
 from run_trace_corpus import (
+    failed_query_status,
     orca_fallback_reason,
     parameter_count,
     read_manifest,
     reference_records,
     render_trace_query,
+    rule_count,
+    trace_metrics,
+    validate_rule_ids,
 )
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_statement_timeout_has_its_own_failure_class(self) -> None:
+        self.assertEqual(
+            failed_query_status("ERROR: canceling statement due to statement timeout"),
+            "timeout",
+        )
+        self.assertEqual(failed_query_status("ERROR: bad query"), "query_error")
+
+    def test_trace_metrics_uses_cumulative_rule_maxima(self) -> None:
+        records = [
+            {
+                "kind": "memo_summary",
+                "groups": 10,
+                "duplicate_groups": 1,
+                "group_expressions": 20,
+            },
+            {
+                "kind": "rule_summary",
+                "rule_id": 2,
+                "binding_attempts": 5,
+                "generated_alternatives": 1,
+                "duplicate_alternatives": 2,
+                "budget_exhausted": 0,
+                "budget_skipped": 0,
+            },
+            {
+                "kind": "memo_summary",
+                "groups": 12,
+                "duplicate_groups": 3,
+                "group_expressions": 18,
+            },
+            {
+                "kind": "rule_summary",
+                "rule_id": 2,
+                "binding_attempts": 8,
+                "generated_alternatives": 2,
+                "duplicate_alternatives": 2,
+                "budget_exhausted": 1,
+                "budget_skipped": 4,
+            },
+            {
+                "kind": "rule_summary",
+                "rule_id": 6,
+                "binding_attempts": 3,
+                "generated_alternatives": 1,
+                "duplicate_alternatives": 0,
+                "budget_exhausted": 0,
+                "budget_skipped": 0,
+            },
+        ]
+
+        self.assertEqual(
+            trace_metrics(records),
+            {
+                "memo_stages": 2,
+                "peak_groups": 12,
+                "peak_duplicate_groups": 3,
+                "peak_group_expressions": 20,
+                "rules_attempted": 2,
+                "binding_attempts": 11,
+                "generated_alternatives": 3,
+                "duplicate_alternatives": 2,
+                "budget_exhausted": 1,
+                "budget_skipped": 4,
+            },
+        )
+
+    def test_manifest_rule_ids_must_exist_in_supplied_rule_set(self) -> None:
+        cases = [
+            {
+                "expected_applications": [
+                    {"rule_id": 2, "status": "applied"},
+                    {"rule_id": 5, "status": "applied"},
+                    {"rule_id": 6, "status": "applied"},
+                ]
+            }
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            rules = Path(directory) / "rules.txt"
+            rules.write_text(
+                "# comment\n"
+                "source|target|\n"
+                "\n"
+                "source2|target2|\n"
+                "source3|target3|\tNEQ\n"
+                "source4|target4|\tEQ\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(rule_count(rules), 3)
+            with self.assertRaisesRegex(ValueError, "5.*generated together"):
+                validate_rule_ids(cases, rules)
+
     def test_e2e_can_force_a_physical_xform_path_without_result_rows(self) -> None:
         self.assertEqual(
             disabled_xform_settings(
