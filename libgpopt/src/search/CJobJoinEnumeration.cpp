@@ -313,10 +313,11 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 	if (GPOS_FTRACE(EopttracePrintXformResults))
 	{
 		GPOS_TRACE_FORMAT(
-			"DPHyper: status=applied group=%d nodes=%d edges=%d pairs=%d "
-			"subsets=%d mode=%s",
+			"DPHyper: status=applied group=%d nodes=%d edges=%d "
+			"cartesian_edges=%d pairs=%d subsets=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), node_count,
-			region.GeneratedEdgeCount(), plan.PairCount(), plan.SeenCount(),
+			region.GeneratedEdgeCount(), region.CartesianEdgeCount(),
+			plan.PairCount(), plan.SeenCount(),
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	return true;

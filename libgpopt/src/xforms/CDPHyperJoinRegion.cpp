@@ -21,6 +21,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	  m_graph(nullptr),
 	  m_edge_budget(edge_budget),
 	  m_generated_edges(0),
+	  m_cartesian_edges(0),
 	  m_edge_budget_exhausted(false)
 {
 	GPOS_ASSERT(nullptr != mp && nullptr != components && nullptr != conjuncts);
@@ -119,6 +120,84 @@ CDPHyperJoinRegion::AddPredicatePartitions(ULONG predicate_id,
 }
 
 BOOL
+CDPHyperJoinRegion::AddCartesianComponentEdges()
+{
+	const ULONG node_count = m_components->Size();
+	std::vector<ULONG> parent(node_count);
+	for (ULONG node = 0; node < node_count; ++node)
+	{
+		parent[node] = node;
+	}
+	auto find_root = [&parent](ULONG node) {
+		while (parent[node] != node)
+		{
+			parent[node] = parent[parent[node]];
+			node = parent[node];
+		}
+		return node;
+	};
+	for (const CBitSet *cover : m_predicate_covers)
+	{
+		if (cover->Size() < 2)
+		{
+			continue;
+		}
+		CBitSetIter iter(*cover);
+		GPOS_ASSERT(iter.Advance());
+		const ULONG first = iter.Bit();
+		while (iter.Advance())
+		{
+			const ULONG first_root = find_root(first);
+			const ULONG other_root = find_root(iter.Bit());
+			if (first_root != other_root)
+			{
+				parent[other_root] = first_root;
+			}
+		}
+	}
+
+	std::vector<CBitSet *> by_root(node_count, nullptr);
+	std::vector<CBitSet *> components;
+	for (ULONG node = 0; node < node_count; ++node)
+	{
+		const ULONG root = find_root(node);
+		if (nullptr == by_root[root])
+		{
+			CBitSet *component = GPOS_NEW(m_mp) CBitSet(m_mp);
+			by_root[root] = component;
+			components.push_back(component);
+		}
+		(void) by_root[root]->ExchangeSet(node);
+	}
+
+	BOOL success = true;
+	for (ULONG left = 0; success && left < components.size(); ++left)
+	{
+		for (ULONG right = left + 1; right < components.size(); ++right)
+		{
+			if (m_generated_edges >= m_edge_budget)
+			{
+				m_edge_budget_exhausted = true;
+				success = false;
+				break;
+			}
+			// Freeze Cartesian products at predicate-connected component
+			// boundaries. This permits every component order without introducing
+			// cross products into the interior of a connected component.
+			m_graph->AddEdge(components[left], components[right],
+							 m_conjuncts->Size() + m_cartesian_edges);
+			++m_generated_edges;
+			++m_cartesian_edges;
+		}
+	}
+	for (CBitSet *component : components)
+	{
+		component->Release();
+	}
+	return success;
+}
+
+BOOL
 CDPHyperJoinRegion::Build()
 {
 	GPOS_ASSERT(nullptr == m_graph);
@@ -133,7 +212,7 @@ CDPHyperJoinRegion::Build()
 			return false;
 		}
 	}
-	return true;
+	return AddCartesianComponentEdges();
 }
 
 CExpression *

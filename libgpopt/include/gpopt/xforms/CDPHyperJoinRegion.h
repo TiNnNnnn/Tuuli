@@ -29,6 +29,7 @@ private:
 	CDPHyperGraph *m_graph;
 	ULONG m_edge_budget;
 	ULONG m_generated_edges;
+	ULONG m_cartesian_edges;
 	BOOL m_edge_budget_exhausted;
 
 	CBitSet *PbsPredicateCover(CExpression *predicate) const;
@@ -36,6 +37,7 @@ private:
 	BOOL AddPredicatePartitionsRecursive(ULONG predicate_id,
 								 const std::vector<ULONG> &nodes, ULONG pos,
 								 CBitSet *left, CBitSet *right);
+	BOOL AddCartesianComponentEdges();
 
 public:
 	CDPHyperJoinRegion(const CDPHyperJoinRegion &) = delete;
@@ -86,6 +88,12 @@ public:
 	GeneratedEdgeCount() const
 	{
 		return m_generated_edges;
+	}
+
+	ULONG
+	CartesianEdgeCount() const
+	{
+		return m_cartesian_edges;
 	}
 
 	BOOL

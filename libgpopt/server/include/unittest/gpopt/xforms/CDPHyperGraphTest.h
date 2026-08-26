@@ -24,6 +24,8 @@ public:
 	static GPOS_RESULT EresUnittest_DifferentialHypergraphs();
 	static GPOS_RESULT EresUnittest_AtomicBudget();
 	static GPOS_RESULT EresUnittest_JoinRegion();
+	static GPOS_RESULT EresUnittest_CartesianComponents();
+	static GPOS_RESULT EresUnittest_CartesianDifferential();
 };
 }  // namespace gpopt
 

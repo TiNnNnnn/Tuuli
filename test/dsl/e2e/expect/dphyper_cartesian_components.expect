@@ -1,0 +1,58 @@
+{
+  "description": "DPHyper joins disconnected predicate components at frozen Cartesian boundaries",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=3",
+        "cartesian_edges=1",
+        "mode=replacement",
+        "Xform: CXformImplementInnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "cartesian-edge-budget-fallback",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_edge_budget": 1,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=fallback reason=edge_budget",
+        "edges=1 budget=1",
+        "Xform: CXformExpandNAryJoinDPv2"
+      ],
+      "not_contains": [
+        "DPHyper: status=applied"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,1",
+      "2,2,1"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,1",
+      "2,2,1"
+    ]
+  }
+}

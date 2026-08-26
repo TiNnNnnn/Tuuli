@@ -225,6 +225,65 @@ FConnected(ULONG node_count, ULONG graph_mask, ULONG subset)
 		reached = next;
 	}
 }
+
+// A frozen Cartesian bridge may combine whole predicate-connected components,
+// but it must never make a partial component cross-joinable. Within one
+// component the ordinary graph-connectivity rule still applies.
+BOOL
+FFrozenCartesianConstructible(ULONG node_count, ULONG graph_mask,
+								ULONG subset)
+{
+	if (FConnected(node_count, graph_mask, subset))
+	{
+		return true;
+	}
+
+	const ULONG all_nodes = (ULONG(1) << node_count) - 1;
+	ULONG remaining = subset;
+	while (0 != remaining)
+	{
+		const ULONG seed = remaining & (~remaining + 1);
+		ULONG component = seed;
+		for (;;)
+		{
+			ULONG next = component;
+			ULONG edge_bit = 0;
+			for (ULONG left = 0; left < node_count; ++left)
+			{
+				for (ULONG right = left + 1; right < node_count;
+					 ++right, ++edge_bit)
+				{
+					if (0 == (graph_mask & (ULONG(1) << edge_bit)))
+					{
+						continue;
+					}
+					const ULONG left_bit = ULONG(1) << left;
+					const ULONG right_bit = ULONG(1) << right;
+					if (0 != (component & left_bit))
+					{
+						next |= right_bit;
+					}
+					if (0 != (component & right_bit))
+					{
+						next |= left_bit;
+					}
+				}
+			}
+			next &= all_nodes;
+			if (next == component)
+			{
+				break;
+			}
+			component = next;
+		}
+		if ((subset & component) != component)
+		{
+			return false;
+		}
+		remaining &= ~component;
+	}
+	return true;
+}
 }  // namespace
 
 GPOS_RESULT
@@ -242,6 +301,10 @@ CDPHyperGraphTest::EresUnittest()
 			CDPHyperGraphTest::EresUnittest_DifferentialHypergraphs),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_AtomicBudget),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_JoinRegion),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_CartesianComponents),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_CartesianDifferential),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
@@ -522,5 +585,143 @@ CDPHyperGraphTest::EresUnittest_JoinRegion()
 	get0->Release();
 	get1->Release();
 	get2->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_CartesianComponents()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *cols0 = nullptr;
+	CColRefArray *cols1 = nullptr;
+	CColRefArray *cols2 = nullptr;
+	CExpression *get0 = fix.PexprLogicalGet("dph_x0", 1, &cols0);
+	CExpression *get1 = fix.PexprLogicalGet("dph_x1", 1, &cols1);
+	CExpression *get2 = fix.PexprLogicalGet("dph_x2", 1, &cols2);
+	CExpression *pred01 = fix.PexprEqPred((*cols0)[0], (*cols1)[0]);
+
+	CExpressionArray *components = GPOS_NEW(mp) CExpressionArray(mp);
+	get0->AddRef();
+	get1->AddRef();
+	get2->AddRef();
+	components->Append(get0);
+	components->Append(get1);
+	components->Append(get2);
+	CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+	pred01->AddRef();
+	conjuncts->Append(pred01);
+
+	CDPHyperJoinRegion mixed(mp, components, conjuncts, 100);
+	GPOS_UNITTEST_ASSERT(mixed.Build());
+	GPOS_UNITTEST_ASSERT(2 == mixed.GeneratedEdgeCount());
+	GPOS_UNITTEST_ASSERT(1 == mixed.CartesianEdgeCount());
+	CDPHyperPlan mixed_plan(mp, 100);
+	CDPHyperEnumerator mixed_enumerator(mp, mixed.Graph(), &mixed_plan);
+	GPOS_UNITTEST_ASSERT(!mixed_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(mixed_plan.Complete(mixed.NodeCount()));
+	GPOS_UNITTEST_ASSERT(5 == mixed_plan.SeenCount());
+
+	CExpressionArray *no_predicates = GPOS_NEW(mp) CExpressionArray(mp);
+	CDPHyperJoinRegion cartesian(mp, components, no_predicates, 100);
+	GPOS_UNITTEST_ASSERT(cartesian.Build());
+	GPOS_UNITTEST_ASSERT(3 == cartesian.GeneratedEdgeCount());
+	GPOS_UNITTEST_ASSERT(3 == cartesian.CartesianEdgeCount());
+	CDPHyperPlan cartesian_plan(mp, 100);
+	CDPHyperEnumerator cartesian_enumerator(mp, cartesian.Graph(),
+										  &cartesian_plan);
+	GPOS_UNITTEST_ASSERT(!cartesian_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(cartesian_plan.Complete(cartesian.NodeCount()));
+	GPOS_UNITTEST_ASSERT(7 == cartesian_plan.SeenCount());
+
+	CDPHyperJoinRegion budget_limited(mp, components, no_predicates, 2);
+	GPOS_UNITTEST_ASSERT(!budget_limited.Build());
+	GPOS_UNITTEST_ASSERT(budget_limited.EdgeBudgetExhausted());
+	GPOS_UNITTEST_ASSERT(2 == budget_limited.GeneratedEdgeCount());
+	GPOS_UNITTEST_ASSERT(2 == budget_limited.CartesianEdgeCount());
+
+	no_predicates->Release();
+	components->Release();
+	conjuncts->Release();
+	pred01->Release();
+	get0->Release();
+	get1->Release();
+	get2->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_CartesianDifferential()
+{
+	// Validate region construction, rather than only the graph enumerator, for
+	// every undirected predicate graph on five relations. The independent oracle
+	// permits connected subsets and unions of whole connected components only.
+	constexpr ULONG node_count = 5;
+	constexpr ULONG edge_count = node_count * (node_count - 1) / 2;
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	std::vector<CExpression *> gets;
+	std::vector<CColRefArray *> columns;
+	for (ULONG node = 0; node < node_count; ++node)
+	{
+		CColRefArray *node_columns = nullptr;
+		gets.push_back(fix.PexprLogicalGet("dph_diff", 1, &node_columns));
+		columns.push_back(node_columns);
+	}
+	std::vector<CExpression *> predicates;
+	for (ULONG left = 0; left < node_count; ++left)
+	{
+		for (ULONG right = left + 1; right < node_count; ++right)
+		{
+			predicates.push_back(
+				fix.PexprEqPred((*columns[left])[0], (*columns[right])[0]));
+		}
+	}
+
+	for (ULONG graph_mask = 0; graph_mask < (ULONG(1) << edge_count);
+		 ++graph_mask)
+	{
+		CExpressionArray *components = GPOS_NEW(mp) CExpressionArray(mp);
+		for (CExpression *get : gets)
+		{
+			get->AddRef();
+			components->Append(get);
+		}
+		CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG edge = 0; edge < edge_count; ++edge)
+		{
+			if (0 != (graph_mask & (ULONG(1) << edge)))
+			{
+				predicates[edge]->AddRef();
+				conjuncts->Append(predicates[edge]);
+			}
+		}
+
+		CDPHyperJoinRegion region(mp, components, conjuncts, 100);
+		components->Release();
+		conjuncts->Release();
+		GPOS_UNITTEST_ASSERT(region.Build());
+		CDPHyperPlan plan(mp, 100000);
+		CDPHyperEnumerator enumerator(mp, region.Graph(), &plan);
+		GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+		for (ULONG subset = 1; subset < (ULONG(1) << node_count); ++subset)
+		{
+			CAutoRef<CBitSet> nodes(PbsFromMask(mp, subset));
+			GPOS_UNITTEST_ASSERT(
+				FFrozenCartesianConstructible(node_count, graph_mask, subset) ==
+				plan.HasSeen(nodes.Value()));
+		}
+	}
+
+	for (CExpression *predicate : predicates)
+	{
+		predicate->Release();
+	}
+	for (CExpression *get : gets)
+	{
+		get->Release();
+	}
 	return GPOS_OK;
 }
