@@ -196,6 +196,10 @@ public:
 	void RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 						ULONG ulBoundSymbols);
 
+	// Record once that a rule was removed before binding because its configured
+	// alternative budget had already been consumed.
+	void RecordDSLRuleBudgetSkip(ULONG ulRuleId);
+
 	// Reserve one query-level DSL alternative. A zero configured maximum means
 	// unlimited. The counter is query-local because COptCtxt lives in TLS.
 	BOOL FReserveDSLAlternative(ULONG ulRuleId);

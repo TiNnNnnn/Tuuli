@@ -128,6 +128,16 @@ COptCtxt::RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 	pcounters->m_bound_symbols += ulBoundSymbols;
 }
 
+void
+COptCtxt::RecordDSLRuleBudgetSkip(ULONG ulRuleId)
+{
+	const ULONG ulBudgetSkippedStage = 6;
+	if (FMarkDSLTraceEvent(ulRuleId, ulBudgetSkippedStage))
+	{
+		RecordDSLRuleTrace(ulRuleId, ulBudgetSkippedStage, 0);
+	}
+}
+
 BOOL
 COptCtxt::FDSLAlternativeBudgetExhausted(ULONG ulRuleId)
 {

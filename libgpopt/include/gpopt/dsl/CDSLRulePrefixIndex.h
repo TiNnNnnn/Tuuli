@@ -141,8 +141,12 @@ private:
 	SNode *PnodeInsertOp(SNode *pnode, const CDSLOp *pop, BOOL fSourceRoot,
 						 BOOL *pfComplete);
 
-	static void AppendEntries(const SNode *pnode,
-						  CDynamicPtrArray<const SRuleEntry, CleanupNULL> *pdrgpentry);
+	static BOOL FRuleAvailable(const SRuleEntry *pentry);
+	static BOOL FNodeHasAvailableTerminal(const SNode *pnode);
+	static BOOL FNodeHasAvailableRule(const SNode *pnode);
+	static void AppendAvailableEntries(
+		const SNode *pnode,
+		CDynamicPtrArray<const SRuleEntry, CleanupNULL> *pdrgpentry);
 
 	// Match one template node starting at pnode against one live subtree. The
 	// returned states are trie positions after consuming that complete template

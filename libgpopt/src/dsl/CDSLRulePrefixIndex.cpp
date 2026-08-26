@@ -6,6 +6,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
 
@@ -234,14 +235,76 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		GPOS_NEW(m_mp) SRuleEntry(prule, ulOrdinal));
 }
 
+BOOL
+CDSLRulePrefixIndex::FRuleAvailable(const SRuleEntry *pentry)
+{
+	GPOS_ASSERT(nullptr != pentry);
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	if (nullptr == poctxt)
+	{
+		return true;
+	}
+
+	const ULONG ulSourceLine = pentry->m_prule->UlSourceLine();
+	const ULONG ulRuleId =
+		0 == ulSourceLine ? pentry->m_ulOrdinal + 1 : ulSourceLine;
+	if (!poctxt->FDSLAlternativeBudgetExhausted(ulRuleId))
+	{
+		return true;
+	}
+
+	poctxt->RecordDSLRuleBudgetSkip(ulRuleId);
+	return false;
+}
+
+BOOL
+CDSLRulePrefixIndex::FNodeHasAvailableTerminal(const SNode *pnode)
+{
+	for (ULONG ul = 0; ul < pnode->m_pdrgpentry->Size(); ul++)
+	{
+		if (FRuleAvailable((*pnode->m_pdrgpentry)[ul]))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
+CDSLRulePrefixIndex::FNodeHasAvailableRule(const SNode *pnode)
+{
+	if (FNodeHasAvailableTerminal(pnode))
+	{
+		return true;
+	}
+	if (nullptr != pnode->m_pnodeInput &&
+		FNodeHasAvailableRule(pnode->m_pnodeInput))
+	{
+		return true;
+	}
+	for (ULONG ul = 0; ul < pnode->m_pdrgpedgeExact->Size(); ul++)
+	{
+		if (FNodeHasAvailableRule(
+				(*pnode->m_pdrgpedgeExact)[ul]->m_pnodeChild))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void
-CDSLRulePrefixIndex::AppendEntries(
+CDSLRulePrefixIndex::AppendAvailableEntries(
 	const SNode *pnode,
 	CDynamicPtrArray<const SRuleEntry, CleanupNULL> *pdrgpentry)
 {
 	for (ULONG ul = 0; ul < pnode->m_pdrgpentry->Size(); ul++)
 	{
-		pdrgpentry->Append((*pnode->m_pdrgpentry)[ul]);
+		const SRuleEntry *pentry = (*pnode->m_pdrgpentry)[ul];
+		if (FRuleAvailable(pentry))
+		{
+			pdrgpentry->Append(pentry);
+		}
 	}
 }
 
@@ -260,20 +323,24 @@ CDSLRulePrefixIndex::MatchOne(
 	// token, not with any live child of this expression.
 	if (nullptr != pnode->m_pnodeInput)
 	{
-		AppendEntries(pnode->m_pnodeInput, pdrgpentry);
-		pdrgpnodeResult->Append(pnode->m_pnodeInput);
+		if (FNodeHasAvailableRule(pnode->m_pnodeInput))
+		{
+			AppendAvailableEntries(pnode->m_pnodeInput, pdrgpentry);
+			pdrgpnodeResult->Append(pnode->m_pnodeInput);
+		}
 	}
 
 	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
 		if (pedge->m_eopid != pexpr->Pop()->Eopid() ||
-			pexpr->Arity() < pedge->m_ulChildren)
+			pexpr->Arity() < pedge->m_ulChildren ||
+			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{
 			continue;
 		}
 
-		AppendEntries(pedge->m_pnodeChild, pdrgpentry);
+		AppendAvailableEntries(pedge->m_pnodeChild, pdrgpentry);
 		SNodeArray *pdrgpnodeCurrent = GPOS_NEW(mp) SNodeArray(mp);
 		pdrgpnodeCurrent->Append(pedge->m_pnodeChild);
 
@@ -360,7 +427,7 @@ CDSLRulePrefixIndex::PdrgpruleCandidates(CMemoryPool *mp,
 	using SRuleEntryConstArray =
 		CDynamicPtrArray<const SRuleEntry, CleanupNULL>;
 	SRuleEntryConstArray *pdrgpentry = GPOS_NEW(mp) SRuleEntryConstArray(mp);
-	AppendEntries(m_pnodeRoot, pdrgpentry);
+	AppendAvailableEntries(m_pnodeRoot, pdrgpentry);
 
 	SNodeArray *pdrgpnodeResult = GPOS_NEW(mp) SNodeArray(mp);
 	MatchOne(mp, m_pnodeRoot, pexpr, pdrgpentry, pdrgpnodeResult);
@@ -461,13 +528,18 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGroup(CMemoryPool *mp,
 	GPOS_ASSERT(nullptr != pgroup);
 
 	SBindingStateArray *pdrgpstate = GPOS_NEW(mp) SBindingStateArray(mp);
+	if (!FNodeHasAvailableRule(pnode))
+	{
+		return pdrgpstate;
+	}
 
 	// Input consumes the entire equivalence group. Preserve each top-level memo
 	// alternative because its group-expression identity affects safe duplicate-
 	// group merging and therefore final plan selection. Descendants still use one
 	// stable representative each, avoiding the recursive Cartesian product which
 	// made CPatternTree binding unbounded.
-	if (nullptr != pnode->m_pnodeInput)
+	if (nullptr != pnode->m_pnodeInput &&
+		FNodeHasAvailableRule(pnode->m_pnodeInput))
 	{
 		CGroupProxy gpInput(pgroup);
 		if (pgroup->FScalar())
@@ -614,7 +686,8 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
 		if (pedge->m_eopid != pgexpr->Pop()->Eopid() ||
-			pgexpr->Arity() < pedge->m_ulChildren)
+			pgexpr->Arity() < pedge->m_ulChildren ||
+			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{
 			continue;
 		}
@@ -714,11 +787,16 @@ CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 
 	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
 
-	// Always retain one conservative full binding. It covers routed rules and
-	// prefixes which deliberately terminate at a representation adapter.
-	CExpression *pexprRepresentative =
-		PexprRepresentative(mp, pgexprRoot);
-	pdrgpexpr->Append(pexprRepresentative);
+	// Root-terminal entries are routed/fallback rules without a safe physical
+	// prefix. Do not build their conservative witness after all such rules have
+	// exhausted their configured alternative budget.
+	if (0 == m_pnodeRoot->m_pdrgpentry->Size() ||
+		FNodeHasAvailableTerminal(m_pnodeRoot))
+	{
+		CExpression *pexprRepresentative =
+			PexprRepresentative(mp, pgexprRoot);
+		pdrgpexpr->Append(pexprRepresentative);
+	}
 
 	SBindingStateArray *pdrgpstate =
 		PdrgpstateConsumeGExpr(mp, m_pnodeRoot, pgexprRoot);
@@ -727,7 +805,7 @@ CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 		SBindingState *pstate = (*pdrgpstate)[ul];
 		// A state without a terminal rule is only a partial prefix and must not
 		// invoke the shell yet.
-		if (0 == pstate->m_pnode->m_pdrgpentry->Size() ||
+		if (!FNodeHasAvailableTerminal(pstate->m_pnode) ||
 			FContainsEquivalentBinding(pdrgpexpr, pstate->m_pexpr))
 		{
 			continue;
