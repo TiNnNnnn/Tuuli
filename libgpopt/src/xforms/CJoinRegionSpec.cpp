@@ -111,7 +111,8 @@ CJoinRegionSpec::CJoinRegionSpec(CMemoryPool *mp)
 	  m_built(false),
 	  m_pure_inner(true),
 	  m_cdc_supported(true),
-	  m_external_dependencies(false)
+	  m_external_dependencies(false),
+	  m_dependency_count(0)
 {
 }
 
@@ -467,6 +468,7 @@ CJoinRegionSpec::BuildDependencies()
 			if (unresolved->FIntersects(outputs))
 			{
 				(void) dependencies->ExchangeSet(provider);
+				++m_dependency_count;
 				unresolved->Exclude(outputs);
 			}
 		}

@@ -578,6 +578,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 	}
 
 	CEngine *engine = psc->Peng();
+	const ULONG dependency_count =
+		nullptr == spec ? 0 : spec->DependencyCount();
 	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
 	const ULONG fingerprint_hash = fingerprint->HashValue();
 	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
@@ -586,10 +588,10 @@ CJobJoinEnumeration::FEnumerateRegion(
 		if (GPOS_FTRACE(EopttracePrintXformResults))
 		{
 			GPOS_TRACE_FORMAT(
-				"DPHyper: status=reused group=%d root=%s nodes=%d fingerprint=%u "
-				"mode=%s",
+				"DPHyper: status=reused group=%d root=%s nodes=%d "
+				"dependencies=%d fingerprint=%u mode=%s",
 				m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
-				fingerprint_hash,
+				dependency_count, fingerprint_hash,
 				GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow"
 											 : "replacement");
 		}
@@ -692,10 +694,11 @@ CJobJoinEnumeration::FEnumerateRegion(
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
-			"cartesian_edges=%d pairs=%d subsets=%d fingerprint=%u mode=%s",
+			"cartesian_edges=%d dependencies=%d pairs=%d subsets=%d "
+			"fingerprint=%u mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
-			plan.PairCount(), plan.SeenCount(), fingerprint_hash,
+			dependency_count, plan.PairCount(), plan.SeenCount(), fingerprint_hash,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);

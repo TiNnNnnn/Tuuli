@@ -1,0 +1,40 @@
+{
+  "description": "A LATERAL atom with two sibling providers is only enumerable after the complete provider subset exists",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "root=CLogicalInnerJoin nodes=3",
+        "dependencies=2",
+        "pairs=2 subsets=5",
+        "mode=replacement"
+      ],
+      "not_contains": [
+        "DPHyper: status=fallback reason=lateral_dependency",
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2"
+    ]
+  }
+}

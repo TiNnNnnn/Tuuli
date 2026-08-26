@@ -135,6 +135,7 @@ private:
 	BOOL m_pure_inner;
 	BOOL m_cdc_supported;
 	BOOL m_external_dependencies;
+	ULONG m_dependency_count;
 
 	static BOOL FSupportedBinaryJoin(COperator::EOperatorId op_id);
 	static BOOL FCDCSupportedJoin(COperator::EOperatorId op_id);
@@ -219,14 +220,13 @@ public:
 	BOOL
 	HasDependencies() const
 	{
-		for (const CBitSet *dependencies : m_dependencies)
-		{
-			if (0 < dependencies->Size())
-			{
-				return true;
-			}
-		}
-		return false;
+		return 0 < m_dependency_count;
+	}
+
+	ULONG
+	DependencyCount() const
+	{
+		return m_dependency_count;
 	}
 
 	BOOL
