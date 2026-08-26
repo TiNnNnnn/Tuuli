@@ -469,17 +469,23 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 			TraceUnsupported(m_pgexpr, "invalid_binary_region", 0);
 			return false;
 		}
+		if (binary_spec->HasExternalDependencies())
+		{
+			tree->Release();
+			const ULONG node_count = binary_spec->NodeCount();
+			GPOS_DELETE(binary_spec);
+			TraceUnsupported(m_pgexpr, "lateral_dependency", node_count);
+			return false;
+		}
 		for (ULONG node = 0; node < binary_spec->NodeCount(); ++node)
 		{
 			CExpression *component = binary_spec->Atom(node);
-			if (nullptr == component->Pgexpr() ||
-				0 < component->DeriveOuterReferences()->Size())
+			if (nullptr == component->Pgexpr())
 			{
 				tree->Release();
 				const ULONG node_count = binary_spec->NodeCount();
 				GPOS_DELETE(binary_spec);
-				TraceUnsupported(m_pgexpr, "lateral_dependency",
-								 node_count);
+				TraceUnsupported(m_pgexpr, "missing_component", node_count);
 				return false;
 			}
 			component_groups.push_back(component->Pgexpr()->Pgroup());
@@ -628,7 +634,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 
 		CDPHyperJoinRegion::SJoinRequest request;
 		const BOOL complex_region = nullptr != spec && !spec->PureInner();
-		GPOS_ASSERT(!complex_region || region->FBuildJoinRequest(
+		GPOS_ASSERT(nullptr == spec || region->FBuildJoinRequest(
 			pair->m_left, pair->m_right, &request));
 		COperator::EOperatorId join_type = COperator::EopLogicalInnerJoin;
 		CExpression *predicate = nullptr;
@@ -636,15 +642,15 @@ CJobJoinEnumeration::FEnumerateRegion(
 		{
 			join_type = request.m_join_type;
 			predicate = region->PexprPredicate(request);
-			if (request.m_swapped)
-			{
-				std::swap(left_group, right_group);
-			}
 		}
 		else
 		{
 			predicate = region->PexprPredicate(
 				pair->m_left, pair->m_right, full /*include residual*/);
+		}
+		if (nullptr != spec && request.m_swapped)
+		{
+			std::swap(left_group, right_group);
 		}
 		CExpression *join =
 			PexprJoin(mp, join_type, left_group, right_group, predicate);
@@ -665,8 +671,9 @@ CJobJoinEnumeration::FEnumerateRegion(
 		// DPHyp reports an unordered CSG-CMP pair once. Inner and FullOuter
 		// joins are commutative logical operators, so retain both physical input
 		// orientations. Directional joins keep only the CD-C-approved ordering.
-		if (COperator::EopLogicalInnerJoin == join_type ||
-			COperator::EopLogicalFullOuterJoin == join_type)
+		if ((COperator::EopLogicalInnerJoin == join_type ||
+			 COperator::EopLogicalFullOuterJoin == join_type) &&
+			(nullptr == spec || !request.m_dependency_directional))
 		{
 			predicate = complex_region
 						? region->PexprPredicate(request)

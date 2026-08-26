@@ -1,0 +1,43 @@
+{
+  "description": "CD-C keeps the legal right-side Inner subtree of A LeftOuter (B Inner C) and rejects the unsafe opposite cut",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "root=CLogicalLeftOuterJoin nodes=3",
+        "pairs=2 subsets=5",
+        "mode=replacement",
+        "Xform: CXformLeftOuterJoin2HashJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformJoinAssociativity",
+        "Xform: CXformLeftJoin2RightJoin"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,"
+    ]
+  }
+}

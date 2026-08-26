@@ -46,6 +46,7 @@ private:
 	CExpressionArray *m_atoms;
 	CExpressionArray *m_predicates;
 	std::vector<SEdge> m_edges;
+	std::vector<CBitSet *> m_dependencies;
 	ULONG m_hash;
 
 public:
@@ -78,6 +79,7 @@ public:
 	{
 		COperator::EOperatorId m_join_type;
 		BOOL m_swapped;
+		BOOL m_dependency_directional;
 		std::vector<ULONG> m_edge_ids;
 	};
 
@@ -102,6 +104,8 @@ private:
 	BOOL FPredicateCrosses(const CBitSet *left, const CBitSet *right) const;
 	BOOL AddMissingSkeletonEdges();
 	BOOL AddCartesianComponentEdges();
+	BOOL FDependencyApplicable(const CBitSet *left, const CBitSet *right,
+							 BOOL *swapped, BOOL *directional) const;
 
 public:
 	CDPHyperJoinRegion(const CDPHyperJoinRegion &) = delete;

@@ -130,9 +130,11 @@ private:
 	CMemoryPool *m_mp;
 	CExpressionArray *m_atoms;
 	std::vector<CEdge *> m_edges;
+	std::vector<CBitSet *> m_dependencies;
 	BOOL m_built;
 	BOOL m_pure_inner;
 	BOOL m_cdc_supported;
+	BOOL m_external_dependencies;
 
 	static BOOL FSupportedBinaryJoin(COperator::EOperatorId op_id);
 	static BOOL FCDCSupportedJoin(COperator::EOperatorId op_id);
@@ -150,6 +152,7 @@ private:
 					 const CBitSet *required);
 	void AbsorbConflictRules(CEdge *edge);
 	void BuildEligibility(CEdge *edge);
+	void BuildDependencies();
 
 public:
 	CJoinRegionSpec(const CJoinRegionSpec &) = delete;
@@ -204,6 +207,32 @@ public:
 	CDCSupported() const
 	{
 		return m_cdc_supported;
+	}
+
+	const CBitSet *
+	Dependencies(ULONG node_id) const
+	{
+		GPOS_ASSERT(node_id < m_dependencies.size());
+		return m_dependencies[node_id];
+	}
+
+	BOOL
+	HasDependencies() const
+	{
+		for (const CBitSet *dependencies : m_dependencies)
+		{
+			if (0 < dependencies->Size())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	BOOL
+	HasExternalDependencies() const
+	{
+		return m_external_dependencies;
 	}
 };
 

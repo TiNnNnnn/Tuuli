@@ -101,6 +101,7 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 	std::vector<ULONG> atom_hashes;
 	std::vector<ULONG> predicate_hashes;
 	std::vector<ULONG> edge_hashes;
+	std::vector<ULONG> dependency_hashes;
 	for (ULONG atom = 0; atom < atoms->Size(); ++atom)
 	{
 		CExpression *expr = (*atoms)[atom];
@@ -109,6 +110,19 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 		atom_hashes.push_back(nullptr == expr->Pgexpr()
 								? CExpression::UlHashDedup(expr)
 								: expr->Pgexpr()->Pgroup()->Id());
+		m_dependencies.push_back(
+			nullptr == spec
+				? GPOS_NEW(mp) CBitSet(mp)
+				: GPOS_NEW(mp) CBitSet(mp, *spec->Dependencies(atom)));
+	}
+	for (ULONG dependent = 0; dependent < m_dependencies.size(); ++dependent)
+	{
+		CBitSetIter providers(*m_dependencies[dependent]);
+		while (providers.Advance())
+		{
+			dependency_hashes.push_back(CombineHashes(
+				atom_hashes[dependent], atom_hashes[providers.Bit()]));
+		}
 	}
 	for (ULONG predicate = 0; predicate < predicates->Size(); ++predicate)
 	{
@@ -176,14 +190,18 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 	std::sort(atom_hashes.begin(), atom_hashes.end());
 	std::sort(predicate_hashes.begin(), predicate_hashes.end());
 	std::sort(edge_hashes.begin(), edge_hashes.end());
+	std::sort(dependency_hashes.begin(), dependency_hashes.end());
 	const ULONG atom_count = atom_hashes.size();
 	const ULONG predicate_count = predicate_hashes.size();
 	const ULONG edge_count = edge_hashes.size();
+	const ULONG dependency_count = dependency_hashes.size();
 	m_hash = gpos::HashValue<ULONG>(&atom_count);
 	m_hash = CombineHashes(m_hash,
 						   gpos::HashValue<ULONG>(&predicate_count));
 	m_hash = CombineHashes(m_hash,
 						   gpos::HashValue<ULONG>(&edge_count));
+	m_hash = CombineHashes(m_hash,
+						   gpos::HashValue<ULONG>(&dependency_count));
 	for (ULONG hash : atom_hashes)
 	{
 		m_hash = CombineHashes(m_hash, hash);
@@ -193,6 +211,10 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 		m_hash = CombineHashes(m_hash, hash);
 	}
 	for (ULONG hash : edge_hashes)
+	{
+		m_hash = CombineHashes(m_hash, hash);
+	}
+	for (ULONG hash : dependency_hashes)
 	{
 		m_hash = CombineHashes(m_hash, hash);
 	}
@@ -212,6 +234,10 @@ CDPHyperGraphFingerprint::~CDPHyperGraphFingerprint()
 			rule.m_required->Release();
 		}
 	}
+	for (CBitSet *dependencies : m_dependencies)
+	{
+		dependencies->Release();
+	}
 }
 
 BOOL
@@ -220,6 +246,7 @@ CDPHyperGraphFingerprint::Matches(
 {
 	if (nullptr == other || m_atoms->Size() != other->m_atoms->Size() ||
 		m_edges.size() != other->m_edges.size() ||
+		m_dependencies.size() != other->m_dependencies.size() ||
 		!FUnorderedMatches(
 			m_predicates, other->m_predicates,
 			[](CExpression *left, CExpression *right) {
@@ -234,6 +261,17 @@ CDPHyperGraphFingerprint::Matches(
 	std::function<BOOL(ULONG)> find_mapping = [&](ULONG atom) {
 		if (atom == m_atoms->Size())
 		{
+			for (ULONG dependent = 0; dependent < m_dependencies.size();
+				 ++dependent)
+			{
+				CAutoRef<CBitSet> mapped_dependencies(
+					PbsMap(m_mp, m_dependencies[dependent], mapping));
+				if (!mapped_dependencies->Equals(
+						other->m_dependencies[mapping[dependent]]))
+				{
+					return false;
+				}
+			}
 			std::vector<BOOL> used_edges(other->m_edges.size(), false);
 			for (const SEdge &edge : m_edges)
 			{
@@ -667,6 +705,64 @@ CDPHyperJoinRegion::Build()
 }
 
 BOOL
+CDPHyperJoinRegion::FDependencyApplicable(const CBitSet *left,
+										   const CBitSet *right,
+										   BOOL *swapped,
+										   BOOL *directional) const
+{
+	GPOS_ASSERT(nullptr != left && nullptr != right && left->IsDisjoint(right));
+	GPOS_ASSERT(nullptr != swapped && nullptr != directional);
+	*swapped = false;
+	*directional = false;
+	if (nullptr == m_spec || !m_spec->HasDependencies())
+	{
+		return true;
+	}
+
+	CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
+	joined->Union(right);
+	for (ULONG node = 0; node < m_spec->NodeCount(); ++node)
+	{
+		if (!joined->Get(node))
+		{
+			continue;
+		}
+		const CBitSet *required = m_spec->Dependencies(node);
+		if (!joined->ContainsAll(required))
+		{
+			// A dependent atom cannot form an intermediate subset before all
+			// of its sibling providers are present.
+			return false;
+		}
+
+		BOOL crosses = false;
+		BOOL candidate_swapped = false;
+		if (left->Get(node) && !right->IsDisjoint(required))
+		{
+			crosses = true;
+			candidate_swapped = true;
+		}
+		else if (right->Get(node) && !left->IsDisjoint(required))
+		{
+			crosses = true;
+			candidate_swapped = false;
+		}
+		if (crosses)
+		{
+			if (*directional && *swapped != candidate_swapped)
+			{
+				// Mutually dependent inputs cannot be represented by a single
+				// provider-left/dependent-right Apply-compatible cut.
+				return false;
+			}
+			*directional = true;
+			*swapped = candidate_swapped;
+		}
+	}
+	return true;
+}
+
+BOOL
 CDPHyperJoinRegion::FPairApplicable(const CBitSet *left,
 									const CBitSet *right, ULONG edge_id,
 									BOOL *swapped) const
@@ -674,6 +770,13 @@ CDPHyperJoinRegion::FPairApplicable(const CBitSet *left,
 	if (nullptr != swapped)
 	{
 		*swapped = false;
+	}
+	BOOL dependency_swapped = false;
+	BOOL dependency_directional = false;
+	if (!FDependencyApplicable(left, right, &dependency_swapped,
+								  &dependency_directional))
+	{
+		return false;
 	}
 	if (nullptr == m_spec || m_spec->PureInner())
 	{
@@ -724,7 +827,15 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 	GPOS_ASSERT(nullptr != request);
 	request->m_join_type = COperator::EopLogicalInnerJoin;
 	request->m_swapped = false;
+	request->m_dependency_directional = false;
 	request->m_edge_ids.clear();
+	BOOL dependency_swapped = false;
+	if (!FDependencyApplicable(left, right, &dependency_swapped,
+								  &request->m_dependency_directional))
+	{
+		return false;
+	}
+	request->m_swapped = dependency_swapped;
 	if (nullptr == m_spec || m_spec->PureInner())
 	{
 		return true;
@@ -736,6 +847,7 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 		return false;
 	}
 	ULONG non_inner_count = 0;
+	BOOL non_inner_swapped = false;
 	for (const SApplicableEdge &candidate : applicable)
 	{
 		const COperator::EOperatorId join_type =
@@ -745,14 +857,32 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 		{
 			++non_inner_count;
 			request->m_join_type = join_type;
-			request->m_swapped = candidate.m_swapped;
+			non_inner_swapped = candidate.m_swapped;
 		}
 	}
 	// Combining an Inner predicate into the ON clause of a non-inner join can
 	// change null-extension semantics. Until edge-state sequencing represents
 	// both operators explicitly, only a sole non-inner edge is materializable.
-	return 0 == non_inner_count ||
-		   (1 == non_inner_count && 1 == applicable.size());
+	if (0 != non_inner_count &&
+		!(1 == non_inner_count && 1 == applicable.size()))
+	{
+		return false;
+	}
+	if (1 == non_inner_count)
+	{
+		const BOOL commutative =
+			COperator::EopLogicalFullOuterJoin == request->m_join_type;
+		if (request->m_dependency_directional && !commutative &&
+			request->m_swapped != non_inner_swapped)
+		{
+			return false;
+		}
+		if (!request->m_dependency_directional || !commutative)
+		{
+			request->m_swapped = non_inner_swapped;
+		}
+	}
+	return true;
 }
 
 CExpression *

@@ -1,0 +1,39 @@
+{
+  "description": "DPHyper models a non-decorrelatable LATERAL atom as a directed sibling dependency and never builds it before its provider",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "root=CLogicalInnerJoin nodes=3",
+        "pairs=4 subsets=6",
+        "mode=replacement"
+      ],
+      "not_contains": [
+        "DPHyper: status=fallback reason=lateral_dependency",
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2"
+    ]
+  }
+}

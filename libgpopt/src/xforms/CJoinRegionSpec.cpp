@@ -110,7 +110,8 @@ CJoinRegionSpec::CJoinRegionSpec(CMemoryPool *mp)
 	  m_atoms(GPOS_NEW(mp) CExpressionArray(mp)),
 	  m_built(false),
 	  m_pure_inner(true),
-	  m_cdc_supported(true)
+	  m_cdc_supported(true),
+	  m_external_dependencies(false)
 {
 }
 
@@ -119,6 +120,10 @@ CJoinRegionSpec::~CJoinRegionSpec()
 	for (CEdge *edge : m_edges)
 	{
 		GPOS_DELETE(edge);
+	}
+	for (CBitSet *dependencies : m_dependencies)
+	{
+		dependencies->Release();
 	}
 	m_atoms->Release();
 }
@@ -440,6 +445,38 @@ CJoinRegionSpec::BuildEligibility(CEdge *edge)
 	}
 }
 
+void
+CJoinRegionSpec::BuildDependencies()
+{
+	GPOS_ASSERT(m_dependencies.empty());
+	m_dependencies.reserve(m_atoms->Size());
+	for (ULONG node = 0; node < m_atoms->Size(); ++node)
+	{
+		CBitSet *dependencies = GPOS_NEW(m_mp) CBitSet(m_mp);
+		m_dependencies.push_back(dependencies);
+		CAutoRef<CColRefSet> unresolved(GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *(*m_atoms)[node]->DeriveOuterReferences()));
+		for (ULONG provider = 0;
+			 0 < unresolved->Size() && provider < m_atoms->Size(); ++provider)
+		{
+			if (provider == node)
+			{
+				continue;
+			}
+			CColRefSet *outputs = (*m_atoms)[provider]->DeriveOutputColumns();
+			if (unresolved->FIntersects(outputs))
+			{
+				(void) dependencies->ExchangeSet(provider);
+				unresolved->Exclude(outputs);
+			}
+		}
+		if (0 < unresolved->Size())
+		{
+			m_external_dependencies = true;
+		}
+	}
+}
+
 CBitSet *
 CJoinRegionSpec::PbsCollect(CExpression *expr)
 {
@@ -487,6 +524,10 @@ CJoinRegionSpec::Build(CExpression *root)
 	CAutoRef<CBitSet> all_nodes(PbsCollect(root));
 	const BOOL valid = 2 <= m_atoms->Size() && !m_edges.empty() &&
 					   all_nodes->Size() == m_atoms->Size();
+	if (valid)
+	{
+		BuildDependencies();
+	}
 	if (valid && m_cdc_supported)
 	{
 		for (CEdge *edge : m_edges)

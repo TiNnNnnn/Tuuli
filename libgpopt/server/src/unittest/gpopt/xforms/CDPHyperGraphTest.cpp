@@ -951,6 +951,17 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(safe_outer_eligibility.FBuildJoinRequest(
 		node2.Value(), node1.Value(), &safe_request));
 	GPOS_UNITTEST_ASSERT(safe_request.m_swapped);
+	CAutoRef<CBitSet> nodes02(Pbs(mp, {0, 2}));
+	// The {A,C}|{B} cut crosses both the original A JOIN B and
+	// (A JOIN B) LOJ C operators. They cannot be collapsed into one binary
+	// join: conjoining the inner predicate into the LOJ ON clause changes
+	// null-extension semantics. CD-C may expose the cut topologically, but the
+	// materializer must reject this multi-operator boundary.
+	GPOS_UNITTEST_ASSERT(2 == safe_outer_eligibility
+								 .ApplicableEdges(nodes02.Value(), node1.Value())
+								 .size());
+	GPOS_UNITTEST_ASSERT(!safe_outer_eligibility.FBuildJoinRequest(
+		nodes02.Value(), node1.Value(), &safe_request));
 	CEligibilityReceiver safe_outer_receiver(mp, &safe_outer_eligibility);
 	CDPHyperEnumerator safe_outer_enumerator(
 		mp, safe_outer_eligibility.Graph(), &safe_outer_receiver);
@@ -978,6 +989,69 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(right_outer_receiver.Complete(3));
 	GPOS_UNITTEST_ASSERT(!right_outer_receiver.HasSeen(nodes01.Value()));
 	GPOS_UNITTEST_ASSERT(right_outer_receiver.HasSeen(nodes12.Value()));
+
+	// A sibling-correlated atom may only join after its provider is present.
+	// The dependency also makes a crossing InnerJoin directional: provider on
+	// the left, dependent input on the right, matching Apply semantics.
+	CExpression *correlated_get1 =
+		fix.PexprLogicalSelect(get1, pred01);
+	CExpression *lateral_join =
+		fix.PexprLogicalInnerJoin(get0, correlated_get1, true_pred);
+	CExpression *lateral_root =
+		fix.PexprLogicalInnerJoin(lateral_join, get2, pred02);
+	CJoinRegionSpec lateral_spec(mp);
+	GPOS_UNITTEST_ASSERT(lateral_spec.Build(lateral_root));
+	GPOS_UNITTEST_ASSERT(lateral_spec.PureInner());
+	GPOS_UNITTEST_ASSERT(lateral_spec.HasDependencies());
+	GPOS_UNITTEST_ASSERT(!lateral_spec.HasExternalDependencies());
+	GPOS_UNITTEST_ASSERT(FSet(lateral_spec.Dependencies(1), {0}));
+	CDPHyperJoinRegion lateral_region(mp, &lateral_spec, 100);
+	GPOS_UNITTEST_ASSERT(lateral_region.Build());
+	CDPHyperJoinRegion::SJoinRequest lateral_request;
+	GPOS_UNITTEST_ASSERT(!lateral_region.FBuildJoinRequest(
+		node1.Value(), node2.Value(), &lateral_request));
+	GPOS_UNITTEST_ASSERT(lateral_region.FBuildJoinRequest(
+		node0.Value(), node1.Value(), &lateral_request));
+	GPOS_UNITTEST_ASSERT(lateral_request.m_dependency_directional);
+	GPOS_UNITTEST_ASSERT(!lateral_request.m_swapped);
+	GPOS_UNITTEST_ASSERT(lateral_region.FBuildJoinRequest(
+		node1.Value(), node0.Value(), &lateral_request));
+	GPOS_UNITTEST_ASSERT(lateral_request.m_dependency_directional);
+	GPOS_UNITTEST_ASSERT(lateral_request.m_swapped);
+	CDPHyperPlan lateral_plan(
+		mp, 100,
+		[&lateral_region](const CBitSet *left, const CBitSet *right,
+						  ULONG edge_id) {
+			if (!lateral_region.FPairApplicable(left, right, edge_id))
+			{
+				return false;
+			}
+			CDPHyperJoinRegion::SJoinRequest request;
+			return lateral_region.FBuildJoinRequest(left, right, &request);
+		});
+	CDPHyperEnumerator lateral_enumerator(
+		mp, lateral_region.Graph(), &lateral_plan);
+	GPOS_UNITTEST_ASSERT(!lateral_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(lateral_plan.Complete(3));
+	GPOS_UNITTEST_ASSERT(!lateral_plan.HasSeen(nodes12.Value()));
+	lateral_root->Release();
+	lateral_join->Release();
+	correlated_get1->Release();
+
+	CColRef *external_col = fix.PcrCreateInt4("external_lateral_key");
+	CExpression *external_pred =
+		fix.PexprEqPred((*cols1)[0], external_col);
+	CExpression *external_get1 =
+		fix.PexprLogicalSelect(get1, external_pred);
+	CExpression *external_root =
+		fix.PexprLogicalInnerJoin(external_get1, get2, true_pred);
+	CJoinRegionSpec external_spec(mp);
+	GPOS_UNITTEST_ASSERT(external_spec.Build(external_root));
+	GPOS_UNITTEST_ASSERT(!external_spec.HasDependencies());
+	GPOS_UNITTEST_ASSERT(external_spec.HasExternalDependencies());
+	external_root->Release();
+	external_get1->Release();
+	external_pred->Release();
 
 	// Semi/anti joins participate in CD-C but keep their right input
 	// directional. Moving an independent inner join into the preserved input

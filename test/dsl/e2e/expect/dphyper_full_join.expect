@@ -1,5 +1,5 @@
 {
-  "description": "DPHyper preserves FullOuter semantics in a mixed InnerJoin region",
+  "description": "DPHyper preserves FullOuter semantics and freezes its unsafe adjacent InnerJoin cut",
   "plans": [
     {
       "name": "replacement",
@@ -9,7 +9,8 @@
       "trace": true,
       "contains": [
         "DPHyper: status=applied",
-        "nodes=3",
+        "root=CLogicalInnerJoin nodes=3",
+        "pairs=2 subsets=5",
         "mode=replacement",
         "Xform: CXformFullOuterJoin2HashJoin"
       ],

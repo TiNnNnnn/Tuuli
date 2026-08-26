@@ -10,6 +10,7 @@
       "contains": [
         "DPHyper: status=applied",
         "nodes=3",
+        "pairs=4 subsets=6",
         "mode=replacement",
         "Xform: CXformImplementInnerJoin"
       ],
