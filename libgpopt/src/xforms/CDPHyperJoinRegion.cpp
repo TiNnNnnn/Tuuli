@@ -589,6 +589,79 @@ CDPHyperJoinRegion::FPairApplicable(const CBitSet *left,
 	return false;
 }
 
+std::vector<CDPHyperJoinRegion::SApplicableEdge>
+CDPHyperJoinRegion::ApplicableEdges(const CBitSet *left,
+									const CBitSet *right) const
+{
+	std::vector<SApplicableEdge> result;
+	if (nullptr == m_spec || m_spec->PureInner())
+	{
+		return result;
+	}
+	for (ULONG edge_id = 0; edge_id < m_spec->EdgeCount(); ++edge_id)
+	{
+		BOOL swapped = false;
+		if (FPairApplicable(left, right, edge_id, &swapped))
+		{
+			result.push_back({edge_id, swapped});
+		}
+	}
+	return result;
+}
+
+BOOL
+CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
+									  const CBitSet *right,
+									  SJoinRequest *request) const
+{
+	GPOS_ASSERT(nullptr != request);
+	request->m_join_type = COperator::EopLogicalInnerJoin;
+	request->m_swapped = false;
+	request->m_edge_ids.clear();
+	if (nullptr == m_spec || m_spec->PureInner())
+	{
+		return true;
+	}
+
+	std::vector<SApplicableEdge> applicable = ApplicableEdges(left, right);
+	if (applicable.empty())
+	{
+		return false;
+	}
+	ULONG non_inner_count = 0;
+	for (const SApplicableEdge &candidate : applicable)
+	{
+		const COperator::EOperatorId join_type =
+			m_spec->Edge(candidate.m_edge_id)->JoinType();
+		request->m_edge_ids.push_back(candidate.m_edge_id);
+		if (COperator::EopLogicalInnerJoin != join_type)
+		{
+			++non_inner_count;
+			request->m_join_type = join_type;
+			request->m_swapped = candidate.m_swapped;
+		}
+	}
+	// Combining an Inner predicate into the ON clause of a non-inner join can
+	// change null-extension semantics. Until edge-state sequencing represents
+	// both operators explicitly, only a sole non-inner edge is materializable.
+	return 0 == non_inner_count ||
+		   (1 == non_inner_count && 1 == applicable.size());
+}
+
+CExpression *
+CDPHyperJoinRegion::PexprPredicate(const SJoinRequest &request) const
+{
+	GPOS_ASSERT(nullptr != m_spec && !m_spec->PureInner());
+	CExpressionArray *predicates = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	for (ULONG edge_id : request.m_edge_ids)
+	{
+		CExpression *predicate = m_spec->Edge(edge_id)->Predicate();
+		predicate->AddRef();
+		predicates->Append(predicate);
+	}
+	return CPredicateUtils::PexprConjunction(m_mp, predicates);
+}
+
 CExpression *
 CDPHyperJoinRegion::PexprPredicate(const CBitSet *left,
 								   const CBitSet *right,

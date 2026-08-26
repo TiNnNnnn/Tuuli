@@ -14,7 +14,11 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/engine/CEngine.h"
 #include "gpopt/engine/CHint.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarNAryJoinPredList.h"
@@ -111,6 +115,38 @@ PexprGroupLeaf(CMemoryPool *mp, CGroup *group)
 	GPOS_ASSERT(nullptr != gexpr);
 	gexpr->Pop()->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, gexpr->Pop(), gexpr);
+}
+
+CExpression *
+PexprJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
+		  CGroup *left, CGroup *right, CExpression *predicate)
+{
+	switch (join_type)
+	{
+		case COperator::EopLogicalInnerJoin:
+			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
+				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
+				predicate, CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftOuterJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
+				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
+				predicate, CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftSemiJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
+				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
+				predicate, CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftAntiSemiJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
+				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
+				predicate, CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalFullOuterJoin:
+			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
+				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
+				predicate, CXform::ExfExpandNAryJoinDPHyper);
+		default:
+			GPOS_ASSERT(!"Unsupported DPHyper join type");
+			return nullptr;
+	}
 }
 
 CGroupExpression *
@@ -434,7 +470,16 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
-	CDPHyperPlan plan(mp, hint->UlDPHyperPairBudget());
+	CDPHyperPlan plan(
+		mp, hint->UlDPHyperPairBudget(),
+		[region](const CBitSet *left, const CBitSet *right, ULONG edge_id) {
+			if (!region->FPairApplicable(left, right, edge_id))
+			{
+				return false;
+			}
+			CDPHyperJoinRegion::SJoinRequest request;
+			return region->FBuildJoinRequest(left, right, &request);
+		});
 	CDPHyperEnumerator enumerator(mp, region->Graph(), &plan);
 	if (enumerator.Enumerate() || !plan.Complete(node_count))
 	{
@@ -506,12 +551,28 @@ CJobJoinEnumeration::FEnumerateRegion(
 		CGroup *target = full ? m_pgexpr->Pgroup()
 							  : subset_groups.Lookup(joined.Value());
 
-		CExpression *predicate = region->PexprPredicate(
-			pair->m_left, pair->m_right, full /*include residual*/);
-		CExpression *join = CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
-			mp, PexprGroupLeaf(mp, left_group),
-			PexprGroupLeaf(mp, right_group), predicate,
-			CXform::ExfExpandNAryJoinDPHyper);
+		CDPHyperJoinRegion::SJoinRequest request;
+		const BOOL complex_region = nullptr != spec && !spec->PureInner();
+		GPOS_ASSERT(!complex_region || region->FBuildJoinRequest(
+			pair->m_left, pair->m_right, &request));
+		COperator::EOperatorId join_type = COperator::EopLogicalInnerJoin;
+		CExpression *predicate = nullptr;
+		if (complex_region)
+		{
+			join_type = request.m_join_type;
+			predicate = region->PexprPredicate(request);
+			if (request.m_swapped)
+			{
+				std::swap(left_group, right_group);
+			}
+		}
+		else
+		{
+			predicate = region->PexprPredicate(
+				pair->m_left, pair->m_right, full /*include residual*/);
+		}
+		CExpression *join =
+			PexprJoin(mp, join_type, left_group, right_group, predicate);
 		target = engine->PgroupInsert(
 			target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
 			!full /*intermediate*/);
@@ -526,19 +587,24 @@ CJobJoinEnumeration::FEnumerateRegion(
 			m_intermediate_groups.push_back(target);
 		}
 
-		// DPHyp reports an unordered CSG-CMP pair once. InnerJoin is physically
-		// asymmetric, so retain both orientations in the same equivalence group.
-		predicate = region->PexprPredicate(pair->m_right, pair->m_left,
-										 full /*include residual*/);
-		join = CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
-			mp, PexprGroupLeaf(mp, right_group),
-			PexprGroupLeaf(mp, left_group), predicate,
-			CXform::ExfExpandNAryJoinDPHyper);
-		CGroup *reverse_target = engine->PgroupInsert(
-			target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
-			!full /*intermediate*/);
-		join->Release();
-		GPOS_ASSERT(reverse_target == target);
+		// DPHyp reports an unordered CSG-CMP pair once. Inner and FullOuter
+		// joins are commutative logical operators, so retain both physical input
+		// orientations. Directional joins keep only the CD-C-approved ordering.
+		if (COperator::EopLogicalInnerJoin == join_type ||
+			COperator::EopLogicalFullOuterJoin == join_type)
+		{
+			predicate = complex_region
+						? region->PexprPredicate(request)
+						: region->PexprPredicate(
+							  pair->m_right, pair->m_left,
+							  full /*include residual*/);
+			join = PexprJoin(mp, join_type, right_group, left_group, predicate);
+			CGroup *reverse_target = engine->PgroupInsert(
+				target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
+				!full /*intermediate*/);
+			join->Release();
+			GPOS_ASSERT(reverse_target == target);
+		}
 	}
 	if (GPOS_FTRACE(EopttracePrintXformResults))
 	{

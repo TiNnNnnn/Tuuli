@@ -32,10 +32,18 @@ private:
 	// xform that join originated from
 	CXform::EXformId m_origin_xform;
 
+	// Transient DPHyper-region ownership. A root is also a member. Keeping
+	// this on the join base lets mixed Inner/Outer/Semi/Anti regions share one
+	// ownership protocol without changing operator identity.
+	BOOL m_dphyper_region_member;
+	BOOL m_dphyper_region_root;
+
 protected:
 	// ctor
 	explicit CLogicalJoin(CMemoryPool *mp,
-						  CXform::EXformId origin_xform = CXform::ExfSentinel);
+						  CXform::EXformId origin_xform = CXform::ExfSentinel,
+						  BOOL dphyper_region_member = false,
+						  BOOL dphyper_region_root = false);
 
 	// dtor
 	~CLogicalJoin() override = default;
@@ -163,6 +171,18 @@ public:
 	OriginXform()
 	{
 		return m_origin_xform;
+	}
+
+	BOOL
+	FDPHyperRegionMember() const
+	{
+		return m_dphyper_region_member;
+	}
+
+	BOOL
+	FDPHyperRegionRoot() const
+	{
+		return m_dphyper_region_root;
 	}
 
 

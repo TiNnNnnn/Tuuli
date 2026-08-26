@@ -33,7 +33,9 @@ public:
 
 	// ctor
 	explicit CLogicalLeftSemiJoin(
-		CMemoryPool *mp, CXform::EXformId origin_xform = CXform::ExfSentinel);
+		CMemoryPool *mp, CXform::EXformId origin_xform = CXform::ExfSentinel,
+		BOOL dphyper_region_member = false,
+		BOOL dphyper_region_root = false);
 
 	// dtor
 	~CLogicalLeftSemiJoin() override = default;

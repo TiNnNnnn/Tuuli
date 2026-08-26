@@ -8,7 +8,11 @@
 #include "gpos/common/CBitSetIter.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 
 using namespace gpopt;
@@ -121,13 +125,15 @@ CJoinRegionSpec::~CJoinRegionSpec()
 
 CExpression *
 CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
-										BOOL parent_is_inner)
+										BOOL include_complex,
+										BOOL parent_is_join)
 {
 	GPOS_CHECK_STACK_SIZE;
 	GPOS_ASSERT(nullptr != mp && nullptr != expr);
-	const BOOL is_inner =
-		COperator::EopLogicalInnerJoin == expr->Pop()->Eopid();
-	if (!is_inner && 0 == expr->Arity() && nullptr != expr->Pgexpr())
+	const COperator::EOperatorId op_id = expr->Pop()->Eopid();
+	const BOOL is_join = COperator::EopLogicalInnerJoin == op_id ||
+						 (include_complex && FCDCSupportedJoin(op_id));
+	if (!is_join && 0 == expr->Arity() && nullptr != expr->Pgexpr())
 	{
 		expr->Pop()->AddRef();
 		return GPOS_NEW(mp) CExpression(mp, expr->Pop(), expr->Pgexpr());
@@ -136,16 +142,39 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 	for (ULONG child = 0; child < expr->Arity(); ++child)
 	{
 		children->Append(PexprMarkDPHyperRegions(
-			mp, (*expr)[child], is_inner && child < 2));
+			mp, (*expr)[child], include_complex, is_join && child < 2));
 	}
 
 	COperator *op = nullptr;
-	if (is_inner)
+	if (is_join)
 	{
-		CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(expr->Pop());
-		op = GPOS_NEW(mp) CLogicalInnerJoin(
-			mp, join->OriginXform(), true /*region member*/,
-			!parent_is_inner /*region root*/);
+		CLogicalJoin *join = CLogicalJoin::PopConvert(expr->Pop());
+		const BOOL region_root = !parent_is_join;
+		switch (op_id)
+		{
+			case COperator::EopLogicalInnerJoin:
+				op = GPOS_NEW(mp) CLogicalInnerJoin(
+					mp, join->OriginXform(), true, region_root);
+				break;
+			case COperator::EopLogicalLeftOuterJoin:
+				op = GPOS_NEW(mp) CLogicalLeftOuterJoin(
+					mp, join->OriginXform(), true, region_root);
+				break;
+			case COperator::EopLogicalLeftSemiJoin:
+				op = GPOS_NEW(mp) CLogicalLeftSemiJoin(
+					mp, join->OriginXform(), true, region_root);
+				break;
+			case COperator::EopLogicalLeftAntiSemiJoin:
+				op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoin(
+					mp, join->OriginXform(), true, region_root);
+				break;
+			case COperator::EopLogicalFullOuterJoin:
+				op = GPOS_NEW(mp) CLogicalFullOuterJoin(
+					mp, join->OriginXform(), true, region_root);
+				break;
+			default:
+				GPOS_ASSERT(!"Unsupported mixed DPHyper join type");
+		}
 	}
 	else
 	{

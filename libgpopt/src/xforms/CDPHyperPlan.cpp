@@ -4,6 +4,9 @@
 //---------------------------------------------------------------------------
 #include "gpopt/xforms/CDPHyperPlan.h"
 
+#include <algorithm>
+#include <utility>
+
 #include "gpos/common/CAutoRef.h"
 
 using namespace gpopt;
@@ -11,9 +14,9 @@ using namespace gpopt;
 CDPHyperPlan::SPair::SPair(CMemoryPool *mp, const CBitSet *left,
 							 const CBitSet *right, ULONG connecting_edge)
 	: m_left(GPOS_NEW(mp) CBitSet(mp, *left)),
-	  m_right(GPOS_NEW(mp) CBitSet(mp, *right)),
-	  m_connecting_edge(connecting_edge)
+	  m_right(GPOS_NEW(mp) CBitSet(mp, *right))
 {
+	m_connecting_edges.push_back(connecting_edge);
 }
 
 CDPHyperPlan::SPair::~SPair()
@@ -22,10 +25,23 @@ CDPHyperPlan::SPair::~SPair()
 	m_right->Release();
 }
 
-CDPHyperPlan::CDPHyperPlan(CMemoryPool *mp, ULONG pair_budget)
+void
+CDPHyperPlan::SPair::AddConnectingEdge(ULONG connecting_edge)
+{
+	if (m_connecting_edges.end() ==
+		std::find(m_connecting_edges.begin(), m_connecting_edges.end(),
+				  connecting_edge))
+	{
+		m_connecting_edges.push_back(connecting_edge);
+	}
+}
+
+CDPHyperPlan::CDPHyperPlan(CMemoryPool *mp, ULONG pair_budget,
+						   PairFilter pair_filter)
 	: m_mp(mp),
 	  m_pair_budget(pair_budget),
 	  m_budget_exhausted(false),
+	  m_pair_filter(std::move(pair_filter)),
 	  m_seen_count(0)
 {
 	GPOS_ASSERT(nullptr != mp);
@@ -87,39 +103,45 @@ CDPHyperPlan::FoundSingleNode(ULONG node_id)
 	return false;
 }
 
-BOOL
-CDPHyperPlan::HasPair(const CBitSet *left, const CBitSet *right,
-					  ULONG union_hash) const
+CDPHyperPlan::SPair *
+CDPHyperPlan::Ppair(const CBitSet *left, const CBitSet *right,
+				   ULONG union_hash) const
 {
 	auto bucket = m_pairs_by_union.find(union_hash);
 	if (m_pairs_by_union.end() == bucket)
 	{
-		return false;
+		return nullptr;
 	}
-	for (const SPair *pair : bucket->second)
+	for (SPair *pair : bucket->second)
 	{
 		if ((pair->m_left->Equals(left) && pair->m_right->Equals(right)) ||
 			(pair->m_left->Equals(right) && pair->m_right->Equals(left)))
 		{
-			return true;
+			return pair;
 		}
 	}
-	return false;
+	return nullptr;
 }
 
 BOOL
 CDPHyperPlan::FoundSubgraphPair(const CBitSet *left, const CBitSet *right,
-							 ULONG edge_id)
+								 ULONG edge_id)
 {
 	GPOS_ASSERT(left->IsDisjoint(right));
 	GPOS_ASSERT(HasSeen(left));
 	GPOS_ASSERT(HasSeen(right));
+	if (m_pair_filter && !m_pair_filter(left, right, edge_id))
+	{
+		return false;
+	}
 
 	CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
 	joined->Union(right);
 	const ULONG union_hash = joined->HashValue();
-	if (HasPair(left, right, union_hash))
+	SPair *existing = Ppair(left, right, union_hash);
+	if (nullptr != existing)
 	{
+		existing->AddConnectingEdge(edge_id);
 		return false;
 	}
 	if (m_pairs.size() >= m_pair_budget)

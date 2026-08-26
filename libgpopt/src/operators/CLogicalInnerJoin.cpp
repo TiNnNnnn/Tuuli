@@ -37,12 +37,10 @@ CLogicalInnerJoin::CLogicalInnerJoin(CMemoryPool *mp,
 									 CXform::EXformId origin_xform,
 									 BOOL dphyper_region_member,
 									 BOOL dphyper_region_root)
-	: CLogicalJoin(mp, origin_xform),
-	  m_dphyper_region_member(dphyper_region_member),
-	  m_dphyper_region_root(dphyper_region_root)
+	: CLogicalJoin(mp, origin_xform, dphyper_region_member,
+				   dphyper_region_root)
 {
 	GPOS_ASSERT(nullptr != mp);
-	GPOS_ASSERT_IMP(dphyper_region_root, dphyper_region_member);
 }
 
 

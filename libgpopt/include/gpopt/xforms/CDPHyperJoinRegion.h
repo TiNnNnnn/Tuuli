@@ -52,6 +52,20 @@ public:
 
 class CDPHyperJoinRegion
 {
+public:
+	struct SApplicableEdge
+	{
+		ULONG m_edge_id;
+		BOOL m_swapped;
+	};
+
+	struct SJoinRequest
+	{
+		COperator::EOperatorId m_join_type;
+		BOOL m_swapped;
+		std::vector<ULONG> m_edge_ids;
+	};
+
 private:
 	CMemoryPool *m_mp;
 	CExpressionArray *m_components;
@@ -93,6 +107,11 @@ public:
 	CDPHyperGraphFingerprint *Pfp() const;
 	BOOL FPairApplicable(const CBitSet *left, const CBitSet *right,
 						 ULONG edge_id, BOOL *swapped = nullptr) const;
+	std::vector<SApplicableEdge> ApplicableEdges(const CBitSet *left,
+											 const CBitSet *right) const;
+	BOOL FBuildJoinRequest(const CBitSet *left, const CBitSet *right,
+						   SJoinRequest *request) const;
+	CExpression *PexprPredicate(const SJoinRequest &request) const;
 
 	const CDPHyperGraph *
 	Graph() const

@@ -22,34 +22,41 @@ using namespace gpos;
 class CDPHyperPlan : public IDPHyperReceiver
 {
 public:
+	using PairFilter = std::function<BOOL(const CBitSet *, const CBitSet *,
+										ULONG)>;
+
 	struct SPair
 	{
 		CBitSet *m_left;
 		CBitSet *m_right;
-		ULONG m_connecting_edge;
+		std::vector<ULONG> m_connecting_edges;
 
 		SPair(CMemoryPool *mp, const CBitSet *left, const CBitSet *right,
 			  ULONG connecting_edge);
 		~SPair();
+
+		void AddConnectingEdge(ULONG connecting_edge);
 	};
 
 private:
 	CMemoryPool *m_mp;
 	ULONG m_pair_budget;
 	BOOL m_budget_exhausted;
+	PairFilter m_pair_filter;
 	std::unordered_map<ULONG, std::vector<CBitSet *>> m_seen;
 	std::unordered_map<ULONG, std::vector<SPair *>> m_pairs_by_union;
 	std::vector<SPair *> m_pairs;
 	ULONG m_seen_count;
 
 	BOOL RecordSeen(const CBitSet *nodes);
-	BOOL HasPair(const CBitSet *left, const CBitSet *right,
+	SPair *Ppair(const CBitSet *left, const CBitSet *right,
 				 ULONG union_hash) const;
 
 public:
 	CDPHyperPlan(const CDPHyperPlan &) = delete;
 
-	CDPHyperPlan(CMemoryPool *mp, ULONG pair_budget);
+	CDPHyperPlan(CMemoryPool *mp, ULONG pair_budget,
+				 PairFilter pair_filter = PairFilter());
 	~CDPHyperPlan() override;
 
 	BOOL FoundSingleNode(ULONG node_id) override;

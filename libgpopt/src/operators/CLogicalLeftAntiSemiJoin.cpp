@@ -31,8 +31,10 @@ using namespace gpopt;
 //
 //---------------------------------------------------------------------------
 CLogicalLeftAntiSemiJoin::CLogicalLeftAntiSemiJoin(
-	CMemoryPool *mp, CXform::EXformId origin_xform)
-	: CLogicalJoin(mp, origin_xform)
+	CMemoryPool *mp, CXform::EXformId origin_xform,
+	BOOL dphyper_region_member, BOOL dphyper_region_root)
+	: CLogicalJoin(mp, origin_xform, dphyper_region_member,
+				   dphyper_region_root)
 {
 	GPOS_ASSERT(nullptr != mp);
 }

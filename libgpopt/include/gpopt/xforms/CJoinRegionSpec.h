@@ -157,10 +157,12 @@ public:
 	~CJoinRegionSpec();
 
 	// Copy an expression tree while marking every maximal binary InnerJoin
-	// region. Query preprocessing and DSL alternatives share this path so
-	// region ownership does not depend on which phase produced the tree.
+	// region, or every CD-C-supported mixed join region when requested. Query
+	// preprocessing and DSL alternatives share this path so region ownership
+	// does not depend on which phase produced the tree.
 	static CExpression *PexprMarkDPHyperRegions(
-		CMemoryPool *mp, CExpression *expr, BOOL parent_is_inner = false);
+		CMemoryPool *mp, CExpression *expr, BOOL include_complex = false,
+		BOOL parent_is_join = false);
 
 	// Build once.  Unsupported relational subtrees are opaque atoms.  The root
 	// itself must be a supported three-child logical join.

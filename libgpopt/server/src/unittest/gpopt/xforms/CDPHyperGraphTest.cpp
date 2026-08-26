@@ -608,6 +608,39 @@ CDPHyperGraphTest::EresUnittest_AtomicBudget()
 	GPOS_UNITTEST_ASSERT(!complete_enumerator.Enumerate());
 	GPOS_UNITTEST_ASSERT(!complete.BudgetExhausted());
 	GPOS_UNITTEST_ASSERT(complete.Complete(graph.NodeCount()));
+
+	// Pair identity and connecting-edge provenance are distinct. Multiple
+	// hyperedges may expose the same cut and must survive pair deduplication.
+	CDPHyperPlan provenance(mp, 10);
+	GPOS_UNITTEST_ASSERT(!provenance.FoundSingleNode(0));
+	GPOS_UNITTEST_ASSERT(!provenance.FoundSingleNode(1));
+	CAutoRef<CBitSet> node0(Pbs(mp, {0}));
+	CAutoRef<CBitSet> node1(Pbs(mp, {1}));
+	GPOS_UNITTEST_ASSERT(
+		!provenance.FoundSubgraphPair(node0.Value(), node1.Value(), 7));
+	GPOS_UNITTEST_ASSERT(
+		!provenance.FoundSubgraphPair(node1.Value(), node0.Value(), 9));
+	GPOS_UNITTEST_ASSERT(1 == provenance.PairCount());
+	GPOS_UNITTEST_ASSERT(
+		2 == provenance.Pairs()[0]->m_connecting_edges.size());
+	GPOS_UNITTEST_ASSERT(
+		7 == provenance.Pairs()[0]->m_connecting_edges[0]);
+	GPOS_UNITTEST_ASSERT(
+		9 == provenance.Pairs()[0]->m_connecting_edges[1]);
+
+	CDPHyperPlan filtered(
+		mp, 10,
+		[](const CBitSet *, const CBitSet *, ULONG edge_id) {
+			return 7 == edge_id;
+		});
+	GPOS_UNITTEST_ASSERT(!filtered.FoundSingleNode(0));
+	GPOS_UNITTEST_ASSERT(!filtered.FoundSingleNode(1));
+	GPOS_UNITTEST_ASSERT(
+		!filtered.FoundSubgraphPair(node0.Value(), node1.Value(), 9));
+	GPOS_UNITTEST_ASSERT(0 == filtered.PairCount());
+	GPOS_UNITTEST_ASSERT(
+		!filtered.FoundSubgraphPair(node0.Value(), node1.Value(), 7));
+	GPOS_UNITTEST_ASSERT(1 == filtered.PairCount());
 	return GPOS_OK;
 }
 
@@ -810,6 +843,17 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->SES(), {1, 2}));
 	GPOS_UNITTEST_ASSERT(FSet(outer_spec.Edge(1)->TES(), {0, 1, 2}));
 	GPOS_UNITTEST_ASSERT(outer_spec.Edge(1)->ConflictRules().empty());
+	CExpression *marked_outer = CJoinRegionSpec::PexprMarkDPHyperRegions(
+		mp, outer_root, true /*include complex*/);
+	CLogicalJoin *marked_root =
+		CLogicalJoin::PopConvert(marked_outer->Pop());
+	CLogicalJoin *marked_child =
+		CLogicalJoin::PopConvert((*marked_outer)[0]->Pop());
+	GPOS_UNITTEST_ASSERT(marked_root->FDPHyperRegionMember());
+	GPOS_UNITTEST_ASSERT(marked_root->FDPHyperRegionRoot());
+	GPOS_UNITTEST_ASSERT(marked_child->FDPHyperRegionMember());
+	GPOS_UNITTEST_ASSERT(!marked_child->FDPHyperRegionRoot());
+	marked_outer->Release();
 	CAutoRef<CBitSet> node0(Pbs(mp, {0}));
 	CAutoRef<CBitSet> node1(Pbs(mp, {1}));
 	CAutoRef<CBitSet> node2(Pbs(mp, {2}));
@@ -821,6 +865,15 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 		!outer_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
 	CDPHyperJoinRegion outer_eligibility(mp, &outer_spec, 100);
 	GPOS_UNITTEST_ASSERT(outer_eligibility.Build());
+	std::vector<CDPHyperJoinRegion::SApplicableEdge> outer_edges =
+		outer_eligibility.ApplicableEdges(node0.Value(), node1.Value());
+	GPOS_UNITTEST_ASSERT(1 == outer_edges.size());
+	GPOS_UNITTEST_ASSERT(0 == outer_edges[0].m_edge_id);
+	GPOS_UNITTEST_ASSERT(!outer_edges[0].m_swapped);
+	outer_edges =
+		outer_eligibility.ApplicableEdges(node1.Value(), node0.Value());
+	GPOS_UNITTEST_ASSERT(1 == outer_edges.size());
+	GPOS_UNITTEST_ASSERT(outer_edges[0].m_swapped);
 	CEligibilityReceiver outer_receiver(mp, &outer_eligibility);
 	CDPHyperEnumerator outer_enumerator(
 		mp, outer_eligibility.Graph(), &outer_receiver);
@@ -843,6 +896,25 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 		!safe_outer_spec.Edge(1)->FApplicable(node2.Value(), node1.Value()));
 	CDPHyperJoinRegion safe_outer_eligibility(mp, &safe_outer_spec, 100);
 	GPOS_UNITTEST_ASSERT(safe_outer_eligibility.Build());
+	std::vector<CDPHyperJoinRegion::SApplicableEdge> safe_edges =
+		safe_outer_eligibility.ApplicableEdges(node1.Value(), node2.Value());
+	GPOS_UNITTEST_ASSERT(1 == safe_edges.size());
+	GPOS_UNITTEST_ASSERT(1 == safe_edges[0].m_edge_id);
+	GPOS_UNITTEST_ASSERT(!safe_edges[0].m_swapped);
+	CDPHyperJoinRegion::SJoinRequest safe_request;
+	GPOS_UNITTEST_ASSERT(safe_outer_eligibility.FBuildJoinRequest(
+		node1.Value(), node2.Value(), &safe_request));
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftOuterJoin ==
+						 safe_request.m_join_type);
+	GPOS_UNITTEST_ASSERT(!safe_request.m_swapped);
+	GPOS_UNITTEST_ASSERT(1 == safe_request.m_edge_ids.size());
+	CExpression *safe_predicate =
+		safe_outer_eligibility.PexprPredicate(safe_request);
+	GPOS_UNITTEST_ASSERT(safe_predicate->Matches(pred12));
+	safe_predicate->Release();
+	GPOS_UNITTEST_ASSERT(safe_outer_eligibility.FBuildJoinRequest(
+		node2.Value(), node1.Value(), &safe_request));
+	GPOS_UNITTEST_ASSERT(safe_request.m_swapped);
 	CEligibilityReceiver safe_outer_receiver(mp, &safe_outer_eligibility);
 	CDPHyperEnumerator safe_outer_enumerator(
 		mp, safe_outer_eligibility.Graph(), &safe_outer_receiver);
