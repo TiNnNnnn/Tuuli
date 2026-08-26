@@ -27,11 +27,13 @@
       "trace": true,
       "contains": [
         "DPHyper: status=applied",
+        "fingerprint=",
         "mode=replacement",
         "\"rule_id\":63,\"status\":\"applied\""
       ],
       "not_contains": [
         "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
         "Xform: CXformJoinAssociativity"
       ],
       "alternative": [

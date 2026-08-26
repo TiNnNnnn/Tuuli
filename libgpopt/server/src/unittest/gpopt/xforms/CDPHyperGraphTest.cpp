@@ -649,6 +649,44 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(binary_plan.Complete(binary_region.NodeCount()));
 	GPOS_UNITTEST_ASSERT(6 == binary_plan.SeenCount());
 
+	CDPHyperGraphFingerprint *fingerprint = binary_region.Pfp();
+	CExpressionArray *reversed_components =
+		GPOS_NEW(mp) CExpressionArray(mp);
+	get2->AddRef();
+	get1->AddRef();
+	get0->AddRef();
+	reversed_components->Append(get2);
+	reversed_components->Append(get1);
+	reversed_components->Append(get0);
+	CExpressionArray *reversed_predicates =
+		GPOS_NEW(mp) CExpressionArray(mp);
+	pred12->AddRef();
+	pred01->AddRef();
+	reversed_predicates->Append(pred12);
+	reversed_predicates->Append(pred01);
+	CDPHyperJoinRegion reordered_region(mp, reversed_components,
+									 reversed_predicates, 100);
+	GPOS_UNITTEST_ASSERT(reordered_region.Build());
+	CDPHyperGraphFingerprint *reordered_fingerprint = reordered_region.Pfp();
+	GPOS_UNITTEST_ASSERT(fingerprint->Matches(reordered_fingerprint));
+	GPOS_UNITTEST_ASSERT(fingerprint->HashValue() ==
+						 reordered_fingerprint->HashValue());
+
+	CExpressionArray *fewer_predicates = GPOS_NEW(mp) CExpressionArray(mp);
+	pred01->AddRef();
+	fewer_predicates->Append(pred01);
+	CDPHyperJoinRegion changed_region(mp, reversed_components,
+								   fewer_predicates, 100);
+	GPOS_UNITTEST_ASSERT(changed_region.Build());
+	CDPHyperGraphFingerprint *changed_fingerprint = changed_region.Pfp();
+	GPOS_UNITTEST_ASSERT(!fingerprint->Matches(changed_fingerprint));
+	GPOS_DELETE(changed_fingerprint);
+	GPOS_DELETE(reordered_fingerprint);
+	GPOS_DELETE(fingerprint);
+	reversed_components->Release();
+	reversed_predicates->Release();
+	fewer_predicates->Release();
+
 	// Preserve an explicit predicate-free cut. Predicate-only component
 	// freezing would keep {1,2}|{0} and lose the original {0}|{1} CROSS edge.
 	CExpression *true_pred = CUtils::PexprScalarConstBool(mp, true);
@@ -667,6 +705,33 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(cross_plan.Complete(cross_region.NodeCount()));
 	CAutoRef<CBitSet> cross01_nodes(Pbs(mp, {0, 1}));
 	GPOS_UNITTEST_ASSERT(cross_plan.HasSeen(cross01_nodes.Value()));
+
+	// Atom and predicate multisets alone are not a graph fingerprint. Keep the
+	// explicit CROSS skeleton cut distinct from the predicate-component cut.
+	CExpressionArray *cross_components = GPOS_NEW(mp) CExpressionArray(mp);
+	get0->AddRef();
+	get1->AddRef();
+	get2->AddRef();
+	cross_components->Append(get0);
+	cross_components->Append(get1);
+	cross_components->Append(get2);
+	CExpressionArray *cross_predicates = GPOS_NEW(mp) CExpressionArray(mp);
+	true_pred->AddRef();
+	pred12->AddRef();
+	cross_predicates->Append(true_pred);
+	cross_predicates->Append(pred12);
+	CDPHyperJoinRegion component_cut_region(mp, cross_components,
+										cross_predicates, 100);
+	GPOS_UNITTEST_ASSERT(component_cut_region.Build());
+	CDPHyperGraphFingerprint *cross_fingerprint = cross_region.Pfp();
+	CDPHyperGraphFingerprint *component_cut_fingerprint =
+		component_cut_region.Pfp();
+	GPOS_UNITTEST_ASSERT(
+		!cross_fingerprint->Matches(component_cut_fingerprint));
+	GPOS_DELETE(component_cut_fingerprint);
+	GPOS_DELETE(cross_fingerprint);
+	cross_predicates->Release();
+	cross_components->Release();
 
 	// An outer edge is retained with its directional boundary.  DPHyper may
 	// reject it initially, but the transient descriptor must not erase it.

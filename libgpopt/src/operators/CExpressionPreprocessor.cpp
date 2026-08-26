@@ -58,6 +58,7 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/translate/CTranslatorDXLToExpr.h"
 #include "gpopt/xforms/CXform.h"
+#include "gpopt/xforms/CJoinRegionSpec.h"
 #include "naucrates/md/IMDScalarOp.h"
 #include "naucrates/md/IMDType.h"
 #include "naucrates/statistics/CStatistics.h"
@@ -981,43 +982,6 @@ CExpressionPreprocessor::PexprCollapseJoins(CMemoryPool *mp, CExpression *pexpr)
 
 	pop->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexprChildren);
-}
-
-// Mark maximal binary InnerJoin regions without replacing their operators by
-// an NAryJoin. This mirrors Horn's FindAndOptimizeJoin ownership rule: the
-// outermost contiguous join is the sole region owner, while its direct join
-// descendants are members used to recover the stable syntactic skeleton.
-CExpression *
-CExpressionPreprocessor::PexprMarkDPHyperJoinRegions(CMemoryPool *mp,
-												  CExpression *pexpr,
-												  BOOL parent_is_inner)
-{
-	GPOS_CHECK_STACK_SIZE;
-	GPOS_ASSERT(nullptr != mp && nullptr != pexpr);
-	const BOOL is_inner =
-		COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid();
-	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
-	for (ULONG child = 0; child < pexpr->Arity(); ++child)
-	{
-		const BOOL child_inside_region = is_inner && child < 2;
-		children->Append(PexprMarkDPHyperJoinRegions(
-			mp, (*pexpr)[child], child_inside_region));
-	}
-
-	COperator *pop = nullptr;
-	if (is_inner)
-	{
-		CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(pexpr->Pop());
-		pop = GPOS_NEW(mp) CLogicalInnerJoin(
-			mp, join->OriginXform(), true /*region member*/,
-			!parent_is_inner /*region root*/);
-	}
-	else
-	{
-		pexpr->Pop()->AddRef();
-		pop = pexpr->Pop();
-	}
-	return GPOS_NEW(mp) CExpression(mp, pop, children);
 }
 
 // collect the children of a join backbone into an array of logical leaf
@@ -3559,7 +3523,7 @@ CExpressionPreprocessor::PexprPreprocess(
 			->FEnableDPHyper())
 	{
 		pexprCollapsed =
-			PexprMarkDPHyperJoinRegions(mp, pexprLOJToIJ, false);
+			CJoinRegionSpec::PexprMarkDPHyperRegions(mp, pexprLOJToIJ);
 	}
 	else
 	{

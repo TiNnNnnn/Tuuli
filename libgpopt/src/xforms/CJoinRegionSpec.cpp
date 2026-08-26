@@ -6,6 +6,8 @@
 
 #include "gpos/common/CAutoRef.h"
 
+#include "gpopt/operators/CLogicalInnerJoin.h"
+
 using namespace gpopt;
 
 CJoinRegionSpec::CEdge::CEdge(CMemoryPool *mp,
@@ -43,6 +45,42 @@ CJoinRegionSpec::~CJoinRegionSpec()
 		GPOS_DELETE(edge);
 	}
 	m_atoms->Release();
+}
+
+CExpression *
+CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
+										BOOL parent_is_inner)
+{
+	GPOS_CHECK_STACK_SIZE;
+	GPOS_ASSERT(nullptr != mp && nullptr != expr);
+	const BOOL is_inner =
+		COperator::EopLogicalInnerJoin == expr->Pop()->Eopid();
+	if (!is_inner && 0 == expr->Arity() && nullptr != expr->Pgexpr())
+	{
+		expr->Pop()->AddRef();
+		return GPOS_NEW(mp) CExpression(mp, expr->Pop(), expr->Pgexpr());
+	}
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG child = 0; child < expr->Arity(); ++child)
+	{
+		children->Append(PexprMarkDPHyperRegions(
+			mp, (*expr)[child], is_inner && child < 2));
+	}
+
+	COperator *op = nullptr;
+	if (is_inner)
+	{
+		CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(expr->Pop());
+		op = GPOS_NEW(mp) CLogicalInnerJoin(
+			mp, join->OriginXform(), true /*region member*/,
+			!parent_is_inner /*region root*/);
+	}
+	else
+	{
+		expr->Pop()->AddRef();
+		op = expr->Pop();
+	}
+	return GPOS_NEW(mp) CExpression(mp, op, children);
 }
 
 BOOL

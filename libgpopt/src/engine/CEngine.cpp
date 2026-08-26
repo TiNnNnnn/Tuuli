@@ -54,6 +54,8 @@
 #include "gpopt/search/CMemo.h"
 #include "gpopt/search/CScheduler.h"
 #include "gpopt/search/CSchedulerContext.h"
+#include "gpopt/xforms/CDPHyperJoinRegion.h"
+#include "gpopt/xforms/CJoinRegionSpec.h"
 #include "gpopt/xforms/CXformFactory.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -116,6 +118,10 @@ CEngine::~CEngine()
 	// in optimized build, we flush-down memory pools without leak checking,
 	// we can save time in optimized build by skipping all de-allocations here,
 	// we still have all de-llocations enabled in debug-build to detect any possible leaks
+	for (const auto &entry : m_dphyper_fingerprints)
+	{
+		GPOS_DELETE(entry.second);
+	}
 	GPOS_DELETE(m_pmemo);
 	CRefCount::SafeRelease(m_xforms);
 	m_pdrgpulpXformCalls->Release();
@@ -124,6 +130,24 @@ CEngine::~CEngine()
 	m_pdrgpulpXformResults->Release();
 	m_pexprEnforcerPattern->Release();
 	CRefCount::SafeRelease(m_search_stage_array);
+}
+
+BOOL
+CEngine::FRegisterDPHyperFingerprint(
+	CGroup *owner, CDPHyperGraphFingerprint *fingerprint)
+{
+	GPOS_ASSERT(nullptr != owner && nullptr != fingerprint);
+	for (const auto &entry : m_dphyper_fingerprints)
+	{
+		if (CGroup::FDuplicateGroups(owner, entry.first) &&
+			fingerprint->Matches(entry.second))
+		{
+			GPOS_DELETE(fingerprint);
+			return false;
+		}
+	}
+	m_dphyper_fingerprints.emplace_back(owner, fingerprint);
+	return true;
 }
 
 
@@ -382,9 +406,23 @@ CEngine::InsertXformResult(
 	CExpression *pexpr = pxfres->PexprNext();
 	while (nullptr != pexpr)
 	{
+		CExpression *pexprInsert = pexpr;
+		if (CGroupExpression::FDSLRuleXform(exfidOrigin) &&
+			COptCtxt::PoctxtFromTLS()
+				->GetOptimizerConfig()
+				->GetHint()
+				->FEnableDPHyper())
+		{
+			pexprInsert =
+				CJoinRegionSpec::PexprMarkDPHyperRegions(m_mp, pexpr);
+		}
 		CGroup *pgroupContainer =
-			PgroupInsert(pgroupOrigin, pexpr, exfidOrigin, pgexprOrigin,
+			PgroupInsert(pgroupOrigin, pexprInsert, exfidOrigin, pgexprOrigin,
 						 false /*fIntermediate*/);
+		if (pexprInsert != pexpr)
+		{
+			pexprInsert->Release();
+		}
 		const BOOL fDSLProvenance =
 			CGroupExpression::FDSLRuleXform(exfidOrigin) ||
 			pgexprOrigin->FHasDSLProvenance();

@@ -22,6 +22,34 @@ using namespace gpos;
 
 class CJoinRegionSpec;
 
+// Exact graph identity used to suppress repeated DPHyper ownership only
+// inside the same Memo equivalence group. The hash is only a diagnostic
+// summary; equality compares atoms, predicates and hyperedge topology exactly.
+class CDPHyperGraphFingerprint
+{
+private:
+	CMemoryPool *m_mp;
+	CExpressionArray *m_atoms;
+	CExpressionArray *m_predicates;
+	std::vector<std::pair<CBitSet *, CBitSet *>> m_edges;
+	ULONG m_hash;
+
+public:
+	CDPHyperGraphFingerprint(const CDPHyperGraphFingerprint &) = delete;
+	CDPHyperGraphFingerprint(CMemoryPool *mp, CExpressionArray *atoms,
+								 CExpressionArray *predicates,
+								 const CDPHyperGraph *graph);
+	~CDPHyperGraphFingerprint();
+
+	BOOL Matches(const CDPHyperGraphFingerprint *other) const;
+
+	ULONG
+	HashValue() const
+	{
+		return m_hash;
+	}
+};
+
 class CDPHyperJoinRegion
 {
 private:
@@ -61,6 +89,7 @@ public:
 	CExpression *PexprPredicate(const CBitSet *left, const CBitSet *right,
 							 BOOL include_residual) const;
 	CExpression *PexprAllPredicates() const;
+	CDPHyperGraphFingerprint *Pfp() const;
 
 	const CDPHyperGraph *
 	Graph() const

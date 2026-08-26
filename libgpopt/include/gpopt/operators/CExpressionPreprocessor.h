@@ -125,9 +125,6 @@ private:
 
 	// collapse cascaded inner joins into NAry-joins
 	static CExpression *PexprCollapseJoins(CMemoryPool *mp, CExpression *pexpr);
-	static CExpression *PexprMarkDPHyperJoinRegions(CMemoryPool *mp,
-												 CExpression *pexpr,
-												 BOOL parent_is_inner);
 
 	// helper method for PexprCollapseJoins, collect children and make recursive calls
 	static void CollectJoinChildrenRecursively(

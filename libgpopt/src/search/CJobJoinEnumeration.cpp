@@ -453,6 +453,23 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
+	CEngine *engine = psc->Peng();
+	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
+	const ULONG fingerprint_hash = fingerprint->HashValue();
+	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
+	{
+		if (GPOS_FTRACE(EopttracePrintXformResults))
+		{
+			GPOS_TRACE_FORMAT(
+				"DPHyper: status=reused group=%d nodes=%d fingerprint=%u "
+				"mode=%s",
+				m_pgexpr->Pgroup()->Id(), node_count, fingerprint_hash,
+				GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow"
+											 : "replacement");
+		}
+		return true;
+	}
+
 	// Enumeration above is side-effect free. From this point onward all child
 	// subsets are known to exist and pairs are topologically ordered, so Memo
 	// insertion cannot expose a partial DPHyper result due to a graph/budget
@@ -476,7 +493,6 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 	}
 
-	CEngine *engine = psc->Peng();
 	for (const CDPHyperPlan::SPair *pair : plan.Pairs())
 	{
 		CGroup *left_group = subset_groups.Lookup(pair->m_left);
@@ -528,10 +544,10 @@ CJobJoinEnumeration::FEnumerateRegion(
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=applied group=%d nodes=%d edges=%d "
-			"cartesian_edges=%d pairs=%d subsets=%d mode=%s",
+			"cartesian_edges=%d pairs=%d subsets=%d fingerprint=%u mode=%s",
 			m_pgexpr->Pgroup()->Id(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
-			plan.PairCount(), plan.SeenCount(),
+			plan.PairCount(), plan.SeenCount(), fingerprint_hash,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	return true;

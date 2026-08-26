@@ -4,14 +4,230 @@
 //---------------------------------------------------------------------------
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
 
+#include <algorithm>
+
 #include "gpos/common/CAutoRef.h"
 #include "gpos/common/CBitSetIter.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/search/CGroup.h"
+#include "gpopt/search/CGroupExpression.h"
 #include "gpopt/xforms/CJoinRegionSpec.h"
 
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FAtomMatches(CExpression *left, CExpression *right)
+{
+	CGroupExpression *left_gexpr = left->Pgexpr();
+	CGroupExpression *right_gexpr = right->Pgexpr();
+	if (nullptr != left_gexpr || nullptr != right_gexpr)
+	{
+		return nullptr != left_gexpr && nullptr != right_gexpr &&
+			   CGroup::FDuplicateGroups(left_gexpr->Pgroup(),
+								   right_gexpr->Pgroup());
+	}
+	return left->Matches(right);
+}
+
+template <class Match>
+BOOL
+FUnorderedMatches(CExpressionArray *left, CExpressionArray *right,
+				  Match match)
+{
+	if (left->Size() != right->Size())
+	{
+		return false;
+	}
+	std::vector<BOOL> used(right->Size(), false);
+	for (ULONG left_idx = 0; left_idx < left->Size(); ++left_idx)
+	{
+		BOOL found = false;
+		for (ULONG right_idx = 0; right_idx < right->Size(); ++right_idx)
+		{
+			if (!used[right_idx] &&
+				match((*left)[left_idx], (*right)[right_idx]))
+			{
+				used[right_idx] = true;
+				found = true;
+				break;
+			}
+		}
+		if (!found)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+}  // namespace
+
+CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
+	CMemoryPool *mp, CExpressionArray *atoms, CExpressionArray *predicates,
+	const CDPHyperGraph *graph)
+	: m_mp(mp),
+	  m_atoms(GPOS_NEW(mp) CExpressionArray(mp)),
+	  m_predicates(GPOS_NEW(mp) CExpressionArray(mp)),
+	  m_hash(0)
+{
+	GPOS_ASSERT(nullptr != graph && 0 == graph->DirectedEdgeCount() % 2);
+	std::vector<ULONG> atom_hashes;
+	std::vector<ULONG> predicate_hashes;
+	std::vector<ULONG> edge_hashes;
+	for (ULONG atom = 0; atom < atoms->Size(); ++atom)
+	{
+		CExpression *expr = (*atoms)[atom];
+		expr->AddRef();
+		m_atoms->Append(expr);
+		atom_hashes.push_back(nullptr == expr->Pgexpr()
+								? CExpression::UlHashDedup(expr)
+								: expr->Pgexpr()->Pgroup()->Id());
+	}
+	for (ULONG predicate = 0; predicate < predicates->Size(); ++predicate)
+	{
+		CExpression *expr = (*predicates)[predicate];
+		expr->AddRef();
+		m_predicates->Append(expr);
+		predicate_hashes.push_back(CExpression::UlHashDedup(expr));
+	}
+	for (ULONG edge = 0; edge < graph->DirectedEdgeCount(); edge += 2)
+	{
+		const CDPHyperGraph::SEdge *graph_edge = graph->Edge(edge);
+		m_edges.emplace_back(GPOS_NEW(mp)
+							 CBitSet(mp, *graph_edge->m_left),
+						 GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_right));
+		const ULONG smaller = std::min(graph_edge->m_left->Size(),
+									 graph_edge->m_right->Size());
+		const ULONG larger = std::max(graph_edge->m_left->Size(),
+								  graph_edge->m_right->Size());
+		edge_hashes.push_back(CombineHashes(
+			gpos::HashValue<ULONG>(&smaller),
+			gpos::HashValue<ULONG>(&larger)));
+	}
+	std::sort(atom_hashes.begin(), atom_hashes.end());
+	std::sort(predicate_hashes.begin(), predicate_hashes.end());
+	std::sort(edge_hashes.begin(), edge_hashes.end());
+	const ULONG atom_count = atom_hashes.size();
+	const ULONG predicate_count = predicate_hashes.size();
+	const ULONG edge_count = edge_hashes.size();
+	m_hash = gpos::HashValue<ULONG>(&atom_count);
+	m_hash = CombineHashes(m_hash,
+						   gpos::HashValue<ULONG>(&predicate_count));
+	m_hash = CombineHashes(m_hash,
+						   gpos::HashValue<ULONG>(&edge_count));
+	for (ULONG hash : atom_hashes)
+	{
+		m_hash = CombineHashes(m_hash, hash);
+	}
+	for (ULONG hash : predicate_hashes)
+	{
+		m_hash = CombineHashes(m_hash, hash);
+	}
+	for (ULONG hash : edge_hashes)
+	{
+		m_hash = CombineHashes(m_hash, hash);
+	}
+}
+
+CDPHyperGraphFingerprint::~CDPHyperGraphFingerprint()
+{
+	m_atoms->Release();
+	m_predicates->Release();
+	for (const auto &edge : m_edges)
+	{
+		edge.first->Release();
+		edge.second->Release();
+	}
+}
+
+BOOL
+CDPHyperGraphFingerprint::Matches(
+	const CDPHyperGraphFingerprint *other) const
+{
+	if (nullptr == other || m_atoms->Size() != other->m_atoms->Size() ||
+		m_edges.size() != other->m_edges.size() ||
+		!FUnorderedMatches(
+			m_predicates, other->m_predicates,
+			[](CExpression *left, CExpression *right) {
+				return left->Matches(right);
+			}))
+	{
+		return false;
+	}
+
+	std::vector<ULONG> mapping(m_atoms->Size(), gpos::ulong_max);
+	std::vector<BOOL> used_atoms(other->m_atoms->Size(), false);
+	std::function<BOOL(ULONG)> find_mapping = [&](ULONG atom) {
+		if (atom == m_atoms->Size())
+		{
+			std::vector<BOOL> used_edges(other->m_edges.size(), false);
+			for (const auto &edge : m_edges)
+			{
+				CAutoRef<CBitSet> mapped_left(
+					GPOS_NEW(m_mp) CBitSet(m_mp));
+				CAutoRef<CBitSet> mapped_right(
+					GPOS_NEW(m_mp) CBitSet(m_mp));
+				CBitSetIter left_iter(*edge.first);
+				while (left_iter.Advance())
+				{
+					(void) mapped_left->ExchangeSet(mapping[left_iter.Bit()]);
+				}
+				CBitSetIter right_iter(*edge.second);
+				while (right_iter.Advance())
+				{
+					(void) mapped_right->ExchangeSet(mapping[right_iter.Bit()]);
+				}
+
+				BOOL found = false;
+				for (ULONG other_edge = 0; other_edge < other->m_edges.size();
+					 ++other_edge)
+				{
+					if (used_edges[other_edge])
+					{
+						continue;
+					}
+					const auto &candidate = other->m_edges[other_edge];
+					if ((mapped_left->Equals(candidate.first) &&
+						 mapped_right->Equals(candidate.second)) ||
+						(mapped_left->Equals(candidate.second) &&
+						 mapped_right->Equals(candidate.first)))
+					{
+						used_edges[other_edge] = true;
+						found = true;
+						break;
+					}
+				}
+				if (!found)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+		for (ULONG candidate = 0; candidate < other->m_atoms->Size();
+			 ++candidate)
+		{
+			if (!used_atoms[candidate] &&
+				FAtomMatches((*m_atoms)[atom], (*other->m_atoms)[candidate]))
+			{
+				mapping[atom] = candidate;
+				used_atoms[candidate] = true;
+				if (find_mapping(atom + 1))
+				{
+					return true;
+				}
+				used_atoms[candidate] = false;
+			}
+		}
+		mapping[atom] = gpos::ulong_max;
+		return false;
+	};
+	return find_mapping(0);
+}
 
 CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 									 CExpressionArray *components,
@@ -354,4 +570,12 @@ CDPHyperJoinRegion::PexprAllPredicates() const
 		predicates->Append((*m_conjuncts)[predicate]);
 	}
 	return CPredicateUtils::PexprConjunction(m_mp, predicates);
+}
+
+CDPHyperGraphFingerprint *
+CDPHyperJoinRegion::Pfp() const
+{
+	GPOS_ASSERT(nullptr != m_graph);
+	return GPOS_NEW(m_mp)
+		CDPHyperGraphFingerprint(m_mp, m_components, m_conjuncts, m_graph);
 }
