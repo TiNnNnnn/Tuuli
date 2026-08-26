@@ -17,6 +17,7 @@
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CJobFactory.h"
 #include "gpopt/search/CJobGroupExploration.h"
+#include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/search/CJobTransformation.h"
 #include "gpopt/search/CScheduler.h"
 #include "gpopt/search/CSchedulerContext.h"
@@ -176,6 +177,36 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 	// intersect them with required xforms and schedule jobs
 	xform_set->Intersection(CXformFactory::Pxff()->PxfsExploration());
 	xform_set->Intersection(psc->Peng()->PxfsCurrentStage());
+	if (xform_set->Get(CXform::ExfExpandNAryJoinDPHyper))
+	{
+		// DPHyper is a whole-region job, not a binding-at-a-time xform. Remove
+		// its marker from normal scheduling while preserving search-stage and
+		// xform-disable control through the candidate-set intersections above.
+		(void) xform_set->ExchangeClear(
+			CXform::ExfExpandNAryJoinDPHyper);
+		if (CGroupExpression::EdphUnrequested ==
+			m_pgexpr->DPHyperStatus())
+		{
+			m_pgexpr->SetDPHyperStatus(CGroupExpression::EdphScheduled);
+			CJobJoinEnumeration::ScheduleJob(psc, m_pgexpr, this);
+			xform_set->Release();
+			return;
+		}
+		GPOS_ASSERT(CGroupExpression::EdphScheduled !=
+					m_pgexpr->DPHyperStatus());
+		if (CGroupExpression::EdphSucceeded ==
+				m_pgexpr->DPHyperStatus() &&
+			!GPOS_FTRACE(EopttraceDPHyperShadow))
+		{
+			// The region has been enumerated completely into shared subset groups.
+			// Do not schedule a second owner for the same join-order space.
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
+		}
+	}
 	ScheduleTransformations(psc, xform_set);
 	xform_set->Release();
 

@@ -1,0 +1,40 @@
+{
+  "description": "DPHyper replacement enumerates and executes a four-relation inner-join region",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=4",
+        "mode=replacement",
+        "Xform: CXformImplementInnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 3
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1,1",
+      "1,1,1,1",
+      "2,2,2,2",
+      "2,2,2,2"
+    ],
+    "postgres_output": [
+      "1,1,1,1",
+      "1,1,1,1",
+      "2,2,2,2",
+      "2,2,2,2"
+    ]
+  }
+}

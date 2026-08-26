@@ -410,6 +410,8 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model)
 		(ULONG) pg_orca_dsl_rule_max_alternatives;
 	ULONG dsl_rule_max_alternatives_per_rule =
 		(ULONG) pg_orca_dsl_rule_max_alternatives_per_rule;
+	ULONG dphyper_edge_budget = (ULONG) pg_orca_dphyper_edge_budget;
+	ULONG dphyper_pair_budget = (ULONG) pg_orca_dphyper_pair_budget;
 
 	return GPOS_NEW(mp) COptimizerConfig(
 		GPOS_NEW(mp)
@@ -426,7 +428,8 @@ COptTasks::CreateOptimizerConfig(CMemoryPool *mp, ICostModel *cost_model)
 								      * enforce them ourselves in the executor */
 				  push_group_by_below_setop_threshold, xform_bind_threshold,
 				  skew_factor, dsl_rule_max_alternatives,
-				  dsl_rule_max_alternatives_per_rule),
+				  dsl_rule_max_alternatives_per_rule,
+				  dphyper_edge_budget, dphyper_pair_budget),
 		GPOS_NEW(mp) CWindowOids(mp, OID(F_ROW_NUMBER), OID(F_RANK_), OID(F_DENSE_RANK_)));
 }
 

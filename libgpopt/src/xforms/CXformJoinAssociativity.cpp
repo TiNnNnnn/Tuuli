@@ -162,6 +162,12 @@ CXformJoinAssociativity::CreatePredicates(CMemoryPool *mp, CExpression *pexpr,
 CXform::EXformPromise
 CXformJoinAssociativity::Exfp(CExpressionHandle &exprhdl) const
 {
+	if (!GPOS_FTRACE(EopttraceDPHyperShadow) &&
+		CXform::ExfExpandNAryJoinDPHyper ==
+			CLogicalJoin::PopConvert(exprhdl.Pop())->OriginXform())
+	{
+		return CXform::ExfpNone;
+	}
 	if (GPOPT_MAX_JOIN_DEPTH_FOR_ASSOCIATIVITY <
 			exprhdl
 				.DeriveJoinDepth() ||  // disallow xform beyond max join depth

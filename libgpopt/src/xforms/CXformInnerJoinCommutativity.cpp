@@ -87,6 +87,12 @@ CXformInnerJoinCommutativity::FCompatible(CXform::EXformId exfid)
 CXform::EXformPromise
 CXformInnerJoinCommutativity::Exfp(CExpressionHandle &exprhdl) const
 {
+	if (!GPOS_FTRACE(EopttraceDPHyperShadow) &&
+		CXform::ExfExpandNAryJoinDPHyper ==
+			CLogicalJoin::PopConvert(exprhdl.Pop())->OriginXform())
+	{
+		return CXform::ExfpNone;
+	}
 	CColRefSet *pcrsLeftOutput = exprhdl.DeriveOutputColumns(0);
 	CColRefSet *pcrsRightOuterRefs = exprhdl.DeriveOuterReferences(1);
 	if (!pcrsRightOuterRefs->IsDisjoint(pcrsLeftOutput))

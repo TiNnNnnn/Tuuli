@@ -1,0 +1,38 @@
+{
+  "description": "DPHyper replacement mode leaves mixed outer-join regions to native ORCA without partial alternatives",
+  "plans": [
+    {
+      "name": "replacement-fallback",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=fallback reason=non_inner_join",
+        "Xform: CXformExpandNAryJoinDPv2"
+      ],
+      "not_contains": [
+        "DPHyper: status=applied"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,3"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "3,,3"
+    ]
+  }
+}

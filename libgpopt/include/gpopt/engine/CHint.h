@@ -60,6 +60,10 @@ private:
 	// Per-rule counterpart of the query-wide DSL alternative budget.
 	ULONG m_ulDSLRuleMaxAlternativesPerRule;
 
+	ULONG m_ulDPHyperEdgeBudget;
+
+	ULONG m_ulDPHyperPairBudget;
+
 public:
 	CHint(const CHint &) = delete;
 
@@ -69,7 +73,9 @@ public:
 		  ULONG broadcast_threshold, BOOL enforce_constraint_on_dml,
 		  ULONG push_group_by_below_setop_threshold, ULONG xform_bind_threshold,
 		  ULONG skew_factor, ULONG dsl_rule_max_alternatives = 0,
-		  ULONG dsl_rule_max_alternatives_per_rule = 0)
+		  ULONG dsl_rule_max_alternatives_per_rule = 0,
+		  ULONG dphyper_edge_budget = 100000,
+		  ULONG dphyper_pair_budget = 100000)
 		: m_ulJoinArityForAssociativityCommutativity(
 			  join_arity_for_associativity_commutativity),
 		  m_ulArrayExpansionThreshold(array_expansion_threshold),
@@ -82,7 +88,9 @@ public:
 		  m_ulSkewFactor(skew_factor),
 		  m_ulDSLRuleMaxAlternatives(dsl_rule_max_alternatives),
 		  m_ulDSLRuleMaxAlternativesPerRule(
-			  dsl_rule_max_alternatives_per_rule)
+			  dsl_rule_max_alternatives_per_rule),
+		  m_ulDPHyperEdgeBudget(dphyper_edge_budget),
+		  m_ulDPHyperPairBudget(dphyper_pair_budget)
 	{
 	}
 
@@ -164,6 +172,18 @@ public:
 	UlDSLRuleMaxAlternativesPerRule() const
 	{
 		return m_ulDSLRuleMaxAlternativesPerRule;
+	}
+
+	ULONG
+	UlDPHyperEdgeBudget() const
+	{
+		return m_ulDPHyperEdgeBudget;
+	}
+
+	ULONG
+	UlDPHyperPairBudget() const
+	{
+		return m_ulDPHyperPairBudget;
 	}
 
 	// generate default hint configurations, which disables sort during insert on

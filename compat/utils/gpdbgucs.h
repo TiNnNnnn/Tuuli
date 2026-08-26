@@ -32,6 +32,8 @@ extern int  optimizer_cte_inlining_bound;
 extern int  pg_orca_cost_model;	/* 0 = gpdb, 1 = pg */
 extern int  pg_orca_dsl_rule_max_alternatives;
 extern int  pg_orca_dsl_rule_max_alternatives_per_rule;
+extern int  pg_orca_dphyper_edge_budget;
+extern int  pg_orca_dphyper_pair_budget;
 
 /* --- double GUCs --- */
 extern double optimizer_sort_factor;

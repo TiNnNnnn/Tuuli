@@ -85,6 +85,14 @@ class CGroupExpression : public CRefCount,
 						 public DbgPrintMixin<CGroupExpression>
 {
 public:
+	enum EDPHyperStatus
+	{
+		EdphUnrequested = 0,
+		EdphScheduled,
+		EdphSucceeded,
+		EdphFallback
+	};
+
 #ifdef GPOS_DEBUG
 	// debug print; for interactive debugging sessions only
 	void DbgPrintWithProperties() const;
@@ -168,6 +176,10 @@ private:
 	// optimization level
 	EOptimizationLevel m_eol{EolLow};
 
+	// Whole-region DPHyper runs as a child of this expression's exploration
+	// job. The parent resumes only after the child publishes a terminal state.
+	EDPHyperStatus m_edph{EdphUnrequested};
+
 	// map of partial plans to their cost lower bound
 	PartialPlanToCostMap *m_ppartialplancostmap{nullptr};
 
@@ -237,6 +249,22 @@ public:
 	PgexprDuplicate() const
 	{
 		return m_pgexprDuplicate;
+	}
+
+	EDPHyperStatus
+	DPHyperStatus() const
+	{
+		return m_edph;
+	}
+
+	void
+	SetDPHyperStatus(EDPHyperStatus status)
+	{
+		GPOS_ASSERT(
+			(EdphUnrequested == m_edph && EdphScheduled == status) ||
+			(EdphScheduled == m_edph &&
+			 (EdphSucceeded == status || EdphFallback == status)));
+		m_edph = status;
 	}
 
 	// set duplicate group expression

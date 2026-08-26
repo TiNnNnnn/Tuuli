@@ -48,6 +48,7 @@
 #include "gpopt/xforms/CXformExpandNAryJoin.h"
 #include "gpopt/xforms/CXformExpandNAryJoinDP.h"
 #include "gpopt/xforms/CXformExpandNAryJoinDPv2.h"
+#include "gpopt/xforms/CXformExpandNAryJoinDPHyper.h"
 #include "gpopt/xforms/CXformExpandNAryJoinGreedy.h"
 #include "gpopt/xforms/CXformExpandNAryJoinMinCard.h"
 #include "gpopt/xforms/CXformFactory.h"

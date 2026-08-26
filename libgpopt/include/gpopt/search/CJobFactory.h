@@ -23,6 +23,7 @@
 #include "gpopt/search/CJobGroupExpressionOptimization.h"
 #include "gpopt/search/CJobGroupImplementation.h"
 #include "gpopt/search/CJobGroupOptimization.h"
+#include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/search/CJobTest.h"
 #include "gpopt/search/CJobTransformation.h"
 
@@ -84,6 +85,9 @@ private:
 
 	// container for transformation jobs
 	CSyncPool<CJobTransformation> *m_pspjTransformation;
+
+	// container for DPHyper whole-region enumeration jobs
+	CSyncPool<CJobJoinEnumeration> *m_pspjJoinEnumeration;
 
 	// retrieve job of specific type
 	template <class T>

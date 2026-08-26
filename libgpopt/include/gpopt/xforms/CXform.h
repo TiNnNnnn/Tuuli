@@ -256,6 +256,7 @@ public:
 		ExfDSLRuleUnion,
 		ExfDSLRuleUnionAll,
 		ExfDSLRuleLimit,
+		ExfExpandNAryJoinDPHyper,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

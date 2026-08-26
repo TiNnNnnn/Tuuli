@@ -261,6 +261,15 @@ enum EOptTraceFlag
 	// tree in exploration. Driven by the pg_orca.enable_dsl_rule GUC.
 	EopttracePreserveOpsForDSL = 103051,
 
+	// Run the DPHyper join-region exploration job inside Cascades. Shadow mode
+	// is additive; replacement mode retains native enumeration only as the
+	// correctness fallback for unsupported or budgeted-out regions.
+	EopttraceEnableDPHyper = 103052,
+
+	// Keep native join enumerators alongside DPHyper for differential testing.
+	// When clear, a successful DPHyper region becomes the sole join-order owner.
+	EopttraceDPHyperShadow = 103053,
+
 	///////////////////////////////////////////////////////
 	///////////////////// statistics flags ////////////////
 	//////////////////////////////////////////////////////

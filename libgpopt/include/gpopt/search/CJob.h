@@ -98,6 +98,7 @@ public:
 		EjtGroupExpressionImplementation,
 		EjtGroupExpressionExploration,
 		EjtTransformation,
+		EjtJoinEnumeration,
 
 		EjtInvalid,
 		EjtSentinel = EjtInvalid

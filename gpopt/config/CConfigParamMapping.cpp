@@ -23,6 +23,8 @@ extern int optimizer_join_order;
 extern bool pg_orca_enable_dynamic_tablescan;
 // pg_orca.enable_dsl_rule GUC (pg_orca.cpp): preserve logical ops for DSL match.
 extern bool pg_orca_enable_dsl_rule;
+extern bool pg_orca_enable_dphyper;
+extern bool pg_orca_dphyper_shadow;
 // pg_orca.dsl_only_xforms / pg_orca.trace_dsl_rule (pg_orca.cpp): scoped
 // native-xform suppression and per-rule attribution for replacement tests.
 extern char *pg_orca_dsl_only_xforms;
@@ -345,6 +347,14 @@ CConfigParamMapping::SConfigMappingElem CConfigParamMapping::m_elements[] = {
 	 false, GPOS_WSZ_LIT(
 		 "Preserve logical operators (skip collapse/prune/transpose in "
 		 "preprocessing) for MONSOON DSL rule matching.")},
+
+	{EopttraceEnableDPHyper, &pg_orca_enable_dphyper,
+	 false, GPOS_WSZ_LIT(
+		 "Explore pure inner-join regions with DPHyper inside Cascades.")},
+
+	{EopttraceDPHyperShadow, &pg_orca_dphyper_shadow,
+	 false, GPOS_WSZ_LIT(
+		 "Keep native join enumerators alongside DPHyper for differential tests.")},
 };
 
 //---------------------------------------------------------------------------

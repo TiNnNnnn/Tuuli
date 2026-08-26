@@ -1,0 +1,42 @@
+{
+  "description": "DPHyper places non-equality join predicates and one-relation residual predicates correctly",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=3",
+        "mode=replacement",
+        "Xform: CXformImplementInnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "2,4,1",
+      "2,4,2",
+      "2,4,3",
+      "3,4,1",
+      "3,4,2",
+      "3,4,3"
+    ],
+    "postgres_output": [
+      "2,4,1",
+      "2,4,2",
+      "2,4,3",
+      "3,4,1",
+      "3,4,2",
+      "3,4,3"
+    ]
+  }
+}

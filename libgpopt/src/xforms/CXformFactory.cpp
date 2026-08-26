@@ -319,6 +319,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Union(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_UnionAll(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Limit(m_mp));
+	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinDPHyper(m_mp));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&
 				"Not all xforms have been instantiated");

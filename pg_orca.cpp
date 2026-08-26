@@ -177,6 +177,12 @@ bool  pg_orca_enable_dynamic_tablescan = true;
  */
 bool  pg_orca_enable_dsl_rule = false;
 
+/* Enable the in-Cascades DPHyper join-region enumerator. */
+bool  pg_orca_enable_dphyper = false;
+bool  pg_orca_dphyper_shadow = true;
+int   pg_orca_dphyper_edge_budget = 100000;
+int   pg_orca_dphyper_pair_budget = 100000;
+
 /* Query-level search-space guard for DSL-generated logical alternatives. */
 int   pg_orca_dsl_rule_max_alternatives = 0;
 int   pg_orca_dsl_rule_max_alternatives_per_rule = 0;
@@ -857,6 +863,48 @@ void _PG_init(void)
         NULL,
         &pg_orca_enable_dsl_rule,
         false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.enable_dphyper",
+        "Explore pure inner-join regions with DPHyper inside the ORCA Memo. "
+        "Unsupported, disconnected, or budget-exhausted regions retain the "
+        "native ORCA join enumerators as a fallback.",
+        NULL,
+        &pg_orca_enable_dphyper,
+        false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomIntVariable(
+        "pg_orca.dphyper_edge_budget",
+        "Maximum generalized hyperedges generated for one DPHyper join "
+        "region before falling back to native ORCA enumeration.",
+        NULL,
+        &pg_orca_dphyper_edge_budget,
+        100000, 1, INT_MAX,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.dphyper_shadow",
+        "Keep native ORCA join enumerators alongside DPHyper for differential "
+        "testing. When off, a successful DPHyper region is the sole join-order "
+        "enumerator; unsupported or budgeted-out regions still fall back.",
+        NULL,
+        &pg_orca_dphyper_shadow,
+        true,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomIntVariable(
+        "pg_orca.dphyper_pair_budget",
+        "Maximum unique CSG-CMP pairs generated for one DPHyper join region "
+        "before atomically falling back to native ORCA enumeration.",
+        NULL,
+        &pg_orca_dphyper_pair_budget,
+        100000, 1, INT_MAX,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

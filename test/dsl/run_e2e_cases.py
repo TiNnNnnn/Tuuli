@@ -87,13 +87,21 @@ def disabled_xform_settings(expected: dict[str, object]) -> str:
 
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
+    dphyper = "on" if plan.get("dphyper", False) else "off"
+    dphyper_shadow = "on" if plan.get("dphyper_shadow", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
+    edge_budget = int(plan.get("dphyper_edge_budget", 100000))
+    pair_budget = int(plan.get("dphyper_pair_budget", 100000))
     return run_sql(
         args,
         f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
+SET pg_orca.enable_dphyper={dphyper};
+SET pg_orca.dphyper_shadow={dphyper_shadow};
+SET pg_orca.dphyper_edge_budget={edge_budget};
+SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}
 {disabled_xform_settings(plan)}
 SET optimizer_print_xform={trace};
@@ -125,7 +133,11 @@ def produced_alternative(output: str, xform: str) -> bool:
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
-        for key in ("name", "dsl", "native", "trace", "disable_xforms")
+        for key in (
+            "name", "dsl", "dphyper", "dphyper_edge_budget",
+            "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
+            "disable_xforms"
+        )
         if key in expected
     }
     if "contains" in expected:
@@ -157,6 +169,10 @@ def actual_rows(
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
+SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
+SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
+SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
+SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100000))};
 {native_setting(bool(expected.get('native', True)))}
 {disabled_xform_settings(expected)}
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
@@ -174,7 +190,10 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
     )
     actual = {
         key: expected[key]
-        for key in ("native", "disable_xforms")
+        for key in (
+            "dphyper", "dphyper_shadow", "dphyper_edge_budget",
+            "dphyper_pair_budget", "native", "disable_xforms"
+        )
         if key in expected
     }
     actual["output"] = dsl_rows.splitlines()

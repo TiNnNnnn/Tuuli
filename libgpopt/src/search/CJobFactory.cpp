@@ -40,7 +40,8 @@ CJobFactory::CJobFactory(CMemoryPool *mp, ULONG ulJobs)
 	  m_pspjGroupExpressionOptimization(nullptr),
 	  m_pspjGroupExpressionImplementation(nullptr),
 	  m_pspjGroupExpressionExploration(nullptr),
-	  m_pspjTransformation(nullptr)
+	  m_pspjTransformation(nullptr),
+	  m_pspjJoinEnumeration(nullptr)
 {
 	// initialize factories to be used first
 	Release(PjCreate(CJob::EjtGroupExploration));
@@ -67,6 +68,7 @@ CJobFactory::~CJobFactory()
 	Truncate(CJob::EjtGroupExpressionExploration);
 	Truncate(CJob::EjtGroupExpressionOptimization);
 	Truncate(CJob::EjtTransformation);
+	Truncate(CJob::EjtJoinEnumeration);
 }
 
 
@@ -118,6 +120,10 @@ CJobFactory::PjCreate(CJob::EJobType ejt)
 
 		case CJob::EjtTransformation:
 			pj = PtRetrieve<CJobTransformation>(m_pspjTransformation);
+			break;
+
+		case CJob::EjtJoinEnumeration:
+			pj = PtRetrieve<CJobJoinEnumeration>(m_pspjJoinEnumeration);
 			break;
 
 		case CJob::EjtInvalid:
@@ -186,6 +192,11 @@ CJobFactory::Release(CJob *pj)
 			Release(CJobTransformation::PjConvert(pj), m_pspjTransformation);
 			break;
 
+		case CJob::EjtJoinEnumeration:
+			Release(CJobJoinEnumeration::PjConvert(pj),
+					m_pspjJoinEnumeration);
+			break;
+
 		default:
 			GPOS_ASSERT(!"Invalid job type");
 	}
@@ -239,6 +250,10 @@ CJobFactory::Truncate(CJob::EJobType ejt)
 
 			case CJob::EjtTransformation:
 				TruncatePool(m_pspjTransformation);
+				break;
+
+			case CJob::EjtJoinEnumeration:
+				TruncatePool(m_pspjJoinEnumeration);
 				break;
 
 			case CJob::EjtInvalid:

@@ -1,0 +1,77 @@
+{
+  "description": "DPHyper enumerates a three-relation inner-join region inside Cascades",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "dphyper": false,
+      "trace": true,
+      "not_contains": [
+        "DPHyper: status=applied"
+      ]
+    },
+    {
+      "name": "on",
+      "dsl": false,
+      "dphyper": true,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=3",
+        "edges=3"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "pair-budget-fallback",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_pair_budget": 1,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=fallback reason=pair_budget",
+        "pairs=1 budget=1",
+        "Xform: CXformExpandNAryJoinDPv2"
+      ],
+      "not_contains": [
+        "DPHyper: status=applied"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=replacement",
+        "Xform: CXformImplementInnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}
