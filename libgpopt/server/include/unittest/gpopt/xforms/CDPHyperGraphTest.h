@@ -25,6 +25,8 @@ public:
 	static GPOS_RESULT EresUnittest_AtomicBudget();
 	static GPOS_RESULT EresUnittest_GraphSimplifierInfrastructure();
 	static GPOS_RESULT EresUnittest_GraphSimplifier();
+	static GPOS_RESULT EresUnittest_GraphSimplifierStress();
+	static GPOS_RESULT EresUnittest_GraphSimplifierPredicateCoverage();
 	static GPOS_RESULT EresUnittest_JoinRegion();
 	static GPOS_RESULT EresUnittest_BinaryJoinRegionSpec();
 	static GPOS_RESULT EresUnittest_CartesianComponents();

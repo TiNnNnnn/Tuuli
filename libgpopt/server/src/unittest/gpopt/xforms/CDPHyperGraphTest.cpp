@@ -17,6 +17,7 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
 #include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
@@ -378,6 +379,10 @@ CDPHyperGraphTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_GraphSimplifierInfrastructure),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_GraphSimplifier),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_GraphSimplifierStress),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_GraphSimplifierPredicateCoverage),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_JoinRegion),
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec),
@@ -815,6 +820,133 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifier()
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(0)->m_right, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_left, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_right, {2}));
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_GraphSimplifierStress()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	constexpr ULONG node_count = 70;
+	CDPHyperGraph graph(mp, node_count);
+	for (ULONG node = 0; node + 1 < node_count; ++node)
+	{
+		AddSimpleEdge(mp, &graph, node, node + 1, node);
+	}
+
+	// N leaves need at least N-1 pairs. Reaching this lower bound proves that
+	// repeated Horn constraints reduced the chain to one complete join tree,
+	// rather than merely trimming a few alternatives.
+	CDPHyperGraphSimplifier simplifier(
+		mp, &graph, node_count - 1,
+		[](const CBitSet *, const CBitSet *, ULONG) { return true; },
+		[](ULONG) { return true; },
+		[](const CBitSet *left, const CBitSet *right, DOUBLE *cost) {
+			const DOUBLE joined = left->Size() + right->Size();
+			*cost = joined * joined + left->Size() * right->Size();
+			return true;
+		});
+	GPOS_UNITTEST_ASSERT(simplifier.Simplify());
+	GPOS_UNITTEST_ASSERT(0 < simplifier.AppliedStepCount());
+	CDPHyperPlan plan(mp, node_count - 1);
+	CDPHyperEnumerator enumerator(mp, &graph, &plan);
+	GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(plan.Complete(node_count));
+	GPOS_UNITTEST_ASSERT(node_count - 1 == plan.PairCount());
+
+	simplifier.Restore();
+	for (ULONG edge = 0; edge + 1 < node_count; ++edge)
+	{
+		CAutoRef<CBitSet> left(Pbs(mp, {edge}));
+		CAutoRef<CBitSet> right(Pbs(mp, {edge + 1}));
+		GPOS_UNITTEST_ASSERT(
+			graph.Edge(edge * 2)->m_left->Equals(left.Value()));
+		GPOS_UNITTEST_ASSERT(
+			graph.Edge(edge * 2)->m_right->Equals(right.Value()));
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_GraphSimplifierPredicateCoverage()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *cols0 = nullptr;
+	CColRefArray *cols1 = nullptr;
+	CColRefArray *cols2 = nullptr;
+	CExpression *get0 = fix.PexprLogicalGet("dph_p0", 1, &cols0);
+	CExpression *get1 = fix.PexprLogicalGet("dph_p1", 1, &cols1);
+	CExpression *get2 = fix.PexprLogicalGet("dph_p2", 1, &cols2);
+	CExpression *pred01 = fix.PexprEqPred((*cols0)[0], (*cols1)[0]);
+	CExpression *pred02 = fix.PexprEqPred((*cols0)[0], (*cols2)[0]);
+	CExpression *pred12 = fix.PexprEqPred((*cols1)[0], (*cols2)[0]);
+
+	CExpressionArray *components = GPOS_NEW(mp) CExpressionArray(mp);
+	get0->AddRef();
+	get1->AddRef();
+	get2->AddRef();
+	components->Append(get0);
+	components->Append(get1);
+	components->Append(get2);
+	CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+	pred01->AddRef();
+	pred02->AddRef();
+	pred12->AddRef();
+	conjuncts->Append(pred01);
+	conjuncts->Append(pred02);
+	conjuncts->Append(pred12);
+
+	CDPHyperJoinRegion region(mp, components, conjuncts, 100);
+	GPOS_UNITTEST_ASSERT(region.Build());
+	GPOS_UNITTEST_ASSERT(3 == region.GeneratedEdgeCount());
+	auto pair_filter = [&region](const CBitSet *left, const CBitSet *right,
+								 ULONG edge_id) {
+		if (!region.FPairApplicable(left, right, edge_id))
+		{
+			return false;
+		}
+		CDPHyperJoinRegion::SJoinRequest request;
+		return region.FBuildJoinRequest(left, right, &request);
+	};
+	CDPHyperGraphSimplifier simplifier(
+		mp, region.MutableGraph(), 2, pair_filter,
+		[&region](ULONG edge_id) { return region.FEqualityEdge(edge_id); },
+		[](const CBitSet *left, const CBitSet *right, DOUBLE *cost) {
+			const DOUBLE joined = left->Size() + right->Size();
+			*cost = joined * joined + left->Size() * right->Size();
+			return true;
+		});
+	GPOS_UNITTEST_ASSERT(simplifier.Simplify());
+	CDPHyperPlan plan(mp, 2, pair_filter);
+	CDPHyperEnumerator enumerator(mp, region.Graph(), &plan);
+	GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(plan.Complete(3));
+	GPOS_UNITTEST_ASSERT(2 == plan.PairCount());
+
+	ULONG materialized_predicates = 0;
+	for (const CDPHyperPlan::SPair *pair : plan.Pairs())
+	{
+		CExpression *predicate = region.PexprPredicate(
+			pair->m_left, pair->m_right, false /*include residual*/);
+		CExpressionArray *crossing =
+			CPredicateUtils::PdrgpexprConjuncts(mp, predicate);
+		materialized_predicates += crossing->Size();
+		crossing->Release();
+		predicate->Release();
+	}
+	GPOS_UNITTEST_ASSERT(3 == materialized_predicates);
+
+	components->Release();
+	conjuncts->Release();
+	pred01->Release();
+	pred02->Release();
+	pred12->Release();
+	get0->Release();
+	get1->Release();
+	get2->Release();
 	return GPOS_OK;
 }
 
