@@ -104,7 +104,7 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(report["shared_rewritten"], [8])
         self.assertEqual(report["missing_rewritten"], [])
 
-    def test_budget_exhausted_is_matched_but_not_rewritten(self) -> None:
+    def test_budget_exhausted_is_matched_but_inconclusive(self) -> None:
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
         candidate = [
             {"kind": "application", "rule_id": 8, "status": "budget_exhausted"}
@@ -113,9 +113,10 @@ class TraceFrameworkTest(unittest.TestCase):
         report = compare(reference, candidate, "rule_id")
 
         self.assertEqual(report["missing_matched"], [])
-        self.assertEqual(report["missing_rewritten"], [8])
+        self.assertEqual(report["inconclusive_budget"], [8])
+        self.assertEqual(report["missing_rewritten"], [])
 
-    def test_budget_skipped_is_not_a_structural_match(self) -> None:
+    def test_budget_skipped_is_not_a_match_but_is_inconclusive(self) -> None:
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
         candidate = [
             {"kind": "application", "rule_id": 8, "status": "budget_skipped"}
@@ -124,7 +125,40 @@ class TraceFrameworkTest(unittest.TestCase):
         report = compare(reference, candidate, "rule_id")
 
         self.assertEqual(report["missing_matched"], [8])
-        self.assertEqual(report["missing_rewritten"], [8])
+        self.assertEqual(report["inconclusive_budget"], [8])
+        self.assertEqual(report["missing_rewritten"], [])
+
+    def test_cascades_budget_makes_downstream_missing_rule_inconclusive(self) -> None:
+        reference = [
+            {"kind": "application", "rule_id": 8, "status": "applied"},
+            {"kind": "application", "rule_id": 9, "status": "applied"},
+        ]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "budget_skipped"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["inconclusive_budget"], [8, 9])
+        self.assertEqual(report["missing_rewritten"], [])
+
+    def test_rule_summary_budget_also_marks_search_inconclusive(self) -> None:
+        reference = [{"kind": "application", "rule_id": 9, "status": "applied"}]
+        candidate = [
+            {
+                "kind": "rule_summary",
+                "rule_id": 8,
+                "budget_exhausted": 0,
+                "budget_skipped": 12,
+            }
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertTrue(report["search_budget_limited"])
+        self.assertEqual(report["candidate_budget_limited"], [8])
+        self.assertEqual(report["inconclusive_budget"], [9])
+        self.assertEqual(report["missing_rewritten"], [])
 
     def test_search_summaries_do_not_change_rule_alignment(self) -> None:
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]

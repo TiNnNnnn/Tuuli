@@ -29,8 +29,12 @@
 #include "gpopt/operators/CLogicalDynamicBitmapTableGet.h"
 #include "gpopt/operators/CLogicalDynamicForeignGet.h"
 #include "gpopt/operators/CLogicalDynamicGet.h"
+#include "gpopt/operators/CLogicalDynamicIndexGet.h"
+#include "gpopt/operators/CLogicalDynamicIndexOnlyGet.h"
 #include "gpopt/operators/CLogicalForeignGet.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalIndexGet.h"
+#include "gpopt/operators/CLogicalIndexOnlyGet.h"
 #include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -1255,7 +1259,7 @@ CLogical::PrpCreate(CMemoryPool *mp) const
 //		CLogical::PtabdescFromTableGet
 //
 //	@doc:
-//		Returns the table descriptor for (Dynamic)(BitmapTable)Get operators
+//		Returns the table descriptor for logical base-table access operators
 //
 //---------------------------------------------------------------------------
 CTableDescriptor *
@@ -1266,8 +1270,16 @@ CLogical::PtabdescFromTableGet(COperator *pop)
 	{
 		case CLogical::EopLogicalGet:
 			return CLogicalGet::PopConvert(pop)->Ptabdesc();
+		case CLogical::EopLogicalIndexGet:
+			return CLogicalIndexGet::PopConvert(pop)->Ptabdesc();
+		case CLogical::EopLogicalIndexOnlyGet:
+			return CLogicalIndexOnlyGet::PopConvert(pop)->Ptabdesc();
 		case CLogical::EopLogicalDynamicGet:
 			return CLogicalDynamicGet::PopConvert(pop)->Ptabdesc();
+		case CLogical::EopLogicalDynamicIndexGet:
+			return CLogicalDynamicIndexGet::PopConvert(pop)->Ptabdesc();
+		case CLogical::EopLogicalDynamicIndexOnlyGet:
+			return CLogicalDynamicIndexOnlyGet::PopConvert(pop)->Ptabdesc();
 		case CLogical::EopLogicalBitmapTableGet:
 			return CLogicalBitmapTableGet::PopConvert(pop)->Ptabdesc();
 		case CLogical::EopLogicalForeignGet:

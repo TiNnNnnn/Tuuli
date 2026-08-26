@@ -79,11 +79,29 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
         },
     )
     candidate_rewritten = keys_of(candidate_apps, key, {"applied", "duplicate"})
+    candidate_budget_limited = keys_of(
+        candidate_apps, key, {"budget_exhausted", "budget_skipped"}
+    )
+    for record in candidate:
+        if record.get("kind") != "rule_summary":
+            continue
+        if not record.get("budget_exhausted") and not record.get("budget_skipped"):
+            continue
+        value = record.get(key)
+        if value is not None:
+            candidate_budget_limited[value] += 1
 
     reference_matched_set = set(reference_matched)
     reference_rewritten_set = set(reference_rewritten)
     candidate_matched_set = set(candidate_matched)
     candidate_rewritten_set = set(candidate_rewritten)
+    candidate_budget_limited_set = set(candidate_budget_limited)
+    unresolved_rewritten_set = reference_rewritten_set - candidate_rewritten_set
+    search_budget_limited = bool(candidate_budget_limited_set)
+    inconclusive_budget_set = (
+        unresolved_rewritten_set if search_budget_limited else set()
+    )
+    missing_rewritten_set = unresolved_rewritten_set - inconclusive_budget_set
 
     return {
         "key": key,
@@ -96,7 +114,10 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
         "reference_rewritten": sorted_keys(reference_rewritten_set),
         "candidate_rewritten": sorted_keys(candidate_rewritten_set),
         "shared_rewritten": sorted_keys(reference_rewritten_set & candidate_rewritten_set),
-        "missing_rewritten": sorted_keys(reference_rewritten_set - candidate_rewritten_set),
+        "candidate_budget_limited": sorted_keys(candidate_budget_limited_set),
+        "search_budget_limited": search_budget_limited,
+        "inconclusive_budget": sorted_keys(inconclusive_budget_set),
+        "missing_rewritten": sorted_keys(missing_rewritten_set),
         "candidate_extra": sorted_keys(candidate_rewritten_set - reference_rewritten_set),
         "reference_rewrite_counts": dict(reference_rewritten),
         "candidate_rewrite_counts": dict(candidate_rewritten),

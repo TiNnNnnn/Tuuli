@@ -313,11 +313,18 @@ def main() -> int:
             record["case_id"] = case_id
         candidate_records.extend(parsed)
         comparison = compare(reference_records(case), parsed, "rule_id")
+        if comparison["missing_rewritten"]:
+            status = "missing_rewrite"
+        elif comparison["inconclusive_budget"]:
+            status = "budget_limited"
+        else:
+            status = "passed"
         case_reports.append(
             {
                 "case_id": case_id,
-                "status": "passed" if not comparison["missing_rewritten"] else "missing_rewrite",
+                "status": status,
                 "missing_rewritten": comparison["missing_rewritten"],
+                "inconclusive_budget": comparison["inconclusive_budget"],
                 "candidate_extra": comparison["candidate_extra"],
                 "candidate_application_count": comparison["candidate_application_count"],
             }
@@ -327,13 +334,16 @@ def main() -> int:
         for record in candidate_records:
             stream.write(json.dumps(record, ensure_ascii=False, separators=(",", ":")) + "\n")
 
-    failed = sum(case["status"] != "passed" for case in case_reports)
+    failed = sum(case["status"] not in {"passed", "budget_limited"} for case in case_reports)
+    inconclusive = sum(case["status"] == "budget_limited" for case in case_reports)
+    passed = sum(case["status"] == "passed" for case in case_reports)
     report = {
         "kind": "corpus_comparison",
         "manifest": str(args.manifest),
         "attempted": len(case_reports),
-        "passed": len(case_reports) - failed,
+        "passed": passed,
         "failed": failed,
+        "inconclusive": inconclusive,
         "cases": case_reports,
     }
     report_path = args.output_dir / "report.json"

@@ -27,6 +27,7 @@
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/metadata/CTableDescriptor.h"
 #include "gpopt/operators/CExpression.h"
+#include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalNAryJoin.h"
@@ -39,6 +40,32 @@ using namespace gpopt;
 
 namespace
 {
+CTableDescriptor *
+PtabdescBaseAccess(CExpression *pexpr)
+{
+	if (nullptr == pexpr)
+	{
+		return nullptr;
+	}
+
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopLogicalGet:
+		case COperator::EopLogicalForeignGet:
+		case COperator::EopLogicalIndexGet:
+		case COperator::EopLogicalIndexOnlyGet:
+		case COperator::EopLogicalBitmapTableGet:
+		case COperator::EopLogicalDynamicGet:
+		case COperator::EopLogicalDynamicForeignGet:
+		case COperator::EopLogicalDynamicIndexGet:
+		case COperator::EopLogicalDynamicIndexOnlyGet:
+		case COperator::EopLogicalDynamicBitmapTableGet:
+			return CLogical::PtabdescFromTableGet(pexpr->Pop());
+		default:
+			return nullptr;
+	}
+}
+
 CExpression *
 PexprSingleBaseGet(CExpression *pexpr, BOOL *pfAmbiguous)
 {
@@ -46,7 +73,7 @@ PexprSingleBaseGet(CExpression *pexpr, BOOL *pfAmbiguous)
 	{
 		return nullptr;
 	}
-	if (COperator::EopLogicalGet == pexpr->Pop()->Eopid())
+	if (nullptr != PtabdescBaseAccess(pexpr))
 	{
 		return pexpr;
 	}
@@ -77,7 +104,7 @@ PexprOwningGetInSubtree(CExpression *pexpr, const CColRef *pcr)
 	{
 		return nullptr;
 	}
-	if (COperator::EopLogicalGet == pexpr->Pop()->Eopid())
+	if (nullptr != PtabdescBaseAccess(pexpr))
 	{
 		return pexpr->DeriveOutputColumns()->FMember(pcr) ? pexpr : nullptr;
 	}
@@ -132,13 +159,10 @@ FColRefSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
 
 	CExpression *pexprFirst = PexprOwningGet(prule, pmodel, pcrFirst);
 	CExpression *pexprSecond = PexprOwningGet(prule, pmodel, pcrSecond);
-	return nullptr != pexprFirst && nullptr != pexprSecond &&
-		   CLogicalGet::PopConvert(pexprFirst->Pop())
-			   ->Ptabdesc()
-			   ->MDId()
-			   ->Equals(CLogicalGet::PopConvert(pexprSecond->Pop())
-						->Ptabdesc()
-						->MDId());
+	CTableDescriptor *ptabdescFirst = PtabdescBaseAccess(pexprFirst);
+	CTableDescriptor *ptabdescSecond = PtabdescBaseAccess(pexprSecond);
+	return nullptr != ptabdescFirst && nullptr != ptabdescSecond &&
+		   ptabdescFirst->MDId()->Equals(ptabdescSecond->MDId());
 }
 
 BOOL
@@ -1095,10 +1119,14 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 	{
 		return false;
 	}
-	IMDId *pmdidRel0 =
-		CLogicalGet::PopConvert(pexprGet0->Pop())->Ptabdesc()->MDId();
-	IMDId *pmdidRel1 =
-		CLogicalGet::PopConvert(pexprGet1->Pop())->Ptabdesc()->MDId();
+	CTableDescriptor *ptabdesc0 = PtabdescBaseAccess(pexprGet0);
+	CTableDescriptor *ptabdesc1 = PtabdescBaseAccess(pexprGet1);
+	if (nullptr == ptabdesc0 || nullptr == ptabdesc1)
+	{
+		return false;
+	}
+	IMDId *pmdidRel0 = ptabdesc0->MDId();
+	IMDId *pmdidRel1 = ptabdesc1->MDId();
 
 	IntPtrArray *paisLocal = GPOS_NEW(m_mp) IntPtrArray(m_mp);
 	IntPtrArray *paisRef = GPOS_NEW(m_mp) IntPtrArray(m_mp);
@@ -1212,12 +1240,12 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 				PexprSingleBaseGet(pexprSecond, &fSecondAmbiguous);
 			if (nullptr != pexprFirstGet && nullptr != pexprSecondGet)
 			{
-				return CLogicalGet::PopConvert(pexprFirstGet->Pop())
-					->Ptabdesc()
-					->MDId()
-					->Equals(CLogicalGet::PopConvert(pexprSecondGet->Pop())
-							 ->Ptabdesc()
-							 ->MDId());
+				CTableDescriptor *ptabdescFirst =
+					PtabdescBaseAccess(pexprFirstGet);
+				CTableDescriptor *ptabdescSecond =
+					PtabdescBaseAccess(pexprSecondGet);
+				return nullptr != ptabdescFirst && nullptr != ptabdescSecond &&
+					   ptabdescFirst->MDId()->Equals(ptabdescSecond->MDId());
 			}
 			return pexprFirst->Matches(pexprSecond);
 		}
