@@ -53,7 +53,9 @@ private:
 		{
 			EafNone = 0,
 			EafProjectPeelLimit = 1,
-			EafProjectPeelAgg = 2
+			EafProjectPeelAgg = 2,
+			EafGbAggGlobal = 4,
+			EafGbAggNoMinimal = 8
 		};
 
 		COperator::EOperatorId m_eopid;
@@ -134,6 +136,8 @@ private:
 	// visits the same positional relational children. Other operators have a
 	// representation adapter and therefore end the safe indexed prefix.
 	static BOOL FStructurallyExact(const CDSLOp *pop);
+	static BOOL FEdgeMatchesOperator(const SExactEdge *pedge,
+								 COperator *pop);
 
 	// Insert as much of one source template as is guaranteed to be a necessary
 	// live-expression prefix. *pfComplete is false when an adapter boundary

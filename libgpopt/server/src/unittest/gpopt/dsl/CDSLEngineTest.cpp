@@ -18,6 +18,7 @@
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -75,6 +76,17 @@ PexprPrefixJoin(CMemoryPool *mp, CExpression *pexprLeft,
 	return GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), pexprLeft, pexprRight,
 		PexprPrefixLeaf(mp));
+}
+
+CExpression *
+PexprPrefixGbAgg(CMemoryPool *mp, COperator::EGbAggType egbaggtype,
+				 CExpression *pexprRel)
+{
+	return GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp)
+			CLogicalGbAgg(mp, GPOS_NEW(mp) CColRefArray(mp), egbaggtype),
+		pexprRel, PexprPrefixLeaf(mp));
 }
 
 CDSLRule *
@@ -221,6 +233,37 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleProjAny->Release();
 	pruleProjInner->Release();
 	pruleProjLeft->Release();
+
+	// Proj* and Agg source matchers accept only canonical Global GbAgg roots.
+	// The trie token must reject Local split alternatives before full matching.
+	CDSLRule *pruleDistinct = PrulePrefix(
+		mp,
+		"Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	if (nullptr == pruleDistinct)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleDistinct, 0, COperator::EopLogicalGbAgg);
+	pexpr = PexprPrefixGbAgg(
+		mp, COperator::EgbaggtypeGlobal,
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 1 == pdrgprule->Size() &&
+			 pruleDistinct == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+
+	pexpr = PexprPrefixGbAgg(
+		mp, COperator::EgbaggtypeLocal,
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pdrgprule->Size();
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleDistinct->Release();
 
 	return fValid ? GPOS_OK : GPOS_FAILED;
 }

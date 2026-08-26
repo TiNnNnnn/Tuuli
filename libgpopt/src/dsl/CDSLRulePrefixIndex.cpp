@@ -7,6 +7,7 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
 
@@ -117,6 +118,30 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 	return false;
 }
 
+BOOL
+CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
+									  COperator *pop)
+{
+	if (pedge->m_eopid != pop->Eopid())
+	{
+		return false;
+	}
+	if (0 == (pedge->m_ulAdapterFlags &
+			  (SExactEdge::EafGbAggGlobal |
+			   SExactEdge::EafGbAggNoMinimal)))
+	{
+		return true;
+	}
+
+	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pop);
+	return (0 == (pedge->m_ulAdapterFlags &
+				  SExactEdge::EafGbAggGlobal) ||
+			COperator::EgbaggtypeGlobal == popGbAgg->Egbaggtype()) &&
+		   (0 == (pedge->m_ulAdapterFlags &
+				  SExactEdge::EafGbAggNoMinimal) ||
+			nullptr == popGbAgg->PdrgpcrMinimal());
+}
+
 CDSLRulePrefixIndex::SNode *
 CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 								   BOOL fSourceRoot, BOOL *pfComplete)
@@ -146,7 +171,14 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		1 == pop->UlChildren())
 	{
 		ULONG ulAdapterFlags = SExactEdge::EafNone;
-		if (!pop->FDistinct())
+		if (pop->FDistinct())
+		{
+			// A source-root Proj* is accepted only on the original, unsplit
+			// Global dedup. Encode that stable matcher gate in the trie token.
+			ulAdapterFlags |= SExactEdge::EafGbAggGlobal |
+							  SExactEdge::EafGbAggNoMinimal;
+		}
+		else
 		{
 			const EDslOpKind edslopChild = (*pop)[0]->Edslop();
 			if (EdslopLimit != edslopChild && EdslopSort != edslopChild)
@@ -168,7 +200,9 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		1 == pop->UlChildren())
 	{
 		SNode *pnodeCurrent =
-			PnodeExact(pnode, COperator::EopLogicalGbAgg, 1);
+			PnodeExact(pnode, COperator::EopLogicalGbAgg, 1,
+					   SExactEdge::EafGbAggGlobal |
+						   SExactEdge::EafGbAggNoMinimal);
 		return PnodeInsertOp(pnodeCurrent, (*pop)[0], false, pfComplete);
 	}
 
@@ -333,7 +367,7 @@ CDSLRulePrefixIndex::MatchOne(
 	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
-		if (pedge->m_eopid != pexpr->Pop()->Eopid() ||
+		if (!FEdgeMatchesOperator(pedge, pexpr->Pop()) ||
 			pexpr->Arity() < pedge->m_ulChildren ||
 			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{
@@ -685,7 +719,7 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
-		if (pedge->m_eopid != pgexpr->Pop()->Eopid() ||
+		if (!FEdgeMatchesOperator(pedge, pgexpr->Pop()) ||
 			pgexpr->Arity() < pedge->m_ulChildren ||
 			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{
