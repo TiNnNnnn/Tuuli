@@ -19,6 +19,30 @@
         "Xform: CXformJoinAssociativity"
       ],
       "joins": 3
+    },
+    {
+      "name": "pair-budget-simplified",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_pair_budget": 1,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "nodes=4",
+        "pairs=3 subsets=7",
+        "enumeration=simplified",
+        "strategy=binary_skeleton",
+        "reason=pair_budget",
+        "attempted_pairs=1",
+        "mode=replacement"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 3
     }
   ],
   "rows": {

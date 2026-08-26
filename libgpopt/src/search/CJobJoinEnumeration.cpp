@@ -274,6 +274,44 @@ PublishRegionStatus(
 		// that terminal decision; the new maximal root publishes its own status.
 	}
 }
+
+BOOL
+FBuildBinarySkeletonPlan(CMemoryPool *mp, CDPHyperJoinRegion *region,
+						 const CJoinRegionSpec *spec, CDPHyperPlan *plan)
+{
+	GPOS_ASSERT(nullptr != mp && nullptr != region && nullptr != spec &&
+				nullptr != plan);
+	for (ULONG node = 0; node < spec->NodeCount(); ++node)
+	{
+		if (plan->FoundSingleNode(node))
+		{
+			return false;
+		}
+	}
+
+	// CJoinRegionSpec records the immutable input tree in post-order. Every
+	// child subset is therefore present before its parent cut. Replaying these
+	// n-1 cuts is a complete semantic plan even when exhaustive CSG-CMP search
+	// exceeded its alternative budget.
+	for (ULONG edge = 0; edge < spec->EdgeCount(); ++edge)
+	{
+		const CJoinRegionSpec::CEdge *skeleton_edge = spec->Edge(edge);
+		if (!plan->HasSeen(skeleton_edge->Left()) ||
+			!plan->HasSeen(skeleton_edge->Right()))
+		{
+			return false;
+		}
+		CDPHyperJoinRegion::SJoinRequest request;
+		if (!region->FBuildJoinRequest(skeleton_edge->Left(),
+								   skeleton_edge->Right(), &request) ||
+			plan->FoundSubgraphPair(skeleton_edge->Left(),
+								 skeleton_edge->Right(), edge))
+		{
+			return false;
+		}
+	}
+	return plan->Complete(spec->NodeCount());
+}
 }  // namespace
 
 CJobJoinEnumeration::CJobJoinEnumeration()
@@ -544,7 +582,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
-	CDPHyperPlan plan(
+	CDPHyperPlan exhaustive_plan(
 		mp, hint->UlDPHyperPairBudget(),
 		[region](const CBitSet *left, const CBitSet *right, ULONG edge_id) {
 			if (!region->FPairApplicable(left, right, edge_id))
@@ -554,8 +592,19 @@ CJobJoinEnumeration::FEnumerateRegion(
 			CDPHyperJoinRegion::SJoinRequest request;
 			return region->FBuildJoinRequest(left, right, &request);
 		});
-	CDPHyperEnumerator enumerator(mp, region->Graph(), &plan);
-	if (enumerator.Enumerate() || !plan.Complete(node_count))
+	CDPHyperEnumerator enumerator(mp, region->Graph(), &exhaustive_plan);
+	const BOOL enumeration_aborted = enumerator.Enumerate();
+	const BOOL exhaustive_complete = exhaustive_plan.Complete(node_count);
+	const BOOL budget_exhausted = exhaustive_plan.BudgetExhausted();
+	const ULONG attempted_pairs = exhaustive_plan.PairCount();
+	CDPHyperPlan skeleton_plan(mp, node_count - 1);
+	const BOOL simplified =
+		(!exhaustive_complete && budget_exhausted && nullptr != spec &&
+		 FBuildBinarySkeletonPlan(mp, region, spec, &skeleton_plan));
+	const CDPHyperPlan *plan =
+		simplified ? &skeleton_plan : &exhaustive_plan;
+	if ((!exhaustive_complete && !simplified) ||
+		(enumeration_aborted && !budget_exhausted))
 	{
 		MaterializeNativeFallback(psc, region, component_groups, spec);
 		PublishRegionStatus(
@@ -568,8 +617,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 			GPOS_TRACE_FORMAT(
 				"DPHyper: status=fallback reason=%s group=%d nodes=%d "
 				"pairs=%d budget=%d owner=%s",
-				plan.BudgetExhausted() ? "pair_budget" : "disconnected",
-				m_pgexpr->Pgroup()->Id(), node_count, plan.PairCount(),
+				budget_exhausted ? "pair_budget" : "disconnected",
+				m_pgexpr->Pgroup()->Id(), node_count, attempted_pairs,
 				hint->UlDPHyperPairBudget(),
 				m_native_fallback_materialized ? "native_nary"
 										   : "native_binary");
@@ -621,7 +670,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 	}
 
-	for (const CDPHyperPlan::SPair *pair : plan.Pairs())
+	for (const CDPHyperPlan::SPair *pair : plan->Pairs())
 	{
 		CGroup *left_group = subset_groups.Lookup(pair->m_left);
 		CGroup *right_group = subset_groups.Lookup(pair->m_right);
@@ -634,10 +683,13 @@ CJobJoinEnumeration::FEnumerateRegion(
 		CGroup *target = full ? m_pgexpr->Pgroup()
 							  : subset_groups.Lookup(joined.Value());
 
-		CDPHyperJoinRegion::SJoinRequest request;
+		CDPHyperJoinRegion::SJoinRequest request{};
 		const BOOL complex_region = nullptr != spec && !spec->PureInner();
-		GPOS_ASSERT(nullptr == spec || region->FBuildJoinRequest(
-			pair->m_left, pair->m_right, &request));
+		const BOOL request_built =
+			nullptr == spec || region->FBuildJoinRequest(
+							   pair->m_left, pair->m_right, &request);
+		GPOS_ASSERT(request_built);
+		(void) request_built;
 		COperator::EOperatorId join_type = COperator::EopLogicalInnerJoin;
 		CExpression *predicate = nullptr;
 		if (complex_region)
@@ -695,10 +747,14 @@ CJobJoinEnumeration::FEnumerateRegion(
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
 			"cartesian_edges=%d dependencies=%d pairs=%d subsets=%d "
-			"fingerprint=%u mode=%s",
+			"fingerprint=%u enumeration=%s strategy=%s reason=%s "
+			"attempted_pairs=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
-			dependency_count, plan.PairCount(), plan.SeenCount(), fingerprint_hash,
+			dependency_count, plan->PairCount(), plan->SeenCount(), fingerprint_hash,
+			simplified ? "simplified" : "complete",
+			simplified ? "binary_skeleton" : "none",
+			simplified ? "pair_budget" : "none", attempted_pairs,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);

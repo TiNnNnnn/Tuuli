@@ -23,21 +23,25 @@
       "joins": 2
     },
     {
-      "name": "mixed-budget-native-fallback",
+      "name": "mixed-budget-simplified",
       "dsl": false,
       "dphyper": true,
       "dphyper_pair_budget": 1,
       "dphyper_shadow": false,
       "trace": true,
       "contains": [
-        "DPHyper: status=fallback reason=pair_budget",
-        "pairs=1 budget=1",
-        "owner=native_binary",
-        "Xform: CXformInnerJoinCommutativity"
+        "DPHyper: status=applied",
+        "pairs=2 subsets=5",
+        "enumeration=simplified",
+        "strategy=binary_skeleton",
+        "reason=pair_budget",
+        "attempted_pairs=1",
+        "mode=replacement"
       ],
       "not_contains": [
-        "DPHyper: status=applied",
-        "Xform: CXformExpandNAryJoinDPv2"
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
       ],
       "joins": 2
     }
