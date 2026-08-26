@@ -64,6 +64,9 @@ private:
 
 	void AttachEdgeToNodes(ULONG forward_edge, ULONG reverse_edge,
 						   const CBitSet *left, const CBitSet *right);
+	void DetachEdgeFromNodes(ULONG forward_edge, ULONG reverse_edge,
+							 const CBitSet *left, const CBitSet *right);
+	void RebuildSimpleNeighborhood(SNode *node);
 
 public:
 	CDPHyperGraph(const CDPHyperGraph &) = delete;
@@ -100,6 +103,20 @@ public:
 	// Add an undirected hyperedge. Internally both directions are retained so
 	// every edge attached to a node has that node on its left side.
 	void AddEdge(const CBitSet *left, const CBitSet *right, ULONG edge_id);
+
+	// Replace one undirected edge while retaining its stable provenance id.
+	// Graph simplification uses this operation to turn a simple edge into a
+	// hyperedge that enforces a join-order dependency. The logical edge index
+	// addresses a forward/reverse pair, not an entry in m_edges directly.
+	void ReplaceEdge(ULONG logical_edge, const CBitSet *left,
+					 const CBitSet *right);
+
+	ULONG
+	LogicalEdgeCount() const
+	{
+		GPOS_ASSERT(0 == m_edges.size() % 2);
+		return m_edges.size() / 2;
+	}
 };
 
 class CDPHyperEnumerator

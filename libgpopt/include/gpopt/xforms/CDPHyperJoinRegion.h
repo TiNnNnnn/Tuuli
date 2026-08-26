@@ -131,6 +131,15 @@ public:
 	BOOL FBuildJoinRequest(const CBitSet *left, const CBitSet *right,
 						   SJoinRequest *request) const;
 	CExpression *PexprPredicate(const SJoinRequest &request) const;
+	BOOL FEqualityEdge(ULONG edge_id) const;
+	BOOL FHasEqualityPredicate(const CBitSet *left,
+							   const CBitSet *right) const;
+
+	CDPHyperGraph *
+	MutableGraph()
+	{
+		return m_graph;
+	}
 
 	const CDPHyperGraph *
 	Graph() const

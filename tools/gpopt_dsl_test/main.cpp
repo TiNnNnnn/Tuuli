@@ -66,21 +66,38 @@ static gpos::CUnittest rgut[] = {
 };
 
 static void *
-PvExec(void *)
+PvExec(void *arg)
 {
 	// initialise DXL + metadata cache so xform/engine tests (phase 1/2) have a
 	// live context; harmless for the pure-parser tests.
 	InitDXL();
 	CMDCache::Init();
 
-	GPOS_RESULT eres = CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+	GPOS_RESULT eres = GPOS_OK;
+	CHAR *suite = static_cast<CHAR *>(arg);
+	if (nullptr == suite)
+	{
+		eres = CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+	}
+	else
+	{
+		eres = GPOS_FAILED;
+		for (ULONG test = 0; test < GPOS_ARRAY_SIZE(rgut); ++test)
+		{
+			if (rgut[test].Equals(suite))
+			{
+				eres = CUnittest::EresExecute(&rgut[test], 1);
+				break;
+			}
+		}
+	}
 
 	CMDCache::Shutdown();
 	return (void *) (eres == GPOS_OK ? nullptr : (void *) 1);
 }
 
 int
-main(int, const char **)
+main(int argc, const char **argv)
 {
 	struct gpos_init_params gpos_params = {nullptr};
 	gpos_init(&gpos_params);
@@ -89,7 +106,8 @@ main(int, const char **)
 
 	gpos_exec_params params;
 	params.func = PvExec;
-	params.arg = nullptr;
+	params.arg =
+		1 < argc ? const_cast<CHAR *>(static_cast<const CHAR *>(argv[1])) : nullptr;
 	params.result = nullptr;
 	params.stack_start = &params;
 	params.error_buffer = nullptr;

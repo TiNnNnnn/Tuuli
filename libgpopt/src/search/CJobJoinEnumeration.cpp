@@ -20,6 +20,7 @@
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalNAryJoin.h"
+#include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarNAryJoinPredList.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
@@ -32,6 +33,7 @@
 #include "gpopt/search/CScheduler.h"
 #include "gpopt/search/CSchedulerContext.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
+#include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
 #include "gpopt/xforms/CJoinRegionSpec.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -148,6 +150,195 @@ PexprJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
 			return nullptr;
 	}
 }
+
+CExpression *
+PexprJoinForCost(CMemoryPool *mp, COperator::EOperatorId join_type,
+				 CExpression *left, CExpression *right,
+				 CExpression *predicate)
+{
+	left->AddRef();
+	right->AddRef();
+	switch (join_type)
+	{
+		case COperator::EopLogicalInnerJoin:
+			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
+				mp, left, right, predicate,
+				CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftOuterJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
+				mp, left, right, predicate,
+				CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftSemiJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
+				mp, left, right, predicate,
+				CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalLeftAntiSemiJoin:
+			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
+				mp, left, right, predicate,
+				CXform::ExfExpandNAryJoinDPHyper);
+		case COperator::EopLogicalFullOuterJoin:
+			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
+				mp, left, right, predicate,
+				CXform::ExfExpandNAryJoinDPHyper);
+		default:
+			left->Release();
+			right->Release();
+			predicate->Release();
+			return nullptr;
+	}
+}
+
+class CDPHyperJoinCostCache
+{
+	struct SEntry
+	{
+		CBitSet *m_nodes;
+		CExpression *m_expr;
+		DOUBLE m_rows;
+		DOUBLE m_cost;
+
+		SEntry(CMemoryPool *mp, const CBitSet *nodes, CExpression *expr,
+			   DOUBLE rows, DOUBLE cost)
+			: m_nodes(GPOS_NEW(mp) CBitSet(mp, *nodes)),
+			  m_expr(expr),
+			  m_rows(rows),
+			  m_cost(cost)
+		{
+			GPOS_ASSERT(nullptr != expr);
+		}
+		~SEntry()
+		{
+			m_nodes->Release();
+			m_expr->Release();
+		}
+	};
+
+	CMemoryPool *m_mp;
+	CDPHyperJoinRegion *m_region;
+	std::unordered_map<ULONG, std::vector<SEntry *>> m_buckets;
+	std::vector<SEntry *> m_entries;
+
+	SEntry *
+	Lookup(const CBitSet *nodes) const
+	{
+		auto bucket = m_buckets.find(nodes->HashValue());
+		if (m_buckets.end() == bucket)
+		{
+			return nullptr;
+		}
+		for (SEntry *entry : bucket->second)
+		{
+			if (entry->m_nodes->Equals(nodes))
+			{
+				return entry;
+			}
+		}
+		return nullptr;
+	}
+
+	void
+	DeriveStats(CExpression *expr) const
+	{
+		if (nullptr == expr->Pstats())
+		{
+			CExpressionHandle exprhdl(m_mp);
+			exprhdl.Attach(expr);
+			exprhdl.DeriveStats(m_mp, m_mp, nullptr /*prprel*/,
+								nullptr /*stats context*/);
+		}
+		GPOS_ASSERT(nullptr != expr->Pstats());
+	}
+
+	SEntry *
+	Record(const CBitSet *nodes, CExpression *expr, DOUBLE rows, DOUBLE cost)
+	{
+		SEntry *entry = GPOS_NEW(m_mp) SEntry(m_mp, nodes, expr, rows, cost);
+		m_entries.push_back(entry);
+		m_buckets[nodes->HashValue()].push_back(entry);
+		return entry;
+	}
+
+public:
+	CDPHyperJoinCostCache(CMemoryPool *mp, CDPHyperJoinRegion *region)
+		: m_mp(mp), m_region(region)
+	{
+		for (ULONG node = 0; node < region->NodeCount(); ++node)
+		{
+			CAutoRef<CBitSet> singleton(GPOS_NEW(mp) CBitSet(mp));
+			(void) singleton->ExchangeSet(node);
+			CExpression *component = region->Component(node);
+			DeriveStats(component);
+			component->AddRef();
+			const DOUBLE rows = component->Pstats()->Rows().Get();
+			(void) Record(singleton.Value(), component, rows, rows);
+		}
+	}
+
+	~CDPHyperJoinCostCache()
+	{
+		for (SEntry *entry : m_entries)
+		{
+			GPOS_DELETE(entry);
+		}
+	}
+
+	BOOL
+	Cost(const CBitSet *left, const CBitSet *right, DOUBLE *cost)
+	{
+		GPOS_ASSERT(nullptr != cost && left->IsDisjoint(right));
+		SEntry *left_entry = Lookup(left);
+		SEntry *right_entry = Lookup(right);
+		if (nullptr == left_entry || nullptr == right_entry)
+		{
+			return false;
+		}
+
+		CDPHyperJoinRegion::SJoinRequest request{};
+		if (!m_region->FBuildJoinRequest(left, right, &request))
+		{
+			return false;
+		}
+		CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
+		joined->Union(right);
+		SEntry *output = Lookup(joined.Value());
+		if (nullptr == output)
+		{
+			CExpression *predicate = request.m_edge_ids.empty()
+								 ? m_region->PexprPredicate(left, right, false)
+								 : m_region->PexprPredicate(request);
+			CExpression *left_expr = left_entry->m_expr;
+			CExpression *right_expr = right_entry->m_expr;
+			if (request.m_swapped)
+			{
+				std::swap(left_expr, right_expr);
+			}
+			CExpression *join = PexprJoinForCost(
+				m_mp, request.m_join_type, left_expr, right_expr, predicate);
+			if (nullptr == join)
+			{
+				return false;
+			}
+			DeriveStats(join);
+			output = Record(joined.Value(), join,
+							join->Pstats()->Rows().Get(), 0.0);
+		}
+
+		const DOUBLE input_rows = left_entry->m_rows + right_entry->m_rows;
+		DOUBLE local_join = input_rows;
+		if (!m_region->FHasEqualityPredicate(left, right))
+		{
+			local_join = left_entry->m_rows * right_entry->m_rows;
+		}
+		const DOUBLE total = input_rows + local_join + output->m_rows +
+							 left_entry->m_cost + right_entry->m_cost;
+		if (0.0 == output->m_cost || total < output->m_cost)
+		{
+			output->m_cost = total;
+		}
+		*cost = total;
+		return true;
+	}
+};
 
 CGroupExpression *
 PgexprLogicalRepresentative(CGroup *group)
@@ -582,8 +773,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
-	CDPHyperPlan exhaustive_plan(
-		mp, hint->UlDPHyperPairBudget(),
+	CDPHyperPlan::PairFilter pair_filter =
 		[region](const CBitSet *left, const CBitSet *right, ULONG edge_id) {
 			if (!region->FPairApplicable(left, right, edge_id))
 			{
@@ -591,21 +781,59 @@ CJobJoinEnumeration::FEnumerateRegion(
 			}
 			CDPHyperJoinRegion::SJoinRequest request;
 			return region->FBuildJoinRequest(left, right, &request);
-		});
+		};
+	CDPHyperPlan exhaustive_plan(mp, hint->UlDPHyperPairBudget(), pair_filter);
 	CDPHyperEnumerator enumerator(mp, region->Graph(), &exhaustive_plan);
 	const BOOL enumeration_aborted = enumerator.Enumerate();
 	const BOOL exhaustive_complete = exhaustive_plan.Complete(node_count);
 	const BOOL budget_exhausted = exhaustive_plan.BudgetExhausted();
 	const ULONG attempted_pairs = exhaustive_plan.PairCount();
+	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
+	const ULONG fingerprint_hash = fingerprint->HashValue();
+
+	CDPHyperPlan graph_plan(mp, hint->UlDPHyperPairBudget(), pair_filter);
+	BOOL graph_simplified = false;
+	ULONG simplification_steps = 0;
+	if (!exhaustive_complete && budget_exhausted)
+	{
+		CDPHyperJoinCostCache cost_cache(mp, region);
+		CDPHyperGraphSimplifier simplifier(
+			mp, region->MutableGraph(), hint->UlDPHyperPairBudget(), pair_filter,
+			[region](ULONG edge_id) {
+				return region->FEqualityEdge(edge_id);
+			},
+			[&cost_cache](const CBitSet *left, const CBitSet *right,
+						  DOUBLE *cost) {
+				return cost_cache.Cost(left, right, cost);
+			});
+		if (simplifier.Simplify())
+		{
+			CDPHyperEnumerator simplified_enumerator(mp, region->Graph(),
+											   &graph_plan);
+			graph_simplified = !simplified_enumerator.Enumerate() &&
+							   graph_plan.Complete(node_count);
+			simplification_steps = simplifier.AppliedStepCount();
+			if (!graph_simplified)
+			{
+				simplifier.Restore();
+				simplification_steps = 0;
+			}
+		}
+	}
 	CDPHyperPlan skeleton_plan(mp, node_count - 1);
-	const BOOL simplified =
-		(!exhaustive_complete && budget_exhausted && nullptr != spec &&
+	const BOOL skeleton_simplified =
+		(!exhaustive_complete && !graph_simplified && budget_exhausted &&
+		 nullptr != spec &&
 		 FBuildBinarySkeletonPlan(mp, region, spec, &skeleton_plan));
+	const BOOL simplified = graph_simplified || skeleton_simplified;
 	const CDPHyperPlan *plan =
-		simplified ? &skeleton_plan : &exhaustive_plan;
+		graph_simplified
+			? &graph_plan
+			: (skeleton_simplified ? &skeleton_plan : &exhaustive_plan);
 	if ((!exhaustive_complete && !simplified) ||
 		(enumeration_aborted && !budget_exhausted))
 	{
+		GPOS_DELETE(fingerprint);
 		MaterializeNativeFallback(psc, region, component_groups, spec);
 		PublishRegionStatus(
 			region_members,
@@ -629,8 +857,6 @@ CJobJoinEnumeration::FEnumerateRegion(
 	CEngine *engine = psc->Peng();
 	const ULONG dependency_count =
 		nullptr == spec ? 0 : spec->DependencyCount();
-	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
-	const ULONG fingerprint_hash = fingerprint->HashValue();
 	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
 	{
 		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
@@ -740,6 +966,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 				!full /*intermediate*/);
 			join->Release();
 			GPOS_ASSERT(reverse_target == target);
+			(void) reverse_target;
 		}
 	}
 	if (GPOS_FTRACE(EopttracePrintXformResults))
@@ -748,13 +975,16 @@ CJobJoinEnumeration::FEnumerateRegion(
 			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
 			"cartesian_edges=%d dependencies=%d pairs=%d subsets=%d "
 			"fingerprint=%u enumeration=%s strategy=%s reason=%s "
-			"attempted_pairs=%d mode=%s",
+			"attempted_pairs=%d simplification_steps=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
 			dependency_count, plan->PairCount(), plan->SeenCount(), fingerprint_hash,
 			simplified ? "simplified" : "complete",
-			simplified ? "binary_skeleton" : "none",
+			graph_simplified
+				? "graph_simplifier"
+				: (skeleton_simplified ? "binary_skeleton" : "none"),
 			simplified ? "pair_budget" : "none", attempted_pairs,
+			simplification_steps,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
@@ -793,6 +1023,7 @@ CJobJoinEnumeration::MaterializeNativeFallback(
 	fallback->Release();
 	GPOS_ASSERT(nullptr != target);
 	GPOS_ASSERT(CGroup::FDuplicateGroups(target, m_pgexpr->Pgroup()));
+	(void) target;
 	m_native_fallback_materialized = true;
 }
 

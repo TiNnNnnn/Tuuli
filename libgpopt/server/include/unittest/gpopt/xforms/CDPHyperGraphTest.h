@@ -23,6 +23,8 @@ public:
 	static GPOS_RESULT EresUnittest_ExhaustiveSimpleGraphs();
 	static GPOS_RESULT EresUnittest_DifferentialHypergraphs();
 	static GPOS_RESULT EresUnittest_AtomicBudget();
+	static GPOS_RESULT EresUnittest_GraphSimplifierInfrastructure();
+	static GPOS_RESULT EresUnittest_GraphSimplifier();
 	static GPOS_RESULT EresUnittest_JoinRegion();
 	static GPOS_RESULT EresUnittest_BinaryJoinRegionSpec();
 	static GPOS_RESULT EresUnittest_CartesianComponents();

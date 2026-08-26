@@ -23,7 +23,8 @@ CDPHyperEnumerator::CNeighborhoodCache::CNeighborhoodCache(
 	if (0 < neighborhood->Size())
 	{
 		CBitSetIter iter(*neighborhood);
-		GPOS_ASSERT(iter.Advance());
+		const BOOL advanced GPOS_ASSERTS_ONLY = iter.Advance();
+		GPOS_ASSERT(advanced);
 		(void) m_taboo->ExchangeSet(iter.Bit());
 	}
 }
@@ -125,7 +126,9 @@ CDPHyperGraph::AttachEdgeToNodes(ULONG forward_edge, ULONG reverse_edge,
 	{
 		CBitSetIter left_iter(*left);
 		CBitSetIter right_iter(*right);
-		GPOS_ASSERT(left_iter.Advance() && right_iter.Advance());
+		const BOOL left_advanced GPOS_ASSERTS_ONLY = left_iter.Advance();
+		const BOOL right_advanced GPOS_ASSERTS_ONLY = right_iter.Advance();
+		GPOS_ASSERT(left_advanced && right_advanced);
 		SNode *left_node = m_nodes[left_iter.Bit()];
 		SNode *right_node = m_nodes[right_iter.Bit()];
 		left_node->m_simple_neighborhood->Union(right);
@@ -150,6 +153,63 @@ CDPHyperGraph::AttachEdgeToNodes(ULONG forward_edge, ULONG reverse_edge,
 }
 
 void
+CDPHyperGraph::RebuildSimpleNeighborhood(SNode *node)
+{
+	node->m_simple_neighborhood->Release();
+	node->m_simple_neighborhood = GPOS_NEW(m_mp) CBitSet(m_mp);
+	for (ULONG edge : node->m_simple_edges)
+	{
+		node->m_simple_neighborhood->Union(m_edges[edge]->m_right);
+	}
+}
+
+void
+CDPHyperGraph::DetachEdgeFromNodes(ULONG forward_edge, ULONG reverse_edge,
+								   const CBitSet *left,
+								   const CBitSet *right)
+{
+	const BOOL simple = 1 == left->Size() && 1 == right->Size();
+	if (simple)
+	{
+		CBitSetIter left_iter(*left);
+		CBitSetIter right_iter(*right);
+		const BOOL left_advanced GPOS_ASSERTS_ONLY = left_iter.Advance();
+		const BOOL right_advanced GPOS_ASSERTS_ONLY = right_iter.Advance();
+		GPOS_ASSERT(left_advanced && right_advanced);
+		SNode *left_node = m_nodes[left_iter.Bit()];
+		SNode *right_node = m_nodes[right_iter.Bit()];
+		left_node->m_simple_edges.erase(
+			std::remove(left_node->m_simple_edges.begin(),
+						left_node->m_simple_edges.end(), forward_edge),
+			left_node->m_simple_edges.end());
+		right_node->m_simple_edges.erase(
+			std::remove(right_node->m_simple_edges.begin(),
+						right_node->m_simple_edges.end(), reverse_edge),
+			right_node->m_simple_edges.end());
+		RebuildSimpleNeighborhood(left_node);
+		RebuildSimpleNeighborhood(right_node);
+		return;
+	}
+
+	CBitSetIter left_iter(*left);
+	while (left_iter.Advance())
+	{
+		std::vector<ULONG> &edges =
+			m_nodes[left_iter.Bit()]->m_complex_edges;
+		edges.erase(std::remove(edges.begin(), edges.end(), forward_edge),
+					edges.end());
+	}
+	CBitSetIter right_iter(*right);
+	while (right_iter.Advance())
+	{
+		std::vector<ULONG> &edges =
+			m_nodes[right_iter.Bit()]->m_complex_edges;
+		edges.erase(std::remove(edges.begin(), edges.end(), reverse_edge),
+					edges.end());
+	}
+}
+
+void
 CDPHyperGraph::AddEdge(const CBitSet *left, const CBitSet *right,
 					   ULONG edge_id)
 {
@@ -161,6 +221,28 @@ CDPHyperGraph::AddEdge(const CBitSet *left, const CBitSet *right,
 	m_edges.push_back(GPOS_NEW(m_mp) SEdge(m_mp, left, right, edge_id));
 	const ULONG reverse = m_edges.size();
 	m_edges.push_back(GPOS_NEW(m_mp) SEdge(m_mp, right, left, edge_id));
+	AttachEdgeToNodes(forward, reverse, left, right);
+}
+
+void
+CDPHyperGraph::ReplaceEdge(ULONG logical_edge, const CBitSet *left,
+						   const CBitSet *right)
+{
+	GPOS_ASSERT(nullptr != left && nullptr != right);
+	GPOS_ASSERT(0 < left->Size() && 0 < right->Size());
+	GPOS_ASSERT(left->IsDisjoint(right));
+	GPOS_ASSERT(logical_edge < LogicalEdgeCount());
+
+	const ULONG forward = logical_edge * 2;
+	const ULONG reverse = forward + 1;
+	const ULONG edge_id = m_edges[forward]->m_edge_id;
+	GPOS_ASSERT(edge_id == m_edges[reverse]->m_edge_id);
+	DetachEdgeFromNodes(forward, reverse, m_edges[forward]->m_left,
+						m_edges[forward]->m_right);
+	GPOS_DELETE(m_edges[forward]);
+	GPOS_DELETE(m_edges[reverse]);
+	m_edges[forward] = GPOS_NEW(m_mp) SEdge(m_mp, left, right, edge_id);
+	m_edges[reverse] = GPOS_NEW(m_mp) SEdge(m_mp, right, left, edge_id);
 	AttachEdgeToNodes(forward, reverse, left, right);
 }
 
@@ -196,7 +278,8 @@ CDPHyperEnumerator::LowestBit(const CBitSet *set) const
 {
 	GPOS_ASSERT(nullptr != set && 0 < set->Size());
 	CBitSetIter iter(*set);
-	GPOS_ASSERT(iter.Advance());
+	const BOOL advanced GPOS_ASSERTS_ONLY = iter.Advance();
+	GPOS_ASSERT(advanced);
 	return iter.Bit();
 }
 

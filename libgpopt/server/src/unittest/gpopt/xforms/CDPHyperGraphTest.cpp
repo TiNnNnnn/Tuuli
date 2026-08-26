@@ -18,7 +18,9 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
+#include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
+#include "gpopt/xforms/CDPHyperOrderConstraints.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
 #include "gpopt/xforms/CJoinRegionSpec.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -373,6 +375,9 @@ CDPHyperGraphTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_DifferentialHypergraphs),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_AtomicBudget),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_GraphSimplifierInfrastructure),
+		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_GraphSimplifier),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_JoinRegion),
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec),
@@ -641,6 +646,175 @@ CDPHyperGraphTest::EresUnittest_AtomicBudget()
 	GPOS_UNITTEST_ASSERT(
 		!filtered.FoundSubgraphPair(node0.Value(), node1.Value(), 7));
 	GPOS_UNITTEST_ASSERT(1 == filtered.PairCount());
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_GraphSimplifierInfrastructure()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDPHyperGraph graph(mp, 3);
+	AddSimpleEdge(mp, &graph, 0, 1, 0);
+	AddSimpleEdge(mp, &graph, 1, 2, 1);
+	GPOS_UNITTEST_ASSERT(2 == graph.LogicalEdgeCount());
+
+	CDPHyperPlan original(mp, 100);
+	CDPHyperEnumerator original_enumerator(mp, &graph, &original);
+	GPOS_UNITTEST_ASSERT(!original_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(original.Complete(3));
+	GPOS_UNITTEST_ASSERT(6 == original.SeenCount());
+
+	// Horn expresses edge 0 before edge 1 by expanding the latter from 1--2
+	// to {0,1}--2. The same enumerator must now retain a complete plan while
+	// suppressing the alternative {1,2} intermediate subset.
+	CAutoRef<CBitSet> joined01(Pbs(mp, {0, 1}));
+	CAutoRef<CBitSet> node2(Pbs(mp, {2}));
+	graph.ReplaceEdge(1, joined01.Value(), node2.Value());
+	CDPHyperPlan constrained(mp, 100);
+	CDPHyperEnumerator constrained_enumerator(mp, &graph, &constrained);
+	GPOS_UNITTEST_ASSERT(!constrained_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(constrained.Complete(3));
+	GPOS_UNITTEST_ASSERT(5 == constrained.SeenCount());
+	CAutoRef<CBitSet> joined12(Pbs(mp, {1, 2}));
+	GPOS_UNITTEST_ASSERT(!constrained.HasSeen(joined12.Value()));
+
+	CAutoRef<CBitSet> node1(Pbs(mp, {1}));
+	graph.ReplaceEdge(1, node1.Value(), node2.Value());
+	CDPHyperPlan restored(mp, 100);
+	CDPHyperEnumerator restored_enumerator(mp, &graph, &restored);
+	GPOS_UNITTEST_ASSERT(!restored_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(restored.Complete(3));
+	GPOS_UNITTEST_ASSERT(6 == restored.SeenCount());
+
+	// Detaching one of two parallel simple edges must not clear the surviving
+	// edge's neighborhood bit.
+	CDPHyperGraph parallel(mp, 3);
+	AddSimpleEdge(mp, &parallel, 0, 1, 10);
+	AddSimpleEdge(mp, &parallel, 0, 1, 11);
+	parallel.ReplaceEdge(0, joined01.Value(), node2.Value());
+	GPOS_UNITTEST_ASSERT(parallel.Node(0)->m_simple_neighborhood->Get(1));
+	GPOS_UNITTEST_ASSERT(parallel.Node(1)->m_simple_neighborhood->Get(0));
+
+	// Horn's CircleDetector uses a 64-bit EdgeMap. Keep its transitive-closure
+	// semantics while using ORCA's dynamic bitsets so large join graphs remain
+	// correct.
+	CDPHyperOrderConstraints order(mp, 70);
+	for (ULONG edge = 0; edge + 1 < 70; ++edge)
+	{
+		GPOS_UNITTEST_ASSERT(order.TryAdd(edge, edge + 1));
+	}
+	GPOS_UNITTEST_ASSERT(order.Precedes(0, 69));
+	GPOS_UNITTEST_ASSERT(order.WouldCreateCycle(69, 0));
+	GPOS_UNITTEST_ASSERT(!order.TryAdd(69, 0));
+	GPOS_UNITTEST_ASSERT(order.WouldCreateCycle(42, 11));
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_GraphSimplifier()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDPHyperGraph graph(mp, 3);
+	AddSimpleEdge(mp, &graph, 0, 1, 0);
+	AddSimpleEdge(mp, &graph, 1, 2, 1);
+	auto join_cost = [mp](const CBitSet *left, const CBitSet *right,
+						  DOUBLE *cost) {
+		CAutoRef<CBitSet> joined(GPOS_NEW(mp) CBitSet(mp, *left));
+		joined->Union(right);
+		if (FSet(joined.Value(), {0, 1}))
+		{
+			*cost = 10.0;
+		}
+		else if (FSet(joined.Value(), {1, 2}))
+		{
+			*cost = 100.0;
+		}
+		else if (FSet(joined.Value(), {0, 1, 2}))
+		{
+			*cost = FSet(left, {0, 1}) || FSet(right, {0, 1}) ? 20.0
+																 : 200.0;
+		}
+		else
+		{
+			return false;
+		}
+		return true;
+	};
+
+	CDPHyperGraphSimplifier simplifier(
+		mp, &graph, 2,
+		[](const CBitSet *, const CBitSet *, ULONG) { return true; },
+		[](ULONG) { return true; }, join_cost);
+	GPOS_UNITTEST_ASSERT(simplifier.Simplify());
+	GPOS_UNITTEST_ASSERT(1 == simplifier.AppliedStepCount());
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_left, {0, 1}));
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_right, {2}));
+
+	CDPHyperPlan plan(mp, 2);
+	CDPHyperEnumerator enumerator(mp, &graph, &plan);
+	GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(plan.Complete(3));
+	GPOS_UNITTEST_ASSERT(2 == plan.PairCount());
+
+	// The simplifier owns only reversible constraints. Restoring after a
+	// successful probe must recover the original graph exactly.
+	simplifier.Restore();
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(0)->m_left, {0}));
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(0)->m_right, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_left, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_right, {2}));
+
+	// Three leaves require at least two emitted pairs. No amount of Horn edge
+	// ordering can satisfy a budget of one, and the failed probe must leave no
+	// graph mutation behind.
+	CDPHyperGraph impossible(mp, 3);
+	AddSimpleEdge(mp, &impossible, 0, 1, 0);
+	AddSimpleEdge(mp, &impossible, 1, 2, 1);
+	CDPHyperGraphSimplifier impossible_simplifier(
+		mp, &impossible, 1,
+		[](const CBitSet *, const CBitSet *, ULONG) { return true; },
+		[](ULONG) { return true; }, join_cost);
+	GPOS_UNITTEST_ASSERT(!impossible_simplifier.Simplify());
+	GPOS_UNITTEST_ASSERT(0 == impossible_simplifier.AppliedStepCount());
+	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(0)->m_left, {0}));
+	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(0)->m_right, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(2)->m_left, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(2)->m_right, {2}));
+
+	// Horn deliberately simplifies only hash/equality joins. If either edge is
+	// ineligible, the pair cannot manufacture an ordering constraint.
+	CDPHyperGraph filtered(mp, 3);
+	AddSimpleEdge(mp, &filtered, 0, 1, 0);
+	AddSimpleEdge(mp, &filtered, 1, 2, 1);
+	CDPHyperGraphSimplifier filtered_simplifier(
+		mp, &filtered, 2,
+		[](const CBitSet *, const CBitSet *, ULONG) { return true; },
+		[](ULONG edge_id) { return 0 == edge_id; }, join_cost);
+	GPOS_UNITTEST_ASSERT(!filtered_simplifier.Simplify());
+	GPOS_UNITTEST_ASSERT(0 == filtered_simplifier.AppliedStepCount());
+	GPOS_UNITTEST_ASSERT(FSet(filtered.Edge(0)->m_left, {0}));
+	GPOS_UNITTEST_ASSERT(FSet(filtered.Edge(0)->m_right, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(filtered.Edge(2)->m_left, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(filtered.Edge(2)->m_right, {2}));
+
+	// A legal pair filter may reject every route in a mixed join region.
+	// Finishing below the numeric budget is not success unless the root subset
+	// was produced, and all exploratory edge changes must still be rolled back.
+	CDPHyperGraph incomplete(mp, 3);
+	AddSimpleEdge(mp, &incomplete, 0, 1, 0);
+	AddSimpleEdge(mp, &incomplete, 1, 2, 1);
+	CDPHyperGraphSimplifier incomplete_simplifier(
+		mp, &incomplete, 100,
+		[](const CBitSet *, const CBitSet *, ULONG) { return false; },
+		[](ULONG) { return true; }, join_cost);
+	GPOS_UNITTEST_ASSERT(!incomplete_simplifier.Simplify());
+	GPOS_UNITTEST_ASSERT(0 == incomplete_simplifier.AppliedStepCount());
+	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(0)->m_left, {0}));
+	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(0)->m_right, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_left, {1}));
+	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_right, {2}));
 	return GPOS_OK;
 }
 

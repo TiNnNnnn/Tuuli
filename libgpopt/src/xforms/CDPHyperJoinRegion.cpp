@@ -588,7 +588,8 @@ CDPHyperJoinRegion::AddCartesianComponentEdges()
 			continue;
 		}
 		CBitSetIter iter(*cover);
-		GPOS_ASSERT(iter.Advance());
+		const BOOL advanced GPOS_ASSERTS_ONLY = iter.Advance();
+		GPOS_ASSERT(advanced);
 		const ULONG first = iter.Bit();
 		while (iter.Advance())
 		{
@@ -609,7 +610,8 @@ CDPHyperJoinRegion::AddCartesianComponentEdges()
 		CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *edge.first));
 		joined->Union(edge.second);
 		CBitSetIter iter(*joined.Value());
-		GPOS_ASSERT(iter.Advance());
+		const BOOL advanced GPOS_ASSERTS_ONLY = iter.Advance();
+		GPOS_ASSERT(advanced);
 		const ULONG first = iter.Bit();
 		while (iter.Advance())
 		{
@@ -883,6 +885,86 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 		}
 	}
 	return true;
+}
+
+namespace
+{
+BOOL
+FContainsEquality(CMemoryPool *mp, CExpression *predicate)
+{
+	CExpressionArray *conjuncts =
+		CPredicateUtils::PdrgpexprConjuncts(mp, predicate);
+	BOOL found = false;
+	for (ULONG index = 0; index < conjuncts->Size(); ++index)
+	{
+		if (CPredicateUtils::IsEqualityOp((*conjuncts)[index]))
+		{
+			found = true;
+			break;
+		}
+	}
+	conjuncts->Release();
+	return found;
+}
+}  // namespace
+
+BOOL
+CDPHyperJoinRegion::FEqualityEdge(ULONG edge_id) const
+{
+	CExpression *predicate = nullptr;
+	if (nullptr != m_spec && !m_spec->PureInner())
+	{
+		if (edge_id >= m_spec->EdgeCount())
+		{
+			return false;
+		}
+		predicate = m_spec->Edge(edge_id)->Predicate();
+	}
+	else
+	{
+		if (edge_id >= m_conjuncts->Size())
+		{
+			return false;
+		}
+		predicate = (*m_conjuncts)[edge_id];
+	}
+	return FContainsEquality(m_mp, predicate);
+}
+
+BOOL
+CDPHyperJoinRegion::FHasEqualityPredicate(const CBitSet *left,
+										 const CBitSet *right) const
+{
+	GPOS_ASSERT(nullptr != left && nullptr != right && left->IsDisjoint(right));
+	if (nullptr != m_spec && !m_spec->PureInner())
+	{
+		SJoinRequest request;
+		if (!FBuildJoinRequest(left, right, &request))
+		{
+			return false;
+		}
+		for (ULONG edge_id : request.m_edge_ids)
+		{
+			if (FEqualityEdge(edge_id))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
+	joined->Union(right);
+	for (ULONG predicate = 0; predicate < m_conjuncts->Size(); ++predicate)
+	{
+		const CBitSet *cover = m_predicate_covers[predicate];
+		if (joined->ContainsAll(cover) && !left->IsDisjoint(cover) &&
+			!right->IsDisjoint(cover) && FEqualityEdge(predicate))
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 CExpression *
