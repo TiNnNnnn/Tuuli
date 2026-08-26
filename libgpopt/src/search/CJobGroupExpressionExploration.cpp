@@ -11,13 +11,18 @@
 
 #include "gpopt/search/CJobGroupExpressionExploration.h"
 
+#include <unordered_set>
+
 #include "gpos/common/CAutoRef.h"
 
 #include "gpopt/engine/CEngine.h"
+#include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CLogical.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
 #include "gpopt/search/CJobFactory.h"
 #include "gpopt/search/CJobGroupExploration.h"
 #include "gpopt/search/CJobJoinEnumeration.h"
@@ -78,6 +83,59 @@ ClearDPHyperJoinEnumeration(CXformSet *xform_set,
 }
 
 BOOL
+FHasPendingJoinIngress(CMemoryPool *mp, CGroup *group,
+					   std::unordered_set<CGroup *> *visited)
+{
+	if (group->FScalar() || !visited->insert(group).second)
+	{
+		return false;
+	}
+	CGroupProxy proxy(group);
+	CGroupExpression *gexpr = nullptr;
+	while (nullptr != (gexpr = proxy.PgexprNextLogical(gexpr)))
+	{
+		if (nullptr != dynamic_cast<CLogicalApply *>(gexpr->Pop()))
+		{
+			return true;
+		}
+		CExpressionHandle exprhdl(mp);
+		exprhdl.Attach(gexpr);
+		for (ULONG child = 0; child < gexpr->Arity(); ++child)
+		{
+			CGroup *child_group = (*gexpr)[child];
+			if (child_group->FScalar())
+			{
+				if (exprhdl.DeriveHasSubquery(child))
+				{
+					return true;
+				}
+			}
+			else if (FHasPendingJoinIngress(mp, child_group, visited))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+BOOL
+FHasPendingJoinIngress(CMemoryPool *mp, CGroupExpression *gexpr)
+{
+	std::unordered_set<CGroup *> visited;
+	for (ULONG child = 0; child < gexpr->Arity(); ++child)
+	{
+		CGroup *child_group = (*gexpr)[child];
+		if (!child_group->FScalar() &&
+			FHasPendingJoinIngress(mp, child_group, &visited))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
 FScheduleDPHyperBeforeChildren(CSchedulerContext *psc,
 							 CGroupExpression *gexpr, CJob *parent)
 {
@@ -94,6 +152,13 @@ FScheduleDPHyperBeforeChildren(CSchedulerContext *psc,
 	{
 		// The stage or xform-disable policy declined ownership. Marked joins
 		// retain all native join rewrites because no success status is published.
+		return false;
+	}
+	if (FHasPendingJoinIngress(psc->GetGlobalMemoryPool(), gexpr))
+	{
+		// Explore subquery/Apply components first so their join-producing
+		// alternatives become visible to the maximal-region extractor. The
+		// parent still runs DPHyper before scheduling any of its own native xforms.
 		return false;
 	}
 	gexpr->SetDPHyperStatus(CGroupExpression::EdphScheduled);

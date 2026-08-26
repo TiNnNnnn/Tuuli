@@ -10,6 +10,7 @@
       "contains": [
         "DPHyper: status=applied",
         "root=CLogicalLeftAntiSemiJoin nodes=2",
+        "root=CLogicalInnerJoin nodes=3",
         "mode=replacement",
         "Xform: CXformLeftAntiSemiJoin2HashJoin"
       ],
