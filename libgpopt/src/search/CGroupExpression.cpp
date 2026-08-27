@@ -127,6 +127,29 @@ CGroupExpression::FHasDSLProvenance() const
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CGroupExpression::FHasDPHyperProvenance
+//
+//	@doc:
+//		Check the immutable xform-origin chain for a DPHyper-produced expression
+//---------------------------------------------------------------------------
+BOOL
+CGroupExpression::FHasDPHyperProvenance() const
+{
+	const CGroupExpression *pgexpr = this;
+	while (nullptr != pgexpr)
+	{
+		if (CXform::ExfDPHyperJoinRegion == pgexpr->ExfidOrigin())
+		{
+			return true;
+		}
+		pgexpr = pgexpr->PgexprOrigin();
+	}
+	return false;
+}
+
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CGroupExpression::~CGroupExpression
 //
 //	@doc:
@@ -873,12 +896,26 @@ CGroupExpression::Transform(
 	PreprocessTransform(pmpLocal, mp, pxform);
 
 	// extract memo bindings to apply xform
-	CBinding binding;
+	CBinding binding(CXformUtils::FSubqueryDecorrelation(pxform));
 	CXformContext *pxfctxt = GPOS_NEW(mp) CXformContext(mp);
 
 	COptimizerConfig *optconfig =
 		COptCtxt::PoctxtFromTLS()->GetOptimizerConfig();
 	ULONG bindThreshold = optconfig->GetHint()->UlXformBindThreshold();
+	auto trace_binding_progress = [&]() {
+		if (!fPrintOptStats || 0 == *pulNumberOfBindings)
+		{
+			return;
+		}
+		const ULONG bindings = *pulNumberOfBindings;
+		if (1 == bindings || 0 == bindings % 10000)
+		{
+			GPOS_TRACE_FORMAT(
+				"Xform binding progress: xform=%s group=%d expression=%d "
+				"bindings=%d",
+				pxform->SzId(), Pgroup()->Id(), Id(), bindings);
+		}
+	};
 	// Every DSL shell uses the source trie before binding. Routed and adapted
 	// rules retain a conservative complete representative; native xforms keep
 	// the original CBinding enumeration unchanged.
@@ -892,6 +929,7 @@ CGroupExpression::Transform(
 		{
 			CExpression *pexpr = (*pdrgpexprBindings)[ul];
 			++(*pulNumberOfBindings);
+			trace_binding_progress();
 			ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
 			pxform->Transform(pxfctxt, pxfres, pexpr);
 			ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;
@@ -917,6 +955,7 @@ CGroupExpression::Transform(
 		while (nullptr != pexpr)
 		{
 			++(*pulNumberOfBindings);
+			trace_binding_progress();
 			ULONG ulNumResults = pxfres->Pdrgpexpr()->Size();
 			pxform->Transform(pxfctxt, pxfres, pexpr);
 			ulNumResults = pxfres->Pdrgpexpr()->Size() - ulNumResults;

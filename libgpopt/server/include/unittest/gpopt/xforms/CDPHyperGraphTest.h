@@ -32,6 +32,7 @@ public:
 	static GPOS_RESULT EresUnittest_GraphSimplifierPredicateCoverage();
 	static GPOS_RESULT EresUnittest_JoinRegion();
 	static GPOS_RESULT EresUnittest_BinaryJoinRegionSpec();
+	static GPOS_RESULT EresUnittest_EnumerationProvenance();
 	static GPOS_RESULT EresUnittest_CartesianComponents();
 	static GPOS_RESULT EresUnittest_CartesianDifferential();
 };

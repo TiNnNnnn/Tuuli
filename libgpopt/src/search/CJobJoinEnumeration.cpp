@@ -64,6 +64,17 @@ class CSubsetGroups
 	std::unordered_map<ULONG, std::vector<SEntry *>> m_buckets;
 	std::vector<SEntry *> m_entries;
 
+	static CGroup *
+	CanonicalGroup(CGroup *group)
+	{
+		GPOS_ASSERT(nullptr != group);
+		while (group->FDuplicateGroup())
+		{
+			group = group->PgroupDuplicate();
+		}
+		return group;
+	}
+
 public:
 	explicit CSubsetGroups(CMemoryPool *mp) : m_mp(mp)
 	{
@@ -89,24 +100,38 @@ public:
 		{
 			if (entry->m_nodes->Equals(nodes))
 			{
-				return entry->m_group;
+				return CanonicalGroup(entry->m_group);
 			}
 		}
 		return nullptr;
 	}
 
-	void
+	CGroup *
 	Record(const CBitSet *nodes, CGroup *group)
 	{
+		group = CanonicalGroup(group);
 		CGroup *existing = Lookup(nodes);
-		GPOS_ASSERT_IMP(nullptr != existing, existing == group);
 		if (nullptr != existing)
 		{
-			return;
+			if (existing != group)
+			{
+				// PgroupInsert may find an identical expression in another Memo
+				// group and return that container instead of the requested subset
+				// group.  This is the same deferred-equivalence state handled by
+				// CEngine::InsertXformResult: the groups denote the same DPHyper
+				// node set and must be joined in the Memo duplicate chain before
+				// later pairs use the subset as an input.
+				GPOS_ASSERT(!CGroup::FReachable(m_mp, existing, group));
+				GPOS_ASSERT(!CGroup::FReachable(m_mp, group, existing));
+				CMemo::MarkDuplicates(existing, group);
+				existing = CanonicalGroup(existing);
+			}
+			return existing;
 		}
 		SEntry *entry = GPOS_NEW(m_mp) SEntry(m_mp, nodes, group);
 		m_entries.push_back(entry);
 		m_buckets[nodes->HashValue()].push_back(entry);
+		return group;
 	}
 };
 
@@ -1094,7 +1119,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 			!full /*intermediate*/);
 		join->Release();
 		GPOS_ASSERT(nullptr != target);
-		subset_groups.Record(joined.Value(), target);
+		target = subset_groups.Record(joined.Value(), target);
 		if (!full &&
 			m_intermediate_groups.end() ==
 				std::find(m_intermediate_groups.begin(),
@@ -1111,6 +1136,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 				target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 				!full /*intermediate*/);
 			join->Release();
+			reverse_target =
+				subset_groups.Record(joined.Value(), reverse_target);
 			GPOS_ASSERT(reverse_target == target);
 			(void) reverse_target;
 		}

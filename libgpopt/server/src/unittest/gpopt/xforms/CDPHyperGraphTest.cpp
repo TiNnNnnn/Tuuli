@@ -20,10 +20,16 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CPatternTree.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/search/CBinding.h"
+#include "gpopt/search/CGroup.h"
+#include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
 #include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
@@ -488,6 +494,8 @@ CDPHyperGraphTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_JoinRegion),
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_EnumerationProvenance),
 		GPOS_UNITTEST_FUNC(
 			CDPHyperGraphTest::EresUnittest_CartesianComponents),
 		GPOS_UNITTEST_FUNC(
@@ -1695,6 +1703,71 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	get1->Release();
 	get2->Release();
 	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_EnumerationProvenance()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CGroup *base_group = GPOS_NEW(mp) CGroup(mp);
+	CGroup *enumerated_group = GPOS_NEW(mp) CGroup(mp);
+	CGroup *derived_group = GPOS_NEW(mp) CGroup(mp);
+	{
+		CGroupProxy proxy(base_group);
+		proxy.SetId(0);
+	}
+	{
+		CGroupProxy proxy(enumerated_group);
+		proxy.SetId(1);
+	}
+	{
+		CGroupProxy proxy(derived_group);
+		proxy.SetId(2);
+	}
+
+	CGroupExpression *base = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfInvalid, nullptr, false /*fIntermediate*/);
+	CGroupExpression *enumerated = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfDPHyperJoinRegion, base, false /*fIntermediate*/);
+	CGroupExpression *derived = GPOS_NEW(mp) CGroupExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), GPOS_NEW(mp) CGroupArray(mp),
+		CXform::ExfSelect2Filter, enumerated, false /*fIntermediate*/);
+	{
+		CGroupProxy proxy(base_group);
+		proxy.Insert(base);
+	}
+	{
+		CGroupProxy proxy(enumerated_group);
+		proxy.Insert(enumerated);
+	}
+	{
+		CGroupProxy proxy(derived_group);
+		proxy.Insert(derived);
+	}
+	CExpression *pattern = GPOS_NEW(mp)
+		CExpression(mp, GPOS_NEW(mp) CPatternTree(mp));
+
+	CBinding before_enumeration(true /*skip_dphyper_provenance*/);
+	CExpression *enumerated_binding =
+		before_enumeration.PexprExtract(mp, enumerated, pattern, nullptr);
+	CExpression *derived_binding =
+		before_enumeration.PexprExtract(mp, derived, pattern, nullptr);
+
+	const BOOL valid = !base->FHasDPHyperProvenance() &&
+					   enumerated->FHasDPHyperProvenance() &&
+					   derived->FHasDPHyperProvenance() &&
+					   nullptr == enumerated_binding && nullptr == derived_binding;
+
+	CRefCount::SafeRelease(derived_binding);
+	CRefCount::SafeRelease(enumerated_binding);
+	pattern->Release();
+	derived_group->Release();
+	enumerated_group->Release();
+	base_group->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -36,6 +36,10 @@ class CGroup;
 class CBinding
 {
 private:
+	// Do not feed join-enumeration alternatives back into rules which produce
+	// the logical join graph consumed by that enumeration.
+	BOOL m_skip_dphyper_provenance;
+
 	// initialize cursors of child expressions
 	BOOL FInitChildCursors(CMemoryPool *mp, CGroupExpression *pgexpr,
 						   CExpression *pexprPattern,
@@ -52,8 +56,8 @@ private:
 						  CExpressionArray *pdrgpexpr);
 
 	// move cursor
-	static CGroupExpression *PgexprNext(CGroup *pgroup,
-										CGroupExpression *pgexpr);
+	CGroupExpression *PgexprNext(CGroup *pgroup,
+								 CGroupExpression *pgexpr) const;
 
 	// expand n-th child of pattern
 	static CExpression *PexprExpandPattern(CExpression *pexpr, ULONG ulPos,
@@ -78,7 +82,10 @@ private:
 
 public:
 	// ctor
-	CBinding() = default;
+	explicit CBinding(BOOL skip_dphyper_provenance = false)
+		: m_skip_dphyper_provenance(skip_dphyper_provenance)
+	{
+	}
 
 	// dtor
 	~CBinding() = default;

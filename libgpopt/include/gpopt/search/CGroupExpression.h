@@ -393,6 +393,10 @@ public:
 	// a later native xform
 	BOOL FHasDSLProvenance() const;
 
+	// whether this expression was produced by DPHyper, directly or through a
+	// later xform
+	BOOL FHasDPHyperProvenance() const;
+
 	// cost contexts hash table accessor
 	ShtCC &
 	Sht()

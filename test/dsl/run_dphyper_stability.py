@@ -140,6 +140,7 @@ def explain_sql(
     return f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
+SET pg_orca.trace_fallback=on;
 SET pg_orca.enable_dsl_rule=off;
 SET pg_orca.enable_dphyper={'on' if dphyper else 'off'};
 SET pg_orca.dphyper_shadow={'off' if dphyper else 'on'};
@@ -232,7 +233,10 @@ def run_explain(
     if memo_summaries:
         result["memo_summary"] = memo_summaries[-1]
     if status != "ok":
-        result["detail"] = tail(combined)
+        # ORCA reports the actual fallback/exception reason on stderr.  EXPLAIN
+        # emits the often-large PostgreSQL fallback plan on stdout afterwards,
+        # so tailing the concatenated streams can hide the diagnostic entirely.
+        result["detail"] = tail(process.stderr, 8000) or tail(combined)
     return result
 
 

@@ -1,0 +1,29 @@
+{
+  "description": "Mixed join regions reconcile equivalent DPHyper subset groups in the Memo",
+  "plans": [
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Failed assertion",
+        "falling back to standard planner"
+      ]
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "3,3"
+    ],
+    "postgres_output": [
+      "3,3"
+    ]
+  }
+}

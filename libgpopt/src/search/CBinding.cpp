@@ -28,7 +28,7 @@ using namespace gpopt;
 //
 //---------------------------------------------------------------------------
 CGroupExpression *
-CBinding::PgexprNext(CGroup *pgroup, CGroupExpression *pgexpr)
+CBinding::PgexprNext(CGroup *pgroup, CGroupExpression *pgexpr) const
 {
 	CGroupProxy gp(pgroup);
 
@@ -43,8 +43,17 @@ CBinding::PgexprNext(CGroup *pgroup, CGroupExpression *pgexpr)
 		return gp.PgexprNext(pgexpr);
 	}
 
-	// for non-scalar group, we only consider logical expressions in bindings
-	return gp.PgexprNextLogical(pgexpr);
+	// For non-scalar groups, only consider logical expressions in bindings.
+	// Apply decorrelation constructs the join graph that DPHyper consumes. Do
+	// not close a dependency cycle by binding those rules to DPHyper-generated
+	// alternatives (or to later xforms derived from such alternatives).
+	CGroupExpression *next = gp.PgexprNextLogical(pgexpr);
+	while (m_skip_dphyper_provenance && nullptr != next &&
+		   next->FHasDPHyperProvenance())
+	{
+		next = gp.PgexprNextLogical(next);
+	}
+	return next;
 }
 
 
@@ -130,6 +139,10 @@ CBinding::PexprExtract(CMemoryPool *mp, CGroupExpression *pgexpr,
 					   CExpression *pexprPattern, CExpression *pexprLast)
 {
 	GPOS_CHECK_ABORT;
+	if (m_skip_dphyper_provenance && pgexpr->FHasDPHyperProvenance())
+	{
+		return nullptr;
+	}
 
 	if (!pexprPattern->FMatchPattern(pgexpr))
 	{
