@@ -841,8 +841,10 @@ CJobJoinEnumeration::FEnumerateRegion(
 			return region->FBuildJoinRequest(left, right, &request);
 		};
 	CDPHyperPlan exhaustive_plan(mp, hint->UlDPHyperPairBudget(), pair_filter);
+	CWallClock enumeration_detail_clock(true);
 	CDPHyperEnumerator enumerator(mp, region->Graph(), &exhaustive_plan);
 	const BOOL enumeration_aborted = enumerator.Enumerate();
+	const ULONG exhaustive_us = enumeration_detail_clock.ElapsedUS();
 	const BOOL exhaustive_complete = exhaustive_plan.Complete(node_count);
 	const BOOL budget_exhausted = exhaustive_plan.BudgetExhausted();
 	const ULONG attempted_pairs = exhaustive_plan.PairCount();
@@ -850,8 +852,12 @@ CJobJoinEnumeration::FEnumerateRegion(
 	CDPHyperPlan graph_plan(mp, hint->UlDPHyperPairBudget(), pair_filter);
 	BOOL graph_simplified = false;
 	ULONG simplification_steps = 0;
+	ULONG simplifier_init_us = 0;
+	ULONG simplifier_search_us = 0;
+	ULONG simplified_enumeration_us = 0;
 	if (!exhaustive_complete && budget_exhausted)
 	{
+		enumeration_detail_clock.Restart();
 		CDPHyperJoinCostCache cost_cache(mp, region);
 		CDPHyperGraphSimplifier simplifier(
 			mp, region->MutableGraph(), hint->UlDPHyperPairBudget(), pair_filter,
@@ -862,12 +868,18 @@ CJobJoinEnumeration::FEnumerateRegion(
 						  DOUBLE *cost) {
 				return cost_cache.Cost(left, right, cost);
 			});
+		simplifier_init_us = enumeration_detail_clock.ElapsedUS();
+		enumeration_detail_clock.Restart();
 		if (simplifier.Simplify())
 		{
+			simplifier_search_us = enumeration_detail_clock.ElapsedUS();
+			enumeration_detail_clock.Restart();
 			CDPHyperEnumerator simplified_enumerator(mp, region->Graph(),
 											   &graph_plan);
 			graph_simplified = !simplified_enumerator.Enumerate() &&
 							   graph_plan.Complete(node_count);
+			simplified_enumeration_us =
+				enumeration_detail_clock.ElapsedUS();
 			simplification_steps = simplifier.AppliedStepCount();
 			if (!graph_simplified)
 			{
@@ -1034,7 +1046,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 	}
 	const ULONG materialization_us = phase_clock.ElapsedUS();
-	if (GPOS_FTRACE(EopttracePrintXformResults))
+	if (GPOS_FTRACE(EopttracePrintXformResults) ||
+		GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
@@ -1042,7 +1055,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 			"fingerprint=%u enumeration=%s strategy=%s reason=%s "
 			"attempted_pairs=%d simplification_steps=%d build_us=%d "
 			"fingerprint_us=%d enumeration_us=%d registration_us=%d "
-			"materialization_us=%d mode=%s",
+			"materialization_us=%d exhaustive_us=%d simplifier_init_us=%d "
+			"simplifier_search_us=%d simplified_enumeration_us=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
 			dependency_count, plan->PairCount(), plan->SeenCount(), fingerprint_hash,
@@ -1052,7 +1066,9 @@ CJobJoinEnumeration::FEnumerateRegion(
 				: (skeleton_simplified ? "binary_skeleton" : "none"),
 			simplified ? "pair_budget" : "none", attempted_pairs,
 			simplification_steps, build_us, fingerprint_us, enumeration_us,
-			registration_us, materialization_us,
+			registration_us, materialization_us, exhaustive_us,
+			simplifier_init_us, simplifier_search_us,
+			simplified_enumeration_us,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
