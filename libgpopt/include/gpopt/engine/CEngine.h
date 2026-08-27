@@ -11,6 +11,7 @@
 #ifndef GPOPT_CEngine_H
 #define GPOPT_CEngine_H
 
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -37,6 +38,7 @@ class CReqdPropPlan;
 class CReqdPropRelational;
 class CEnumeratorConfig;
 class CDPHyperGraphFingerprint;
+class CDPHyperCostStatsEntry;
 
 //---------------------------------------------------------------------------
 //	@class:
@@ -88,6 +90,12 @@ private:
 	// equivalence group. The engine owns every fingerprint.
 	std::vector<std::pair<CGroup *, CDPHyperGraphFingerprint *>>
 		m_dphyper_fingerprints;
+
+	// Exact, query-local row estimates used by the DPHyper graph simplifier.
+	// Entries retain their input statistics and are reusable only while every
+	// referenced Memo leaf still exposes the same statistics object.
+	std::unordered_map<ULONG, std::vector<CDPHyperCostStatsEntry *>>
+		m_dphyper_cost_stats;
 
 #ifdef GPOS_DEBUG
 
@@ -263,6 +271,11 @@ public:
 	// enumeration while retaining atomic registration after successful work.
 	BOOL FHasDPHyperFingerprint(
 		CGroup *owner, const CDPHyperGraphFingerprint *fingerprint) const;
+
+	// Reuse an exact DPHyper simplifier expression's statistics when its Memo
+	// input statistics have not changed since the estimate was derived.
+	CExpression *PexprLookupDPHyperCostStats(CExpression *expr) const;
+	void RegisterDPHyperCostStats(CExpression *expr);
 
 	// add enforcers to the memo
 	void AddEnforcers(CGroupExpression *pgexprChild,

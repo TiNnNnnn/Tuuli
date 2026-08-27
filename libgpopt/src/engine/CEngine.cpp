@@ -75,6 +75,89 @@ using namespace gpopt;
 
 FORCE_GENERATE_DBGSTR(CEngine);
 
+namespace gpopt
+{
+class CDPHyperCostStatsEntry
+{
+public:
+	CExpression *m_expr;
+
+	explicit CDPHyperCostStatsEntry(CExpression *expr) : m_expr(expr)
+	{
+		GPOS_ASSERT(nullptr != expr);
+		expr->AddRef();
+	}
+
+	~CDPHyperCostStatsEntry()
+	{
+		m_expr->Release();
+	}
+};
+}  // namespace gpopt
+
+namespace
+{
+ULONG
+UlDPHyperCostExprHash(CExpression *expr)
+{
+	GPOS_CHECK_STACK_SIZE;
+	ULONG hash = expr->Pop()->HashValue();
+	if (nullptr != expr->Pgexpr())
+	{
+		const ULONG group_id = expr->Pgexpr()->Pgroup()->Id();
+		return CombineHashes(hash, gpos::HashValue<ULONG>(&group_id));
+	}
+	for (ULONG child = 0; child < expr->Arity(); ++child)
+	{
+		hash = CombineHashes(hash, UlDPHyperCostExprHash((*expr)[child]));
+	}
+	return hash;
+}
+
+BOOL
+FDPHyperCostExprMatches(CExpression *left, CExpression *right)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (!left->Pop()->Matches(right->Pop()) || left->Arity() != right->Arity())
+	{
+		return false;
+	}
+	if (nullptr != left->Pgexpr() || nullptr != right->Pgexpr())
+	{
+		return nullptr != left->Pgexpr() && nullptr != right->Pgexpr() &&
+			   left->Pgexpr()->Pgroup() == right->Pgexpr()->Pgroup();
+	}
+	for (ULONG child = 0; child < left->Arity(); ++child)
+	{
+		if (!FDPHyperCostExprMatches((*left)[child], (*right)[child]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+BOOL
+FDPHyperCostStatsCurrent(CExpression *expr)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (nullptr != expr->Pgexpr())
+	{
+		CGroup *group = expr->Pgexpr()->Pgroup();
+		return group->FScalar() ||
+			   (nullptr != expr->Pstats() && expr->Pstats() == group->Pstats());
+	}
+	for (ULONG child = 0; child < expr->Arity(); ++child)
+	{
+		if (!FDPHyperCostStatsCurrent((*expr)[child]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+}  // namespace
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CEngine::CEngine
@@ -124,6 +207,13 @@ CEngine::~CEngine()
 	{
 		GPOS_DELETE(entry.second);
 	}
+	for (const auto &bucket : m_dphyper_cost_stats)
+	{
+		for (CDPHyperCostStatsEntry *entry : bucket.second)
+		{
+			GPOS_DELETE(entry);
+		}
+	}
 	GPOS_DELETE(m_pmemo);
 	CRefCount::SafeRelease(m_xforms);
 	m_pdrgpulpXformCalls->Release();
@@ -162,6 +252,46 @@ CEngine::FRegisterDPHyperFingerprint(
 	}
 	m_dphyper_fingerprints.emplace_back(owner, fingerprint);
 	return true;
+}
+
+CExpression *
+CEngine::PexprLookupDPHyperCostStats(CExpression *expr) const
+{
+	GPOS_ASSERT(nullptr != expr);
+	const ULONG hash = UlDPHyperCostExprHash(expr);
+	auto bucket = m_dphyper_cost_stats.find(hash);
+	if (m_dphyper_cost_stats.end() == bucket)
+	{
+		return nullptr;
+	}
+	for (CDPHyperCostStatsEntry *entry : bucket->second)
+	{
+		if (FDPHyperCostStatsCurrent(entry->m_expr) &&
+			FDPHyperCostExprMatches(entry->m_expr, expr))
+		{
+			entry->m_expr->AddRef();
+			return entry->m_expr;
+		}
+	}
+	return nullptr;
+}
+
+void
+CEngine::RegisterDPHyperCostStats(CExpression *expr)
+{
+	GPOS_ASSERT(nullptr != expr);
+	const ULONG hash = UlDPHyperCostExprHash(expr);
+	std::vector<CDPHyperCostStatsEntry *> &bucket =
+		m_dphyper_cost_stats[hash];
+	for (CDPHyperCostStatsEntry *entry : bucket)
+	{
+		if (FDPHyperCostStatsCurrent(entry->m_expr) &&
+			FDPHyperCostExprMatches(entry->m_expr, expr))
+		{
+			return;
+		}
+	}
+	bucket.push_back(GPOS_NEW(m_mp) CDPHyperCostStatsEntry(expr));
 }
 
 

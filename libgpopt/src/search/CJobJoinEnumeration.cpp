@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "gpos/common/CAutoRef.h"
+#include "gpos/common/CWallClock.h"
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COptCtxt.h"
@@ -215,8 +216,19 @@ class CDPHyperJoinCostCache
 
 	CMemoryPool *m_mp;
 	CDPHyperJoinRegion *m_region;
+	CEngine *m_engine;
 	std::unordered_map<ULONG, std::vector<SEntry *>> m_buckets;
 	std::vector<SEntry *> m_entries;
+	ULONG m_cost_calls = 0;
+	ULONG m_cost_failures = 0;
+	ULONG m_output_hits = 0;
+	ULONG m_output_misses = 0;
+	ULONG m_stats_derivations = 0;
+	ULONG m_stats_derivation_us = 0;
+	ULONG m_predicate_build_us = 0;
+	ULONG m_join_build_us = 0;
+	ULONG m_exact_stats_hits = 0;
+	ULONG m_exact_stats_misses = 0;
 
 	SEntry *
 	Lookup(const CBitSet *nodes) const
@@ -237,14 +249,17 @@ class CDPHyperJoinCostCache
 	}
 
 	void
-	DeriveStats(CExpression *expr) const
+	DeriveStats(CExpression *expr)
 	{
 		if (nullptr == expr->Pstats())
 		{
+			CWallClock clock(true);
 			CExpressionHandle exprhdl(m_mp);
 			exprhdl.Attach(expr);
 			exprhdl.DeriveStats(m_mp, m_mp, nullptr /*prprel*/,
 								nullptr /*stats context*/);
+			m_stats_derivations++;
+			m_stats_derivation_us += clock.ElapsedUS();
 		}
 		GPOS_ASSERT(nullptr != expr->Pstats());
 	}
@@ -259,8 +274,9 @@ class CDPHyperJoinCostCache
 	}
 
 public:
-	CDPHyperJoinCostCache(CMemoryPool *mp, CDPHyperJoinRegion *region)
-		: m_mp(mp), m_region(region)
+	CDPHyperJoinCostCache(CMemoryPool *mp, CDPHyperJoinRegion *region,
+						   CEngine *engine)
+		: m_mp(mp), m_region(region), m_engine(engine)
 	{
 		for (ULONG node = 0; node < region->NodeCount(); ++node)
 		{
@@ -286,16 +302,19 @@ public:
 	Cost(const CBitSet *left, const CBitSet *right, DOUBLE *cost)
 	{
 		GPOS_ASSERT(nullptr != cost && left->IsDisjoint(right));
+		m_cost_calls++;
 		SEntry *left_entry = Lookup(left);
 		SEntry *right_entry = Lookup(right);
 		if (nullptr == left_entry || nullptr == right_entry)
 		{
+			m_cost_failures++;
 			return false;
 		}
 
 		CDPHyperJoinRegion::SJoinRequest request{};
 		if (!m_region->FBuildJoinRequest(left, right, &request))
 		{
+			m_cost_failures++;
 			return false;
 		}
 		CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
@@ -303,24 +322,46 @@ public:
 		SEntry *output = Lookup(joined.Value());
 		if (nullptr == output)
 		{
+			m_output_misses++;
+			CWallClock build_clock(true);
 			CExpression *predicate = request.m_edge_ids.empty()
 								 ? m_region->PexprPredicate(left, right, false)
 								 : m_region->PexprPredicate(request);
+			m_predicate_build_us += build_clock.ElapsedUS();
 			CExpression *left_expr = left_entry->m_expr;
 			CExpression *right_expr = right_entry->m_expr;
 			if (request.m_swapped)
 			{
 				std::swap(left_expr, right_expr);
 			}
+			build_clock.Restart();
 			CExpression *join = PexprJoinForCost(
 				m_mp, request.m_join_type, left_expr, right_expr, predicate);
+			m_join_build_us += build_clock.ElapsedUS();
 			if (nullptr == join)
 			{
+				m_cost_failures++;
 				return false;
 			}
-			DeriveStats(join);
+			CExpression *cached = m_engine->PexprLookupDPHyperCostStats(join);
+			if (nullptr != cached)
+			{
+				join->Release();
+				join = cached;
+				m_exact_stats_hits++;
+			}
+			else
+			{
+				DeriveStats(join);
+				m_engine->RegisterDPHyperCostStats(join);
+				m_exact_stats_misses++;
+			}
 			output = Record(joined.Value(), join,
 							join->Pstats()->Rows().Get(), 0.0);
+		}
+		else
+		{
+			m_output_hits++;
 		}
 
 		const DOUBLE input_rows = left_entry->m_rows + right_entry->m_rows;
@@ -338,6 +379,18 @@ public:
 		*cost = total;
 		return true;
 	}
+
+	ULONG CostCalls() const { return m_cost_calls; }
+	ULONG CostFailures() const { return m_cost_failures; }
+	ULONG OutputHits() const { return m_output_hits; }
+	ULONG OutputMisses() const { return m_output_misses; }
+	ULONG StatsDerivations() const { return m_stats_derivations; }
+	ULONG StatsDerivationUS() const { return m_stats_derivation_us; }
+	ULONG PredicateBuildUS() const { return m_predicate_build_us; }
+	ULONG JoinBuildUS() const { return m_join_build_us; }
+	ULONG ExactStatsHits() const { return m_exact_stats_hits; }
+	ULONG ExactStatsMisses() const { return m_exact_stats_misses; }
+	ULONG EntryCount() const { return static_cast<ULONG>(m_entries.size()); }
 };
 
 CGroupExpression *
@@ -855,10 +908,21 @@ CJobJoinEnumeration::FEnumerateRegion(
 	ULONG simplifier_init_us = 0;
 	ULONG simplifier_search_us = 0;
 	ULONG simplified_enumeration_us = 0;
+	ULONG cost_cache_calls = 0;
+	ULONG cost_cache_failures = 0;
+	ULONG cost_cache_hits = 0;
+	ULONG cost_cache_misses = 0;
+	ULONG cost_cache_entries = 0;
+	ULONG cost_cache_stats_derivations = 0;
+	ULONG cost_cache_stats_us = 0;
+	ULONG cost_cache_predicate_us = 0;
+	ULONG cost_cache_join_us = 0;
+	ULONG cost_cache_exact_stats_hits = 0;
+	ULONG cost_cache_exact_stats_misses = 0;
 	if (!exhaustive_complete && budget_exhausted)
 	{
 		enumeration_detail_clock.Restart();
-		CDPHyperJoinCostCache cost_cache(mp, region);
+		CDPHyperJoinCostCache cost_cache(mp, region, engine);
 		CDPHyperGraphSimplifier simplifier(
 			mp, region->MutableGraph(), hint->UlDPHyperPairBudget(), pair_filter,
 			[region](ULONG edge_id) {
@@ -884,9 +948,20 @@ CJobJoinEnumeration::FEnumerateRegion(
 			if (!graph_simplified)
 			{
 				simplifier.Restore();
-				simplification_steps = 0;
+				 simplification_steps = 0;
 			}
 		}
+		cost_cache_calls = cost_cache.CostCalls();
+		cost_cache_failures = cost_cache.CostFailures();
+		cost_cache_hits = cost_cache.OutputHits();
+		cost_cache_misses = cost_cache.OutputMisses();
+		cost_cache_entries = cost_cache.EntryCount();
+		cost_cache_stats_derivations = cost_cache.StatsDerivations();
+		cost_cache_stats_us = cost_cache.StatsDerivationUS();
+		cost_cache_predicate_us = cost_cache.PredicateBuildUS();
+		cost_cache_join_us = cost_cache.JoinBuildUS();
+		cost_cache_exact_stats_hits = cost_cache.ExactStatsHits();
+		cost_cache_exact_stats_misses = cost_cache.ExactStatsMisses();
 	}
 	CDPHyperPlan skeleton_plan(mp, node_count - 1);
 	const BOOL skeleton_simplified =
@@ -1056,7 +1131,13 @@ CJobJoinEnumeration::FEnumerateRegion(
 			"attempted_pairs=%d simplification_steps=%d build_us=%d "
 			"fingerprint_us=%d enumeration_us=%d registration_us=%d "
 			"materialization_us=%d exhaustive_us=%d simplifier_init_us=%d "
-			"simplifier_search_us=%d simplified_enumeration_us=%d mode=%s",
+			"simplifier_search_us=%d simplified_enumeration_us=%d "
+			"cost_cache_calls=%d cost_cache_failures=%d cost_cache_hits=%d "
+			"cost_cache_misses=%d cost_cache_entries=%d "
+			"cost_cache_stats_derivations=%d cost_cache_stats_us=%d "
+			"cost_cache_predicate_us=%d cost_cache_join_us=%d "
+			"cost_cache_exact_stats_hits=%d "
+			"cost_cache_exact_stats_misses=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
 			dependency_count, plan->PairCount(), plan->SeenCount(), fingerprint_hash,
@@ -1068,7 +1149,11 @@ CJobJoinEnumeration::FEnumerateRegion(
 			simplification_steps, build_us, fingerprint_us, enumeration_us,
 			registration_us, materialization_us, exhaustive_us,
 			simplifier_init_us, simplifier_search_us,
-			simplified_enumeration_us,
+			simplified_enumeration_us, cost_cache_calls,
+			cost_cache_failures, cost_cache_hits, cost_cache_misses,
+			cost_cache_entries, cost_cache_stats_derivations,
+			cost_cache_stats_us, cost_cache_predicate_us, cost_cache_join_us,
+			cost_cache_exact_stats_hits, cost_cache_exact_stats_misses,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);

@@ -509,7 +509,12 @@ CDPHyperGraphSimplifier::Simplify()
 			lower = middle + 1;
 		}
 	}
-	if (!ApplySteps(upper) || EnumerationExceedsBudget())
+	// Binary search only lowers upper after probing a complete enumeration at
+	// that step count, so the converged upper bound is already known to fit the
+	// budget. Reapplying it restores the selected graph; probing it again would
+	// repeat the same DPHyper enumeration immediately before the caller performs
+	// the final materializing enumeration.
+	if (!ApplySteps(upper))
 	{
 		(void) ApplySteps(0);
 		return false;
