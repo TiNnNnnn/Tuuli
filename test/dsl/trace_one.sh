@@ -12,9 +12,21 @@ QUERY_FILE=$3
 OUTPUT_LOG=$4
 PG_CONFIG=${PG_CONFIG:-$(command -v pg_config || true)}
 PORT=${DSL_TRACE_PORT:-55440}
-TRACE_XFORMS=off
+TRACE_DETAILS=off
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
-    TRACE_XFORMS=on
+    TRACE_DETAILS=on
+fi
+case ${DSL_TRACE_XFORMS:-0} in
+    1|on) TRACE_XFORMS=on ;;
+    0|off) TRACE_XFORMS=off ;;
+    *)
+        echo "DSL trace failed: DSL_TRACE_XFORMS must be 0, 1, off, or on" >&2
+        exit 1
+        ;;
+esac
+TRACE_RESULTS=$TRACE_DETAILS
+if [[ "$TRACE_XFORMS" = on ]]; then
+    TRACE_RESULTS=on
 fi
 MAX_ALTERNATIVES=${DSL_TRACE_MAX_ALTERNATIVES:-0}
 MAX_ALTERNATIVES_PER_RULE=${DSL_TRACE_MAX_ALTERNATIVES_PER_RULE:-0}
@@ -78,7 +90,7 @@ PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d pos
     echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"
     echo "SET pg_orca.trace_dsl_rule=on;"
     echo "SET optimizer_print_xform=$TRACE_XFORMS;"
-    echo "SET optimizer_print_xform_results=$TRACE_XFORMS;"
+    echo "SET optimizer_print_xform_results=$TRACE_RESULTS;"
     echo "SET client_min_messages=log;"
     echo "EXPLAIN (COSTS OFF)"
     cat "$QUERY_FILE"

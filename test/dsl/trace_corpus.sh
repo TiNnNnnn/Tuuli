@@ -21,9 +21,21 @@ DPHYPER_ENABLED=${DSL_TRACE_DPHYPER_ENABLED:-off}
 DPHYPER_SHADOW=${DSL_TRACE_DPHYPER_SHADOW:-on}
 DPHYPER_PAIR_BUDGET=${DSL_TRACE_DPHYPER_PAIR_BUDGET:-100}
 DPHYPER_EDGE_BUDGET=${DSL_TRACE_DPHYPER_EDGE_BUDGET:-100000}
-TRACE_XFORMS=off
+TRACE_DETAILS=off
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
-    TRACE_XFORMS=on
+    TRACE_DETAILS=on
+fi
+case ${DSL_TRACE_XFORMS:-0} in
+    1|on) TRACE_XFORMS=on ;;
+    0|off) TRACE_XFORMS=off ;;
+    *)
+        echo "DSL corpus trace failed: DSL_TRACE_XFORMS must be 0, 1, off, or on" >&2
+        exit 1
+        ;;
+esac
+TRACE_RESULTS=$TRACE_DETAILS
+if [[ "$TRACE_XFORMS" = on ]]; then
+    TRACE_RESULTS=on
 fi
 
 fail()
@@ -116,7 +128,7 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         echo "SET pg_orca.dsl_rule_max_alternatives=$MAX_ALTERNATIVES;"
         echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"
         echo "SET optimizer_print_xform=$TRACE_XFORMS;"
-        echo "SET optimizer_print_xform_results=$TRACE_XFORMS;"
+        echo "SET optimizer_print_xform_results=$TRACE_RESULTS;"
         echo "SET client_min_messages=log;"
         echo "SET statement_timeout='${STATEMENT_TIMEOUT}ms';"
         echo "SET optimizer_enable_query_parameter=on;"

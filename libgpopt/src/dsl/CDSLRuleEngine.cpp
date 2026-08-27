@@ -424,8 +424,15 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			ulRuleId, (ULONG) edsltrace,
 			nullptr == pmodel ? 0 : pmodel->Size());
 	}
-	if (!fVerbose && nullptr != poctxt &&
-		!poctxt->FMarkDSLTraceEvent(ulRuleId, (ULONG) edsltrace))
+	// Keep machine trace cardinality identical in compact and verbose modes.
+	// Reprinting every Cascades attempt can fill the task's fixed trace buffer
+	// before ProcessTraceFlags() emits the authoritative rule summaries. Verbose
+	// mode enriches the first rule/stage event; full native xform flooding is a
+	// separate, explicitly diagnostic runner option.
+	const BOOL fFirstEvent =
+		nullptr == poctxt ||
+		poctxt->FMarkDSLTraceEvent(ulRuleId, (ULONG) edsltrace);
+	if (!fFirstEvent)
 	{
 		return;
 	}

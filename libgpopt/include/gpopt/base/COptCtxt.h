@@ -170,8 +170,8 @@ private:
 	SPartSelectorInfo *m_part_selector_info;
 
 	// Compact DSL trace events already emitted in this optimization. The key is
-	// rule_id * 5 + stage, so repeated Cascades attempts do not exhaust the trace
-	// buffer. Verbose tracing bypasses this set.
+	// rule_id * 7 + stage, so repeated Cascades attempts do not exhaust the trace
+	// buffer. Verbose tracing enriches the first event without bypassing this set.
 	CBitSet *m_dsl_trace_events;
 
 	// Uncompacted per-rule counters used to explain search-space growth.
