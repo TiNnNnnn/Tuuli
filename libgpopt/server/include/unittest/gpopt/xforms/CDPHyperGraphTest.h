@@ -18,6 +18,9 @@ public:
 	static GPOS_RESULT EresUnittest_Chain();
 	static GPOS_RESULT EresUnittest_Star();
 	static GPOS_RESULT EresUnittest_Hyperedge();
+	static GPOS_RESULT EresUnittest_PaperHypergraph();
+	static GPOS_RESULT EresUnittest_HyperedgeLoop();
+	static GPOS_RESULT EresUnittest_ReceiverAbort();
 	static GPOS_RESULT EresUnittest_Disconnected();
 	static GPOS_RESULT EresUnittest_DynamicBitset();
 	static GPOS_RESULT EresUnittest_ExhaustiveSimpleGraphs();

@@ -181,6 +181,53 @@ public:
 	}
 };
 
+// Horn's enumerator uses receiver=true as a hard stop (for both errors and
+// pair budgets). Keep this separate from CDPHyperPlan so the traversal itself
+// cannot accidentally continue after its first reported pair.
+class CAbortReceiver : public IDPHyperReceiver
+{
+private:
+	BOOL m_saw_node_zero = false;
+	ULONG m_pair_count = 0;
+
+public:
+	BOOL
+	FoundSingleNode(ULONG node_id) override
+	{
+		m_saw_node_zero = m_saw_node_zero || 0 == node_id;
+		return false;
+	}
+
+	BOOL
+	HasSeen(const CBitSet *) const override
+	{
+		return false;
+	}
+
+	BOOL
+	FoundSubgraphPair(const CBitSet *left, const CBitSet *right,
+					   ULONG edge_id) override
+	{
+		++m_pair_count;
+		GPOS_UNITTEST_ASSERT(1 == left->Size() && left->Get(1));
+		GPOS_UNITTEST_ASSERT(1 == right->Size() && right->Get(2));
+		GPOS_UNITTEST_ASSERT(1 == edge_id);
+		return true;
+	}
+
+	BOOL
+	SawNodeZero() const
+	{
+		return m_saw_node_zero;
+	}
+
+	ULONG
+	PairCount() const
+	{
+		return m_pair_count;
+	}
+};
+
 CBitSet *
 Pbs(CMemoryPool *mp, std::initializer_list<ULONG> nodes)
 {
@@ -416,6 +463,10 @@ CDPHyperGraphTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Chain),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Star),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Hyperedge),
+		GPOS_UNITTEST_FUNC(
+			CDPHyperGraphTest::EresUnittest_PaperHypergraph),
+		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_HyperedgeLoop),
+		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_ReceiverAbort),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Disconnected),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_DynamicBitset),
 		GPOS_UNITTEST_FUNC(
@@ -493,6 +544,74 @@ CDPHyperGraphTest::EresUnittest_Hyperedge()
 	GPOS_UNITTEST_ASSERT(FSeen(mp, receiver, {0, 1, 2}));
 	GPOS_UNITTEST_ASSERT(!FSeen(mp, receiver, {0, 2}));
 	GPOS_UNITTEST_ASSERT(!FSeen(mp, receiver, {1, 2}));
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_PaperHypergraph()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDPHyperGraph graph(mp, 6);
+	AddSimpleEdge(mp, &graph, 0, 1, 0);
+	AddSimpleEdge(mp, &graph, 1, 2, 1);
+	AddSimpleEdge(mp, &graph, 3, 4, 2);
+	AddSimpleEdge(mp, &graph, 4, 5, 3);
+	CAutoRef<CBitSet> left(Pbs(mp, {0, 1, 2}));
+	CAutoRef<CBitSet> right(Pbs(mp, {3, 4, 5}));
+	graph.AddEdge(left.Value(), right.Value(), 4);
+
+	CRecordingReceiver receiver(mp);
+	CDPHyperEnumerator enumerator(mp, &graph, &receiver);
+	GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(13 == receiver.SeenCount());
+	GPOS_UNITTEST_ASSERT(FSeen(mp, receiver, {0, 1, 2, 3, 4, 5}));
+	GPOS_UNITTEST_ASSERT(receiver.HasPair(0x07, 0x38));
+	// Neither endpoint of a generalized edge is available piecemeal.
+	GPOS_UNITTEST_ASSERT(!FSeen(mp, receiver, {0, 1, 2, 3, 4}));
+	GPOS_UNITTEST_ASSERT(!receiver.HasPair(0x07, 0x08));
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_HyperedgeLoop()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDPHyperGraph graph(mp, 5);
+	CAutoRef<CBitSet> node0(Pbs(mp, {0}));
+	CAutoRef<CBitSet> nodes14(Pbs(mp, {1, 4}));
+	graph.AddEdge(node0.Value(), nodes14.Value(), 0);
+	AddSimpleEdge(mp, &graph, 1, 2, 1);
+	AddSimpleEdge(mp, &graph, 2, 3, 2);
+	AddSimpleEdge(mp, &graph, 3, 4, 3);
+
+	CRecordingReceiver receiver(mp);
+	CDPHyperEnumerator enumerator(mp, &graph, &receiver);
+	GPOS_UNITTEST_ASSERT(!enumerator.Enumerate());
+	// The representative of {1,4} is node 1. The full-neighborhood state must
+	// still retain node 4 while the complement grows around the loop.
+	GPOS_UNITTEST_ASSERT(FSeen(mp, receiver, {0, 1, 2, 3, 4}));
+	GPOS_UNITTEST_ASSERT(receiver.HasPair(0x01, 0x1e));
+	GPOS_UNITTEST_ASSERT(!FSeen(mp, receiver, {0, 1}));
+	GPOS_UNITTEST_ASSERT(!FSeen(mp, receiver, {0, 4}));
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDPHyperGraphTest::EresUnittest_ReceiverAbort()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDPHyperGraph graph(mp, 3);
+	AddSimpleEdge(mp, &graph, 0, 1, 0);
+	AddSimpleEdge(mp, &graph, 1, 2, 1);
+
+	CAbortReceiver receiver;
+	CDPHyperEnumerator enumerator(mp, &graph, &receiver);
+	GPOS_UNITTEST_ASSERT(enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(1 == receiver.PairCount());
+	GPOS_UNITTEST_ASSERT(!receiver.SawNodeZero());
 	return GPOS_OK;
 }
 
