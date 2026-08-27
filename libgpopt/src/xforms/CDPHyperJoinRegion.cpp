@@ -244,8 +244,7 @@ BOOL
 CDPHyperGraphFingerprint::Matches(
 	const CDPHyperGraphFingerprint *other) const
 {
-	if (nullptr == other || m_hash != other->m_hash ||
-		m_atoms->Size() != other->m_atoms->Size() ||
+	if (nullptr == other || m_atoms->Size() != other->m_atoms->Size() ||
 		m_edges.size() != other->m_edges.size() ||
 		m_dependencies.size() != other->m_dependencies.size() ||
 		!FUnorderedMatches(
