@@ -773,6 +773,28 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
+	CEngine *engine = psc->Peng();
+	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
+	const ULONG fingerprint_hash = fingerprint->HashValue();
+	const ULONG dependency_count =
+		nullptr == spec ? 0 : spec->DependencyCount();
+	if (engine->FHasDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
+	{
+		GPOS_DELETE(fingerprint);
+		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
+		if (GPOS_FTRACE(EopttracePrintXformResults))
+		{
+			GPOS_TRACE_FORMAT(
+				"DPHyper: status=reused group=%d root=%s nodes=%d "
+				"dependencies=%d fingerprint=%u mode=%s",
+				m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
+				dependency_count, fingerprint_hash,
+				GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow"
+													 : "replacement");
+		}
+		return true;
+	}
+
 	CDPHyperPlan::PairFilter pair_filter =
 		[region](const CBitSet *left, const CBitSet *right, ULONG edge_id) {
 			if (!region->FPairApplicable(left, right, edge_id))
@@ -788,8 +810,6 @@ CJobJoinEnumeration::FEnumerateRegion(
 	const BOOL exhaustive_complete = exhaustive_plan.Complete(node_count);
 	const BOOL budget_exhausted = exhaustive_plan.BudgetExhausted();
 	const ULONG attempted_pairs = exhaustive_plan.PairCount();
-	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
-	const ULONG fingerprint_hash = fingerprint->HashValue();
 
 	CDPHyperPlan graph_plan(mp, hint->UlDPHyperPairBudget(), pair_filter);
 	BOOL graph_simplified = false;
@@ -854,9 +874,6 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
-	CEngine *engine = psc->Peng();
-	const ULONG dependency_count =
-		nullptr == spec ? 0 : spec->DependencyCount();
 	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
 	{
 		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);

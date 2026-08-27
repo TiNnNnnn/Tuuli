@@ -256,7 +256,13 @@ public:
 	// Consume a fingerprint and return true only for the first exact graph in
 	// this Memo equivalence group.
 	BOOL FRegisterDPHyperFingerprint(CGroup *owner,
-								 CDPHyperGraphFingerprint *fingerprint);
+									 CDPHyperGraphFingerprint *fingerprint);
+
+	// Return true when an exact graph has already completed DPHyper in this
+	// Memo equivalence group. This read-only probe lets callers avoid repeating
+	// enumeration while retaining atomic registration after successful work.
+	BOOL FHasDPHyperFingerprint(
+		CGroup *owner, const CDPHyperGraphFingerprint *fingerprint) const;
 
 	// add enforcers to the memo
 	void AddEnforcers(CGroupExpression *pgexprChild,

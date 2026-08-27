@@ -135,8 +135,8 @@ CEngine::~CEngine()
 }
 
 BOOL
-CEngine::FRegisterDPHyperFingerprint(
-	CGroup *owner, CDPHyperGraphFingerprint *fingerprint)
+CEngine::FHasDPHyperFingerprint(
+	CGroup *owner, const CDPHyperGraphFingerprint *fingerprint) const
 {
 	GPOS_ASSERT(nullptr != owner && nullptr != fingerprint);
 	for (const auto &entry : m_dphyper_fingerprints)
@@ -144,9 +144,21 @@ CEngine::FRegisterDPHyperFingerprint(
 		if (CGroup::FDuplicateGroups(owner, entry.first) &&
 			fingerprint->Matches(entry.second))
 		{
-			GPOS_DELETE(fingerprint);
-			return false;
+			return true;
 		}
+	}
+	return false;
+}
+
+BOOL
+CEngine::FRegisterDPHyperFingerprint(
+	CGroup *owner, CDPHyperGraphFingerprint *fingerprint)
+{
+	GPOS_ASSERT(nullptr != owner && nullptr != fingerprint);
+	if (FHasDPHyperFingerprint(owner, fingerprint))
+	{
+		GPOS_DELETE(fingerprint);
+		return false;
 	}
 	m_dphyper_fingerprints.emplace_back(owner, fingerprint);
 	return true;
