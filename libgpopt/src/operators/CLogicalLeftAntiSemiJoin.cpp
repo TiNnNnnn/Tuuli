@@ -70,7 +70,7 @@ CLogicalLeftAntiSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
-	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	if (CXform::ExfDPHyperJoinRegion != OriginXform())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfAntiSemiJoinAntiSemiJoinSwap);
 		(void) xform_set->ExchangeSet(
@@ -86,7 +86,7 @@ CLogicalLeftAntiSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfSemiJoin2IndexGetApply);
 	if (FDPHyperRegionRoot())
 	{
-		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);
 	}
 	return xform_set;
 }

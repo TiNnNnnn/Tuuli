@@ -14,7 +14,6 @@
 #include "gpos/base.h"
 
 #include "gpopt/operators/CLogicalInnerJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -194,8 +193,6 @@ CXformSubqJoin2Apply::PexprSubqueryPushDown(CMemoryPool *mp, CExpression *pexpr,
 	const ULONG arity = pexprJoin->Arity();
 	CExpression *pexprScalar = (*pexpr)[1];
 	CExpression *join_pred_expr = (*pexprJoin)[arity - 1];
-	CLogicalNAryJoin *naryLOJOp =
-		CLogicalNAryJoin::PopConvertNAryLOJ(pexprJoin->Pop());
 
 	// collect output columns of all logical children
 	CColRefSetArray *pdrgpcrs = GPOS_NEW(mp) CColRefSetArray(mp);
@@ -205,20 +202,8 @@ CXformSubqJoin2Apply::PexprSubqueryPushDown(CMemoryPool *mp, CExpression *pexpr,
 		CExpression *pexprChild = (*pexprJoin)[ul];
 		CColRefSet *pcrsOutput = nullptr;
 
-		if ((nullptr == naryLOJOp || naryLOJOp->IsInnerJoinChild(ul)))
-		{
-			// inner join child
-			pcrsOutput = pexprChild->DeriveOutputColumns();
-			pcrsOutput->AddRef();
-		}
-		else
-		{
-			// use an empty set for right children of LOJs, because we don't want to
-			// push any subqueries down to those children (note that non-correlated
-			// subqueries will be pushed to the leftmost child, which is never the
-			// right child of an LOJ)
-			pcrsOutput = GPOS_NEW(mp) CColRefSet(mp);
-		}
+		pcrsOutput = pexprChild->DeriveOutputColumns();
+		pcrsOutput->AddRef();
 		pdrgpcrs->Append(pcrsOutput);
 
 		pdrgpdrgpexprSubqs->Append(GPOS_NEW(mp) CExpressionArray(mp));

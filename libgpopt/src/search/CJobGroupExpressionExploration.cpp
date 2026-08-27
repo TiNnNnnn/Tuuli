@@ -148,7 +148,7 @@ FScheduleDPHyperBeforeChildren(CSchedulerContext *psc,
 			->PxfsCandidates(psc->GetGlobalMemoryPool()));
 	candidates->Intersection(CXformFactory::Pxff()->PxfsExploration());
 	candidates->Intersection(psc->Peng()->PxfsCurrentStage());
-	if (!candidates->Get(CXform::ExfExpandNAryJoinDPHyper))
+	if (!candidates->Get(CXform::ExfDPHyperJoinRegion))
 	{
 		// The stage or xform-disable policy declined ownership. Marked joins
 		// retain all native join rewrites because no success status is published.
@@ -326,15 +326,14 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 	{
 		ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
 	}
-	if (xform_set->Get(CXform::ExfExpandNAryJoinDPHyper))
+	if (xform_set->Get(CXform::ExfDPHyperJoinRegion))
 	{
 		GPOS_ASSERT(nullptr != dynamic_cast<CLogicalJoin *>(pop));
-		GPOS_ASSERT(COperator::EopLogicalNAryJoin != pop->Eopid());
 		// DPHyper is a whole-region job, not a binding-at-a-time xform. Remove
 		// its marker from normal scheduling while preserving search-stage and
 		// xform-disable control through the candidate-set intersections above.
 		(void) xform_set->ExchangeClear(
-			CXform::ExfExpandNAryJoinDPHyper);
+			CXform::ExfDPHyperJoinRegion);
 		if (CGroupExpression::EdphUnrequested ==
 			m_pgexpr->DPHyperStatus())
 		{

@@ -1199,10 +1199,10 @@ CGroupExpression::OsPrintCostContexts(IOstream &os, const CHAR *szPrefix) const
 // Such Group Expression can be ignored for deriving stats and implementation.
 // Group 4 (#GExprs: 5):
 // 0: CLogicalSelect [ 0 3 ]
-// 1: CLogicalNAryJoin [ 6 7 8 ] Origin: (xform: CXformInlineCTEConsumerUnderSelect, Grp: 4, GrpExpr: 0)
+// 1: CLogicalInnerJoin [ 6 7 8 ] Origin: (xform: CXformInlineCTEConsumerUnderSelect, Grp: 4, GrpExpr: 0)
 // 2: CLogicalCTEConsumer (0), Columns: ["a" (18), "b" (19), "a" (20), "b" (21)] [ ]
-// 3: CLogicalNAryJoin [ 6 7 3 ] Origin: (xform: CXformInlineCTEConsumer, Grp: 4, GrpExpr: 2)
-// 4: CLogicalInnerJoin [ 6 7 3 ] Origin: (xform: CXformExpandNAryJoinGreedy, Grp: 4, GrpExpr: 3)
+// 3: CLogicalInnerJoin [ 6 7 3 ] Origin: (xform: CXformInlineCTEConsumer, Grp: 4, GrpExpr: 2)
+// 4: CLogicalInnerJoin [ 6 7 3 ] Origin: (xform: CXformDPHyperJoinRegion, Grp: 4, GrpExpr: 3)
 //
 // Group 0 (#GExprs: 0, Duplicate Group: 4):
 //
@@ -1214,7 +1214,7 @@ CGroupExpression::OsPrintCostContexts(IOstream &os, const CHAR *szPrefix) const
 // Group 0 (#GExprs: 3, Duplicate Group: 12):
 //  0: CLogicalCTEConsumer (1), Columns: ["a" (98), "b" (99), "c" (100)] [ ]
 //  1: CLogicalSelect [ 12 3 ]
-//  2: CLogicalNAryJoin [ 13 14 15 ]
+//  2: CLogicalInnerJoin [ 13 14 15 ]
 BOOL
 CGroupExpression::ContainsCircularDependencies()
 {

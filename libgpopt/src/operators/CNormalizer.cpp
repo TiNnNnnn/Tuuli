@@ -22,13 +22,11 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarNAryJoinPredList.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
@@ -858,15 +856,12 @@ CNormalizer::PushThruJoin(CMemoryPool *mp, CExpression *pexprJoin,
 	GPOS_ASSERT(nullptr != ppexprResult);
 
 	COperator *pop = pexprJoin->Pop();
-	CLogicalNAryJoin *popNAryJoin = CLogicalNAryJoin::PopConvert(pop);
 	const ULONG arity = pexprJoin->Arity();
 	BOOL fLASApply = CUtils::FLeftAntiSemiApply(pop);
 	COperator::EOperatorId op_id = pop->Eopid();
 	BOOL fOuterJoin = COperator::EopLogicalLeftOuterJoin == op_id ||
 					  COperator::EopLogicalLeftOuterApply == op_id ||
 					  COperator::EopLogicalLeftOuterCorrelatedApply == op_id;
-	BOOL fMixedInnerOuterJoin =
-		(popNAryJoin && popNAryJoin->HasOuterJoinChildren());
 
 	if (fOuterJoin && !CUtils::FScalarConstTrue(pexprConj))
 	{
@@ -877,34 +872,8 @@ CNormalizer::PushThruJoin(CMemoryPool *mp, CExpression *pexprJoin,
 		return;
 	}
 
-	// if we have an nary join with only inner joins and a false scalar condition,
-	// simplify the expression to a constant false. Trying to normalize this would
-	// improperly cause the scalar condition to be pulled into one of the predicates,
-	// and leave the condition as a const false
-	if (popNAryJoin && !fMixedInnerOuterJoin &&
-		CUtils::FScalarConstFalse(pexprConj))
-	{
-		COperator *popCTG = GPOS_NEW(mp) CLogicalConstTableGet(
-			mp, pexprJoin->DeriveOutputColumns()->Pdrgpcr(mp),
-			GPOS_NEW(mp) IDatum2dArray(mp));
-		*ppexprResult = GPOS_NEW(mp) CExpression(mp, popCTG);
-
-		return;
-	}
-
 	// combine conjunct with join predicate
 	CExpression *pexprScalar = (*pexprJoin)[arity - 1];
-	if (fMixedInnerOuterJoin)
-	{
-		GPOS_ASSERT(COperator::EopScalarNAryJoinPredList ==
-					pexprScalar->Pop()->Eopid());
-		pexprScalar = (*pexprScalar)[0];
-
-		if (COperator::EopScalarNAryJoinPredList == pexprConj->Pop()->Eopid())
-		{
-			pexprConj = (*pexprConj)[0];
-		}
-	}
 	CExpression *pexprPred =
 		CPredicateUtils::PexprConjunction(mp, pexprScalar, pexprConj);
 
@@ -938,15 +907,6 @@ CNormalizer::PushThruJoin(CMemoryPool *mp, CExpression *pexprJoin,
 			continue;
 		}
 
-		if (fMixedInnerOuterJoin && !popNAryJoin->IsInnerJoinChild(ul))
-		{
-			// this is similar to what PushThruOuterChild does, only push the
-			// preds to those children that are using an inner join
-			pexprNewChild = PexprNormalize(mp, pexprChild);
-			pdrgpexprChildren->Append(pexprNewChild);
-			continue;
-		}
-
 		CExpressionArray *pdrgpexprRemaining = nullptr;
 		PushThru(mp, pexprChild, pdrgpexprConjuncts, &pexprNewChild,
 				 &pdrgpexprRemaining);
@@ -959,29 +919,7 @@ CNormalizer::PushThruJoin(CMemoryPool *mp, CExpression *pexprJoin,
 	// remaining conjuncts become the new join predicate
 	CExpression *pexprNewScalar =
 		CPredicateUtils::PexprConjunction(mp, pdrgpexprConjuncts);
-	if (fMixedInnerOuterJoin)
-	{
-		CExpressionArray *naryJoinPredicates =
-			GPOS_NEW(mp) CExpressionArray(mp);
-		naryJoinPredicates->Append(pexprNewScalar);
-		CExpression *pexprScalar = (*pexprJoin)[arity - 1];
-		ULONG scalar_arity = pexprScalar->Arity();
-
-		for (ULONG count = 1; count < scalar_arity; count++)
-		{
-			CExpression *pexprChild = (*pexprScalar)[count];
-			pexprChild->AddRef();
-			naryJoinPredicates->Append(pexprChild);
-		}
-
-		CExpression *nAryJoinPredicateList = GPOS_NEW(mp) CExpression(
-			mp, GPOS_NEW(mp) CScalarNAryJoinPredList(mp), naryJoinPredicates);
-		pdrgpexprChildren->Append(nAryJoinPredicateList);
-	}
-	else
-	{
-		pdrgpexprChildren->Append(pexprNewScalar);
-	}
+	pdrgpexprChildren->Append(pexprNewScalar);
 
 	// create a new join expression
 	pop->AddRef();
@@ -1102,7 +1040,6 @@ CNormalizer::PushThru(CMemoryPool *mp, CExpression *pexprLogical,
 			break;
 
 		case COperator::EopLogicalInnerJoin:
-		case COperator::EopLogicalNAryJoin:
 		case COperator::EopLogicalInnerApply:
 		case COperator::EopLogicalInnerCorrelatedApply:
 		case COperator::EopLogicalLeftOuterJoin:

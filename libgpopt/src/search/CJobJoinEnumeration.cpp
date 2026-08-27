@@ -168,7 +168,7 @@ PgroupMaterializeBinaryTree(CMemoryPool *mp, CEngine *engine,
 	CExpression *materialized =
 		GPOS_NEW(mp) CExpression(mp, expr->Pop(), children);
 	CGroup *group = engine->PgroupInsert(
-		target, materialized, CXform::ExfExpandNAryJoinDPHyper, origin,
+		target, materialized, CXform::ExfDPHyperJoinRegion, origin,
 		nullptr == target /*intermediate*/);
 	materialized->Release();
 	GPOS_ASSERT(nullptr != group);
@@ -191,23 +191,23 @@ PexprJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
 		case COperator::EopLogicalInnerJoin:
 			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
 				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfExpandNAryJoinDPHyper);
+				predicate, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftOuterJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
 				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfExpandNAryJoinDPHyper);
+				predicate, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftSemiJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
 				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfExpandNAryJoinDPHyper);
+				predicate, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftAntiSemiJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
 				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfExpandNAryJoinDPHyper);
+				predicate, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalFullOuterJoin:
 			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
 				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfExpandNAryJoinDPHyper);
+				predicate, CXform::ExfDPHyperJoinRegion);
 		default:
 			GPOS_ASSERT(!"Unsupported DPHyper join type");
 			return nullptr;
@@ -226,23 +226,23 @@ PexprJoinForCost(CMemoryPool *mp, COperator::EOperatorId join_type,
 		case COperator::EopLogicalInnerJoin:
 			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
 				mp, left, right, predicate,
-				CXform::ExfExpandNAryJoinDPHyper);
+				CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftOuterJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
 				mp, left, right, predicate,
-				CXform::ExfExpandNAryJoinDPHyper);
+				CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftSemiJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
 				mp, left, right, predicate,
-				CXform::ExfExpandNAryJoinDPHyper);
+				CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftAntiSemiJoin:
 			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
 				mp, left, right, predicate,
-				CXform::ExfExpandNAryJoinDPHyper);
+				CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalFullOuterJoin:
 			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
 				mp, left, right, predicate,
-				CXform::ExfExpandNAryJoinDPHyper);
+				CXform::ExfDPHyperJoinRegion);
 		default:
 			left->Release();
 			right->Release();
@@ -1090,7 +1090,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		CExpression *join =
 			PexprJoin(mp, join_type, left_group, right_group, predicate);
 		target = engine->PgroupInsert(
-			target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
+			target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 			!full /*intermediate*/);
 		join->Release();
 		GPOS_ASSERT(nullptr != target);
@@ -1108,7 +1108,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 			join = PexprJoin(mp, join_type, right_group, left_group,
 							 reverse_predicate);
 			CGroup *reverse_target = engine->PgroupInsert(
-				target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
+				target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 				!full /*intermediate*/);
 			join->Release();
 			GPOS_ASSERT(reverse_target == target);

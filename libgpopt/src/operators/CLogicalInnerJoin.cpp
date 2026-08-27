@@ -79,7 +79,7 @@ CLogicalInnerJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowLeftUnionAll);
 	(void) xform_set->ExchangeSet(CXform::ExfPushJoinBelowRightUnionAll);
 
-	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	if (CXform::ExfDPHyperJoinRegion != OriginXform())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfInnerJoinCommutativity);
 		(void) xform_set->ExchangeSet(CXform::ExfJoinAssociativity);
@@ -95,7 +95,7 @@ CLogicalInnerJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInnerJoin);
 	if (FDPHyperRegionRoot())
 	{
-		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);
 	}
 
 	return xform_set;

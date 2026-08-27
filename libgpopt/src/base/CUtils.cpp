@@ -38,7 +38,6 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
@@ -2996,11 +2995,6 @@ CUtils::UlJoins(CExpression *pexpr)
 	if (FLogicalJoin(pop) || FPhysicalJoin(pop))
 	{
 		ulJoins = 1;
-		if (COperator::EopLogicalNAryJoin == pop->Eopid())
-		{
-			// N-Ary join is equivalent to a cascade of (Arity - 2) binary joins
-			ulJoins = pexpr->Arity() - 2;
-		}
 	}
 
 	// recursively process children
@@ -3177,8 +3171,7 @@ CUtils::FPredicate(CExpression *pexpr)
 	return pop->FScalar() &&
 		   (FScalarCmp(pexpr) || CPredicateUtils::FIDF(pexpr) ||
 			FScalarArrayCmp(pexpr) || FScalarBoolOp(pexpr) ||
-			FScalarNullTest(pexpr) ||
-			CLogical::EopScalarNAryJoinPredList == pop->Eopid());
+			FScalarNullTest(pexpr));
 }
 
 // checks that the given type has all the comparisons: Eq, NEq, L, LEq, G, GEq.
@@ -3948,10 +3941,6 @@ CUtils::PexprLogicalJoin(CMemoryPool *mp, EdxlJoinType edxljointype,
 	COperator *pop = nullptr;
 	switch (edxljointype)
 	{
-		case EdxljtInner:
-			pop = GPOS_NEW(mp) CLogicalNAryJoin(mp);
-			break;
-
 		case EdxljtLeft:
 			pop = GPOS_NEW(mp) CLogicalLeftOuterJoin(mp);
 			break;

@@ -2243,47 +2243,6 @@ CPredicateUtils::SeparateOuterRefs(CMemoryPool *mp, CExpression *pexprScalar,
 	GPOS_ASSERT(nullptr != ppexprLocal);
 	GPOS_ASSERT(nullptr != ppexprOuterRef);
 
-	if (COperator::EopScalarNAryJoinPredList == pexprScalar->Pop()->Eopid())
-	{
-		// For a ScalarNAryJoinPredList we have to preserve that operator and
-		// separate the outer refs from each of its children. This check needs
-		// to be done prior checking the disjoint between derived used columns
-		// of pexprScalar and outer_refs. The reason for this is that while
-		// deriving stats, the subquery within a CScalarNAryJoinPredList is
-		// transformed to a CScalarConst, and if the subquery contains an outer
-		// reference then that info is lost. Consequently, a CScalarConst will
-		// be returned for ppexprOuterRef because the disjoint between derived
-		// used columns of pexprScalar and outer_refs will evaluate to true. In
-		// that case ScalarNAryJoinPredList will not be preserved which is
-		// undesired.
-		CExpressionArray *localChildren = GPOS_NEW(mp) CExpressionArray(mp);
-		CExpressionArray *outerRefChildren = GPOS_NEW(mp) CExpressionArray(mp);
-
-		for (ULONG c = 0; c < pexprScalar->Arity(); c++)
-		{
-			CExpression *childLocalExpr = nullptr;
-			CExpression *childOuterRefExpr = nullptr;
-
-			SeparateOuterRefs(mp, (*pexprScalar)[c], outer_refs,
-							  &childLocalExpr, &childOuterRefExpr);
-			localChildren->Append(childLocalExpr);
-			outerRefChildren->Append(childOuterRefExpr);
-		}
-
-		// reassemble the CScalarNAryJoinPredList with its new children without
-		// outer refs
-		pexprScalar->Pop()->AddRef();
-		*ppexprLocal =
-			GPOS_NEW(mp) CExpression(mp, pexprScalar->Pop(), localChildren);
-
-		// do the same with the outer refs
-		pexprScalar->Pop()->AddRef();
-		*ppexprOuterRef =
-			GPOS_NEW(mp) CExpression(mp, pexprScalar->Pop(), outerRefChildren);
-
-		return;
-	}
-
 	CColRefSet *pcrsUsed = pexprScalar->DeriveUsedColumns();
 	if (pcrsUsed->IsDisjoint(outer_refs))
 	{
@@ -2477,24 +2436,6 @@ CPredicateUtils::PexprRemoveImpliedConjuncts(CMemoryPool *mp,
 											 CExpression *pexprScalar,
 											 CExpressionHandle &exprhdl)
 {
-	if (COperator::EopScalarNAryJoinPredList == pexprScalar->Pop()->Eopid())
-	{
-		// for a ScalarNAryJoinPredList we have to preserve that operator and
-		// remove implied preds from each child individually
-		CExpressionArray *newChildren = GPOS_NEW(mp) CExpressionArray(mp);
-
-		for (ULONG c = 0; c < pexprScalar->Arity(); c++)
-		{
-			newChildren->Append(
-				PexprRemoveImpliedConjuncts(mp, (*pexprScalar)[c], exprhdl));
-		}
-
-		// reassemble the CScalarNAryJoinPredList with its new children without implied conjuncts
-		pexprScalar->Pop()->AddRef();
-
-		return GPOS_NEW(mp) CExpression(mp, pexprScalar->Pop(), newChildren);
-	}
-
 	// extract equivalence classes from logical children
 	CColRefSetArray *pdrgpcrs =
 		CUtils::PdrgpcrsCopyChildEquivClasses(mp, exprhdl);

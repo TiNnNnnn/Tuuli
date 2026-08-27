@@ -83,14 +83,14 @@ CLogicalFullOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfExpandFullOuterJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementFullOuterMergeJoin);
-	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	if (CXform::ExfDPHyperJoinRegion != OriginXform())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfFullJoinCommutativity);
 	}
 	(void) xform_set->ExchangeSet(CXform::ExfFullOuterJoin2HashJoin);
 	if (FDPHyperRegionRoot())
 	{
-		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);
 	}
 	return xform_set;
 }

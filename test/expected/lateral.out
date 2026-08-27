@@ -205,11 +205,11 @@ ORDER BY 1;
 ------------------------------------------
  Sort
    Sort Key: lat_t1.x
-   ->  Hash Right Join
-         Hash Cond: (lat_t2.a = lat_t1.x)
-         ->  Seq Scan on lat_t2
+   ->  Hash Left Join
+         Hash Cond: (lat_t1.x = lat_t2.a)
+         ->  Seq Scan on lat_t1
          ->  Hash
-               ->  Seq Scan on lat_t1
+               ->  Seq Scan on lat_t2
  Optimizer: pg_orca
 (8 rows)
 

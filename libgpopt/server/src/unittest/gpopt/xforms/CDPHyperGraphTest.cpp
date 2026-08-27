@@ -19,7 +19,11 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/xforms/CDPHyperGraph.h"
 #include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
@@ -1564,6 +1568,56 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	lateral_root->Release();
 	lateral_join->Release();
 	correlated_get1->Release();
+
+	// A lateral dependency may flow through a projected value while its join
+	// predicate connects the dependent atom to a different relation. Model the
+	// provider dependency as a graph edge so {provider, dependent} can be built
+	// before applying that predicate.
+	CColRef *lateral_value = fix.PcrCreateInt4("lateral_value");
+	CExpression *outer_ident = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarIdent(mp, (*cols0)[0]));
+	CExpression *project_element = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectElement(mp, lateral_value), outer_ident);
+	CExpressionArray *project_elements = GPOS_NEW(mp) CExpressionArray(mp);
+	project_elements->Append(project_element);
+	CExpression *project_list = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), project_elements);
+	get1->AddRef();
+	CExpression *dependent_project = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), get1, project_list);
+	CExpression *dependent_predicate =
+		fix.PexprEqPred((*cols2)[0], lateral_value);
+	CExpression *dependent_join = fix.PexprLogicalInnerJoin(
+		get2, dependent_project, dependent_predicate);
+	CExpression *dependent_root =
+		fix.PexprLogicalInnerJoin(get0, dependent_join, true_pred);
+	CJoinRegionSpec dependent_spec(mp);
+	GPOS_UNITTEST_ASSERT(dependent_spec.Build(dependent_root));
+	GPOS_UNITTEST_ASSERT(dependent_spec.PureInner());
+	GPOS_UNITTEST_ASSERT(FSet(dependent_spec.Dependencies(2), {0}));
+	CDPHyperJoinRegion dependent_region(mp, &dependent_spec, 100);
+	GPOS_UNITTEST_ASSERT(dependent_region.Build());
+	GPOS_UNITTEST_ASSERT(3 == dependent_region.GeneratedEdgeCount());
+	CDPHyperPlan dependent_plan(
+		mp, 100,
+		[&dependent_region](const CBitSet *left, const CBitSet *right,
+							 ULONG edge_id) {
+			if (!dependent_region.FPairApplicable(left, right, edge_id))
+			{
+				return false;
+			}
+			CDPHyperJoinRegion::SJoinRequest request;
+			return dependent_region.FBuildJoinRequest(left, right, &request);
+		});
+	CDPHyperEnumerator dependent_enumerator(
+		mp, dependent_region.Graph(), &dependent_plan);
+	GPOS_UNITTEST_ASSERT(!dependent_enumerator.Enumerate());
+	GPOS_UNITTEST_ASSERT(dependent_plan.Complete(3));
+	GPOS_UNITTEST_ASSERT(dependent_plan.HasSeen(nodes02.Value()));
+	dependent_root->Release();
+	dependent_join->Release();
+	dependent_predicate->Release();
+	dependent_project->Release();
 
 	CColRef *external_col = fix.PcrCreateInt4("external_lateral_key");
 	CExpression *external_pred =

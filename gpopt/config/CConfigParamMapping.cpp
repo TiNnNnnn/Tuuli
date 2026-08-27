@@ -597,9 +597,10 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 		traceflag_bitset->ExchangeSet(EopttraceDisableInnerMergeJoin);
 	}
 
-	// Join order search algorithm, controlled by GUC optimizer_join_order
-	// (definition lives in pg_orca.cpp).  Defaults to "exhaustive2" (DPv2),
-	// matching cbdb; users can opt into other strategies per session, e.g.
+	// Native join-order search policy, controlled by GUC optimizer_join_order
+	// (definition lives in pg_orca.cpp). DPHyper owns supported join regions
+	// when enabled; this policy remains relevant to explicit DPHyper-off and
+	// shadow-mode comparisons. Users can select a policy per session, e.g.
 	//   SET optimizer_join_order = exhaustive;
 	CBitSet *join_heuristic_bitset = nullptr;
 	switch (optimizer_join_order)

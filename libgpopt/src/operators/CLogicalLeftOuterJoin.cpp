@@ -77,7 +77,6 @@ CLogicalLeftOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
-	(void) xform_set->ExchangeSet(CXform::ExfPushDownLeftOuterJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfSimplifyLeftOuterJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftOuterJoin2NLJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfLeftOuterJoin2HashJoin);
@@ -85,7 +84,7 @@ CLogicalLeftOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 		CXform::ExfLeftOuter2InnerUnionAllLeftAntiSemiJoin);
 	(void) xform_set->ExchangeSet(CXform::ExfJoin2BitmapIndexGetApply);
 	(void) xform_set->ExchangeSet(CXform::ExfJoin2IndexGetApply);
-	if (CXform::ExfExpandNAryJoinDPHyper != OriginXform())
+	if (CXform::ExfDPHyperJoinRegion != OriginXform())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfLeftJoin2RightJoin);
 	}
@@ -96,7 +95,7 @@ CLogicalLeftOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleLeftJoin);
 	if (FDPHyperRegionRoot())
 	{
-		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
+		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);
 	}
 
 	return xform_set;

@@ -130,10 +130,10 @@ from int4_tbl x left join lateral (select unique1, unique2 from tenk1 where f1 =
  unique2 |     f1      
 ---------+-------------
     9998 |           0
-         | -2147483647
-         |  2147483647
-         |     -123456
          |      123456
+         |     -123456
+         |  2147483647
+         | -2147483647
 (5 rows)
 
 explain (costs off)
@@ -141,11 +141,11 @@ explain (costs off)
   from int4_tbl x left join lateral (select unique1, unique2 from tenk1 where f1 = unique1) ss on true;
              QUERY PLAN              
 -------------------------------------
- Hash Right Join
-   Hash Cond: (tenk1.unique1 = x.f1)
-   ->  Seq Scan on tenk1
+ Hash Left Join
+   Hash Cond: (x.f1 = tenk1.unique1)
+   ->  Seq Scan on int4_tbl x
    ->  Hash
-         ->  Seq Scan on int4_tbl x
+         ->  Seq Scan on tenk1
  Optimizer: pg_orca
 (6 rows)
 
@@ -220,7 +220,7 @@ explain (costs off)
   select * from generate_series(100,200) g,
     lateral (select * from int8_tbl a where g = q1 union all
              select * from int8_tbl b where g = q2) ss;
-                      QUERY PLAN                      
+                      QUERY PLAN
 ------------------------------------------------------
  Nested Loop
    Join Filter: true
@@ -311,27 +311,26 @@ explain (costs off)
     int8_tbl x left join lateral (select a.q1 from int4_tbl y) ss(z)
       on x.q2 = ss.z
   order by a.q1, a.q2, x.q1, x.q2, ss.z;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 0 not found in project list
-                   QUERY PLAN                   
-------------------------------------------------
+                      QUERY PLAN
+------------------------------------------------------
  Sort
    Sort Key: a.q1, a.q2, x.q1, x.q2, (a.q1)
    ->  Nested Loop
+         Join Filter: true
          ->  Seq Scan on int8_tbl a
-         ->  Hash Left Join
-               Hash Cond: (x.q2 = (a.q1))
+         ->  Nested Loop Left Join
+               Join Filter: (x.q2 = (a.q1))
                ->  Seq Scan on int8_tbl x
-               ->  Hash
-                     ->  Seq Scan on int4_tbl y
-(9 rows)
+               ->  Materialize
+                     ->  Result
+                           ->  Seq Scan on int4_tbl y
+ Optimizer: pg_orca
+(12 rows)
 
 select * from int8_tbl a,
   int8_tbl x left join lateral (select a.q1 from int4_tbl y) ss(z)
     on x.q2 = ss.z
   order by a.q1, a.q2, x.q1, x.q2, ss.z;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 0 not found in project list
         q1        |        q2         |        q1        |        q2         |        z         
 ------------------+-------------------+------------------+-------------------+------------------
               123 |               456 |              123 |               456 |                 
@@ -750,24 +749,22 @@ select * from int4_tbl a,
   lateral (
     select * from int4_tbl b left join int8_tbl c on (b.f1 = q1 and a.f1 = q2)
   ) ss;
-                             QUERY PLAN                             
---------------------------------------------------------------------
- Hash Left Join
+                       QUERY PLAN
+--------------------------------------------------------
+ Nested Loop
    Output: a.f1, b.f1, c.q1, c.q2
-   Hash Cond: (((b.f1)::bigint = c.q1) AND ((a.f1)::bigint = c.q2))
-   ->  Nested Loop
-         Output: a.f1, b.f1
-         Join Filter: true
-         ->  Seq Scan on public.int4_tbl a
-               Output: a.f1
+   Join Filter: true
+   ->  Seq Scan on public.int4_tbl a
+         Output: a.f1
+   ->  Nested Loop Left Join
+         Output: b.f1, c.q1, c.q2
+         Join Filter: ((b.f1 = c.q1) AND (a.f1 = c.q2))
          ->  Seq Scan on public.int4_tbl b
                Output: b.f1
-   ->  Hash
-         Output: c.q1, c.q2
          ->  Seq Scan on public.int8_tbl c
                Output: c.q1, c.q2
  Optimizer: pg_orca
-(15 rows)
+(13 rows)
 
 select * from int4_tbl a,
   lateral (
@@ -894,31 +891,31 @@ select * from
  Nested Loop
    Output: c.q1, c.q2, a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint)), d.q1, (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2)), ((COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2)))
    Join Filter: true
-   ->  Hash Right Join
+   ->  Hash Left Join
          Output: c.q1, c.q2, a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint)), d.q1, (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2))
-         Hash Cond: (d.q1 = c.q2)
-         ->  Nested Loop
-               Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint)), d.q1, (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2))
-               Join Filter: true
-               ->  Hash Left Join
-                     Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint))
-                     Hash Cond: (a.q2 = b.q1)
-                     ->  Seq Scan on public.int8_tbl a
-                           Output: a.q1, a.q2
-                     ->  Hash
-                           Output: (COALESCE(b.q2, '42'::bigint)), b.q1
-                           ->  Seq Scan on public.int8_tbl b
-                                 Output: COALESCE(b.q2, '42'::bigint), b.q1
-               ->  Materialize
-                     Output: (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2)), d.q1
-                     ->  Result
-                           Output: COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2), d.q1
-                           ->  Seq Scan on public.int8_tbl d
-                                 Output: d.q1, d.q2
-         ->  Hash
+         Hash Cond: (c.q2 = d.q1)
+         ->  Seq Scan on public.int8_tbl c
                Output: c.q1, c.q2
-               ->  Seq Scan on public.int8_tbl c
-                     Output: c.q1, c.q2
+         ->  Hash
+               Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint)), d.q1, (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2))
+               ->  Nested Loop
+                     Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint)), d.q1, (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2))
+                     Join Filter: true
+                     ->  Hash Left Join
+                           Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, '42'::bigint))
+                           Hash Cond: (a.q2 = b.q1)
+                           ->  Seq Scan on public.int8_tbl a
+                                 Output: a.q1, a.q2
+                           ->  Hash
+                                 Output: (COALESCE(b.q2, '42'::bigint)), b.q1
+                                 ->  Seq Scan on public.int8_tbl b
+                                       Output: COALESCE(b.q2, '42'::bigint), b.q1
+                     ->  Materialize
+                           Output: (COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2)), d.q1
+                           ->  Result
+                                 Output: COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2), d.q1
+                                 ->  Seq Scan on public.int8_tbl d
+                                       Output: d.q1, d.q2
    ->  Materialize
          Output: ((COALESCE((COALESCE(b.q2, '42'::bigint)), d.q2)))
          ->  Result
@@ -980,36 +977,36 @@ select c.*,a.*,ss1.q1,ss2.q1,ss3.* from
  Nested Loop
    Output: c.q1, c.q2, a.q1, a.q2, b.q1, d.q1, i.f1
    Join Filter: ((COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2)) > i.f1)
-   ->  Hash Right Join
+   ->  Hash Left Join
          Output: c.q1, c.q2, a.q1, a.q2, b.q1, d.q1, (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2))
-         Hash Cond: (d.q1 = c.q2)
-         ->  Nested Loop
-               Output: a.q1, a.q2, b.q1, d.q1, (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2))
-               Join Filter: true
-               ->  Hash Left Join
-                     Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, (b2.f1)::bigint))
-                     Hash Cond: (a.q2 = b.q1)
-                     ->  Seq Scan on public.int8_tbl a
-                           Output: a.q1, a.q2
-                     ->  Hash
-                           Output: (COALESCE(b.q2, (b2.f1)::bigint)), b.q1
-                           ->  Nested Loop
-                                 Output: COALESCE(b.q2, (b2.f1)::bigint), b.q1
-                                 Join Filter: (b.q1 < b2.f1)
-                                 ->  Seq Scan on public.int8_tbl b
-                                       Output: b.q1, b.q2
-                                 ->  Seq Scan on public.int4_tbl b2
-                                       Output: b2.f1
-               ->  Materialize
-                     Output: (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2)), d.q1
-                     ->  Result
-                           Output: COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2), d.q1
-                           ->  Seq Scan on public.int8_tbl d
-                                 Output: d.q1, d.q2
-         ->  Hash
+         Hash Cond: (c.q2 = d.q1)
+         ->  Seq Scan on public.int8_tbl c
                Output: c.q1, c.q2
-               ->  Seq Scan on public.int8_tbl c
-                     Output: c.q1, c.q2
+         ->  Hash
+               Output: a.q1, a.q2, b.q1, d.q1, (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2))
+               ->  Nested Loop
+                     Output: a.q1, a.q2, b.q1, d.q1, (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2))
+                     Join Filter: true
+                     ->  Hash Left Join
+                           Output: a.q1, a.q2, b.q1, (COALESCE(b.q2, (b2.f1)::bigint))
+                           Hash Cond: (a.q2 = b.q1)
+                           ->  Seq Scan on public.int8_tbl a
+                                 Output: a.q1, a.q2
+                           ->  Hash
+                                 Output: (COALESCE(b.q2, (b2.f1)::bigint)), b.q1
+                                 ->  Nested Loop
+                                       Output: COALESCE(b.q2, (b2.f1)::bigint), b.q1
+                                       Join Filter: (b.q1 < b2.f1)
+                                       ->  Seq Scan on public.int8_tbl b
+                                             Output: b.q1, b.q2
+                                       ->  Seq Scan on public.int4_tbl b2
+                                             Output: b2.f1
+                     ->  Materialize
+                           Output: (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2)), d.q1
+                           ->  Result
+                                 Output: COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2), d.q1
+                                 ->  Seq Scan on public.int8_tbl d
+                                       Output: d.q1, d.q2
    ->  Seq Scan on public.int4_tbl i
          Output: i.f1
  Optimizer: pg_orca

@@ -140,9 +140,7 @@ CXformFactory::Instantiate()
 {
 	// Order here needs to correspond to the order defined in CXform::EXformId
 	Add(GPOS_NEW(m_mp) CXformProject2ComputeScalar(m_mp));
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoin(m_mp));
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinMinCard(m_mp));
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinDP(m_mp));
+	SkipUnused(3);
 	Add(GPOS_NEW(m_mp) CXformGet2TableScan(m_mp));
 	Add(GPOS_NEW(m_mp) CXformIndexGet2IndexScan(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDynamicGet2DynamicTableScan(m_mp));
@@ -162,7 +160,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformProject2Apply(m_mp));
 	Add(GPOS_NEW(m_mp) CXformGbAgg2Apply(m_mp));
 	Add(GPOS_NEW(m_mp) CXformSubqJoin2Apply(m_mp));
-	Add(GPOS_NEW(m_mp) CXformSubqNAryJoin2Apply(m_mp));
+	SkipUnused(1);
 	SkipUnused(2);
 	Add(GPOS_NEW(m_mp) CXformInnerApplyWithOuterKey2InnerJoin(m_mp));
 	SkipUnused(1);
@@ -185,7 +183,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp)
 			CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations(
 				m_mp));
-	Add(GPOS_NEW(m_mp) CXformPushDownLeftOuterJoin(m_mp));
+	SkipUnused(1);
 	Add(GPOS_NEW(m_mp) CXformSimplifyLeftOuterJoin(m_mp));
 	Add(GPOS_NEW(m_mp) CXformLeftOuterJoin2NLJoin(m_mp));
 	Add(GPOS_NEW(m_mp) CXformLeftOuterJoin2HashJoin(m_mp));
@@ -277,9 +275,9 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformCollapseProject(m_mp));
 	Add(GPOS_NEW(m_mp) CXformRemoveSubqDistinct(m_mp));
 	SkipUnused(4);
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinGreedy(m_mp));
+	SkipUnused(1);
 	Add(GPOS_NEW(m_mp) CXformEagerAgg(m_mp));
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinDPv2(m_mp));
+	SkipUnused(1);
 	Add(GPOS_NEW(m_mp) CXformImplementFullOuterMergeJoin(m_mp));
 	SkipUnused(4);
 	Add(GPOS_NEW(m_mp) CXformIndexOnlyGet2IndexOnlyScan(m_mp));
@@ -319,7 +317,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Union(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_UnionAll(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Limit(m_mp));
-	Add(GPOS_NEW(m_mp) CXformExpandNAryJoinDPHyper(m_mp));
+	Add(GPOS_NEW(m_mp) CXformDPHyperJoinRegion(m_mp));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&
 				"Not all xforms have been instantiated");

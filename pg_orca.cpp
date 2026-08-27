@@ -182,7 +182,7 @@ bool  pg_orca_enable_dsl_rule = false;
 // initializers here. PostgreSQL assigns the production defaults declared by
 // DefineCustom*Variable below when the extension is loaded.
 bool  pg_orca_enable_dphyper = false;
-bool  pg_orca_dphyper_shadow = true;
+bool  pg_orca_dphyper_shadow = false;
 int   pg_orca_dphyper_edge_budget = 100000;
 int   pg_orca_dphyper_pair_budget = 100;
 
@@ -893,8 +893,8 @@ void _PG_init(void)
     DefineCustomBoolVariable(
         "pg_orca.dphyper_shadow",
         "Keep native ORCA join enumerators alongside DPHyper for differential "
-        "testing. When off, DPHyper is the join-order owner and a materialized "
-        "NAryJoin fallback uses only the native greedy enumerator.",
+        "testing. When off, DPHyper owns supported join regions and budget "
+        "fallbacks materialize a binary greedy plan.",
         NULL,
         &pg_orca_dphyper_shadow,
         false,

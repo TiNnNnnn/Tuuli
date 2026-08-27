@@ -116,7 +116,7 @@ public:
 		// of m_parent_loj_id and m_position in {x, y} for the
 		// component created for LOJ childs.
 		// respectively
-		//+--CLogicalNAryJoin
+		//+--join region
 		//	|--CLogicalGet "t1"
 		//	|--CLogicalLeftOuterJoin => LOJ 1
 		//	|  |--CLogicalGet "t2" => {1, EpLeft}
@@ -226,15 +226,10 @@ private:
 public:
 	CJoinOrder(const CJoinOrder &) = delete;
 
-	// ctor used in MinCard, Greedy and DP xforms
+	// ctor used by the DPHyper greedy fallback
 	CJoinOrder(CMemoryPool *mp, CExpressionArray *pdrgpexprComponents,
 			   CExpressionArray *pdrgpexprConjuncts,
 			   BOOL include_outer_join_childs);
-
-	// ctor used in CXformExpandNAryJoinDPv2
-	CJoinOrder(CMemoryPool *mp, CExpressionArray *pdrgpexprComponents,
-			   CExpressionArray *innerJoinPredConjuncts,
-			   CExpressionArray *onPreds, ULongPtrArray *childPredIndexes);
 
 	// dtor
 	virtual ~CJoinOrder();

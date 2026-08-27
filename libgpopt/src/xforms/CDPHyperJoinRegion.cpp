@@ -385,6 +385,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	  m_graph(nullptr),
 	  m_edge_budget(edge_budget),
 	  m_generated_edges(0),
+	  m_dependency_edges(0),
 	  m_cartesian_edges(0),
 	  m_edge_budget_exhausted(false)
 {
@@ -405,6 +406,7 @@ CDPHyperJoinRegion::CDPHyperJoinRegion(CMemoryPool *mp,
 	  m_graph(nullptr),
 	  m_edge_budget(edge_budget),
 	  m_generated_edges(0),
+	  m_dependency_edges(0),
 	  m_cartesian_edges(0),
 	  m_edge_budget_exhausted(false)
 {
@@ -487,6 +489,35 @@ CDPHyperJoinRegion::FPredicateCrosses(const CBitSet *left,
 }
 
 BOOL
+CDPHyperJoinRegion::AddDependencyEdges()
+{
+	if (nullptr == m_spec || !m_spec->HasDependencies())
+	{
+		return true;
+	}
+	for (ULONG dependent = 0; dependent < m_spec->NodeCount(); ++dependent)
+	{
+		const CBitSet *providers = m_spec->Dependencies(dependent);
+		if (0 == providers->Size())
+		{
+			continue;
+		}
+		if (m_generated_edges >= m_edge_budget)
+		{
+			m_edge_budget_exhausted = true;
+			return false;
+		}
+		CAutoRef<CBitSet> dependent_node(GPOS_NEW(m_mp) CBitSet(m_mp));
+		(void) dependent_node->ExchangeSet(dependent);
+		m_graph->AddEdge(providers, dependent_node.Value(),
+						 m_conjuncts->Size() + m_dependency_edges);
+		++m_generated_edges;
+		++m_dependency_edges;
+	}
+	return true;
+}
+
+BOOL
 CDPHyperJoinRegion::AddMissingSkeletonEdges()
 {
 	for (const auto &edge : m_skeleton_edges)
@@ -501,7 +532,8 @@ CDPHyperJoinRegion::AddMissingSkeletonEdges()
 			return false;
 		}
 		m_graph->AddEdge(edge.first, edge.second,
-						 m_conjuncts->Size() + m_cartesian_edges);
+						 m_conjuncts->Size() + m_dependency_edges +
+							 m_cartesian_edges);
 		++m_generated_edges;
 		++m_cartesian_edges;
 	}
@@ -674,7 +706,8 @@ CDPHyperJoinRegion::AddCartesianComponentEdges()
 			// boundaries. This permits every component order without introducing
 			// cross products into the interior of a connected component.
 			m_graph->AddEdge(components[left], components[right],
-							 m_conjuncts->Size() + m_cartesian_edges);
+							 m_conjuncts->Size() + m_dependency_edges +
+								 m_cartesian_edges);
 			++m_generated_edges;
 			++m_cartesian_edges;
 		}
@@ -730,7 +763,8 @@ CDPHyperJoinRegion::Build()
 			return false;
 		}
 	}
-	return AddMissingSkeletonEdges() && AddCartesianComponentEdges();
+	return AddDependencyEdges() && AddMissingSkeletonEdges() &&
+		   AddCartesianComponentEdges();
 }
 
 BOOL

@@ -35,7 +35,6 @@
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalIndexGet.h"
 #include "gpopt/operators/CLogicalIndexOnlyGet.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -637,14 +636,11 @@ CLogical::PpcDeriveConstraintFromPredicates(CMemoryPool *mp,
 		{
 			CExpression *pexprScalar = exprhdl.PexprScalarExactChild(ul);
 
-			// make sure it is a predicate... boolop, cmp, nulltest,
-			// or a list of join predicates for an NAry join
+			// make sure it is a predicate: boolop, cmp or nulltest
 			if (nullptr == pexprScalar || !CUtils::FPredicate(pexprScalar))
 			{
 				continue;
 			}
-			GPOS_ASSERT(COperator::EopScalarNAryJoinPredList !=
-						pexprScalar->Pop()->Eopid());
 			CColRefSetArray *pdrgpcrsChild = nullptr;
 			CConstraint *pcnstr = CConstraint::PcnstrFromScalarExpr(
 				mp, pexprScalar, &pdrgpcrsChild);
@@ -1064,12 +1060,6 @@ CLogical::Maxcard(CExpressionHandle &exprhdl, ULONG ulScalarIndex,
 
 	if (nullptr != pexprScalar)
 	{
-		if (COperator::EopScalarNAryJoinPredList == pexprScalar->Pop()->Eopid())
-		{
-			// look at the inner join predicates only
-			pexprScalar = (*pexprScalar)[0];
-		}
-
 		if ((CUtils::FScalarConstFalse(pexprScalar) &&
 			 COperator::EopLogicalFullOuterJoin != exprhdl.Pop()->Eopid() &&
 			 COperator::EopLogicalLeftOuterJoin != exprhdl.Pop()->Eopid() &&

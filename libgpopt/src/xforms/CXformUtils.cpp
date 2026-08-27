@@ -34,7 +34,6 @@
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CPhysicalInnerHashJoin.h"
@@ -124,60 +123,6 @@ CXformUtils::ExfpSemiJoin2CrossProduct(CExpressionHandle &exprhdl)
 	{
 		// xform is inapplicable of join predicate uses columns from join's inner child
 		return CXform::ExfpNone;
-	}
-
-	return CXform::ExfpHigh;
-}
-
-
-//---------------------------------------------------------------------------
-//	@function:
-//		CXformUtils::ExfpExpandJoinOrder
-//
-//	@doc:
-//		Check the applicability of N-ary join expansion
-//
-//---------------------------------------------------------------------------
-CXform::EXformPromise
-CXformUtils::ExfpExpandJoinOrder(CExpressionHandle &exprhdl,
-								 const CXform *xform)
-{
-	// With optimizer_join_order set to 'query' or 'exhaustive', the
-	// 'query' join order will expand the join even if it contains
-	// outer refs, using another method to get the promise.
-	// Therefore we also allow expansion for 'exhaustive2'
-	// when we have outer refs.
-	if (exprhdl.DeriveHasSubquery(exprhdl.Arity() - 1) ||
-		(exprhdl.HasOuterRefs() &&
-		 CXform::ExfExpandNAryJoinDPv2 != xform->Exfid()))
-	{
-		// subqueries must be unnested before applying xform
-		return CXform::ExfpNone;
-	}
-
-	if (nullptr != exprhdl.Pgexpr())
-	{
-		// if handle is attached to a group expression, transformation is applied
-		// to the Memo and we need to check if stats are derivable on child groups
-		CGroup *pgroup = exprhdl.Pgexpr()->Pgroup();
-		CAutoMemoryPool amp;
-		CMemoryPool *mp = amp.Pmp();
-		if (!pgroup->FStatsDerivable(mp))
-		{
-			// stats must be derivable before applying xforms
-			return CXform::ExfpNone;
-		}
-
-		const ULONG arity = exprhdl.Arity();
-		for (ULONG ul = 0; ul < arity; ul++)
-		{
-			CGroup *pgroupChild = (*exprhdl.Pgexpr())[ul];
-			if (!pgroupChild->FScalar() && !pgroupChild->FStatsDerivable(mp))
-			{
-				// stats must be derivable on every child
-				return CXform::ExfpNone;
-			}
-		}
 	}
 
 	return CXform::ExfpHigh;
@@ -1116,23 +1061,14 @@ CXformUtils::SubqueryAllToAgg(
 CExpression *
 CXformUtils::PexprSeparateSubqueryPreds(CMemoryPool *mp, CExpression *pexpr)
 {
-	COperator::EOperatorId op_id = pexpr->Pop()->Eopid();
-	GPOS_ASSERT(COperator::EopLogicalInnerJoin == op_id ||
-				COperator::EopLogicalNAryJoin == op_id);
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid());
 
 	// split scalar expression into a conjunction of predicates with and without
 	// subqueries
 	const ULONG arity = pexpr->Arity();
 	CExpression *pexprScalar = (*pexpr)[arity - 1];
-	CLogicalNAryJoin *naryLOJOp =
-		CLogicalNAryJoin::PopConvertNAryLOJ(pexpr->Pop());
-	CExpression *innerJoinPreds = pexprScalar;
-	if (nullptr != naryLOJOp)
-	{
-		innerJoinPreds = naryLOJOp->GetInnerJoinPreds(pexpr);
-	}
 	CExpressionArray *pdrgpexprConjuncts =
-		CPredicateUtils::PdrgpexprConjuncts(mp, innerJoinPreds);
+		CPredicateUtils::PdrgpexprConjuncts(mp, pexprScalar);
 	CExpressionArray *pdrgpexprSQ = GPOS_NEW(mp) CExpressionArray(mp);
 	CExpressionArray *pdrgpexprNonSQ = GPOS_NEW(mp) CExpressionArray(mp);
 
@@ -1156,8 +1092,6 @@ CXformUtils::PexprSeparateSubqueryPreds(CMemoryPool *mp, CExpression *pexpr)
 
 	if (0 == pdrgpexprSQ->Size())
 	{
-		// no subqueries found in inner join predicates, they must be in the LOJ preds
-		GPOS_ASSERT(nullptr != naryLOJOp);
 		pdrgpexprSQ->Release();
 		pdrgpexprNonSQ->Release();
 
@@ -1174,35 +1108,9 @@ CXformUtils::PexprSeparateSubqueryPreds(CMemoryPool *mp, CExpression *pexpr)
 	}
 
 	// build a new join with the new non-subquery predicates
-	COperator *popJoin = nullptr;
-
-	if (nullptr == naryLOJOp)
-	{
-		if (COperator::EopLogicalInnerJoin == op_id)
-		{
-			popJoin = GPOS_NEW(mp) CLogicalInnerJoin(mp);
-		}
-		else
-		{
-			popJoin = GPOS_NEW(mp) CLogicalNAryJoin(mp);
-		}
-		pdrgpexpr->Append(
-			CPredicateUtils::PexprConjunction(mp, pdrgpexprNonSQ));
-	}
-	else
-	{
-		// nary LOJ, make sure to include the indexes assigning children
-		// to LOJs and to preserve the CScalarNAryJoinPredList
-		ULongPtrArray *childIndexes = naryLOJOp->GetLojChildPredIndexes();
-
-		childIndexes->AddRef();
-
-		popJoin = GPOS_NEW(mp) CLogicalNAryJoin(mp, childIndexes);
-
-		pdrgpexpr->Append(naryLOJOp->ReplaceInnerJoinPredicates(
-			mp, pexprScalar,
-			CPredicateUtils::PexprConjunction(mp, pdrgpexprNonSQ)));
-	}
+	COperator *popJoin = GPOS_NEW(mp) CLogicalInnerJoin(mp);
+	pdrgpexpr->Append(
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprNonSQ));
 
 	CExpression *pexprJoin = GPOS_NEW(mp) CExpression(mp, popJoin, pdrgpexpr);
 

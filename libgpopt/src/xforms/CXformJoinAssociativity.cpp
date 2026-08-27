@@ -164,7 +164,7 @@ CXformJoinAssociativity::Exfp(CExpressionHandle &exprhdl) const
 {
 	CLogicalInnerJoin *join = CLogicalInnerJoin::PopConvert(exprhdl.Pop());
 	if (!GPOS_FTRACE(EopttraceDPHyperShadow) &&
-		(CXform::ExfExpandNAryJoinDPHyper == join->OriginXform() ||
+		(CXform::ExfDPHyperJoinRegion == join->OriginXform() ||
 		 (join->FDPHyperRegionMember() && !join->FDPHyperRegionRoot())))
 	{
 		return CXform::ExfpNone;

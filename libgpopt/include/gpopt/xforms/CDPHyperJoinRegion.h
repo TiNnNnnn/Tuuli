@@ -94,6 +94,7 @@ private:
 	CDPHyperGraph *m_graph;
 	ULONG m_edge_budget;
 	ULONG m_generated_edges;
+	ULONG m_dependency_edges;
 	ULONG m_cartesian_edges;
 	BOOL m_edge_budget_exhausted;
 
@@ -103,6 +104,7 @@ private:
 								 const std::vector<ULONG> &nodes, ULONG pos,
 								 CBitSet *left, CBitSet *right);
 	BOOL FPredicateCrosses(const CBitSet *left, const CBitSet *right) const;
+	BOOL AddDependencyEdges();
 	BOOL AddMissingSkeletonEdges();
 	BOOL AddCartesianComponentEdges();
 	BOOL FDependencyApplicable(const CBitSet *left, const CBitSet *right,

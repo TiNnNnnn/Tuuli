@@ -56,7 +56,7 @@ public:
 	CXform::EXformId
 	EOriginXForm() const override
 	{
-		return CXform::ExfExpandNAryJoinGreedy;
+		return CXform::ExfDPHyperJoinRegion;
 	}
 
 };	// class CJoinOrderGreedy

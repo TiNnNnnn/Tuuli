@@ -366,25 +366,19 @@ SELECT a.* FROM a INNER JOIN b ON a.i = b.i WHERE a.j NOT IN (SELECT j FROM a a2
 (0 rows)
 
 explain (costs off) SELECT a.* FROM a INNER JOIN b ON a.i = b.i WHERE a.j NOT IN (SELECT j FROM a a2 where a2.j = b.j) and a.i = 1;
-                QUERY PLAN                 
--------------------------------------------
- Result
-   Filter: (ALL (a.j <> (SubPlan 1).col1))
-   ->  Merge Join
-         Merge Cond: (a.i = b.i)
-         ->  Sort
-               Sort Key: a.i
-               ->  Seq Scan on a
-                     Filter: (i = 1)
-         ->  Sort
-               Sort Key: b.i
-               ->  Seq Scan on b
-                     Filter: (i = 1)
+                     QUERY PLAN
+-----------------------------------------------------
+ Nested Loop
+   Join Filter: (NOT (ANY (a.j = (SubPlan 1).col1)))
+   ->  Seq Scan on a
+         Filter: (i = 1)
+   ->  Materialize
+         ->  Seq Scan on b
+               Filter: (i = 1)
    SubPlan 1
      ->  Seq Scan on a a2
            Filter: (j = b.j)
- Optimizer: pg_orca
-(16 rows)
+(10 rows)
 
 -- ===================================================================
 -- mpp22019_2.sql

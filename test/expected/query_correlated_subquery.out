@@ -298,41 +298,39 @@ explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j fr
 \echo '-- force_explain'
 -- force_explain
 explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j from C where C.j = A.j and C.i = B.i);
-                 QUERY PLAN                  
----------------------------------------------
- Result
-   Filter: (a.j = (SubPlan 1))
-   ->  Nested Loop
-         Join Filter: true
+                       QUERY PLAN
+---------------------------------------------------------
+ Nested Loop
+   ->  Seq Scan on c
+   ->  Materialize
          ->  Nested Loop
-               Join Filter: true
-               ->  Seq Scan on a
+               Join Filter: (a.j = (SubPlan 1))
                ->  Seq Scan on b
-         ->  Seq Scan on c
-   SubPlan 1
-     ->  Seq Scan on c c_1
-           Filter: ((j = a.j) AND (i = b.i))
- Optimizer: pg_orca
-(13 rows)
+               ->  Materialize
+                     ->  Seq Scan on a
+               SubPlan 1
+                 ->  Seq Scan on c c_1
+                       Filter: ((j = a.j) AND (i = b.i))
+(11 rows)
 
 \echo '-- force_explain'
 -- force_explain
 explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j from C where C.j = A.j and C.i = B.i and A.j = B.j);
-                         QUERY PLAN                          
--------------------------------------------------------------
- Result
-   Filter: (a.j = (SubPlan 1))
-   ->  Nested Loop
-         Join Filter: true
+                          QUERY PLAN
+---------------------------------------------------------------
+ Nested Loop
+   ->  Seq Scan on c
+   ->  Materialize
          ->  Nested Loop
-               Join Filter: true
-               ->  Seq Scan on a
+               Join Filter: (a.j = (SubPlan 1))
                ->  Seq Scan on b
-         ->  Seq Scan on c
-   SubPlan 1
-     ->  Seq Scan on c c_1
-           Filter: ((j = a.j) AND (i = b.i) AND (a.j = b.j))
- Optimizer: pg_orca
+               ->  Materialize
+                     ->  Seq Scan on a
+               SubPlan 1
+                 ->  Result
+                       One-Time Filter: (a.j = b.j)
+                       ->  Seq Scan on c c_1
+                             Filter: ((j = a.j) AND (i = b.i))
 (13 rows)
 
 --select distinct(C.j) as C_j ,A.i as A_i, B.i as B_i from A, B, C where A.j = (select sum(C.j) from C where C.j = A.j and C.i = B.i) and C.j > 600 limit 10;
@@ -400,38 +398,38 @@ explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j fr
 \echo '-- force_explain'
 -- force_explain
 explain (costs off) select A.i, A.j, (select sum(C.j) from C where C.j = A.j and C.i = (select A.i from A)) from A;
-                     QUERY PLAN                     
-----------------------------------------------------
+                        QUERY PLAN
+----------------------------------------------------------
  Result
    SubPlan 1
-     ->  Seq Scan on a
-   ->  Hash Right Join
-         Hash Cond: (c.j = a_1.j)
-         ->  HashAggregate
-               Group Key: c.j
-               ->  Seq Scan on c
-                     Filter: (i = (SubPlan 1).col1)
+     ->  Seq Scan on a a_1
+   ->  Hash Left Join
+         Hash Cond: (a.j = c.j)
+         ->  Seq Scan on a
          ->  Hash
-               ->  Seq Scan on a a_1
+               ->  HashAggregate
+                     Group Key: c.j
+                     ->  Seq Scan on c
+                           Filter: (i = (SubPlan 1).col1)
  Optimizer: pg_orca
 (12 rows)
 
 \echo '-- force_explain'
 -- force_explain
 explain (costs off) select A.i, A.j, (select sum(C.j) from C where C.j = A.j and C.i = (select A.i from A where A.i = C.i)) from A;
-               QUERY PLAN                
------------------------------------------
- Hash Right Join
-   Hash Cond: (c.j = a_1.j)
-   ->  HashAggregate
-         Group Key: c.j
-         ->  Seq Scan on c
-               Filter: (i = (SubPlan 1))
-               SubPlan 1
-                 ->  Seq Scan on a
-                       Filter: (i = c.i)
+                  QUERY PLAN
+-----------------------------------------------
+ Hash Left Join
+   Hash Cond: (a.j = c.j)
+   ->  Seq Scan on a
    ->  Hash
-         ->  Seq Scan on a a_1
+         ->  HashAggregate
+               Group Key: c.j
+               ->  Seq Scan on c
+                     Filter: (i = (SubPlan 1))
+                     SubPlan 1
+                       ->  Seq Scan on a a_1
+                             Filter: (i = c.i)
  Optimizer: pg_orca
 (12 rows)
 

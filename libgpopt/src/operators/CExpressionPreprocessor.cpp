@@ -36,7 +36,6 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
@@ -48,7 +47,6 @@
 #include "gpopt/operators/COrderedAggPreprocessor.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
-#include "gpopt/operators/CScalarNAryJoinPredList.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -1101,18 +1099,10 @@ CExpressionPreprocessor::PexprOuterJoinToInnerJoin(CMemoryPool *mp,
 		return CNormalizer::PexprNormalize(mp, pexpr);
 	}
 
-	if (CPredicateUtils::FInnerOrNAryJoin(pexpr))
+	if (COperator::EopLogicalInnerJoin == pop->Eopid())
 	{
 		// the predicates of an inner join on top of outer join can be used to turn the child outer join into another inner join
 		CExpression *pexprScalar = (*pexpr)[arity - 1];
-
-		if (COperator::EopScalarNAryJoinPredList == pexprScalar->Pop()->Eopid())
-		{
-			// since we have ScalarNAryJoinPredList, it means we have already
-			// converted all possible LOJs to Inner Joins and collapsed them
-			pexpr->AddRef();
-			return pexpr;
-		}
 
 		CExpressionArray *pdrgpexprChildren = GPOS_NEW(mp) CExpressionArray(mp);
 		for (ULONG ul = 0; ul < arity; ul++)
@@ -1140,30 +1130,6 @@ CExpressionPreprocessor::PexprOuterJoinToInnerJoin(CMemoryPool *mp,
 				}
 			}
 
-			// Consider the following join tree:
-			// +--CLogicalNAryJoin
-			// |--CLogicalLeftOuterJoin
-			// |  |--CLogicalLeftOuterJoin
-			// |  |  |--CLogicalGet "t1"
-			// |  |  |--CLogicalGet "t2"
-			// |  |--CLogicalGet "t3"
-			// |--CLogicalGet "t4"
-			//
-			// If the predicate between the CLogicalNAryJoin and first CLogicalLeftOuterJoin
-			// is NULL rejecting, we convert the left join to an inner join and create a new
-			// expression. Then the modified tree would be:
-			//
-			// +--CLogicalNAryJoin
-			// |--CLogicalLeftOuterJoin
-			// |  |--CLogicalGet "t1"
-			// |  |--CLogicalGet "t2"
-			// |--CLogicalGet "t3"
-			// |--CLogicalGet "t4"
-			//
-			// Note that we can still convert the second CLogicalLeftOuterJoin into an inner join
-			// if the predicate between the CLogicalNAryJoin is NULL rejecting. So we need to recurse
-			// into the child and continue checking if we can convert the LOJs into inner joins.
-
 			CExpression *pexprChildNew =
 				PexprOuterJoinToInnerJoin(mp, pexprChild);
 			if (fNewChild)
@@ -1173,16 +1139,11 @@ CExpressionPreprocessor::PexprOuterJoinToInnerJoin(CMemoryPool *mp,
 			pdrgpexprChildren->Append(pexprChildNew);
 		}
 
-		if (COperator::EopLogicalInnerJoin == pop->Eopid())
-		{
-			pop->AddRef();
-			return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexprChildren);
-		}
-		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalNAryJoin(mp),
-										pdrgpexprChildren);
+		pop->AddRef();
+		return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexprChildren);
 	}
 
-	// current operator is not an NAry-join, recursively process children
+	// recursively process children
 	CExpressionArray *pdrgpexprChildren = GPOS_NEW(mp) CExpressionArray(mp);
 	for (ULONG ul = 0; ul < arity; ul++)
 	{
@@ -1845,7 +1806,7 @@ SubstituteConstantIdentifier(CMemoryPool *mp, CExpression *pexpr,
 //
 // Input:
 // +--CLogicalSelect
-//    |--CLogicalNAryJoin
+//    |--CLogicalInnerJoin
 //    |  |--CLogicalGet "t2" ("t2"), Columns: ["c" (0), "d" (1),...
 //    |  |--CLogicalGet "t1" ("t1"), Columns: ["a" (9), "b" (10),...
 //    |  +--CScalarBoolOp (EboolopAnd)
@@ -1868,7 +1829,7 @@ SubstituteConstantIdentifier(CMemoryPool *mp, CExpression *pexpr,
 // Output:
 // +--CLogicalSelect
 //    +--CLogicalSelect
-//    |  |--CLogicalNAryJoin
+//    |  |--CLogicalInnerJoin
 //    |  |  |--CLogicalGet "t2" ("t2"), Columns: ["c" (0), "d" (1),...
 //    |  |  |--CLogicalGet "t1" ("t1"), Columns: ["a" (9), "b" (10),...
 //    |  |  +--CScalarBoolOp (EboolopAnd)
@@ -1896,7 +1857,7 @@ CExpressionPreprocessor::PexprReplaceColWithConst(
 	GPOS_ASSERT(nullptr != pexpr);
 
 	CExpression *pexprFilter = nullptr;
-	if (COperator::EopLogicalNAryJoin == pexpr->Pop()->Eopid() ||
+	if (COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid() ||
 		COperator::EopLogicalSelect == pexpr->Pop()->Eopid())
 	{
 		pexprFilter = (*pexpr)[pexpr->Arity() - 1];
@@ -1905,7 +1866,7 @@ CExpressionPreprocessor::PexprReplaceColWithConst(
 	// Here we check for following pattern:
 	//
 	//     Select
-	//       |-- NaryJoin/LeftOuterJoin
+	//       |-- InnerJoin/LeftOuterJoin
 	//       |-- ...
 	//       +-- Filter
 	//
@@ -1916,7 +1877,7 @@ CExpressionPreprocessor::PexprReplaceColWithConst(
 	if (checkFilterForConstants &&
 		COperator::EopLogicalSelect == pexpr->Pop()->Eopid() &&
 		(COperator::EopLogicalLeftOuterJoin == ((*pexpr)[0])->Pop()->Eopid() ||
-		 COperator::EopLogicalNAryJoin == ((*pexpr)[0])->Pop()->Eopid()))
+		 COperator::EopLogicalInnerJoin == ((*pexpr)[0])->Pop()->Eopid()))
 	{
 		UpdateExprToConstantPredicateMapping(mp, pexprFilter, phmExprToConst,
 											 true);
@@ -1948,7 +1909,7 @@ CExpressionPreprocessor::PexprReplaceColWithConst(
 	// Add a select with a filter where idents are replaced by const values.
 	// Skip if the filter contains a CTEAnchor to prevent creating an invalid
 	// plan with a duplicate CTEAnchor.
-	if (COperator::EopLogicalNAryJoin == pexpr->Pop()->Eopid() &&
+	if (COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid() &&
 		phmExprToConst->Size() > 0 && !CUtils::FHasCTEAnchor(pexprFilter))
 	{
 		CExpression *pexprFilterWithConsts =
@@ -2803,7 +2764,7 @@ CExpressionPreprocessor::PcnstrFromChildPartition(
 // Input:
 // +--CLogicalSelect
 //    |--CLogicalProject
-//    |  |--CLogicalNAryJoin
+//    |  |--CLogicalInnerJoin
 //    |  |  |--CLogicalGet "foo" ("foo"), Columns: ["a" (0), "b" (1), ...
 //    |  |  |--CLogicalGet "bar" ("bar"), Columns: ["c" (9), "d" (10), ...
 //    |  |  +--CScalarCmp (=)
@@ -2823,7 +2784,7 @@ CExpressionPreprocessor::PcnstrFromChildPartition(
 // Output:
 // +--CLogicalProject
 //    |--CLogicalSelect
-//    |  |--CLogicalNAryJoin
+//    |  |--CLogicalInnerJoin
 //    |  |  |--CLogicalGet "foo" ("foo"), Columns: ["a" (0), "b" (1), ...
 //    |  |  |--CLogicalGet "bar" ("bar"), Columns: ["c" (9), "d" (10), ...
 //    |  |  +--CScalarCmp (=)
@@ -2858,14 +2819,14 @@ CExpressionPreprocessor::PexprTransposeSelectAndProject(CMemoryPool *mp,
 	// Input:
 	// +--CLogicalSelect (x = 'meh')
 	//    +--CLogicalProject (col1...n, expr as x)
-	//       +-- CLogicalNAryJoin
+	//       +-- CLogicalInnerJoin
 	// Output:
 	// +--CLogicalProject (col1..n, expr as x)
 	//    +--CLogicalSelect (expr = 'meh')
-	//       +-- CLogicalNAryJoin
+	//       +-- CLogicalInnerJoin
 	if (pexpr->Pop()->Eopid() == COperator::EopLogicalSelect &&
 		(*pexpr)[0]->Pop()->Eopid() == COperator::EopLogicalProject &&
-		(*(*pexpr)[0])[0]->Pop()->Eopid() == COperator::EopLogicalNAryJoin)
+		(*(*pexpr)[0])[0]->Pop()->Eopid() == COperator::EopLogicalInnerJoin)
 	{
 		CExpression *pproject = (*pexpr)[0];
 		CExpression *pprojectList = (*pproject)[1];
@@ -2906,16 +2867,16 @@ CExpressionPreprocessor::PexprTransposeSelectAndProject(CMemoryPool *mp,
 		//       NB: JoinOnViewWithMixOfPushableAndNonpushablePredicates.mdp
 
 
-		// Transpose new select containing predicate with updated colrefs and NaryJoin recursively
+		// Transpose the new select containing updated column references recursively
 		// remove the logical project
 		//
 		// Input of step:
 		// +--CLogicalSelect (x = 'meh')
 		//    +--CLogicalProject (col1...n, expr as x)
-		//       +-- CLogicalNAryJoin
+		//       +-- CLogicalInnerJoin
 		// Output of step:
 		// +--CLogicalSelect (expr = 'meh')
-		//    +-- CLogicalNAryJoin
+		//    +-- CLogicalInnerJoin
 
 		// Replace colref's of the columns projected in the project list in the Select's predicate expr.
 		CExpression *pexprSelectPred = (*pexpr)[1];
@@ -2951,11 +2912,11 @@ CExpressionPreprocessor::PexprTransposeSelectAndProject(CMemoryPool *mp,
 		// Input of step:
 		// +--CLogicalSelect (x = 'meh')
 		//    +--CLogicalProject (col1...n, expr as x)
-		//       +-- CLogicalNAryJoin
+		//       +-- CLogicalInnerJoin
 		// Output of step:
 		// +--CLogicalProject (col1...n, expr as x)
 		//    +--CLogicalSelect (expr = 'meh')
-		//       +-- CLogicalNAryJoin
+		//       +-- CLogicalInnerJoin
 		pdrgpexpr->Append(pexprCollapsedSelect);
 		CExpressionArray *pdrgpprojelems = GPOS_NEW(mp) CExpressionArray(mp);
 		for (ULONG ul = 0; ul < pprojectList->Arity(); ul++)

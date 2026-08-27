@@ -241,13 +241,6 @@ public:
 
 	// is the given expression an inner join or NAry join
 	static BOOL
-	FInnerOrNAryJoin(CExpression *pexpr)
-	{
-		return COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid() ||
-			   COperator::EopLogicalNAryJoin == pexpr->Pop()->Eopid();
-	}
-
-	static BOOL
 	FLeftOuterJoin(CExpression *pexpr)
 	{
 		return COperator::EopLogicalLeftOuterJoin == pexpr->Pop()->Eopid();

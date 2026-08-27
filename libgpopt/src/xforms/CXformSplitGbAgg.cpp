@@ -17,7 +17,6 @@
 #include "gpopt/base/CColRefComputed.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/COperator.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/operators/CPatternMultiTree.h"

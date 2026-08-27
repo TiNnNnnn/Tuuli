@@ -1244,13 +1244,12 @@ CPhysicalHashJoin::CreateOptRequests(CMemoryPool *mp)
 	ULONG ulDistrReqs = GPOPT_NON_HASH_DIST_REQUESTS + NumDistrReq();
 	SetDistrRequests(ulDistrReqs);
 
-	// With DP enabled, there are several (max 10 controlled by macro)
-	// alternatives generated for a join tree and during optimization of those
-	// alternatives expressions PS is inserted in almost all the groups possibly.
-	// However, if DP is turned off, i.e in query or greedy join order,
-	// PS must be inserted in the group with DTS else in some cases HJ plan
-	// cannot be created. So, to ensure pushing PS without DPE 2 partition
-	// propagation request are required if DP is disabled.
+	// Exhaustive binary exploration generates enough alternatives for partition
+	// selectors to reach the required groups. Query-order exploration does not,
+	// so it needs an additional request that pushes a selector without relying
+	// on DPE. DPHyper owns join-order generation outside the ordinary binary
+	// xforms; give its results the same additional request so replacing the old
+	// enumerators cannot reduce the physical DPE search space.
 	//    Req 0 => Push PS with considering DPE possibility
 	//    Req 1 => Push PS without considering DPE possibility
 	// Ex case: select * from non_part_tbl1 t1, part_tbl t2, non_part_tbl2 t3
@@ -1260,15 +1259,10 @@ CPhysicalHashJoin::CreateOptRequests(CMemoryPool *mp)
 	// Also, increasing the number of request increases the optimization time, so
 	// set 2 only when needed.
 	//
-	// There are also cases where greedy does generate a better plan
-	// without DPE. This adds some overhead (<10%)to optimization time in
-	// some cases, but can create better alternatives to DPE, so
-	// we also generate this additional request for expressions that originated
-	// from CXformExpandNAryJoinGreedy.
 	CPhysicalJoin *physical_join = dynamic_cast<CPhysicalJoin *>(this);
-	if ((GPOPT_FDISABLED_XFORM(CXform::ExfExpandNAryJoinDP) &&
-		 GPOPT_FDISABLED_XFORM(CXform::ExfExpandNAryJoinDPv2)) ||
-		physical_join->OriginXform() == CXform::ExfExpandNAryJoinGreedy)
+	if (physical_join->OriginXform() == CXform::ExfDPHyperJoinRegion ||
+		(GPOPT_FDISABLED_XFORM(CXform::ExfJoinAssociativity) &&
+		 GPOPT_FDISABLED_XFORM(CXform::ExfInnerJoinCommutativity)))
 	{
 		SetPartPropagateRequests(2);
 	}

@@ -1,14 +1,15 @@
 //---------------------------------------------------------------------------
 //	@filename:
-//		CXformExpandNAryJoinDPHyper.h
+//		CXformDPHyperJoinRegion.h
 //
 //	@doc:
 //		Identity and stage-control xform for the specialized DPHyper Cascades
-//		job. CJobGroupExpressionExploration intercepts this xform and schedules
-//		CJobJoinEnumeration; it is never executed as a binding-at-a-time xform.
+//		join-region job. CJobGroupExpressionExploration intercepts this xform
+//		and schedules CJobJoinEnumeration; it is never executed as a
+//		binding-at-a-time xform.
 //---------------------------------------------------------------------------
-#ifndef GPOPT_CXformExpandNAryJoinDPHyper_H
-#define GPOPT_CXformExpandNAryJoinDPHyper_H
+#ifndef GPOPT_CXformDPHyperJoinRegion_H
+#define GPOPT_CXformDPHyperJoinRegion_H
 
 #include "gpopt/xforms/CXformExploration.h"
 
@@ -16,22 +17,22 @@ namespace gpopt
 {
 using namespace gpos;
 
-class CXformExpandNAryJoinDPHyper : public CXformExploration
+class CXformDPHyperJoinRegion : public CXformExploration
 {
 public:
-	explicit CXformExpandNAryJoinDPHyper(CMemoryPool *mp);
-	~CXformExpandNAryJoinDPHyper() override = default;
+	explicit CXformDPHyperJoinRegion(CMemoryPool *mp);
+	~CXformDPHyperJoinRegion() override = default;
 
 	EXformId
 	Exfid() const override
 	{
-		return ExfExpandNAryJoinDPHyper;
+		return ExfDPHyperJoinRegion;
 	}
 
 	const CHAR *
 	SzId() const override
 	{
-		return "CXformExpandNAryJoinDPHyper";
+		return "CXformDPHyperJoinRegion";
 	}
 
 	EXformPromise
@@ -45,4 +46,4 @@ public:
 
 }  // namespace gpopt
 
-#endif  // !GPOPT_CXformExpandNAryJoinDPHyper_H
+#endif  // !GPOPT_CXformDPHyperJoinRegion_H

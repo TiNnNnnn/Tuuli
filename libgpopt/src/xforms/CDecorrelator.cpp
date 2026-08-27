@@ -19,7 +19,6 @@
 #include "gpopt/base/CDrvdPropScalar.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -239,7 +238,6 @@ CDecorrelator::FProcessOperator(CMemoryPool *mp, CExpression *pexpr,
 		case COperator::EopLogicalLeftAntiSemiJoin:
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalLeftOuterCorrelatedApply:
-		case COperator::EopLogicalNAryJoin:
 			result = FProcessJoin(mp, pexpr, fEqualityOnly, ppexprDecorrelated,
 								  pdrgpexprCorrelations, outerRefsToRemove);
 			break;
@@ -512,18 +510,14 @@ CDecorrelator::FProcessJoin(CMemoryPool *mp, CExpression *pexpr,
 	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp, arity);
 
 	COperator::EOperatorId opId = pexpr->Pop()->Eopid();
-	CLogicalNAryJoin *naryJoin = CLogicalNAryJoin::PopConvert(pexpr->Pop());
 	BOOL isLeftJoin =
 		(COperator::EopLogicalLeftOuterJoin == opId);  // TODO: LOJ Apply??
 	BOOL isFullJoin = (COperator::EopLogicalFullOuterJoin == opId);
-	BOOL isNaryLOJ = (COperator::EopLogicalNAryJoin == opId &&
-					  naryJoin->HasOuterJoinChildren());
 
 	// decorrelate all relational children
 	for (ULONG ul = 0; ul < arity - 1; ul++)
 	{
-		if ((isLeftJoin && 1 == ul) || isFullJoin ||
-			(isNaryLOJ && !naryJoin->IsInnerJoinChild(ul)))
+		if ((isLeftJoin && 1 == ul) || isFullJoin)
 		{
 			// this logical child node is the right child of an LOJ or a child of an FOJ
 
@@ -538,12 +532,6 @@ CDecorrelator::FProcessJoin(CMemoryPool *mp, CExpression *pexpr,
 
 			// also check the ON predicate for correlations, that's not allowed, either
 			CExpression *onPred = (*pexpr)[arity - 1];
-
-			if (isNaryLOJ)
-			{
-				// we need to fish our ON clause out of the scalar argument of the NAry join
-				onPred = naryJoin->GetOnPredicateForLOJChild(pexpr, ul);
-			}
 
 			if (!outerRefsToRemove->IsDisjoint(onPred->DeriveUsedColumns()))
 			{
@@ -580,11 +568,6 @@ CDecorrelator::FProcessJoin(CMemoryPool *mp, CExpression *pexpr,
 	// decorrelate predicate and build new join operator
 	CExpression *pexprOriginalInnerJoinPreds = (*pexpr)[arity - 1];
 	CExpression *pexprPredicate = nullptr;
-
-	if (isNaryLOJ)
-	{
-		pexprOriginalInnerJoinPreds = naryJoin->GetInnerJoinPreds(pexpr);
-	}
 	BOOL fSuccess = FProcessPredicate(mp, pexpr, pexprOriginalInnerJoinPreds,
 									  fEqualityOnly, &pexprPredicate,
 									  pdrgpexprCorrelations, outerRefsToRemove);
@@ -595,13 +578,6 @@ CDecorrelator::FProcessJoin(CMemoryPool *mp, CExpression *pexpr,
 		if (nullptr == pexprPredicate)
 		{
 			pexprPredicate = CUtils::PexprScalarConstBool(mp, true /*value*/);
-		}
-
-		if (isNaryLOJ)
-		{
-			// keep any outer join predicates and only replace the inner join preds
-			pexprPredicate = naryJoin->ReplaceInnerJoinPredicates(
-				mp, (*pexpr)[arity - 1], pexprPredicate);
 		}
 
 		pdrgpexpr->Append(pexprPredicate);
