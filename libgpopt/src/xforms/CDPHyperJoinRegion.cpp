@@ -448,6 +448,27 @@ CDPHyperJoinRegion::~CDPHyperJoinRegion()
 	m_conjuncts->Release();
 }
 
+namespace
+{
+BOOL
+FContainsEquality(CMemoryPool *mp, CExpression *predicate)
+{
+	CExpressionArray *conjuncts =
+		CPredicateUtils::PdrgpexprConjuncts(mp, predicate);
+	BOOL found = false;
+	for (ULONG index = 0; index < conjuncts->Size(); ++index)
+	{
+		if (CPredicateUtils::IsEqualityOp((*conjuncts)[index]))
+		{
+			found = true;
+			break;
+		}
+	}
+	conjuncts->Release();
+	return found;
+}
+}  // namespace
+
 BOOL
 CDPHyperJoinRegion::FPredicateCrosses(const CBitSet *left,
 									  const CBitSet *right) const
@@ -673,6 +694,7 @@ CDPHyperJoinRegion::Build()
 	if (nullptr != m_spec && !m_spec->PureInner())
 	{
 		GPOS_ASSERT(m_spec->CDCSupported());
+		m_equality_edges.reserve(m_spec->EdgeCount());
 		for (ULONG edge_id = 0; edge_id < m_spec->EdgeCount(); ++edge_id)
 		{
 			if (m_generated_edges >= m_edge_budget)
@@ -681,6 +703,8 @@ CDPHyperJoinRegion::Build()
 				return false;
 			}
 			const CJoinRegionSpec::CEdge *edge = m_spec->Edge(edge_id);
+			m_equality_edges.push_back(
+				FContainsEquality(m_mp, edge->Predicate()));
 			CAutoRef<CBitSet> left(
 				GPOS_NEW(m_mp) CBitSet(m_mp, *edge->TES()));
 			CAutoRef<CBitSet> right(
@@ -694,8 +718,11 @@ CDPHyperJoinRegion::Build()
 		return true;
 	}
 	m_predicate_covers.reserve(m_conjuncts->Size());
+	m_equality_edges.reserve(m_conjuncts->Size());
 	for (ULONG predicate = 0; predicate < m_conjuncts->Size(); ++predicate)
 	{
+		m_equality_edges.push_back(
+			FContainsEquality(m_mp, (*m_conjuncts)[predicate]));
 		CBitSet *cover = PbsPredicateCover((*m_conjuncts)[predicate]);
 		m_predicate_covers.push_back(cover);
 		if (1 < cover->Size() && !AddPredicatePartitions(predicate, cover))
@@ -887,48 +914,10 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 	return true;
 }
 
-namespace
-{
-BOOL
-FContainsEquality(CMemoryPool *mp, CExpression *predicate)
-{
-	CExpressionArray *conjuncts =
-		CPredicateUtils::PdrgpexprConjuncts(mp, predicate);
-	BOOL found = false;
-	for (ULONG index = 0; index < conjuncts->Size(); ++index)
-	{
-		if (CPredicateUtils::IsEqualityOp((*conjuncts)[index]))
-		{
-			found = true;
-			break;
-		}
-	}
-	conjuncts->Release();
-	return found;
-}
-}  // namespace
-
 BOOL
 CDPHyperJoinRegion::FEqualityEdge(ULONG edge_id) const
 {
-	CExpression *predicate = nullptr;
-	if (nullptr != m_spec && !m_spec->PureInner())
-	{
-		if (edge_id >= m_spec->EdgeCount())
-		{
-			return false;
-		}
-		predicate = m_spec->Edge(edge_id)->Predicate();
-	}
-	else
-	{
-		if (edge_id >= m_conjuncts->Size())
-		{
-			return false;
-		}
-		predicate = (*m_conjuncts)[edge_id];
-	}
-	return FContainsEquality(m_mp, predicate);
+	return edge_id < m_equality_edges.size() && m_equality_edges[edge_id];
 }
 
 BOOL

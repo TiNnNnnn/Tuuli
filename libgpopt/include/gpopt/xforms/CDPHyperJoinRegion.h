@@ -88,6 +88,7 @@ private:
 	CExpressionArray *m_components;
 	CExpressionArray *m_conjuncts;
 	std::vector<CBitSet *> m_predicate_covers;
+	std::vector<BOOL> m_equality_edges;
 	std::vector<std::pair<CBitSet *, CBitSet *>> m_skeleton_edges;
 	const CJoinRegionSpec *m_spec;
 	CDPHyperGraph *m_graph;
