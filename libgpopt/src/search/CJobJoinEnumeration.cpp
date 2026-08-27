@@ -508,7 +508,11 @@ FBuildBinarySkeletonPlan(CMemoryPool *mp, CDPHyperJoinRegion *region,
 CJobJoinEnumeration::CJobJoinEnumeration()
 	: m_pgexpr(nullptr),
 	  m_materialized(false),
-	  m_native_fallback_materialized(false)
+	  m_native_fallback_materialized(false),
+	  m_enumeration_us(0),
+	  m_exploration_us(0),
+	  m_waiting_for_exploration(false),
+	  m_exploration_clock(false)
 {
 }
 
@@ -522,6 +526,9 @@ CJobJoinEnumeration::Init(CGroupExpression *pgexpr)
 	m_pgexpr = pgexpr;
 	m_materialized = false;
 	m_native_fallback_materialized = false;
+	m_enumeration_us = 0;
+	m_exploration_us = 0;
+	m_waiting_for_exploration = false;
 	m_intermediate_groups.clear();
 	SetInit();
 }
@@ -540,8 +547,14 @@ BOOL
 CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 {
 	GPOS_ASSERT(FInit());
+	if (m_waiting_for_exploration)
+	{
+		m_exploration_us += m_exploration_clock.ElapsedUS();
+		m_waiting_for_exploration = false;
+	}
 	if (!m_materialized)
 	{
+		CWallClock enumeration_clock(true);
 		if (!FEnumerate(psc))
 		{
 			const CGroupExpression::EDPHyperStatus status =
@@ -559,6 +572,7 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 			}
 			return true;
 		}
+		m_enumeration_us = enumeration_clock.ElapsedUS();
 		m_materialized = true;
 	}
 
@@ -594,6 +608,8 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 	}
 	if (scheduled)
 	{
+		m_exploration_clock.Restart();
+		m_waiting_for_exploration = true;
 		return false;
 	}
 
@@ -604,7 +620,17 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 	else
 	{
 		GPOS_ASSERT(CGroupExpression::EdphSucceeded ==
-						m_pgexpr->DPHyperStatus());
+					 m_pgexpr->DPHyperStatus());
+	}
+	if (GPOS_FTRACE(EopttracePrintXformResults))
+	{
+		GPOS_TRACE_FORMAT(
+			"DPHyper: status=explored group=%d intermediate_groups=%d "
+			"enumeration_us=%d exploration_us=%d mode=%s",
+			m_pgexpr->Pgroup()->Id(),
+			static_cast<ULONG>(m_intermediate_groups.size()),
+			m_enumeration_us, m_exploration_us,
+			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	return true;
 }
@@ -747,6 +773,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 	const std::vector<CGroupExpression *> &region_members)
 {
 	GPOS_ASSERT(nullptr != region);
+	CWallClock phase_clock(true);
 	const ULONG node_count = region->NodeCount();
 	GPOS_ASSERT(node_count == component_groups.size());
 	CMemoryPool *mp = psc->GetGlobalMemoryPool();
@@ -772,13 +799,18 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 		return false;
 	}
+	const ULONG build_us = phase_clock.ElapsedUS();
 
+	phase_clock.Restart();
 	CEngine *engine = psc->Peng();
 	CDPHyperGraphFingerprint *fingerprint = region->Pfp();
 	const ULONG fingerprint_hash = fingerprint->HashValue();
 	const ULONG dependency_count =
 		nullptr == spec ? 0 : spec->DependencyCount();
-	if (engine->FHasDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
+	const BOOL fingerprint_exists = engine->FHasDPHyperFingerprint(
+		m_pgexpr->Pgroup(), fingerprint);
+	const ULONG fingerprint_us = phase_clock.ElapsedUS();
+	if (fingerprint_exists)
 	{
 		GPOS_DELETE(fingerprint);
 		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
@@ -786,15 +818,17 @@ CJobJoinEnumeration::FEnumerateRegion(
 		{
 			GPOS_TRACE_FORMAT(
 				"DPHyper: status=reused group=%d root=%s nodes=%d "
-				"dependencies=%d fingerprint=%u mode=%s",
+				"dependencies=%d fingerprint=%u build_us=%d "
+				"fingerprint_us=%d mode=%s",
 				m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
-				dependency_count, fingerprint_hash,
+				dependency_count, fingerprint_hash, build_us, fingerprint_us,
 				GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow"
 													 : "replacement");
 		}
 		return true;
 	}
 
+	phase_clock.Restart();
 	CDPHyperPlan::PairFilter pair_filter =
 		[region](const CBitSet *left, const CBitSet *right, ULONG edge_id) {
 			if (!region->FPairApplicable(left, right, edge_id))
@@ -850,6 +884,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		graph_simplified
 			? &graph_plan
 			: (skeleton_simplified ? &skeleton_plan : &exhaustive_plan);
+	const ULONG enumeration_us = phase_clock.ElapsedUS();
 	if ((!exhaustive_complete && !simplified) ||
 		(enumeration_aborted && !budget_exhausted))
 	{
@@ -874,6 +909,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		return false;
 	}
 
+	phase_clock.Restart();
 	if (!engine->FRegisterDPHyperFingerprint(m_pgexpr->Pgroup(), fingerprint))
 	{
 		PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);
@@ -889,6 +925,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 		return true;
 	}
+	const ULONG registration_us = phase_clock.ElapsedUS();
 
 	// Enumeration above is side-effect free. From this point onward all child
 	// subsets are known to exist and pairs are topologically ordered, so Memo
@@ -913,6 +950,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		}
 	}
 
+	phase_clock.Restart();
 	for (const CDPHyperPlan::SPair *pair : plan->Pairs())
 	{
 		CGroup *left_group = subset_groups.Lookup(pair->m_left);
@@ -993,13 +1031,16 @@ CJobJoinEnumeration::FEnumerateRegion(
 			(void) reverse_target;
 		}
 	}
+	const ULONG materialization_us = phase_clock.ElapsedUS();
 	if (GPOS_FTRACE(EopttracePrintXformResults))
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=applied group=%d root=%s nodes=%d edges=%d "
 			"cartesian_edges=%d dependencies=%d pairs=%d subsets=%d "
 			"fingerprint=%u enumeration=%s strategy=%s reason=%s "
-			"attempted_pairs=%d simplification_steps=%d mode=%s",
+			"attempted_pairs=%d simplification_steps=%d build_us=%d "
+			"fingerprint_us=%d enumeration_us=%d registration_us=%d "
+			"materialization_us=%d mode=%s",
 			m_pgexpr->Pgroup()->Id(), m_pgexpr->Pop()->SzId(), node_count,
 			region->GeneratedEdgeCount(), region->CartesianEdgeCount(),
 			dependency_count, plan->PairCount(), plan->SeenCount(), fingerprint_hash,
@@ -1008,7 +1049,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 				? "graph_simplifier"
 				: (skeleton_simplified ? "binary_skeleton" : "none"),
 			simplified ? "pair_budget" : "none", attempted_pairs,
-			simplification_steps,
+			simplification_steps, build_us, fingerprint_us, enumeration_us,
+			registration_us, materialization_us,
 			GPOS_FTRACE(EopttraceDPHyperShadow) ? "shadow" : "replacement");
 	}
 	PublishRegionStatus(region_members, CGroupExpression::EdphSucceeded);

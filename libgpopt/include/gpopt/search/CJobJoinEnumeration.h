@@ -12,6 +12,8 @@
 
 #include <vector>
 
+#include "gpos/common/CWallClock.h"
+
 #include "gpopt/search/CJob.h"
 
 namespace gpopt
@@ -29,6 +31,10 @@ private:
 	CGroupExpression *m_pgexpr;
 	BOOL m_materialized;
 	BOOL m_native_fallback_materialized;
+	ULONG m_enumeration_us;
+	ULONG m_exploration_us;
+	BOOL m_waiting_for_exploration;
+	CWallClock m_exploration_clock;
 	std::vector<CGroup *> m_intermediate_groups;
 
 	BOOL FEnumerate(CSchedulerContext *psc);
