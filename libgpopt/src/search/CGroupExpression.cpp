@@ -942,8 +942,14 @@ CGroupExpression::Transform(
 	}
 	pxfctxt->Release();
 
-	// post-prcoessing before applying xform to group expression
-	PostprocessTransform(pmpLocal, mp, pxform);
+	// A stats-dependent xform can only make the group's cached statistics stale
+	// when it produced a new equivalent expression. Keep the cache after a
+	// rejected/no-op attempt so sibling expressions do not derive the same group
+	// statistics again.
+	if (0 < pxfres->Pdrgpexpr()->Size())
+	{
+		PostprocessTransform(pmpLocal, mp, pxform);
+	}
 
 	if (fPrintOptStats)
 	{
