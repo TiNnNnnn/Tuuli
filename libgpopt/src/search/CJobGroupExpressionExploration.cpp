@@ -20,6 +20,7 @@
 #include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalJoin.h"
+#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
@@ -80,6 +81,22 @@ ClearDPHyperJoinEnumeration(CXformSet *xform_set,
 		default:
 			GPOS_ASSERT(!"Unsupported DPHyper join-region root");
 	}
+}
+
+void
+ConfigureNAryFallback(CXformSet *xform_set, BOOL use_greedy)
+{
+	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
+	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
+	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
+	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
+	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
+	// Search-stage intersection normally leaves exactly one native policy.
+	// DPHyper fallback owns this decision and must therefore restore the safe
+	// non-DP policy explicitly.
+	(void) xform_set->ExchangeSet(
+		use_greedy ? CXform::ExfExpandNAryJoinGreedy
+				   : CXform::ExfExpandNAryJoin);
 }
 
 BOOL
@@ -342,15 +359,7 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 			// A failed binary DPHyper attempt materializes this NAryJoin solely
 			// as an exact bridge to the greedy enumerator. Do not recurse into
 			// DPHyper or re-enter any exhaustive native DP enumerator.
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
-			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
-			// The active search stage normally selects exactly one native join
-			// order policy (DPv2 by default), so Greedy may have been removed by
-			// the stage intersection above. This bridge is an explicit DPHyper
-			// budget fallback and therefore overrides that native policy.
-			(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinGreedy);
+			ConfigureNAryFallback(xform_set, true /*use_greedy*/);
 			ScheduleTransformations(psc, xform_set);
 			xform_set->Release();
 			SetXformsScheduled();
@@ -366,6 +375,20 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 		}
 		GPOS_ASSERT(CGroupExpression::EdphScheduled !=
 					m_pgexpr->DPHyperStatus());
+		if (CGroupExpression::EdphFallback == m_pgexpr->DPHyperStatus() &&
+			COperator::EopLogicalNAryJoin == pop->Eopid() &&
+			!GPOS_FTRACE(EopttraceDPHyperShadow))
+		{
+			CLogicalNAryJoin *nary = CLogicalNAryJoin::PopConvert(pop);
+			CExpressionHandle exprhdl(psc->GetGlobalMemoryPool());
+			exprhdl.Attach(m_pgexpr);
+			const BOOL use_greedy = !nary->HasOuterJoinChildren() &&
+									!exprhdl.HasOuterRefs();
+			// Greedy only models inner joins. Preserve query order for outer or
+			// correlated NAryJoin fallback, which is semantic rather than a
+			// search-space budget decision.
+			ConfigureNAryFallback(xform_set, use_greedy);
+		}
 		if ((CGroupExpression::EdphSucceeded ==
 				 m_pgexpr->DPHyperStatus() ||
 			 CGroupExpression::EdphNativeFallback ==
