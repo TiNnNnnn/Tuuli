@@ -19,6 +19,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/base/COptCtxt.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -470,7 +471,20 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	// accidental publication of machine traces less likely to expose rule text.
 	os << "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\","
 		  "\"rule_id\":"
-	   << ulRuleId << ",\"status\":\"" << szStage << "\"";
+	   << ulRuleId << ",\"status\":\"" << szStage
+	   << "\",\"rule_hash\":\"" << prule->SzIdentity() << "\"";
+	if (nullptr != poctxt && nullptr != poctxt->PdslPolicySnapshot())
+	{
+		const SDSLRulePolicy *policy =
+			poctxt->PdslPolicySnapshot()->Ppolicy(prule);
+		if (nullptr != policy)
+		{
+			os << ",\"placement\":\""
+			   << SzDSLPlacement(policy->m_edslplacement)
+			   << "\",\"phase\":\"" << SzDSLPhase(policy->m_edslphase)
+			   << "\",\"priority\":" << policy->m_iPriority;
+		}
+	}
 	if (fVerbose)
 	{
 		os << ",\"binding_count\":"
@@ -532,41 +546,28 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 					 pexpr, nullptr);
 		return nullptr;
 	}
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
-	CWallClock stageTimer(fTrace);
-	if (!FMatch(prule, pexpr, pmodel))
+	CDSLRewriteDecision *pdecision = PdecisionEvaluate(mp, prule, pexpr);
+	CDSLModel *pmodel = pdecision->Pmodel();
+	CExpression *pexprTgt = pdecision->PexprTarget();
+	const ULONG ulMatchUs = pdecision->UlMatchUs();
+	const ULONG ulConstraintUs = pdecision->UlConstraintUs();
+	const ULONG ulInstantiateUs = pdecision->UlInstantiateUs();
+	if (EdsldecisionMatchRejected == pdecision->Status())
 	{
-		const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
 		TraceDSLRule(mp, ulRuleId, EdsltraceMatchRejected, prule, pmodel, pexpr,
 					 nullptr, nullptr, gpos::ulong_max, ulMatchUs);
-		pmodel->Release();
+		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
-	const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
-	if (fTrace)
+	if (EdsldecisionConstraintRejected == pdecision->Status())
 	{
-		stageTimer.Restart();
-	}
-	const CDSLConstraint *pconFailed = nullptr;
-	ULONG ulFailed = gpos::ulong_max;
-	if (!FCheckConstraints(prule, pmodel, pexpr, &pconFailed, &ulFailed))
-	{
-		const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
-		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel, pexpr,
-					 nullptr, pconFailed, ulFailed, ulMatchUs, ulConstraintUs);
-		pmodel->Release();
+		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel,
+					 pexpr, nullptr, pdecision->PconFailed(),
+					 pdecision->UlFailedConstraint(), ulMatchUs, ulConstraintUs);
+		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
-	const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
-	if (fTrace)
-	{
-		stageTimer.Restart();
-	}
-
-	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
-	const ULONG ulInstantiateUs = fTrace ? stageTimer.ElapsedUS() : 0;
-	if (nullptr != pexprTgt && pexprTgt->Matches(pexpr))
+	if (EdsldecisionDuplicate == pdecision->Status())
 	{
 		// A representational adapter can rebuild a rule's target into the exact
 		// source tree (for example when an output-column Project must remain over
@@ -575,28 +576,85 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
 					 pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 					 ulConstraintUs, ulInstantiateUs);
-		pexprTgt->Release();
-		pmodel->Release();
+		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
-	if (nullptr != pexprTgt &&
+	if (EdsldecisionReady == pdecision->Status() &&
 		!poctxt->FReserveDSLAlternative(ulRuleId))
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetExhausted, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 					 ulConstraintUs, ulInstantiateUs);
-		pexprTgt->Release();
-		pmodel->Release();
+		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
 	TraceDSLRule(mp, ulRuleId,
-				 nullptr == pexprTgt ? EdsltraceInstantiateRejected
-									 : EdsltraceApplied,
+				 EdsldecisionInstantiateRejected == pdecision->Status()
+					 ? EdsltraceInstantiateRejected
+					 : EdsltraceApplied,
 				 prule,
 				 pmodel, pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 				 ulConstraintUs, ulInstantiateUs);
-	pmodel->Release();
-	return pexprTgt;
+	CExpression *pexprResult = pdecision->PexprDetachTarget();
+	GPOS_DELETE(pdecision);
+	return pexprResult;
+}
+
+CDSLRewriteDecision *
+CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
+								  CExpression *pexpr,
+								  BOOL fFingerprint) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pexpr);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
+	CWallClock stageTimer(fTrace);
+	// Fingerprints are required by the RBO cycle guard, but computing them for
+	// every rejected Cascades binding would add work to the legacy CBO path.
+	const ULONG ulSourceFingerprint =
+		fFingerprint ? CExpression::HashValue(pexpr) : 0;
+	if (!FMatch(prule, pexpr, pmodel))
+	{
+		const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
+		return GPOS_NEW(mp) CDSLRewriteDecision(
+			pmodel, nullptr, EdsldecisionMatchRejected, nullptr,
+			gpos::ulong_max, ulMatchUs, 0, 0, ulSourceFingerprint, 0);
+	}
+	const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
+	if (fTrace)
+		stageTimer.Restart();
+	const CDSLConstraint *pconFailed = nullptr;
+	ULONG ulFailed = gpos::ulong_max;
+	if (!FCheckConstraints(prule, pmodel, pexpr, &pconFailed, &ulFailed))
+	{
+		const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
+		return GPOS_NEW(mp) CDSLRewriteDecision(
+			pmodel, nullptr, EdsldecisionConstraintRejected, pconFailed,
+			ulFailed, ulMatchUs, ulConstraintUs, 0, ulSourceFingerprint, 0);
+	}
+	const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
+	if (fTrace)
+		stageTimer.Restart();
+	CExpression *pexprTarget = PexprInstantiate(mp, prule, pmodel);
+	const ULONG ulInstantiateUs = fTrace ? stageTimer.ElapsedUS() : 0;
+	if (nullptr == pexprTarget)
+	{
+		return GPOS_NEW(mp) CDSLRewriteDecision(
+			pmodel, nullptr, EdsldecisionInstantiateRejected, nullptr,
+			gpos::ulong_max, ulMatchUs, ulConstraintUs, ulInstantiateUs,
+			ulSourceFingerprint, 0);
+	}
+	const ULONG ulTargetFingerprint =
+		fFingerprint ? CExpression::HashValue(pexprTarget) : 0;
+	const EDslRewriteDecisionStatus status = pexprTarget->Matches(pexpr)
+		? EdsldecisionDuplicate
+		: EdsldecisionReady;
+	return GPOS_NEW(mp) CDSLRewriteDecision(
+		pmodel, pexprTarget, status, nullptr, gpos::ulong_max, ulMatchUs,
+		ulConstraintUs, ulInstantiateUs, ulSourceFingerprint,
+		ulTargetFingerprint);
 }
 
 //---------------------------------------------------------------------------

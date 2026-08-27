@@ -38,7 +38,9 @@
         "Rule: InSubFilter",
         "Generated:",
         "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\"",
-        "\"rule_id\":8,\"status\":\"applied\""
+        "\"rule_id\":8,\"status\":\"applied\"",
+        "\"rule_hash\":\"",
+        "\"placement\":\"cbo\",\"phase\":\"explore\",\"priority\":0"
       ],
       "alternative": [
         "CXformDSLRule_Select"

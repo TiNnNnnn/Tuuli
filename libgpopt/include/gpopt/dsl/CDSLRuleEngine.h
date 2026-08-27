@@ -31,6 +31,7 @@
 #include "gpos/common/CHashMap.h"
 
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLRewriteDecision.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CExpression.h"
@@ -146,6 +147,7 @@ public:
 
 	// total admitted rules (diagnostics)
 	ULONG UlRules() const { return m_pdrgprule->Size(); }
+	const CDSLRuleArray *PdrgpruleAll() const { return m_pdrgprule; }
 
 	// Stable physical source line. Returns zero only for a pointer that is not
 	// owned by this engine.
@@ -178,6 +180,13 @@ public:
 	// ③: instantiate the rule's target template under the bound model, in mp.
 	CExpression *PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
 								  const CDSLModel *pmodel) const;
+
+	// Scheduler-neutral evaluation. It does not inspect or reserve a CBO/RBO
+	// budget and never inserts/replaces an expression. Caller owns the result.
+	CDSLRewriteDecision *PdecisionEvaluate(CMemoryPool *mp,
+										 const CDSLRule *prule,
+										 CExpression *pexpr,
+										 BOOL fFingerprint = false) const;
 
 	// Run the complete match -> check -> instantiate pipeline for one rule.
 	// When pg_orca.trace_dsl_rule is enabled, this is also the single attribution

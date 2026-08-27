@@ -14,7 +14,9 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 
+#include "gpos/io/COstreamString.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 
 using namespace gpopt;
@@ -35,6 +37,23 @@ Trim(const std::string &s)
 	size_t e = s.find_last_not_of(" \t\r\n");
 	return s.substr(b, e - b + 1);
 }
+
+std::string
+CanonicalText(CMemoryPool *mp, const CDSLRule *prule)
+{
+	CWStringDynamic text(mp);
+	COstreamString stream(&text);
+	prule->OsPrint(stream);
+	std::string result;
+	result.reserve(text.Length());
+	for (ULONG index = 0; index < text.Length(); ++index)
+	{
+		GPOS_ASSERT(0 <= text.GetBuffer()[index] &&
+					0x7f >= text.GetBuffer()[index]);
+		result.push_back((CHAR) text.GetBuffer()[index]);
+	}
+	return result;
+}
 }  // namespace
 
 CDSLRuleArray *
@@ -47,6 +66,7 @@ CDSLRuleLoader::PdrgpdslruleLoadBuffer(CMemoryPool *mp, const CHAR *sz_content,
 	CDSLRuleArray *pdrgpdslrule = GPOS_NEW(mp) CDSLRuleArray(mp);
 	SLoadStats stats;
 	ULONG ul_reported = 0;
+	std::unordered_map<std::string, std::string> identityToCanonical;
 
 	std::istringstream iss(sz_content);
 	std::string raw;
@@ -94,6 +114,25 @@ CDSLRuleLoader::PdrgpdslruleLoadBuffer(CMemoryPool *mp, const CHAR *sz_content,
 			}
 			continue;
 		}
+		const std::string identity(pdslrule->SzIdentity());
+		const std::string canonical = CanonicalText(mp, pdslrule);
+		auto prior = identityToCanonical.find(identity);
+		if (identityToCanonical.end() != prior && prior->second != canonical)
+		{
+			stats.ul_failed++;
+			if (nullptr != pstrErrs && ul_reported < GPOPT_DSL_MAX_LOAD_ERRS)
+			{
+				++ul_reported;
+				pstrErrs->AppendFormat(
+					GPOS_WSZ_LIT("line %d: canonical rule identity collision ("),
+					ul_lineno);
+				pstrErrs->AppendCharArray(identity.c_str());
+				pstrErrs->AppendCharArray(")\n");
+			}
+			pdslrule->Release();
+			continue;
+		}
+		identityToCanonical.emplace(identity, canonical);
 		pdslrule->SetSourceLine(ul_lineno);
 		pdrgpdslrule->Append(pdslrule);
 		stats.ul_admitted++;

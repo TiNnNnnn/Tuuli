@@ -26,6 +26,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -105,9 +106,48 @@ CDSLTriggerTest::EresUnittest()
 			CDSLTriggerTest::EresUnittest_ConstraintGates_KeyAbsent),
 		GPOS_UNITTEST_FUNC(
 			CDSLTriggerTest::EresUnittest_FiredTargetPreservesResiduals),
+		GPOS_UNITTEST_FUNC(CDSLTriggerTest::EresUnittest_RewriteDecision),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLTriggerTest::EresUnittest_RewriteDecision()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
+	if (nullptr == prule || nullptr == engine)
+	{
+		CRefCount::SafeRelease(prule);
+		return GPOS_FAILED;
+	}
+	CColRefArray *columns = nullptr;
+	CExpression *get = fix.PexprLogicalGet("decision_t", 2, &columns);
+	CExpression *predicate = fix.PexprPredAtom((*columns)[0]);
+	CExpression *select = fix.PexprLogicalSelect(get, predicate);
+	predicate->Release();
+
+	CDSLRewriteDecision *ready =
+		engine->PdecisionEvaluate(mp, prule, select, true /*fingerprint*/);
+	CDSLRewriteDecision *rejected =
+		engine->PdecisionEvaluate(mp, prule, get, true /*fingerprint*/);
+	const BOOL valid = EdsldecisionReady == ready->Status() &&
+		nullptr != ready->PexprTarget() && 0 != ready->UlSourceFingerprint() &&
+		0 != ready->UlTargetFingerprint() &&
+		EdsldecisionMatchRejected == rejected->Status() &&
+		nullptr == rejected->PexprTarget() &&
+		0 != rejected->UlSourceFingerprint();
+	GPOS_DELETE(ready);
+	GPOS_DELETE(rejected);
+	select->Release();
+	get->Release();
+	prule->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 //---------------------------------------------------------------------------

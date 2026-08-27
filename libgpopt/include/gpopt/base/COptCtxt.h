@@ -26,6 +26,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CDSLPolicySnapshot;
+
 // hash maps ULONG -> array of ULONGs
 using UlongToBitSetMap =
 	CHashMap<ULONG, CBitSet, gpos::HashValue<ULONG>, gpos::Equals<ULONG>,
@@ -197,6 +199,10 @@ private:
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
 
+	// Immutable scheduling metadata compiled at query start. It is deliberately
+	// query-local; the process-global rule engine remains read-only.
+	CDSLPolicySnapshot *m_pdslPolicySnapshot;
+
 public:
 	COptCtxt(COptCtxt &) = delete;
 
@@ -261,6 +267,12 @@ public:
 	GetOptimizerConfig() const
 	{
 		return m_optimizer_config;
+	}
+
+	const CDSLPolicySnapshot *
+	PdslPolicySnapshot() const
+	{
+		return m_pdslPolicySnapshot;
 	}
 
 	// are we optimizing a DML query

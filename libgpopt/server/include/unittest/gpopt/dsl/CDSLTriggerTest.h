@@ -60,6 +60,10 @@ public:
 	// valid rewrite: the fired target preserves every conjunct (no dropped
 	// predicate) and keeps the source's output columns.
 	static GPOS_RESULT EresUnittest_FiredTargetPreservesResiduals();
+
+	// The shared scheduler-neutral evaluation object reports both successful
+	// instantiation and root mismatch without reserving a Cascades budget.
+	static GPOS_RESULT EresUnittest_RewriteDecision();
 };	// class CDSLTriggerTest
 }  // namespace gpopt
 

@@ -202,6 +202,7 @@ private:
 	CDSLConstraintArray *m_pdrgpcon;	 // owned
 	CWStringConst *m_pstr_verdict;		 // owned; may be NULL (e.g. "EQ")
 	ULONG m_ul_source_line;				 // physical one-based line in source file
+	CHAR m_sz_identity[17];				 // 64-bit FNV-1a of canonical rule text
 
 public:
 	CDSLRule(const CDSLRule &) = delete;
@@ -217,6 +218,7 @@ public:
 	const CWStringConst *PstrVerdict() const { return m_pstr_verdict; }
 	ULONG UlSourceLine() const { return m_ul_source_line; }
 	void SetSourceLine(ULONG ul_source_line) { m_ul_source_line = ul_source_line; }
+	const CHAR *SzIdentity() const { return m_sz_identity; }
 
 	// ORCA logical op at the source root — the bucket key the engine dispatches
 	// on (which shell xform owns this rule). EopSentinel for Input/subquery/etc.

@@ -17,6 +17,8 @@
 #include "gpopt/base/CDefaultComparator.h"
 #include "gpopt/cost/ICostModel.h"
 #include "gpopt/eval/IConstExprEvaluator.h"
+#include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -61,7 +63,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_ulDSLCandidateLookupUs(0),
 	  m_ulDSLCandidatesFound(0),
 	  m_ulDSLGeneratedAlternatives(0),
-	  m_dsl_generated_alternatives_by_rule(nullptr)
+	  m_dsl_generated_alternatives_by_rule(nullptr),
+	  m_pdslPolicySnapshot(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != col_factory);
@@ -81,6 +84,13 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 		GPOS_NEW(m_mp) UlongToDSLRuleTraceCountersMap(m_mp);
 	m_dsl_generated_alternatives_by_rule =
 		GPOS_NEW(m_mp) UlongToUlongMap(m_mp);
+
+	CDSLRuleEngine *pengine = CDSLRuleEngine::Instance();
+	GPOS_ASSERT(nullptr != pengine);
+	CWStringDynamic strPolicyErrors(m_mp);
+	m_pdslPolicySnapshot = CDSLPolicySnapshot::PsnapshotCompile(
+		m_mp, pengine->PdrgpruleAll(), nullptr, &strPolicyErrors);
+	GPOS_ASSERT(nullptr != m_pdslPolicySnapshot);
 }
 
 
@@ -107,6 +117,7 @@ COptCtxt::~COptCtxt()
 	m_dsl_trace_events->Release();
 	m_dsl_rule_trace_counters->Release();
 	m_dsl_generated_alternatives_by_rule->Release();
+	GPOS_DELETE(m_pdslPolicySnapshot);
 }
 
 

@@ -11,7 +11,37 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRule.h"
 
+#include "gpos/io/COstreamString.h"
+#include "gpos/string/CWStringDynamic.h"
+
 using namespace gpopt;
+
+namespace
+{
+void
+ComputeRuleIdentity(const BYTE *pbytes, ULONG ulLength, CHAR szIdentity[17])
+{
+	// Byte-at-a-time FNV-1a is deliberately used here instead of the faster
+	// native-word HashByteArray(): canonical identities must not depend on host
+	// endianness and are computed only once when a rule is loaded.
+	const ULLONG ullFnvOffset = 0xcbf29ce484222325ULL;
+	const ULLONG ullFnvPrime = 0x100000001b3ULL;
+	ULLONG ullHash = ullFnvOffset;
+	for (ULONG ul = 0; ul < ulLength; ++ul)
+	{
+		ullHash ^= (ULLONG) pbytes[ul];
+		ullHash *= ullFnvPrime;
+	}
+
+	static const CHAR szDigits[] = "0123456789abcdef";
+	for (ULONG ul = 0; ul < 16; ++ul)
+	{
+		const ULONG ulShift = (15 - ul) * 4;
+		szIdentity[ul] = szDigits[(ullHash >> ulShift) & 0x0f];
+	}
+	szIdentity[16] = '\0';
+}
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // CDSLSymbol
@@ -182,7 +212,8 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	  m_pfrag_tgt(pfrag_tgt),
 	  m_pdrgpcon(pdrgpcon),
 	  m_pstr_verdict(nullptr),
-	  m_ul_source_line(0)
+	  m_ul_source_line(0),
+	  m_sz_identity{0}
 {
 	GPOS_ASSERT(nullptr != pfrag_src);
 	GPOS_ASSERT(nullptr != pfrag_tgt);
@@ -191,6 +222,23 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	{
 		m_pstr_verdict = GPOS_NEW(mp) CWStringConst(mp, sz_verdict);
 	}
+
+	// The grammar admits ASCII identifiers only, and the canonical printer emits
+	// ASCII punctuation/operator names.  Hash those canonical bytes rather than
+	// wchar_t storage, whose width and byte order differ between platforms.
+	CWStringDynamic strCanonical(mp);
+	COstreamString os(&strCanonical);
+	OsPrint(os);
+	const ULONG ulLength = strCanonical.Length();
+	BYTE *pbytes = GPOS_NEW_ARRAY(mp, BYTE, ulLength);
+	const WCHAR *wszCanonical = strCanonical.GetBuffer();
+	for (ULONG ul = 0; ul < ulLength; ++ul)
+	{
+		GPOS_ASSERT(0 <= wszCanonical[ul] && 0x7f >= wszCanonical[ul]);
+		pbytes[ul] = (BYTE) wszCanonical[ul];
+	}
+	ComputeRuleIdentity(pbytes, ulLength, m_sz_identity);
+	GPOS_DELETE_ARRAY(pbytes);
 }
 
 CDSLRule::~CDSLRule()
