@@ -4,8 +4,10 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/xforms/CDPHyperGraphTest.h"
 
-#include <initializer_list>
+#include <algorithm>
 #include <cstdint>
+#include <initializer_list>
+#include <utility>
 #include <vector>
 
 #include "gpos/common/CAutoRef.h"
@@ -35,6 +37,24 @@ class CRecordingReceiver : public IDPHyperReceiver
 private:
 	CMemoryPool *m_mp;
 	std::vector<CBitSet *> m_seen;
+	std::vector<std::pair<ULONG, ULONG>> m_pairs;
+
+	static BOOL
+	FMask(const CBitSet *nodes, ULONG *mask)
+	{
+		GPOS_ASSERT(nullptr != mask);
+		*mask = 0;
+		CBitSetIter iter(*nodes);
+		while (iter.Advance())
+		{
+			if (iter.Bit() >= sizeof(ULONG) * 8)
+			{
+				return false;
+			}
+			*mask |= ULONG(1) << iter.Bit();
+		}
+		return true;
+	}
 
 public:
 	explicit CRecordingReceiver(CMemoryPool *mp) : m_mp(mp)
@@ -79,6 +99,21 @@ public:
 						   ULONG) override
 	{
 		GPOS_UNITTEST_ASSERT(left->IsDisjoint(right));
+		ULONG left_mask = 0;
+		ULONG right_mask = 0;
+		if (FMask(left, &left_mask) && FMask(right, &right_mask))
+		{
+			if (right_mask < left_mask)
+			{
+				std::swap(left_mask, right_mask);
+			}
+			const std::pair<ULONG, ULONG> pair(left_mask, right_mask);
+			if (m_pairs.end() ==
+				std::find(m_pairs.begin(), m_pairs.end(), pair))
+			{
+				m_pairs.push_back(pair);
+			}
+		}
 		CAutoRef<CBitSet> joined(GPOS_NEW(m_mp) CBitSet(m_mp, *left));
 		joined->Union(right);
 		if (!HasSeen(joined.Value()))
@@ -86,6 +121,18 @@ public:
 			m_seen.push_back(joined.Reset());
 		}
 		return false;
+	}
+
+	BOOL
+	HasPair(ULONG left, ULONG right) const
+	{
+		if (right < left)
+		{
+			std::swap(left, right);
+		}
+		return m_pairs.end() !=
+			   std::find(m_pairs.begin(), m_pairs.end(),
+							 std::make_pair(left, right));
 	}
 
 	ULONG
@@ -528,6 +575,30 @@ CDPHyperGraphTest::EresUnittest_ExhaustiveSimpleGraphs()
 			}
 			GPOS_UNITTEST_ASSERT(FConnected(node_count, graph_mask, subset) ==
 							 receiver.HasSeen(nodes.Value()));
+
+			// Validate every unordered CSG-CMP cut, not merely whether its
+			// union subset is reachable. Losing one cut reduces join-order
+			// alternatives even when all connected subsets remain present.
+			const ULONG anchor = subset & (~subset + 1);
+			for (ULONG left = (subset - 1) & subset; 0 != left;
+				 left = (left - 1) & subset)
+			{
+				if (0 == (left & anchor))
+				{
+					continue;
+				}
+				const ULONG right = subset ^ left;
+				if (0 == right)
+				{
+					continue;
+				}
+				const BOOL expected =
+					FConnected(node_count, graph_mask, subset) &&
+					FConnected(node_count, graph_mask, left) &&
+					FConnected(node_count, graph_mask, right);
+				GPOS_UNITTEST_ASSERT(expected ==
+								 receiver.HasPair(left, right));
+			}
 		}
 	}
 	return GPOS_OK;
@@ -591,6 +662,38 @@ CDPHyperGraphTest::EresUnittest_DifferentialHypergraphs()
 			GPOS_UNITTEST_ASSERT(
 				FHyperConnected(subset, edges, &memo) ==
 				receiver.HasSeen(nodes.Value()));
+
+			const ULONG anchor = subset & (~subset + 1);
+			for (ULONG left = (subset - 1) & subset; 0 != left;
+				 left = (left - 1) & subset)
+			{
+				if (0 == (left & anchor))
+				{
+					continue;
+				}
+				const ULONG right = subset ^ left;
+				if (0 == right)
+				{
+					continue;
+				}
+				BOOL expected = FHyperConnected(left, edges, &memo) &&
+								FHyperConnected(right, edges, &memo);
+				BOOL connected = false;
+				if (expected)
+				{
+					for (const SMaskEdge &edge : edges)
+					{
+						if (FEdgeConnects(edge, left, right))
+						{
+							connected = true;
+							break;
+						}
+					}
+				}
+				expected = expected && connected;
+				GPOS_UNITTEST_ASSERT(expected ==
+								 receiver.HasPair(left, right));
+			}
 		}
 	}
 	return GPOS_OK;

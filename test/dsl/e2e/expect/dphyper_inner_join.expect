@@ -18,7 +18,10 @@
       "contains": [
         "DPHyper: status=applied",
         "nodes=3",
-        "edges=3"
+        "edges=3",
+        "pairs=6 subsets=7",
+        "enumeration=complete",
+        "strategy=none"
       ],
       "joins": 2
     },
@@ -53,6 +56,9 @@
       "trace": true,
       "contains": [
         "DPHyper: status=applied",
+        "pairs=6 subsets=7",
+        "enumeration=complete",
+        "strategy=none",
         "mode=replacement",
         "Xform: CXformImplementInnerJoin"
       ],
