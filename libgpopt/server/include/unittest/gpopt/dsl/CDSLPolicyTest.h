@@ -17,6 +17,7 @@ public:
 	static GPOS_RESULT EresUnittest_CanonicalIdentity();
 	static GPOS_RESULT EresUnittest_StrictLoader();
 	static GPOS_RESULT EresUnittest_SnapshotDefaultsAndAuto();
+	static GPOS_RESULT EresUnittest_RewriteProgram();
 };
 }  // namespace gpopt
 

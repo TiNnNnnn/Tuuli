@@ -28,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", required=True)
     parser.add_argument("--sql-dir", type=pathlib.Path, required=True)
     parser.add_argument("--expect-dir", type=pathlib.Path, required=True)
+    parser.add_argument("--policy-dir", type=pathlib.Path, required=True)
     parser.add_argument("--result-dir", type=pathlib.Path, required=True)
     parser.add_argument("--diff-dir", type=pathlib.Path, required=True)
     parser.add_argument("--artifact-dir", type=pathlib.Path, required=True)
@@ -92,6 +93,19 @@ def bool_guc_setting(name: str, value: object, fallback: bool) -> str:
     return f"SET {name}={'on' if enabled else 'off'};"
 
 
+def policy_setting(args: argparse.Namespace, expected: dict[str, object]) -> str:
+    policy = expected.get("policy")
+    if policy is None:
+        return "RESET pg_orca.dsl_rule_policy_path;"
+    if not isinstance(policy, str) or pathlib.Path(policy).name != policy:
+        raise ValueError(f"invalid policy fixture name: {policy!r}")
+    path = (args.policy_dir / policy).resolve()
+    if not path.is_file():
+        raise ValueError(f"policy fixture not found: {path}")
+    escaped = str(path).replace("'", "''")
+    return f"SET pg_orca.dsl_rule_policy_path='{escaped}';"
+
+
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
@@ -103,6 +117,7 @@ def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> s
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
+{policy_setting(args, plan)}
 {bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
 {bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), True)}
 SET pg_orca.dphyper_edge_budget={edge_budget};
@@ -141,7 +156,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         for key in (
             "name", "dsl", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
-            "disable_xforms"
+            "disable_xforms", "policy"
         )
         if key in expected
     }
@@ -174,6 +189,7 @@ def actual_rows(
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
+{policy_setting(args, expected)}
 SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
 SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
@@ -197,7 +213,7 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
         key: expected[key]
         for key in (
             "dphyper", "dphyper_shadow", "dphyper_edge_budget",
-            "dphyper_pair_budget", "native", "disable_xforms"
+            "dphyper_pair_budget", "native", "disable_xforms", "policy"
         )
         if key in expected
     }

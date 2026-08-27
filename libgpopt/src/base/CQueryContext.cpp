@@ -18,12 +18,16 @@
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/CDistributionSpecAny.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLRewriteProgram.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/operators/CExpressionPreprocessor.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
@@ -63,8 +67,28 @@ CQueryContext::CQueryContext(CMemoryPool *mp, CExpression *pexpr,
 	pcrsOutputAndOrderingCols->Include(pcrsOrderSpec);
 	pcrsOrderSpec->Release();
 
-	m_pexpr = CExpressionPreprocessor::PexprPreprocess(
-		mp, pexpr, pcrsOutputAndOrderingCols);
+	CExpression *pexprMandatory =
+		CExpressionPreprocessor::PexprPreprocessMandatory(mp, pexpr);
+	CDSLRuleEngine *pengineDSL = CDSLRuleEngine::Instance();
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	GPOS_ASSERT(nullptr != pengineDSL);
+	GPOS_ASSERT(nullptr != poctxt->PdslPolicySnapshot());
+	CDSLRewriteProgram rewriteProgram(mp, pengineDSL,
+								 poctxt->PdslPolicySnapshot());
+	CExpression *pexprRBO = nullptr;
+	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	{
+		pexprRBO = rewriteProgram.PexprRewrite(pexprMandatory);
+	}
+	else
+	{
+		pexprMandatory->AddRef();
+		pexprRBO = pexprMandatory;
+	}
+	pexprMandatory->Release();
+	m_pexpr = CExpressionPreprocessor::PexprPreprocessAfterRBO(
+		mp, pexprRBO, pcrsOutputAndOrderingCols);
+	pexprRBO->Release();
 
 	pcrsOutputAndOrderingCols->Release();
 	GPOS_ASSERT(m_pdrgpcr->Size() == ulReqdColumns);

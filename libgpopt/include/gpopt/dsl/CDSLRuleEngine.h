@@ -41,6 +41,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+struct SDSLRulePolicy;
+
 // EOperatorId (enum) -> its rule bucket (a non-owning list of CDSLRule*).
 // Key hashed by value. Bucket arrays own one ref of each rule they list.
 using COperatorIdToRuleArrayMap =
@@ -136,7 +138,8 @@ public:
 	// the returned array; rule order remains the physical rule-file order.
 	CDSLRuleArray *PdrgpruleCandidates(CMemoryPool *mp,
 									 COperator::EOperatorId eopid,
-									 CExpression *pexpr) const;
+									 CExpression *pexpr,
+									 BOOL fFilterCBO = true) const;
 
 	// Trie-driven memo bindings for a DSL shell. This is deliberately separate
 	// from ORCA's generic CBinding path, so native xforms retain their exact
@@ -187,6 +190,15 @@ public:
 										 const CDSLRule *prule,
 										 CExpression *pexpr,
 										 BOOL fFingerprint = false) const;
+
+	// Emit the scheduler-specific final state of one RBO decision. Evaluation
+	// statuses and replacement outcomes share one machine-readable schema.
+	void TraceRBOOutcome(CMemoryPool *mp, const CDSLRule *prule,
+						 const SDSLRulePolicy *policy,
+						 const CDSLRewriteDecision *pdecision,
+						 CExpression *pexprSource,
+						 CExpression *pexprTarget, const CHAR *szStatus,
+						 const CHAR *szReason) const;
 
 	// Run the complete match -> check -> instantiate pipeline for one rule.
 	// When pg_orca.trace_dsl_rule is enabled, this is also the single attribution

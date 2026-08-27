@@ -189,6 +189,7 @@ int   pg_orca_dphyper_pair_budget = 100;
 /* Query-level search-space guard for DSL-generated logical alternatives. */
 int   pg_orca_dsl_rule_max_alternatives = 0;
 int   pg_orca_dsl_rule_max_alternatives_per_rule = 0;
+char *pg_orca_dsl_rule_policy_path = NULL;
 
 /*
  * Comma-separated native xforms that are suppressed for a DSL replacement
@@ -926,6 +927,16 @@ void _PG_init(void)
         NULL,
         &pg_orca_dsl_rule_max_alternatives_per_rule,
         0, 0, INT_MAX,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomStringVariable(
+        "pg_orca.dsl_rule_policy_path",
+        "Path to a strict per-rule DSL RBO/CBO scheduling policy. Empty keeps "
+        "all admitted rules in Cascades CBO.",
+        NULL,
+        &pg_orca_dsl_rule_policy_path,
+        "",
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

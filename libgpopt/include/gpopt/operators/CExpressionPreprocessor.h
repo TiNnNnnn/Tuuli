@@ -224,6 +224,19 @@ public:
 		CMemoryPool *mp, CExpression *pexpr,
 		CColRefSet *pcrsOutputAndOrderCols = nullptr);
 
+	// Mandatory, policy-independent preparation which must precede a memo-free
+	// DSL RBO program. This boundary is intentionally conservative: only CTE
+	// lifecycle cleanup is admitted until every legacy logical rewrite has been
+	// audited independently.
+	static CExpression *PexprPreprocessMandatory(CMemoryPool *mp,
+											 CExpression *pexpr);
+
+	// Remaining transitional native logical rewrites and structural cleanup.
+	// During migration this retains the legacy order exactly.
+	static CExpression *PexprPreprocessAfterRBO(
+		CMemoryPool *mp, CExpression *pexpr,
+		CColRefSet *pcrsOutputAndOrderCols = nullptr);
+
 	// add predicates collected from CTE consumers to producer expressions
 	static void AddPredsToCTEProducers(CMemoryPool *mp, CExpression *pexpr);
 

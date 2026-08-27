@@ -121,6 +121,7 @@ public:
 	ULONG UlRules() const { return (ULONG) m_policies.size(); }
 	const std::vector<const CDSLRule *> &RboRules(EDslRulePhase phase) const;
 	const std::vector<const CDSLRule *> &CboRules() const { return m_cbo_rules; }
+	BOOL FHasCBOSourceOperator(EDslOpKind edslop) const;
 };
 
 const CHAR *SzDSLPlacement(EDslRulePlacement placement);

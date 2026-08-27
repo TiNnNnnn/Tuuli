@@ -19,9 +19,28 @@
       "alternative": [
         "CXformDSLRule_Limit"
       ]
+    },
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "nested_sort_rbo.policy",
+      "contains": [
+        "\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\""
+      ]
+    },
+    {
+      "name": "rbo-disabled",
+      "dsl": false,
+      "trace": true,
+      "policy": "nested_sort_rbo.policy",
+      "not_contains": [
+        "\"status\":\"applied_rbo\""
+      ]
     }
   ],
   "rows": {
+    "policy": "nested_sort_rbo.policy",
     "output": [
       "1,10",
       "2,20",

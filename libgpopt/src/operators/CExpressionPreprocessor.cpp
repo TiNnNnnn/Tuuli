@@ -22,7 +22,7 @@
 #include "gpopt/base/CConstraintInterval.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
-#include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/exception.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpressionFactorizer.h"
@@ -3031,7 +3031,9 @@ CExpressionPreprocessor::ConvertSplitUpdateToInPlaceUpdate(CMemoryPool *mp,
 	return pexpr;
 }
 
-// main driver, pre-processing of input logical expression
+// Compatibility driver. Keeping the public legacy entry point makes CTE
+// producer preprocessing and minidump callers observe the exact historical
+// sequence while QueryContext can place the DSL RBO at the explicit boundary.
 CExpression *
 CExpressionPreprocessor::PexprPreprocess(
 	CMemoryPool *mp, CExpression *pexpr,
@@ -3042,21 +3044,47 @@ CExpressionPreprocessor::PexprPreprocess(
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != pexpr);
 
+	CExpression *pexprMandatory = PexprPreprocessMandatory(mp, pexpr);
+	CExpression *pexprResult =
+		PexprPreprocessAfterRBO(mp, pexprMandatory, pcrsOutputAndOrderCols);
+	pexprMandatory->Release();
+	return pexprResult;
+}
+
+// Policy-independent semantic preparation before DSL RBO. The existing
+// preprocessor interleaves semantic cleanup with irreversible logical rewrites;
+// start with the smallest proven-safe prefix and move steps here only after
+// their source-shape and alternative-space effects have dedicated tests.
+CExpression *
+CExpressionPreprocessor::PexprPreprocessMandatory(CMemoryPool *mp,
+											   CExpression *pexpr)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexpr);
+
+	CCTEInfo *pcteinfo = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+	pcteinfo->MarkUnusedCTEs();
+	CExpression *pexprNoUnusedCTEs = PexprRemoveUnusedCTEs(mp, pexpr);
+	GPOS_CHECK_ABORT;
+	return pexprNoUnusedCTEs;
+}
+
+// Transitional native logical rewrites and final cleanup after DSL RBO.
+CExpression *
+CExpressionPreprocessor::PexprPreprocessAfterRBO(
+	CMemoryPool *mp, CExpression *pexpr,
+	CColRefSet *pcrsOutputAndOrderCols)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexpr);
+
 	CAutoTimer at("\n[OPT]: Expression Preprocessing Time",
 				  GPOS_FTRACE(EopttracePrintOptimizationStatistics));
 
-	// remove unused CTE anchors
-	CCTEInfo *pcteinfo = COptCtxt::PoctxtFromTLS()->Pcteinfo();
-	pcteinfo->MarkUnusedCTEs();
-
-	CExpression *pexprNoUnusedCTEs = PexprRemoveUnusedCTEs(mp, pexpr);
-	GPOS_CHECK_ABORT;
-
 	// remove intermediate superfluous limit
 	CExpression *pexprSimplifiedLimit =
-		PexprRemoveSuperfluousLimit(mp, pexprNoUnusedCTEs);
+		PexprRemoveSuperfluousLimit(mp, pexpr);
 	GPOS_CHECK_ABORT;
-	pexprNoUnusedCTEs->Release();
 
 	// remove intermediate superfluous distinct
 	CExpression *pexprSimplifiedDistinct =
@@ -3144,10 +3172,11 @@ CExpressionPreprocessor::PexprPreprocess(
 	// LOJs so the data-driven matcher gets the first chance to inspect them. This
 	// is capability-based (not rule/SQL-specific), and applies equally with DSL
 	// application OFF and ON so differential plans start from the same tree.
-	CDSLRuleEngine *pengineDSL = CDSLRuleEngine::Instance();
+	const CDSLPolicySnapshot *policySnapshot =
+		COptCtxt::PoctxtFromTLS()->PdslPolicySnapshot();
 	const BOOL fPreserveLeftJoins =
-		nullptr != pengineDSL &&
-		pengineDSL->FHasSourceOperator(EdslopLeftJoin);
+		nullptr != policySnapshot &&
+		policySnapshot->FHasCBOSourceOperator(EdslopLeftJoin);
 	CExpression *pexprJoinPruned = nullptr;
 	if (fPreserveLeftJoins)
 	{
@@ -3224,32 +3253,11 @@ CExpressionPreprocessor::PexprPreprocess(
 	GPOS_CHECK_ABORT;
 	pexprNormalized1->Release();
 
-	// Preserve the real binary join tree for both enumeration policies. DPHyper
-	// marks maximal regions; explicit DPHyper-off mode lets the native binary
-	// commutativity/associativity xforms enumerate the same representation.
-	CExpression *pexprCollapsed = nullptr;
-	if (COptCtxt::PoctxtFromTLS()
-			->GetOptimizerConfig()
-			->GetHint()
-			->FEnableDPHyper())
-	{
-		pexprCollapsed =
-			CJoinRegionSpec::PexprMarkDPHyperRegions(
-				mp, pexprLOJToIJ, true /*include complex*/);
-	}
-	else
-	{
-		pexprLOJToIJ->AddRef();
-		pexprCollapsed = pexprLOJToIJ;
-	}
-	GPOS_CHECK_ABORT;
-	pexprLOJToIJ->Release();
-
 	// after transforming outer joins to inner joins, we may be able to generate more predicates from constraints
 	CExpression *pexprWithPreds =
-		PexprAddPredicatesFromConstraints(mp, pexprCollapsed);
+		PexprAddPredicatesFromConstraints(mp, pexprLOJToIJ);
 	GPOS_CHECK_ABORT;
-	pexprCollapsed->Release();
+	pexprLOJToIJ->Release();
 
 	// Empty-subtree pruning irreversibly replaces the complete logical shape by
 	// a ConstTableGet before Cascades. When a DSL library is loaded, retain that
@@ -3257,7 +3265,7 @@ CExpressionPreprocessor::PexprPreprocess(
 	// first. This is library-capability based rather than rule/SQL-specific, and
 	// applies equally with DSL application OFF and ON.
 	CExpression *pexprPruned = nullptr;
-	if (nullptr != pengineDSL && 0 < pengineDSL->UlRules())
+	if (nullptr != policySnapshot && !policySnapshot->CboRules().empty())
 	{
 		pexprWithPreds->AddRef();
 		pexprPruned = pexprWithPreds;
@@ -3329,7 +3337,27 @@ CExpressionPreprocessor::PexprPreprocess(
 	GPOS_CHECK_ABORT;
 	pexprSplitUpdateToInplace->Release();
 
-	return pexprNormalized2;
+	// Mark DPHyper regions only after DSL RBO and every remaining native
+	// graph/shape rewrite have produced the final tree entering Cascades. This
+	// avoids stale region roots and prevents later normalizers from discarding
+	// the marker carried by logical join operators.
+	CExpression *pexprFinal = nullptr;
+	if (COptCtxt::PoctxtFromTLS()
+			->GetOptimizerConfig()
+			->GetHint()
+			->FEnableDPHyper())
+	{
+		pexprFinal = CJoinRegionSpec::PexprMarkDPHyperRegions(
+			mp, pexprNormalized2, true /*include complex*/);
+	}
+	else
+	{
+		pexprNormalized2->AddRef();
+		pexprFinal = pexprNormalized2;
+	}
+	GPOS_CHECK_ABORT;
+	pexprNormalized2->Release();
+	return pexprFinal;
 }
 
 // EOF

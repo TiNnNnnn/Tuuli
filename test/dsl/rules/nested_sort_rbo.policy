@@ -1,0 +1,12 @@
+- rule: bef8521dedbb8bee
+  enabled: true
+  placement: rbo
+  phase: cleanup
+  effect: preserves_join_graph
+  priority: 100
+  order: bottom_up
+  fixpoint: true
+  budget:
+    per_node: 2
+    per_rule: 8
+    per_query: 8

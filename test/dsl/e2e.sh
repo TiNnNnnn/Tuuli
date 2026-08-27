@@ -6,6 +6,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/framework.rules}"
 SQL_DIR="${DSL_E2E_SQL_DIR:-$SCRIPT_DIR/e2e/sql}"
 EXPECT_DIR="${DSL_E2E_EXPECT_DIR:-$SCRIPT_DIR/e2e/expect}"
+POLICY_DIR="${DSL_E2E_POLICY_DIR:-$SCRIPT_DIR/rules}"
 RESULT_DIR="${DSL_E2E_RESULT_DIR:-$SCRIPT_DIR/e2e/output}"
 DIFF_DIR="${DSL_E2E_DIFF_DIR:-$SCRIPT_DIR/e2e/diff}"
 ARTIFACT_DIR="${DSL_E2E_OUTPUT_DIR:-$REPO_ROOT/build/dsl-e2e}"
@@ -120,6 +121,7 @@ python3 "$SCRIPT_DIR/run_e2e_cases.py" \
     --port "$PORT" \
     --sql-dir "$SQL_DIR" \
     --expect-dir "$EXPECT_DIR" \
+    --policy-dir "$POLICY_DIR" \
     --result-dir "$RESULT_DIR" \
     --diff-dir "$DIFF_DIR" \
     --artifact-dir "$ARTIFACT_DIR" \

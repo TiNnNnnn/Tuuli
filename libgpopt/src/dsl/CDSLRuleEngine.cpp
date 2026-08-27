@@ -283,7 +283,8 @@ CDSLRuleEngine::PdrgpruleForRoot(COperator::EOperatorId eopid) const
 CDSLRuleArray *
 CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 									COperator::EOperatorId eopid,
-									CExpression *pexpr) const
+									CExpression *pexpr,
+									BOOL fFilterCBO) const
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != pexpr);
@@ -296,6 +297,30 @@ CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
 	CWallClock timer(fTrace);
 	CDSLRuleArray *pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	if (fFilterCBO)
+	{
+		COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+		const CDSLPolicySnapshot *snapshot = nullptr == poctxt
+			? nullptr
+			: poctxt->PdslPolicySnapshot();
+		if (nullptr != snapshot)
+		{
+			CDSLRuleArray *filtered = GPOS_NEW(mp) CDSLRuleArray(mp);
+			for (ULONG rule = 0; rule < pdrgprule->Size(); ++rule)
+			{
+				CDSLRule *candidate = (*pdrgprule)[rule];
+				const SDSLRulePolicy *policy = snapshot->Ppolicy(candidate);
+				if (nullptr != policy && policy->m_fEnabled &&
+					EdslplacementCBO == policy->m_edslplacement)
+				{
+					candidate->AddRef();
+					filtered->Append(candidate);
+				}
+			}
+			pdrgprule->Release();
+			pdrgprule = filtered;
+		}
+	}
 	if (fTrace)
 	{
 		COptCtxt::PoctxtFromTLS()->RecordDSLCandidateTiming(
@@ -538,6 +563,14 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	// when trace emission is disabled.
 	const ULONG ulRuleId = UlRuleId(prule);
 	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	const SDSLRulePolicy *policy = nullptr == poctxt->PdslPolicySnapshot()
+		? nullptr
+		: poctxt->PdslPolicySnapshot()->Ppolicy(prule);
+	if (nullptr != policy &&
+		(!policy->m_fEnabled || EdslplacementCBO != policy->m_edslplacement))
+	{
+		return nullptr;
+	}
 	if (poctxt->FDSLAlternativeBudgetExhausted(ulRuleId))
 	{
 		// This binding was deliberately not inspected. Keep it distinct from
@@ -598,6 +631,63 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	CExpression *pexprResult = pdecision->PexprDetachTarget();
 	GPOS_DELETE(pdecision);
 	return pexprResult;
+}
+
+void
+CDSLRuleEngine::TraceRBOOutcome(
+	CMemoryPool *mp, const CDSLRule *prule,
+	const SDSLRulePolicy *policy,
+	const CDSLRewriteDecision *pdecision, CExpression *pexprSource,
+	CExpression *pexprTarget, const CHAR *szStatus, const CHAR *szReason) const
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pexprSource);
+	GPOS_ASSERT(nullptr != szStatus);
+
+	CAutoTrace trace(mp);
+	IOstream &os = trace.Os();
+	os << "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\","
+		  "\"rule_id\":"
+	   << UlRuleId(prule) << ",\"status\":\"" << szStatus
+	   << "\",\"rule_hash\":\"" << prule->SzIdentity()
+	   << "\",\"placement\":\"rbo\"";
+	if (nullptr != policy)
+	{
+		os << ",\"phase\":\"" << SzDSLPhase(policy->m_edslphase)
+		   << "\",\"priority\":" << policy->m_iPriority
+		   << ",\"effect\":\"" << SzDSLEffect(policy->m_edsleffect)
+		   << "\",\"order\":\"" << SzDSLOrder(policy->m_edslorder)
+		   << "\"";
+	}
+	const ULONG sourceFingerprint = nullptr == pdecision
+		? CExpression::HashValue(pexprSource)
+		: pdecision->UlSourceFingerprint();
+	const ULONG targetFingerprint = nullptr == pdecision
+		? (nullptr == pexprTarget ? 0 : CExpression::HashValue(pexprTarget))
+		: pdecision->UlTargetFingerprint();
+	os << ",\"source_fingerprint\":" << sourceFingerprint;
+	if (nullptr != pexprTarget)
+		os << ",\"target_fingerprint\":" << targetFingerprint;
+	if (nullptr != szReason)
+		os << ",\"reason\":\"" << szReason << "\"";
+	if (nullptr != pdecision)
+	{
+		os << ",\"match_us\":" << pdecision->UlMatchUs()
+		   << ",\"constraint_us\":" << pdecision->UlConstraintUs()
+		   << ",\"instantiate_us\":" << pdecision->UlInstantiateUs();
+		if (nullptr != pdecision->PconFailed())
+		{
+			os << ",\"failed_constraint\":\""
+			   << CDSLConstraintKindTable::SzName(
+					  pdecision->PconFailed()->Edslcon())
+			   << "\",\"failed_constraint_index\":"
+			   << pdecision->UlFailedConstraint();
+		}
+	}
+	os << "}" << std::endl;
 }
 
 CDSLRewriteDecision *

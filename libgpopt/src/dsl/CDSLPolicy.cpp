@@ -619,6 +619,33 @@ CDSLPolicySnapshot::RboRules(EDslRulePhase phase) const
 	return m_rbo_rules[(ULONG) phase];
 }
 
+namespace
+{
+BOOL
+FContainsOperator(const CDSLOp *pop, EDslOpKind edslop)
+{
+	if (pop->Edslop() == edslop)
+		return true;
+	for (ULONG child = 0; child < pop->UlChildren(); ++child)
+	{
+		if (FContainsOperator((*pop)[child], edslop))
+			return true;
+	}
+	return false;
+}
+}  // namespace
+
+BOOL
+CDSLPolicySnapshot::FHasCBOSourceOperator(EDslOpKind edslop) const
+{
+	for (const CDSLRule *rule : m_cbo_rules)
+	{
+		if (FContainsOperator(rule->PfragSrc()->PopRoot(), edslop))
+			return true;
+	}
+	return false;
+}
+
 const CHAR *
 gpopt::SzDSLPlacement(EDslRulePlacement placement)
 {

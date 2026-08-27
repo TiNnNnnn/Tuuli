@@ -11,6 +11,8 @@
 #ifndef GPOPT_CHint_H
 #define GPOPT_CHint_H
 
+#include <string>
+
 #include "gpos/base.h"
 #include "gpos/common/CRefCount.h"
 #include "gpos/memory/CMemoryPool.h"
@@ -66,6 +68,10 @@ private:
 
 	BOOL m_fEnableDPHyper;
 
+	// Copied into the query-local optimizer config. Empty means the default
+	// all-CBO snapshot; the rules themselves remain in the separate rule file.
+	std::string m_dslRulePolicyPath;
+
 public:
 	CHint(const CHint &) = delete;
 
@@ -78,7 +84,8 @@ public:
 		  ULONG dsl_rule_max_alternatives_per_rule = 0,
 		  ULONG dphyper_edge_budget = 100000,
 		  ULONG dphyper_pair_budget = 100,
-		  BOOL enable_dphyper = false)
+		  BOOL enable_dphyper = false,
+		  const CHAR *dsl_rule_policy_path = nullptr)
 		: m_ulJoinArityForAssociativityCommutativity(
 			  join_arity_for_associativity_commutativity),
 		  m_ulArrayExpansionThreshold(array_expansion_threshold),
@@ -94,7 +101,10 @@ public:
 			  dsl_rule_max_alternatives_per_rule),
 		  m_ulDPHyperEdgeBudget(dphyper_edge_budget),
 		  m_ulDPHyperPairBudget(dphyper_pair_budget),
-		  m_fEnableDPHyper(enable_dphyper)
+		  m_fEnableDPHyper(enable_dphyper),
+		  m_dslRulePolicyPath(nullptr == dsl_rule_policy_path
+							  ? ""
+							  : dsl_rule_policy_path)
 	{
 	}
 
@@ -194,6 +204,12 @@ public:
 	FEnableDPHyper() const
 	{
 		return m_fEnableDPHyper;
+	}
+
+	const CHAR *
+	SzDSLRulePolicyPath() const
+	{
+		return m_dslRulePolicyPath.c_str();
 	}
 
 	// generate default hint configurations, which disables sort during insert on

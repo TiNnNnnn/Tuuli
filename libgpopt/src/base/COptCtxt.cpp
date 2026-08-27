@@ -19,6 +19,7 @@
 #include "gpopt/eval/IConstExprEvaluator.h"
 #include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/exception.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -88,9 +89,27 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	CDSLRuleEngine *pengine = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != pengine);
 	CWStringDynamic strPolicyErrors(m_mp);
+	CDSLPolicy *ppolicy = nullptr;
+	const CHAR *szPolicyPath =
+		m_optimizer_config->GetHint()->SzDSLRulePolicyPath();
+	if (nullptr != szPolicyPath && '\0' != szPolicyPath[0])
+	{
+		ppolicy = CDSLPolicyLoader::PpolicyLoadFile(
+			m_mp, szPolicyPath, &strPolicyErrors);
+		if (nullptr == ppolicy)
+		{
+			GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+					   strPolicyErrors.GetBuffer());
+		}
+	}
 	m_pdslPolicySnapshot = CDSLPolicySnapshot::PsnapshotCompile(
-		m_mp, pengine->PdrgpruleAll(), nullptr, &strPolicyErrors);
-	GPOS_ASSERT(nullptr != m_pdslPolicySnapshot);
+		m_mp, pengine->PdrgpruleAll(), ppolicy, &strPolicyErrors);
+	CRefCount::SafeRelease(ppolicy);
+	if (nullptr == m_pdslPolicySnapshot)
+	{
+		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+				   strPolicyErrors.GetBuffer());
+	}
 }
 
 

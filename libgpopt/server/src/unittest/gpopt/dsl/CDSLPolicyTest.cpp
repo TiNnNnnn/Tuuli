@@ -4,13 +4,18 @@
 #include "unittest/gpopt/dsl/CDSLPolicyTest.h"
 
 #include <cstring>
+#include <string>
 
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLRewriteProgram.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CLogicalSelect.h"
+#include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
 
@@ -46,6 +51,25 @@ LoadPolicyForRule(CMemoryPool *mp, const CDSLRule *rule,
 	GPOS_DELETE_ARRAY(buffer);
 	return policy;
 }
+
+CDSLPolicy *
+LoadRboPolicy(CMemoryPool *mp, const CDSLRule *rule, const CHAR *order,
+			  BOOL fixpoint, ULONG perRule, CWStringDynamic *errors)
+{
+	std::string text("- rule: ");
+	text.append(rule->SzIdentity());
+	text.append(
+		"\n  enabled: true\n  placement: rbo\n  phase: cleanup\n"
+		"  effect: preserves_join_graph\n  priority: 100\n  order: ");
+	text.append(order);
+	text.append("\n  fixpoint: ");
+	text.append(fixpoint ? "true" : "false");
+	text.append(
+		"\n  budget:\n    per_node: 0\n    per_rule: ");
+	text.append(std::to_string(perRule));
+	text.append("\n    per_query: 0\n");
+	return CDSLPolicyLoader::PpolicyLoadBuffer(mp, text.c_str(), errors);
+}
 }  // namespace
 
 GPOS_RESULT
@@ -56,6 +80,7 @@ CDSLPolicyTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_StrictLoader),
 		GPOS_UNITTEST_FUNC(
 			CDSLPolicyTest::EresUnittest_SnapshotDefaultsAndAuto),
+		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_RewriteProgram),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
 }
@@ -82,6 +107,173 @@ CDSLPolicyTest::EresUnittest_CanonicalIdentity()
 	CRefCount::SafeRelease(first);
 	CRefCount::SafeRelease(spaced);
 	CRefCount::SafeRelease(different);
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLPolicyTest::EresUnittest_RewriteProgram()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
+	CDSLRule *rule = Parse(
+		mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == engine || nullptr == rule)
+	{
+		CRefCount::SafeRelease(rule);
+		return GPOS_FAILED;
+	}
+	CDSLRuleArray *rules = GPOS_NEW(mp) CDSLRuleArray(mp);
+	rules->Append(rule);
+	CWStringDynamic errors(mp);
+
+	auto buildNestedSelect = [&]() -> CExpression * {
+		CColRefArray *columns = nullptr;
+		CExpression *get = fixture.PexprLogicalGet("rbo_t", 2, &columns);
+		CExpression *innerPredicate = fixture.PexprPredAtom((*columns)[0]);
+		CExpression *inner =
+			fixture.PexprLogicalSelect(get, innerPredicate);
+		innerPredicate->Release();
+		CExpression *outerPredicate = fixture.PexprPredAtom((*columns)[1]);
+		CExpression *outer =
+			fixture.PexprLogicalSelect(inner, outerPredicate);
+		outerPredicate->Release();
+		inner->Release();
+		get->Release();
+		return outer;
+	};
+
+	BOOL valid = true;
+	for (const CHAR *order : {"top_down", "bottom_up"})
+	{
+		errors.Reset();
+		CDSLPolicy *policy =
+			LoadRboPolicy(mp, rule, order, true, 0, &errors);
+		CDSLPolicySnapshot *snapshot = nullptr == policy
+			? nullptr
+			: CDSLPolicySnapshot::PsnapshotCompile(mp, rules, policy, &errors);
+		CExpression *source = buildNestedSelect();
+		if (nullptr == snapshot)
+		{
+			valid = false;
+		}
+		else
+		{
+			CDSLRewriteProgram program(mp, engine, snapshot);
+			CExpression *result = program.PexprRewrite(source);
+			valid = valid && COperator::EopLogicalGet == result->Pop()->Eopid() &&
+				2 == program.UlApplications() &&
+				result->DeriveOutputColumns()->Equals(
+					source->DeriveOutputColumns());
+			result->Release();
+		}
+		source->Release();
+		GPOS_DELETE(snapshot);
+		CRefCount::SafeRelease(policy);
+	}
+
+	// A per-rule budget of one must retain the second Select instead of silently
+	// treating a skipped rewrite as a rejection.
+	errors.Reset();
+	CDSLPolicy *budgetPolicy =
+		LoadRboPolicy(mp, rule, "top_down", true, 1, &errors);
+	CDSLPolicySnapshot *budgetSnapshot = nullptr == budgetPolicy
+		? nullptr
+		: CDSLPolicySnapshot::PsnapshotCompile(
+			mp, rules, budgetPolicy, &errors);
+	CExpression *budgetSource = buildNestedSelect();
+	if (nullptr == budgetSnapshot)
+	{
+		valid = false;
+	}
+	else
+	{
+		CDSLRewriteProgram program(mp, engine, budgetSnapshot);
+		CExpression *result = program.PexprRewrite(budgetSource);
+		valid = valid &&
+			COperator::EopLogicalSelect == result->Pop()->Eopid() &&
+			1 == program.UlApplications();
+		result->Release();
+	}
+	budgetSource->Release();
+	GPOS_DELETE(budgetSnapshot);
+	CRefCount::SafeRelease(budgetPolicy);
+
+	// InnerJoin commutativity recreates the exact ancestor expression on its
+	// second application, so lineage detection must reject it before the hard
+	// budget is involved.
+	CDSLRule *swapRule = Parse(
+		mp,
+		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a3 a2>(Input<t3>,Input<t2>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);"
+		"AttrsEq(a2,a0);AttrsEq(a3,a1)");
+	if (nullptr == swapRule)
+	{
+		valid = false;
+	}
+	else
+	{
+		CDSLRuleArray *swapRules = GPOS_NEW(mp) CDSLRuleArray(mp);
+		swapRules->Append(swapRule);
+		errors.Reset();
+		CDSLPolicy *swapPolicy =
+			LoadRboPolicy(mp, swapRule, "top_down", true, 0, &errors);
+		CDSLPolicySnapshot *swapSnapshot = nullptr == swapPolicy
+			? nullptr
+			: CDSLPolicySnapshot::PsnapshotCompile(
+				mp, swapRules, swapPolicy, &errors);
+		CColRefArray *leftColumns = nullptr;
+		CColRefArray *rightColumns = nullptr;
+		CExpression *left =
+			fixture.PexprLogicalGet("swap_left", 2, &leftColumns);
+		CExpression *right =
+			fixture.PexprLogicalGet("swap_right", 2, &rightColumns);
+		CExpression *joinPredicate = fixture.PexprEqPred(
+			(*leftColumns)[0], (*rightColumns)[0]);
+		CExpression *swapSource = fixture.PexprLogicalInnerJoin(
+			left, right, joinPredicate);
+		joinPredicate->Release();
+		left->Release();
+		right->Release();
+		if (nullptr == swapSnapshot)
+		{
+			valid = false;
+		}
+		else
+		{
+			CDSLRewriteProgram program(mp, engine, swapSnapshot, 8, 32);
+			CExpression *result = program.PexprRewrite(swapSource);
+			valid = valid && 1 == program.UlApplications() &&
+				!program.FHardBudgetExhausted() &&
+				!result->Matches(swapSource);
+			result->Release();
+		}
+		swapSource->Release();
+		GPOS_DELETE(swapSnapshot);
+		CRefCount::SafeRelease(swapPolicy);
+		swapRules->Release();
+	}
+
+	// Missing placement remains a true no-op and keeps object identity.
+	CDSLPolicySnapshot *defaultSnapshot = CDSLPolicySnapshot::PsnapshotCompile(
+		mp, rules, nullptr, &errors);
+	CExpression *defaultSource = buildNestedSelect();
+	if (nullptr == defaultSnapshot)
+	{
+		valid = false;
+	}
+	else
+	{
+		CDSLRewriteProgram program(mp, engine, defaultSnapshot);
+		CExpression *result = program.PexprRewrite(defaultSource);
+		valid = valid && result == defaultSource && 0 == program.UlApplications();
+		result->Release();
+	}
+	defaultSource->Release();
+	GPOS_DELETE(defaultSnapshot);
+	rules->Release();
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
@@ -158,7 +350,9 @@ CDSLPolicyTest::EresUnittest_SnapshotDefaultsAndAuto()
 			EdslphaseExplore == fallback.m_edslphase &&
 			1 == snapshot->RboRules(EdslphasePreJoin).size() &&
 			first == snapshot->RboRules(EdslphasePreJoin)[0] &&
-			1 == snapshot->CboRules().size() && second == snapshot->CboRules()[0];
+			1 == snapshot->CboRules().size() && second == snapshot->CboRules()[0] &&
+			!snapshot->FHasCBOSourceOperator(EdslopFilter) &&
+			snapshot->FHasCBOSourceOperator(EdslopProj);
 	}
 	GPOS_DELETE(snapshot);
 	CRefCount::SafeRelease(policy);
