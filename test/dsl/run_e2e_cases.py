@@ -85,10 +85,15 @@ def disabled_xform_settings(expected: dict[str, object]) -> str:
     return "\n".join(statements)
 
 
+def bool_guc_setting(name: str, value: object, fallback: bool) -> str:
+    if value == "default":
+        return f"RESET {name};"
+    enabled = fallback if value is None else bool(value)
+    return f"SET {name}={'on' if enabled else 'off'};"
+
+
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
-    dphyper = "on" if plan.get("dphyper", False) else "off"
-    dphyper_shadow = "on" if plan.get("dphyper_shadow", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
     edge_budget = int(plan.get("dphyper_edge_budget", 100000))
     pair_budget = int(plan.get("dphyper_pair_budget", 100))
@@ -98,8 +103,8 @@ def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> s
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
-SET pg_orca.enable_dphyper={dphyper};
-SET pg_orca.dphyper_shadow={dphyper_shadow};
+{bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
+{bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), True)}
 SET pg_orca.dphyper_edge_budget={edge_budget};
 SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}

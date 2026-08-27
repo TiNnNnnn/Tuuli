@@ -11,10 +11,11 @@
       "contains": [
         "DPHyper: status=fallback reason=edge_budget",
         "edges=1 budget=1",
-        "Xform: CXformExpandNAryJoinDPv2"
+        "owner=greedy_nary"
       ],
       "not_contains": [
-        "DPHyper: status=applied"
+        "DPHyper: status=applied",
+        "Xform: CXformExpandNAryJoinDPv2"
       ],
       "joins": 2
     }

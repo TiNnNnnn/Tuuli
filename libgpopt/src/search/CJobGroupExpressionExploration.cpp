@@ -340,8 +340,17 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 			CXform::ExfExpandNAryJoinDPHyper == m_pgexpr->ExfidOrigin())
 		{
 			// A failed binary DPHyper attempt materializes this NAryJoin solely
-			// as an exact bridge to the legacy enumerator. Do not recurse into
-			// DPHyper again; all native NAryJoin xforms remain candidates.
+			// as an exact bridge to the greedy enumerator. Do not recurse into
+			// DPHyper or re-enter any exhaustive native DP enumerator.
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
+			(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
+			// The active search stage normally selects exactly one native join
+			// order policy (DPv2 by default), so Greedy may have been removed by
+			// the stage intersection above. This bridge is an explicit DPHyper
+			// budget fallback and therefore overrides that native policy.
+			(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinGreedy);
 			ScheduleTransformations(psc, xform_set);
 			xform_set->Release();
 			SetXformsScheduled();

@@ -17,7 +17,8 @@ if str(SCRIPT_DIR) not in sys.path:
 from build_reference_manifest import build_manifest
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
-from run_e2e_cases import disabled_xform_settings
+from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
+from run_e2e_cases import bool_guc_setting, disabled_xform_settings
 from run_trace_corpus import (
     failed_query_status,
     orca_fallback_reason,
@@ -33,6 +34,96 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_e2e_can_preserve_extension_guc_defaults(self) -> None:
+        self.assertEqual(
+            bool_guc_setting("pg_orca.enable_dphyper", "default", False),
+            "RESET pg_orca.enable_dphyper;",
+        )
+
+    def test_dphyper_stability_preserves_imported_statement_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cases = Path(directory) / "cases.sql"
+            cases.write_text("SELECT 1\n\nSELECT 3\n", encoding="utf-8")
+
+            self.assertEqual(
+                imported_cases("app", cases),
+                [("app:1", "SELECT 1"), ("app:3", "SELECT 3")],
+            )
+
+    def test_dphyper_stability_parses_region_events(self) -> None:
+        events = parse_dphyper_events(
+            'TRACE,"DPHyper: status=applied group=4 nodes=5 '
+            'enumeration=simplified mode=replacement",\n'
+            'TRACE,"DPHyper: status=fallback reason=pair_budget '
+            'owner=greedy_nary",\n'
+        )
+
+        self.assertEqual(
+            events,
+            [
+                {
+                    "status": "applied",
+                    "group": 4,
+                    "nodes": 5,
+                    "enumeration": "simplified",
+                    "mode": "replacement",
+                },
+                {
+                    "status": "fallback",
+                    "reason": "pair_budget",
+                    "owner": "greedy_nary",
+                },
+            ],
+        )
+
+    def test_dphyper_stability_separates_regression_and_native_fallback(self) -> None:
+        records = [
+            {
+                "case_id": "app:1",
+                "native": {"status": "ok", "elapsed_ms": 10.0},
+                "replacement": {
+                    "status": "ok",
+                    "elapsed_ms": 12.0,
+                    "dphyper_events": [
+                        {"status": "applied", "enumeration": "simplified"},
+                        {
+                            "status": "fallback",
+                            "reason": "pair_budget",
+                            "owner": "greedy_nary",
+                        },
+                    ],
+                },
+            },
+            {
+                "case_id": "app:2",
+                "native": {"status": "ok", "elapsed_ms": 10.0},
+                "replacement": {
+                    "status": "query_error",
+                    "elapsed_ms": 11.0,
+                    "dphyper_events": [],
+                },
+            },
+            {
+                "case_id": "app:3",
+                "native": {"status": "ok", "elapsed_ms": 10.0},
+                "replacement": {
+                    "status": "statement_timeout",
+                    "elapsed_ms": 60000.0,
+                    "dphyper_events": [],
+                },
+            },
+        ]
+
+        summary = summarize("app", records)
+
+        self.assertEqual(summary["replacement_regressions"], ["app:2"])
+        self.assertEqual(summary["replacement_timeouts"], ["app:3"])
+        self.assertEqual(summary["dphyper_applied_queries"], 1)
+        self.assertEqual(summary["dphyper_simplified_queries"], 1)
+        self.assertEqual(summary["fallback_reasons"], {"pair_budget": 1})
+        self.assertEqual(summary["greedy_fallback_events"], 1)
+        self.assertEqual(summary["dpv2_fallback_events"], 0)
+
     def test_corpus_replay_uses_bounded_dphyper_defaults(self) -> None:
         with patch.object(
             sys,

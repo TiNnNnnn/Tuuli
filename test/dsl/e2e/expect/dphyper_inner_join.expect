@@ -2,6 +2,21 @@
   "description": "DPHyper enumerates a three-relation inner-join region inside Cascades",
   "plans": [
     {
+      "name": "default-replacement",
+      "dsl": false,
+      "dphyper": "default",
+      "dphyper_shadow": "default",
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=replacement"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2"
+      ],
+      "joins": 2
+    },
+    {
       "name": "off",
       "dsl": false,
       "dphyper": false,

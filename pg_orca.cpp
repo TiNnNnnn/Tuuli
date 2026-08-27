@@ -178,6 +178,9 @@ bool  pg_orca_enable_dynamic_tablescan = true;
 bool  pg_orca_enable_dsl_rule = false;
 
 /* Enable the in-Cascades DPHyper join-region enumerator. */
+// Standalone tools do not run _PG_init(), so keep conservative storage
+// initializers here. PostgreSQL assigns the production defaults declared by
+// DefineCustom*Variable below when the extension is loaded.
 bool  pg_orca_enable_dphyper = false;
 bool  pg_orca_dphyper_shadow = true;
 int   pg_orca_dphyper_edge_budget = 100000;
@@ -868,19 +871,19 @@ void _PG_init(void)
 
     DefineCustomBoolVariable(
         "pg_orca.enable_dphyper",
-        "Explore pure inner-join regions with DPHyper inside the ORCA Memo. "
-        "Unsupported, disconnected, or budget-exhausted regions retain the "
-        "native ORCA join enumerators as a fallback.",
+        "Enumerate join regions with DPHyper as a Cascades rule. Large or "
+        "budget-exhausted regions use cost-guided graph simplification or "
+        "the native greedy enumerator as a fallback.",
         NULL,
         &pg_orca_enable_dphyper,
-        false,
+        true,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 
     DefineCustomIntVariable(
         "pg_orca.dphyper_edge_budget",
         "Maximum generalized hyperedges generated for one DPHyper join "
-        "region before falling back to native ORCA enumeration.",
+        "region before falling back to native greedy enumeration.",
         NULL,
         &pg_orca_dphyper_edge_budget,
         100000, 1, INT_MAX,
@@ -890,11 +893,11 @@ void _PG_init(void)
     DefineCustomBoolVariable(
         "pg_orca.dphyper_shadow",
         "Keep native ORCA join enumerators alongside DPHyper for differential "
-        "testing. When off, a successful DPHyper region is the sole join-order "
-        "enumerator; unsupported or budgeted-out regions still fall back.",
+        "testing. When off, DPHyper is the join-order owner and a materialized "
+        "NAryJoin fallback uses only the native greedy enumerator.",
         NULL,
         &pg_orca_dphyper_shadow,
-        true,
+        false,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

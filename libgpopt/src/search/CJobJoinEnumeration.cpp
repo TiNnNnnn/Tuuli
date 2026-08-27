@@ -849,7 +849,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 				"nodes=%d edges=%d budget=%d owner=%s",
 				m_pgexpr->Pgroup()->Id(), node_count,
 				region->GeneratedEdgeCount(), hint->UlDPHyperEdgeBudget(),
-				m_native_fallback_materialized ? "native_nary"
+				m_native_fallback_materialized ? "greedy_nary"
 										   : "native_binary");
 		}
 		return false;
@@ -992,7 +992,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 				budget_exhausted ? "pair_budget" : "disconnected",
 				m_pgexpr->Pgroup()->Id(), node_count, attempted_pairs,
 				hint->UlDPHyperPairBudget(),
-				m_native_fallback_materialized ? "native_nary"
+				m_native_fallback_materialized ? "greedy_nary"
 										   : "native_binary");
 		}
 		return false;
