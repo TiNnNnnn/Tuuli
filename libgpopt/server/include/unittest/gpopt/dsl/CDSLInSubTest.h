@@ -23,7 +23,7 @@ public:
 	static GPOS_RESULT EresUnittest_PushedDownJoinRemap();
 	static GPOS_RESULT EresUnittest_DecorrelatedSemiJoinRemap();
 	static GPOS_RESULT EresUnittest_InSubAsSimpleFilterCarrier();
-	static GPOS_RESULT EresUnittest_PreApplyBelowNAryJoinRemap();
+	static GPOS_RESULT EresUnittest_PreApplyBelowBinaryJoinSpineRemap();
 	static GPOS_RESULT EresUnittest_RejectsNullSupplyingRoute();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();

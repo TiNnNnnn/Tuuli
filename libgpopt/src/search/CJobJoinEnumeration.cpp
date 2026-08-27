@@ -20,10 +20,9 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarNAryJoinPredList.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -36,6 +35,7 @@
 #include "gpopt/xforms/CDPHyperJoinRegion.h"
 #include "gpopt/xforms/CDPHyperGraphSimplifier.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
+#include "gpopt/xforms/CJoinOrderGreedy.h"
 #include "gpopt/xforms/CJoinRegionSpec.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -118,6 +118,68 @@ PexprGroupLeaf(CMemoryPool *mp, CGroup *group)
 	GPOS_ASSERT(nullptr != gexpr);
 	gexpr->Pop()->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, gexpr->Pop(), gexpr);
+}
+
+void
+DeriveStats(CMemoryPool *mp, CExpression *expr)
+{
+	if (nullptr == expr->Pstats())
+	{
+		CExpressionHandle exprhdl(mp);
+		exprhdl.Attach(expr);
+		exprhdl.DeriveStats(mp, mp, nullptr /*required properties*/,
+							nullptr /*stats context*/);
+	}
+	GPOS_ASSERT(nullptr != expr->Pstats());
+}
+
+// Insert a binary logical tree while retaining every newly-created relational
+// child group for the same exploration closure used by successful DPHyper
+// enumeration. Scalar subtrees remain immutable expression children.
+CGroup *
+PgroupMaterializeBinaryTree(CMemoryPool *mp, CEngine *engine,
+							CExpression *expr, CGroup *target,
+							CGroupExpression *origin,
+							std::vector<CGroup *> *intermediate_groups)
+{
+	GPOS_ASSERT(nullptr != mp && nullptr != engine && nullptr != expr &&
+				nullptr != origin && nullptr != intermediate_groups);
+	if (nullptr != expr->Pgexpr())
+	{
+		GPOS_ASSERT(nullptr == target);
+		return expr->Pgexpr()->Pgroup();
+	}
+
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG child = 0; child < expr->Arity(); ++child)
+	{
+		CExpression *child_expr = (*expr)[child];
+		if (child_expr->Pop()->FScalar())
+		{
+			child_expr->AddRef();
+			children->Append(child_expr);
+			continue;
+		}
+		CGroup *child_group = PgroupMaterializeBinaryTree(
+			mp, engine, child_expr, nullptr, origin, intermediate_groups);
+		children->Append(PexprGroupLeaf(mp, child_group));
+	}
+	expr->Pop()->AddRef();
+	CExpression *materialized =
+		GPOS_NEW(mp) CExpression(mp, expr->Pop(), children);
+	CGroup *group = engine->PgroupInsert(
+		target, materialized, CXform::ExfExpandNAryJoinDPHyper, origin,
+		nullptr == target /*intermediate*/);
+	materialized->Release();
+	GPOS_ASSERT(nullptr != group);
+	if (nullptr == target &&
+		intermediate_groups->end() ==
+			std::find(intermediate_groups->begin(), intermediate_groups->end(),
+					  group))
+	{
+		intermediate_groups->push_back(group);
+	}
+	return group;
 }
 
 CExpression *
@@ -393,13 +455,6 @@ public:
 	ULONG EntryCount() const { return static_cast<ULONG>(m_entries.size()); }
 };
 
-CGroupExpression *
-PgexprLogicalRepresentative(CGroup *group)
-{
-	CGroupProxy proxy(group);
-	return proxy.PgexprNextLogical(nullptr);
-}
-
 BOOL
 FSupportedDPHyperJoin(COperator::EOperatorId op_id)
 {
@@ -434,8 +489,7 @@ PgexprDPHyperRegionMember(CGroup *group)
 
 // Reconstruct only the immutable, preprocessing-marked binary skeleton from
 // Memo. Alternatives produced by commutativity, associativity, or DSL xforms
-// are deliberately ignored. This is the ORCA equivalent of Horn's recursive
-// walk over GetFirstExpr() for one maximal join region.
+// are deliberately ignored so one maximal region has a stable graph source.
 CExpression *
 PexprBinaryJoinRegion(CMemoryPool *mp, CGroupExpression *gexpr,
 					  std::vector<CGroup *> *skeleton_groups,
@@ -475,8 +529,8 @@ PexprBinaryJoinRegion(CMemoryPool *mp, CGroupExpression *gexpr,
 	}
 	predicate->AddRef();
 	// CJoinRegionSpec records edges in the same post-order. Retain the Memo
-	// group for every original subtree, as Horn does while extracting its
-	// hypergraph, so an existing node-set is never rematerialized elsewhere.
+	// group for every original subtree so an existing node-set is never
+	// rematerialized elsewhere.
 	skeleton_groups->push_back(gexpr->Pgroup());
 	region_members->push_back(gexpr);
 	gexpr->Pop()->AddRef();
@@ -700,66 +754,7 @@ CJobJoinEnumeration::FEnumerate(CSchedulerContext *psc)
 	std::vector<CGroup *> skeleton_groups;
 	std::vector<CGroupExpression *> region_members;
 
-	if (COperator::EopLogicalNAryJoin == m_pgexpr->Pop()->Eopid() &&
-		3 <= m_pgexpr->Arity())
-	{
-		CLogicalNAryJoin *nary =
-			CLogicalNAryJoin::PopConvert(m_pgexpr->Pop());
-		const ULONG node_count = m_pgexpr->Arity() - 1;
-		if (nary->HasOuterJoinChildren())
-		{
-			TraceUnsupported(m_pgexpr, "non_inner_join", node_count);
-			return false;
-		}
-
-		CExpressionArray *components = GPOS_NEW(mp) CExpressionArray(mp);
-		for (ULONG node = 0; node < node_count; ++node)
-		{
-			CGroupExpression *child_gexpr =
-				PgexprLogicalRepresentative((*m_pgexpr)[node]);
-			if (nullptr == child_gexpr)
-			{
-				components->Release();
-				TraceUnsupported(m_pgexpr, "missing_component", node_count);
-				return false;
-			}
-			child_gexpr->Pop()->AddRef();
-			CExpression *component =
-				GPOS_NEW(mp) CExpression(mp, child_gexpr->Pop(), child_gexpr);
-			// Sibling-correlated/LATERAL regions require directed dependency
-			// edges. Until represented, retain native enumeration.
-			if (0 < component->DeriveOuterReferences()->Size())
-			{
-				component->Release();
-				components->Release();
-				TraceUnsupported(m_pgexpr, "lateral_dependency", node_count);
-				return false;
-			}
-			components->Append(component);
-			component_groups.push_back((*m_pgexpr)[node]);
-		}
-
-		CExpression *scalar = (*m_pgexpr)[node_count]->PexprScalarRep();
-		if (nullptr == scalar ||
-			COperator::EopScalarNAryJoinPredList == scalar->Pop()->Eopid())
-		{
-			components->Release();
-			TraceUnsupported(m_pgexpr,
-						 nullptr == scalar ? "missing_predicate"
-									   : "non_inner_predicate_list",
-						 node_count);
-			return false;
-		}
-		CExpressionArray *conjuncts =
-			CPredicateUtils::PdrgpexprConjuncts(mp, scalar);
-		CHint *hint =
-			COptCtxt::PoctxtFromTLS()->GetOptimizerConfig()->GetHint();
-		region = GPOS_NEW(mp) CDPHyperJoinRegion(
-			mp, components, conjuncts, hint->UlDPHyperEdgeBudget());
-		components->Release();
-		conjuncts->Release();
-	}
-	else if (FSupportedDPHyperJoin(m_pgexpr->Pop()->Eopid()) &&
+	if (FSupportedDPHyperJoin(m_pgexpr->Pop()->Eopid()) &&
 			 CLogicalJoin::PopConvert(m_pgexpr->Pop())
 				 ->FDPHyperRegionRoot())
 	{
@@ -849,7 +844,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 				"nodes=%d edges=%d budget=%d owner=%s",
 				m_pgexpr->Pgroup()->Id(), node_count,
 				region->GeneratedEdgeCount(), hint->UlDPHyperEdgeBudget(),
-				m_native_fallback_materialized ? "greedy_nary"
+				m_native_fallback_materialized ? "greedy_binary"
 										   : "native_binary");
 		}
 		return false;
@@ -992,7 +987,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 				budget_exhausted ? "pair_budget" : "disconnected",
 				m_pgexpr->Pgroup()->Id(), node_count, attempted_pairs,
 				hint->UlDPHyperPairBudget(),
-				m_native_fallback_materialized ? "greedy_nary"
+				m_native_fallback_materialized ? "greedy_binary"
 										   : "native_binary");
 		}
 		return false;
@@ -1168,32 +1163,40 @@ CJobJoinEnumeration::MaterializeNativeFallback(
 {
 	GPOS_ASSERT(nullptr != psc && nullptr != region);
 	GPOS_ASSERT(region->NodeCount() == component_groups.size());
-	// A mixed join skeleton cannot be represented by LogicalNAryJoin without
-	// losing join type and direction. Because DPHyper runs before child-group
-	// exploration, publishing ordinary fallback is sufficient: the preserved
-	// binary skeleton and all native swap xforms remain untouched.
+	// Greedy only models pure inner regions. Mixed join skeletons retain their
+	// original binary query order and native semantic transformations.
 	if (GPOS_FTRACE(EopttraceDPHyperShadow) ||
 		(nullptr != spec && !spec->PureInner()))
 	{
 		return;
 	}
 	CMemoryPool *mp = psc->GetGlobalMemoryPool();
-	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	CExpressionArray *components = GPOS_NEW(mp) CExpressionArray(mp);
 	for (CGroup *group : component_groups)
 	{
-		children->Append(PexprGroupLeaf(mp, group));
+		CExpression *component = PexprGroupLeaf(mp, group);
+		DeriveStats(mp, component);
+		components->Append(component);
 	}
-	children->Append(region->PexprAllPredicates());
-	CExpression *fallback = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalNAryJoin(mp), children);
-	CGroup *target = psc->Peng()->PgroupInsert(
-		m_pgexpr->Pgroup(), fallback, CXform::ExfExpandNAryJoinDPHyper,
-		m_pgexpr, false /*intermediate*/);
-	fallback->Release();
-	GPOS_ASSERT(nullptr != target);
+	CExpression *all_predicates = region->PexprAllPredicates();
+	CExpressionArray *conjuncts =
+		CPredicateUtils::PdrgpexprConjuncts(mp, all_predicates);
+	all_predicates->Release();
+	CJoinOrderGreedy greedy(mp, components, conjuncts);
+	CExpression *result = greedy.PexprExpand();
+	if (nullptr == result)
+	{
+		return;
+	}
+	CExpression *normalized = CNormalizer::PexprNormalize(mp, result);
+	result->Release();
+	CGroup *target = PgroupMaterializeBinaryTree(
+		mp, psc->Peng(), normalized, m_pgexpr->Pgroup(), m_pgexpr,
+		&m_intermediate_groups);
+	normalized->Release();
 	GPOS_ASSERT(CGroup::FDuplicateGroups(target, m_pgexpr->Pgroup()));
-	(void) target;
-	m_native_fallback_materialized = true;
+	m_native_fallback_materialized =
+		CGroup::FDuplicateGroups(target, m_pgexpr->Pgroup());
 }
 
 #ifdef GPOS_DEBUG

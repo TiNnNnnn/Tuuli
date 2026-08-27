@@ -20,7 +20,6 @@
 #include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
@@ -81,22 +80,6 @@ ClearDPHyperJoinEnumeration(CXformSet *xform_set,
 		default:
 			GPOS_ASSERT(!"Unsupported DPHyper join-region root");
 	}
-}
-
-void
-ConfigureNAryFallback(CXformSet *xform_set, BOOL use_greedy)
-{
-	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
-	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
-	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
-	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
-	(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
-	// Search-stage intersection normally leaves exactly one native policy.
-	// DPHyper fallback owns this decision and must therefore restore the safe
-	// non-DP policy explicitly.
-	(void) xform_set->ExchangeSet(
-		use_greedy ? CXform::ExfExpandNAryJoinGreedy
-				   : CXform::ExfExpandNAryJoin);
 }
 
 BOOL
@@ -335,36 +318,23 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 	// intersect them with required xforms and schedule jobs
 	xform_set->Intersection(CXformFactory::Pxff()->PxfsExploration());
 	xform_set->Intersection(psc->Peng()->PxfsCurrentStage());
-	if (COperator::EopLogicalNAryJoin != pop->Eopid())
+	CLogicalJoin *join = dynamic_cast<CLogicalJoin *>(pop);
+	if (nullptr != join && join->FDPHyperRegionMember() &&
+		!join->FDPHyperRegionRoot() &&
+		CGroupExpression::EdphSucceeded == m_pgexpr->DPHyperStatus() &&
+		!GPOS_FTRACE(EopttraceDPHyperShadow))
 	{
-		CLogicalJoin *join = dynamic_cast<CLogicalJoin *>(pop);
-		if (nullptr != join && join->FDPHyperRegionMember() &&
-			!join->FDPHyperRegionRoot() &&
-			CGroupExpression::EdphSucceeded == m_pgexpr->DPHyperStatus() &&
-			!GPOS_FTRACE(EopttraceDPHyperShadow))
-		{
-			ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
-		}
+		ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
 	}
 	if (xform_set->Get(CXform::ExfExpandNAryJoinDPHyper))
 	{
+		GPOS_ASSERT(nullptr != dynamic_cast<CLogicalJoin *>(pop));
+		GPOS_ASSERT(COperator::EopLogicalNAryJoin != pop->Eopid());
 		// DPHyper is a whole-region job, not a binding-at-a-time xform. Remove
 		// its marker from normal scheduling while preserving search-stage and
 		// xform-disable control through the candidate-set intersections above.
 		(void) xform_set->ExchangeClear(
 			CXform::ExfExpandNAryJoinDPHyper);
-		if (COperator::EopLogicalNAryJoin == pop->Eopid() &&
-			CXform::ExfExpandNAryJoinDPHyper == m_pgexpr->ExfidOrigin())
-		{
-			// A failed binary DPHyper attempt materializes this NAryJoin solely
-			// as an exact bridge to the greedy enumerator. Do not recurse into
-			// DPHyper or re-enter any exhaustive native DP enumerator.
-			ConfigureNAryFallback(xform_set, true /*use_greedy*/);
-			ScheduleTransformations(psc, xform_set);
-			xform_set->Release();
-			SetXformsScheduled();
-			return;
-		}
 		if (CGroupExpression::EdphUnrequested ==
 			m_pgexpr->DPHyperStatus())
 		{
@@ -375,49 +345,15 @@ CJobGroupExpressionExploration::ScheduleApplicableTransformations(
 		}
 		GPOS_ASSERT(CGroupExpression::EdphScheduled !=
 					m_pgexpr->DPHyperStatus());
-		if (CGroupExpression::EdphFallback == m_pgexpr->DPHyperStatus() &&
-			COperator::EopLogicalNAryJoin == pop->Eopid() &&
-			!GPOS_FTRACE(EopttraceDPHyperShadow))
-		{
-			CLogicalNAryJoin *nary = CLogicalNAryJoin::PopConvert(pop);
-			CExpressionHandle exprhdl(psc->GetGlobalMemoryPool());
-			exprhdl.Attach(m_pgexpr);
-			const BOOL use_greedy = !nary->HasOuterJoinChildren() &&
-									!exprhdl.HasOuterRefs();
-			// Greedy only models inner joins. Preserve query order for outer or
-			// correlated NAryJoin fallback, which is semantic rather than a
-			// search-space budget decision.
-			ConfigureNAryFallback(xform_set, use_greedy);
-		}
 		if ((CGroupExpression::EdphSucceeded ==
 				 m_pgexpr->DPHyperStatus() ||
 			 CGroupExpression::EdphNativeFallback ==
 				 m_pgexpr->DPHyperStatus()) &&
 			!GPOS_FTRACE(EopttraceDPHyperShadow))
 		{
-			// Keep one join-enumeration owner: successful DPHyper suppresses the
-			// native ingress owner, while a materialized native fallback suppresses
-			// the original binary owner and lets its NAryJoin bridge enumerate.
-			if (CGroupExpression::EdphNativeFallback ==
-				m_pgexpr->DPHyperStatus())
-			{
-				if (COperator::EopLogicalNAryJoin != pop->Eopid())
-				{
-					ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
-				}
-			}
-			else if (COperator::EopLogicalNAryJoin == pop->Eopid())
-			{
-				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoin);
-				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinMinCard);
-				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDP);
-				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinGreedy);
-				(void) xform_set->ExchangeClear(CXform::ExfExpandNAryJoinDPv2);
-			}
-			else
-			{
-				ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
-			}
+			// Successful DPHyper and its direct binary Greedy fallback each own
+			// join enumeration for the preserved input region.
+			ClearDPHyperJoinEnumeration(xform_set, pop->Eopid());
 		}
 	}
 	ScheduleTransformations(psc, xform_set);

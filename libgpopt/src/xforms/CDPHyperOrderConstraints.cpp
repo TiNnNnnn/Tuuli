@@ -48,8 +48,8 @@ CDPHyperOrderConstraints::TryAdd(ULONG before, ULONG after)
 	}
 
 	// All predecessors of 'before' can now reach every successor of 'after'.
-	// Updating the complete closure makes cycle checks O(1) and mirrors the
-	// parent-node propagation in Horn's CircleDetector without a 64-edge cap.
+	// Updating the complete closure makes cycle checks O(1) without imposing a
+	// fixed edge-count limit.
 	for (CBitSet *reachable : m_reachable)
 	{
 		if (reachable->Get(before))

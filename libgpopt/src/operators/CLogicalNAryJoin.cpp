@@ -213,10 +213,6 @@ CLogicalNAryJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDP);
 	(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinGreedy);
 	(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPv2);
-	if (GPOS_FTRACE(EopttraceEnableDPHyper))
-	{
-		(void) xform_set->ExchangeSet(CXform::ExfExpandNAryJoinDPHyper);
-	}
 
 	return xform_set;
 }

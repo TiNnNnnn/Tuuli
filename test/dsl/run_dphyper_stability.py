@@ -283,7 +283,9 @@ def summarize(dataset: str, records: list[dict[str, Any]]) -> dict[str, Any]:
         for event in events:
             if event["status"] == "fallback":
                 fallback_reasons[str(event.get("reason", "unknown"))] += 1
-                greedy_fallback += event.get("owner") == "greedy_nary"
+                greedy_fallback += event.get("owner") in {
+                    "greedy_nary", "greedy_binary"
+                }
                 dpv2_fallback += event.get("owner") == "native_nary"
     timeout_statuses = {"statement_timeout", "client_timeout"}
     regressions = [

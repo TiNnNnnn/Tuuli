@@ -5,8 +5,8 @@
 //	@doc:
 //		Dynamic transitive-closure tracker for GraphSimplifier edge-order
 //		constraints. A relation before -> after means the former join edge must
-//		be consumed before the latter. This is the unbounded-bitset equivalent
-//		of Horn's CircleDetector.
+//		be consumed before the latter. Dynamic bitsets keep the closure valid
+//		for arbitrary edge counts.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDPHyperOrderConstraints_H
 #define GPOPT_CDPHyperOrderConstraints_H

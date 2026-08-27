@@ -3918,11 +3918,7 @@ CUtils::PexprLogicalJoin(CMemoryPool *mp, EdxlJoinType edxljointype,
 	// The complete DXL predicate is attached to the top join; lower joins use
 	// TRUE. The later region builder redistributes conjuncts by referenced
 	// atoms, while the binary skeleton retains explicit CROSS JOIN boundaries.
-	if (EdxljtInner == edxljointype &&
-		COptCtxt::PoctxtFromTLS()
-			->GetOptimizerConfig()
-			->GetHint()
-			->FEnableDPHyper())
+	if (EdxljtInner == edxljointype)
 	{
 		GPOS_ASSERT(3 <= pdrgpexpr->Size());
 		const ULONG component_count = pdrgpexpr->Size() - 1;

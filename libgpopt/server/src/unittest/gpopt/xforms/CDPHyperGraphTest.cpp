@@ -181,9 +181,9 @@ public:
 	}
 };
 
-// Horn's enumerator uses receiver=true as a hard stop (for both errors and
-// pair budgets). Keep this separate from CDPHyperPlan so the traversal itself
-// cannot accidentally continue after its first reported pair.
+// The receiver return value is a hard stop for both errors and pair budgets.
+// Keep this separate from CDPHyperPlan so traversal cannot accidentally
+// continue after its first reported pair.
 class CAbortReceiver : public IDPHyperReceiver
 {
 private:
@@ -892,9 +892,9 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifierInfrastructure()
 	GPOS_UNITTEST_ASSERT(original.Complete(3));
 	GPOS_UNITTEST_ASSERT(6 == original.SeenCount());
 
-	// Horn expresses edge 0 before edge 1 by expanding the latter from 1--2
-	// to {0,1}--2. The same enumerator must now retain a complete plan while
-	// suppressing the alternative {1,2} intermediate subset.
+	// Express edge 0 before edge 1 by expanding the latter from 1--2 to
+	// {0,1}--2. The enumerator must retain a complete plan while suppressing
+	// the alternative {1,2} intermediate subset.
 	CAutoRef<CBitSet> joined01(Pbs(mp, {0, 1}));
 	CAutoRef<CBitSet> node2(Pbs(mp, {2}));
 	graph.ReplaceEdge(1, joined01.Value(), node2.Value());
@@ -923,9 +923,8 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifierInfrastructure()
 	GPOS_UNITTEST_ASSERT(parallel.Node(0)->m_simple_neighborhood->Get(1));
 	GPOS_UNITTEST_ASSERT(parallel.Node(1)->m_simple_neighborhood->Get(0));
 
-	// Horn's CircleDetector uses a 64-bit EdgeMap. Keep its transitive-closure
-	// semantics while using ORCA's dynamic bitsets so large join graphs remain
-	// correct.
+	// Dynamic bitsets must preserve transitive-closure semantics for join graphs
+	// with more than 64 edges.
 	CDPHyperOrderConstraints order(mp, 70);
 	for (ULONG edge = 0; edge + 1 < 70; ++edge)
 	{
@@ -993,9 +992,9 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifier()
 	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_left, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(graph.Edge(2)->m_right, {2}));
 
-	// Three leaves require at least two emitted pairs. No amount of Horn edge
-	// ordering can satisfy a budget of one, and the failed probe must leave no
-	// graph mutation behind.
+	// Three leaves require at least two emitted pairs. No edge ordering can
+	// satisfy a budget of one, and the failed probe must leave no graph mutation
+	// behind.
 	CDPHyperGraph impossible(mp, 3);
 	AddSimpleEdge(mp, &impossible, 0, 1, 0);
 	AddSimpleEdge(mp, &impossible, 1, 2, 1);
@@ -1010,7 +1009,7 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifier()
 	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(2)->m_left, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(impossible.Edge(2)->m_right, {2}));
 
-	// Horn deliberately simplifies only hash/equality joins. If either edge is
+	// Simplification admits only hash/equality joins. If either edge is
 	// ineligible, the pair cannot manufacture an ordering constraint.
 	CDPHyperGraph filtered(mp, 3);
 	AddSimpleEdge(mp, &filtered, 0, 1, 0);
@@ -1058,7 +1057,7 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifierStress()
 	}
 
 	// N leaves need at least N-1 pairs. Reaching this lower bound proves that
-	// repeated Horn constraints reduced the chain to one complete join tree,
+	// repeated ordering constraints reduced the chain to one complete join tree,
 	// rather than merely trimming a few alternatives.
 	CDPHyperGraphSimplifier simplifier(
 		mp, &graph, node_count - 1,

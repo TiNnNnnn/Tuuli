@@ -3,10 +3,9 @@
 //		CDPHyperGraphSimplifier.h
 //
 //	@doc:
-//		Budget-driven DPHyper graph simplification following Horn's
-//		GraphSimplifier: rank neighboring edge-order constraints by cost,
-//		apply the most beneficial constraints, probe with the real enumerator,
-//		then binary-search the minimum number of required constraints.
+//		Budget-driven DPHyper graph simplification: rank neighboring edge-order
+//		constraints by cost, apply the most beneficial constraints, probe with
+//		the real enumerator, then binary-search the minimum required constraints.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDPHyperGraphSimplifier_H
 #define GPOPT_CDPHyperGraphSimplifier_H

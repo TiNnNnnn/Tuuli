@@ -30,7 +30,6 @@
 #include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "naucrates/md/CMDForeignKey.h"
@@ -358,71 +357,6 @@ FBinaryJoinPreservesUniqueAttrs(CMemoryPool *mp, CExpression *pexprJoin,
 }
 
 BOOL
-FNaryInnerJoinPreservesUniqueAttrs(CMemoryPool *mp, CExpression *pexprJoin,
-								   const CColRefSet *pcrsAttrs)
-{
-	CLogicalNAryJoin *popJoin =
-		CLogicalNAryJoin::PopConvert(pexprJoin->Pop());
-	if (popJoin->HasOuterJoinChildren() || pexprJoin->Arity() < 3)
-	{
-		return false;
-	}
-
-	const ULONG ulRelChildren = pexprJoin->Arity() - 1;
-	CExpression *pexprPred = (*pexprJoin)[ulRelChildren];
-	for (ULONG ulAnchor = 0; ulAnchor < ulRelChildren; ulAnchor++)
-	{
-		CExpression *pexprAnchor = (*pexprJoin)[ulAnchor];
-		if (!pexprAnchor->DeriveOutputColumns()->ContainsAll(pcrsAttrs) ||
-			!FExpressionUniqueOnAttrs(mp, pexprAnchor, pcrsAttrs))
-		{
-			continue;
-		}
-
-		CBitSet *pbsJoined = GPOS_NEW(mp) CBitSet(mp);
-		(void) pbsJoined->ExchangeSet(ulAnchor);
-		CColRefSet *pcrsJoined = GPOS_NEW(mp) CColRefSet(mp);
-		pcrsJoined->Include(pexprAnchor->DeriveOutputColumns());
-		ULONG ulJoined = 1;
-		BOOL fProgress = true;
-		while (ulJoined < ulRelChildren && fProgress)
-		{
-			fProgress = false;
-			for (ULONG ul = 0; ul < ulRelChildren; ul++)
-			{
-				if (pbsJoined->Get(ul))
-				{
-					continue;
-				}
-				CExpression *pexprCandidate = (*pexprJoin)[ul];
-				CColRefSet *pcrsJoinCols = GPOS_NEW(mp) CColRefSet(mp);
-				CollectConnectedColumns(pexprPred,
-								pexprCandidate->DeriveOutputColumns(),
-								pcrsJoined, pcrsJoinCols);
-				BOOL fUnique = FExpressionUniqueOnAttrs(
-					mp, pexprCandidate, pcrsJoinCols);
-				pcrsJoinCols->Release();
-				if (!fUnique)
-				{
-					continue;
-				}
-				(void) pbsJoined->ExchangeSet(ul);
-				pcrsJoined->Include(pexprCandidate->DeriveOutputColumns());
-				ulJoined++;
-				fProgress = true;
-			}
-		}
-		pbsJoined->Release();
-		pcrsJoined->Release();
-		if (ulJoined == ulRelChildren)
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-BOOL
 FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
 							 const CColRefSet *pcrsAttrs)
 {
@@ -441,9 +375,6 @@ FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
 		case COperator::EopLogicalLeftOuterJoin:
 			return FBinaryJoinPreservesUniqueAttrs(
 				mp, pexprKeySource, pcrsAttrs, false /*fAllowRightAnchor*/);
-		case COperator::EopLogicalNAryJoin:
-			return FNaryInnerJoinPreservesUniqueAttrs(mp, pexprKeySource,
-											 pcrsAttrs);
 		default:
 			break;
 	}
@@ -531,25 +462,6 @@ FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
 		case COperator::EopLogicalRightOuterJoin:
 			return 1 < pexpr->Arity() &&
 				   FExpressionProvesNotNull(mp, (*pexpr)[1], pcr);
-
-		case COperator::EopLogicalNAryJoin:
-		{
-			CLogicalNAryJoin *popJoin =
-				CLogicalNAryJoin::PopConvert(pexpr->Pop());
-			if (popJoin->HasOuterJoinChildren() || pexpr->Arity() < 2)
-			{
-				return false;
-			}
-			const ULONG ulRelChildren = pexpr->Arity() - 1;
-			for (ULONG ul = 0; ul < ulRelChildren; ul++)
-			{
-				if (FExpressionProvesNotNull(mp, (*pexpr)[ul], pcr))
-				{
-					return true;
-				}
-			}
-			return false;
-		}
 
 		default:
 			return false;

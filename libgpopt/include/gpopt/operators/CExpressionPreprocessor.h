@@ -123,15 +123,6 @@ private:
 	static CExpression *PexprPruneEmptySubtrees(CMemoryPool *mp,
 												CExpression *pexpr);
 
-	// collapse cascaded inner joins into NAry-joins
-	static CExpression *PexprCollapseJoins(CMemoryPool *mp, CExpression *pexpr);
-
-	// helper method for PexprCollapseJoins, collect children and make recursive calls
-	static void CollectJoinChildrenRecursively(
-		CMemoryPool *mp, CExpression *pexpr, CExpressionArray *logicalLeafNodes,
-		ULongPtrArray *lojChildPredIndexes,
-		CExpressionArray *innerJoinPredicates, CExpressionArray *lojPredicates);
-
 	// collapse cascaded logical project operators
 	static CExpression *PexprCollapseProjects(CMemoryPool *mp,
 											  CExpression *pexpr);

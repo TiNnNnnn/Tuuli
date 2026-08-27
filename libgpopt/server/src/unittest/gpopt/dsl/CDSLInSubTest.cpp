@@ -19,7 +19,6 @@
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -110,7 +109,7 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_InSubAsSimpleFilterCarrier),
 		GPOS_UNITTEST_FUNC(
-			CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap),
+			CDSLInSubTest::EresUnittest_PreApplyBelowBinaryJoinSpineRemap),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_RejectsNullSupplyingRoute),
 		GPOS_UNITTEST_FUNC(
@@ -362,7 +361,7 @@ CDSLInSubTest::EresUnittest_RejectsNullSupplyingRoute()
 }
 
 GPOS_RESULT
-CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap()
+CDSLInSubTest::EresUnittest_PreApplyBelowBinaryJoinSpineRemap()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -382,16 +381,16 @@ CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap()
 	pexprLeft->Release();
 	pexprAny->Release();
 
-	CColRefArray *pdrgpcrNaryRight = nullptr;
-	CExpression *pexprNaryRight = fix.PexprLogicalGet(
-		"insub_nary_sibling", 1, &pdrgpcrNaryRight, 0);
-	CExpressionArray *pdrgpexprNary = GPOS_NEW(mp) CExpressionArray(mp);
-	pdrgpexprNary->Append(pexprSelect);
-	pdrgpexprNary->Append(pexprNaryRight);
-	pdrgpexprNary->Append(
-		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrNaryRight)[0]));
-	CExpression *pexprNary = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalNAryJoin(mp), pdrgpexprNary);
+	CColRefArray *pdrgpcrNestedRight = nullptr;
+	CExpression *pexprNestedRight = fix.PexprLogicalGet(
+		"insub_binary_sibling", 1, &pdrgpcrNestedRight, 0);
+	CExpression *pexprNestedPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrNestedRight)[0]);
+	CExpression *pexprNested = fix.PexprLogicalInnerJoin(
+		pexprSelect, pexprNestedRight, pexprNestedPred);
+	pexprSelect->Release();
+	pexprNestedRight->Release();
+	pexprNestedPred->Release();
 
 	CColRefArray *pdrgpcrRight = nullptr;
 	CExpression *pexprRight =
@@ -399,8 +398,8 @@ CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap()
 	CExpression *pexprRootPred =
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprSource =
-		fix.PexprLogicalInnerJoin(pexprNary, pexprRight, pexprRootPred);
-	pexprNary->Release();
+		fix.PexprLogicalInnerJoin(pexprNested, pexprRight, pexprRootPred);
+	pexprNested->Release();
 	pexprRight->Release();
 	pexprRootPred->Release();
 
@@ -420,7 +419,7 @@ CDSLInSubTest::EresUnittest_PreApplyBelowNAryJoinRemap()
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
 				(*pexprTarget)[0]->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalNAryJoin ==
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
 				(*(*pexprTarget)[0])[0]->Pop()->Eopid());
 
 	pexprTarget->Release();

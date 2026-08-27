@@ -11,7 +11,7 @@
       "contains": [
         "DPHyper: status=fallback reason=edge_budget",
         "edges=1 budget=1",
-        "owner=greedy_nary"
+        "owner=greedy_binary"
       ],
       "not_contains": [
         "DPHyper: status=applied",

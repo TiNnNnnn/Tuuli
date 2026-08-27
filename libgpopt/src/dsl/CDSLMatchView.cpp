@@ -10,7 +10,6 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
-#include "gpopt/operators/CLogicalNAryJoin.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "naucrates/md/IMDType.h"
 
@@ -226,13 +225,6 @@ CDSLMatchView::PdrgprouteJoinSpine(CMemoryPool *mp, CExpression *pexpr,
 		case COperator::EopLogicalLeftOuterJoin:
 			ulSides = 1;
 			break;
-		case COperator::EopLogicalNAryJoin:
-			if (2 > pexpr->Arity())
-			{
-				return pdrgproute;
-			}
-			ulSides = pexpr->Arity() - 1;
-			break;
 		case COperator::EopLogicalSelect:
 			ulSides = 1;
 			break;
@@ -248,12 +240,6 @@ CDSLMatchView::PdrgprouteJoinSpine(CMemoryPool *mp, CExpression *pexpr,
 
 	for (ULONG ulSide = 0; ulSide < ulSides; ulSide++)
 	{
-		if (COperator::EopLogicalNAryJoin == pexpr->Pop()->Eopid() &&
-			!CLogicalNAryJoin::PopConvert(pexpr->Pop())->IsInnerJoinChild(
-				ulSide))
-		{
-			continue;
-		}
 		SJoinSpineRouteArray *pdrgprouteChild = PdrgprouteJoinSpine(
 			mp, (*pexpr)[ulSide], eopidCarrier, ulDepth + 1);
 		for (ULONG ulRoute = 0; ulRoute < pdrgprouteChild->Size(); ulRoute++)
