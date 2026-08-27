@@ -109,6 +109,11 @@ private:
 	ULONG_PTR m_ulpStatsCompletedQueued;
 	ULONG_PTR m_ulpStatsResumed;
 
+	// Per-type scheduler profiling, populated only when optimization statistics
+	// are requested. Counts include reentrant executions of suspended jobs.
+	ULONG m_job_calls[CJob::EjtSentinel];
+	ULONG m_job_us[CJob::EjtSentinel];
+
 #ifdef GPOS_DEBUG
 	// list of running jobs
 	CList<CJob> m_listjRunning;

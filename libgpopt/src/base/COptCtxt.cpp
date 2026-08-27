@@ -54,6 +54,12 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_selector_id_counter(0),
 	  m_dsl_trace_events(nullptr),
 	  m_dsl_rule_trace_counters(nullptr),
+	  m_ulDSLBindingCalls(0),
+	  m_ulDSLBindingBuildUs(0),
+	  m_ulDSLBindingsBuilt(0),
+	  m_ulDSLCandidateCalls(0),
+	  m_ulDSLCandidateLookupUs(0),
+	  m_ulDSLCandidatesFound(0),
 	  m_ulDSLGeneratedAlternatives(0),
 	  m_dsl_generated_alternatives_by_rule(nullptr)
 {
@@ -126,6 +132,39 @@ COptCtxt::RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 	}
 	pcounters->m_stage_attempts[ulStage]++;
 	pcounters->m_bound_symbols += ulBoundSymbols;
+}
+
+void
+COptCtxt::RecordDSLRuleTiming(ULONG ulRuleId, ULONG ulMatchUs,
+						  ULONG ulConstraintUs, ULONG ulInstantiateUs)
+{
+	SDSLRuleTraceCounters *pcounters =
+		m_dsl_rule_trace_counters->Find(&ulRuleId);
+	if (nullptr == pcounters)
+	{
+		pcounters = GPOS_NEW(m_mp) SDSLRuleTraceCounters();
+		(void) m_dsl_rule_trace_counters->Insert(
+			GPOS_NEW(m_mp) ULONG(ulRuleId), pcounters);
+	}
+	pcounters->m_match_us += ulMatchUs;
+	pcounters->m_constraint_us += ulConstraintUs;
+	pcounters->m_instantiate_us += ulInstantiateUs;
+}
+
+void
+COptCtxt::RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings)
+{
+	++m_ulDSLBindingCalls;
+	m_ulDSLBindingBuildUs += ulElapsedUs;
+	m_ulDSLBindingsBuilt += ulBindings;
+}
+
+void
+COptCtxt::RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates)
+{
+	++m_ulDSLCandidateCalls;
+	m_ulDSLCandidateLookupUs += ulElapsedUs;
+	m_ulDSLCandidatesFound += ulCandidates;
 }
 
 void

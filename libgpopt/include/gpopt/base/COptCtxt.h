@@ -35,9 +35,16 @@ struct SDSLRuleTraceCounters
 {
 	ULONG m_stage_attempts[7];
 	ULONG m_bound_symbols;
+	ULONG m_match_us;
+	ULONG m_constraint_us;
+	ULONG m_instantiate_us;
 
 	SDSLRuleTraceCounters()
-		: m_stage_attempts{0, 0, 0, 0, 0, 0, 0}, m_bound_symbols(0)
+		: m_stage_attempts{0, 0, 0, 0, 0, 0, 0},
+		  m_bound_symbols(0),
+		  m_match_us(0),
+		  m_constraint_us(0),
+		  m_instantiate_us(0)
 	{
 	}
 
@@ -177,6 +184,15 @@ private:
 	// Uncompacted per-rule counters used to explain search-space growth.
 	UlongToDSLRuleTraceCountersMap *m_dsl_rule_trace_counters;
 
+	// Query-local timing for the shared DSL dispatch pipeline. These counters
+	// are populated only while DSL tracing is enabled.
+	ULONG m_ulDSLBindingCalls;
+	ULONG m_ulDSLBindingBuildUs;
+	ULONG m_ulDSLBindingsBuilt;
+	ULONG m_ulDSLCandidateCalls;
+	ULONG m_ulDSLCandidateLookupUs;
+	ULONG m_ulDSLCandidatesFound;
+
 	ULONG m_ulDSLGeneratedAlternatives;
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
@@ -195,6 +211,17 @@ public:
 
 	void RecordDSLRuleTrace(ULONG ulRuleId, ULONG ulStage,
 						ULONG ulBoundSymbols);
+	void RecordDSLRuleTiming(ULONG ulRuleId, ULONG ulMatchUs,
+						 ULONG ulConstraintUs, ULONG ulInstantiateUs);
+	void RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings);
+	void RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates);
+
+	ULONG UlDSLBindingCalls() const { return m_ulDSLBindingCalls; }
+	ULONG UlDSLBindingBuildUs() const { return m_ulDSLBindingBuildUs; }
+	ULONG UlDSLBindingsBuilt() const { return m_ulDSLBindingsBuilt; }
+	ULONG UlDSLCandidateCalls() const { return m_ulDSLCandidateCalls; }
+	ULONG UlDSLCandidateLookupUs() const { return m_ulDSLCandidateLookupUs; }
+	ULONG UlDSLCandidatesFound() const { return m_ulDSLCandidatesFound; }
 
 	// Record once that a rule was removed before binding because its configured
 	// alternative budget had already been consumed.

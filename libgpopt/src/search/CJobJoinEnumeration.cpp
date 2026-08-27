@@ -435,7 +435,8 @@ void
 TraceUnsupported(CGroupExpression *pgexpr, const CHAR *reason,
 				 ULONG node_count)
 {
-	if (GPOS_FTRACE(EopttracePrintXformResults))
+	if (GPOS_FTRACE(EopttracePrintXformResults) ||
+		GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=fallback reason=%s group=%d nodes=%d",
@@ -622,7 +623,8 @@ CJobJoinEnumeration::FExecute(CSchedulerContext *psc)
 		GPOS_ASSERT(CGroupExpression::EdphSucceeded ==
 					 m_pgexpr->DPHyperStatus());
 	}
-	if (GPOS_FTRACE(EopttracePrintXformResults))
+	if (GPOS_FTRACE(EopttracePrintXformResults) ||
+		GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		GPOS_TRACE_FORMAT(
 			"DPHyper: status=explored group=%d intermediate_groups=%d "

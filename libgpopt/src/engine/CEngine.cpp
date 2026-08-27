@@ -404,8 +404,7 @@ CEngine::InsertXformResult(
 	GPOS_ASSERT(CXform::ExfInvalid != exfidOrigin);
 	GPOS_ASSERT(nullptr != pgexprOrigin);
 
-	if (GPOS_FTRACE(EopttracePrintOptimizationStatistics) &&
-		0 < pxfres->Pdrgpexpr()->Size())
+	if (GPOS_FTRACE(EopttracePrintOptimizationStatistics))
 	{
 		(void) m_xforms->ExchangeSet(exfidOrigin);
 		(*m_pdrgpulpXformCalls)[m_ulCurrSearchStage][exfidOrigin] += 1;
@@ -2143,6 +2142,7 @@ CEngine::ProcessTraceFlags()
 {
 	if (GPOS_FTRACE(EopttracePrintDSLRule))
 	{
+		COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
 		{
 			CAutoTrace at(m_mp);
 			at.Os() << "DSL_TRACE {\"kind\":\"memo_summary\","
@@ -2153,9 +2153,23 @@ CEngine::ProcessTraceFlags()
 					<< ",\"group_expressions\":" << m_pmemo->UlGrpExprs()
 					<< "}" << std::endl;
 		}
+		{
+			CAutoTrace at(m_mp);
+			at.Os() << "DSL_TRACE {\"kind\":\"pipeline_summary\","
+						  "\"engine\":\"pgorca\",\"stage\":"
+					<< m_ulCurrSearchStage << ",\"binding_calls\":"
+					<< poctxt->UlDSLBindingCalls() << ",\"binding_build_us\":"
+					<< poctxt->UlDSLBindingBuildUs() << ",\"bindings_built\":"
+					<< poctxt->UlDSLBindingsBuilt() << ",\"candidate_calls\":"
+					<< poctxt->UlDSLCandidateCalls()
+					<< ",\"candidate_lookup_us\":"
+					<< poctxt->UlDSLCandidateLookupUs()
+					<< ",\"candidates_found\":"
+					<< poctxt->UlDSLCandidatesFound() << "}" << std::endl;
+		}
 
 		UlongToDSLRuleTraceCountersMap *pcounters =
-			COptCtxt::PoctxtFromTLS()->PdrgDSLRuleTraceCounters();
+			poctxt->PdrgDSLRuleTraceCounters();
 		UlongToDSLRuleTraceCountersMapIter iter(pcounters);
 		while (iter.Advance())
 		{
@@ -2168,6 +2182,9 @@ CEngine::ProcessTraceFlags()
 					<< m_ulCurrSearchStage << ",\"rule_id\":" << *pulRuleId
 					<< ",\"binding_attempts\":" << prule->UlAttempts()
 					<< ",\"bound_symbols\":" << prule->m_bound_symbols
+					<< ",\"match_us\":" << prule->m_match_us
+					<< ",\"constraint_us\":" << prule->m_constraint_us
+					<< ",\"instantiate_us\":" << prule->m_instantiate_us
 					<< ",\"match_rejected\":"
 					<< prule->m_stage_attempts[0]
 					<< ",\"constraint_rejected\":"
@@ -2278,6 +2295,10 @@ CEngine::Optimize()
 
 		// run optimization job
 		CScheduler::Run(&sc);
+		if (GPOS_FTRACE(EopttracePrintOptimizationStatistics))
+		{
+			sched.PrintStats();
+		}
 
 		poc->Release();
 

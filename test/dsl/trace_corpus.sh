@@ -33,6 +33,14 @@ case ${DSL_TRACE_XFORMS:-0} in
         exit 1
         ;;
 esac
+case ${DSL_TRACE_OPT_STATS:-0} in
+    1|on) TRACE_OPT_STATS=on ;;
+    0|off) TRACE_OPT_STATS=off ;;
+    *)
+        echo "DSL corpus trace failed: DSL_TRACE_OPT_STATS must be 0, 1, off, or on" >&2
+        exit 1
+        ;;
+esac
 TRACE_RESULTS=$TRACE_DETAILS
 if [[ "$TRACE_XFORMS" = on ]]; then
     TRACE_RESULTS=on
@@ -129,6 +137,7 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"
         echo "SET optimizer_print_xform=$TRACE_XFORMS;"
         echo "SET optimizer_print_xform_results=$TRACE_RESULTS;"
+        echo "SET optimizer_print_optimization_stats=$TRACE_OPT_STATS;"
         echo "SET client_min_messages=log;"
         echo "SET statement_timeout='${STATEMENT_TIMEOUT}ms';"
         echo "SET optimizer_enable_query_parameter=on;"

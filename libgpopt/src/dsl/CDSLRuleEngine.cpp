@@ -10,6 +10,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRuleEngine.h"
 
+#include "gpos/common/CWallClock.h"
 #include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
 #include "gpos/memory/CMemoryPoolManager.h"
@@ -291,7 +292,15 @@ CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 	{
 		return GPOS_NEW(mp) CDSLRuleArray(mp);
 	}
-	return pindex->PdrgpruleCandidates(mp, pexpr);
+	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
+	CWallClock timer(fTrace);
+	CDSLRuleArray *pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	if (fTrace)
+	{
+		COptCtxt::PoctxtFromTLS()->RecordDSLCandidateTiming(
+			timer.ElapsedUS(), pdrgprule->Size());
+	}
+	return pdrgprule;
 }
 
 CExpressionArray *
@@ -307,7 +316,16 @@ CDSLRuleEngine::PdrgpexprBindings(CMemoryPool *mp,
 	{
 		return GPOS_NEW(mp) CExpressionArray(mp);
 	}
-	return pindex->PdrgpexprBindings(mp, pgexprRoot);
+	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
+	CWallClock timer(fTrace);
+	CExpressionArray *pdrgpexpr =
+		pindex->PdrgpexprBindings(mp, pgexprRoot);
+	if (fTrace)
+	{
+		COptCtxt::PoctxtFromTLS()->RecordDSLBindingTiming(
+			timer.ElapsedUS(), pdrgpexpr->Size());
+	}
+	return pdrgpexpr;
 }
 
 ULONG
@@ -408,7 +426,8 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			 const CDSLRule *prule, const CDSLModel *pmodel,
 			 const CExpression *pexprSrc, const CExpression *pexprTgt,
 			 const CDSLConstraint *pconFailed = nullptr,
-			 ULONG ulFailed = gpos::ulong_max)
+			 ULONG ulFailed = gpos::ulong_max, ULONG ulMatchUs = 0,
+			 ULONG ulConstraintUs = 0, ULONG ulInstantiateUs = 0)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -423,6 +442,8 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 		poctxt->RecordDSLRuleTrace(
 			ulRuleId, (ULONG) edsltrace,
 			nullptr == pmodel ? 0 : pmodel->Size());
+		poctxt->RecordDSLRuleTiming(ulRuleId, ulMatchUs, ulConstraintUs,
+								 ulInstantiateUs);
 	}
 	// Keep machine trace cardinality identical in compact and verbose modes.
 	// Reprinting every Cascades attempt can fill the task's fixed trace buffer
@@ -512,24 +533,39 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		return nullptr;
 	}
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
+	CWallClock stageTimer(fTrace);
 	if (!FMatch(prule, pexpr, pmodel))
 	{
+		const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
 		TraceDSLRule(mp, ulRuleId, EdsltraceMatchRejected, prule, pmodel, pexpr,
-					 nullptr);
+					 nullptr, nullptr, gpos::ulong_max, ulMatchUs);
 		pmodel->Release();
 		return nullptr;
+	}
+	const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
+	if (fTrace)
+	{
+		stageTimer.Restart();
 	}
 	const CDSLConstraint *pconFailed = nullptr;
 	ULONG ulFailed = gpos::ulong_max;
 	if (!FCheckConstraints(prule, pmodel, pexpr, &pconFailed, &ulFailed))
 	{
+		const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
 		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel, pexpr,
-					 nullptr, pconFailed, ulFailed);
+					 nullptr, pconFailed, ulFailed, ulMatchUs, ulConstraintUs);
 		pmodel->Release();
 		return nullptr;
 	}
+	const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
+	if (fTrace)
+	{
+		stageTimer.Restart();
+	}
 
 	CExpression *pexprTgt = PexprInstantiate(mp, prule, pmodel);
+	const ULONG ulInstantiateUs = fTrace ? stageTimer.ElapsedUS() : 0;
 	if (nullptr != pexprTgt && pexprTgt->Matches(pexpr))
 	{
 		// A representational adapter can rebuild a rule's target into the exact
@@ -537,7 +573,8 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// a collapsed dedup layer). Re-inserting it cannot add an alternative and
 		// may repeatedly fire as native xforms enumerate equivalent children.
 		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
-					 pexprTgt);
+					 pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
+					 ulConstraintUs, ulInstantiateUs);
 		pexprTgt->Release();
 		pmodel->Release();
 		return nullptr;
@@ -546,7 +583,8 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		!poctxt->FReserveDSLAlternative(ulRuleId))
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetExhausted, prule, pmodel,
-					 pexpr, pexprTgt);
+					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
+					 ulConstraintUs, ulInstantiateUs);
 		pexprTgt->Release();
 		pmodel->Release();
 		return nullptr;
@@ -555,7 +593,8 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 				 nullptr == pexprTgt ? EdsltraceInstantiateRejected
 									 : EdsltraceApplied,
 				 prule,
-				 pmodel, pexpr, pexprTgt);
+				 pmodel, pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
+				 ulConstraintUs, ulInstantiateUs);
 	pmodel->Release();
 	return pexprTgt;
 }

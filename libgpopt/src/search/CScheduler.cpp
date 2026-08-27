@@ -12,6 +12,7 @@
 #include "gpopt/search/CScheduler.h"
 
 #include "gpos/base.h"
+#include "gpos/common/CWallClock.h"
 #include "gpos/error/CAutoTrace.h"
 
 #include "gpopt/search/CJobFactory.h"
@@ -44,7 +45,9 @@ CScheduler::CScheduler(CMemoryPool *mp, ULONG ulJobs
 	  m_ulpStatsSuspended(0),
 	  m_ulpStatsCompleted(0),
 	  m_ulpStatsCompletedQueued(0),
-	  m_ulpStatsResumed(0)
+	  m_ulpStatsResumed(0),
+	  m_job_calls{0},
+	  m_job_us{0}
 #ifdef GPOS_DEBUG
 	  ,
 	  m_fTrackingJobs(fTrackingJobs)
@@ -117,7 +120,16 @@ CScheduler::ExecuteJobs(CSchedulerContext *psc)
 		PreExecute(pj);
 
 		// execute job
+		const BOOL profile =
+			GPOS_FTRACE(EopttracePrintOptimizationStatistics);
+		CWallClock job_clock(profile);
 		BOOL fCompleted = FExecute(pj, psc);
+		if (profile)
+		{
+			const CJob::EJobType type = pj->Ejt();
+			++m_job_calls[type];
+			m_job_us[type] += job_clock.ElapsedUS();
+		}
 
 #ifdef GPOS_DEBUG
 		// restrict parallelism to keep track of jobs
@@ -567,6 +579,16 @@ CScheduler::PrintStats() const
 		"Resumed=%d CompletedQueued=%d Completed=%d",
 		m_ulpStatsQueued, m_ulpStatsDequeued, m_ulpStatsSuspended,
 		m_ulpStatsResumed, m_ulpStatsCompletedQueued, m_ulpStatsCompleted);
+	static const CHAR *job_names[CJob::EjtSentinel] = {
+		"test", "group_optimization", "group_implementation",
+		"group_exploration", "group_expression_optimization",
+		"group_expression_implementation", "group_expression_exploration",
+		"transformation", "join_enumeration"};
+	for (ULONG type = 0; type < CJob::EjtSentinel; ++type)
+	{
+		GPOS_TRACE_FORMAT("Job profile: type=%s calls=%d elapsed_us=%d",
+						  job_names[type], m_job_calls[type], m_job_us[type]);
+	}
 }
 
 
