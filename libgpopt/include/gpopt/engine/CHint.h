@@ -77,7 +77,7 @@ public:
 		  ULONG skew_factor, ULONG dsl_rule_max_alternatives = 0,
 		  ULONG dsl_rule_max_alternatives_per_rule = 0,
 		  ULONG dphyper_edge_budget = 100000,
-		  ULONG dphyper_pair_budget = 100000,
+		  ULONG dphyper_pair_budget = 100,
 		  BOOL enable_dphyper = false)
 		: m_ulJoinArityForAssociativityCommutativity(
 			  join_arity_for_associativity_commutativity),

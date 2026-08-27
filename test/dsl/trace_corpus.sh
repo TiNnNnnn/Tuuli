@@ -17,6 +17,10 @@ MAX_ALTERNATIVES=${DSL_TRACE_MAX_ALTERNATIVES:-0}
 MAX_ALTERNATIVES_PER_RULE=${DSL_TRACE_MAX_ALTERNATIVES_PER_RULE:-0}
 DISABLE_XFORMS=${DSL_TRACE_DISABLE_XFORMS:-}
 DSL_ENABLED=${DSL_TRACE_DSL_ENABLED:-on}
+DPHYPER_ENABLED=${DSL_TRACE_DPHYPER_ENABLED:-off}
+DPHYPER_SHADOW=${DSL_TRACE_DPHYPER_SHADOW:-on}
+DPHYPER_PAIR_BUDGET=${DSL_TRACE_DPHYPER_PAIR_BUDGET:-100}
+DPHYPER_EDGE_BUDGET=${DSL_TRACE_DPHYPER_EDGE_BUDGET:-100000}
 TRACE_XFORMS=off
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
     TRACE_XFORMS=on
@@ -46,6 +50,14 @@ for XFORM_NAME in "${DISABLED_XFORM_NAMES[@]}"; do
 done
 [[ "$DSL_ENABLED" = on || "$DSL_ENABLED" = off ]] || \
     fail "DSL_TRACE_DSL_ENABLED must be on or off"
+[[ "$DPHYPER_ENABLED" = on || "$DPHYPER_ENABLED" = off ]] || \
+    fail "DSL_TRACE_DPHYPER_ENABLED must be on or off"
+[[ "$DPHYPER_SHADOW" = on || "$DPHYPER_SHADOW" = off ]] || \
+    fail "DSL_TRACE_DPHYPER_SHADOW must be on or off"
+[[ "$DPHYPER_PAIR_BUDGET" =~ ^[1-9][0-9]*$ ]] || \
+    fail "DSL_TRACE_DPHYPER_PAIR_BUDGET must be a positive integer"
+[[ "$DPHYPER_EDGE_BUDGET" =~ ^[1-9][0-9]*$ ]] || \
+    fail "DSL_TRACE_DPHYPER_EDGE_BUDGET must be a positive integer"
 
 PG_BINDIR=$($PG_CONFIG --bindir)
 TRACE_ROOT=$(mktemp -d /tmp/pgorca-dsl-corpus.XXXXXX)
@@ -96,6 +108,10 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         echo "LOAD 'pg_orca';"
         echo "SET pg_orca.enable_orca=on;"
         echo "SET pg_orca.enable_dsl_rule=$DSL_ENABLED;"
+        echo "SET pg_orca.enable_dphyper=$DPHYPER_ENABLED;"
+        echo "SET pg_orca.dphyper_shadow=$DPHYPER_SHADOW;"
+        echo "SET pg_orca.dphyper_pair_budget=$DPHYPER_PAIR_BUDGET;"
+        echo "SET pg_orca.dphyper_edge_budget=$DPHYPER_EDGE_BUDGET;"
         echo "SET pg_orca.trace_dsl_rule=on;"
         echo "SET pg_orca.dsl_rule_max_alternatives=$MAX_ALTERNATIVES;"
         echo "SET pg_orca.dsl_rule_max_alternatives_per_rule=$MAX_ALTERNATIVES_PER_RULE;"

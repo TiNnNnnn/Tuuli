@@ -283,6 +283,30 @@ def parse_args() -> argparse.Namespace:
         help="enable or disable DSL rewrites during replay (default: on)",
     )
     parser.add_argument(
+        "--dphyper",
+        choices=("on", "off"),
+        default="off",
+        help="enable or disable DPHyper join enumeration (default: off)",
+    )
+    parser.add_argument(
+        "--dphyper-shadow",
+        choices=("on", "off"),
+        default="on",
+        help="retain native join enumeration beside DPHyper (default: on)",
+    )
+    parser.add_argument(
+        "--dphyper-pair-budget",
+        type=int,
+        default=100,
+        help="maximum CSG-CMP pairs before graph simplification (default: 100)",
+    )
+    parser.add_argument(
+        "--dphyper-edge-budget",
+        type=int,
+        default=100000,
+        help="maximum generated DPHyper edges",
+    )
+    parser.add_argument(
         "--max-alternatives",
         type=int,
         default=0,
@@ -306,10 +330,13 @@ def main() -> int:
         or args.max_alternatives_per_rule < 0
         or not 1 <= args.base_port <= 65535
         or args.statement_timeout <= 0
+        or args.dphyper_pair_budget <= 0
+        or args.dphyper_edge_budget <= 0
     ):
         print(
             "invalid --max, --max-alternatives, "
-            "--max-alternatives-per-rule, --base-port, or --statement-timeout",
+            "--max-alternatives-per-rule, --base-port, --statement-timeout, "
+            "or DPHyper budget",
             file=sys.stderr,
         )
         return 2
@@ -358,6 +385,10 @@ def main() -> int:
             "manifest": str(args.manifest),
             "rules": str(args.rules),
             "dsl": args.dsl,
+            "dphyper": args.dphyper,
+            "dphyper_shadow": args.dphyper_shadow,
+            "dphyper_pair_budget": args.dphyper_pair_budget,
+            "dphyper_edge_budget": args.dphyper_edge_budget,
             "disabled_xforms": args.disable_xform,
             "max_alternatives": args.max_alternatives,
             "max_alternatives_per_rule": args.max_alternatives_per_rule,
@@ -392,6 +423,14 @@ def main() -> int:
         environment["DSL_TRACE_STATEMENT_TIMEOUT"] = str(args.statement_timeout)
         environment["DSL_TRACE_DISABLE_XFORMS"] = ",".join(args.disable_xform)
         environment["DSL_TRACE_DSL_ENABLED"] = args.dsl
+        environment["DSL_TRACE_DPHYPER_ENABLED"] = args.dphyper
+        environment["DSL_TRACE_DPHYPER_SHADOW"] = args.dphyper_shadow
+        environment["DSL_TRACE_DPHYPER_PAIR_BUDGET"] = str(
+            args.dphyper_pair_budget
+        )
+        environment["DSL_TRACE_DPHYPER_EDGE_BUDGET"] = str(
+            args.dphyper_edge_budget
+        )
         environment["DSL_TRACE_MAX_ALTERNATIVES"] = str(args.max_alternatives)
         environment["DSL_TRACE_MAX_ALTERNATIVES_PER_RULE"] = str(
             args.max_alternatives_per_rule
@@ -513,6 +552,10 @@ def main() -> int:
         "manifest": str(args.manifest),
         "rules": str(args.rules),
         "dsl": args.dsl,
+        "dphyper": args.dphyper,
+        "dphyper_shadow": args.dphyper_shadow,
+        "dphyper_pair_budget": args.dphyper_pair_budget,
+        "dphyper_edge_budget": args.dphyper_edge_budget,
         "disabled_xforms": args.disable_xform,
         "max_alternatives": args.max_alternatives,
         "max_alternatives_per_rule": args.max_alternatives_per_rule,

@@ -91,7 +91,7 @@ def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> s
     dphyper_shadow = "on" if plan.get("dphyper_shadow", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
     edge_budget = int(plan.get("dphyper_edge_budget", 100000))
-    pair_budget = int(plan.get("dphyper_pair_budget", 100000))
+    pair_budget = int(plan.get("dphyper_pair_budget", 100))
     return run_sql(
         args,
         f"""
@@ -172,7 +172,7 @@ SET pg_orca.enable_dsl_rule=on;
 SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
 SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
-SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100000))};
+SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {native_setting(bool(expected.get('native', True)))}
 {disabled_xform_settings(expected)}
 COPY ({query}) TO STDOUT WITH (FORMAT csv);

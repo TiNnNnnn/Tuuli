@@ -181,7 +181,7 @@ bool  pg_orca_enable_dsl_rule = false;
 bool  pg_orca_enable_dphyper = false;
 bool  pg_orca_dphyper_shadow = true;
 int   pg_orca_dphyper_edge_budget = 100000;
-int   pg_orca_dphyper_pair_budget = 100000;
+int   pg_orca_dphyper_pair_budget = 100;
 
 /* Query-level search-space guard for DSL-generated logical alternatives. */
 int   pg_orca_dsl_rule_max_alternatives = 0;
@@ -901,10 +901,10 @@ void _PG_init(void)
     DefineCustomIntVariable(
         "pg_orca.dphyper_pair_budget",
         "Maximum unique CSG-CMP pairs generated for one DPHyper join region "
-        "before atomically falling back to native ORCA enumeration.",
+        "before applying graph simplification or the binary skeleton fallback.",
         NULL,
         &pg_orca_dphyper_pair_budget,
-        100000, 1, INT_MAX,
+        100, 1, INT_MAX,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -21,6 +22,7 @@ from run_trace_corpus import (
     failed_query_status,
     orca_fallback_reason,
     parameter_count,
+    parse_args,
     read_manifest,
     reference_records,
     render_trace_query,
@@ -31,6 +33,28 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_corpus_replay_uses_bounded_dphyper_defaults(self) -> None:
+        with patch.object(
+            sys,
+            "argv",
+            [
+                "run_trace_corpus.py",
+                "manifest.jsonl",
+                "rules.txt",
+                "schema.sql",
+                "--pg-config",
+                "/tmp/pg_config",
+                "--output-dir",
+                "/tmp/output",
+            ],
+        ):
+            args = parse_args()
+
+        self.assertEqual(args.dphyper, "off")
+        self.assertEqual(args.dphyper_shadow, "on")
+        self.assertEqual(args.dphyper_pair_budget, 100)
+        self.assertEqual(args.dphyper_edge_budget, 100000)
+
     def test_statement_timeout_has_its_own_failure_class(self) -> None:
         self.assertEqual(
             failed_query_status("ERROR: canceling statement due to statement timeout"),
