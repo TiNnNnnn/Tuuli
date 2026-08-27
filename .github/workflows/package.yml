@@ -28,9 +28,12 @@ jobs:
             https://www.postgresql.org/media/keys/ACCC4CF8.asc
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo install -d /tmp/pgorca-apt-sources
+          sudo cp /etc/apt/sources.list.d/ubuntu.sources /tmp/pgorca-apt-sources/
+          sudo cp /etc/apt/sources.list.d/pgdg.list /tmp/pgorca-apt-sources/
           sudo apt-get update \
-            -o Dir::Etc::sourcelist=/etc/apt/sources.list.d/pgdg.list \
-            -o Dir::Etc::sourceparts=-
+            -o Dir::Etc::sourcelist=/dev/null \
+            -o Dir::Etc::sourceparts=/tmp/pgorca-apt-sources
 
       - name: Install build dependencies
         run: |
