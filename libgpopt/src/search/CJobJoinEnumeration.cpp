@@ -945,6 +945,22 @@ CJobJoinEnumeration::FEnumerateRegion(
 			predicate = region->PexprPredicate(
 				pair->m_left, pair->m_right, full /*include residual*/);
 		}
+		// DPHyp reports an unordered CSG-CMP pair once. Inner and FullOuter
+		// joins are commutative logical operators, so retain both physical input
+		// orientations. Their predicate is identical: pure-inner predicate
+		// selection is symmetric in the two subsets, while a complex request
+		// already records its CD-C-approved edge set. Share that immutable tree
+		// instead of rebuilding the same conjunction for the reverse expression.
+		const BOOL add_reverse =
+			(COperator::EopLogicalInnerJoin == join_type ||
+			 COperator::EopLogicalFullOuterJoin == join_type) &&
+			(nullptr == spec || !request.m_dependency_directional);
+		CExpression *reverse_predicate = nullptr;
+		if (add_reverse)
+		{
+			predicate->AddRef();
+			reverse_predicate = predicate;
+		}
 		if (nullptr != spec && request.m_swapped)
 		{
 			std::swap(left_group, right_group);
@@ -965,19 +981,10 @@ CJobJoinEnumeration::FEnumerateRegion(
 			m_intermediate_groups.push_back(target);
 		}
 
-		// DPHyp reports an unordered CSG-CMP pair once. Inner and FullOuter
-		// joins are commutative logical operators, so retain both physical input
-		// orientations. Directional joins keep only the CD-C-approved ordering.
-		if ((COperator::EopLogicalInnerJoin == join_type ||
-			 COperator::EopLogicalFullOuterJoin == join_type) &&
-			(nullptr == spec || !request.m_dependency_directional))
+		if (add_reverse)
 		{
-			predicate = complex_region
-						? region->PexprPredicate(request)
-						: region->PexprPredicate(
-							  pair->m_right, pair->m_left,
-							  full /*include residual*/);
-			join = PexprJoin(mp, join_type, right_group, left_group, predicate);
+			join = PexprJoin(mp, join_type, right_group, left_group,
+							 reverse_predicate);
 			CGroup *reverse_target = engine->PgroupInsert(
 				target, join, CXform::ExfExpandNAryJoinDPHyper, m_pgexpr,
 				!full /*intermediate*/);
