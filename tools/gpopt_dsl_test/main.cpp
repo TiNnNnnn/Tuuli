@@ -37,6 +37,7 @@
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 #include "unittest/gpopt/dsl/CDSLPolicyTest.h"
 #include "unittest/gpopt/dsl/CDSLProjTest.h"
+#include "unittest/gpopt/dsl/CDSLQuantifiedTest.h"
 #include "unittest/gpopt/dsl/CDSLTriggerTest.h"
 #include "unittest/gpopt/dsl/CDSLUnionTest.h"
 #include "unittest/gpopt/xforms/CDPHyperGraphTest.h"
@@ -62,6 +63,7 @@ static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLAggTest),
 	GPOS_UNITTEST_STD(CDSLExistsTest),
 	GPOS_UNITTEST_STD(CDSLInSubTest),
+	GPOS_UNITTEST_STD(CDSLQuantifiedTest),
 	GPOS_UNITTEST_STD(CDSLTriggerTest),
 	GPOS_UNITTEST_STD(CDSLUnionTest),
 	GPOS_UNITTEST_STD(CDPHyperGraphTest),

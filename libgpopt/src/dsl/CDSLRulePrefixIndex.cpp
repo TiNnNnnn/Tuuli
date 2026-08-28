@@ -110,6 +110,8 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 		case EdslopInSubFilter:
 		case EdslopExists:
 		case EdslopNotExists:
+		case EdslopAny:
+		case EdslopAll:
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopSort:

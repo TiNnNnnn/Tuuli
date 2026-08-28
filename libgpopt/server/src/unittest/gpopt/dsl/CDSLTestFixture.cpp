@@ -93,7 +93,8 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			true /*rep safe*/));
 	}
 
-	// int4 '=' scalar operator (oid 96). CScalarCmp's ctor looks it up
+	// int4 '=' and '<>' scalar operators. CScalarCmp's ctor looks them up and
+	// quantified ALL tests exercise their inverse relationship.
 	// (FScalarOpReturnsNullOnNullInput / FCommutativeScalarOp), so PexprEqPred —
 	// used to build equi-join keys — needs it registered. '=' is commutative
 	// (commute op is itself), result type bool, cmp type EcmptEq.
@@ -112,11 +113,33 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 													  unused by our checks)*/,
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
 								   GPDB_INT4_EQ_OP) /*commute = itself*/,
-			nullptr /*inverse*/, IMDType::EcmptEq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+								   GPDB_INT4_NEQ_OP) /*inverse*/,
+			IMDType::EcmptEq,
 			false /*returns_null_on_null_input*/,
 			GPOS_NEW(mp) IMdIdArray(mp) /*opfamilies*/,
 			nullptr /*hash_opfamily*/, nullptr /*legacy_hash_opfamily*/,
 			false /*is_ndv_preserving*/));
+	}
+	{
+		CMDName *pmdnameNeq = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("<>")), true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
+			mp,
+			GPOS_NEW(mp)
+				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
+			pmdnameNeq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp)
+				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
+			GPOS_NEW(mp)
+				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+								   GPDB_INT4_EQ_OP) /*inverse*/,
+			IMDType::EcmptNEq, false /*returns null*/,
+			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
 	}
 
 	m_pmdp = GPOS_NEW(mp) CMDProviderMemory(mp, m_pdrgpmdobj);

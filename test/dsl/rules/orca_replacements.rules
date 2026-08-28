@@ -18,6 +18,10 @@ Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Proj<a1 s1>(Input<t3>
 
 NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0)
 
+Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
+
+All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -30,12 +34,15 @@ NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Proj<a1 s1>(Inp
 # the FormalSQL/Rocq 9.2 kernel on 2026-08-28. ExprConcat/ExprSplit remain
 # explicit semantic premises checked generically against the live project
 # lists; neither rule is identified by C++ code.
-# Lines 15, 17, and 19 remove a pure DISTINCT from the inner relation of
-# positive IN, EXISTS, and NOT EXISTS respectively. The ordinary target Proj preserves the complete
+# Lines 15, 17, 19, 21, and 23 remove a pure DISTINCT from the inner relation
+# of positive IN, EXISTS, NOT EXISTS, ANY, and ALL respectively. The ordinary
+# target Proj preserves the complete
 # SELECT-list/schema proof binding; pgORCA lowers that pass-through view to the
 # native bare relational child. All three exact rules returned EQ from WeTune's
 # SQLSolver backend; NOT EXISTS was verified on 2026-08-29 through its generic
 # RuleIR/U-expression operator rather than a rule-specific proof path.
+# ANY/ALL bind the complete comparison predicate; their exact rules were also
+# proved EQ by the generic SQLSolver U-expression backend on 2026-08-29.
 # Line 9 covers the equality branch of
 # CXformLeftSemiJoin2InnerJoin. InSubFilter is the shared view over both the
 # pre-unnest form and CLogicalLeftSemiJoin; the target deduplicates the inner

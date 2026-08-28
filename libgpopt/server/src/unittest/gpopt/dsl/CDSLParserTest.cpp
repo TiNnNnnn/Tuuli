@@ -168,6 +168,9 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,"
 		"Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		// Quantified predicates are first-class and are not equality-specific.
+		"Any<p0 a0>(Input<t0>,Input<t1>)|All<p1 a1>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)",
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
 		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",

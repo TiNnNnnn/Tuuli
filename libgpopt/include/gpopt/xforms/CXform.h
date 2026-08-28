@@ -254,6 +254,7 @@ public:
 		ExfDSLRuleExists,
 		ExfDSLRuleNotExists,
 		ExfDSLRuleInSub,
+		ExfDSLRuleAll,
 		ExfDSLRuleUnion,
 		ExfDSLRuleUnionAll,
 		ExfDSLRuleLimit,

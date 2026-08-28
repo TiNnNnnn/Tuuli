@@ -70,6 +70,8 @@ enum EDslOpKind
 	EdslopLimit,
 	EdslopUnion,		 // WeTune SET_OP
 	EdslopCompute,		 // ORCA CLogicalProject / ComputeScalar
+	EdslopAny,			 // quantified comparison: predicate is TRUE for some row
+	EdslopAll,			 // quantified comparison: predicate is TRUE for every row
 	EdslopSentinel
 };
 

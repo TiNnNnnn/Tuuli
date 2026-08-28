@@ -15,6 +15,7 @@
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
@@ -24,8 +25,11 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -41,6 +45,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
+#include "naucrates/md/IMDScalarOp.h"
 
 using namespace gpopt;
 
@@ -234,6 +239,32 @@ PopOnlyBoundInSub(const CDSLOp *pop, const CDSLModel *pmodel,
 	return popFound;
 }
 
+// Find the source quantified node that declared a bound predicate. Target
+// PredicateEq and AttrsEq constraints may deliberately send that predicate to
+// a different dependency vector, so target construction must remap from the
+// source owner's attrs rather than assuming both vectors are identical.
+const CDSLOp *
+PopSourceQuantifiedForPredicate(const CDSLOp *pop,
+								const CDSLSymbol *psymPred)
+{
+	if ((EdslopAny == pop->Edslop() || EdslopAll == pop->Edslop()) &&
+		nullptr != pop->Pdrgpsym() && 2 == pop->Pdrgpsym()->Size() &&
+		(*pop->Pdrgpsym())[0] == psymPred)
+	{
+		return pop;
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		const CDSLOp *popFound =
+			PopSourceQuantifiedForPredicate((*pop)[ul], psymPred);
+		if (nullptr != popFound)
+		{
+			return popFound;
+		}
+	}
+	return nullptr;
+}
+
 CExpression *
 PexprRemapInSubPredicate(CMemoryPool *mp, CExpression *pexprPred,
 						 const CColRefArray *pdrgpcrFrom,
@@ -281,6 +312,35 @@ PexprRemapInSubPredicate(CMemoryPool *mp, CExpression *pexprPred,
 		return pexprTyped;
 	}
 	return pexprRemapped;
+}
+
+// ORCA represents ALL as an anti-apply over rows that violate the original
+// comparison. Build that internal predicate from metadata instead of assuming
+// a particular comparison family (for example, equality/inequality).
+CExpression *
+PexprInverseComparison(CMemoryPool *mp, CExpression *pexprCmp)
+{
+	if (nullptr == pexprCmp ||
+		COperator::EopScalarCmp != pexprCmp->Pop()->Eopid() ||
+		2 != pexprCmp->Arity())
+	{
+		return nullptr;
+	}
+	CScalarCmp *popCmp = CScalarCmp::PopConvert(pexprCmp->Pop());
+	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
+	IMDId *pmdidInverse =
+		pmda->RetrieveScOp(popCmp->MdIdOp())->GetInverseOpMdid();
+	if (!IMDId::IsValid(pmdidInverse))
+	{
+		return nullptr;
+	}
+	const CWStringConst *pstrInverse =
+		pmda->RetrieveScOp(pmdidInverse)->Mdname().GetMDName();
+	(*pexprCmp)[0]->AddRef();
+	(*pexprCmp)[1]->AddRef();
+	pmdidInverse->AddRef();
+	return CUtils::PexprScalarCmp(mp, (*pexprCmp)[0], (*pexprCmp)[1],
+								 *pstrInverse, pmdidInverse);
 }
 
 // Copy a recorded LogicalLimit chain while replacing its deepest relational
@@ -2641,6 +2701,137 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLInstantiator::PexprBuildQuantified
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
+									   const CDSLModel *pmodel) const
+{
+	if ((EdslopAny != pop->Edslop() && EdslopAll != pop->Edslop()) ||
+		2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		2 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbol *psymPred = PsymResolve((*pop->Pdrgpsym())[0]);
+	const CDSLSymbol *psymTargetAttrs =
+		PsymResolve((*pop->Pdrgpsym())[1]);
+	CExpression *pexprPredBound = pmodel->PexprPred(psymPred);
+	CColRefArray *pdrgpcrTargetAttrs =
+		pmodel->PdrgpcrAttrs(psymTargetAttrs);
+	const CDSLOp *popSource = PopSourceQuantifiedForPredicate(
+		m_prule->PfragSrc()->PopRoot(), psymPred);
+	CColRefArray *pdrgpcrSourceAttrs =
+		nullptr == popSource
+			? nullptr
+			: pmodel->PdrgpcrAttrs((*popSource->Pdrgpsym())[1]);
+	if (nullptr == pexprPredBound || nullptr == pdrgpcrSourceAttrs ||
+		nullptr == pdrgpcrTargetAttrs)
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
+	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
+	CExpression *pexprPred = PexprRemapInSubPredicate(
+		m_mp, pexprPredBound, pdrgpcrSourceAttrs, pdrgpcrTargetAttrs);
+	if (nullptr == pexprOuter || nullptr == pexprInner ||
+		nullptr == pexprPred ||
+		!FColSetContainsArray(pexprOuter->DeriveOutputColumns(),
+							 pdrgpcrTargetAttrs))
+	{
+		CRefCount::SafeRelease(pexprOuter);
+		CRefCount::SafeRelease(pexprInner);
+		CRefCount::SafeRelease(pexprPred);
+		return nullptr;
+	}
+
+	CColRefSet *pcrsInnerUsed =
+		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprPred->DeriveUsedColumns());
+	pcrsInnerUsed->Intersection(pexprInner->DeriveOutputColumns());
+	if (1 != pcrsInnerUsed->Size())
+	{
+		pcrsInnerUsed->Release();
+		pexprOuter->Release();
+		pexprInner->Release();
+		pexprPred->Release();
+		return nullptr;
+	}
+	CColRef *pcrInner = pcrsInnerUsed->PcrFirst();
+	pcrsInnerUsed->Release();
+
+	CExpression *pexprResult = nullptr;
+	CExpression *pexprCarrier =
+		pmodel->PexprInSubCarrier((*popSource->Pdrgpsym())[1]);
+	const BOOL fCorrelated =
+		(nullptr != pexprCarrier &&
+		 CLogicalApply::PopConvert(pexprCarrier->Pop())->FCorrelated()) ||
+		pexprInner->HasOuterRefs();
+	if (EdslopAny == pop->Edslop())
+	{
+		if (fCorrelated)
+		{
+			pexprResult =
+				CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(
+					m_mp, pexprOuter, pexprInner, pcrInner,
+					COperator::EopScalarSubqueryAny, pexprPred);
+		}
+		else
+		{
+			pexprResult = CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+				m_mp, pexprOuter, pexprInner, pcrInner,
+				COperator::EopScalarSubqueryAny, pexprPred);
+		}
+	}
+	else
+	{
+		CExpression *pexprViolation =
+			PexprInverseComparison(m_mp, pexprPred);
+		pexprPred->Release();
+		if (nullptr == pexprViolation)
+		{
+			pexprOuter->Release();
+			pexprInner->Release();
+			return nullptr;
+		}
+		if (fCorrelated)
+		{
+			pexprResult = CUtils::PexprLogicalApply<
+				CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
+				m_mp, pexprOuter, pexprInner, pcrInner,
+				COperator::EopScalarSubqueryAll, pexprViolation);
+		}
+		else
+		{
+			pexprResult =
+				CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(
+					m_mp, pexprOuter, pexprInner, pcrInner,
+					COperator::EopScalarSubqueryAll, pexprViolation);
+		}
+	}
+
+	CExpressionArray *pdrgpexprResidual =
+		pmodel->PdrgpexprInSubResidual();
+	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
+	{
+		CExpressionArray *pdrgpexprCopy =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
+		{
+			CExpression *pexprConj = (*pdrgpexprResidual)[ul];
+			pexprConj->AddRef();
+			pdrgpexprCopy->Append(pexprConj);
+		}
+		pexprResult = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
+	}
+	return pexprResult;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLInstantiator::PosBuildSort
 //---------------------------------------------------------------------------
 COrderSpec *
@@ -2822,6 +3013,9 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildExists(pop, pmodel);
 		case EdslopInSubFilter:
 			return PexprBuildInSub(pop, pmodel);
+		case EdslopAny:
+		case EdslopAll:
+			return PexprBuildQuantified(pop, pmodel);
 		case EdslopUnion:
 			return PexprBuildUnion(pop, pmodel);
 		case EdslopSort:
@@ -2941,6 +3135,11 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	}
 	else if (EdslopInSubFilter == edslopSrc &&
 			 EdslopInSubFilter != edslopTgt)
+	{
+		pdrgpexprResidual = pmodel->PdrgpexprInSubResidual();
+	}
+	else if ((EdslopAny == edslopSrc || EdslopAll == edslopSrc) &&
+			 edslopSrc != edslopTgt)
 	{
 		pdrgpexprResidual = pmodel->PdrgpexprInSubResidual();
 	}

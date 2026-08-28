@@ -20,6 +20,7 @@
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLProjMatcher.h"
+#include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLUnionMatcher.h"
 #include "gpopt/base/COrderSpec.h"
 #include "naucrates/md/IMDType.h"
@@ -319,6 +320,12 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CDSLInSubMatcher ism(m_mp, this);
 		return ism.FMatch(pop, pexpr, pmodel);
+	}
+
+	if (EdslopAny == pop->Edslop() || EdslopAll == pop->Edslop())
+	{
+		CDSLQuantifiedMatcher qm(m_mp, this);
+		return qm.FMatch(pop, pexpr, pmodel);
 	}
 
 	if (EdslopUnion == pop->Edslop())

@@ -1,0 +1,75 @@
+{
+  "description": "A generic quantified ANY DSL rule removes pure DISTINCT for a non-equality comparison",
+  "replacement": {
+    "xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "scope": "arbitrary single-column ANY comparison over a pure global DISTINCT subquery",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "2849a93909743846"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2849a93909743846\""
+      ],
+      "alternative": [
+        "CXformRemoveSubqDistinct",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "not_contains": [
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2849a93909743846\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

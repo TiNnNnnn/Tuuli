@@ -188,6 +188,11 @@ private:
 	CExpression *PexprBuildInSub(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
 
+	// Any/All<p a>(outer,inner): rebuild a quantified Apply from the exact
+	// comparison predicate. ALL uses ORCA's inverse-witness predicate internally.
+	CExpression *PexprBuildQuantified(const CDSLOp *pop,
+									 const CDSLModel *pmodel) const;
+
 	// Union/Union*: rebuild a binary logical set-op while preserving the
 	// source match's ordered output-to-input column mapping. Target TableEq /
 	// SchemaEq aliases may reorder the two branches.

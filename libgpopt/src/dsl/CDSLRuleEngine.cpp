@@ -92,9 +92,21 @@ CDSLRuleEngine::BucketByRoot()
 		// ORCA Select whose scalar predicate is CScalarSubqueryExists. Put it in
 		// the Select bucket so the DSL can perform the unnesting independently.
 		if (EdslopExists == prule->PfragSrc()->PopRoot()->Edslop() ||
-			EdslopNotExists == prule->PfragSrc()->PopRoot()->Edslop())
+			EdslopNotExists == prule->PfragSrc()->PopRoot()->Edslop() ||
+			EdslopAny == prule->PfragSrc()->PopRoot()->Edslop() ||
+			EdslopAll == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+		}
+		if (EdslopAny == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiCorrelatedApplyIn;
+		}
+		if (EdslopAll == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn;
 		}
 		if (EdslopInSubFilter == prule->PfragSrc()->PopRoot()->Edslop())
 		{

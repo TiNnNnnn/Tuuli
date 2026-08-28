@@ -39,6 +39,8 @@ struct SDslOpDesc
 //   InSubFilter<a>     (attrs)
 //   Exists     <>      (no symbols)
 //   NotExists  <>      (no symbols)
+//   Any        <p a>   (comparison predicate, outer dependencies)
+//   All        <p a>   (comparison predicate, outer dependencies)
 //   Proj       <a s>   (attrs, schema)
 //   Agg        <a a a f s p> (groupBy, aggAttrs, aggOutAttrs, func, schema, havingPred)
 //   Sort       <a>     (attrs)
@@ -64,6 +66,8 @@ const SDslOpDesc rg_op_desc[] = {
 	{EdslopUnion, "Union", 2, 2, {EdslsymAttrs, EdslsymSchema}},
 	{EdslopCompute, "Compute", 1, 3,
 	 {EdslsymExpr, EdslsymAttrs, EdslsymSchema}},
+	{EdslopAny, "Any", 2, 2, {EdslsymPred, EdslsymAttrs}},
+	{EdslopAll, "All", 2, 2, {EdslsymPred, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -162,6 +166,10 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLeftAntiSemiApply;
 		case EdslopInSubFilter:
 			return COperator::EopLogicalLeftSemiApplyIn;
+		case EdslopAny:
+			return COperator::EopLogicalLeftSemiApplyIn;
+		case EdslopAll:
+			return COperator::EopLogicalLeftAntiSemiApplyNotIn;
 		case EdslopUnion:
 			// Union* (dedup) => UNION => set semantics; Union => UNION ALL.
 			return fDistinct ? COperator::EopLogicalUnion
@@ -183,7 +191,8 @@ BOOL
 CDSLOpKindTable::FHasPreUnnestRepresentation(EDslOpKind edslop)
 {
 	return EdslopExists == edslop || EdslopNotExists == edslop ||
-		   EdslopInSubFilter == edslop;
+		   EdslopInSubFilter == edslop || EdslopAny == edslop ||
+		   EdslopAll == edslop;
 }
 
 BOOL
@@ -198,6 +207,8 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopInSubFilter:
 		case EdslopExists:
 		case EdslopNotExists:
+		case EdslopAny:
+		case EdslopAll:
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
@@ -223,6 +234,8 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopInSubFilter:
 		case EdslopExists:
 		case EdslopNotExists:
+		case EdslopAny:
+		case EdslopAll:
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
@@ -286,6 +299,10 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"ExistsFilter", EdslopExists, EdslsortNone},
 		{"NotExists", EdslopNotExists, EdslsortNone},
 		{"NotExistsFilter", EdslopNotExists, EdslsortNone},
+		{"Any", EdslopAny, EdslsortNone},
+		{"AnyFilter", EdslopAny, EdslsortNone},
+		{"All", EdslopAll, EdslsortNone},
+		{"AllFilter", EdslopAll, EdslsortNone},
 		{"Proj", EdslopProj, EdslsortNone},
 		{"Compute", EdslopCompute, EdslsortNone},
 		{"Agg", EdslopAgg, EdslsortNone},
