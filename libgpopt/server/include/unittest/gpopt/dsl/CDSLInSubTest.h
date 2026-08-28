@@ -24,6 +24,8 @@ public:
 	static GPOS_RESULT EresUnittest_DecorrelatedSemiJoinRemap();
 	static GPOS_RESULT EresUnittest_SemiJoinToInnerJoin();
 	static GPOS_RESULT EresUnittest_SemiJoinComputedKeyToInnerJoin();
+	static GPOS_RESULT EresUnittest_RejectsCorrelatedSemiJoinView();
+	static GPOS_RESULT EresUnittest_RejectsSameSideSemiJoinPredicate();
 	static GPOS_RESULT EresUnittest_InSubAsSimpleFilterCarrier();
 	static GPOS_RESULT EresUnittest_PreApplyBelowBinaryJoinSpineRemap();
 	static GPOS_RESULT EresUnittest_RejectsNullSupplyingRoute();

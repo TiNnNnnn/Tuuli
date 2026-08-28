@@ -320,6 +320,14 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 	{
 		return false;
 	}
+	// InSubFilter denotes an uncorrelated relational membership test. A live
+	// SemiJoin with outer references has LATERAL/correlation dependencies that
+	// this DSL operator does not bind, so treating it as the same view would let
+	// a target move those dependencies across a dedup or join boundary.
+	if (0 != pexpr->DeriveOuterReferences()->Size())
+	{
+		return false;
+	}
 
 	CColRefSet *pcrsOuter = (*pexpr)[0]->DeriveOutputColumns();
 	CColRefSet *pcrsInner = (*pexpr)[1]->DeriveOutputColumns();

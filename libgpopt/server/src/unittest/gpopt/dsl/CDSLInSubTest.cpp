@@ -123,6 +123,10 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_RejectsCorrelatedSemiJoinView),
+		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_RejectsSameSideSemiJoinPredicate),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_InSubAsSimpleFilterCarrier),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyBelowBinaryJoinSpineRemap),
@@ -295,6 +299,86 @@ CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin()
 				(*pexprComputedScalar)[0]->Pop()->Eopid());
 
 	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprSemi->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_RejectsCorrelatedSemiJoinView()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("semi_corr_left", 1, &pdrgpcrLeft, 0);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("semi_corr_right", 1, &pdrgpcrRight, 0);
+	CColRef *pcrExternal = fix.PcrCreateInt4("external_key");
+	CExpression *pexprCorrelation =
+		fix.PexprEqPred((*pdrgpcrRight)[0], pcrExternal);
+	CExpression *pexprCorrelatedRight =
+		fix.PexprLogicalSelect(pexprRight, pexprCorrelation);
+	CExpression *pexprSemiPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprSemi = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft,
+		pexprCorrelatedRight, pexprSemiPred);
+	CColRefArray *pdrgpcrTop = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrTop->Append((*pdrgpcrLeft)[0]);
+	CExpression *pexprSource = fix.PexprLogicalProject(pexprSemi, pdrgpcrTop);
+	pdrgpcrTop->Release();
+
+	GPOS_ASSERT(0 < pexprSemi->DeriveOuterReferences()->Size());
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							  pmodel));
+
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprSemi->Release();
+	pexprCorrelation->Release();
+	pexprRight->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_RejectsSameSideSemiJoinPredicate()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("semi_same_left", 1, &pdrgpcrLeft, 0);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("semi_same_right", 2, &pdrgpcrRight, 0);
+	CExpression *pexprInnerOnlyPred =
+		fix.PexprEqPred((*pdrgpcrRight)[0], (*pdrgpcrRight)[1]);
+	CExpression *pexprSemi = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft, pexprRight,
+		pexprInnerOnlyPred);
+	CColRefArray *pdrgpcrTop = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrTop->Append((*pdrgpcrLeft)[0]);
+	CExpression *pexprSource = fix.PexprLogicalProject(pexprSemi, pdrgpcrTop);
+	pdrgpcrTop->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							  pmodel));
+
 	pmodel->Release();
 	prule->Release();
 	pexprSource->Release();
