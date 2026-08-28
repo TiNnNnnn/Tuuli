@@ -430,6 +430,19 @@ CDSLFilterMatcher::FBaseAssignmentCompatible(
 		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrLeft)) ||
 		(fLinkedRight && 0 < pdrgpcrRight->Size() &&
 		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrRight));
+	// A BottomUp RBO sees only the translator's inner-join orientation. The
+	// actual candidate can therefore use the opposite member of the same join
+	// equality while a commuted match view binds the source template side named
+	// by AttrsEq. This is safe only for InnerJoin; outer-join sides are not
+	// interchangeable.
+	if (!fCompatible && COperator::EopLogicalInnerJoin == eopidExpected)
+	{
+		fCompatible =
+			(fLinkedLeft && 0 < pdrgpcrRight->Size() &&
+			 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrRight)) ||
+			(fLinkedRight && 0 < pdrgpcrLeft->Size() &&
+			 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrLeft));
+	}
 	pdrgpcrRight->Release();
 	pdrgpcrLeft->Release();
 	return fCompatible;
@@ -600,6 +613,25 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	if (nullptr == popBase)
 	{
 		return false;
+	}
+
+	// A predicate that rejects NULLs from a LeftJoin's nullable side makes the
+	// filtered result exactly equivalent to filtering an InnerJoin. Expose that
+	// representation to InnerJoin-rooted DSL rules before the ordinary matcher;
+	// the view is read-only and CPredicateUtils proves the semantic precondition.
+	if (EdslopInnerJoin == popBase->Edslop() &&
+		COperator::EopLogicalLeftOuterJoin ==
+			(*pexprSelect)[0]->Pop()->Eopid())
+	{
+		CExpression *pexprInnerView =
+			CDSLMatchView::PexprNullRejectedInnerJoin(m_mp, pexprSelect);
+		if (nullptr == pexprInnerView)
+		{
+			return false;
+		}
+		BOOL fMatched = FMatch(popFilterRoot, pexprInnerView, pmodel);
+		pexprInnerView->Release();
+		return fMatched;
 	}
 
 	// 2. flatten the Select's conjunctive predicate into a conjunct set.

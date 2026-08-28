@@ -22,6 +22,8 @@ CDSLMatchViewTest::EresUnittest()
 			CDSLMatchViewTest::EresUnittest_AggregateAndOrderViews),
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchViewTest::EresUnittest_JoinSpineAndCarrierViews),
+		GPOS_UNITTEST_FUNC(
+			CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
@@ -137,6 +139,53 @@ CDSLMatchViewTest::EresUnittest_JoinSpineAndCarrierViews()
 	pexprRebased->Release();
 	pdrgproute->Release();
 	pexprJoin->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("match_view_loj_left", 1, &pdrgpcrLeft);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("match_view_loj_right", 1, &pdrgpcrRight);
+	CExpression *pexprJoinPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprLeftJoin = fix.PexprLogicalLeftOuterJoin(
+		pexprLeft, pexprRight, pexprJoinPred);
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprJoinPred->Release();
+
+	CExpression *pexprRejecting = CUtils::PexprNegate(
+		mp, fix.PexprPredAtom((*pdrgpcrRight)[0]));
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprLeftJoin, pexprRejecting);
+	pexprRejecting->Release();
+	CExpression *pexprView =
+		CDSLMatchView::PexprNullRejectedInnerJoin(mp, pexprSelect);
+	GPOS_ASSERT(nullptr != pexprView);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprView->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				(*pexprView)[0]->Pop()->Eopid());
+	pexprView->Release();
+	pexprSelect->Release();
+
+	CExpression *pexprPreservedPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrLeft)[0]);
+	CExpression *pexprPreservedSelect =
+		fix.PexprLogicalSelect(pexprLeftJoin, pexprPreservedPred);
+	pexprPreservedPred->Release();
+	GPOS_ASSERT(nullptr == CDSLMatchView::PexprNullRejectedInnerJoin(
+		mp, pexprPreservedSelect));
+	pexprPreservedSelect->Release();
+	pexprLeftJoin->Release();
 	return GPOS_OK;
 }
 

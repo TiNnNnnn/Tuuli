@@ -122,7 +122,12 @@ BOOL
 CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 									  COperator *pop)
 {
-	if (pedge->m_eopid != pop->Eopid())
+	const BOOL fNullRejectedInnerView =
+		0 != (pedge->m_ulAdapterFlags &
+			  SExactEdge::EafNullRejectedInnerJoin) &&
+		COperator::EopLogicalInnerJoin == pedge->m_eopid &&
+		COperator::EopLogicalLeftOuterJoin == pop->Eopid();
+	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView)
 	{
 		return false;
 	}
@@ -144,7 +149,8 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 
 CDSLRulePrefixIndex::SNode *
 CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
-								   BOOL fSourceRoot, BOOL *pfComplete)
+								   BOOL fSourceRoot, BOOL *pfComplete,
+								   ULONG ulAdapterFlags)
 {
 	GPOS_ASSERT(nullptr != pnode);
 	GPOS_ASSERT(nullptr != pop);
@@ -164,7 +170,12 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		}
 		SNode *pnodeCurrent = PnodeExact(
 			pnode, COperator::EopLogicalSelect, 1 /*relational child*/);
-		return PnodeInsertOp(pnodeCurrent, popBase, false, pfComplete);
+		const ULONG ulBaseAdapterFlags =
+			EdslopInnerJoin == popBase->Edslop()
+				? SExactEdge::EafNullRejectedInnerJoin
+				: SExactEdge::EafNone;
+		return PnodeInsertOp(pnodeCurrent, popBase, false, pfComplete,
+							 ulBaseAdapterFlags);
 	}
 
 	if (fSourceRoot && EdslopProj == pop->Edslop() &&
@@ -225,7 +236,8 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return pnode;
 	}
 
-	SNode *pnodeCurrent = PnodeExact(pnode, eopid, pop->UlChildren());
+	SNode *pnodeCurrent =
+		PnodeExact(pnode, eopid, pop->UlChildren(), ulAdapterFlags);
 	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
 	{
 		BOOL fChildComplete = false;
@@ -742,12 +754,16 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 				 ulState++)
 			{
 				SChildBindingState *pstate = (*pdrgpstateChildren)[ulState];
+				const ULONG ulProjectAdapterFlags =
+					pedge->m_ulAdapterFlags &
+					(SExactEdge::EafProjectPeelLimit |
+					 SExactEdge::EafProjectPeelAgg);
 				SBindingStateArray *pdrgpchild =
 					(0 == ulChild && SExactEdge::EafNone !=
-									 pedge->m_ulAdapterFlags)
+									 ulProjectAdapterFlags)
 						? PdrgpstateConsumeProjectChild(
 							  mp, pstate->m_pnode, (*pgexpr)[ulChild],
-							  pedge->m_ulAdapterFlags)
+							  ulProjectAdapterFlags)
 						: PdrgpstateConsumeGroup(
 							  mp, pstate->m_pnode, (*pgexpr)[ulChild]);
 				for (ULONG ulBinding = 0; ulBinding < pdrgpchild->Size();

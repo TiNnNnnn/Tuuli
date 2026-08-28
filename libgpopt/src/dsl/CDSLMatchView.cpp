@@ -9,7 +9,11 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "naucrates/md/IMDType.h"
 
@@ -183,6 +187,40 @@ CDSLMatchView::PexprRebaseInSubCarrier(CMemoryPool *mp,
 	}
 
 	return nullptr;
+}
+
+CExpression *
+CDSLMatchView::PexprNullRejectedInnerJoin(CMemoryPool *mp,
+									 CExpression *pexprSelect)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprSelect);
+
+	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
+		2 != pexprSelect->Arity())
+	{
+		return nullptr;
+	}
+	CExpression *pexprLeftJoin = (*pexprSelect)[0];
+	CExpression *pexprPred = (*pexprSelect)[1];
+	if (COperator::EopLogicalLeftOuterJoin !=
+			pexprLeftJoin->Pop()->Eopid() ||
+		3 != pexprLeftJoin->Arity() ||
+		!CPredicateUtils::FNullRejecting(
+			mp, pexprPred, (*pexprLeftJoin)[1]->DeriveOutputColumns()))
+	{
+		return nullptr;
+	}
+
+	(*pexprLeftJoin)[0]->AddRef();
+	(*pexprLeftJoin)[1]->AddRef();
+	(*pexprLeftJoin)[2]->AddRef();
+	pexprPred->AddRef();
+	CExpression *pexprInnerJoin = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), (*pexprLeftJoin)[0],
+		(*pexprLeftJoin)[1], (*pexprLeftJoin)[2]);
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprInnerJoin, pexprPred);
 }
 
 CDSLMatchView::SJoinSpineRouteArray *

@@ -55,7 +55,11 @@ private:
 			EafProjectPeelLimit = 1,
 			EafProjectPeelAgg = 2,
 			EafGbAggGlobal = 4,
-			EafGbAggNoMinimal = 8
+			EafGbAggNoMinimal = 8,
+			// A Filter(InnerJoin) matcher can expose a null-rejected
+			// Select(LeftJoin) as the same logical source shape. The index may
+			// admit that conservative candidate; the matcher proves null rejection.
+			EafNullRejectedInnerJoin = 16
 		};
 
 		COperator::EOperatorId m_eopid;
@@ -143,7 +147,7 @@ private:
 	// live-expression prefix. *pfComplete is false when an adapter boundary
 	// caused conservative early termination.
 	SNode *PnodeInsertOp(SNode *pnode, const CDSLOp *pop, BOOL fSourceRoot,
-						 BOOL *pfComplete);
+						 BOOL *pfComplete, ULONG ulAdapterFlags = 0);
 
 	static BOOL FRuleAvailable(const SRuleEntry *pentry);
 	static BOOL FNodeHasAvailableTerminal(const SNode *pnode);

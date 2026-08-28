@@ -1,0 +1,25 @@
+{
+  "description": "BottomUp RBO exposes a proven null-rejected LeftJoin as an InnerJoin DSL source",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"rule_id\":63,\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ]
+  }
+}

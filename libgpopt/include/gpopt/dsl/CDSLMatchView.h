@@ -103,6 +103,12 @@ public:
 										  CExpression *pexprCarrier,
 										  CExpression *pexprRel);
 
+	// Expose Select(LeftOuterJoin, predicate) as Select(InnerJoin, predicate)
+	// only when the predicate rejects NULLs from the LOJ's nullable side. The
+	// caller owns the returned transient expression; NULL means no safe view.
+	static CExpression *PexprNullRejectedInnerJoin(CMemoryPool *mp,
+										 CExpression *pexprSelect);
+
 	// Return every safe view obtained by pulling one carrier from a join spine.
 	// Inner paths are transparent; an outer join is crossed only on its preserved
 	// side. Every route owns its reconstructed relation and carrier reference.

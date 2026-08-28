@@ -110,6 +110,43 @@ PdrgpcrEqualityPeer(const CDSLRule *prule, const CDSLSymbol *psymJoin,
 	return pdrgpcrExpected;
 }
 
+BOOL
+FColArraysEqual(const CColRefArray *pdrgpcrFirst,
+				const CColRefArray *pdrgpcrSecond)
+{
+	if (nullptr == pdrgpcrFirst || nullptr == pdrgpcrSecond ||
+		pdrgpcrFirst->Size() != pdrgpcrSecond->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpcrFirst->Size(); ul++)
+	{
+		if ((*pdrgpcrFirst)[ul] != (*pdrgpcrSecond)[ul])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+// An inner join is commutative, but a BottomUp RBO sees only the translator's
+// chosen child order. An already-bound AttrsEq peer (typically a surrounding
+// Filter or Proj) tells us which child order the DSL source template expects.
+// Prefer the native order when both are possible; expose the commuted read-only
+// view only when the native orientation is incompatible and the reverse is
+// fully determined by those bindings.
+BOOL
+FJoinKeyOrientationCompatible(const CColRefArray *pdrgpcrExpectedLeft,
+							  const CColRefArray *pdrgpcrExpectedRight,
+							  const CColRefArray *pdrgpcrLeft,
+							  const CColRefArray *pdrgpcrRight)
+{
+	return (nullptr == pdrgpcrExpectedLeft ||
+			FColArraysEqual(pdrgpcrExpectedLeft, pdrgpcrLeft)) &&
+		   (nullptr == pdrgpcrExpectedRight ||
+			FColArraysEqual(pdrgpcrExpectedRight, pdrgpcrRight));
+}
+
 // WeTune may match one equality edge of a join whose physical predicate has
 // several cross-child equalities. If a surrounding source operator has already
 // bound an AttrsEq peer, select the unique ordered edge subset compatible with
@@ -473,13 +510,15 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	}
 	const CDSLSymbol *psymLeft = (*pdrgpsym)[0];
 	const CDSLSymbol *psymRight = (*pdrgpsym)[1];
+	CExpression *pexprLeftRel = (*pexprJoin)[0];
+	CExpression *pexprRightRel = (*pexprJoin)[1];
 
 	// split the predicate into left/right equi-key columns + residual.
 	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CExpressionArray *pdrgpexprResidual = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 
-	if (!FSplitPredicate((*pexprJoin)[2], (*pexprJoin)[0], pdrgpcrLeft,
+	if (!FSplitPredicate((*pexprJoin)[2], pexprLeftRel, pdrgpcrLeft,
 						 pdrgpcrRight, pdrgpexprResidual))
 	{
 		pdrgpcrLeft->Release();
@@ -487,12 +526,46 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		pdrgpexprResidual->Release();
 		return false;
 	}
+
+	if (fInner)
+	{
+		const CColRefArray *pdrgpcrExpectedLeft =
+			PdrgpcrEqualityPeer(m_prule, psymLeft, pmodel);
+		const CColRefArray *pdrgpcrExpectedRight =
+			PdrgpcrEqualityPeer(m_prule, psymRight, pmodel);
+		const BOOL fDirect = FJoinKeyOrientationCompatible(
+			pdrgpcrExpectedLeft, pdrgpcrExpectedRight, pdrgpcrLeft,
+			pdrgpcrRight);
+		const BOOL fReverse = FJoinKeyOrientationCompatible(
+			pdrgpcrExpectedLeft, pdrgpcrExpectedRight, pdrgpcrRight,
+			pdrgpcrLeft);
+		if (!fDirect && fReverse)
+		{
+			pexprLeftRel = (*pexprJoin)[1];
+			pexprRightRel = (*pexprJoin)[0];
+			pdrgpcrLeft->Release();
+			pdrgpcrRight->Release();
+			pdrgpexprResidual->Release();
+			pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
+			pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+			pdrgpexprResidual = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			if (!FSplitPredicate((*pexprJoin)[2], pexprLeftRel,
+							 pdrgpcrLeft, pdrgpcrRight,
+							 pdrgpexprResidual))
+			{
+				pdrgpcrLeft->Release();
+				pdrgpcrRight->Release();
+				pdrgpexprResidual->Release();
+				return false;
+			}
+		}
+	}
 	NarrowJoinKeys(m_mp, m_prule, psymLeft, psymRight, pmodel,
 				   &pdrgpcrLeft, &pdrgpcrRight);
 
 	// recurse both relational children through the generic matcher.
-	if (!m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) ||
-		!m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel))
+	if (!m_pmatcher->FMatch((*popJoin)[0], pexprLeftRel, pmodel) ||
+		!m_pmatcher->FMatch((*popJoin)[1], pexprRightRel, pmodel))
 	{
 		pdrgpcrLeft->Release();
 		pdrgpcrRight->Release();
@@ -506,8 +579,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	if (0 == pdrgpexprResidual->Size())
 	{
 		NarrowEquivalentJoinKeysByConstraints(
-			m_mp, m_prule, psymLeft, psymRight, (*pexprJoin)[0],
-			(*pexprJoin)[1], pmodel, &pdrgpcrLeft, &pdrgpcrRight);
+			m_mp, m_prule, psymLeft, psymRight, pexprLeftRel,
+			pexprRightRel, pmodel, &pdrgpcrLeft, &pdrgpcrRight);
 	}
 
 	// bind the two <a> symbols (FBind AddRefs; release our local refs after).
