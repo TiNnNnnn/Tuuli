@@ -6,8 +6,9 @@
 //
 //	@doc:
 //		Static lookup tables for the DSL operator/constraint enums. Every
-//		constant here is transcribed from WeTune's Java source; the comment on
-//		each table cites the origin so it can be re-verified.
+//		The shared prefix is transcribed from WeTune's Java source. Compute, Expr,
+//		and ExprListEq extend the shared DSL for explicit ComputeScalar/LET
+//		semantics and are appended so existing enum identities remain stable.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLEnums.h"
 
@@ -42,6 +43,7 @@ struct SDslOpDesc
 //   Sort       <a>     (attrs)
 //   Limit      <n n>   (limit, offset)
 //   Union      <a s>   (optional ordered full-row output attrs/schema)
+//   Compute    <e a s> (exact expression list, dependencies, defined columns)
 const SDslOpDesc rg_op_desc[] = {
 	{EdslopInput, "Input", 0, 1, {EdslsymTable}},
 	{EdslopInnerJoin, "InnerJoin", 2, 4,
@@ -58,6 +60,8 @@ const SDslOpDesc rg_op_desc[] = {
 	{EdslopSort, "Sort", 1, 1, {EdslsymAttrs}},
 	{EdslopLimit, "Limit", 1, 2, {EdslsymScalar, EdslsymScalar}},
 	{EdslopUnion, "Union", 2, 2, {EdslsymAttrs, EdslsymSchema}},
+	{EdslopCompute, "Compute", 1, 3,
+	 {EdslsymExpr, EdslsymAttrs, EdslsymSchema}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -86,12 +90,18 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconFuncEq, "FuncEq", 2},		{EdslconScalarEq, "ScalarEq", 2},
 	{EdslconAttrsSub, "AttrsSub", 2},	{EdslconUnique, "Unique", 2},
 	{EdslconNotNull, "NotNull", 2},		{EdslconReference, "Reference", 4},
+	{EdslconErrorFree, "ErrorFree", 1},
+	{EdslconDeterministic, "Deterministic", 1},
+	{EdslconExprListEq, "ExprListEq", 2},
+	{EdslconExprConcat, "ExprConcat", 3},
+	{EdslconExprDepsDisjoint, "ExprDepsDisjoint", 2},
+	{EdslconExprSplit, "ExprSplit", 4},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
 
 // symbol-prefix letters, indexed by EDslSymbolKind
-const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n'};
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e'};
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -136,6 +146,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			// (grouping = projected cols, empty agg list); plain Proj => Project.
 			return fDistinct ? COperator::EopLogicalGbAgg
 							 : COperator::EopLogicalProject;
+		case EdslopCompute:
+			return COperator::EopLogicalProject;
 		case EdslopInnerJoin:
 			return COperator::EopLogicalInnerJoin;
 		case EdslopLeftJoin:
@@ -185,6 +197,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopUnion:
 		case EdslopSort:
 		case EdslopLimit:
+		case EdslopCompute:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -208,6 +221,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopUnion:
 		case EdslopSort:
 		case EdslopLimit:
+		case EdslopCompute:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -264,6 +278,7 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"Exists", EdslopExists, EdslsortNone},
 		{"ExistsFilter", EdslopExists, EdslsortNone},
 		{"Proj", EdslopProj, EdslsortNone},
+		{"Compute", EdslopCompute, EdslsortNone},
 		{"Agg", EdslopAgg, EdslsortNone},
 		{"Agg_sum", EdslopAgg, EdslsortNone},
 		{"Agg_average", EdslopAgg, EdslsortNone},
@@ -378,6 +393,12 @@ CDSLConstraintKindTable::Parse(const CHAR *sz_name)
 		rgch[GPOS_ARRAY_SIZE(rgch) - 1] = '\0';
 		sz_name = rgch;
 	}
+	// Pre-canonical Compute prototypes used ExprEq. Accept it as an input alias,
+	// but always stringify the shared WeTune name ExprListEq.
+	if (0 == clib::Strcmp(sz_name, "ExprEq"))
+	{
+		sz_name = "ExprListEq";
+	}
 	for (ULONG ul = 0; ul < ul_num_cons; ul++)
 	{
 		if (0 == clib::Strcmp(sz_name, rg_con_desc[ul].sz_name))
@@ -403,6 +424,12 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconUnique:
 		case EdslconNotNull:
 		case EdslconReference:
+		case EdslconErrorFree:
+		case EdslconDeterministic:
+		case EdslconExprListEq:
+		case EdslconExprConcat:
+		case EdslconExprDepsDisjoint:
+		case EdslconExprSplit:
 			return true;
 		case EdslconSentinel:
 			return false;

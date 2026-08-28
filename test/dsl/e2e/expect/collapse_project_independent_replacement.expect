@@ -1,0 +1,73 @@
+{
+  "description": "The proved Compute concat rule replaces full independent Project collapse",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "scope": "all upper project elements are independent of the lower defined columns",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "4cbfd2030f34a4cf"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "1,11,110",
+      "2,21,120",
+      "3,31,130"
+    ],
+    "postgres_output": [
+      "1,11,110",
+      "2,21,120",
+      "3,31,130"
+    ]
+  }
+}

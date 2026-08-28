@@ -10,6 +10,7 @@
 //		structural constraints (AttrsSub / Unique / NotNull / Reference).
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 
 #include "gpos/base.h"
 #include "gpos/error/CException.h"
@@ -31,14 +32,150 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/md/CMDForeignKey.h"
+#include "naucrates/md/IMDFunction.h"
 #include "naucrates/md/IMDRelation.h"
 
 using namespace gpopt;
 
 namespace
 {
+CExpression *
+PexprProjectListForAttrs(const CDSLOp *pop, const CDSLSymbol *psymAttrs,
+						 const CDSLModel *pmodel)
+{
+	if (EdslopProj == pop->Edslop() && !pop->FDistinct() &&
+		nullptr != pop->Pdrgpsym() && 2 == pop->Pdrgpsym()->Size() &&
+		(*pop->Pdrgpsym())[0] == psymAttrs)
+	{
+		return pmodel->PexprProjList((*pop->Pdrgpsym())[1]);
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		CExpression *pexpr =
+			PexprProjectListForAttrs((*pop)[ul], psymAttrs, pmodel);
+		if (nullptr != pexpr)
+		{
+			return pexpr;
+		}
+	}
+	return nullptr;
+}
+
+const CColRef *
+PcrIdentityInputInProjects(const CDSLRule *prule, const CDSLOp *pop,
+						   const CDSLModel *pmodel,
+						   const CColRef *pcrOutput)
+{
+	BOOL fSafeProject = false;
+	if (EdslopProj == pop->Edslop() && !pop->FDistinct() &&
+		nullptr != pop->Pdrgpsym() && 2 == pop->Pdrgpsym()->Size())
+	{
+		const CDSLSymbol *psymAttrs = (*pop->Pdrgpsym())[0];
+		BOOL fErrorFree = false;
+		BOOL fDeterministic = false;
+		CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+		for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+		{
+			const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+			if (1 != pcon->Pdrgpsym()->Size() ||
+				(*pcon->Pdrgpsym())[0] != psymAttrs)
+			{
+				continue;
+			}
+			fErrorFree = fErrorFree || EdslconErrorFree == pcon->Edslcon();
+			fDeterministic =
+				fDeterministic || EdslconDeterministic == pcon->Edslcon();
+		}
+		fSafeProject = fErrorFree && fDeterministic;
+	}
+	if (fSafeProject)
+	{
+		CExpression *pexprList =
+			pmodel->PexprProjList((*pop->Pdrgpsym())[1]);
+		if (nullptr != pexprList &&
+			COperator::EopScalarProjectList == pexprList->Pop()->Eopid())
+		{
+			for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
+			{
+				CExpression *pexprElem = (*pexprList)[ul];
+				if (COperator::EopScalarProjectElement !=
+						pexprElem->Pop()->Eopid() ||
+					1 != pexprElem->Arity() ||
+					CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr() !=
+						pcrOutput ||
+					COperator::EopScalarIdent !=
+						(*pexprElem)[0]->Pop()->Eopid())
+				{
+					continue;
+				}
+				return CScalarIdent::PopConvert((*pexprElem)[0]->Pop())->Pcr();
+			}
+		}
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		const CColRef *pcrInput =
+			PcrIdentityInputInProjects(prule, (*pop)[ul], pmodel, pcrOutput);
+		if (nullptr != pcrInput)
+		{
+			return pcrInput;
+		}
+	}
+	return nullptr;
+}
+
+const CColRef *
+PcrResolveIdentityLineage(const CDSLRule *prule, const CDSLModel *pmodel,
+						  const CColRef *pcr)
+{
+	const CColRef *pcrCurrent = pcr;
+	// A source fragment cannot contain an unbounded Project chain. The explicit
+	// cap is defensive against malformed self-referential project elements.
+	for (ULONG ul = 0; ul < 64; ul++)
+	{
+		const CColRef *pcrNext = PcrIdentityInputInProjects(
+			prule, prule->PfragSrc()->PopRoot(), pmodel, pcrCurrent);
+		if (nullptr == pcrNext || pcrNext == pcrCurrent)
+		{
+			break;
+		}
+		pcrCurrent = pcrNext;
+	}
+	return pcrCurrent;
+}
+
+BOOL
+FScalarTreeProvablyErrorFree(const CExpression *pexpr)
+{
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopScalarIdent:
+		case COperator::EopScalarConst:
+			return true;
+		case COperator::EopScalarProjectElement:
+		case COperator::EopScalarProjectList:
+			break;
+		default:
+			// Function/operator error behavior is not represented in the current
+			// ORCA scalar metadata. Reject unknown shapes instead of assuming that
+			// evaluation can be duplicated, removed, or reordered.
+			return false;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		if (!FScalarTreeProvablyErrorFree((*pexpr)[ul]))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 CTableDescriptor *
 PtabdescBaseAccess(CExpression *pexpr)
 {
@@ -144,6 +281,8 @@ BOOL
 FColRefSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
 					 const CColRef *pcrFirst, const CColRef *pcrSecond)
 {
+	pcrFirst = PcrResolveIdentityLineage(prule, pmodel, pcrFirst);
+	pcrSecond = PcrResolveIdentityLineage(prule, pmodel, pcrSecond);
 	if (pcrFirst == pcrSecond)
 	{
 		return true;
@@ -1117,6 +1256,207 @@ CDSLConstraintChecker::FCheckReference(const CDSLConstraint *pcon,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLConstraintChecker::FCheckExprConcat
+//---------------------------------------------------------------------------
+BOOL
+CDSLConstraintChecker::FCheckExprConcat(const CDSLConstraint *pcon,
+									 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprOut = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CExpression *pexprLeft = pmodel->PexprExpr((*pdrgpsym)[1]);
+	CExpression *pexprRight = pmodel->PexprExpr((*pdrgpsym)[2]);
+	if (nullptr == pexprLeft || nullptr == pexprRight ||
+		COperator::EopScalarProjectList != pexprLeft->Pop()->Eopid() ||
+		COperator::EopScalarProjectList != pexprRight->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	// A parent SRF cannot be flattened into a child layer that also contains an
+	// SRF: doing so changes the row-expansion product. This is the same semantic
+	// boundary enforced by ORCA's native project collapse, expressed once in the
+	// generic list-composition primitive.
+	if (!CDSLExprListUtils::FConcatSafe(pexprLeft, pexprRight))
+	{
+		return false;
+	}
+	if (nullptr == pexprOut)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	CExpression *pexprExpected = CDSLExprListUtils::PexprConcat(
+		m_mp, pexprLeft, pexprRight);
+	const BOOL fMatches = nullptr != pexprExpected &&
+		pexprOut->Matches(pexprExpected);
+	CRefCount::SafeRelease(pexprExpected);
+	return fMatches;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckExprDepsDisjoint(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymSchema != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrSchema =
+		pmodel->PdrgpcrSchema((*pdrgpsym)[1]);
+	if (nullptr == pexprList || nullptr == pdrgpcrSchema)
+	{
+		return false;
+	}
+	return CDSLExprListUtils::FDepsDisjoint(
+		m_mp, pexprList, pdrgpcrSchema);
+}
+
+BOOL
+CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
+									const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (4 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < 4; ul++)
+	{
+		if (EdslsymExpr != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+	CExpression *pexprUpper = pmodel->PexprExpr((*pdrgpsym)[2]);
+	CExpression *pexprLower = pmodel->PexprExpr((*pdrgpsym)[3]);
+	CExpression *pexprMerged = nullptr;
+	CExpression *pexprResidual = nullptr;
+	if (!CDSLExprListUtils::FSplit(m_mp, pexprUpper, pexprLower,
+									&pexprMerged, &pexprResidual))
+	{
+		return false;
+	}
+	CExpression *pexprBoundMerged = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CExpression *pexprBoundResidual = pmodel->PexprExpr((*pdrgpsym)[1]);
+	const BOOL fMergedValid = nullptr == pexprBoundMerged
+		? EdslsideTarget == (*pdrgpsym)[0]->Eside()
+		: pexprBoundMerged->Matches(pexprMerged);
+	const BOOL fResidualValid = nullptr == pexprBoundResidual
+		? EdslsideTarget == (*pdrgpsym)[1]->Eside()
+		: pexprBoundResidual->Matches(pexprResidual);
+	pexprMerged->Release();
+	pexprResidual->Release();
+	return fMergedValid && fResidualValid;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLConstraintChecker::FCheckScalarProperty
+//
+//	@doc:
+//		Port the expression-safety guards used by WeTune's newer proof backends.
+//		Project attrs bind only their dependency columns, so recover the exact
+//		captured project list before checking it. Error freedom is intentionally
+//		conservative until ORCA metadata exposes operator/function error behavior;
+//		determinism additionally excludes stable/volatile and set-returning trees.
+//---------------------------------------------------------------------------
+BOOL
+CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
+										 const CDSLConstraint *pcon,
+										 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	const CDSLSymbol *psym = (*pdrgpsym)[0];
+	const CDSLSymbol *psymBound = psym;
+	if (nullptr == pmodel->PvalLookup(psymBound))
+	{
+		// Resolve a target annotation only through an explicit equality to an
+		// already-bound source artifact. Treating an arbitrary unbound target as
+		// safe would silently discard the proof precondition.
+		psymBound = nullptr;
+		CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+		for (ULONG ul = 0; ul < pdrgpcon->Size() && nullptr == psymBound; ul++)
+		{
+			const CDSLConstraint *pconEq = (*pdrgpcon)[ul];
+			const EDslConstraintKind edslconEq = pconEq->Edslcon();
+			const BOOL fEquality = EdslconTableEq == edslconEq ||
+				EdslconAttrsEq == edslconEq ||
+				EdslconPredicateEq == edslconEq ||
+				EdslconSchemaEq == edslconEq ||
+				EdslconFuncEq == edslconEq ||
+				EdslconScalarEq == edslconEq ||
+				EdslconExprListEq == edslconEq;
+			if (!fEquality || 2 != pconEq->Pdrgpsym()->Size())
+			{
+				continue;
+			}
+			const CDSLSymbol *psym0 = (*pconEq->Pdrgpsym())[0];
+			const CDSLSymbol *psym1 = (*pconEq->Pdrgpsym())[1];
+			const CDSLSymbol *psymPeer =
+				psym0 == psym ? psym1 : (psym1 == psym ? psym0 : nullptr);
+			if (nullptr != psymPeer && psymPeer->Esymkind() == psym->Esymkind() &&
+				nullptr != pmodel->PvalLookup(psymPeer))
+			{
+				psymBound = psymPeer;
+			}
+		}
+		if (nullptr == psymBound)
+		{
+			return false;
+		}
+	}
+
+	CExpression *pexpr = nullptr;
+	switch (psymBound->Esymkind())
+	{
+		case EdslsymAttrs:
+			pexpr = PexprProjectListForAttrs(
+				prule->PfragSrc()->PopRoot(), psymBound, pmodel);
+			break;
+		case EdslsymPred:
+			pexpr = pmodel->PexprPred(psymBound);
+			break;
+		case EdslsymScalar:
+			pexpr = pmodel->PexprScalar(psymBound);
+			break;
+		case EdslsymExpr:
+			pexpr = pmodel->PexprExpr(psymBound);
+			break;
+		default:
+			break;
+	}
+	if (nullptr == pexpr)
+	{
+		return false;
+	}
+
+	if (EdslconErrorFree == pcon->Edslcon())
+	{
+		return FScalarTreeProvablyErrorFree(pexpr);
+	}
+	GPOS_ASSERT(EdslconDeterministic == pcon->Edslcon());
+	return !pexpr->DeriveHasNonScalarFunction() &&
+		IMDFunction::EfsImmutable ==
+			pexpr->DeriveScalarFunctionProperties()->Efs();
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLConstraintChecker::FCheckEquality
 //---------------------------------------------------------------------------
 BOOL
@@ -1199,6 +1539,9 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 		case EdslconScalarEq:
 			return pmodel->PexprScalar(psymFirst)->Matches(
 				pmodel->PexprScalar(psymSecond));
+		case EdslconExprListEq:
+			return pmodel->PexprExpr(psymFirst)->Matches(
+				pmodel->PexprExpr(psymSecond));
 		default:
 			return false;
 	}
@@ -1223,6 +1566,15 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckNotNull(pcon, pmodel);
 		case EdslconReference:
 			return FCheckReference(pcon, pmodel);
+		case EdslconErrorFree:
+		case EdslconDeterministic:
+			return FCheckScalarProperty(prule, pcon, pmodel);
+		case EdslconExprConcat:
+			return FCheckExprConcat(pcon, pmodel);
+		case EdslconExprDepsDisjoint:
+			return FCheckExprDepsDisjoint(pcon, pmodel);
+		case EdslconExprSplit:
+			return FCheckExprSplit(pcon, pmodel);
 
 		case EdslconTableEq:
 		case EdslconAttrsEq:
@@ -1230,6 +1582,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconSchemaEq:
 		case EdslconFuncEq:
 		case EdslconScalarEq:
+		case EdslconExprListEq:
 			return FCheckEquality(prule, pcon, pmodel);
 
 		default:

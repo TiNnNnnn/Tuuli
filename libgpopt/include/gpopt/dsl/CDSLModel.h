@@ -15,6 +15,7 @@
 //		  schema symbol -> CColRefArray*     (ordered output columns; Proj/Agg)
 //		  func   symbol -> CExpressionArray* (aggregate expressions)
 //		  scalar symbol -> CExpression*      (LIMIT count / offset expression)
+//		  expr   symbol -> CExpression*      (exact scalar expression list)
 //
 //		Design notes (see docs/WETUNE_ORCA_PER_OP_THREESTAGE.md):
 //		  * Everything stored here is AddRef'd on insertion and Released in the
@@ -155,6 +156,7 @@ public:
 	CExpression *PexprTable(const CDSLSymbol *psym) const;
 	CExpression *PexprPred(const CDSLSymbol *psym) const;
 	CExpression *PexprScalar(const CDSLSymbol *psym) const;
+	CExpression *PexprExpr(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrAttrs(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrSchema(const CDSLSymbol *psym) const;
 	CExpressionArray *PdrgpexprFunc(const CDSLSymbol *psym) const;

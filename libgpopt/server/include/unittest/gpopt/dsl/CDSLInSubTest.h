@@ -30,6 +30,7 @@ public:
 	static GPOS_RESULT EresUnittest_PreApplyBelowBinaryJoinSpineRemap();
 	static GPOS_RESULT EresUnittest_RejectsNullSupplyingRoute();
 	static GPOS_RESULT EresUnittest_RejectsDifferentTable();
+	static GPOS_RESULT EresUnittest_PostApplyDistinctDrop();
 	static GPOS_RESULT EresUnittest_PostApplyIdentity();
 };
 }  // namespace gpopt

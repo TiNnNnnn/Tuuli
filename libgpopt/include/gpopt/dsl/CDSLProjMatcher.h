@@ -50,7 +50,8 @@ class CDSLMatcher;
 //		CDSLProjMatcher
 //
 //	@doc:
-//		Matches a DSL Proj<a s> template against an ORCA CLogicalProject.
+//		Matches either the WeTune-compatible Proj<a s> view or MONSOON's exact
+//		Compute<e a s> view against an ORCA CLogicalProject.
 //		Constructed per match attempt with the transient pool and a back-reference
 //		to the generic matcher (so the relational child can recurse). Owns no state
 //		beyond those.
@@ -111,6 +112,12 @@ public:
 	// DSL dedup drop. Returns true iff symbols and the relational child match.
 	BOOL FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 				CDSLModel *pmodel) const;
+
+	// Compute<e a s> is an exact ComputeScalar/LET view: e owns the complete
+	// CScalarProjectList, a its referenced columns and s its defined columns.
+	// Unlike Proj, it has no virtual shells, pruning semantics, or child peeling.
+	BOOL FMatchCompute(const CDSLOp *popCompute, CExpression *pexprProject,
+					 CDSLModel *pmodel) const;
 };
 }  // namespace gpopt
 

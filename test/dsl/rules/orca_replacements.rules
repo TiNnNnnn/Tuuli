@@ -8,12 +8,32 @@ LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoi
 
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
 
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|TableEq(t1,t0);ExprDepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
+
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);ExprSplit(e2,e3,e0,e1)
+
+InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
+
+Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
-# Line 9 covers the single-key equality branch of
+# Lines 11 and 13 cover the complete output space of CXformCollapseProject:
+# the first moves every independent upper Compute definition into the lower
+# layer; the second moves the maximal safe subset and retains a real residual.
+# Both exact RuleIR strings are outcome-equivalence proof inputs accepted by
+# the FormalSQL/Rocq 9.2 kernel on 2026-08-28. ExprConcat/ExprSplit remain
+# explicit semantic premises checked generically against the live project
+# lists; neither rule is identified by C++ code.
+# Lines 15 and 17 remove a pure DISTINCT from the inner relation of positive
+# IN and EXISTS respectively. The ordinary target Proj preserves the complete
+# SELECT-list/schema proof binding; pgORCA lowers that pass-through view to the
+# native bare relational child. Both exact rules returned EQ from WeTune's
+# SQLSolver backend on 2026-08-28.
+# Line 9 covers the equality branch of
 # CXformLeftSemiJoin2InnerJoin. InSubFilter is the shared view over both the
 # pre-unnest form and CLogicalLeftSemiJoin; the target deduplicates the inner
 # key before joining, preserving semi-join bag multiplicity.

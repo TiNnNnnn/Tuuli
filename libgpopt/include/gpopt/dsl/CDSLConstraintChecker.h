@@ -86,6 +86,24 @@ private:
 	BOOL FCheckReference(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;
 
+	// ErrorFree/Deterministic(x): conservatively validate the scalar expression
+	// list owned by a Project attrs symbol. These guards permit safe expression
+	// substitution while rejecting unknown, volatile, or set-returning shapes.
+	BOOL FCheckScalarProperty(const CDSLRule *prule,
+						  const CDSLConstraint *pcon,
+						  const CDSLModel *pmodel) const;
+
+	// Expression-list algebra used by Compute/LET rewrites. ExprConcat(out,l,r)
+	// checks that flattening l above r is SRF-safe; an unbound target out is
+	// materialized lazily by the instantiator. ExprDepsDisjoint(e,s) ensures e
+	// does not reference any column defined by schema s.
+	BOOL FCheckExprConcat(const CDSLConstraint *pcon,
+						const CDSLModel *pmodel) const;
+	BOOL FCheckExprDepsDisjoint(const CDSLConstraint *pcon,
+							  const CDSLModel *pmodel) const;
+	BOOL FCheckExprSplit(const CDSLConstraint *pcon,
+						 const CDSLModel *pmodel) const;
+
 	// build a CColRefSet from the CColRefArray bound to an attrs symbol; NULL if
 	// the symbol is unbound. Caller owns the set (Release).
 	CColRefSet *PcrsFromAttrsSym(const CDSLSymbol *psymAttrs,

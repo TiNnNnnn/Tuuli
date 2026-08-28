@@ -27,6 +27,48 @@ using namespace gpopt;
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLProjMatcher::FMatchCompute
+//---------------------------------------------------------------------------
+BOOL
+CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
+							   CExpression *pexprProject,
+							   CDSLModel *pmodel) const
+{
+	GPOS_ASSERT(nullptr != popCompute);
+	GPOS_ASSERT(EdslopCompute == popCompute->Edslop());
+	GPOS_ASSERT(nullptr != pexprProject);
+
+	if (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
+		2 != pexprProject->Arity() || 1 != popCompute->UlChildren() ||
+		nullptr == popCompute->Pdrgpsym() ||
+		3 != popCompute->Pdrgpsym()->Size() ||
+		COperator::EopScalarProjectList != (*pexprProject)[1]->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = popCompute->Pdrgpsym();
+	CExpression *pexprList = (*pexprProject)[1];
+	CColRefArray *pdrgpcrAttrs = PdrgpcrAttrs(pexprList);
+	CColRefArray *pdrgpcrSchema = PdrgpcrSchema(pexprList);
+	if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema)
+	{
+		CRefCount::SafeRelease(pdrgpcrAttrs);
+		CRefCount::SafeRelease(pdrgpcrSchema);
+		return false;
+	}
+
+	const BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pexprList) &&
+		pmodel->FBind((*pdrgpsym)[1], pdrgpcrAttrs) &&
+		pmodel->FBind((*pdrgpsym)[2], pdrgpcrSchema);
+	pdrgpcrAttrs->Release();
+	pdrgpcrSchema->Release();
+	return fBound &&
+		m_pmatcher->FMatch((*popCompute)[0], (*pexprProject)[0], pmodel);
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLProjMatcher::FMatchTrivialSelectOverDedup
 //
 //	@doc:

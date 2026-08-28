@@ -171,6 +171,21 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Union*<a0 s0>(Input<t0>,Input<t1>)|Union<a1 s1>(Input<t2>,"
 		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
 		"SchemaEq(s1,s0)",
+		// Expression-safety constraints used by proved scalar substitutions.
+		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|TableEq(t1,t0);"
+		"AttrsEq(a1,a0);SchemaEq(s1,s0);ErrorFree(a0);Deterministic(a0)",
+		// Explicit ORCA ComputeScalar/LET expression-list capture.
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a1,a0);SchemaEq(s1,s0);"
+		"ErrorFree(e0);Deterministic(e0)",
+		// Generic expression-list composition for independent LET layers.
+		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 "
+		"s2>(Input<t1>)|TableEq(t1,t0);ExprDepsDisjoint(e0,s1);"
+		"ExprConcat(e2,e0,e1)",
+		// Partial layer normalization keeps dependent expressions as a residual.
+		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 "
+		"s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);"
+		"ExprSplit(e2,e3,e0,e1)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)
@@ -307,6 +322,10 @@ CDSLParserTest::EresUnittest_Aliases()
 		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
 		{"PlainFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
 		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
+		{"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		 "TableEq(t1,t0);ExprEq(e1,e0)",
+		 "Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		 "TableEq(t1,t0);ExprListEq(e1,e0)"},
 		{"SortDesc<a0>(Input<t0>)|SortDesc<a1>(Input<t1>)|TableEq(t1,t0);"
 		 "AttrsEq(a1,a0)",
 		 "SortDesc<a0>(Input<t0>)|SortDesc<a1>(Input<t1>)|TableEq(t1,t0);"

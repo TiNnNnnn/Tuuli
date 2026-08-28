@@ -59,6 +59,16 @@ public:
 	// aggregate-bearing or Local GbAgg implementation stages.
 	static GPOS_RESULT EresUnittest_CollapseGbAggRuleBoundaries();
 
+	// A proved nested Project rule composes pass-through aliases only when the
+	// inner scalar list is explicitly error-free and deterministic.
+	static GPOS_RESULT EresUnittest_CollapseIdentityProject();
+
+	// Compute captures the exact ProjectList independently of Proj's relational
+	// projection view, and can reuse it without changing LET semantics.
+	static GPOS_RESULT EresUnittest_ComputeExactRoundTrip();
+	static GPOS_RESULT EresUnittest_CollapseIndependentCompute();
+	static GPOS_RESULT EresUnittest_SplitPartiallyIndependentCompute();
+
 	// a non-trivial Select does NOT fire a Proj-rooted rule.
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();
 };	// class CDSLProjTest

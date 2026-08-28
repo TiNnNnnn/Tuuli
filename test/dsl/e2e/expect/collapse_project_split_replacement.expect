@@ -1,0 +1,73 @@
+{
+  "description": "The proved Compute split rule replaces partial Project collapse with a residual",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "scope": "a nonempty independent subset moves below a nonempty dependent residual",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "984eec66d5bc3f5d"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "1,12,110",
+      "2,22,120",
+      "3,32,130"
+    ],
+    "postgres_output": [
+      "1,12,110",
+      "2,22,120",
+      "3,32,130"
+    ]
+  }
+}

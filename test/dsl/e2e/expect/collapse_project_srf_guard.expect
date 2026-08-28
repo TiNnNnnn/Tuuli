@@ -1,0 +1,49 @@
+{
+  "description": "Compute replacement rejects collapse across two SRF layers and preserves row expansion",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\"",
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "1,1,10",
+      "1,1,11",
+      "1,2,10",
+      "1,2,11",
+      "2,1,10",
+      "2,1,11",
+      "2,2,10",
+      "2,2,11",
+      "3,1,10",
+      "3,1,11",
+      "3,2,10",
+      "3,2,11"
+    ],
+    "postgres_output": [
+      "1,1,10",
+      "1,1,11",
+      "1,2,10",
+      "1,2,11",
+      "2,1,10",
+      "2,1,11",
+      "2,2,10",
+      "2,2,11",
+      "3,1,10",
+      "3,1,11",
+      "3,2,10",
+      "3,2,11"
+    ]
+  }
+}

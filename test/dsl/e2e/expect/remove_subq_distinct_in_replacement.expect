@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule removes pure DISTINCT from a positive IN subquery",
+  "replacement": {
+    "xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "scope": "positive single-column IN over a pure global DISTINCT subquery",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "4f678f34086c5cd7"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\""
+      ],
+      "alternative": [
+        "CXformRemoveSubqDistinct",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "not_contains": [
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}

@@ -17,6 +17,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
@@ -660,6 +661,7 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 			case EdslconSchemaEq:
 			case EdslconFuncEq:
 			case EdslconScalarEq:
+			case EdslconExprListEq:
 				break;	// an aliasing equality
 			default:
 				continue;  // structural constraint: not an alias
@@ -715,6 +717,98 @@ CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 {
 	CDSLSymbol *psymSrc = m_phmAlias->Find(psym);
 	return (nullptr != psymSrc) ? psymSrc : psym;
+}
+
+CExpression *
+CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
+								   const CDSLModel *pmodel,
+								   ULONG ulDepth) const
+{
+	if (nullptr == psym || EdslsymExpr != psym->Esymkind() ||
+		ulDepth > m_prule->Pdrgpcon()->Size())
+	{
+		return nullptr;
+	}
+	psym = PsymResolve(psym);
+	CExpression *pexprBound = pmodel->PexprExpr(psym);
+	if (nullptr != pexprBound)
+	{
+		pexprBound->AddRef();
+		return pexprBound;
+	}
+
+	const CDSLConstraint *pconDef = nullptr;
+	ULONG ulDefOutput = 0;
+	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		ULONG ulOutput = gpos::ulong_max;
+		if (EdslconExprConcat == pcon->Edslcon() &&
+			3 == pcon->Pdrgpsym()->Size() &&
+			(*pcon->Pdrgpsym())[0] == psym)
+		{
+			ulOutput = 0;
+		}
+		else if (EdslconExprSplit == pcon->Edslcon() &&
+				 4 == pcon->Pdrgpsym()->Size())
+		{
+			if ((*pcon->Pdrgpsym())[0] == psym)
+			{
+				ulOutput = 0;
+			}
+			else if ((*pcon->Pdrgpsym())[1] == psym)
+			{
+				ulOutput = 1;
+			}
+		}
+		if (gpos::ulong_max == ulOutput)
+		{
+			continue;
+		}
+		if (nullptr != pconDef)
+		{
+			return nullptr;  // ambiguous derived definition
+		}
+		pconDef = pcon;
+		ulDefOutput = ulOutput;
+	}
+	if (nullptr == pconDef)
+	{
+		return nullptr;
+	}
+
+	if (EdslconExprSplit == pconDef->Edslcon())
+	{
+		CExpression *pexprUpper = PexprResolveExpr(
+			(*pconDef->Pdrgpsym())[2], pmodel, ulDepth + 1);
+		CExpression *pexprLower = PexprResolveExpr(
+			(*pconDef->Pdrgpsym())[3], pmodel, ulDepth + 1);
+		CExpression *pexprMerged = nullptr;
+		CExpression *pexprResidual = nullptr;
+		const BOOL fSplit = CDSLExprListUtils::FSplit(
+			m_mp, pexprUpper, pexprLower, &pexprMerged, &pexprResidual);
+		CRefCount::SafeRelease(pexprUpper);
+		CRefCount::SafeRelease(pexprLower);
+		if (!fSplit)
+		{
+			return nullptr;
+		}
+		CExpression *pexprResult =
+			0 == ulDefOutput ? pexprMerged : pexprResidual;
+		(0 == ulDefOutput ? pexprResidual : pexprMerged)->Release();
+		return pexprResult;
+	}
+
+	CExpression *pexprLeft = PexprResolveExpr(
+		(*pconDef->Pdrgpsym())[1], pmodel, ulDepth + 1);
+	CExpression *pexprRight = PexprResolveExpr(
+		(*pconDef->Pdrgpsym())[2], pmodel, ulDepth + 1);
+	CExpression *pexprResult = CDSLExprListUtils::PexprConcat(
+		m_mp, pexprLeft, pexprRight);
+	CRefCount::SafeRelease(pexprLeft);
+	CRefCount::SafeRelease(pexprRight);
+	return pexprResult;
 }
 
 const CDSLOp *
@@ -1451,6 +1545,151 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		}
 	}
 	return pexprResult;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiator::PexprBuildCompute
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const
+{
+	if (1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		3 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbol *psymExpr = PsymResolve((*pop->Pdrgpsym())[0]);
+	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[1]);
+	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[2]);
+	CExpression *pexprList = PexprResolveExpr(psymExpr, pmodel);
+	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+	CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+	BOOL fOwnAttrs = false;
+	BOOL fOwnSchema = false;
+	if (nullptr != pexprList && nullptr == pdrgpcrAttrs)
+	{
+		pdrgpcrAttrs = pexprList->DeriveUsedColumns()->Pdrgpcr(m_mp);
+		fOwnAttrs = true;
+	}
+	if (nullptr != pexprList && nullptr == pdrgpcrSchema &&
+		COperator::EopScalarProjectList == pexprList->Pop()->Eopid())
+	{
+		pdrgpcrSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		fOwnSchema = true;
+		for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
+		{
+			CExpression *pexprElem = (*pexprList)[ul];
+			if (COperator::EopScalarProjectElement !=
+				pexprElem->Pop()->Eopid())
+			{
+				pdrgpcrSchema->Release();
+				pdrgpcrSchema = nullptr;
+				fOwnSchema = false;
+				break;
+			}
+			pdrgpcrSchema->Append(
+				CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr());
+		}
+	}
+	if (nullptr == pexprList || nullptr == pdrgpcrAttrs ||
+		nullptr == pdrgpcrSchema ||
+		COperator::EopScalarProjectList != pexprList->Pop()->Eopid() ||
+		pexprList->Arity() != pdrgpcrSchema->Size())
+	{
+		if (fOwnAttrs)
+		{
+			pdrgpcrAttrs->Release();
+		}
+		if (fOwnSchema)
+		{
+			pdrgpcrSchema->Release();
+		}
+		CRefCount::SafeRelease(pexprList);
+		return nullptr;
+	}
+
+	// Guard the three independently aliased target symbols against an invalid
+	// combination. The expression artifact is authoritative: attrs must be its
+	// exact dependency set and schema its ordered list of defined columns.
+	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAttrs->Include(pdrgpcrAttrs);
+	if (!pcrsAttrs->Equals(pexprList->DeriveUsedColumns()))
+	{
+		pcrsAttrs->Release();
+		if (fOwnAttrs)
+		{
+			pdrgpcrAttrs->Release();
+		}
+		if (fOwnSchema)
+		{
+			pdrgpcrSchema->Release();
+		}
+		pexprList->Release();
+		return nullptr;
+	}
+	pcrsAttrs->Release();
+	for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
+	{
+		CExpression *pexprElem = (*pexprList)[ul];
+		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
+			CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr() !=
+				(*pdrgpcrSchema)[ul])
+		{
+			if (fOwnAttrs)
+			{
+				pdrgpcrAttrs->Release();
+			}
+			if (fOwnSchema)
+			{
+				pdrgpcrSchema->Release();
+			}
+			pexprList->Release();
+			return nullptr;
+		}
+	}
+
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		if (fOwnAttrs)
+		{
+			pdrgpcrAttrs->Release();
+		}
+		if (fOwnSchema)
+		{
+			pdrgpcrSchema->Release();
+		}
+		pexprList->Release();
+		return nullptr;
+	}
+	if (!FColSetContainsArray(pexprChild->DeriveOutputColumns(), pdrgpcrAttrs))
+	{
+		pexprChild->Release();
+		if (fOwnAttrs)
+		{
+			pdrgpcrAttrs->Release();
+		}
+		if (fOwnSchema)
+		{
+			pdrgpcrSchema->Release();
+		}
+		pexprList->Release();
+		return nullptr;
+	}
+
+	if (fOwnAttrs)
+	{
+		pdrgpcrAttrs->Release();
+	}
+	if (fOwnSchema)
+	{
+		pdrgpcrSchema->Release();
+	}
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprList);
 }
 
 //---------------------------------------------------------------------------
@@ -2559,6 +2798,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildFilter(pop, pmodel);
 		case EdslopProj:
 			return PexprBuildProj(pop, pmodel);
+		case EdslopCompute:
+			return PexprBuildCompute(pop, pmodel);
 		case EdslopAgg:
 			return PexprBuildAgg(pop, pmodel);
 		case EdslopExists:

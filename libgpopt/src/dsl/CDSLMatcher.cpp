@@ -288,6 +288,15 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return pm.FMatch(pop, pexpr, pmodel);
 	}
 
+	// Compute<e a s> names ORCA's actual ComputeScalar/LET node. It shares the
+	// Project shell with Proj, but deliberately bypasses every Proj compatibility
+	// view and captures the complete scalar project list under <e>.
+	if (EdslopCompute == pop->Edslop())
+	{
+		CDSLProjMatcher pm(m_mp, this);
+		return pm.FMatchCompute(pop, pexpr, pmodel);
+	}
+
 	// Corpus Agg<a a f s p> and the six-symbol extension route to the Agg
 	// matcher, including ORCA's Select-over-GbAgg representation of HAVING.
 	if (EdslopAgg == pop->Edslop())

@@ -118,8 +118,9 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 	// on the subquery/Apply operator. WeTune still exposes that SQL node as
 	// Proj<a s>(child). Treat this representation difference as a transparent
 	// projection in both pre- and post-Apply matching. Computed projects remain
-	// CLogicalProject nodes.
-	if (EdslopProj == popInner->Edslop() &&
+	// CLogicalProject nodes. Proj* is not such a shell: it is a real dedup GbAgg
+	// and must continue through the aggregate matcher so a target may remove it.
+	if (EdslopProj == popInner->Edslop() && !popInner->FDistinct() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
 		2 == popInner->Pdrgpsym()->Size() &&
 		nullptr != pdrgpcrProjected && 0 < pdrgpcrProjected->Size())

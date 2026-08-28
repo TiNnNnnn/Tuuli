@@ -34,8 +34,9 @@ namespace gpopt
 {
 using namespace gpos;
 
-// Kind of a DSL symbol. Mirrors WeTune Symbol.Kind (same order).
-// DSL prefix letters (t/a/p/s/f/n) are only a naming CONVENTION; the
+// Kind of a DSL symbol. The first six entries mirror the legacy WeTune prefix;
+// Expr is the shared EXPR_LIST kind for an exact scalar expression list.
+// DSL prefix letters (t/a/p/s/f/n/e) are only a naming CONVENTION; the
 // authoritative kind of a symbol is decided POSITIONALLY by the operator that
 // declares it (see rgul_dsl_op_sym_schema below), exactly as WeTune does in
 // SymbolsImpl.bindSymbol().
@@ -47,10 +48,13 @@ enum EDslSymbolKind
 	EdslsymSchema,		 // s
 	EdslsymFunc,		 // f
 	EdslsymScalar,		 // n
+	EdslsymExpr,		 // e (exact CScalarProjectList / expression list)
 	EdslsymSentinel
 };
 
-// Kind of a DSL operator. Mirrors WeTune OpKind (11 kinds).
+// Kind of a DSL operator. The first 11 entries mirror WeTune OpKind. Compute is
+// MONSOON's explicit ORCA ComputeScalar/LET operator; unlike WeTune Proj it does
+// not prune the relational child's columns.
 enum EDslOpKind
 {
 	EdslopInput = 0,
@@ -64,6 +68,7 @@ enum EDslOpKind
 	EdslopSort,
 	EdslopLimit,
 	EdslopUnion,		 // WeTune SET_OP
+	EdslopCompute,		 // ORCA CLogicalProject / ComputeScalar
 	EdslopSentinel
 };
 
@@ -98,8 +103,10 @@ enum EDslSide
 	EdslsideTarget
 };
 
-// Kind of a DSL constraint. Mirrors WeTune Constraint.Kind (same order — some
-// WeTune tricks depend on the order, so we keep it identical).
+// Kind of a DSL constraint. The through-Reference prefix mirrors WeTune
+// Constraint.Kind in the same order. Scalar-safety and expression-list
+// constraints preserve the established pgORCA append-only identities; names
+// and arities are shared with WeTune even where later enum ordinals differ.
 enum EDslConstraintKind
 {
 	EdslconTableEq = 0,
@@ -112,6 +119,12 @@ enum EDslConstraintKind
 	EdslconUnique,
 	EdslconNotNull,
 	EdslconReference,
+	EdslconErrorFree,
+	EdslconDeterministic,
+	EdslconExprListEq,
+	EdslconExprConcat,
+	EdslconExprDepsDisjoint,
+	EdslconExprSplit,
 	EdslconSentinel
 };
 

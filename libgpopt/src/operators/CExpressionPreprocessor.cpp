@@ -3177,6 +3177,13 @@ CExpressionPreprocessor::PexprPreprocessAfterRBO(
 	const BOOL fPreserveLeftJoins =
 		nullptr != policySnapshot &&
 		policySnapshot->FHasCBOSourceOperator(EdslopLeftJoin);
+	const BOOL fPreserveProjectInputs =
+		nullptr != policySnapshot &&
+		(policySnapshot->FHasCBOSourceOperator(EdslopProj) ||
+		 policySnapshot->FHasCBOSourceOperator(EdslopCompute));
+	const BOOL fPreserveProjectLayers =
+		nullptr != policySnapshot &&
+		policySnapshot->FHasCBOSourceOperator(EdslopCompute);
 	CExpression *pexprJoinPruned = nullptr;
 	if (fPreserveLeftJoins)
 	{
@@ -3226,11 +3233,11 @@ CExpressionPreprocessor::PexprPreprocessAfterRBO(
 	GPOS_CHECK_ABORT;
 	pexprPrefiltersExtracted->Release();
 
-	// eliminate unused computed columns
-	// MONSOON: skipped under pg_orca.enable_dsl_rule so a computed-col Project
-	// survives for the DSL matcher (pass ownership through, do not release).
+	// Eliminate unused computed columns only when no CBO rule consumes a Project
+	// representation. The decision is derived from the immutable rule/policy
+	// snapshot and is therefore identical with DSL application OFF and ON.
 	CExpression *pexprNoUnusedPrEl = nullptr;
-	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	if (fPreserveProjectInputs)
 	{
 		pexprNoUnusedPrEl = pexprOrderedAggPreprocessed;
 	}
@@ -3277,11 +3284,11 @@ CExpressionPreprocessor::PexprPreprocessAfterRBO(
 	GPOS_CHECK_ABORT;
 	pexprWithPreds->Release();
 
-	// collapse cascade of projects
-	// MONSOON: skipped under pg_orca.enable_dsl_rule so adjacent Projects stay
-	// separate for the DSL matcher (pass ownership through, do not release).
+	// Keep adjacent Projects only when a CBO Compute/LET source needs to inspect
+	// them. This preserves the same input tree for native, shadow, negative and
+	// replacement states without coupling preprocessing to the runtime DSL GUC.
 	CExpression *pexprCollapsedProjects = nullptr;
-	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	if (fPreserveProjectLayers)
 	{
 		pexprCollapsedProjects = pexprPruned;
 	}
@@ -3310,11 +3317,10 @@ CExpressionPreprocessor::PexprPreprocessAfterRBO(
 	GPOS_CHECK_ABORT;
 	pexprExistWithPredFromINSubq->Release();
 
-	// swap logical select over logical project
-	// MONSOON: skipped under pg_orca.enable_dsl_rule so Select/Project ordering
-	// is preserved for the DSL matcher (pass ownership through, do not release).
+	// Preserve Select/Project ordering when any CBO Project representation is a
+	// source capability, again independently of whether application is enabled.
 	CExpression *pexprTransposeSelectAndProject = nullptr;
-	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
+	if (fPreserveProjectInputs)
 	{
 		pexprTransposeSelectAndProject = pexprPrunedPartitions;
 	}

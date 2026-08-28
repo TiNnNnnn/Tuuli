@@ -98,6 +98,14 @@ private:
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
 
+	// Resolve an expression-list symbol to an owned CScalarProjectList. Besides
+	// direct/ExprListEq bindings, target symbols may be defined by ExprConcat and
+	// are
+	// evaluated lazily from their source operands.
+	CExpression *PexprResolveExpr(const CDSLSymbol *psym,
+								 const CDSLModel *pmodel,
+								 ULONG ulDepth = 0) const;
+
 	// Find the source Filter that owns psymPred, then copy its bound predicate
 	// while remapping source Filter attrs to the target Filter attrs. Returns
 	// NULL when the vectors are incompatible.
@@ -156,6 +164,12 @@ private:
 	// preserving the project element output/schema columns.
 	CExpression *PexprBuildProj(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
+
+	// Compute<e a s>: rebuild an exact ORCA ComputeScalar/LET node from the
+	// captured expression list. The child keeps all of its columns; <a> names
+	// expression dependencies and <s> the newly-defined columns.
+	CExpression *PexprBuildCompute(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const;
 
 	// Rebuild a Global CLogicalGbAgg for corpus Agg<a a f s p> or the extended
 	// Agg<a a a f s p>. The corpus form infers aggregate outputs from schema minus

@@ -1,0 +1,79 @@
+{
+  "description": "The Compute concat replacement preserves an independently movable SRF cohort",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "scope": "upper SRF cohort is independent and the lower layer has no SRF",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "4cbfd2030f34a4cf"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "1,11,1",
+      "1,11,2",
+      "2,21,1",
+      "2,21,2",
+      "3,31,1",
+      "3,31,2"
+    ],
+    "postgres_output": [
+      "1,11,1",
+      "1,11,2",
+      "2,21,1",
+      "2,21,2",
+      "3,31,1",
+      "3,31,2"
+    ]
+  }
+}
