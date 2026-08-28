@@ -300,6 +300,60 @@ FConstraintsHoldWithJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
 	return fHolds;
 }
 
+// Evaluate one commutative orientation in an isolated model. This is used only
+// when the native and reversed key vectors are both compatible with already
+// bound AttrsEq peers. Matching the child templates in the probe supplies the
+// table bindings needed by Unique/Reference/NotNull, without mutating the real
+// match attempt. *pfComplete is false when an outer source symbol is not bound
+// yet, in which case orientation remains deliberately undecided.
+BOOL
+FJoinOrientationConstraintsHold(
+	CMemoryPool *mp, const CDSLRule *prule, const CDSLOp *popJoin,
+	const CDSLSymbol *psymLeft, const CDSLSymbol *psymRight,
+	const CDSLModel *pmodel, CExpression *pexprLeft,
+	CExpression *pexprRight, CColRefArray *pdrgpcrLeft,
+	CColRefArray *pdrgpcrRight, BOOL *pfComplete)
+{
+	GPOS_ASSERT(nullptr != pfComplete);
+	*pfComplete = false;
+	if (nullptr == prule)
+	{
+		return false;
+	}
+
+	CDSLModel *pmodelProbe = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->Pdrgpsym();
+	BOOL fBound = true;
+	for (ULONG ul = 0; fBound && ul < pdrgpsym->Size(); ul++)
+	{
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		if (psym == psymLeft || psym == psymRight)
+		{
+			continue;
+		}
+		CRefCount *pval = pmodel->PvalLookup(psym);
+		if (nullptr != pval)
+		{
+			fBound = pmodelProbe->FBind(psym, pval);
+		}
+	}
+
+	CDSLMatcher matcherProbe(mp, prule);
+	fBound = fBound &&
+		matcherProbe.FMatch((*popJoin)[0], pexprLeft, pmodelProbe) &&
+		matcherProbe.FMatch((*popJoin)[1], pexprRight, pmodelProbe);
+	if (fBound)
+	{
+		*pfComplete = FAllOtherSourceSymbolsBound(
+			prule, psymLeft, psymRight, pmodelProbe);
+	}
+	const BOOL fHolds = fBound && *pfComplete &&
+		FConstraintsHoldWithJoinKeys(mp, prule, psymLeft, psymRight,
+								 pmodelProbe, pdrgpcrLeft, pdrgpcrRight);
+	pmodelProbe->Release();
+	return fHolds;
+}
+
 BOOL
 FTryJoinKeyRepresentatives(
 	CMemoryPool *mp, const CDSLRule *prule, const CDSLSymbol *psymLeft,
@@ -539,7 +593,23 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		const BOOL fReverse = FJoinKeyOrientationCompatible(
 			pdrgpcrExpectedLeft, pdrgpcrExpectedRight, pdrgpcrRight,
 			pdrgpcrLeft);
-		if (!fDirect && fReverse)
+		BOOL fUseReverse = !fDirect && fReverse;
+		if (fDirect && fReverse)
+		{
+			BOOL fDirectComplete = false;
+			BOOL fReverseComplete = false;
+			const BOOL fDirectConstraints = FJoinOrientationConstraintsHold(
+				m_mp, m_prule, popJoin, psymLeft, psymRight, pmodel,
+				pexprLeftRel, pexprRightRel, pdrgpcrLeft, pdrgpcrRight,
+				&fDirectComplete);
+			const BOOL fReverseConstraints = FJoinOrientationConstraintsHold(
+				m_mp, m_prule, popJoin, psymLeft, psymRight, pmodel,
+				pexprRightRel, pexprLeftRel, pdrgpcrRight, pdrgpcrLeft,
+				&fReverseComplete);
+			fUseReverse = fDirectComplete && fReverseComplete &&
+				!fDirectConstraints && fReverseConstraints;
+		}
+		if (fUseReverse)
 		{
 			pexprLeftRel = (*pexprJoin)[1];
 			pexprRightRel = (*pexprJoin)[0];

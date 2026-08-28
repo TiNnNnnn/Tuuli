@@ -150,6 +150,22 @@ CDSLConstraintTest::EresUnittest_UniqueAdmitThroughJoin()
 	CDSLConstraintChecker checker(mp);
 	GPOS_RESULT eres = checker.FCheck(prule, pmodel) ? GPOS_OK : GPOS_FAILED;
 
+	// Adding a column from the other input does not invalidate the anchor-key
+	// proof. The left key still identifies at most one left row and the filtered
+	// composite right key permits at most one match for its join column.
+	CDSLModel *pmodelCombined = GPOS_NEW(mp) CDSLModel(mp);
+	pmodelCombined->FBind(PsymByName(prule, "t0"), pexprJoin);
+	CColRefArray *pdrgpcrCombined = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrCombined->Append((*pdrgpcrLeft)[0]);
+	pdrgpcrCombined->Append((*pdrgpcrRight)[0]);
+	pmodelCombined->FBind(PsymByName(prule, "a0"), pdrgpcrCombined);
+	pdrgpcrCombined->Release();
+	if (!checker.FCheck(prule, pmodelCombined))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelCombined->Release();
 	pmodel->Release();
 	pexprJoin->Release();
 	pexprJoinPred->Release();

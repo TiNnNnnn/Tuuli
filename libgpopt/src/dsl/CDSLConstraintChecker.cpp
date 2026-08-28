@@ -335,8 +335,13 @@ FBinaryJoinPreservesUniqueAttrs(CMemoryPool *mp, CExpression *pexprJoin,
 		}
 		CExpression *pexprAnchor = (*pexprJoin)[ulAnchor];
 		CExpression *pexprOther = (*pexprJoin)[1 - ulAnchor];
-		if (!pexprAnchor->DeriveOutputColumns()->ContainsAll(pcrsAttrs) ||
-			!FExpressionUniqueOnAttrs(mp, pexprAnchor, pcrsAttrs))
+		CColRefSet *pcrsAnchorAttrs = GPOS_NEW(mp) CColRefSet(mp);
+		pcrsAnchorAttrs->Include(pcrsAttrs);
+		pcrsAnchorAttrs->Intersection(pexprAnchor->DeriveOutputColumns());
+		const BOOL fAnchorUnique = 0 < pcrsAnchorAttrs->Size() &&
+			FExpressionUniqueOnAttrs(mp, pexprAnchor, pcrsAnchorAttrs);
+		pcrsAnchorAttrs->Release();
+		if (!fAnchorUnique)
 		{
 			continue;
 		}

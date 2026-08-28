@@ -254,6 +254,39 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 }
 
 BOOL
+CDSLAggMatcher::FMatchDroppedDedup(const CDSLOp *popAgg,
+								 CExpression *pexprMarker,
+								 CDSLModel *pmodel) const
+{
+	const CDSLRule *prule = m_pmatcher->Prule();
+	if (nullptr == prule || popAgg == prule->PfragSrc()->PopRoot() ||
+		1 != popAgg->UlChildren())
+	{
+		return false;
+	}
+
+	CExpression *pexprChild = nullptr;
+	if (!CDSLMatchView::FDroppedDedupIdentity(pexprMarker, &pexprChild))
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = popAgg->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+
+	CColRefArray *pdrgpcrOutput =
+		pexprChild->DeriveOutputColumns()->Pdrgpcr(m_mp);
+	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrOutput) &&
+		pmodel->FBind((*pdrgpsym)[1], pdrgpcrOutput);
+	pdrgpcrOutput->Release();
+	return fBound &&
+		m_pmatcher->FMatch((*popAgg)[0], pexprChild, pmodel);
+}
+
+BOOL
 CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 								 CExpression *pexprAgg,
 								 CExpression *pexprHaving,
@@ -382,6 +415,11 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 	GPOS_ASSERT(EdslopProj == popAgg->Edslop() ||
 				EdslopAgg == popAgg->Edslop());
 	GPOS_ASSERT(nullptr != pexprAgg);
+	if (EdslopProj == popAgg->Edslop() && popAgg->FDistinct() &&
+		FMatchDroppedDedup(popAgg, pexprAgg, pmodel))
+	{
+		return true;
+	}
 
 	CDSLMatchView::SAggregate view;
 	if (!CDSLMatchView::FAggregate(

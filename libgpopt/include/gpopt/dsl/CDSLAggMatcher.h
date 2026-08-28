@@ -78,6 +78,12 @@ private:
 	BOOL FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 					 CDSLModel *pmodel) const;
 
+	// Match a nested Proj* through the identity Select emitted after an earlier
+	// redundant dedup was removed. The child must independently prove that its
+	// complete output is unique; source-root deletion never uses this view.
+	BOOL FMatchDroppedDedup(const CDSLOp *popAgg, CExpression *pexprMarker,
+							CDSLModel *pmodel) const;
+
 	// WeTune represents DISTINCT aggregate inputs as an inner Proj*. ORCA keeps
 	// the same deduplication as CScalarAggFunc::IsDistinct on the outer GbAgg.
 	BOOL FMatchDistinctAggDedup(const CDSLOp *popAgg,

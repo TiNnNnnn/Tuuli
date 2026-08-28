@@ -1,0 +1,28 @@
+{
+  "description": "BottomUp RBO chooses the InnerJoin orientation whose complete Unique/Reference constraints hold",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"rule_id\":84,\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\""
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

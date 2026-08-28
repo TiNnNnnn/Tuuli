@@ -46,6 +46,10 @@ public:
 	// view over its pure Proj* child, allowing a second DSL rule to consume it.
 	static GPOS_RESULT EresUnittest_TrivialSelectContinuesDedupChain();
 
+	// A nested Proj* can consume a Select(TRUE) dedup-removal marker only when
+	// the marker child proves uniqueness on its complete output.
+	static GPOS_RESULT EresUnittest_DroppedDedupFeedsParentProject();
+
 	// A nested Proj* may consume a complete Global dedup carrying minimal-group
 	// provenance, while the same expression remains forbidden for a root-level
 	// Proj* elimination rule.

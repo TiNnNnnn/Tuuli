@@ -1,0 +1,27 @@
+{
+  "description": "BottomUp RBO proves join uniqueness when the DISTINCT attrs span both unique inputs",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"rule_id\":43,\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "1,1",
+      "2,2",
+      "3,3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,2",
+      "3,3"
+    ]
+  }
+}

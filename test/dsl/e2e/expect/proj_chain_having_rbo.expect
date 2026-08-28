@@ -1,0 +1,26 @@
+{
+  "description": "BottomUp RBO preserves a removed dedup as a proven nested Proj* dependency view across HAVING",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"rule_id\":43,\"status\":\"applied_rbo\"",
+        "\"rule_id\":74,\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}

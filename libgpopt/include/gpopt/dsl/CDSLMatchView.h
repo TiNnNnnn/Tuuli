@@ -88,6 +88,13 @@ public:
 						   CExpression **ppexprDedup,
 						   CColRefArray **ppdrgpcrGrouping);
 
+	// A removed redundant Proj* is carried through the memo-free RBO as
+	// Select(child, TRUE). When child already has a key, deduplicating all of its
+	// output columns is an equivalent nested Proj* view. The returned child is
+	// non-owning; the matcher remains responsible for binding its output schema.
+	static BOOL FDroppedDedupIdentity(CExpression *pexpr,
+							 CExpression **ppexprChild);
+
 	// Peel an unmentioned chain of LogicalLimit shells below a Project. Both
 	// returned pointers are non-owning; the first shell is NULL when none exists.
 	static CExpression *PexprPeelOrderLimit(CExpression *pexpr,

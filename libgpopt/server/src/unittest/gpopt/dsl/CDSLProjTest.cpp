@@ -108,6 +108,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain),
 		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_DroppedDedupFeedsParentProject),
+		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_NoFireOnWrongRoot),
 	};
@@ -615,6 +617,100 @@ CDSLProjTest::EresUnittest_TrivialSelectContinuesDedupChain()
 	pexprDedup->Release();
 	pexprMarker->Release();
 	prule->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjTest::EresUnittest_DroppedDedupFeedsParentProject
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_DroppedDedupFeedsParentProject()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *pruleNested =
+		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_DEDUP_CHAIN_RULE);
+	CDSLRule *pruleRoot =
+		PdslruleParseLocal(mp, GPOPT_DSL_ROOT_DEDUP_DROP_RULE);
+	GPOS_ASSERT(nullptr != pruleNested && nullptr != pruleRoot);
+
+	CColRefArray *pdrgpcrUnique = nullptr;
+	CExpression *pexprUnique =
+		fix.PexprLogicalGet("dedup_marker_unique", 2, &pdrgpcrUnique, 0);
+	CExpression *pexprTrue = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *pexprMarker =
+		fix.PexprLogicalSelect(pexprUnique, pexprTrue);
+	pexprTrue->Release();
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprMarker, pdrgpcrUnique);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, pruleNested);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(pruleNested->PfragSrc()->PopRoot(), pexprProject,
+						pmodel) ||
+		!checker.FCheck(pruleNested, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(pruleNested, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalGbAgg != pexprTarget->Pop()->Eopid() ||
+			!pexprProject->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// The marker is a nested dependency carrier, not a new source-root Proj*;
+	// otherwise a dedup-drop rule could repeatedly rewrite its own result.
+	CDSLModel *pmodelRoot = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherRoot(mp, pruleRoot);
+	if (matcherRoot.FMatch(pruleRoot->PfragSrc()->PopRoot(), pexprMarker,
+						pmodelRoot))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	// TRUE alone is insufficient: without a key the child can contain duplicate
+	// full rows, so it cannot represent an already-eliminated Proj*.
+	CColRefArray *pdrgpcrNonUnique = nullptr;
+	CExpression *pexprNonUnique = fix.PexprLogicalGet(
+		"dedup_marker_non_unique", 2, &pdrgpcrNonUnique, gpos::ulong_max);
+	pexprTrue = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *pexprUnsafeMarker =
+		fix.PexprLogicalSelect(pexprNonUnique, pexprTrue);
+	pexprTrue->Release();
+	CExpression *pexprUnsafeProject =
+		fix.PexprLogicalProject(pexprUnsafeMarker, pdrgpcrNonUnique);
+	CDSLModel *pmodelUnsafe = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherUnsafe(mp, pruleNested);
+	if (matcherUnsafe.FMatch(pruleNested->PfragSrc()->PopRoot(),
+						   pexprUnsafeProject, pmodelUnsafe))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodelUnsafe->Release();
+	pmodelRoot->Release();
+	pmodel->Release();
+	pexprUnsafeProject->Release();
+	pexprUnsafeMarker->Release();
+	pexprNonUnique->Release();
+	pexprProject->Release();
+	pexprMarker->Release();
+	pexprUnique->Release();
+	pruleRoot->Release();
+	pruleNested->Release();
 	return eres;
 }
 

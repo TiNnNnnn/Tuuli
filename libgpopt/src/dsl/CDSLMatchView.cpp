@@ -6,6 +6,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLMatchView.h"
 
+#include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -101,6 +102,33 @@ CDSLMatchView::FDedupIdentity(CExpression *pexpr,
 
 	*ppexprDedup = pexprDedup;
 	*ppdrgpcrGrouping = popGbAgg->Pdrgpcr();
+	return true;
+}
+
+BOOL
+CDSLMatchView::FDroppedDedupIdentity(CExpression *pexpr,
+								 CExpression **ppexprChild)
+{
+	GPOS_ASSERT(nullptr != pexpr);
+	GPOS_ASSERT(nullptr != ppexprChild);
+	*ppexprChild = nullptr;
+
+	if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
+		2 != pexpr->Arity() || !CUtils::FScalarConstTrue((*pexpr)[1]))
+	{
+		return false;
+	}
+
+	CExpression *pexprChild = (*pexpr)[0];
+	CColRefSet *pcrsOutput = pexprChild->DeriveOutputColumns();
+	CKeyCollection *pkc = pexprChild->DeriveKeyCollection();
+	if (nullptr == pkc || 0 == pcrsOutput->Size() ||
+		!pkc->FKey(pcrsOutput, false /*fExactMatch*/))
+	{
+		return false;
+	}
+
+	*ppexprChild = pexprChild;
 	return true;
 }
 
