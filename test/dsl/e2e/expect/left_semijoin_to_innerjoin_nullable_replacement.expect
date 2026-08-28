@@ -1,0 +1,29 @@
+{
+  "description": "SemiJoin-to-InnerJoin replacement preserves nullable equality semantics",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "output": [
+      "10"
+    ],
+    "postgres_output": [
+      "10"
+    ]
+  }
+}

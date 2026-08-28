@@ -58,6 +58,14 @@ using namespace gpopt;
 	"AttrsSub(a5,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);"     \
 	"AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0)"
 
+#define GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE                              \
+	"Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|"   \
+	"Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|" \
+	"AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);"                   \
+	"TableEq(t2,t0);TableEq(t3,t1);"                                   \
+	"AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);"     \
+	"AttrsEq(a6,a2);SchemaEq(s3,s1)"
+
 namespace
 {
 CExpression *
@@ -106,6 +114,7 @@ CDSLInSubTest::EresUnittest()
 			CDSLInSubTest::EresUnittest_PushedDownJoinRemap),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_DecorrelatedSemiJoinRemap),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_InSubAsSimpleFilterCarrier),
 		GPOS_UNITTEST_FUNC(
@@ -116,6 +125,59 @@ CDSLInSubTest::EresUnittest()
 			CDSLInSubTest::EresUnittest_RejectsDifferentTable),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PostApplyIdentity)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("semi_to_inner_left", 1, &pdrgpcrLeft, 0);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("semi_to_inner_right", 1, &pdrgpcrRight, 0);
+	CExpression *pexprSemiPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprSemi = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft, pexprRight,
+		pexprSemiPred);
+	CColRefArray *pdrgpcrProject = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrProject->Append((*pdrgpcrLeft)[0]);
+	CExpression *pexprSource =
+		fix.PexprLogicalProject(pexprSemi, pdrgpcrProject);
+	pdrgpcrProject->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							 pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalProject == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				(*pexprTarget)[0]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGbAgg ==
+				(*(*pexprTarget)[0])[1]->Pop()->Eopid());
+	CExpression *pexprTargetPred = (*(*pexprTarget)[0])[2];
+	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
+		(*pdrgpcrLeft)[0]));
+	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
+		(*pdrgpcrRight)[0]));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprSemi->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT

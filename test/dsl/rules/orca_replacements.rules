@@ -6,10 +6,17 @@ InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJ
 
 LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
+Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
+# Line 9 covers the single-key equality branch of
+# CXformLeftSemiJoin2InnerJoin. InSubFilter is the shared view over both the
+# pre-unnest form and CLogicalLeftSemiJoin; the target deduplicates the inner
+# key before joining, preserving semi-join bag multiplicity.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
 # Line 5 is the proved InnerJoin branch of CXformPushJoinBelowLeftUnionAll.
 # Complete source Join output binding lets the new target Union preserve the

@@ -4,8 +4,12 @@
     {
       "name": "on-native-off",
       "native": false,
-      "not_contains": [
+      "trace": true,
+      "contains": [
         "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8c0ea513d6ad3223\""
       ]
     }
   ]

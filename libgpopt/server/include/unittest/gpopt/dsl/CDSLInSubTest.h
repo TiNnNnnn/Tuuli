@@ -22,6 +22,7 @@ public:
 	static GPOS_RESULT EresUnittest_PostApplyRepeatedInElimination();
 	static GPOS_RESULT EresUnittest_PushedDownJoinRemap();
 	static GPOS_RESULT EresUnittest_DecorrelatedSemiJoinRemap();
+	static GPOS_RESULT EresUnittest_SemiJoinToInnerJoin();
 	static GPOS_RESULT EresUnittest_InSubAsSimpleFilterCarrier();
 	static GPOS_RESULT EresUnittest_PreApplyBelowBinaryJoinSpineRemap();
 	static GPOS_RESULT EresUnittest_RejectsNullSupplyingRoute();

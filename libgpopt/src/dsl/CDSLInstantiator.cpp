@@ -1157,13 +1157,11 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //
 //	@doc:
 //		InnerJoin/LeftJoin<a a>: rebuild both relational children and graft the
-//		SOURCE-matched join predicate (recorded on the model by CDSLJoinMatcher),
-//		building the join operator the TARGET op names. Reusing the exact predicate
-//		subtree the matcher saw preserves the equi + non-equi conjuncts (and the
-//		precise comparison ops) — so no predicate is dropped and output columns are
-//		preserved without per-key remapping (rebuilding NEW keys is future work).
-//		Returns NULL if the model carries no join predicate (source was not a join),
-//		in which case the rule simply does not fire.
+//		SOURCE-matched equality predicate, building the join operator the TARGET op
+//		names. Join sources bind it directly; a unique InSub source may supply the
+//		same equality when a proved rule turns a semi-join view into an inner join.
+//		Reusing the exact predicate subtree preserves comparison semantics, while
+//		the shared positional remapper adapts columns to rebuilt target children.
 //---------------------------------------------------------------------------
 CExpression *
 CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
@@ -1186,7 +1184,24 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pmodel->PexprJoinPred(psymLeft, psymRight);
 	if (nullptr == pexprJoinPred)
 	{
-		return nullptr;
+		ULONG ulInSubMatches = 0;
+		const CDSLOp *popSourceInSub = PopOnlyBoundInSub(
+			m_prule->PfragSrc()->PopRoot(), pmodel, &ulInSubMatches);
+		if (1 == ulInSubMatches && nullptr != popSourceInSub &&
+			nullptr != popSourceInSub->Pdrgpsym() &&
+			1 == popSourceInSub->Pdrgpsym()->Size())
+		{
+			const CDSLSymbol *psymInSubAttrs =
+				(*popSourceInSub->Pdrgpsym())[0];
+			if (psymLeft == psymInSubAttrs || psymRight == psymInSubAttrs)
+			{
+				pexprJoinPred = pmodel->PexprInSubPred(psymInSubAttrs);
+			}
+		}
+		if (nullptr == pexprJoinPred)
+		{
+			return nullptr;
+		}
 	}
 
 	CExpression *pexprLeft = PexprBuild((*pop)[0], pmodel);

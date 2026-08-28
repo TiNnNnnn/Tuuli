@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule replaces the single-key equality branch of LeftSemiJoin2InnerJoin",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "scope": "Projected single-key equality semi-join, including nullable keys",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "9dc5c70cd1245677"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}
