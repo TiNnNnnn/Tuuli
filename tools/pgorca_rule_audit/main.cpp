@@ -21,6 +21,7 @@
 
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/init.h"
+#include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/xforms/CXformFactory.h"
 #include "naucrates/init.h"
 
@@ -56,11 +57,59 @@ struct SRuleRecord
 	std::vector<std::string> native_xforms;
 };
 
+struct SXformRecord
+{
+	unsigned long id = 0;
+	std::string name;
+	std::string category;
+	std::string replacement_owner;
+	std::string source_operator;
+	std::vector<unsigned long> source_root_candidate_rule_ids;
+};
+
+BOOL
+FImplementationPropertyExploration(CXform::EXformId id)
+{
+	switch (id)
+	{
+		// Logical access-path generation retained beside physical implementation.
+		case CXform::ExfSelect2IndexGet:
+		case CXform::ExfSelect2DynamicIndexGet:
+		case CXform::ExfSelect2BitmapBoolOp:
+		case CXform::ExfSelect2DynamicBitmapBoolOp:
+		case CXform::ExfJoin2BitmapIndexGetApply:
+		case CXform::ExfJoin2IndexGetApply:
+		case CXform::ExfExpandDynamicGetWithForeignPartitions:
+		case CXform::ExfLimit2IndexGet:
+		case CXform::ExfMinMax2IndexGet:
+		case CXform::ExfMinMax2IndexOnlyGet:
+		case CXform::ExfSelect2IndexOnlyGet:
+		case CXform::ExfSelect2DynamicIndexOnlyGet:
+		case CXform::ExfLimit2IndexOnlyGet:
+		case CXform::ExfSemiJoin2IndexGetApply:
+		// Mandatory DML/distributed physical preparation.
+		case CXform::ExfInsert2DML:
+		case CXform::ExfDelete2DML:
+		case CXform::ExfUpdate2DML:
+		case CXform::ExfSplitLimit:
+		case CXform::ExfSplitGbAgg:
+		case CXform::ExfSplitGbAggDedup:
+		case CXform::ExfSplitDQA:
+		case CXform::ExfGbAggWithMDQA2Join:
+		case CXform::ExfImplementFullOuterMergeJoin:
+		case CXform::ExfSplitWindowFunc:
+			return true;
+		default:
+			return false;
+	}
+}
+
 struct SAudit
 {
 	std::string rules_dir;
 	std::string output_dir;
 	std::vector<SRuleRecord> rules;
+	std::vector<SXformRecord> xforms;
 	std::map<std::string, SFeatureStats> operators;
 	std::map<std::string, unsigned long> constraints;
 	std::map<std::string, unsigned long> reason_counts;
@@ -71,6 +120,9 @@ struct SAudit
 	unsigned long unsupported = 0;
 	unsigned long parse_failed = 0;
 	unsigned long skipped_non_eq = 0;
+	unsigned long semantic_xforms = 0;
+	unsigned long join_enumeration_xforms = 0;
+	unsigned long implementation_property_xforms = 0;
 	std::string fatal_error;
 };
 
@@ -282,7 +334,7 @@ NativeXformCandidates(const CDSLOp *root)
 		}
 		CXform *xform = factory->Pxf(id);
 		if (nullptr == xform || xform->FImplementation() ||
-			(id >= CXform::ExfDSLRuleSelect && id <= CXform::ExfDSLRuleUnionAll))
+			CXform::FPGORCAExploration(id))
 		{
 			continue;
 		}
@@ -349,6 +401,66 @@ AnalyzeRule(CDSLRule *rule, SRuleRecord *record, SAudit *audit)
 }
 
 void
+CollectNativeXforms(SAudit *audit)
+{
+	CXformFactory *factory = CXformFactory::Pxff();
+	GPOS_ASSERT(nullptr != factory);
+	for (ULONG ul = 0; ul < CXform::ExfSentinel; ul++)
+	{
+		const CXform::EXformId id = static_cast<CXform::EXformId>(ul);
+		if (!factory->IsXformIdUsed(id) || CXform::FPGORCAExploration(id))
+		{
+			continue;
+		}
+		CXform *xform = factory->Pxf(id);
+		if (nullptr == xform || !xform->FExploration())
+		{
+			continue;
+		}
+
+		SXformRecord record;
+		record.id = ul;
+		record.name = xform->SzId();
+		CExpression *pattern = xform->PexprPattern();
+		if (nullptr != pattern && nullptr != pattern->Pop())
+		{
+			record.source_operator = pattern->Pop()->SzId();
+		}
+		if (CJobJoinEnumeration::FNativeJoinEnumerationXform(id))
+		{
+			record.category = "join_enumeration";
+			record.replacement_owner =
+				CJobJoinEnumeration::FReplacesNativeXform(id) ? "dphyper"
+														 : "native";
+			audit->join_enumeration_xforms++;
+		}
+		else if (FImplementationPropertyExploration(id))
+		{
+			record.category = "implementation_property";
+			record.replacement_owner = "cascades";
+			audit->implementation_property_xforms++;
+		}
+		else
+		{
+			record.category = "semantic_rewrite";
+			record.replacement_owner = "native";
+			audit->semantic_xforms++;
+		}
+
+		for (const SRuleRecord &rule : audit->rules)
+		{
+			if (rule.native_xforms.end() !=
+				std::find(rule.native_xforms.begin(), rule.native_xforms.end(),
+						  record.name))
+			{
+				record.source_root_candidate_rule_ids.push_back(rule.id);
+			}
+		}
+		audit->xforms.push_back(std::move(record));
+	}
+}
+
+void
 WriteStringArray(std::ostream &out, const std::set<std::string> &values)
 {
 	out << '[';
@@ -395,7 +507,7 @@ WriteReports(const SAudit &audit)
 		return false;
 	}
 
-	json << "{\n  \"schema_version\":1,\n  \"rules_dir\":\""
+	json << "{\n  \"schema_version\":2,\n  \"rules_dir\":\""
 		 << JsonEscape(audit.rules_dir) << "\",\n  \"totals\":{";
 	json << "\"physical_lines\":" << audit.physical_lines
 		 << ",\"candidates\":" << audit.candidates
@@ -403,10 +515,37 @@ WriteReports(const SAudit &audit)
 		 << ",\"supported_static\":" << audit.supported
 		 << ",\"unsupported_static\":" << audit.unsupported
 		 << ",\"parse_failed\":" << audit.parse_failed
-		 << ",\"skipped_non_eq\":" << audit.skipped_non_eq << "},\n";
+		 << ",\"skipped_non_eq\":" << audit.skipped_non_eq
+		 << ",\"native_exploration_xforms\":" << audit.xforms.size()
+		 << ",\"semantic_rewrite_xforms\":" << audit.semantic_xforms
+		 << ",\"join_enumeration_xforms\":"
+		 << audit.join_enumeration_xforms
+		 << ",\"implementation_property_xforms\":"
+		 << audit.implementation_property_xforms << "},\n";
+
+	json << "  \"xforms\":[";
+	bool first = true;
+	for (const SXformRecord &xform : audit.xforms)
+	{
+		json << (first ? "\n" : ",\n") << "    {\"id\":" << xform.id
+			 << ",\"name\":\"" << JsonEscape(xform.name)
+			 << "\",\"category\":\"" << xform.category
+			 << "\",\"replacement_owner\":\"" << xform.replacement_owner
+			 << "\",\"source_operator\":\""
+			 << JsonEscape(xform.source_operator)
+			 << "\",\"source_root_candidate_rule_ids\":[";
+		for (size_t i = 0; i < xform.source_root_candidate_rule_ids.size(); i++)
+		{
+			json << (0 == i ? "" : ",")
+				 << xform.source_root_candidate_rule_ids[i];
+		}
+		json << "]}";
+		first = false;
+	}
+	json << (first ? "" : "\n  ") << "],\n";
 
 	json << "  \"operators\":[";
-	bool first = true;
+	first = true;
 	for (const auto &entry : audit.operators)
 	{
 		json << (first ? "\n" : ",\n") << "    {\"name\":\""
@@ -599,6 +738,10 @@ RunAudit(void *argument)
 	SAudit *audit = static_cast<SAudit *>(argument);
 	CAutoMemoryPool amp;
 	AuditFiles(amp.Pmp(), audit);
+	if (audit->fatal_error.empty())
+	{
+		CollectNativeXforms(audit);
+	}
 	return nullptr;
 }
 }  // namespace
@@ -658,7 +801,12 @@ main(int argc, char **argv)
 			  << " supported_static=" << audit.supported
 			  << " unsupported_static=" << audit.unsupported
 			  << " parse_failed=" << audit.parse_failed
-			  << " skipped_non_eq=" << audit.skipped_non_eq << std::endl;
+			  << " skipped_non_eq=" << audit.skipped_non_eq
+			  << " native_exploration=" << audit.xforms.size()
+			  << " semantic_rewrite=" << audit.semantic_xforms
+			  << " join_enumeration=" << audit.join_enumeration_xforms
+			  << " implementation_property="
+			  << audit.implementation_property_xforms << std::endl;
 	std::cout << "Reports: " << audit.output_dir << std::endl;
 	return 0;
 }

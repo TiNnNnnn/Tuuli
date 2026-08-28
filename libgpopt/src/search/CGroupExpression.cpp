@@ -97,8 +97,7 @@ CGroupExpression::CGroupExpression(CMemoryPool *mp, COperator *pop,
 BOOL
 CGroupExpression::FDSLRuleXform(CXform::EXformId exfid)
 {
-	return CXform::ExfDSLRuleSelect <= exfid &&
-		   exfid <= CXform::ExfDSLRuleLimit;
+	return CXform::FDSLShell(exfid);
 }
 
 

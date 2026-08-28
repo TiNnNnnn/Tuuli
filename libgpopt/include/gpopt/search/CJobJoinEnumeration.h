@@ -15,6 +15,7 @@
 #include "gpos/common/CWallClock.h"
 
 #include "gpopt/search/CJob.h"
+#include "gpopt/xforms/CXform.h"
 
 namespace gpopt
 {
@@ -58,6 +59,14 @@ public:
 	void Init(CGroupExpression *pgexpr);
 	static void ScheduleJob(CSchedulerContext *psc, CGroupExpression *pgexpr,
 						CJob *parent);
+
+	// True for native join-order exploration xforms whose search-space owner is
+	// replaced by this whole-region job after successful DPHyper enumeration.
+	static BOOL FReplacesNativeXform(CXform::EXformId exfid);
+
+	// True for the complete native join-order exploration family, including
+	// null-aware NOT IN swaps that DPHyper deliberately does not yet own.
+	static BOOL FNativeJoinEnumerationXform(CXform::EXformId exfid);
 
 	BOOL FExecute(CSchedulerContext *psc) override;
 

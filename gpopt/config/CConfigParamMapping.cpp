@@ -459,8 +459,7 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 						 errmsg("unrecognized xform in pg_orca.dsl_only_xforms: %s",
 								szName)));
 			}
-			if (pxform->Exfid() >= CXform::ExfDSLRuleSelect &&
-				pxform->Exfid() <= CXform::ExfDSLRuleUnionAll)
+			if (CXform::FPGORCAExploration(pxform->Exfid()))
 			{
 				ereport(ERROR,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),

@@ -37,44 +37,70 @@ using namespace gpopt;
 namespace
 {
 void
+ClearNativeJoinEnumerationXform(CXformSet *xform_set,
+								CXform::EXformId exfid)
+{
+	GPOS_ASSERT(CJobJoinEnumeration::FReplacesNativeXform(exfid));
+	(void) xform_set->ExchangeClear(exfid);
+}
+
+void
 ClearDPHyperJoinEnumeration(CXformSet *xform_set,
 							COperator::EOperatorId op_id)
 {
+	// The operator switch documents which region root owns each candidate. The
+	// central membership predicate is also consumed by replacement inventory, so
+	// search behavior and audit classification cannot drift independently.
 	switch (op_id)
 	{
 		case COperator::EopLogicalInnerJoin:
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfInnerJoinCommutativity);
-			(void) xform_set->ExchangeClear(CXform::ExfJoinAssociativity);
-			(void) xform_set->ExchangeClear(CXform::ExfInnerJoinSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set, CXform::ExfJoinAssociativity);
+			ClearNativeJoinEnumerationXform(
+				xform_set, CXform::ExfInnerJoinSemiJoinSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfInnerJoinAntiSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfInnerJoinAntiSemiJoinNotInSwap);
 			break;
 		case COperator::EopLogicalLeftOuterJoin:
-			(void) xform_set->ExchangeClear(CXform::ExfLeftJoin2RightJoin);
+			ClearNativeJoinEnumerationXform(
+				xform_set, CXform::ExfLeftJoin2RightJoin);
 			break;
 		case COperator::EopLogicalLeftSemiJoin:
-			(void) xform_set->ExchangeClear(CXform::ExfSemiJoinSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set, CXform::ExfSemiJoinSemiJoinSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfSemiJoinAntiSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfSemiJoinAntiSemiJoinNotInSwap);
-			(void) xform_set->ExchangeClear(CXform::ExfSemiJoinInnerJoinSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set, CXform::ExfSemiJoinInnerJoinSwap);
 			break;
 		case COperator::EopLogicalLeftAntiSemiJoin:
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfAntiSemiJoinAntiSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfAntiSemiJoinSemiJoinSwap);
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfAntiSemiJoinInnerJoinSwap);
 			break;
 		case COperator::EopLogicalFullOuterJoin:
-			(void) xform_set->ExchangeClear(
+			ClearNativeJoinEnumerationXform(
+				xform_set,
 				CXform::ExfFullJoinCommutativity);
 			break;
 		default:

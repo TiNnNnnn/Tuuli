@@ -29,6 +29,7 @@
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
+#include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -54,11 +55,56 @@ CDSLEngineTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_CapabilityMetadata),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_DSLProvenance),
 		GPOS_UNITTEST_FUNC(
+			CDSLEngineTest::EresUnittest_DPHyperNativeOwnership),
+		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_DPHyperNativeOwnership()
+{
+	if (!CXform::FDSLShell(CXform::ExfDSLRuleLimit) ||
+		CXform::FDSLShell(CXform::ExfDPHyperJoinRegion) ||
+		!CXform::FPGORCAExploration(CXform::ExfDPHyperJoinRegion) ||
+		CXform::FPGORCAExploration(CXform::ExfSimplifyGbAgg))
+	{
+		return GPOS_FAILED;
+	}
+	CXformFactory *factory = CXformFactory::Pxff();
+	if (nullptr == factory)
+	{
+		return GPOS_FAILED;
+	}
+
+	ULONG join_enumeration = 0;
+	ULONG owned = 0;
+	for (ULONG ul = 0; ul < CXform::ExfDSLRuleSelect; ul++)
+	{
+		const CXform::EXformId exfid = static_cast<CXform::EXformId>(ul);
+		if (!CJobJoinEnumeration::FNativeJoinEnumerationXform(exfid))
+		{
+			continue;
+		}
+		if (!factory->IsXformIdUsed(exfid) ||
+			!factory->Pxf(exfid)->FExploration())
+		{
+			return GPOS_FAILED;
+		}
+		join_enumeration++;
+		owned += CJobJoinEnumeration::FReplacesNativeXform(exfid) ? 1 : 0;
+	}
+
+	return 19 == join_enumeration && 15 == owned &&
+			!CJobJoinEnumeration::FReplacesNativeXform(
+				CXform::ExfSimplifyGbAgg) &&
+			!CJobJoinEnumeration::FReplacesNativeXform(
+				CXform::ExfImplementFullOuterMergeJoin)
+		? GPOS_OK
+		: GPOS_FAILED;
 }
 
 namespace

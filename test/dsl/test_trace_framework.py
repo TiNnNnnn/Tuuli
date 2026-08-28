@@ -15,6 +15,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from build_reference_manifest import build_manifest
+from build_xform_replacement_inventory import merge_inventory
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
@@ -39,6 +40,47 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_replacement_inventory_merges_runtime_and_causal_evidence(self) -> None:
+        runtime = {
+            "xforms": [
+                {"name": "CXformSimplifyGbAgg", "category": "semantic_rewrite"},
+                {
+                    "name": "CXformJoinAssociativity",
+                    "category": "join_enumeration",
+                    "replacement_owner": "dphyper",
+                },
+                {
+                    "name": "CXformImplementFullOuterMergeJoin",
+                    "category": "implementation_property",
+                },
+            ]
+        }
+        matrices = [
+            {
+                "case": "simplify",
+                "xforms": ["CXformSimplifyGbAgg"],
+                "scope": "key-backed pure dedup",
+                "status": "verified_partial_replacement",
+                "dsl_rules": [101],
+            }
+        ]
+
+        inventory = merge_inventory(runtime, matrices)
+
+        self.assertEqual(inventory["summary"]["verified_partial_xforms"], 1)
+        self.assertEqual(
+            inventory["xforms"][0]["replacement_status"],
+            "verified_partial_replacement",
+        )
+        self.assertEqual(
+            inventory["xforms"][1]["replacement_status"],
+            "replaced_by_dphyper",
+        )
+        self.assertEqual(
+            inventory["xforms"][2]["replacement_status"],
+            "retained_in_cascades",
+        )
+
     def test_replacement_matrix_requires_causal_four_states(self) -> None:
         matrix = {
             "replacement": {"xforms": ["CXformSimplifyGbAgg"]},

@@ -41,6 +41,51 @@
 
 using namespace gpopt;
 
+BOOL
+CJobJoinEnumeration::FReplacesNativeXform(CXform::EXformId exfid)
+{
+	switch (exfid)
+	{
+		case CXform::ExfInnerJoinCommutativity:
+		case CXform::ExfJoinAssociativity:
+		case CXform::ExfInnerJoinSemiJoinSwap:
+		case CXform::ExfInnerJoinAntiSemiJoinSwap:
+		case CXform::ExfInnerJoinAntiSemiJoinNotInSwap:
+		case CXform::ExfLeftJoin2RightJoin:
+		case CXform::ExfSemiJoinSemiJoinSwap:
+		case CXform::ExfSemiJoinAntiSemiJoinSwap:
+		case CXform::ExfSemiJoinAntiSemiJoinNotInSwap:
+		case CXform::ExfSemiJoinInnerJoinSwap:
+		case CXform::ExfAntiSemiJoinAntiSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap:
+		case CXform::ExfAntiSemiJoinSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinInnerJoinSwap:
+		case CXform::ExfFullJoinCommutativity:
+			return true;
+		default:
+			return false;
+	}
+}
+
+BOOL
+CJobJoinEnumeration::FNativeJoinEnumerationXform(CXform::EXformId exfid)
+{
+	if (FReplacesNativeXform(exfid))
+	{
+		return true;
+	}
+	switch (exfid)
+	{
+		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinNotInSwap:
+		case CXform::ExfAntiSemiJoinNotInSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinNotInInnerJoinSwap:
+			return true;
+		default:
+			return false;
+	}
+}
+
 namespace
 {
 class CSubsetGroups

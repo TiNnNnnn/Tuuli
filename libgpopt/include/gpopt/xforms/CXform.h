@@ -261,6 +261,18 @@ public:
 		ExfSentinel = ExfInvalid
 	};
 
+	static BOOL
+	FDSLShell(EXformId exfid)
+	{
+		return ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit;
+	}
+
+	static BOOL
+	FPGORCAExploration(EXformId exfid)
+	{
+		return FDSLShell(exfid) || ExfDPHyperJoinRegion == exfid;
+	}
+
 	// promise levels;
 	// used for prioritizing xforms as well as bypassing inapplicable xforms
 	enum EXformPromise

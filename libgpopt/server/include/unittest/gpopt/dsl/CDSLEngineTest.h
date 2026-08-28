@@ -61,6 +61,10 @@ public:
 	// expressions
 	static GPOS_RESULT EresUnittest_DSLProvenance();
 
+	// DPHyper's replacement inventory is exactly the native join-enumeration
+	// family disabled after successful whole-region enumeration.
+	static GPOS_RESULT EresUnittest_DPHyperNativeOwnership();
+
 	// reachability remains safe while rehash has a transient empty child group
 	static GPOS_RESULT EresUnittest_ReachableTransientEmptyGroup();
 
