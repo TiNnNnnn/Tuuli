@@ -1,37 +1,57 @@
 {
   "description": "Eliminating InSub target preserves a residual predicate",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "positive single-column IN under Select with a residual predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rules": [
+      8
+    ]
+  },
   "plans": [
     {
-      "name": "off-native-on",
+      "name": "native",
       "dsl": false,
-      "contains": [
-        "Optimizer: pg_orca"
-      ],
-      "joins": 1
-    },
-    {
-      "name": "on-native-on",
       "trace": true,
       "contains": [
         "Optimizer: pg_orca"
       ],
       "alternative": [
+        "CXformSelect2Apply"
+      ],
+      "joins": 1
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_id\":8,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply",
         "CXformDSLRule_InSub"
       ],
       "joins": 0
     },
     {
-      "name": "off-native-off",
+      "name": "negative",
       "dsl": false,
-      "native": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
       "not_contains": [
         "Optimizer: pg_orca"
       ]
     },
     {
-      "name": "on-native-off",
-      "native": false,
+      "name": "replacement",
       "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
       "contains": [
         "Optimizer: pg_orca",
         "stage=applied bindings=",
@@ -49,8 +69,10 @@
     },
     {
       "name": "all-rules-bottom-up-rbo",
-      "native": false,
       "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
         "Optimizer: pg_orca",
@@ -62,7 +84,9 @@
     }
   ],
   "rows": {
-    "native": false,
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
     "policy": "wetune_bottom_up_rbo.policy",
     "output": [
       "2,20",
