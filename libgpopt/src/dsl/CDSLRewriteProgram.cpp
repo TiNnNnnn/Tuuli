@@ -287,6 +287,7 @@ CDSLRewriteProgram::ReserveBudget(const Path &path,
 void
 CDSLRewriteProgram::ObserveReadyAlternatives(
 	const Path &path, CExpression *pexprRoot, CExpression *pexprSource,
+	const CDSLRule *pruleSelected,
 	const std::vector<const CDSLRule *> &ordered, ULONG ulFirst)
 {
 	// This is validation telemetry, not search. With tracing disabled the RBO
@@ -329,7 +330,7 @@ CDSLRewriteProgram::ObserveReadyAlternatives(
 		CExpression *pexprShadowNode = PexprResolve(pexprShadowRoot, path);
 		m_pengine->TraceRBOOutcome(
 			m_mp, prule, &policy, decision, pexprSource, pexprShadowNode,
-			"applicable_rbo", "source_replaced_by_prior_rule");
+			"applicable_rbo", "source_replaced_by_prior_rule", pruleSelected);
 		m_ulApplicableAlternatives++;
 		pexprShadowRoot->Release();
 		GPOS_DELETE(decision);
@@ -457,7 +458,7 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
 								 pexprNewNode, "applied_rbo",
 								 "source_alternative_replaced");
-		ObserveReadyAlternatives(path, pexprRoot, pexprSource, ordered,
+		ObserveReadyAlternatives(path, pexprRoot, pexprSource, prule, ordered,
 							 ulRule + 1);
 		*ppexprNewRoot = pexprNewRoot;
 		GPOS_DELETE(decision);

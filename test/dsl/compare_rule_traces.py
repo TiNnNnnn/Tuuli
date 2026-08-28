@@ -81,7 +81,7 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
             "cycle_rejected",
             "applied",
             "applied_rbo",
-			"applicable_rbo",
+            "applicable_rbo",
             "duplicate",
         },
     )

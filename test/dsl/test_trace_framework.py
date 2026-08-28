@@ -219,19 +219,19 @@ class TraceFrameworkTest(unittest.TestCase):
         cases = [
             {
                 "missing_rewritten": [],
-				"missing_capable": [],
+                "missing_capable": [],
                 "inconclusive_budget": [],
                 "candidate_extra": [],
             },
             {
                 "missing_rewritten": [],
-				"missing_capable": [],
+                "missing_capable": [],
                 "inconclusive_budget": [],
                 "candidate_extra": [17],
             },
             {
                 "missing_rewritten": [6],
-				"missing_capable": [6],
+                "missing_capable": [6],
                 "inconclusive_budget": [],
                 "candidate_extra": [17],
             },
@@ -246,16 +246,40 @@ class TraceFrameworkTest(unittest.TestCase):
             {
                 "comparable": 3,
                 "subset_aligned": 2,
-				"capability_subset_aligned": 2,
+                "capability_subset_aligned": 2,
                 "exact_trigger_set": 1,
                 "missing_rule_distribution": {6: 1},
-				"missing_capability_distribution": {6: 1},
+                "missing_capability_distribution": {6: 1},
                 "extra_rule_distribution": {17: 2},
+                "priority_conflicts": [],
                 "application_status_distribution": {
                     "applied_rbo": 1,
                     "duplicate": 1,
                 },
             },
+        )
+
+    def test_alignment_summary_reports_priority_conflicts(self) -> None:
+        records = [
+            {
+                "kind": "application",
+                "rule_id": 32,
+                "status": "applicable_rbo",
+                "selected_rule_id": 21,
+            },
+            {
+                "kind": "application",
+                "rule_id": 32,
+                "status": "applicable_rbo",
+                "selected_rule_id": 21,
+            },
+        ]
+
+        summary = alignment_summary([], records)
+
+        self.assertEqual(
+            summary["priority_conflicts"],
+            [{"selected_rule_id": 21, "applicable_rule_id": 32, "count": 2}],
         )
 
     def test_manifest_rule_ids_must_exist_in_supplied_rule_set(self) -> None:

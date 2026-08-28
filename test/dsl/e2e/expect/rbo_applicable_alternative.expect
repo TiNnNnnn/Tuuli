@@ -8,7 +8,8 @@
       "contains": [
         "\"rule_id\":43,\"status\":\"applied_rbo\"",
         "\"rule_id\":101,\"status\":\"applicable_rbo\"",
-        "\"reason\":\"source_replaced_by_prior_rule\""
+        "\"reason\":\"source_replaced_by_prior_rule\"",
+        "\"selected_rule_id\":43"
       ],
       "not_contains": [
         "\"rule_id\":101,\"status\":\"applied_rbo\""

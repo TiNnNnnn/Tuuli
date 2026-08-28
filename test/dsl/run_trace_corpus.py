@@ -195,6 +195,16 @@ def alignment_summary(
         for record in records
         if record.get("kind") == "application" and isinstance(record.get("status"), str)
     )
+    priority_conflicts = Counter(
+        (record.get("selected_rule_id"), record.get("rule_id"))
+        for record in records
+        if record.get("kind") == "application"
+        and record.get("status") == "applicable_rbo"
+        and isinstance(record.get("selected_rule_id"), int)
+        and not isinstance(record.get("selected_rule_id"), bool)
+        and isinstance(record.get("rule_id"), int)
+        and not isinstance(record.get("rule_id"), bool)
+    )
     return {
         "comparable": len(comparable),
         "subset_aligned": subset_aligned,
@@ -205,6 +215,16 @@ def alignment_summary(
             sorted(missing_capable_rules.items())
         ),
         "extra_rule_distribution": dict(sorted(extra_rules.items())),
+        "priority_conflicts": [
+            {
+                "selected_rule_id": selected,
+                "applicable_rule_id": applicable,
+                "count": count,
+            }
+            for (selected, applicable), count in sorted(
+                priority_conflicts.items()
+            )
+        ],
         "application_status_distribution": dict(sorted(application_statuses.items())),
     }
 

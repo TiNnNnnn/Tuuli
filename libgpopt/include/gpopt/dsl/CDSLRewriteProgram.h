@@ -104,6 +104,7 @@ private:
 					   const SDSLRulePolicy &policy, ULONG ulAddedNodes);
 	void ObserveReadyAlternatives(
 		const Path &path, CExpression *pexprRoot, CExpression *pexprSource,
+		const CDSLRule *pruleSelected,
 		const std::vector<const CDSLRule *> &ordered, ULONG ulFirst);
 
 	// Try candidates of one traversal cohort at a node. On success ownership of

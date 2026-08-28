@@ -640,7 +640,8 @@ CDSLRuleEngine::TraceRBOOutcome(
 	CMemoryPool *mp, const CDSLRule *prule,
 	const SDSLRulePolicy *policy,
 	const CDSLRewriteDecision *pdecision, CExpression *pexprSource,
-	CExpression *pexprTarget, const CHAR *szStatus, const CHAR *szReason) const
+	CExpression *pexprTarget, const CHAR *szStatus, const CHAR *szReason,
+	const CDSLRule *pruleSelected) const
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 		return;
@@ -675,6 +676,12 @@ CDSLRuleEngine::TraceRBOOutcome(
 		os << ",\"target_fingerprint\":" << targetFingerprint;
 	if (nullptr != szReason)
 		os << ",\"reason\":\"" << szReason << "\"";
+	if (nullptr != pruleSelected)
+	{
+		os << ",\"selected_rule_id\":" << UlRuleId(pruleSelected)
+		   << ",\"selected_rule_hash\":\""
+		   << pruleSelected->SzIdentity() << "\"";
+	}
 	if (nullptr != pdecision)
 	{
 		os << ",\"match_us\":" << pdecision->UlMatchUs()
