@@ -1,0 +1,7 @@
+Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a1);SchemaEq(s2,s1)
+
+# Rules in this file exist only to replace native ORCA logical xforms. Each
+# rule must be independently proved before admission and carry causal E2E.
+# Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
+# equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

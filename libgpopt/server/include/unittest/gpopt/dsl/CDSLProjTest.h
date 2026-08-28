@@ -55,6 +55,10 @@ public:
 	// Proj* elimination rule.
 	static GPOS_RESULT EresUnittest_NestedProjStarConsumesGeneratedDedup();
 
+	// A proved nested-Proj* collapse accepts grouping subsets and rejects
+	// aggregate-bearing or Local GbAgg implementation stages.
+	static GPOS_RESULT EresUnittest_CollapseGbAggRuleBoundaries();
+
 	// a non-trivial Select does NOT fire a Proj-rooted rule.
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();
 };	// class CDSLProjTest

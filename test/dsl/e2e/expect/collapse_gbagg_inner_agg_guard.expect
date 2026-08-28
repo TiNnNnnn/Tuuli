@@ -1,0 +1,24 @@
+{
+  "description": "Nested-dedup replacement rejects an inner GbAgg that defines an aggregate function",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

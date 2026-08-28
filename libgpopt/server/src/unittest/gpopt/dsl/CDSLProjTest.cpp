@@ -58,6 +58,12 @@ using namespace gpopt;
 	"AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);"       \
 	"SchemaEq(s1,s0)"
 
+#define GPOPT_DSL_COLLAPSE_DEDUP_RULE                                  \
+	"Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|"                            \
+	"Proj*<a2 s2>(Input<t1>)|"                                         \
+	"AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);"                   \
+	"AttrsEq(a2,a1);SchemaEq(s2,s1)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -111,10 +117,120 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_DroppedDedupFeedsParentProject),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_CollapseGbAggRuleBoundaries),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLProjTest::EresUnittest_CollapseGbAggRuleBoundaries
+//
+//	@doc:
+//		The proved nested-Proj* rule consumes both equal and strict grouping
+//		subsets, but never treats aggregate-bearing or Local GbAgg nodes as pure
+//		deduplication. These are the semantic guards of CXformCollapseGbAgg.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_CollapseGbAggRuleBoundaries()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_COLLAPSE_DEDUP_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"collapse_dedup", 3, &pdrgpcrInput, gpos::ulong_max);
+	CColRefArray *pdrgpcrInner = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrInner->Append((*pdrgpcrInput)[0]);
+	pdrgpcrInner->Append((*pdrgpcrInput)[1]);
+	CColRefArray *pdrgpcrOuter = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrOuter->Append((*pdrgpcrInput)[0]);
+
+	CExpression *pexprInner =
+		fix.PexprLogicalGbAgg(pexprGet, pdrgpcrInner);
+	CExpression *pexprOuter =
+		fix.PexprLogicalGbAgg(pexprInner, pdrgpcrOuter);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprOuter, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalGbAgg != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg == (*pexprTarget)[0]->Pop()->Eopid() ||
+			!pexprOuter->DeriveOutputColumns()->Equals(
+				pexprTarget->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// An aggregate function on the inner GbAgg invalidates its Proj* view.
+	CColRef *pcrAgg = fix.PcrCreateInt4("collapse_max");
+	CExpression *pexprInnerAgg = fix.PexprLogicalGbAgg(
+		pexprGet, pdrgpcrInner, pcrAgg, (*pdrgpcrInput)[2]);
+	CExpression *pexprOuterOverAgg =
+		fix.PexprLogicalGbAgg(pexprInnerAgg, pdrgpcrOuter);
+	CDSLModel *pmodelAgg = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherAgg(mp, prule);
+	if (matcherAgg.FMatch(prule->PfragSrc()->PopRoot(), pexprOuterOverAgg,
+						pmodelAgg))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	// A Local aggregate is an implementation stage, not a user-level Proj*.
+	CExpressionArray *pdrgpexprEmpty = GPOS_NEW(mp) CExpressionArray(mp);
+	CExpression *pexprEmptyList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprEmpty);
+	pdrgpcrInner->AddRef();
+	pexprGet->AddRef();
+	CExpression *pexprInnerLocal = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalGbAgg(
+			mp, pdrgpcrInner, COperator::EgbaggtypeLocal),
+		pexprGet, pexprEmptyList);
+	CExpression *pexprOuterOverLocal =
+		fix.PexprLogicalGbAgg(pexprInnerLocal, pdrgpcrOuter);
+	CDSLModel *pmodelLocal = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherLocal(mp, prule);
+	if (matcherLocal.FMatch(prule->PfragSrc()->PopRoot(),
+						  pexprOuterOverLocal, pmodelLocal))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodelLocal->Release();
+	pmodelAgg->Release();
+	pmodel->Release();
+	pexprOuterOverLocal->Release();
+	pexprInnerLocal->Release();
+	pexprOuterOverAgg->Release();
+	pexprInnerAgg->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	pexprGet->Release();
+	pdrgpcrOuter->Release();
+	pdrgpcrInner->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

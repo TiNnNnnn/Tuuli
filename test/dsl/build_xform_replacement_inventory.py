@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +37,22 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
             or any(not isinstance(rule_id, int) or rule_id <= 0 for rule_id in rules)
         ):
             raise ValueError(f"{path}: replacement.dsl_rules must be positive ids")
+        rule_hashes = replacement.get("dsl_rule_hashes", [])
+        if (
+            not isinstance(rule_hashes, list)
+            or any(
+                not isinstance(rule_hash, str)
+                or re.fullmatch(r"[0-9a-f]{16}", rule_hash) is None
+                for rule_hash in rule_hashes
+            )
+        ):
+            raise ValueError(
+                f"{path}: replacement.dsl_rule_hashes must be 16-digit lowercase hex"
+            )
+        if not rules and not rule_hashes:
+            raise ValueError(
+                f"{path}: replacement must identify at least one DSL rule"
+            )
         scope = replacement.get("scope")
         if not isinstance(scope, str) or not scope.strip():
             raise ValueError(f"{path}: replacement.scope must be non-empty")
@@ -46,6 +63,7 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
                 "scope": scope,
                 "status": status,
                 "dsl_rules": rules,
+                "dsl_rule_hashes": rule_hashes,
             }
         )
     return matrices
@@ -93,8 +111,10 @@ def merge_inventory(
                     f"to {entry['category']} xform {name}"
                 )
             evidence = {
-                key: matrix[key]
-                for key in ("case", "scope", "status", "dsl_rules")
+                key: matrix.get(key, [] if key.startswith("dsl_rule") else None)
+                for key in (
+                    "case", "scope", "status", "dsl_rules", "dsl_rule_hashes"
+                )
             }
             entry["evidence"].append(evidence)
             if STATUS_RANK[matrix["status"]] > STATUS_RANK[

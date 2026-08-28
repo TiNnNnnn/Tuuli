@@ -62,6 +62,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 "scope": "key-backed pure dedup",
                 "status": "verified_partial_replacement",
                 "dsl_rules": [101],
+                "dsl_rule_hashes": ["0123456789abcdef"],
             }
         ]
 
@@ -71,6 +72,10 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(
             inventory["xforms"][0]["replacement_status"],
             "verified_partial_replacement",
+        )
+        self.assertEqual(
+            inventory["xforms"][0]["evidence"][0]["dsl_rule_hashes"],
+            ["0123456789abcdef"],
         )
         self.assertEqual(
             inventory["xforms"][1]["replacement_status"],

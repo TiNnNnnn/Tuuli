@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 RULE_FILE="${DSL_RULE_FILE:-$SCRIPT_DIR/rules/framework.rules}"
+REPLACEMENT_RULE_FILE="${DSL_REPLACEMENT_RULE_FILE:-$SCRIPT_DIR/rules/orca_replacements.rules}"
 SQL_DIR="${DSL_E2E_SQL_DIR:-$SCRIPT_DIR/e2e/sql}"
 EXPECT_DIR="${DSL_E2E_EXPECT_DIR:-$SCRIPT_DIR/e2e/expect}"
 POLICY_DIR="${DSL_E2E_POLICY_DIR:-$SCRIPT_DIR/rules}"
@@ -57,6 +58,9 @@ fi
 if [[ ! -r "$RULE_FILE" ]]; then
     fail "rule fixture not found: $RULE_FILE"
 fi
+if [[ ! -r "$REPLACEMENT_RULE_FILE" ]]; then
+    fail "ORCA replacement rule fixture not found: $REPLACEMENT_RULE_FILE"
+fi
 if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
     fail "DSL_E2E_PORT must be an integer between 1 and 65535"
 fi
@@ -72,10 +76,17 @@ mkdir -p "$ARTIFACT_DIR" "$RESULT_DIR" "$DIFF_DIR"
 DSL_E2E_ROOT="$(mktemp -d /tmp/pgorca-dsl-e2e.XXXXXX)"
 DATA_DIR="$DSL_E2E_ROOT/data"
 SOCKET_DIR="$DSL_E2E_ROOT/socket"
+RULE_BUNDLE="$DSL_E2E_ROOT/e2e.rules"
 SERVER_LOG="$ARTIFACT_DIR/postgresql.log"
 SERVER_STARTED=0
 mkdir -p "$SOCKET_DIR"
 : >"$SERVER_LOG"
+
+# Keep engine-capability regression rules and proved ORCA replacement rules in
+# separate maintained files. The current engine accepts one library path, so
+# E2E presents their deterministic concatenation without changing either asset.
+awk 'FNR == 1 && NR != 1 { print "" } { print }' \
+    "$RULE_FILE" "$REPLACEMENT_RULE_FILE" >"$RULE_BUNDLE"
 
 cleanup()
 {
@@ -93,7 +104,7 @@ trap cleanup EXIT
 "$PG_BINDIR/initdb" -D "$DATA_DIR" --no-locale --encoding=UTF8 --auth=trust \
     >"$ARTIFACT_DIR/initdb.log"
 
-MONSOON_DSL_RULES="$RULE_FILE" \
+MONSOON_DSL_RULES="$RULE_BUNDLE" \
     "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
     -o "-c listen_addresses='' -c logging_collector=off -k $SOCKET_DIR -p $PORT" \
     start

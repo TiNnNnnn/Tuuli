@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule replaces pure-dedup GbAgg collapse when the outer grouping is a strict subset",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "scope": "all grouping-subset branches; equal-grouping and aggregate/local guards are covered by companion cases",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "81e937ce3b542473"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseGbAgg"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+      ],
+      "alternative": [
+        "CXformCollapseGbAgg",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseGbAgg"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

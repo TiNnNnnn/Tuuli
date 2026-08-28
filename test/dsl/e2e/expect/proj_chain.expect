@@ -1,14 +1,13 @@
 {
-  "description": "A generated Proj alternative replaces pure-dedup GbAgg collapse",
+  "description": "A proved nested-dedup rule replaces pure-dedup GbAgg collapse for equal grouping columns",
   "replacement": {
     "xforms": [
       "CXformCollapseGbAgg"
     ],
     "scope": "cascaded pure-dedup grouping with equal grouping columns",
     "status": "verified_partial_replacement",
-    "dsl_rules": [
-      43,
-      74
+    "dsl_rule_hashes": [
+      "81e937ce3b542473"
     ]
   },
   "plans": [
@@ -24,8 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"rule_id\":43,\"status\":\"applied\"",
-        "\"rule_id\":74,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
       ],
       "alternative": [
         "CXformCollapseGbAgg",
@@ -51,8 +49,7 @@
         "CXformCollapseGbAgg"
       ],
       "contains": [
-        "\"rule_id\":43,\"status\":\"applied\"",
-        "\"rule_id\":74,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
       ],
       "alternative": [
         "CXformDSLRule_Agg",
