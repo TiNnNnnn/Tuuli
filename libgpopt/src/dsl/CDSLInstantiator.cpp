@@ -589,10 +589,14 @@ PexprRemapSetOpChild(CMemoryPool *mp, CExpression *pexpr,
 //		CDSLInstantiator::CDSLInstantiator
 //---------------------------------------------------------------------------
 CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
-	: m_mp(mp), m_phmAlias(nullptr), m_prule(nullptr)
+	: m_mp(mp),
+	  m_phmAlias(nullptr),
+	  m_prule(nullptr),
+	  m_pdrgpsymBuiltInputs(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmAlias = GPOS_NEW(mp) CDSLSymbolAliasMap(mp);
+	m_pdrgpsymBuiltInputs = GPOS_NEW(mp) CDSLSymbolArray(mp);
 }
 
 //---------------------------------------------------------------------------
@@ -601,6 +605,7 @@ CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
 //---------------------------------------------------------------------------
 CDSLInstantiator::~CDSLInstantiator()
 {
+	m_pdrgpsymBuiltInputs->Release();
 	m_phmAlias->Release();
 }
 
@@ -805,7 +810,8 @@ CDSLInstantiator::PexprBuildFilterCarrier(
 	CExpression *pexprOuter) const
 {
 	CDSLSymbolArray *pdrgpsym = popFilter->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	if (nullptr == pdrgpsym ||
+		(2 != pdrgpsym->Size() && 4 != pdrgpsym->Size()))
 	{
 		return nullptr;
 	}
@@ -879,8 +885,159 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	pexpr->AddRef();
-	return pexpr;
+	BOOL fAlreadyBuilt = false;
+	for (ULONG ul = 0; ul < m_pdrgpsymBuiltInputs->Size(); ul++)
+	{
+		if ((*m_pdrgpsymBuiltInputs)[ul] == psymTable)
+		{
+			fAlreadyBuilt = true;
+			break;
+		}
+	}
+	if (!fAlreadyBuilt)
+	{
+		const_cast<CDSLSymbol *>(psymTable)->AddRef();
+		m_pdrgpsymBuiltInputs->Append(
+			const_cast<CDSLSymbol *>(psymTable));
+		pexpr->AddRef();
+		return pexpr;
+	}
+
+	// A repeated target occurrence denotes another range variable. Reusing the
+	// same CColRefs would conflate both occurrences and, inside a SetOp, violate
+	// the per-input column identity contract. Copy the complete subtree using a
+	// fresh output-column map, as native ORCA distribution xforms do.
+	CColRefArray *pdrgpcrFrom =
+		pexpr->DeriveOutputColumns()->Pdrgpcr(m_mp);
+	UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	CColRefArray *pdrgpcrTo =
+		CUtils::PdrgpcrCopy(m_mp, pdrgpcrFrom, false, phm);
+	CExpression *pexprCopy = pexpr->PexprCopyWithRemappedColumns(
+		m_mp, phm, true /*must_exist*/);
+	pdrgpcrTo->Release();
+	phm->Release();
+	pdrgpcrFrom->Release();
+	return pexprCopy;
+}
+
+CColRef *
+CDSLInstantiator::PcrMapToTarget(const CDSLOp *popTarget,
+								 CExpression *pexprTarget,
+								 CColRef *pcrSource,
+								 const CDSLModel *pmodel) const
+{
+	if (pexprTarget->DeriveOutputColumns()->FMember(pcrSource))
+	{
+		return pcrSource;
+	}
+
+	if (EdslopInput == popTarget->Edslop())
+	{
+		const CDSLSymbol *psymTable =
+			PsymResolve((*popTarget->Pdrgpsym())[0]);
+		CExpression *pexprSource = pmodel->PexprTable(psymTable);
+		CColRefArray *pdrgpcrSource =
+			pexprSource->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrTarget =
+			pexprTarget->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CColRef *pcrMapped = nullptr;
+		if (pdrgpcrSource->Size() == pdrgpcrTarget->Size())
+		{
+			for (ULONG ul = 0; ul < pdrgpcrSource->Size(); ul++)
+			{
+				if ((*pdrgpcrSource)[ul] == pcrSource)
+				{
+					pcrMapped = (*pdrgpcrTarget)[ul];
+					break;
+				}
+			}
+		}
+		pdrgpcrTarget->Release();
+		pdrgpcrSource->Release();
+		if (nullptr != pcrMapped)
+		{
+			return pcrMapped;
+		}
+	}
+
+	for (ULONG ul = 0;
+		 ul < popTarget->UlChildren() && ul < pexprTarget->Arity(); ul++)
+	{
+		CColRef *pcrMapped = PcrMapToTarget(
+			(*popTarget)[ul], (*pexprTarget)[ul], pcrSource, pmodel);
+		if (nullptr != pcrMapped)
+		{
+			return pcrMapped;
+		}
+	}
+
+	// A source SetOp output column denotes the column at the same position in
+	// every input. Follow that positional edge and ask which candidate is
+	// produced by this target subtree. Skip identity edges (the first input is
+	// commonly also the output identity) to avoid a trivial recursion cycle.
+	CExpressionArray *pdrgpexprBindings = pmodel->PdrgpexprUnionBindings();
+	for (ULONG ulBinding = 0;
+		 nullptr != pdrgpexprBindings &&
+		 ulBinding < pdrgpexprBindings->Size();
+		 ulBinding++)
+	{
+		CLogicalSetOp *popSet = CLogicalSetOp::PopConvert(
+			(*pdrgpexprBindings)[ulBinding]->Pop());
+		CColRefArray *pdrgpcrOutput = popSet->PdrgpcrOutput();
+		ULONG ulPos = pdrgpcrOutput->Size();
+		for (ULONG ul = 0; ul < pdrgpcrOutput->Size(); ul++)
+		{
+			if ((*pdrgpcrOutput)[ul] == pcrSource)
+			{
+				ulPos = ul;
+				break;
+			}
+		}
+		if (ulPos == pdrgpcrOutput->Size())
+		{
+			continue;
+		}
+		CColRef2dArray *pdrgpdrgpcrInput = popSet->PdrgpdrgpcrInput();
+		for (ULONG ulInput = 0; ulInput < pdrgpdrgpcrInput->Size();
+			 ulInput++)
+		{
+			CColRefArray *pdrgpcrInput = (*pdrgpdrgpcrInput)[ulInput];
+			if (ulPos >= pdrgpcrInput->Size() ||
+				(*pdrgpcrInput)[ulPos] == pcrSource)
+			{
+				continue;
+			}
+			CColRef *pcrMapped = PcrMapToTarget(
+				popTarget, pexprTarget, (*pdrgpcrInput)[ulPos], pmodel);
+			if (nullptr != pcrMapped)
+			{
+				return pcrMapped;
+			}
+		}
+	}
+	return nullptr;
+}
+
+CColRefArray *
+CDSLInstantiator::PdrgpcrMapToTarget(
+	const CDSLOp *popTarget, CExpression *pexprTarget,
+	const CColRefArray *pdrgpcrSource, const CDSLModel *pmodel) const
+{
+	CColRefArray *pdrgpcrMapped = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	for (ULONG ul = 0; ul < pdrgpcrSource->Size(); ul++)
+	{
+		CColRef *pcrMapped = PcrMapToTarget(
+			popTarget, pexprTarget, (*pdrgpcrSource)[ul], pmodel);
+		if (nullptr == pcrMapped ||
+			!(*pdrgpcrSource)[ul]->RetrieveType()->MDId()->Equals(
+				pcrMapped->RetrieveType()->MDId()))
+		{
+			pdrgpcrMapped->Release();
+			return nullptr;
+		}
+		pdrgpcrMapped->Append(pcrMapped);
+	}
+	return pdrgpcrMapped;
 }
 
 //---------------------------------------------------------------------------
@@ -1018,7 +1175,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	if (nullptr == pdrgpsym ||
+		(2 != pdrgpsym->Size() && 4 != pdrgpsym->Size()))
 	{
 		return nullptr;
 	}
@@ -1043,6 +1201,68 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
+	UlongToColRefMap *phmPred = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	CColRefArray *pdrgpcrUsed =
+		pexprJoinPred->DeriveUsedColumns()->Pdrgpcr(m_mp);
+	BOOL fRemapPred = false;
+	for (ULONG ul = 0; ul < pdrgpcrUsed->Size(); ul++)
+	{
+		CColRef *pcrSource = (*pdrgpcrUsed)[ul];
+		if (pexprLeft->DeriveOutputColumns()->FMember(pcrSource) ||
+			pexprRight->DeriveOutputColumns()->FMember(pcrSource))
+		{
+			continue;
+		}
+		CColRef *pcrLeft = PcrMapToTarget(
+			(*pop)[0], pexprLeft, pcrSource, pmodel);
+		CColRef *pcrRight = PcrMapToTarget(
+			(*pop)[1], pexprRight, pcrSource, pmodel);
+		if ((nullptr == pcrLeft) == (nullptr == pcrRight))
+		{
+			// Neither side can provide the column, or both sides claim different
+			// positional origins. In either case the target predicate is ambiguous.
+			pdrgpcrUsed->Release();
+			phmPred->Release();
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
+		CColRef *pcrTarget = nullptr != pcrLeft ? pcrLeft : pcrRight;
+		BOOL fInserted GPOS_ASSERTS_ONLY = phmPred->Insert(
+			GPOS_NEW(m_mp) ULONG(pcrSource->Id()), pcrTarget);
+		GPOS_ASSERT(fInserted);
+		fRemapPred = true;
+	}
+	pdrgpcrUsed->Release();
+	CExpression *pexprTargetPred = nullptr;
+	if (fRemapPred)
+	{
+		CExpression *pexprCopied =
+			pexprJoinPred->PexprCopyWithRemappedColumns(
+				m_mp, phmPred, false /*must_exist*/);
+		pexprTargetPred = PexprRebuildComparisons(m_mp, pexprCopied);
+		pexprCopied->Release();
+	}
+	else
+	{
+		pexprJoinPred->AddRef();
+		pexprTargetPred = pexprJoinPred;
+	}
+	phmPred->Release();
+	CColRefSet *pcrsAvailable = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAvailable->Union(pexprLeft->DeriveOutputColumns());
+	pcrsAvailable->Union(pexprRight->DeriveOutputColumns());
+	const BOOL fPredicateAvailable = nullptr != pexprTargetPred &&
+		pcrsAvailable->ContainsAll(pexprTargetPred->DeriveUsedColumns());
+	pcrsAvailable->Release();
+	if (!fPredicateAvailable)
+	{
+		CRefCount::SafeRelease(pexprTargetPred);
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
+	}
+
 	// build the join operator the TARGET names (Inner or LeftOuter).
 	CLogicalJoin *popJoin = nullptr;
 	switch (pop->Edslop())
@@ -1054,15 +1274,34 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterJoin(m_mp);
 			break;
 		default:
+			pexprTargetPred->Release();
 			pexprLeft->Release();
 			pexprRight->Release();
 			return nullptr;
 	}
 
-	// graft the matched predicate (AddRef — the model keeps its own ref).
-	pexprJoinPred->AddRef();
-	return GPOS_NEW(m_mp)
-		CExpression(m_mp, popJoin, pexprLeft, pexprRight, pexprJoinPred);
+	CExpression *pexprResult = GPOS_NEW(m_mp)
+		CExpression(m_mp, popJoin, pexprLeft, pexprRight, pexprTargetPred);
+	if (4 == pdrgpsym->Size())
+	{
+		const CDSLSymbol *psymOutput = PsymResolve((*pdrgpsym)[2]);
+		const CDSLSymbol *psymSchema = PsymResolve((*pdrgpsym)[3]);
+		CColRefArray *pdrgpcrOutput = pmodel->PdrgpcrAttrs(psymOutput);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		CColRefArray *pdrgpcrActual =
+			pexprResult->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		const BOOL fOutputPreserved = nullptr != pdrgpcrOutput &&
+			nullptr != pdrgpcrSchema &&
+			CColRef::Equals(pdrgpcrOutput, pdrgpcrSchema) &&
+			CColRef::Equals(pdrgpcrOutput, pdrgpcrActual);
+		pdrgpcrActual->Release();
+		if (!fOutputPreserved)
+		{
+			pexprResult->Release();
+			return nullptr;
+		}
+	}
+	return pexprResult;
 }
 
 //---------------------------------------------------------------------------
@@ -1418,7 +1657,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const
 {
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		0 != pop->Pdrgpsym()->Size())
+		(0 != pop->Pdrgpsym()->Size() && 2 != pop->Pdrgpsym()->Size()))
 	{
 		return nullptr;
 	}
@@ -1437,6 +1676,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 	CColRefArray *pdrgpcrOutput = nullptr;
 	CColRefArray *rgpdrgpcrInput[2] = {nullptr, nullptr};
 	ULONG rgulSourceForTarget[2] = {0, 1};
+	BOOL fOwnsInputMappings = false;
 
 	for (ULONG ulBinding = 0;
 		 nullptr != pdrgpexprBindings && ulBinding < pdrgpexprBindings->Size();
@@ -1456,6 +1696,17 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 			0 == pdrgpcrCandidateOutput->Size())
 		{
 			continue;
+		}
+		if (2 == pop->Pdrgpsym()->Size())
+		{
+			CColRefArray *pdrgpcrDeclared = pmodel->PdrgpcrAttrs(
+				PsymResolve((*pop->Pdrgpsym())[0]));
+			if (nullptr == pdrgpcrDeclared ||
+				!CColRef::Equals(pdrgpcrDeclared,
+								 pdrgpcrCandidateOutput))
+			{
+				continue;
+			}
 		}
 
 		BOOL rgfFits[2][2];
@@ -1496,11 +1747,63 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		}
 	}
 
+	// A target SetOp may be newly introduced rather than a reshaping of a
+	// source SetOp (Join-over-Union distribution is the canonical example).
+	// Its explicit full-row output binding supplies the stable output order;
+	// derive each input array by following Input-copy and source-SetOp positional
+	// correspondences through the already-built target branch.
+	if (nullptr == pdrgpcrOutput && 2 == pop->Pdrgpsym()->Size())
+	{
+		const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
+		const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		if (nullptr != pdrgpcrAttrs && nullptr != pdrgpcrSchema &&
+			CColRef::Equals(pdrgpcrAttrs, pdrgpcrSchema))
+		{
+			rgpdrgpcrInput[0] = PdrgpcrMapToTarget(
+				(*pop)[0], pexprLeft, pdrgpcrAttrs, pmodel);
+			rgpdrgpcrInput[1] = PdrgpcrMapToTarget(
+				(*pop)[1], pexprRight, pdrgpcrAttrs, pmodel);
+			if (nullptr != rgpdrgpcrInput[0] &&
+				nullptr != rgpdrgpcrInput[1])
+			{
+				pdrgpcrOutput = pdrgpcrAttrs;
+				fOwnsInputMappings = true;
+			}
+			else
+			{
+				CRefCount::SafeRelease(rgpdrgpcrInput[0]);
+				CRefCount::SafeRelease(rgpdrgpcrInput[1]);
+			}
+		}
+	}
+
 	if (nullptr == pdrgpcrOutput)
 	{
 		pexprLeft->Release();
 		pexprRight->Release();
 		return nullptr;
+	}
+
+	// The optional Union output symbols describe the complete ordered set-op
+	// row.  Do not silently accept a target declaration that resolves to some
+	// other columns: that would make the textual rule stronger than the
+	// instantiated expression.  Legacy Union(...) rules have no such contract.
+	if (2 == pop->Pdrgpsym()->Size())
+	{
+		const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
+		const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema ||
+			!CColRef::Equals(pdrgpcrAttrs, pdrgpcrOutput) ||
+			!CColRef::Equals(pdrgpcrSchema, pdrgpcrOutput))
+		{
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
 	}
 
 	// Moving a memo-derived aggregate by deep column remapping recreates its
@@ -1531,16 +1834,47 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 
 	pdrgpcrOutput->AddRef();
 	CColRef2dArray *pdrgpdrgpcrInput =
-		GPOS_NEW(m_mp) CColRef2dArray(m_mp, 2);
+		GPOS_NEW(m_mp) CColRef2dArray(m_mp);
+	CExpressionArray *pdrgpexprChildren =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	for (ULONG ul = 0; ul < 2; ul++)
 	{
-		rgpdrgpcrInput[ul]->AddRef();
+		CExpression *pexprChild = rgpexprTarget[ul];
+		// Re-expand the associative n-ary view used by the matcher. This keeps
+		// the target alternative identical in shape to native Union2UnionAll,
+		// rather than leaving an artificial binary UnionAll spine in the memo.
+		if (!pop->FDistinct() && pmodel->FIsNaryUnionTail(pexprChild) &&
+			COperator::EopLogicalUnionAll == pexprChild->Pop()->Eopid())
+		{
+			CLogicalSetOp *popChild =
+				CLogicalSetOp::PopConvert(pexprChild->Pop());
+			CColRef2dArray *pdrgpdrgpcrChild =
+				popChild->PdrgpdrgpcrInput();
+			if (CColRef::Equals(popChild->PdrgpcrOutput(),
+								rgpdrgpcrInput[ul]) &&
+				pexprChild->Arity() == pdrgpdrgpcrChild->Size())
+			{
+				for (ULONG ulChild = 0; ulChild < pexprChild->Arity();
+					 ulChild++)
+				{
+					CColRefArray *pdrgpcrChild =
+						(*pdrgpdrgpcrChild)[ulChild];
+					pdrgpcrChild->AddRef();
+					pdrgpdrgpcrInput->Append(pdrgpcrChild);
+					(*pexprChild)[ulChild]->AddRef();
+					pdrgpexprChildren->Append((*pexprChild)[ulChild]);
+				}
+				pexprChild->Release();
+				continue;
+			}
+		}
+		if (!fOwnsInputMappings)
+		{
+			rgpdrgpcrInput[ul]->AddRef();
+		}
 		pdrgpdrgpcrInput->Append(rgpdrgpcrInput[ul]);
+		pdrgpexprChildren->Append(pexprChild);
 	}
-	CExpressionArray *pdrgpexprChildren =
-		GPOS_NEW(m_mp) CExpressionArray(m_mp, 2);
-	pdrgpexprChildren->Append(pexprLeft);
-	pdrgpexprChildren->Append(pexprRight);
 
 	COperator *popSet = pop->FDistinct()
 		? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnion(

@@ -32,8 +32,8 @@ struct SDslOpDesc
 //   - positional symbols   : SymbolsImpl.bindSymbol() + FragmentUtils.bindNames()
 // WeTune positional order (INSIDE <...>), verified against fewshot rules:
 //   Input      <t>                        Filter<p0 a1> => [pred, attrs]
-//   InnerJoin  <a a>   (lhsAttrs, rhsAttrs)
-//   LeftJoin   <a a>
+//   InnerJoin  <a a [a s]> (lhsAttrs, rhsAttrs, optional full output/schema)
+//   LeftJoin   <a a [a s]>
 //   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
 //   InSubFilter<a>     (attrs)
 //   Exists     <>      (no symbols)
@@ -41,11 +41,13 @@ struct SDslOpDesc
 //   Agg        <a a a f s p> (groupBy, aggAttrs, aggOutAttrs, func, schema, havingPred)
 //   Sort       <a>     (attrs)
 //   Limit      <n n>   (limit, offset)
-//   Union      <>      (no symbols)
+//   Union      <a s>   (optional ordered full-row output attrs/schema)
 const SDslOpDesc rg_op_desc[] = {
 	{EdslopInput, "Input", 0, 1, {EdslsymTable}},
-	{EdslopInnerJoin, "InnerJoin", 2, 2, {EdslsymAttrs, EdslsymAttrs}},
-	{EdslopLeftJoin, "LeftJoin", 2, 2, {EdslsymAttrs, EdslsymAttrs}},
+	{EdslopInnerJoin, "InnerJoin", 2, 4,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema}},
+	{EdslopLeftJoin, "LeftJoin", 2, 4,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema}},
 	{EdslopFilter, "Filter", 1, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
 	{EdslopExists, "Exists", 2, 0, {}},
@@ -55,7 +57,7 @@ const SDslOpDesc rg_op_desc[] = {
 	  EdslsymPred}},
 	{EdslopSort, "Sort", 1, 1, {EdslsymAttrs}},
 	{EdslopLimit, "Limit", 1, 2, {EdslsymScalar, EdslsymScalar}},
-	{EdslopUnion, "Union", 2, 0, {}},
+	{EdslopUnion, "Union", 2, 2, {EdslsymAttrs, EdslsymSchema}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);

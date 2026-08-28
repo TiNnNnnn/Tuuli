@@ -86,6 +86,10 @@ private:
 	// array per branch; keeping the complete expression lets instantiation
 	// preserve those mappings even when target constraints reorder branches.
 	CExpressionArray *m_pdrgpexprUnionBindings;
+	// UnionAll tails created only by the n-ary-to-binary associative match view.
+	// Marking them prevents target construction from flattening a genuine
+	// nested UnionAll that happened to be bound to an ordinary Input symbol.
+	CExpressionArray *m_pdrgpexprNaryUnionTails;
 
 	// conjuncts of a matched Filter/Select that the rule did NOT consume — they
 	// must be carried through to the instantiated target unchanged (dropping a
@@ -240,6 +244,8 @@ public:
 
 	// Add one matched CLogicalUnion/CLogicalUnionAll expression. AddRefs it.
 	void AddUnionBinding(CExpression *pexprUnion);
+	void AddNaryUnionTail(CExpression *pexprUnionAll);
+	BOOL FIsNaryUnionTail(CExpression *pexpr) const;
 
 	// Matched Union expressions; does not transfer ownership.
 	CExpressionArray *

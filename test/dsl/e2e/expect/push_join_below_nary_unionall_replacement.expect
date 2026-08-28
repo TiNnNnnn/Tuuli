@@ -1,0 +1,75 @@
+{
+  "description": "The binary proved DSL rule recursively distributes InnerJoin across an n-ary UnionAll",
+  "replacement": {
+    "xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "scope": "n-ary left UnionAll handled by repeated associative binary applications",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "e99bceacc9aaf130"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "output": [
+      "110",
+      "110",
+      "220",
+      "220"
+    ],
+    "postgres_output": [
+      "110",
+      "110",
+      "220",
+      "220"
+    ]
+  }
+}

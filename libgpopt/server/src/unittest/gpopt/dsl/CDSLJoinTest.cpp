@@ -48,6 +48,12 @@ using namespace gpopt;
 	"TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);"                       \
 	"AttrsEq(a4,a0);AttrsEq(a5,a1);AttrsEq(a6,a2);AttrsEq(a7,a3)"
 
+#define GPOPT_DSL_JOIN_OUTPUT_COMMUTE_RULE                               \
+	"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|"                       \
+	"InnerJoin<a3 a4 a5 s1>(Input<t2>,Input<t3>)|"                       \
+	"TableEq(t2,t1);TableEq(t3,t0);AttrsEq(a3,a1);AttrsEq(a4,a0);"       \
+	"AttrsEq(a5,a2);SchemaEq(s1,s0)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -87,6 +93,8 @@ CDSLJoinTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NonEquiPredicateResidual),
@@ -210,6 +218,61 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 	}
 
 	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprJoin->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_JOIN_OUTPUT_COMMUTE_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprLeft = nullptr;
+	CExpression *pexprRight = nullptr;
+	CExpression *pexprJoin = nullptr;
+	BuildInnerJoinEqui(fix, &pexprLeft, &pexprRight, &pexprJoin);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLSymbolArray *pdrgpsym =
+			prule->PfragSrc()->PopRoot()->Pdrgpsym();
+		CColRefArray *pdrgpcrOutput =
+			pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
+		CColRefArray *pdrgpcrSchema =
+			pmodel->PdrgpcrSchema((*pdrgpsym)[3]);
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(nullptr != pdrgpcrOutput);
+		GPOS_UNITTEST_ASSERT(nullptr != pdrgpcrSchema);
+		GPOS_UNITTEST_ASSERT(
+			CColRef::Equals(pdrgpcrOutput, pdrgpcrSchema));
+		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
+		GPOS_UNITTEST_ASSERT((*pexprTarget)[0] == pexprRight);
+		GPOS_UNITTEST_ASSERT((*pexprTarget)[1] == pexprLeft);
+		GPOS_UNITTEST_ASSERT(pexprTarget->DeriveOutputColumns()->Equals(
+			pexprJoin->DeriveOutputColumns()));
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprLeft->Release();
 	pexprRight->Release();

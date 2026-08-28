@@ -1,0 +1,94 @@
+{
+  "description": "Both native Join kinds are independently restored by proved DSL rules when the left-UnionAll xform is disabled",
+  "replacement": {
+    "xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "scope": "full native promise: InnerJoin and LeftJoin over left binary or n-ary UnionAll; residual and distinct guards have companion evidence",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "e99bceacc9aaf130",
+      "44c687f715ecbe0b"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\"",
+        "\"status\":\"applied\",\"rule_hash\":\"44c687f715ecbe0b\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin",
+        "CXformDSLRule_LeftJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\"",
+        "\"status\":\"applied\",\"rule_hash\":\"44c687f715ecbe0b\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin",
+        "CXformDSLRule_LeftJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "output": [
+      "110",
+      "110",
+      "220",
+      "220",
+      "220",
+      "1110",
+      "1110",
+      "1220",
+      "1220",
+      "1220",
+      "1400"
+    ],
+    "postgres_output": [
+      "110",
+      "110",
+      "220",
+      "220",
+      "220",
+      "1110",
+      "1110",
+      "1220",
+      "1220",
+      "1220",
+      "1400"
+    ]
+  }
+}

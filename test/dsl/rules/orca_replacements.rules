@@ -1,7 +1,24 @@
 Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a1);SchemaEq(s2,s1)
 
+Union*<a0 s0>(Input<t0>,Input<t1>)|Proj*<a1 s1>(Union<a2 s2>(Input<t2>,Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);AttrsEq(a2,a0);SchemaEq(s2,s0)
+
+InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
+
+LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
+# Line 5 is the proved InnerJoin branch of CXformPushJoinBelowLeftUnionAll.
+# Complete source Join output binding lets the new target Union preserve the
+# parent row, while shared positional mapping remaps predicates and freshens
+# repeated target inputs. WeTune ProveDslRule: EQ, SQLSOLVER, 2026-08-28.
+# Line 7 is the independently proved LeftJoin branch of the same xform.
+# It distributes only across the preserved (left) input; right-side LeftJoin
+# distribution is intentionally excluded because it is not bag-equivalent.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
+# Line 3 replaces CXformUnion2UnionAll. The explicit Union output binding makes
+# Proj* a full-row identity dedup rather than an arbitrary subset projection.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

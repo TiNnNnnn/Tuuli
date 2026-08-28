@@ -85,6 +85,11 @@ private:
 	// Filter's predicate template with the attrs vector of its source Filter.
 	const CDSLRule *m_prule;
 
+	// Source Input symbols already materialized while walking the target. A
+	// second target occurrence is a fresh relational occurrence and therefore
+	// needs independent CColRefs, even when TableEq points at the same source.
+	CDSLSymbolArray *m_pdrgpsymBuiltInputs;
+
 	// populate m_phmAlias from the rule's equality constraints. An *Eq(x,y) links
 	// x and y; whichever side was declared on the target aliases the other.
 	void BuildAliasMap(const CDSLRule *prule);
@@ -118,6 +123,19 @@ private:
 	// Input<t>: the bound subtree (AddRef'd).
 	CExpression *PexprBuildInput(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
+
+	// Map one source CColRef through the target template/built-expression pair.
+	// Besides direct Input copies, this follows every matched SetOp's ordered
+	// output-to-input correspondence. This is the shared positional adapter used
+	// by predicate rebinding and newly constructed SetOp input maps.
+	CColRef *PcrMapToTarget(const CDSLOp *popTarget,
+						   CExpression *pexprTarget,
+						   CColRef *pcrSource,
+						   const CDSLModel *pmodel) const;
+	CColRefArray *PdrgpcrMapToTarget(const CDSLOp *popTarget,
+								CExpression *pexprTarget,
+								const CColRefArray *pdrgpcrSource,
+								const CDSLModel *pmodel) const;
 
 	// Flatten a target Filter chain into one Select whose conjunction contains
 	// each target predicate plus matcher residuals exactly once.

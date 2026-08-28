@@ -117,6 +117,13 @@ public:
 	static CExpression *PexprNullRejectedInnerJoin(CMemoryPool *mp,
 										 CExpression *pexprSelect);
 
+	// Expose an n-ary Union/UnionAll as a binary head plus a UnionAll tail.
+	// Set-op associativity makes this view exact, and using a bag-union tail is
+	// valid for both outer UNION DISTINCT and UNION ALL. The caller owns the
+	// transient expression; NULL means the input is not an n-ary set-op.
+	static CExpression *PexprBinarySetOp(CMemoryPool *mp,
+									 CExpression *pexprSetOp);
+
 	// Return every LeftJoin view of Select(FullJoin, predicate) for which the
 	// predicate rejects NULLs from the side made preserved by the view. The
 	// returned array owns each transient LeftJoin expression.

@@ -15,11 +15,83 @@
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalSetOp.h"
+#include "gpopt/operators/CLogicalUnion.h"
+#include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
+
+CExpression *
+CDSLMatchView::PexprBinarySetOp(CMemoryPool *mp,
+								CExpression *pexprSetOp)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprSetOp);
+
+	const COperator::EOperatorId eopid = pexprSetOp->Pop()->Eopid();
+	const ULONG ulArity = pexprSetOp->Arity();
+	if ((COperator::EopLogicalUnion != eopid &&
+		 COperator::EopLogicalUnionAll != eopid) ||
+		2 >= ulArity)
+	{
+		return nullptr;
+	}
+
+	CLogicalSetOp *popSource =
+		CLogicalSetOp::PopConvert(pexprSetOp->Pop());
+	CColRef2dArray *pdrgpdrgpcrSource = popSource->PdrgpdrgpcrInput();
+	if (ulArity != pdrgpdrgpcrSource->Size() ||
+		0 == popSource->PdrgpcrOutput()->Size())
+	{
+		return nullptr;
+	}
+
+	// The tail's output identities are the original second input identities,
+	// exactly the identities expected at the binary root's right position.
+	CColRefArray *pdrgpcrTailOutput = (*pdrgpdrgpcrSource)[1];
+	pdrgpcrTailOutput->AddRef();
+	CColRef2dArray *pdrgpdrgpcrTail =
+		GPOS_NEW(mp) CColRef2dArray(mp, ulArity - 1);
+	CExpressionArray *pdrgpexprTail =
+		GPOS_NEW(mp) CExpressionArray(mp, ulArity - 1);
+	for (ULONG ul = 1; ul < ulArity; ul++)
+	{
+		CColRefArray *pdrgpcrInput = (*pdrgpdrgpcrSource)[ul];
+		pdrgpcrInput->AddRef();
+		pdrgpdrgpcrTail->Append(pdrgpcrInput);
+		(*pexprSetOp)[ul]->AddRef();
+		pdrgpexprTail->Append((*pexprSetOp)[ul]);
+	}
+	CExpression *pexprTail = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalUnionAll(
+			mp, pdrgpcrTailOutput, pdrgpdrgpcrTail),
+		pdrgpexprTail);
+
+	CColRef2dArray *pdrgpdrgpcrBinary =
+		GPOS_NEW(mp) CColRef2dArray(mp, 2);
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		CColRefArray *pdrgpcrInput = (*pdrgpdrgpcrSource)[ul];
+		pdrgpcrInput->AddRef();
+		pdrgpdrgpcrBinary->Append(pdrgpcrInput);
+	}
+	popSource->PdrgpcrOutput()->AddRef();
+	COperator *popBinary = COperator::EopLogicalUnion == eopid
+		? static_cast<COperator *>(GPOS_NEW(mp) CLogicalUnion(
+			  mp, popSource->PdrgpcrOutput(), pdrgpdrgpcrBinary))
+		: static_cast<COperator *>(GPOS_NEW(mp) CLogicalUnionAll(
+			  mp, popSource->PdrgpcrOutput(), pdrgpdrgpcrBinary));
+	CExpressionArray *pdrgpexprBinary =
+		GPOS_NEW(mp) CExpressionArray(mp, 2);
+	(*pexprSetOp)[0]->AddRef();
+	pdrgpexprBinary->Append((*pexprSetOp)[0]);
+	pdrgpexprBinary->Append(pexprTail);
+	return GPOS_NEW(mp) CExpression(mp, popBinary, pdrgpexprBinary);
+}
 
 BOOL
 CDSLMatchView::FAggregate(CExpression *pexpr, BOOL fAllowHaving,

@@ -1,0 +1,81 @@
+{
+  "description": "Join distribution remaps a preserved non-equality residual predicate without rule-specific handling",
+  "replacement": {
+    "xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "scope": "InnerJoin with a non-equality predicate over a left UnionAll",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "e99bceacc9aaf130"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "output": [
+      "120",
+      "120",
+      "130",
+      "130",
+      "230",
+      "230",
+      "230"
+    ],
+    "postgres_output": [
+      "120",
+      "120",
+      "130",
+      "130",
+      "230",
+      "230",
+      "230"
+    ]
+  }
+}

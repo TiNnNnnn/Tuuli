@@ -153,6 +153,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,"
 		"Input<t3>)|AttrsSub(a0,t0);Reference(t0,a0,t1,a1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
+		// Extended Join output binding remains optional and round-trips exactly.
+		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|InnerJoin<a3 a4 a5 "
+		"s1>(Input<t2>,Input<t3>)|TableEq(t2,t1);TableEq(t3,t0);"
+		"AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a2);SchemaEq(s1,s0)",
 		// Existing MONSOON corpus form (fewshot_curated.txt): bare Agg with five
 		// symbols groupBy, aggAttrs, func, schema, having.
 		"Exists(Proj<a0 s0>(Input<t0>),Agg<a1 a2 f0 s1 p0>(Input<t1>))|"
@@ -163,6 +167,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
 		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",
+		// Extended Union output binding remains optional and round-trips exactly.
+		"Union*<a0 s0>(Input<t0>,Input<t1>)|Union<a1 s1>(Input<t2>,"
+		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
+		"SchemaEq(s1,s0)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)
@@ -221,6 +229,51 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	}
 	agg5->Release();
 	agg6->Release();
+	// Union keeps the legacy zero-symbol form and accepts exactly two output
+	// symbols; a partial output declaration is ambiguous and rejected.
+	bad = Parse(
+		mp, "Union<a0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	CDSLRule *union0 = Parse(
+		mp, "Union(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *union2 = Parse(
+		mp, "Union<a0 s0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == union0 || nullptr == union2)
+	{
+		CRefCount::SafeRelease(union0);
+		CRefCount::SafeRelease(union2);
+		return GPOS_FAILED;
+	}
+	union0->Release();
+	union2->Release();
+	// Join keeps the legacy two-key form and accepts a complete output attrs /
+	// schema pair. Three symbols would leave output identity underspecified.
+	bad = Parse(
+		mp,
+		"InnerJoin<a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+	CDSLRule *join2 = Parse(
+		mp,
+		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *join4 = Parse(
+		mp,
+		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == join2 || nullptr == join4)
+	{
+		CRefCount::SafeRelease(join2);
+		CRefCount::SafeRelease(join4);
+		return GPOS_FAILED;
+	}
+	join2->Release();
+	join4->Release();
 	// Correct arities parse.
 	CDSLRule *ok =
 		Parse(mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");

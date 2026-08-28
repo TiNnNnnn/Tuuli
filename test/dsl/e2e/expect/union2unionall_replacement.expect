@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule replaces Union distinct with full-row dedup over UnionAll",
+  "replacement": {
+    "xforms": [
+      "CXformUnion2UnionAll"
+    ],
+    "scope": "Union distinct of any arity with the complete ordered output row bound by the DSL",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "079267866f94c558"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformUnion2UnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
+      ],
+      "alternative": [
+        "CXformUnion2UnionAll",
+        "CXformDSLRule_Union"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformUnion2UnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Union"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll"
+    ],
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

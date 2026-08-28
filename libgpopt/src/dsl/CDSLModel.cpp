@@ -33,6 +33,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmProjAggShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
+	m_pdrgpexprNaryUnionTails = GPOS_NEW(mp) CExpressionArray(mp);
 }
 
 //---------------------------------------------------------------------------
@@ -52,6 +53,7 @@ CDSLModel::~CDSLModel()
 	m_phmProjAggShell->Release();
 	m_phmJoinPred->Release();
 	m_pdrgpexprUnionBindings->Release();
+	m_pdrgpexprNaryUnionTails->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
 	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
@@ -275,6 +277,29 @@ CDSLModel::AddUnionBinding(CExpression *pexprUnion)
 				COperator::EopLogicalUnionAll == pexprUnion->Pop()->Eopid());
 	pexprUnion->AddRef();
 	m_pdrgpexprUnionBindings->Append(pexprUnion);
+}
+
+void
+CDSLModel::AddNaryUnionTail(CExpression *pexprUnionAll)
+{
+	GPOS_ASSERT(nullptr != pexprUnionAll);
+	GPOS_ASSERT(COperator::EopLogicalUnionAll ==
+				pexprUnionAll->Pop()->Eopid());
+	pexprUnionAll->AddRef();
+	m_pdrgpexprNaryUnionTails->Append(pexprUnionAll);
+}
+
+BOOL
+CDSLModel::FIsNaryUnionTail(CExpression *pexpr) const
+{
+	for (ULONG ul = 0; ul < m_pdrgpexprNaryUnionTails->Size(); ul++)
+	{
+		if ((*m_pdrgpexprNaryUnionTails)[ul] == pexpr)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 //---------------------------------------------------------------------------

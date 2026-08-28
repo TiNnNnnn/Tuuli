@@ -5,9 +5,9 @@
 //		CDSLUnionMatcher.h
 //
 //	@doc:
-//		Stage-1 matcher for binary Union / Union*. Besides checking set semantics
-//		and recursing both children, it records ORCA's ordered set-op column maps
-//		for target instantiation.
+//		Stage-1 matcher for Union / Union*. WeTune's binary rule shape is matched
+//		against an exact associative view when ORCA has flattened a set-op chain;
+//		the ordered set-op column maps are retained for target instantiation.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLUnionMatcher_H
 #define GPOPT_CDSLUnionMatcher_H

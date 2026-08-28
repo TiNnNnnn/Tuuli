@@ -557,7 +557,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 
 	// join schema is <a a> — left keys then right keys (validated at parse).
 	CDSLSymbolArray *pdrgpsym = popJoin->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+	if (nullptr == pdrgpsym ||
+		(2 != pdrgpsym->Size() && 4 != pdrgpsym->Size()) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
@@ -658,6 +659,17 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				  pmodel->FBind(psymRight, pdrgpcrRight);
 	pdrgpcrLeft->Release();
 	pdrgpcrRight->Release();
+	if (fBound && 4 == pdrgpsym->Size())
+	{
+		// ORCA exposes relational outputs by stable CColRef identity. Sorting the
+		// complete set by CColRef id gives a deterministic ordered binding that is
+		// unchanged when target construction merely reorders Join children.
+		CColRefArray *pdrgpcrOutput =
+			pexprJoin->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		fBound = pmodel->FBind((*pdrgpsym)[2], pdrgpcrOutput) &&
+			pmodel->FBind((*pdrgpsym)[3], pdrgpcrOutput);
+		pdrgpcrOutput->Release();
+	}
 	if (!fBound)
 	{
 		pdrgpexprResidual->Release();
