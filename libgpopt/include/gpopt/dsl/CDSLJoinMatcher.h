@@ -66,6 +66,11 @@ private:
 	// generic matcher to recurse the relational children into (not owned)
 	const CDSLMatcher *m_pmatcher;
 
+	// complete rule (not owned), used to disambiguate a multi-equality join
+	// predicate when an already-bound attrs symbol is connected to one join side
+	// by a source AttrsEq constraint.
+	const CDSLRule *m_prule;
+
 	// split the join predicate's conjuncts into left/right equi-key columns and
 	// residual (non-equi) conjuncts. pexprLeftRel is the left relational child (its
 	// output columns decide which key side each equi column belongs to). Appends
@@ -79,8 +84,9 @@ private:
 public:
 	CDSLJoinMatcher(const CDSLJoinMatcher &) = delete;
 
-	CDSLJoinMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher)
-		: m_mp(mp), m_pmatcher(pmatcher)
+	CDSLJoinMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher,
+				   const CDSLRule *prule)
+		: m_mp(mp), m_pmatcher(pmatcher), m_prule(prule)
 	{
 		GPOS_ASSERT(nullptr != mp);
 		GPOS_ASSERT(nullptr != pmatcher);

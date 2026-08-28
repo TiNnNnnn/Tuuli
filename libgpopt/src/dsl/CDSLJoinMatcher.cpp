@@ -11,6 +11,8 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 
+#include <vector>
+
 #include "gpos/base.h"
 
 #include "gpopt/base/CCastUtils.h"
@@ -40,6 +42,148 @@ PcrJoinKeyOperand(CExpression *pexpr)
 			CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr());
 	}
 	return nullptr;
+}
+
+// Return the already-bound source attrs connected to psymJoin by a direct
+// AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
+// constrain this match. Multiple declarations are accepted only when they
+// agree on the same ordered column vector.
+const CColRefArray *
+PdrgpcrEqualityPeer(const CDSLRule *prule, const CDSLSymbol *psymJoin,
+					const CDSLModel *pmodel)
+{
+	if (nullptr == prule)
+	{
+		return nullptr;
+	}
+
+	const CColRefArray *pdrgpcrExpected = nullptr;
+	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconAttrsEq != pcon->Edslcon() ||
+			2 != pcon->Pdrgpsym()->Size())
+		{
+			continue;
+		}
+		const CDSLSymbol *psymFirst = (*pcon->Pdrgpsym())[0];
+		const CDSLSymbol *psymSecond = (*pcon->Pdrgpsym())[1];
+		const CDSLSymbol *psymPeer = nullptr;
+		if (psymJoin == psymFirst)
+		{
+			psymPeer = psymSecond;
+		}
+		else if (psymJoin == psymSecond)
+		{
+			psymPeer = psymFirst;
+		}
+		if (nullptr == psymPeer || EdslsideSource != psymPeer->Eside())
+		{
+			continue;
+		}
+
+		CColRefArray *pdrgpcrPeer = pmodel->PdrgpcrAttrs(psymPeer);
+		if (nullptr == pdrgpcrPeer)
+		{
+			continue;
+		}
+		if (nullptr == pdrgpcrExpected)
+		{
+			pdrgpcrExpected = pdrgpcrPeer;
+			continue;
+		}
+		if (pdrgpcrExpected->Size() != pdrgpcrPeer->Size())
+		{
+			return nullptr;
+		}
+		for (ULONG col = 0; col < pdrgpcrExpected->Size(); col++)
+		{
+			if ((*pdrgpcrExpected)[col] != (*pdrgpcrPeer)[col])
+			{
+				return nullptr;
+			}
+		}
+	}
+	return pdrgpcrExpected;
+}
+
+// WeTune may match one equality edge of a join whose physical predicate has
+// several cross-child equalities. If a surrounding source operator has already
+// bound an AttrsEq peer, select the unique ordered edge subset compatible with
+// that peer. The complete predicate is still retained on the model, so
+// unselected equalities are never dropped by target construction.
+void
+NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
+			   const CDSLSymbol *psymLeft, const CDSLSymbol *psymRight,
+			   const CDSLModel *pmodel, CColRefArray **ppdrgpcrLeft,
+			   CColRefArray **ppdrgpcrRight)
+{
+	const CColRefArray *pdrgpcrExpectedLeft =
+		PdrgpcrEqualityPeer(prule, psymLeft, pmodel);
+	const CColRefArray *pdrgpcrExpectedRight =
+		PdrgpcrEqualityPeer(prule, psymRight, pmodel);
+	if (nullptr == pdrgpcrExpectedLeft && nullptr == pdrgpcrExpectedRight)
+	{
+		return;
+	}
+	if (nullptr != pdrgpcrExpectedLeft && nullptr != pdrgpcrExpectedRight &&
+		pdrgpcrExpectedLeft->Size() != pdrgpcrExpectedRight->Size())
+	{
+		return;
+	}
+
+	const CColRefArray *pdrgpcrSelector = nullptr != pdrgpcrExpectedLeft
+		? pdrgpcrExpectedLeft
+		: pdrgpcrExpectedRight;
+	CColRefArray *pdrgpcrNarrowLeft = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefArray *pdrgpcrNarrowRight = GPOS_NEW(mp) CColRefArray(mp);
+	std::vector<BOOL> used((*ppdrgpcrLeft)->Size(), false);
+	for (ULONG expected = 0; expected < pdrgpcrSelector->Size(); expected++)
+	{
+		ULONG match = gpos::ulong_max;
+		ULONG matches = 0;
+		for (ULONG candidate = 0; candidate < (*ppdrgpcrLeft)->Size();
+			 candidate++)
+		{
+			if (used[candidate])
+			{
+				continue;
+			}
+			BOOL fMatches = nullptr != pdrgpcrExpectedLeft
+				? (*(*ppdrgpcrLeft))[candidate] ==
+					  (*pdrgpcrExpectedLeft)[expected]
+				: (*(*ppdrgpcrRight))[candidate] ==
+					  (*pdrgpcrExpectedRight)[expected];
+			if (fMatches && nullptr != pdrgpcrExpectedLeft &&
+				nullptr != pdrgpcrExpectedRight)
+			{
+				fMatches = (*(*ppdrgpcrRight))[candidate] ==
+					(*pdrgpcrExpectedRight)[expected];
+			}
+			if (fMatches)
+			{
+				match = candidate;
+				matches++;
+			}
+		}
+		// An ambiguous subset must be left for the ordinary constraint checker;
+		// choosing an arbitrary equality would make rule order affect semantics.
+		if (1 != matches)
+		{
+			pdrgpcrNarrowLeft->Release();
+			pdrgpcrNarrowRight->Release();
+			return;
+		}
+		used[match] = true;
+		pdrgpcrNarrowLeft->Append((*(*ppdrgpcrLeft))[match]);
+		pdrgpcrNarrowRight->Append((*(*ppdrgpcrRight))[match]);
+	}
+
+	(*ppdrgpcrLeft)->Release();
+	(*ppdrgpcrRight)->Release();
+	*ppdrgpcrLeft = pdrgpcrNarrowLeft;
+	*ppdrgpcrRight = pdrgpcrNarrowRight;
 }
 }  // namespace
 
@@ -162,6 +306,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		pdrgpexprResidual->Release();
 		return false;
 	}
+	NarrowJoinKeys(m_mp, m_prule, psymLeft, psymRight, pmodel,
+				   &pdrgpcrLeft, &pdrgpcrRight);
 
 	// bind the two <a> symbols (FBind AddRefs; release our local refs after).
 	BOOL fBound = pmodel->FBind(psymLeft, pdrgpcrLeft) &&

@@ -7,7 +7,6 @@
 #include "gpopt/dsl/CDSLRewriteProgram.h"
 
 #include "gpopt/base/COptCtxt.h"
-#include "gpopt/base/CUtils.h"
 
 using namespace gpopt;
 
@@ -157,9 +156,6 @@ CDSLRewriteProgram::SzSafetyFailure(const SDSLRulePolicy &policy,
 		return "dml_boundary";
 	if (nullptr != poctxt && poctxt->HasVolatileFunc())
 		return "volatile_query";
-	if (CUtils::FHasSubqueryOrApply(pexprSource) ||
-		CUtils::FHasSubqueryOrApply(pexprTarget))
-		return "subquery_or_apply_boundary";
 	if (EdsleffectChangesJoinGraph == policy.m_edsleffect &&
 		EdslphasePreJoin != policy.m_edslphase)
 		return "join_graph_change_outside_pre_join";

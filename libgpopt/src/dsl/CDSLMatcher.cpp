@@ -329,7 +329,7 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// recursion (see CDSLJoinMatcher, doc M2).
 	if (EdslopInnerJoin == pop->Edslop() || EdslopLeftJoin == pop->Edslop())
 	{
-		CDSLJoinMatcher jm(m_mp, this);
+		CDSLJoinMatcher jm(m_mp, this, m_prule);
 		return jm.FMatch(pop, pexpr, pmodel);
 	}
 

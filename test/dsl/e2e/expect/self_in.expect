@@ -46,10 +46,24 @@
         "CXformDSLRule_Select"
       ],
       "joins": 0
+    },
+    {
+      "name": "all-rules-bottom-up-rbo",
+      "native": false,
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_id\":8,\"status\":\"applied_rbo\"",
+        "\"placement\":\"rbo\"",
+        "\"order\":\"bottom_up\""
+      ],
+      "joins": 0
     }
   ],
   "rows": {
     "native": false,
+    "policy": "wetune_bottom_up_rbo.policy",
     "output": [
       "2,20",
       "3,30"
