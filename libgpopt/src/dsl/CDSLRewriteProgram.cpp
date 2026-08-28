@@ -7,6 +7,7 @@
 #include "gpopt/dsl/CDSLRewriteProgram.h"
 
 #include "gpopt/base/COptCtxt.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
@@ -20,6 +21,7 @@ CDSLRewriteProgram::CDSLRewriteProgram(
 	  m_psnapshot(psnapshot),
 	  m_pcrsRequired(pcrsRequired),
 	  m_ulApplications(0),
+	  m_ulApplicableAlternatives(0),
 	  m_ulAddedNodes(0),
 	  m_ulHardSteps(ulHardSteps),
 	  m_ulHardAddedNodes(ulHardAddedNodes),
@@ -282,6 +284,58 @@ CDSLRewriteProgram::ReserveBudget(const Path &path,
 		m_fHardBudgetExhausted = true;
 }
 
+void
+CDSLRewriteProgram::ObserveReadyAlternatives(
+	const Path &path, CExpression *pexprRoot, CExpression *pexprSource,
+	const std::vector<const CDSLRule *> &ordered, ULONG ulFirst)
+{
+	// This is validation telemetry, not search. With tracing disabled the RBO
+	// retains its first-applicable cost and evaluates no losing alternatives.
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+
+	for (ULONG ul = ulFirst; ul < ordered.size(); ul++)
+	{
+		const CDSLRule *prule = ordered[ul];
+		const SDSLRulePolicy &policy = m_psnapshot->Policy(prule);
+		CDSLRewriteDecision *decision = m_pengine->PdecisionEvaluate(
+			m_mp, prule, pexprSource, true /*fingerprint*/);
+		if (EdsldecisionReady != decision->Status())
+		{
+			GPOS_DELETE(decision);
+			continue;
+		}
+
+		CExpression *pexprTarget = decision->PexprTarget();
+		if (nullptr != SzSafetyFailure(policy, pexprSource, pexprTarget))
+		{
+			GPOS_DELETE(decision);
+			continue;
+		}
+
+		pexprTarget->AddRef();
+		CExpression *pexprShadowRoot =
+			PexprReplace(pexprRoot, path, pexprTarget);
+		if (nullptr == pexprShadowRoot ||
+			nullptr != SzRootSafetyFailure(pexprRoot, pexprShadowRoot))
+		{
+			CRefCount::SafeRelease(pexprShadowRoot);
+			GPOS_DELETE(decision);
+			continue;
+		}
+
+		CExpression *pexprShadowNode = PexprResolve(pexprShadowRoot, path);
+		m_pengine->TraceRBOOutcome(
+			m_mp, prule, &policy, decision, pexprSource, pexprShadowNode,
+			"applicable_rbo", "source_replaced_by_prior_rule");
+		m_ulApplicableAlternatives++;
+		pexprShadowRoot->Release();
+		GPOS_DELETE(decision);
+	}
+}
+
 BOOL
 CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 								 const Path &path, CExpression *pexprRoot,
@@ -306,8 +360,9 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 			ordered.push_back(prule);
 	}
 
-	for (const CDSLRule *prule : ordered)
+	for (ULONG ulRule = 0; ulRule < ordered.size(); ulRule++)
 	{
+		const CDSLRule *prule = ordered[ulRule];
 		const SDSLRulePolicy &policy = m_psnapshot->Policy(prule);
 		const std::string nodeRuleKey = StrNodeRuleKey(path, prule);
 		if (!policy.m_fFixpoint &&
@@ -402,6 +457,8 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
 								 pexprNewNode, "applied_rbo",
 								 "source_alternative_replaced");
+		ObserveReadyAlternatives(path, pexprRoot, pexprSource, ordered,
+							 ulRule + 1);
 		*ppexprNewRoot = pexprNewRoot;
 		GPOS_DELETE(decision);
 		candidates->Release();

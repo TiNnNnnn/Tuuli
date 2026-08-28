@@ -219,16 +219,19 @@ class TraceFrameworkTest(unittest.TestCase):
         cases = [
             {
                 "missing_rewritten": [],
+				"missing_capable": [],
                 "inconclusive_budget": [],
                 "candidate_extra": [],
             },
             {
                 "missing_rewritten": [],
+				"missing_capable": [],
                 "inconclusive_budget": [],
                 "candidate_extra": [17],
             },
             {
                 "missing_rewritten": [6],
+				"missing_capable": [6],
                 "inconclusive_budget": [],
                 "candidate_extra": [17],
             },
@@ -243,8 +246,10 @@ class TraceFrameworkTest(unittest.TestCase):
             {
                 "comparable": 3,
                 "subset_aligned": 2,
+				"capability_subset_aligned": 2,
                 "exact_trigger_set": 1,
                 "missing_rule_distribution": {6: 1},
+				"missing_capability_distribution": {6: 1},
                 "extra_rule_distribution": {17: 2},
                 "application_status_distribution": {
                     "applied_rbo": 1,
@@ -367,6 +372,18 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(report["shared_matched"], [8])
         self.assertEqual(report["shared_rewritten"], [8])
         self.assertEqual(report["missing_rewritten"], [])
+
+    def test_losing_rbo_alternative_is_capability_not_replacement(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "applicable_rbo"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["missing_rewritten"], [8])
+        self.assertEqual(report["shared_capable"], [8])
+        self.assertEqual(report["missing_capable"], [])
 
     def test_budget_exhausted_is_matched_but_inconclusive(self) -> None:
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]

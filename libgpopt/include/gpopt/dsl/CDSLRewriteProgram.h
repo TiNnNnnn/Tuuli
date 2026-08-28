@@ -71,6 +71,7 @@ private:
 	std::unordered_map<std::string, ULONG> m_nodeRuleApplications;
 	std::unordered_set<std::string> m_nonFixpointApplications;
 	ULONG m_ulApplications;
+	ULONG m_ulApplicableAlternatives;
 	ULONG m_ulAddedNodes;
 	ULONG m_ulHardSteps;
 	ULONG m_ulHardAddedNodes;
@@ -101,6 +102,9 @@ private:
 					  const SDSLRulePolicy &policy) const;
 	void ReserveBudget(const Path &path, const CDSLRule *prule,
 					   const SDSLRulePolicy &policy, ULONG ulAddedNodes);
+	void ObserveReadyAlternatives(
+		const Path &path, CExpression *pexprRoot, CExpression *pexprSource,
+		const std::vector<const CDSLRule *> &ordered, ULONG ulFirst);
 
 	// Try candidates of one traversal cohort at a node. On success ownership of
 	// one target reference is returned through ppexprTarget.
@@ -126,6 +130,10 @@ public:
 	CExpression *PexprRewrite(CExpression *pexpr);
 
 	ULONG UlApplications() const { return m_ulApplications; }
+	ULONG UlApplicableAlternatives() const
+	{
+		return m_ulApplicableAlternatives;
+	}
 	ULONG UlAddedNodes() const { return m_ulAddedNodes; }
 	BOOL FHardBudgetExhausted() const { return m_fHardBudgetExhausted; }
 };

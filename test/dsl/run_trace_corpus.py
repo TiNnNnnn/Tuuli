@@ -169,6 +169,10 @@ def alignment_summary(
         not case["missing_rewritten"] and not case["inconclusive_budget"]
         for case in comparable
     )
+    capability_subset_aligned = sum(
+        not case.get("missing_capable", case["missing_rewritten"])
+        for case in comparable
+    )
     exact_trigger_set = sum(
         not case["missing_rewritten"]
         and not case["inconclusive_budget"]
@@ -177,6 +181,11 @@ def alignment_summary(
     )
     missing_rules = Counter(
         rule_id for case in comparable for rule_id in case["missing_rewritten"]
+    )
+    missing_capable_rules = Counter(
+        rule_id
+        for case in comparable
+        for rule_id in case.get("missing_capable", case["missing_rewritten"])
     )
     extra_rules = Counter(
         rule_id for case in comparable for rule_id in case["candidate_extra"]
@@ -189,8 +198,12 @@ def alignment_summary(
     return {
         "comparable": len(comparable),
         "subset_aligned": subset_aligned,
+        "capability_subset_aligned": capability_subset_aligned,
         "exact_trigger_set": exact_trigger_set,
         "missing_rule_distribution": dict(sorted(missing_rules.items())),
+        "missing_capability_distribution": dict(
+            sorted(missing_capable_rules.items())
+        ),
         "extra_rule_distribution": dict(sorted(extra_rules.items())),
         "application_status_distribution": dict(sorted(application_statuses.items())),
     }
@@ -591,8 +604,12 @@ def main() -> int:
                 "case_id": case_id,
                 "status": status,
                 "missing_rewritten": comparison["missing_rewritten"],
+                "missing_capable": comparison["missing_capable"],
                 "inconclusive_budget": comparison["inconclusive_budget"],
                 "candidate_extra": comparison["candidate_extra"],
+                "candidate_capable_extra": comparison[
+                    "candidate_capable_extra"
+                ],
                 "candidate_application_count": comparison["candidate_application_count"],
                 "search_metrics": trace_metrics(parsed),
             }

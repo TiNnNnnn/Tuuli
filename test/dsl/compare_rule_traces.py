@@ -5,7 +5,9 @@ Both plain JSONL emitted by WeTune's TraceRuleChain and PostgreSQL log output
 containing `DSL_TRACE {...}` records are accepted. The comparison intentionally
 does not require the same chain order or final plan. It supports both Cascades
 alternatives (``applied``) and deterministic BottomUp-RBO replacements
-(``applied_rbo``).
+(``applied_rbo``). RBO alternatives that passed the complete shared evaluation
+but lost the deterministic priority choice are reported separately as
+``applicable_rbo``; they count as capability evidence, never as replacements.
 """
 
 from __future__ import annotations
@@ -79,11 +81,17 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
             "cycle_rejected",
             "applied",
             "applied_rbo",
+			"applicable_rbo",
             "duplicate",
         },
     )
     candidate_rewritten = keys_of(
         candidate_apps, key, {"applied", "applied_rbo", "duplicate"}
+    )
+    candidate_capable = keys_of(
+        candidate_apps,
+        key,
+        {"applied", "applied_rbo", "applicable_rbo", "duplicate"},
     )
     candidate_budget_limited = keys_of(
         candidate_apps, key, {"budget_exhausted", "budget_skipped"}
@@ -101,6 +109,7 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
     reference_rewritten_set = set(reference_rewritten)
     candidate_matched_set = set(candidate_matched)
     candidate_rewritten_set = set(candidate_rewritten)
+    candidate_capable_set = set(candidate_capable)
     candidate_budget_limited_set = set(candidate_budget_limited)
     unresolved_rewritten_set = reference_rewritten_set - candidate_rewritten_set
     search_budget_limited = bool(candidate_budget_limited_set)
@@ -108,6 +117,7 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
         unresolved_rewritten_set if search_budget_limited else set()
     )
     missing_rewritten_set = unresolved_rewritten_set - inconclusive_budget_set
+    missing_capable_set = reference_rewritten_set - candidate_capable_set
 
     return {
         "key": key,
@@ -125,8 +135,15 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
         "inconclusive_budget": sorted_keys(inconclusive_budget_set),
         "missing_rewritten": sorted_keys(missing_rewritten_set),
         "candidate_extra": sorted_keys(candidate_rewritten_set - reference_rewritten_set),
+        "candidate_capable": sorted_keys(candidate_capable_set),
+        "shared_capable": sorted_keys(reference_rewritten_set & candidate_capable_set),
+        "missing_capable": sorted_keys(missing_capable_set),
+        "candidate_capable_extra": sorted_keys(
+            candidate_capable_set - reference_rewritten_set
+        ),
         "reference_rewrite_counts": dict(reference_rewritten),
         "candidate_rewrite_counts": dict(candidate_rewritten),
+        "candidate_capable_counts": dict(candidate_capable),
     }
 
 

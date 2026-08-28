@@ -1,0 +1,31 @@
+{
+  "description": "BottomUp RBO distinguishes the selected replacement from another fully applicable source alternative",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"rule_id\":43,\"status\":\"applied_rbo\"",
+        "\"rule_id\":101,\"status\":\"applicable_rbo\"",
+        "\"reason\":\"source_replaced_by_prior_rule\""
+      ],
+      "not_contains": [
+        "\"rule_id\":101,\"status\":\"applied_rbo\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

@@ -94,3 +94,8 @@ Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSu
 # SemiJoin carrier and correlated SetOp property boundary without rule-specific
 # engine code.
 InSubFilter<a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a5>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),Input<t5>)|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1)
+
+# A second valid target for the redundant Proj* source at line 43. BottomUp RBO
+# selects the earlier rule but trace-only validation must still report this full
+# match/constraint/instantiation/safety success as applicable, not applied.
+Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0)
