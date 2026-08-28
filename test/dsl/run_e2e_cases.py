@@ -19,6 +19,8 @@ JOIN_RE = re.compile(
     r"|(?:Nested Loop(?:\s+(?:Left|Right|Full|Semi|Anti)\s+Join)?))",
     re.MULTILINE,
 )
+XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
+REPLACEMENT_STATES = ("native", "shadow", "negative", "replacement")
 
 
 def parse_args() -> argparse.Namespace:
@@ -84,6 +86,64 @@ def disabled_xform_settings(expected: dict[str, object]) -> str:
             f"DO $dsl$ BEGIN PERFORM disable_xform('{xform}'); END $dsl$;"
         )
     return "\n".join(statements)
+
+
+def validate_replacement_matrix(expectation: dict[str, object]) -> None:
+    """Validate the causal four-state contract declared by an E2E case."""
+    replacement = expectation.get("replacement")
+    if replacement is None:
+        return
+    if not isinstance(replacement, dict):
+        raise ValueError("replacement must be an object")
+
+    xforms = replacement.get("xforms")
+    if (
+        not isinstance(xforms, list)
+        or not xforms
+        or any(
+            not isinstance(name, str) or not XFORM_RE.fullmatch(name)
+            for name in xforms
+        )
+        or len(set(xforms)) != len(xforms)
+    ):
+        raise ValueError("replacement.xforms must contain unique native xform names")
+
+    plans = expectation.get("plans")
+    if not isinstance(plans, list):
+        raise ValueError("replacement matrix requires plans")
+    by_name = {
+        plan.get("name"): plan
+        for plan in plans
+        if isinstance(plan, dict) and isinstance(plan.get("name"), str)
+    }
+    missing = [name for name in REPLACEMENT_STATES if name not in by_name]
+    if missing:
+        raise ValueError(f"replacement matrix missing states: {', '.join(missing)}")
+
+    target = set(xforms)
+    expected_dsl = {
+        "native": False,
+        "shadow": True,
+        "negative": False,
+        "replacement": True,
+    }
+    for state in REPLACEMENT_STATES:
+        plan = by_name[state]
+        if bool(plan.get("dsl", True)) != expected_dsl[state]:
+            raise ValueError(f"replacement state {state} has the wrong DSL setting")
+        disabled = set(plan.get("disable_xforms", []))
+        should_disable = state in {"negative", "replacement"}
+        if target.issubset(disabled) != should_disable:
+            action = "disable" if should_disable else "enable"
+            raise ValueError(
+                f"replacement state {state} must {action} every target xform"
+            )
+
+    rows = expectation.get("rows")
+    if not isinstance(rows, dict) or not target.issubset(
+        set(rows.get("disable_xforms", []))
+    ):
+        raise ValueError("replacement rows must run with every target xform disabled")
 
 
 def bool_guc_setting(name: str, value: object, fallback: bool) -> str:
@@ -248,10 +308,11 @@ def main() -> int:
         expect_path = args.expect_dir / f"{case_name}.expect"
         expected_text = expect_path.read_text(encoding="utf-8")
         expectation = json.loads(expected_text)
+        validate_replacement_matrix(expectation)
         query = sql_path.read_text(encoding="utf-8").strip()
         actual = {
             key: expectation[key]
-            for key in ("description",)
+            for key in ("description", "replacement")
             if key in expectation
         }
         actual["plans"] = []

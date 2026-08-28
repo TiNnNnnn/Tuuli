@@ -18,7 +18,11 @@ from build_reference_manifest import build_manifest
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
-from run_e2e_cases import bool_guc_setting, disabled_xform_settings
+from run_e2e_cases import (
+    bool_guc_setting,
+    disabled_xform_settings,
+    validate_replacement_matrix,
+)
 from run_trace_corpus import (
     alignment_summary,
     failed_query_status,
@@ -35,6 +39,45 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_replacement_matrix_requires_causal_four_states(self) -> None:
+        matrix = {
+            "replacement": {"xforms": ["CXformSimplifyGbAgg"]},
+            "plans": [
+                {"name": "native", "dsl": False},
+                {"name": "shadow"},
+                {
+                    "name": "negative",
+                    "dsl": False,
+                    "disable_xforms": ["CXformSimplifyGbAgg"],
+                },
+                {
+                    "name": "replacement",
+                    "disable_xforms": ["CXformSimplifyGbAgg"],
+                },
+            ],
+            "rows": {"disable_xforms": ["CXformSimplifyGbAgg"]},
+        }
+
+        self.assertIsNone(validate_replacement_matrix(matrix))
+
+    def test_replacement_matrix_rejects_noncausal_controls(self) -> None:
+        matrix = {
+            "replacement": {"xforms": ["CXformSimplifyGbAgg"]},
+            "plans": [
+                {"name": "native", "dsl": False},
+                {"name": "shadow"},
+                {"name": "negative", "dsl": False},
+                {
+                    "name": "replacement",
+                    "disable_xforms": ["CXformSimplifyGbAgg"],
+                },
+            ],
+            "rows": {"disable_xforms": ["CXformSimplifyGbAgg"]},
+        }
+
+        with self.assertRaisesRegex(ValueError, "negative must disable"):
+            validate_replacement_matrix(matrix)
+
     def test_e2e_can_preserve_extension_guc_defaults(self) -> None:
         self.assertEqual(
             bool_guc_setting("pg_orca.enable_dphyper", "default", False),

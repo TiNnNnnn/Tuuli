@@ -1,0 +1,73 @@
+{
+  "description": "DSL replaces the key-backed pure-dedup branch of CXformSimplifyGbAgg",
+  "replacement": {
+    "xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "scope": "key-backed pure dedup",
+    "status": "verified_partial_replacement",
+    "dsl_rules": [
+      101
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":101,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformSimplifyGbAgg",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "contains": [
+        "\"rule_id\":101,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
