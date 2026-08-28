@@ -1,0 +1,16 @@
+# Differential-only policy: schedule every rule admitted from the active rule
+# bank in the same child-before-parent direction as WeTune's BottomUpOptimizer.
+# pre_join + changes_join_graph is the conservative bulk classification; a
+# production policy should override individual rules with precise effects.
+- rule: '*'
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: changes_join_graph
+  priority: 0
+  order: bottom_up
+  fixpoint: true
+  budget:
+    per_node: 8
+    per_rule: 128
+    per_query: 1024

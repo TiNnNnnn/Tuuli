@@ -3,8 +3,9 @@
 
 Both plain JSONL emitted by WeTune's TraceRuleChain and PostgreSQL log output
 containing `DSL_TRACE {...}` records are accepted. The comparison intentionally
-does not require the same chain order or final plan: Cascades may discover more
-applications than WeTune's bottom-up optimizer.
+does not require the same chain order or final plan. It supports both Cascades
+alternatives (``applied``) and deterministic BottomUp-RBO replacements
+(``applied_rbo``).
 """
 
 from __future__ import annotations
@@ -74,11 +75,16 @@ def compare(reference: list[dict[str, Any]], candidate: list[dict[str, Any]], ke
             "constraint_rejected",
             "instantiate_rejected",
             "budget_exhausted",
+            "safety_rejected",
+            "cycle_rejected",
             "applied",
+            "applied_rbo",
             "duplicate",
         },
     )
-    candidate_rewritten = keys_of(candidate_apps, key, {"applied", "duplicate"})
+    candidate_rewritten = keys_of(
+        candidate_apps, key, {"applied", "applied_rbo", "duplicate"}
+    )
     candidate_budget_limited = keys_of(
         candidate_apps, key, {"budget_exhausted", "budget_skipped"}
     )

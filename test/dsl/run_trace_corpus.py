@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -160,6 +161,41 @@ def trace_metrics(records: list[dict[str, Any]]) -> dict[str, int]:
     return metrics
 
 
+def alignment_summary(
+    cases: list[dict[str, Any]], records: list[dict[str, Any]]
+) -> dict[str, Any]:
+    comparable = [case for case in cases if "missing_rewritten" in case]
+    subset_aligned = sum(
+        not case["missing_rewritten"] and not case["inconclusive_budget"]
+        for case in comparable
+    )
+    exact_trigger_set = sum(
+        not case["missing_rewritten"]
+        and not case["inconclusive_budget"]
+        and not case["candidate_extra"]
+        for case in comparable
+    )
+    missing_rules = Counter(
+        rule_id for case in comparable for rule_id in case["missing_rewritten"]
+    )
+    extra_rules = Counter(
+        rule_id for case in comparable for rule_id in case["candidate_extra"]
+    )
+    application_statuses = Counter(
+        record.get("status")
+        for record in records
+        if record.get("kind") == "application" and isinstance(record.get("status"), str)
+    )
+    return {
+        "comparable": len(comparable),
+        "subset_aligned": subset_aligned,
+        "exact_trigger_set": exact_trigger_set,
+        "missing_rule_distribution": dict(sorted(missing_rules.items())),
+        "extra_rule_distribution": dict(sorted(extra_rules.items())),
+        "application_status_distribution": dict(sorted(application_statuses.items())),
+    }
+
+
 def safe_name(case_id: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", case_id).strip("._") or "case"
 
@@ -253,6 +289,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("schema", type=Path)
     parser.add_argument("--pg-config", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument(
+        "--policy",
+        type=Path,
+        help="query policy; use a rule: '*' BottomUp-RBO policy for full-bank replay",
+    )
+    parser.add_argument(
+        "--strict-trigger-set",
+        action="store_true",
+        help="also fail when pgORCA rewrites a rule absent from the WeTune trace",
+    )
     parser.add_argument(
         "--trace-runner", type=Path, default=script_dir / "trace_corpus.sh"
     )
@@ -359,6 +405,10 @@ def main() -> int:
     except (OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 2
+    policy_path = args.policy.resolve() if args.policy is not None else None
+    if policy_path is not None and not policy_path.is_file():
+        print(f"policy is not a readable file: {policy_path}", file=sys.stderr)
+        return 2
     if args.case_ids:
         selected = set(args.case_ids)
         cases = [case for case in cases if case["case_id"] in selected]
@@ -384,6 +434,8 @@ def main() -> int:
             "kind": "corpus_comparison",
             "manifest": str(args.manifest),
             "rules": str(args.rules),
+            "policy": str(policy_path) if policy_path is not None else None,
+            "strict_trigger_set": args.strict_trigger_set,
             "dsl": args.dsl,
             "dphyper": args.dphyper,
             "dphyper_shadow": args.dphyper_shadow,
@@ -395,6 +447,7 @@ def main() -> int:
             "attempted": 0,
             "passed": 0,
             "failed": 0,
+            "alignment": alignment_summary([], []),
             "cases": [],
         }
         (args.output_dir / "report.json").write_text(
@@ -423,6 +476,9 @@ def main() -> int:
         environment["DSL_TRACE_STATEMENT_TIMEOUT"] = str(args.statement_timeout)
         environment["DSL_TRACE_DISABLE_XFORMS"] = ",".join(args.disable_xform)
         environment["DSL_TRACE_DSL_ENABLED"] = args.dsl
+        environment["DSL_TRACE_POLICY_PATH"] = (
+            str(policy_path) if policy_path is not None else ""
+        )
         environment["DSL_TRACE_DPHYPER_ENABLED"] = args.dphyper
         environment["DSL_TRACE_DPHYPER_SHADOW"] = args.dphyper_shadow
         environment["DSL_TRACE_DPHYPER_PAIR_BUDGET"] = str(
@@ -526,6 +582,8 @@ def main() -> int:
             status = "missing_rewrite"
         elif comparison["inconclusive_budget"]:
             status = "budget_limited"
+        elif args.strict_trigger_set and comparison["candidate_extra"]:
+            status = "trigger_set_mismatch"
         else:
             status = "passed"
         case_reports.append(
@@ -551,6 +609,8 @@ def main() -> int:
         "kind": "corpus_comparison",
         "manifest": str(args.manifest),
         "rules": str(args.rules),
+        "policy": str(policy_path) if policy_path is not None else None,
+        "strict_trigger_set": args.strict_trigger_set,
         "dsl": args.dsl,
         "dphyper": args.dphyper,
         "dphyper_shadow": args.dphyper_shadow,
@@ -563,6 +623,7 @@ def main() -> int:
         "passed": passed,
         "failed": failed,
         "inconclusive": inconclusive,
+        "alignment": alignment_summary(case_reports, candidate_records),
         "cases": case_reports,
     }
     report_path = args.output_dir / "report.json"

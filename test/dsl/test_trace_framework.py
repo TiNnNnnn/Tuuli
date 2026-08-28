@@ -20,6 +20,7 @@ from import_wetune_workloads import postgres_schema, schema_catalog
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import bool_guc_setting, disabled_xform_settings
 from run_trace_corpus import (
+    alignment_summary,
     failed_query_status,
     orca_fallback_reason,
     parameter_count,
@@ -145,6 +146,8 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(args.dphyper_shadow, "on")
         self.assertEqual(args.dphyper_pair_budget, 100)
         self.assertEqual(args.dphyper_edge_budget, 100000)
+        self.assertIsNone(args.policy)
+        self.assertFalse(args.strict_trigger_set)
 
     def test_statement_timeout_has_its_own_failure_class(self) -> None:
         self.assertEqual(
@@ -209,6 +212,44 @@ class TraceFrameworkTest(unittest.TestCase):
                 "duplicate_alternatives": 2,
                 "budget_exhausted": 1,
                 "budget_skipped": 4,
+            },
+        )
+
+    def test_alignment_summary_separates_subset_and_exact_sets(self) -> None:
+        cases = [
+            {
+                "missing_rewritten": [],
+                "inconclusive_budget": [],
+                "candidate_extra": [],
+            },
+            {
+                "missing_rewritten": [],
+                "inconclusive_budget": [],
+                "candidate_extra": [17],
+            },
+            {
+                "missing_rewritten": [6],
+                "inconclusive_budget": [],
+                "candidate_extra": [17],
+            },
+        ]
+        records = [
+            {"kind": "application", "status": "applied_rbo"},
+            {"kind": "application", "status": "duplicate"},
+        ]
+
+        self.assertEqual(
+            alignment_summary(cases, records),
+            {
+                "comparable": 3,
+                "subset_aligned": 2,
+                "exact_trigger_set": 1,
+                "missing_rule_distribution": {6: 1},
+                "extra_rule_distribution": {17: 2},
+                "application_status_distribution": {
+                    "applied_rbo": 1,
+                    "duplicate": 1,
+                },
             },
         )
 
@@ -307,6 +348,18 @@ class TraceFrameworkTest(unittest.TestCase):
         reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
         candidate = [
             {"kind": "application", "rule_id": 8, "status": "duplicate"}
+        ]
+
+        report = compare(reference, candidate, "rule_id")
+
+        self.assertEqual(report["shared_matched"], [8])
+        self.assertEqual(report["shared_rewritten"], [8])
+        self.assertEqual(report["missing_rewritten"], [])
+
+    def test_bottom_up_rbo_application_satisfies_reference_rewrite(self) -> None:
+        reference = [{"kind": "application", "rule_id": 8, "status": "applied"}]
+        candidate = [
+            {"kind": "application", "rule_id": 8, "status": "applied_rbo"}
         ]
 
         report = compare(reference, candidate, "rule_id")

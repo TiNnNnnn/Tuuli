@@ -30,6 +30,16 @@
       ]
     },
     {
+      "name": "all-rules-bottom-up-rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "\"status\":\"applied_rbo\"",
+        "\"order\":\"bottom_up\"",
+        "\"phase\":\"pre_join\""
+      ]
+    },
+    {
       "name": "rbo-disabled",
       "dsl": false,
       "trace": true,

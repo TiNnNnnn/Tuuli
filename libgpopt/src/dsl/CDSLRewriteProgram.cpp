@@ -13,11 +13,13 @@ using namespace gpopt;
 
 CDSLRewriteProgram::CDSLRewriteProgram(
 	CMemoryPool *mp, const CDSLRuleEngine *pengine,
-	const CDSLPolicySnapshot *psnapshot, ULONG ulHardSteps,
+	const CDSLPolicySnapshot *psnapshot, const CColRefSet *pcrsRequired,
+	ULONG ulHardSteps,
 	ULONG ulHardAddedNodes)
 	: m_mp(mp),
 	  m_pengine(pengine),
 	  m_psnapshot(psnapshot),
+	  m_pcrsRequired(pcrsRequired),
 	  m_ulApplications(0),
 	  m_ulAddedNodes(0),
 	  m_ulHardSteps(ulHardSteps),
@@ -147,9 +149,6 @@ CDSLRewriteProgram::SzSafetyFailure(const SDSLRulePolicy &policy,
 {
 	if (!pexprSource->Pop()->FLogical() || !pexprTarget->Pop()->FLogical())
 		return "non_logical_boundary";
-	if (!pexprSource->DeriveOutputColumns()->Equals(
-			pexprTarget->DeriveOutputColumns()))
-		return "output_columns_changed";
 	if (!pexprSource->DeriveOuterReferences()->ContainsAll(
 			pexprTarget->DeriveOuterReferences()))
 		return "outer_references_expanded";
@@ -164,6 +163,19 @@ CDSLRewriteProgram::SzSafetyFailure(const SDSLRulePolicy &policy,
 	if (EdsleffectChangesJoinGraph == policy.m_edsleffect &&
 		EdslphasePreJoin != policy.m_edslphase)
 		return "join_graph_change_outside_pre_join";
+	return nullptr;
+}
+
+const CHAR *
+CDSLRewriteProgram::SzRootSafetyFailure(CExpression *pexprSourceRoot,
+									CExpression *pexprTargetRoot) const
+{
+	if (nullptr != m_pcrsRequired &&
+		!pexprTargetRoot->DeriveOutputColumns()->ContainsAll(m_pcrsRequired))
+		return "required_output_columns_removed";
+	if (!pexprSourceRoot->DeriveOuterReferences()->ContainsAll(
+			pexprTargetRoot->DeriveOuterReferences()))
+		return "root_outer_references_expanded";
 	return nullptr;
 }
 
@@ -276,12 +288,14 @@ CDSLRewriteProgram::ReserveBudget(const Path &path,
 
 BOOL
 CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
-								 const Path &path, CExpression *pexprSource,
-								 CExpression **ppexprTarget)
+								 const Path &path, CExpression *pexprRoot,
+								 CExpression *pexprSource,
+								 CExpression **ppexprNewRoot)
 {
 	GPOS_ASSERT(nullptr != pexprSource);
-	GPOS_ASSERT(nullptr != ppexprTarget);
-	*ppexprTarget = nullptr;
+	GPOS_ASSERT(nullptr != pexprRoot);
+	GPOS_ASSERT(nullptr != ppexprNewRoot);
+	*ppexprNewRoot = nullptr;
 	if (m_fHardBudgetExhausted || !pexprSource->Pop()->FLogical())
 		return false;
 
@@ -363,12 +377,36 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 			continue;
 		}
 
+		CExpression *pexprDetachedTarget = decision->PexprDetachTarget();
+		CExpression *pexprNewRoot =
+			PexprReplace(pexprRoot, path, pexprDetachedTarget);
+		if (nullptr == pexprNewRoot)
+		{
+			m_pengine->TraceRBOOutcome(
+				m_mp, prule, &policy, decision, pexprSource, nullptr,
+				"safety_rejected", "replacement_path_invalid");
+			GPOS_DELETE(decision);
+			continue;
+		}
+		CExpression *pexprNewNode = PexprResolve(pexprNewRoot, path);
+		const CHAR *rootSafetyFailure =
+			SzRootSafetyFailure(pexprRoot, pexprNewRoot);
+		if (nullptr != rootSafetyFailure)
+		{
+			m_pengine->TraceRBOOutcome(
+				m_mp, prule, &policy, decision, pexprSource, pexprNewNode,
+				"safety_rejected", rootSafetyFailure);
+			pexprNewRoot->Release();
+			GPOS_DELETE(decision);
+			continue;
+		}
+
+		RecordLineage(path, pexprNewNode);
 		ReserveBudget(path, prule, policy, addedNodes);
-		RecordLineage(path, pexprTarget);
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
-								 pexprTarget, "applied_rbo",
+								 pexprNewNode, "applied_rbo",
 								 "source_alternative_replaced");
-		*ppexprTarget = decision->PexprDetachTarget();
+		*ppexprNewRoot = pexprNewRoot;
 		GPOS_DELETE(decision);
 		candidates->Release();
 		return true;
@@ -392,19 +430,14 @@ CDSLRewriteProgram::FRunTopDown(EDslRulePhase phase,
 		CExpression *pexprNode = PexprResolve(*ppexprRoot, item.m_path);
 		if (nullptr == pexprNode)
 			continue;
-		CExpression *pexprTarget = nullptr;
-		if (FApplyAtNode(phase, EdslorderTopDown, item.m_path, pexprNode,
-						 &pexprTarget))
+		CExpression *pexprNewRoot = nullptr;
+		if (FApplyAtNode(phase, EdslorderTopDown, item.m_path, *ppexprRoot,
+						 pexprNode, &pexprNewRoot))
 		{
-			CExpression *pexprNewRoot =
-				PexprReplace(*ppexprRoot, item.m_path, pexprTarget);
-			if (nullptr != pexprNewRoot)
-			{
-				(*ppexprRoot)->Release();
-				*ppexprRoot = pexprNewRoot;
-				changed = true;
-				worklist.emplace_back(item.m_path, false);
-			}
+			(*ppexprRoot)->Release();
+			*ppexprRoot = pexprNewRoot;
+			changed = true;
+			worklist.emplace_back(item.m_path, false);
 			continue;
 		}
 		for (ULONG child = pexprNode->Arity(); 0 < child; --child)
@@ -443,20 +476,15 @@ CDSLRewriteProgram::FRunBottomUp(EDslRulePhase phase,
 			}
 			continue;
 		}
-		CExpression *pexprTarget = nullptr;
-		if (!FApplyAtNode(phase, EdslorderBottomUp, item.m_path, pexprNode,
-						  &pexprTarget))
+		CExpression *pexprNewRoot = nullptr;
+		if (!FApplyAtNode(phase, EdslorderBottomUp, item.m_path, *ppexprRoot,
+						  pexprNode, &pexprNewRoot))
 			continue;
-		CExpression *pexprNewRoot =
-			PexprReplace(*ppexprRoot, item.m_path, pexprTarget);
-		if (nullptr != pexprNewRoot)
-		{
-			(*ppexprRoot)->Release();
-			*ppexprRoot = pexprNewRoot;
-			changed = true;
-			// Revisit new children before retrying the replacement root.
-			worklist.emplace_back(item.m_path, false);
-		}
+		(*ppexprRoot)->Release();
+		*ppexprRoot = pexprNewRoot;
+		changed = true;
+		// Revisit new children before retrying the replacement root.
+		worklist.emplace_back(item.m_path, false);
 	}
 	return changed;
 }

@@ -153,6 +153,12 @@ BOOL
 FParseIdentity(std::string value, CHAR result[17])
 {
 	value = Unquote(value);
+	if ("*" == value)
+	{
+		result[0] = '*';
+		result[1] = '\0';
+		return true;
+	}
 	if (16 != value.size())
 	{
 		return false;
@@ -414,7 +420,7 @@ CDSLPolicyLoader::PpolicyLoadBuffer(CMemoryPool *mp, const CHAR *szContent,
 			if (!FParseIdentity(value, current.m_szRuleIdentity))
 			{
 				AppendError(pstrErrors, ulLine,
-							"rule must be a 16-digit hexadecimal canonical identity");
+							"rule must be '*' or a 16-digit hexadecimal canonical identity");
 				fValid = false;
 			}
 			fields.insert("rule");
@@ -502,10 +508,16 @@ CDSLPolicySnapshot::PsnapshotCompile(CMemoryPool *mp,
 	CDSLPolicySnapshot *snapshot = GPOS_NEW(mp) CDSLPolicySnapshot();
 	snapshot->m_fExplicitPolicy = nullptr != ppolicy;
 	std::unordered_map<std::string, const SDSLRulePolicy *> configured;
+	const SDSLRulePolicy *defaultEntry = nullptr;
 	if (nullptr != ppolicy)
 	{
 		for (const SDSLRulePolicy &entry : ppolicy->Entries())
-			configured.emplace(entry.m_szRuleIdentity, &entry);
+		{
+			if (0 == std::strcmp("*", entry.m_szRuleIdentity))
+				defaultEntry = &entry;
+			else
+				configured.emplace(entry.m_szRuleIdentity, &entry);
+		}
 	}
 
 	std::unordered_set<std::string> loaded;
@@ -514,7 +526,10 @@ CDSLPolicySnapshot::PsnapshotCompile(CMemoryPool *mp,
 		const CDSLRule *rule = (*pdrgRules)[index];
 		const std::string identity(rule->SzIdentity());
 		loaded.insert(identity);
-		SDSLRulePolicy resolved = DefaultPolicy(rule);
+		SDSLRulePolicy resolved = nullptr == defaultEntry
+			? DefaultPolicy(rule)
+			: *defaultEntry;
+		std::memcpy(resolved.m_szRuleIdentity, rule->SzIdentity(), 17);
 		auto configuredIt = configured.find(identity);
 		if (configured.end() != configuredIt)
 		{
@@ -584,13 +599,14 @@ CDSLPolicySnapshot::PsnapshotCompile(CMemoryPool *mp,
 	for (ULONG phase = 0; phase < 3; ++phase)
 	{
 		auto &rules = snapshot->m_rbo_rules[phase];
-		std::sort(rules.begin(), rules.end(),
+		// Preserve rule-library order for equal priorities. WeTune's rule bank is
+		// insertion ordered, so this also makes a wildcard BottomUp-RBO policy a
+		// useful differential oracle while explicit priority remains authoritative.
+		std::stable_sort(rules.begin(), rules.end(),
 			[snapshot](const CDSLRule *left, const CDSLRule *right) {
 				const SDSLRulePolicy &leftPolicy = snapshot->Policy(left);
 				const SDSLRulePolicy &rightPolicy = snapshot->Policy(right);
-				if (leftPolicy.m_iPriority != rightPolicy.m_iPriority)
-					return leftPolicy.m_iPriority > rightPolicy.m_iPriority;
-				return std::strcmp(left->SzIdentity(), right->SzIdentity()) < 0;
+				return leftPolicy.m_iPriority > rightPolicy.m_iPriority;
 			});
 	}
 	return snapshot;

@@ -62,6 +62,9 @@ private:
 	CMemoryPool *m_mp;
 	const CDSLRuleEngine *m_pengine;
 	const CDSLPolicySnapshot *m_psnapshot;
+	// Borrowed query output/order requirements. A replacement may remove
+	// pass-through columns, but the complete rewritten tree must retain these.
+	const CColRefSet *m_pcrsRequired;
 	std::vector<SFiredEntry> m_fired;
 	std::unordered_map<std::string, std::vector<CExpression *> > m_lineages;
 	std::unordered_map<const CDSLRule *, ULONG> m_ruleApplications;
@@ -84,6 +87,8 @@ private:
 	const CHAR *SzSafetyFailure(const SDSLRulePolicy &policy,
 								 CExpression *pexprSource,
 								 CExpression *pexprTarget) const;
+	const CHAR *SzRootSafetyFailure(CExpression *pexprSourceRoot,
+									 CExpression *pexprTargetRoot) const;
 	BOOL FFired(const CDSLRule *prule, ULONG ulFingerprint,
 				CExpression *pexprSource) const;
 	void RecordFired(const CDSLRule *prule, ULONG ulFingerprint,
@@ -100,8 +105,8 @@ private:
 	// Try candidates of one traversal cohort at a node. On success ownership of
 	// one target reference is returned through ppexprTarget.
 	BOOL FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
-					  const Path &path, CExpression *pexprSource,
-					  CExpression **ppexprTarget);
+					  const Path &path, CExpression *pexprRoot,
+					  CExpression *pexprSource, CExpression **ppexprNewRoot);
 	BOOL FRunTopDown(EDslRulePhase phase, CExpression **ppexprRoot);
 	BOOL FRunBottomUp(EDslRulePhase phase, CExpression **ppexprRoot);
 	void RunPhase(EDslRulePhase phase, CExpression **ppexprRoot);
@@ -111,6 +116,7 @@ public:
 
 	CDSLRewriteProgram(CMemoryPool *mp, const CDSLRuleEngine *pengine,
 					   const CDSLPolicySnapshot *psnapshot,
+					   const CColRefSet *pcrsRequired = nullptr,
 					   ULONG ulHardSteps = 10000,
 					   ULONG ulHardAddedNodes = 100000);
 	~CDSLRewriteProgram();

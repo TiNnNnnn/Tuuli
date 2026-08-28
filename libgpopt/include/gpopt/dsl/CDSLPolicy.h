@@ -71,8 +71,9 @@ struct SDSLRulePolicy
 	SDSLRulePolicy();
 };
 
-// Parsed policy document. Entries retain file order only for diagnostics;
-// scheduling order is compiled explicitly by CDSLPolicySnapshot.
+// Parsed policy document. A rule identity of "*" is an optional library-wide
+// default; canonical identities can override it without exposing the complete
+// private rule bank in the policy document.
 class CDSLPolicy : public CRefCount
 {
 private:

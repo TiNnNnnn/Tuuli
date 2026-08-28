@@ -80,6 +80,7 @@ CDSLPolicyTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_StrictLoader),
 		GPOS_UNITTEST_FUNC(
 			CDSLPolicyTest::EresUnittest_SnapshotDefaultsAndAuto),
+		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_WildcardDefaults),
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_RewriteProgram),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
@@ -243,7 +244,7 @@ CDSLPolicyTest::EresUnittest_RewriteProgram()
 		}
 		else
 		{
-			CDSLRewriteProgram program(mp, engine, swapSnapshot, 8, 32);
+			CDSLRewriteProgram program(mp, engine, swapSnapshot, nullptr, 8, 32);
 			CExpression *result = program.PexprRewrite(swapSource);
 			valid = valid && 1 == program.UlApplications() &&
 				!program.FHardBudgetExhausted() &&
@@ -354,6 +355,66 @@ CDSLPolicyTest::EresUnittest_SnapshotDefaultsAndAuto()
 			!snapshot->FHasCBOSourceOperator(EdslopFilter) &&
 			snapshot->FHasCBOSourceOperator(EdslopProj);
 	}
+	GPOS_DELETE(snapshot);
+	CRefCount::SafeRelease(policy);
+	rules->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLPolicyTest::EresUnittest_WildcardDefaults()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLRule *first = Parse(
+		mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	CDSLRule *second = Parse(
+		mp, "Proj<a0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");
+	if (nullptr == first || nullptr == second)
+	{
+		CRefCount::SafeRelease(first);
+		CRefCount::SafeRelease(second);
+		return GPOS_FAILED;
+	}
+
+	CDSLRuleArray *rules = GPOS_NEW(mp) CDSLRuleArray(mp);
+	rules->Append(first);
+	rules->Append(second);
+	std::string text(
+		"- rule: '*'\n"
+		"  enabled: true\n"
+		"  placement: rbo\n"
+		"  phase: pre_join\n"
+		"  effect: changes_join_graph\n"
+		"  priority: 0\n"
+		"  order: bottom_up\n"
+		"  fixpoint: true\n"
+		"- rule: ");
+	text.append(second->SzIdentity());
+	text.append("\n  enabled: false\n");
+
+	CWStringDynamic errors(mp);
+	CDSLPolicy *policy =
+		CDSLPolicyLoader::PpolicyLoadBuffer(mp, text.c_str(), &errors);
+	CDSLPolicySnapshot *snapshot = nullptr == policy
+		? nullptr
+		: CDSLPolicySnapshot::PsnapshotCompile(mp, rules, policy, &errors);
+	BOOL valid = nullptr != snapshot;
+	if (valid)
+	{
+		const SDSLRulePolicy &wildcard = snapshot->Policy(first);
+		const SDSLRulePolicy &disabled = snapshot->Policy(second);
+		valid = snapshot->FExplicitPolicy() &&
+			EdslplacementRBO == wildcard.m_edslplacement &&
+			EdslphasePreJoin == wildcard.m_edslphase &&
+			EdsleffectChangesJoinGraph == wildcard.m_edsleffect &&
+			EdslorderBottomUp == wildcard.m_edslorder &&
+			wildcard.m_fFixpoint && !disabled.m_fEnabled &&
+			1 == snapshot->RboRules(EdslphasePreJoin).size() &&
+			first == snapshot->RboRules(EdslphasePreJoin)[0] &&
+			snapshot->CboRules().empty();
+	}
+
 	GPOS_DELETE(snapshot);
 	CRefCount::SafeRelease(policy);
 	rules->Release();

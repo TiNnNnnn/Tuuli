@@ -17,6 +17,7 @@ MAX_ALTERNATIVES=${DSL_TRACE_MAX_ALTERNATIVES:-0}
 MAX_ALTERNATIVES_PER_RULE=${DSL_TRACE_MAX_ALTERNATIVES_PER_RULE:-0}
 DISABLE_XFORMS=${DSL_TRACE_DISABLE_XFORMS:-}
 DSL_ENABLED=${DSL_TRACE_DSL_ENABLED:-on}
+POLICY_PATH=${DSL_TRACE_POLICY_PATH:-}
 DPHYPER_ENABLED=${DSL_TRACE_DPHYPER_ENABLED:-off}
 DPHYPER_SHADOW=${DSL_TRACE_DPHYPER_SHADOW:-on}
 DPHYPER_PAIR_BUDGET=${DSL_TRACE_DPHYPER_PAIR_BUDGET:-100}
@@ -70,6 +71,11 @@ for XFORM_NAME in "${DISABLED_XFORM_NAMES[@]}"; do
 done
 [[ "$DSL_ENABLED" = on || "$DSL_ENABLED" = off ]] || \
     fail "DSL_TRACE_DSL_ENABLED must be on or off"
+if [[ -n "$POLICY_PATH" ]]; then
+    [[ -r "$POLICY_PATH" ]] || fail "DSL_TRACE_POLICY_PATH is not readable"
+    [[ "$POLICY_PATH" != *"'"* ]] || \
+        fail "DSL_TRACE_POLICY_PATH must not contain a single quote"
+fi
 [[ "$DPHYPER_ENABLED" = on || "$DPHYPER_ENABLED" = off ]] || \
     fail "DSL_TRACE_DPHYPER_ENABLED must be on or off"
 [[ "$DPHYPER_SHADOW" = on || "$DPHYPER_SHADOW" = off ]] || \
@@ -128,6 +134,11 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         echo "LOAD 'pg_orca';"
         echo "SET pg_orca.enable_orca=on;"
         echo "SET pg_orca.enable_dsl_rule=$DSL_ENABLED;"
+        if [[ -n "$POLICY_PATH" ]]; then
+            echo "SET pg_orca.dsl_rule_policy_path='$POLICY_PATH';"
+        else
+            echo "RESET pg_orca.dsl_rule_policy_path;"
+        fi
         echo "SET pg_orca.enable_dphyper=$DPHYPER_ENABLED;"
         echo "SET pg_orca.dphyper_shadow=$DPHYPER_SHADOW;"
         echo "SET pg_orca.dphyper_pair_budget=$DPHYPER_PAIR_BUDGET;"

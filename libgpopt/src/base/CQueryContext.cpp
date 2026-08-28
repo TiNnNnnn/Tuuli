@@ -74,7 +74,8 @@ CQueryContext::CQueryContext(CMemoryPool *mp, CExpression *pexpr,
 	GPOS_ASSERT(nullptr != pengineDSL);
 	GPOS_ASSERT(nullptr != poctxt->PdslPolicySnapshot());
 	CDSLRewriteProgram rewriteProgram(mp, pengineDSL,
-								 poctxt->PdslPolicySnapshot());
+								 poctxt->PdslPolicySnapshot(),
+								 pcrsOutputAndOrderingCols);
 	CExpression *pexprRBO = nullptr;
 	if (GPOS_FTRACE(EopttracePreserveOpsForDSL))
 	{
