@@ -1,0 +1,75 @@
+{
+  "description": "DSL self-IN elimination subsumes distinct removal for a key-backed subquery",
+  "replacement": {
+    "xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "scope": "positive single-column self-IN over a non-null DISTINCT subquery",
+    "status": "verified_partial_replacement",
+    "dsl_rules": [
+      8
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":8,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformRemoveSubqDistinct",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "not_contains": [
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "contains": [
+        "\"rule_id\":8,\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
