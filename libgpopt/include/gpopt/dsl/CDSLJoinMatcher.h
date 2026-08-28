@@ -21,9 +21,12 @@
 //		     two CColRefs and split them into left/right key sets by which side's
 //		     column belongs to the left subtree's output columns. NON-equi conjuncts
 //		     remain in the complete predicate recorded for this Join node.
-//		  3. Bind the first <a> to the left key columns, the second <a> to the right
-//		     key columns (CDSLModel::FBind, arrays — same as Filter's <a>).
-//		  4. Recurse child[0] and child[1] back through the generic matcher.
+//		  3. Recurse child[0] and child[1] back through the generic matcher.
+//		  4. Bind the first <a> to the left key columns, the second <a> to the right
+//		     key columns (CDSLModel::FBind, arrays — same as Filter's <a>). Once the
+//		     children are bound, transitively redundant equality edges may be
+//		     represented by one constraint-valid member of each proven equivalence
+//		     class.
 //		  5. Record the WHOLE predicate subtree (child[2]) under this Join's attrs
 //		     pair (CDSLModel::FSetJoinPred) so the instantiator can graft the exact
 //		     equi + non-equi predicate onto the rebuilt join.

@@ -17,6 +17,8 @@
 
 #include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CPropConstraint.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
@@ -185,6 +187,185 @@ NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
 	*ppdrgpcrLeft = pdrgpcrNarrowLeft;
 	*ppdrgpcrRight = pdrgpcrNarrowRight;
 }
+
+BOOL
+FColumnsEquivalent(CExpression *pexpr, const CColRef *pcrFirst,
+				   const CColRef *pcrSecond)
+{
+	if (pcrFirst == pcrSecond)
+	{
+		return true;
+	}
+	CPropConstraint *ppc = pexpr->DerivePropertyConstraint();
+	CColRefSet *pcrs = ppc->PcrsEquivClass(pcrFirst);
+	return nullptr != pcrs && pcrs->FMember(pcrSecond);
+}
+
+BOOL
+FEquivalentJoinEdges(CExpression *pexprLeft, CExpression *pexprRight,
+					 const CColRefArray *pdrgpcrLeft,
+					 const CColRefArray *pdrgpcrRight, ULONG ulFirst,
+					 ULONG ulSecond)
+{
+	return FColumnsEquivalent(pexprLeft, (*pdrgpcrLeft)[ulFirst],
+						  (*pdrgpcrLeft)[ulSecond]) &&
+		   FColumnsEquivalent(pexprRight, (*pdrgpcrRight)[ulFirst],
+						  (*pdrgpcrRight)[ulSecond]);
+}
+
+// Candidate validation is traversal-order independent only after all other
+// source symbols have concrete bindings. A nested join whose sibling has not
+// been visited yet simply retains its complete key vector.
+BOOL
+FAllOtherSourceSymbolsBound(const CDSLRule *prule,
+						 const CDSLSymbol *psymLeft,
+						 const CDSLSymbol *psymRight,
+						 const CDSLModel *pmodel)
+{
+	CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->Pdrgpsym();
+	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+	{
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		if (psym != psymLeft && psym != psymRight &&
+			nullptr == pmodel->PvalLookup(psym))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+BOOL
+FConstraintsHoldWithJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
+						 const CDSLSymbol *psymLeft,
+						 const CDSLSymbol *psymRight,
+						 const CDSLModel *pmodel,
+						 CColRefArray *pdrgpcrLeft,
+						 CColRefArray *pdrgpcrRight)
+{
+	CDSLModel *pmodelProbe = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->Pdrgpsym();
+	BOOL fBound = true;
+	for (ULONG ul = 0; fBound && ul < pdrgpsym->Size(); ul++)
+	{
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		CRefCount *pval = psym == psymLeft
+			? static_cast<CRefCount *>(pdrgpcrLeft)
+			: (psym == psymRight
+				   ? static_cast<CRefCount *>(pdrgpcrRight)
+				   : pmodel->PvalLookup(psym));
+		fBound = nullptr != pval && pmodelProbe->FBind(psym, pval);
+	}
+
+	CDSLConstraintChecker checker(mp);
+	BOOL fHolds = fBound && checker.FCheck(prule, pmodelProbe);
+	pmodelProbe->Release();
+	return fHolds;
+}
+
+BOOL
+FTryJoinKeyRepresentatives(
+	CMemoryPool *mp, const CDSLRule *prule, const CDSLSymbol *psymLeft,
+	const CDSLSymbol *psymRight, const CDSLModel *pmodel,
+	const CColRefArray *pdrgpcrAllLeft,
+	const CColRefArray *pdrgpcrAllRight,
+	const std::vector<std::vector<ULONG>> &groups, ULONG ulGroup,
+	std::vector<ULONG> *pselected, CColRefArray **ppdrgpcrLeft,
+	CColRefArray **ppdrgpcrRight)
+{
+	if (ulGroup < groups.size())
+	{
+		for (ULONG ulEdge : groups[ulGroup])
+		{
+			pselected->push_back(ulEdge);
+			if (FTryJoinKeyRepresentatives(
+					mp, prule, psymLeft, psymRight, pmodel,
+					pdrgpcrAllLeft, pdrgpcrAllRight, groups, ulGroup + 1,
+					pselected, ppdrgpcrLeft, ppdrgpcrRight))
+			{
+				return true;
+			}
+			pselected->pop_back();
+		}
+		return false;
+	}
+
+	CColRefArray *pdrgpcrCandidateLeft = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefArray *pdrgpcrCandidateRight = GPOS_NEW(mp) CColRefArray(mp);
+	for (ULONG ulEdge : *pselected)
+	{
+		pdrgpcrCandidateLeft->Append((*pdrgpcrAllLeft)[ulEdge]);
+		pdrgpcrCandidateRight->Append((*pdrgpcrAllRight)[ulEdge]);
+	}
+
+	if (!FConstraintsHoldWithJoinKeys(mp, prule, psymLeft, psymRight,
+								pmodel, pdrgpcrCandidateLeft,
+								pdrgpcrCandidateRight))
+	{
+		pdrgpcrCandidateLeft->Release();
+		pdrgpcrCandidateRight->Release();
+		return false;
+	}
+
+	(*ppdrgpcrLeft)->Release();
+	(*ppdrgpcrRight)->Release();
+	*ppdrgpcrLeft = pdrgpcrCandidateLeft;
+	*ppdrgpcrRight = pdrgpcrCandidateRight;
+	return true;
+}
+
+// ORCA's equality closure can add transitively implied edges to a binary Join,
+// while WeTune binds the keys written on the original binary join. Collapse
+// only edges proven equivalent inside both relational children. Trying one
+// representative per equivalence-pair class preserves predicate semantics and
+// avoids an exponential arbitrary-subset search.
+void
+NarrowEquivalentJoinKeysByConstraints(
+	CMemoryPool *mp, const CDSLRule *prule, const CDSLSymbol *psymLeft,
+	const CDSLSymbol *psymRight, CExpression *pexprLeft,
+	CExpression *pexprRight, const CDSLModel *pmodel,
+	CColRefArray **ppdrgpcrLeft, CColRefArray **ppdrgpcrRight)
+{
+	if (nullptr == prule || (*ppdrgpcrLeft)->Size() < 2 ||
+		!FAllOtherSourceSymbolsBound(prule, psymLeft, psymRight, pmodel) ||
+		FConstraintsHoldWithJoinKeys(mp, prule, psymLeft, psymRight, pmodel,
+								  *ppdrgpcrLeft, *ppdrgpcrRight))
+	{
+		return;
+	}
+
+	std::vector<std::vector<ULONG>> groups;
+	for (ULONG ulEdge = 0; ulEdge < (*ppdrgpcrLeft)->Size(); ulEdge++)
+	{
+		BOOL fGrouped = false;
+		for (std::vector<ULONG> &group : groups)
+		{
+			if (FEquivalentJoinEdges(pexprLeft, pexprRight,
+								 *ppdrgpcrLeft, *ppdrgpcrRight,
+								 group.front(), ulEdge))
+			{
+				group.push_back(ulEdge);
+				fGrouped = true;
+				break;
+			}
+		}
+		if (!fGrouped)
+		{
+			groups.push_back(std::vector<ULONG>(1, ulEdge));
+		}
+	}
+	if (groups.size() == (*ppdrgpcrLeft)->Size())
+	{
+		return;
+	}
+
+	std::vector<ULONG> selected;
+	(void) FTryJoinKeyRepresentatives(
+		mp, prule, psymLeft, psymRight, pmodel, *ppdrgpcrLeft,
+		*ppdrgpcrRight, groups, 0, &selected, ppdrgpcrLeft,
+		ppdrgpcrRight);
+}
+
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -309,20 +490,32 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	NarrowJoinKeys(m_mp, m_prule, psymLeft, psymRight, pmodel,
 				   &pdrgpcrLeft, &pdrgpcrRight);
 
+	// recurse both relational children through the generic matcher.
+	if (!m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) ||
+		!m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel))
+	{
+		pdrgpcrLeft->Release();
+		pdrgpcrRight->Release();
+		pdrgpexprResidual->Release();
+		return false;
+	}
+
+	// Equality-closure selection needs child bindings and derived equivalence
+	// classes, so it runs after recursion but before the attrs become immutable
+	// model bindings. A non-equality residual makes narrowing unsafe.
+	if (0 == pdrgpexprResidual->Size())
+	{
+		NarrowEquivalentJoinKeysByConstraints(
+			m_mp, m_prule, psymLeft, psymRight, (*pexprJoin)[0],
+			(*pexprJoin)[1], pmodel, &pdrgpcrLeft, &pdrgpcrRight);
+	}
+
 	// bind the two <a> symbols (FBind AddRefs; release our local refs after).
 	BOOL fBound = pmodel->FBind(psymLeft, pdrgpcrLeft) &&
 				  pmodel->FBind(psymRight, pdrgpcrRight);
 	pdrgpcrLeft->Release();
 	pdrgpcrRight->Release();
 	if (!fBound)
-	{
-		pdrgpexprResidual->Release();
-		return false;
-	}
-
-	// recurse both relational children through the generic matcher.
-	if (!m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) ||
-		!m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel))
 	{
 		pdrgpexprResidual->Release();
 		return false;

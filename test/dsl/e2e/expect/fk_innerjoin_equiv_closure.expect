@@ -1,0 +1,34 @@
+{
+  "description": "FK InnerJoin removal tolerates only proven redundant equality-closure edges",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "\"rule_id\":84,\"status\":\"applied\""
+      ],
+      "joins": 2
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "\"rule_id\":84,\"status\":\"applied\""
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
