@@ -38,6 +38,7 @@ struct SDslOpDesc
 //   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
 //   InSubFilter<a>     (attrs)
 //   Exists     <>      (no symbols)
+//   NotExists  <>      (no symbols)
 //   Proj       <a s>   (attrs, schema)
 //   Agg        <a a a f s p> (groupBy, aggAttrs, aggOutAttrs, func, schema, havingPred)
 //   Sort       <a>     (attrs)
@@ -53,6 +54,7 @@ const SDslOpDesc rg_op_desc[] = {
 	{EdslopFilter, "Filter", 1, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
 	{EdslopExists, "Exists", 2, 0, {}},
+	{EdslopNotExists, "NotExists", 2, 0, {}},
 	{EdslopProj, "Proj", 1, 2, {EdslsymAttrs, EdslsymSchema}},
 	{EdslopAgg, "Agg", 1, 6,
 	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
@@ -156,6 +158,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalGbAgg;
 		case EdslopExists:
 			return COperator::EopLogicalLeftSemiApply;
+		case EdslopNotExists:
+			return COperator::EopLogicalLeftAntiSemiApply;
 		case EdslopInSubFilter:
 			return COperator::EopLogicalLeftSemiApplyIn;
 		case EdslopUnion:
@@ -178,7 +182,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 BOOL
 CDSLOpKindTable::FHasPreUnnestRepresentation(EDslOpKind edslop)
 {
-	return EdslopExists == edslop || EdslopInSubFilter == edslop;
+	return EdslopExists == edslop || EdslopNotExists == edslop ||
+		   EdslopInSubFilter == edslop;
 }
 
 BOOL
@@ -192,6 +197,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopFilter:
 		case EdslopInSubFilter:
 		case EdslopExists:
+		case EdslopNotExists:
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
@@ -216,6 +222,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopFilter:
 		case EdslopInSubFilter:
 		case EdslopExists:
+		case EdslopNotExists:
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
@@ -277,6 +284,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"InSub", EdslopInSubFilter, EdslsortNone},
 		{"Exists", EdslopExists, EdslsortNone},
 		{"ExistsFilter", EdslopExists, EdslsortNone},
+		{"NotExists", EdslopNotExists, EdslsortNone},
+		{"NotExistsFilter", EdslopNotExists, EdslsortNone},
 		{"Proj", EdslopProj, EdslsortNone},
 		{"Compute", EdslopCompute, EdslsortNone},
 		{"Agg", EdslopAgg, EdslsortNone},

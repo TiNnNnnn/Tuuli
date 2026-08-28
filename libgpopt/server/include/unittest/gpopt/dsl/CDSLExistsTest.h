@@ -20,6 +20,9 @@ public:
 	static GPOS_RESULT EresUnittest_CorpusAggProjRoundTrip();
 	static GPOS_RESULT EresUnittest_PreApplyCorpusAggProjRoundTrip();
 	static GPOS_RESULT EresUnittest_PreApplyPreservesResidual();
+	static GPOS_RESULT EresUnittest_PreApplyNotExistsDistinctDrop();
+	static GPOS_RESULT EresUnittest_PostApplyNotExistsDistinctDrop();
+	static GPOS_RESULT EresUnittest_ExistsPolarityIsolation();
 };
 }  // namespace gpopt
 

@@ -313,6 +313,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDSLRule_LeftJoin(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Agg(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Exists(m_mp));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_NotExists(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_InSub(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Union(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_UnionAll(m_mp));

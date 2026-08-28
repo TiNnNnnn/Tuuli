@@ -1,0 +1,69 @@
+{
+  "description": "A proved DSL rule removes pure DISTINCT from a NOT EXISTS subquery",
+  "replacement": {
+    "xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "scope": "NOT EXISTS over a pure global DISTINCT subquery",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "34dcead32519d2dd"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\""
+      ],
+      "alternative": [
+        "CXformRemoveSubqDistinct",
+        "CXformDSLRule_NotExists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "not_contains": [
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\""
+      ],
+      "alternative": [
+        "CXformDSLRule_NotExists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct"
+    ],
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ]
+  }
+}

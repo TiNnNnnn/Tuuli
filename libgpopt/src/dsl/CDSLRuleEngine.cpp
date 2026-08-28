@@ -91,7 +91,8 @@ CDSLRuleEngine::BucketByRoot()
 		// Before CXformSelect2Apply runs, a DSL Exists source is rooted at an
 		// ORCA Select whose scalar predicate is CScalarSubqueryExists. Put it in
 		// the Select bucket so the DSL can perform the unnesting independently.
-		if (EdslopExists == prule->PfragSrc()->PopRoot()->Edslop())
+		if (EdslopExists == prule->PfragSrc()->PopRoot()->Edslop() ||
+			EdslopNotExists == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
 		}

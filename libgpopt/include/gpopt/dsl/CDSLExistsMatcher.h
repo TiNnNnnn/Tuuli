@@ -5,11 +5,10 @@
 //		CDSLExistsMatcher.h
 //
 //	@doc:
-//		Match Exists(left,right) both before subquery unnesting
-//		(Select(left, ScalarSubqueryExists(right))) and after it
-//		(CLogicalLeftSemiApply(left, LIMIT 1 right, TRUE)). Translator-generated
-//		conjuncts beside EXISTS are preserved as dedicated residuals; LIMIT 1 is
-//		an internal uncorrelated-subquery optimization transparent to the DSL.
+//		Match Exists/NotExists both before and after subquery unnesting. Positive
+//		EXISTS maps to LeftSemiApply and may carry the native LIMIT 1 shell;
+//		NOT EXISTS maps to LeftAntiSemiApply. Translator-generated sibling
+//		conjuncts are preserved as dedicated residuals.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLExistsMatcher_H
 #define GPOPT_CDSLExistsMatcher_H

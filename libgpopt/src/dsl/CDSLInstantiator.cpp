@@ -23,6 +23,7 @@
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -2446,6 +2447,11 @@ CExpression *
 CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 								   const CDSLModel *pmodel) const
 {
+	const BOOL fNegated = EdslopNotExists == pop->Edslop();
+	if (!fNegated && EdslopExists != pop->Edslop())
+	{
+		return nullptr;
+	}
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
 		0 != pop->Pdrgpsym()->Size())
 	{
@@ -2475,16 +2481,25 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 
 	// Mirror subquery removal: LIMIT 1 is valid and avoids unnecessary work only
 	// for an uncorrelated EXISTS input.
-	if (0 == pexprInner->DeriveOuterReferences()->Size() &&
+	if (!fNegated && 0 == pexprInner->DeriveOuterReferences()->Size() &&
 		1 < pexprInner->DeriveMaxCard().Ull())
 	{
 		pexprInner = CUtils::PexprLimit(m_mp, pexprInner, 0, 1);
 	}
 
-	CExpression *pexprResult =
-		CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
-		m_mp, pexprOuter, pexprInner, pcrInner,
-		COperator::EopScalarSubqueryExists);
+	CExpression *pexprResult = nullptr;
+	if (fNegated)
+	{
+		pexprResult = CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(
+			m_mp, pexprOuter, pexprInner, pcrInner,
+			COperator::EopScalarSubqueryNotExists);
+	}
+	else
+	{
+		pexprResult = CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+			m_mp, pexprOuter, pexprInner, pcrInner,
+			COperator::EopScalarSubqueryExists);
+	}
 
 	CExpressionArray *pdrgpexprResidual =
 		pmodel->PdrgpexprExistsResidual();
@@ -2803,6 +2818,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopAgg:
 			return PexprBuildAgg(pop, pmodel);
 		case EdslopExists:
+		case EdslopNotExists:
 			return PexprBuildExists(pop, pmodel);
 		case EdslopInSubFilter:
 			return PexprBuildInSub(pop, pmodel);
@@ -2918,7 +2934,8 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	const EDslOpKind edslopSrc = popSrcRoot->Edslop();
 	const EDslOpKind edslopTgt = popTgtRoot->Edslop();
 	CExpressionArray *pdrgpexprResidual = nullptr;
-	if (EdslopExists == edslopSrc && EdslopExists != edslopTgt)
+	if ((EdslopExists == edslopSrc || EdslopNotExists == edslopSrc) &&
+		edslopSrc != edslopTgt)
 	{
 		pdrgpexprResidual = pmodel->PdrgpexprExistsResidual();
 	}

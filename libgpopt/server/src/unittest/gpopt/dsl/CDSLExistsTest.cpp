@@ -22,10 +22,12 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubqueryNotExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -38,6 +40,12 @@ using namespace gpopt;
 	"AttrsEq(a5,a2);PredicateEq(p1,p0);SchemaEq(s2,s0);"                 \
 	"SchemaEq(s3,s1);FuncEq(f1,f0)"
 
+#define GPOPT_DSL_NOT_EXISTS_DISTINCT_DROP_RULE                            \
+	"NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|"                      \
+	"NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|"                       \
+	"AttrsSub(a0,t1);TableEq(t2,t0);TableEq(t3,t1);"                     \
+	"AttrsEq(a1,a0);SchemaEq(s1,s0)"
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
@@ -47,7 +55,13 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_PreApplyCorpusAggProjRoundTrip),
 		GPOS_UNITTEST_FUNC(
-			CDSLExistsTest::EresUnittest_PreApplyPreservesResidual)};
+			CDSLExistsTest::EresUnittest_PreApplyPreservesResidual),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_PreApplyNotExistsDistinctDrop),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_PostApplyNotExistsDistinctDrop),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_ExistsPolarityIsolation)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
 
@@ -263,6 +277,169 @@ CDSLExistsTest::EresUnittest_PreApplyPreservesResidual()
 	pexprSource->Release();
 	pexprOuterGet->Release();
 	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_PreApplyNotExistsDistinctDrop()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("not_exists_pre_outer", 2, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInnerGet =
+		fix.PexprLogicalGet("not_exists_pre_inner", 2, &pdrgpcrInner);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInner)[0]);
+	CExpression *pexprDistinct =
+		fix.PexprLogicalGbAgg(pexprInnerGet, pdrgpcrGroup);
+	pdrgpcrGroup->Release();
+	CExpression *pexprNotExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryNotExists(mp), pexprDistinct);
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprNotExists);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_NOT_EXISTS_DISTINCT_DROP_RULE, "EQ", &strErr);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(COperator::EopLogicalLeftAntiSemiApply ==
+				prule->EopidSrcRoot());
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	GPOS_ASSERT(pmodel->FDedupDrop());
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftAntiSemiApply ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGet == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(CUtils::FScalarConstTrue((*pexprTarget)[2]));
+	GPOS_ASSERT(COperator::EopScalarSubqueryNotExists ==
+				CLogicalApply::PopConvert(pexprTarget->Pop())
+					->EopidOriginSubq());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_PostApplyNotExistsDistinctDrop()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("not_exists_apply_outer", 2, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInnerGet =
+		fix.PexprLogicalGet("not_exists_apply_inner", 2, &pdrgpcrInner);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInner)[0]);
+	CExpression *pexprDistinct =
+		fix.PexprLogicalGbAgg(pexprInnerGet, pdrgpcrGroup);
+	pdrgpcrGroup->Release();
+	CExpression *pexprSource =
+		CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(
+			mp, pexprOuter, pexprDistinct, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubqueryNotExists);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_NOT_EXISTS_DISTINCT_DROP_RULE, "EQ", &strErr);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	GPOS_ASSERT(pmodel->FDedupDrop());
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftAntiSemiApply ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGet == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopScalarSubqueryNotExists ==
+				CLogicalApply::PopConvert(pexprTarget->Pop())
+					->EopidOriginSubq());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_ExistsPolarityIsolation()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CExpression *pexprOuter = fix.PexprLogicalGet("polarity_outer", 1);
+	CExpression *pexprInner = fix.PexprLogicalGet("polarity_inner", 1);
+	CExpression *pexprScalarExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprInner);
+	CExpression *pexprPositive = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprScalarExists);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *pruleNotExists = CDSLRuleParser::PdslruleParse(
+		mp,
+		"NotExists(Input<t0>,Input<t1>)|NotExists(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1)",
+		"EQ", &strErr);
+	GPOS_ASSERT(nullptr != pruleNotExists);
+	CDSLModel *pmodelPositive = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherNotExists(mp, pruleNotExists);
+	GPOS_ASSERT(!matcherNotExists.FMatch(
+		pruleNotExists->PfragSrc()->PopRoot(), pexprPositive, pmodelPositive));
+
+	CExpression *pexprOuter2 = fix.PexprLogicalGet("polarity_outer2", 1);
+	CExpression *pexprInner2 = fix.PexprLogicalGet("polarity_inner2", 1);
+	CExpression *pexprScalarNotExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryNotExists(mp), pexprInner2);
+	CExpression *pexprNegative = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter2,
+		pexprScalarNotExists);
+	CWStringDynamic strErrExists(mp);
+	CDSLRule *pruleExists = CDSLRuleParser::PdslruleParse(
+		mp,
+		"Exists(Input<t0>,Input<t1>)|Exists(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1)",
+		"EQ", &strErrExists);
+	GPOS_ASSERT(nullptr != pruleExists);
+	CDSLModel *pmodelNegative = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherExists(mp, pruleExists);
+	GPOS_ASSERT(!matcherExists.FMatch(pruleExists->PfragSrc()->PopRoot(),
+								   pexprNegative, pmodelNegative));
+
+	pmodelNegative->Release();
+	pruleExists->Release();
+	pexprNegative->Release();
+	pmodelPositive->Release();
+	pruleNotExists->Release();
+	pexprPositive->Release();
 	return GPOS_OK;
 }
 

@@ -164,6 +164,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);"
 		"PredicateEq(p1,p0);SchemaEq(s2,s0);SchemaEq(s3,s1);FuncEq(f1,f0)",
+		// Negated existential subquery remains distinct from positive Exists.
+		"NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,"
+		"Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);TableEq(t2,t0);"
+		"TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0)",
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
 		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",
@@ -318,6 +322,8 @@ CDSLParserTest::EresUnittest_Aliases()
 	} rg[] = {
 		{"ExistsFilter(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)",
 		 "Exists(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)"},
+		{"NotExistsFilter(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)",
+		 "NotExists(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)"},
 		{"SimpleFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
 		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
 		{"PlainFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",

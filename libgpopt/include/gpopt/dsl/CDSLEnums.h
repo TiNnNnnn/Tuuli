@@ -63,6 +63,7 @@ enum EDslOpKind
 	EdslopFilter,		 // WeTune SIMPLE_FILTER
 	EdslopInSubFilter,
 	EdslopExists,		 // WeTune EXISTS_FILTER
+	EdslopNotExists,	 // negated existential subquery filter
 	EdslopProj,
 	EdslopAgg,
 	EdslopSort,

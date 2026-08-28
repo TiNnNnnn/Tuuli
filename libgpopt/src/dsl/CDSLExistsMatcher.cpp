@@ -8,13 +8,14 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
-#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubqueryNotExists.h"
 #include "naucrates/base/IDatumInt2.h"
 #include "naucrates/base/IDatumInt4.h"
 #include "naucrates/base/IDatumInt8.h"
@@ -50,6 +51,15 @@ FScalarConstIntOne(CExpression *pexpr)
 			return false;
 	}
 }
+
+BOOL
+FDirectExistential(CExpression *pexpr, BOOL fNegated)
+{
+	const COperator::EOperatorId eopidExpected =
+		fNegated ? COperator::EopScalarSubqueryNotExists
+				 : COperator::EopScalarSubqueryExists;
+	return eopidExpected == pexpr->Pop()->Eopid() && 1 == pexpr->Arity();
+}
 }  // namespace
 
 BOOL
@@ -73,7 +83,9 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	GPOS_ASSERT(nullptr != pop);
 	GPOS_ASSERT(nullptr != pexpr);
 	GPOS_ASSERT(nullptr != pmodel);
-	GPOS_ASSERT(EdslopExists == pop->Edslop());
+	GPOS_ASSERT(EdslopExists == pop->Edslop() ||
+				EdslopNotExists == pop->Edslop());
+	const BOOL fNegated = EdslopNotExists == pop->Edslop();
 
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
 		0 != pop->Pdrgpsym()->Size())
@@ -102,7 +114,7 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
 			CExpression *pexprConj = (*pdrgpexprConj)[ul];
-			if (CDSLMatchView::FDirectExists(pexprConj))
+			if (FDirectExistential(pexprConj, fNegated))
 			{
 				pexprExists = pexprConj;
 				ulExists++;
@@ -136,7 +148,13 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// rules to participate regardless of whether another exploration path has
 	// already introduced the Apply. LIMIT 1 is the native implementation detail
 	// used for an uncorrelated EXISTS and is transparent to the DSL.
-	if (COperator::EopLogicalLeftSemiApply == pexpr->Pop()->Eopid())
+	const COperator::EOperatorId eopidApply =
+		fNegated ? COperator::EopLogicalLeftAntiSemiApply
+				 : COperator::EopLogicalLeftSemiApply;
+	const COperator::EOperatorId eopidOrigin =
+		fNegated ? COperator::EopScalarSubqueryNotExists
+				 : COperator::EopScalarSubqueryExists;
+	if (eopidApply == pexpr->Pop()->Eopid())
 	{
 		if (3 != pexpr->Arity() ||
 			!CUtils::FScalarConstTrue((*pexpr)[2]))
@@ -145,14 +163,13 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		}
 
 		CLogicalApply *popApply = dynamic_cast<CLogicalApply *>(pexpr->Pop());
-		if (nullptr == popApply || COperator::EopScalarSubqueryExists !=
-								 popApply->EopidOriginSubq())
+		if (nullptr == popApply || eopidOrigin != popApply->EopidOriginSubq())
 		{
 			return false;
 		}
 
 		CExpression *pexprInner = (*pexpr)[1];
-		if (FExistsLimitOne(pexprInner))
+		if (!fNegated && FExistsLimitOne(pexprInner))
 		{
 			pexprInner = (*pexprInner)[0];
 		}

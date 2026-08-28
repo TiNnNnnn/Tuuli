@@ -308,7 +308,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// EXISTS in a filter context is normalized by ORCA into a LeftSemiApply.
 	// Its uncorrelated inner LIMIT 1 is an implementation detail hidden from the
 	// two-child DSL operator.
-	if (EdslopExists == pop->Edslop())
+	if (EdslopExists == pop->Edslop() ||
+		EdslopNotExists == pop->Edslop())
 	{
 		CDSLExistsMatcher em(m_mp, this);
 		return em.FMatch(pop, pexpr, pmodel);
