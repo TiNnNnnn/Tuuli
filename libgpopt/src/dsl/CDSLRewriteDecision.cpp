@@ -33,7 +33,15 @@ CDSLRewriteDecision::CDSLRewriteDecision(
 CDSLRewriteDecision::~CDSLRewriteDecision()
 {
 	CRefCount::SafeRelease(m_pexprTarget);
-	m_pmodel->Release();
+	CRefCount::SafeRelease(m_pmodel);
+}
+
+CDSLModel *
+CDSLRewriteDecision::PmodelDetach()
+{
+	CDSLModel *pmodel = m_pmodel;
+	m_pmodel = nullptr;
+	return pmodel;
 }
 
 CExpression *

@@ -9,6 +9,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
@@ -201,26 +202,76 @@ CDSLMatchView::PexprNullRejectedInnerJoin(CMemoryPool *mp,
 	{
 		return nullptr;
 	}
-	CExpression *pexprLeftJoin = (*pexprSelect)[0];
+	CExpression *pexprOuterJoin = (*pexprSelect)[0];
 	CExpression *pexprPred = (*pexprSelect)[1];
-	if (COperator::EopLogicalLeftOuterJoin !=
-			pexprLeftJoin->Pop()->Eopid() ||
-		3 != pexprLeftJoin->Arity() ||
-		!CPredicateUtils::FNullRejecting(
-			mp, pexprPred, (*pexprLeftJoin)[1]->DeriveOutputColumns()))
+	const COperator::EOperatorId eopid = pexprOuterJoin->Pop()->Eopid();
+	if ((COperator::EopLogicalLeftOuterJoin != eopid &&
+		 COperator::EopLogicalFullOuterJoin != eopid) ||
+		3 != pexprOuterJoin->Arity())
+	{
+		return nullptr;
+	}
+	const BOOL fRejectsRight = CPredicateUtils::FNullRejecting(
+		mp, pexprPred, (*pexprOuterJoin)[1]->DeriveOutputColumns());
+	const BOOL fRejectsLeft =
+		COperator::EopLogicalFullOuterJoin != eopid ||
+		CPredicateUtils::FNullRejecting(
+			mp, pexprPred, (*pexprOuterJoin)[0]->DeriveOutputColumns());
+	if (!fRejectsLeft || !fRejectsRight)
 	{
 		return nullptr;
 	}
 
-	(*pexprLeftJoin)[0]->AddRef();
-	(*pexprLeftJoin)[1]->AddRef();
-	(*pexprLeftJoin)[2]->AddRef();
+	(*pexprOuterJoin)[0]->AddRef();
+	(*pexprOuterJoin)[1]->AddRef();
+	(*pexprOuterJoin)[2]->AddRef();
 	pexprPred->AddRef();
 	CExpression *pexprInnerJoin = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), (*pexprLeftJoin)[0],
-		(*pexprLeftJoin)[1], (*pexprLeftJoin)[2]);
+		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), (*pexprOuterJoin)[0],
+		(*pexprOuterJoin)[1], (*pexprOuterJoin)[2]);
 	return GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprInnerJoin, pexprPred);
+}
+
+CExpressionArray *
+CDSLMatchView::PdrgpexprNullRejectedLeftJoins(CMemoryPool *mp,
+										 CExpression *pexprSelect)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprSelect);
+	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
+		2 != pexprSelect->Arity())
+	{
+		return pdrgpexpr;
+	}
+	CExpression *pexprFullJoin = (*pexprSelect)[0];
+	CExpression *pexprPred = (*pexprSelect)[1];
+	if (COperator::EopLogicalFullOuterJoin !=
+			pexprFullJoin->Pop()->Eopid() ||
+		3 != pexprFullJoin->Arity())
+	{
+		return pdrgpexpr;
+	}
+
+	for (ULONG ulPreserved = 0; ulPreserved < 2; ulPreserved++)
+	{
+		if (!CPredicateUtils::FNullRejecting(
+				mp, pexprPred,
+				(*pexprFullJoin)[ulPreserved]->DeriveOutputColumns()))
+		{
+			continue;
+		}
+		CExpression *pexprPreserved = (*pexprFullJoin)[ulPreserved];
+		CExpression *pexprNullable = (*pexprFullJoin)[1 - ulPreserved];
+		pexprPreserved->AddRef();
+		pexprNullable->AddRef();
+		(*pexprFullJoin)[2]->AddRef();
+		pdrgpexpr->Append(GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalLeftOuterJoin(mp), pexprPreserved,
+			pexprNullable, (*pexprFullJoin)[2]));
+	}
+	return pdrgpexpr;
 }
 
 CDSLMatchView::SJoinSpineRouteArray *

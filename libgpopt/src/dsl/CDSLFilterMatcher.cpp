@@ -619,9 +619,11 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	// filtered result exactly equivalent to filtering an InnerJoin. Expose that
 	// representation to InnerJoin-rooted DSL rules before the ordinary matcher;
 	// the view is read-only and CPredicateUtils proves the semantic precondition.
+	const COperator::EOperatorId eopidFilterChild =
+		(*pexprSelect)[0]->Pop()->Eopid();
 	if (EdslopInnerJoin == popBase->Edslop() &&
-		COperator::EopLogicalLeftOuterJoin ==
-			(*pexprSelect)[0]->Pop()->Eopid())
+		(COperator::EopLogicalLeftOuterJoin == eopidFilterChild ||
+		 COperator::EopLogicalFullOuterJoin == eopidFilterChild))
 	{
 		CExpression *pexprInnerView =
 			CDSLMatchView::PexprNullRejectedInnerJoin(m_mp, pexprSelect);

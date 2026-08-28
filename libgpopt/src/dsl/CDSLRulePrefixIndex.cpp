@@ -126,7 +126,8 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		0 != (pedge->m_ulAdapterFlags &
 			  SExactEdge::EafNullRejectedInnerJoin) &&
 		COperator::EopLogicalInnerJoin == pedge->m_eopid &&
-		COperator::EopLogicalLeftOuterJoin == pop->Eopid();
+		(COperator::EopLogicalLeftOuterJoin == pop->Eopid() ||
+		 COperator::EopLogicalFullOuterJoin == pop->Eopid());
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView)
 	{
 		return false;

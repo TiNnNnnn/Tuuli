@@ -86,6 +86,13 @@ CQueryContext::CQueryContext(CMemoryPool *mp, CExpression *pexpr,
 		pexprMandatory->AddRef();
 		pexprRBO = pexprMandatory;
 	}
+	if (GPOS_FTRACE(EopttracePrintQuery))
+	{
+		CAutoTrace traceRBO(mp);
+		traceRBO.Os() << std::endl
+					  << "Algebrized RBO query: " << std::endl
+					  << *pexprRBO;
+	}
 	pexprMandatory->Release();
 	m_pexpr = CExpressionPreprocessor::PexprPreprocessAfterRBO(
 		mp, pexprRBO, pcrsOutputAndOrderingCols);

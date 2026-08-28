@@ -68,6 +68,10 @@ public:
 
 	// Transfer the sole target reference to a scheduler.
 	CExpression *PexprDetachTarget();
+
+	// Transfer the binding model when a representation adapter rebuilds the
+	// scheduler-neutral decision around an equivalent source view.
+	CDSLModel *PmodelDetach();
 };
 }  // namespace gpopt
 

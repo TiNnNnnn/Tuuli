@@ -18,9 +18,11 @@
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
@@ -694,6 +696,84 @@ CDSLRewriteDecision *
 CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 								  CExpression *pexpr,
 								  BOOL fFingerprint) const
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pexpr);
+	const CDSLOp *popSource = prule->PfragSrc()->PopRoot();
+	if (EdslopLeftJoin != popSource->Edslop())
+	{
+		return PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
+	}
+
+	CExpressionArray *pdrgpexprView =
+		CDSLMatchView::PdrgpexprNullRejectedLeftJoins(mp, pexpr);
+	if (0 == pdrgpexprView->Size())
+	{
+		pdrgpexprView->Release();
+		return PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
+	}
+
+	CDSLRewriteDecision *pdecisionRejected = nullptr;
+	for (ULONG ul = 0; ul < pdrgpexprView->Size(); ul++)
+	{
+		CDSLRewriteDecision *pdecision = PdecisionEvaluateDirect(
+			mp, prule, (*pdrgpexprView)[ul], false /*fingerprint view*/);
+		if (EdsldecisionReady == pdecision->Status() ||
+			EdsldecisionDuplicate == pdecision->Status())
+		{
+			CExpression *pexprTarget = pdecision->PexprDetachTarget();
+			(*pexpr)[1]->AddRef();
+			CExpression *pexprWrapped =
+				CUtils::PexprSafeSelect(mp, pexprTarget, (*pexpr)[1]);
+			const BOOL fSchemaPreserved =
+				pexprWrapped->DeriveOutputColumns()->Equals(
+					pexpr->DeriveOutputColumns());
+			const EDslRewriteDecisionStatus status = !fSchemaPreserved
+				? EdsldecisionInstantiateRejected
+				: (pexprWrapped->Matches(pexpr) ? EdsldecisionDuplicate
+											 : EdsldecisionReady);
+			if (!fSchemaPreserved)
+			{
+				pexprWrapped->Release();
+				pexprWrapped = nullptr;
+			}
+			CDSLRewriteDecision *pdecisionWrapped = GPOS_NEW(mp)
+				CDSLRewriteDecision(
+					pdecision->PmodelDetach(), pexprWrapped, status, nullptr,
+					gpos::ulong_max, pdecision->UlMatchUs(),
+					pdecision->UlConstraintUs(),
+					pdecision->UlInstantiateUs(),
+					fFingerprint ? CExpression::HashValue(pexpr) : 0,
+					nullptr == pexprWrapped || !fFingerprint
+						? 0
+						: CExpression::HashValue(pexprWrapped));
+			GPOS_DELETE(pdecision);
+			GPOS_DELETE(pdecisionRejected);
+			pdrgpexprView->Release();
+			return pdecisionWrapped;
+		}
+		GPOS_DELETE(pdecisionRejected);
+		pdecisionRejected = pdecision;
+	}
+	pdrgpexprView->Release();
+	GPOS_ASSERT(nullptr != pdecisionRejected);
+	CDSLRewriteDecision *pdecisionResult = GPOS_NEW(mp) CDSLRewriteDecision(
+		pdecisionRejected->PmodelDetach(), nullptr,
+		pdecisionRejected->Status(), pdecisionRejected->PconFailed(),
+		pdecisionRejected->UlFailedConstraint(),
+		pdecisionRejected->UlMatchUs(), pdecisionRejected->UlConstraintUs(),
+		pdecisionRejected->UlInstantiateUs(),
+		fFingerprint ? CExpression::HashValue(pexpr) : 0, 0);
+	GPOS_DELETE(pdecisionRejected);
+	return pdecisionResult;
+}
+
+CDSLRewriteDecision *
+CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
+										const CDSLRule *prule,
+										CExpression *pexpr,
+										BOOL fFingerprint) const
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != prule);

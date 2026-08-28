@@ -11,85 +11,12 @@
 
 #include "gpos/base.h"
 
-#include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
-#include "gpopt/base/CUtils.h"
-#include "gpopt/operators/CLogicalFullOuterJoin.h"
-#include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
-#include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CPatternTree.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
-
-namespace
-{
-// Apply a LeftJoin-rooted data rule to the equivalent view exposed by a
-// null-rejecting Select over FullJoin. The outer Select is not part of the DSL
-// source fragment, so retain its predicate around the instantiated target and
-// admit the alternative only when it preserves the memo group's output schema.
-void
-ApplyLeftJoinRuleOverFullJoinSelect(CMemoryPool *mp, CDSLRuleEngine *peng,
-								const CDSLRule *prule,
-								CExpression *pexprSelect,
-								CXformResult *pxfres)
-{
-	GPOS_ASSERT(COperator::EopLogicalSelect == pexprSelect->Pop()->Eopid());
-	if (2 != pexprSelect->Arity())
-	{
-		return;
-	}
-
-	CExpression *pexprFullJoin = (*pexprSelect)[0];
-	CExpression *pexprPred = (*pexprSelect)[1];
-	if (COperator::EopLogicalFullOuterJoin !=
-			pexprFullJoin->Pop()->Eopid() ||
-		3 != pexprFullJoin->Arity())
-	{
-		return;
-	}
-
-	for (ULONG ulOuter = 0; ulOuter < 2; ulOuter++)
-	{
-		CExpression *pexprOuter = (*pexprFullJoin)[ulOuter];
-		if (!CPredicateUtils::FNullRejecting(
-				mp, pexprPred, pexprOuter->DeriveOutputColumns()))
-		{
-			continue;
-		}
-
-		CExpression *pexprInner = (*pexprFullJoin)[1 - ulOuter];
-		CExpression *pexprJoinPred = (*pexprFullJoin)[2];
-		pexprOuter->AddRef();
-		pexprInner->AddRef();
-		pexprJoinPred->AddRef();
-		CExpression *pexprLeftJoin = GPOS_NEW(mp) CExpression(
-			mp, GPOS_NEW(mp) CLogicalLeftOuterJoin(mp), pexprOuter,
-			pexprInner, pexprJoinPred);
-
-		CExpression *pexprTarget = peng->PexprApply(mp, prule, pexprLeftJoin);
-		pexprLeftJoin->Release();
-		if (nullptr == pexprTarget)
-		{
-			continue;
-		}
-
-		pexprPred->AddRef();
-		CExpression *pexprWrapped =
-			CUtils::PexprSafeSelect(mp, pexprTarget, pexprPred);
-		if (pexprWrapped->DeriveOutputColumns()->Equals(
-				pexprSelect->DeriveOutputColumns()))
-		{
-			pxfres->Add(pexprWrapped);
-		}
-		else
-		{
-			pexprWrapped->Release();
-		}
-	}
-}
-}  // namespace
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -171,13 +98,6 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
 		const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
-
-		if (EdslopLeftJoin == popSrcRoot->Edslop())
-		{
-			ApplyLeftJoinRuleOverFullJoinSelect(mp, peng, prule, pexpr,
-										pxfres);
-			continue;
-		}
 
 		// Subquery-filter operators can match both the translated Select/scalar-
 		// subquery form and the canonical Apply form. Running the same rule in both
