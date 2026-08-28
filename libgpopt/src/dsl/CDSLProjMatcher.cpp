@@ -233,6 +233,38 @@ CDSLProjMatcher::FMatchProjectOverAgg(const CDSLOp *popProj,
 	return pmodel->FSetProjAggShell(psymSchema, pexprProject);
 }
 
+BOOL
+CDSLProjMatcher::FMatchIdentityOverInSub(const CDSLOp *popProj,
+									 CExpression *pexprCarrier,
+									 CDSLModel *pmodel) const
+{
+	if (1 != popProj->UlChildren() ||
+		EdslopInSubFilter != (*popProj)[0]->Edslop())
+	{
+		return false;
+	}
+	CDSLSymbolArray *pdrgpsym = popProj->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+
+	CColRefArray *pdrgpcrOutput =
+		pexprCarrier->DeriveOutputColumns()->Pdrgpcr(m_mp);
+	BOOL fMatched = 0 < pdrgpcrOutput->Size() &&
+		pmodel->FBind((*pdrgpsym)[0], pdrgpcrOutput) &&
+		pmodel->FBind((*pdrgpsym)[1], pdrgpcrOutput) &&
+		m_pmatcher->FMatch((*popProj)[0], pexprCarrier, pmodel);
+	pdrgpcrOutput->Release();
+	if (!fMatched)
+	{
+		return false;
+	}
+
+	pexprCarrier->AddRef();
+	return pmodel->FSetVirtualIdentityProj((*pdrgpsym)[1], pexprCarrier);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjMatcher::FMatch
@@ -254,7 +286,9 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	if (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
 		2 != pexprProject->Arity())
 	{
-		return false;
+		return COperator::EopLogicalLeftSemiJoin ==
+				   pexprProject->Pop()->Eopid() &&
+			   FMatchIdentityOverInSub(popProj, pexprProject, pmodel);
 	}
 	if (1 == popProj->UlChildren() &&
 		EdslopInput != (*popProj)[0]->Edslop() &&

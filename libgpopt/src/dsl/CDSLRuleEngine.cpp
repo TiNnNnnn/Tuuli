@@ -127,6 +127,18 @@ CDSLRuleEngine::BucketByRoot()
 			!prule->PfragSrc()->PopRoot()->FDistinct())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+			const CDSLOp *popProj = prule->PfragSrc()->PopRoot();
+			if (1 == popProj->UlChildren() &&
+				EdslopInSubFilter == (*popProj)[0]->Edslop())
+			{
+				// A proved Proj(InSub(...)) rule also applies at ORCA's
+				// decorrelated semi-join group, where required columns carry the
+				// identity projection and no CLogicalProject node exists. Keep the
+				// view at this exact representation boundary; pre-unnest Select and
+				// Apply shapes retain their real Project ancestor.
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalLeftSemiJoin;
+			}
 		}
 		// Inner-join predicate pushdown changes Filter(InnerJoin(...)) into
 		// InnerJoin(..., Select(...), ...) before DSL exploration. Route such

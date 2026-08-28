@@ -16,12 +16,17 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarCoalesce.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -116,6 +121,8 @@ CDSLInSubTest::EresUnittest()
 			CDSLInSubTest::EresUnittest_DecorrelatedSemiJoinRemap),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_InSubAsSimpleFilterCarrier),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyBelowBinaryJoinSpineRemap),
@@ -136,12 +143,17 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 
 	CColRefArray *pdrgpcrLeft = nullptr;
 	CExpression *pexprLeft =
-		fix.PexprLogicalGet("semi_to_inner_left", 1, &pdrgpcrLeft, 0);
+		fix.PexprLogicalGet("semi_to_inner_left", 2, &pdrgpcrLeft, 0);
 	CColRefArray *pdrgpcrRight = nullptr;
 	CExpression *pexprRight =
-		fix.PexprLogicalGet("semi_to_inner_right", 1, &pdrgpcrRight, 0);
+		fix.PexprLogicalGet("semi_to_inner_right", 2, &pdrgpcrRight, 0);
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]));
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrLeft)[1], (*pdrgpcrRight)[1]));
 	CExpression *pexprSemiPred =
-		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj);
 	CExpression *pexprSemi = GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft, pexprRight,
 		pexprSemiPred);
@@ -166,11 +178,121 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 				(*pexprTarget)[0]->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalGbAgg ==
 				(*(*pexprTarget)[0])[1]->Pop()->Eopid());
+	GPOS_ASSERT(2 == CLogicalGbAgg::PopConvert(
+						 (*(*pexprTarget)[0])[1]->Pop())
+						 ->Pdrgpcr()
+						 ->Size());
 	CExpression *pexprTargetPred = (*(*pexprTarget)[0])[2];
+	GPOS_ASSERT(4 == pexprTargetPred->DeriveUsedColumns()->Size());
 	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
 		(*pdrgpcrLeft)[0]));
 	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
+		(*pdrgpcrLeft)[1]));
+	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
 		(*pdrgpcrRight)[0]));
+	GPOS_ASSERT(pexprTargetPred->DeriveUsedColumns()->FMember(
+		(*pdrgpcrRight)[1]));
+
+	// The same proved Proj(InSub) rule must also run at the memo's bare
+	// SemiJoin group, where ORCA represents column pruning as required columns
+	// rather than a logical Project node.
+	CDSLModel *pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSemi,
+							 pmodelIdentity));
+	GPOS_ASSERT(checker.FCheck(prule, pmodelIdentity));
+	CDSLInstantiator identityInstantiator(mp);
+	CExpression *pexprIdentityTarget =
+		identityInstantiator.PexprInstantiate(prule, pmodelIdentity);
+	GPOS_ASSERT(nullptr != pexprIdentityTarget);
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				pexprIdentityTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalGbAgg ==
+				(*pexprIdentityTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(2 == CLogicalGbAgg::PopConvert(
+						 (*pexprIdentityTarget)[1]->Pop())
+						 ->Pdrgpcr()
+						 ->Size());
+	pexprIdentityTarget->Release();
+	pmodelIdentity->Release();
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprSemi->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("semi_expr_left", 1, &pdrgpcrLeft, 0);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("semi_expr_right", 1, &pdrgpcrRight, 0);
+
+	// Model SELECT coalesce(r.k, r.k): the attrs binding is r.k, while the
+	// schema binding is the separately defined computed column. Proj* must
+	// preserve this scalar tree and deduplicate its result, not r.k directly.
+	CColRef *pcrComputed = fix.PcrCreateInt4("computed_key");
+	IMDId *pmdidType = (*pdrgpcrRight)[0]->RetrieveType()->MDId();
+	pmdidType->AddRef();
+	CExpression *pexprCoalesce = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarCoalesce(mp, pmdidType),
+		CUtils::PexprScalarIdent(mp, (*pdrgpcrRight)[0]),
+		CUtils::PexprScalarIdent(mp, (*pdrgpcrRight)[0]));
+	CExpression *pexprProjectElem = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectElement(mp, pcrComputed),
+		pexprCoalesce);
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprElems->Append(pexprProjectElem);
+	CExpression *pexprProjectList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+	CExpression *pexprRightProject = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprRight, pexprProjectList);
+
+	CExpression *pexprSemiPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], pcrComputed);
+	CExpression *pexprSemi = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft,
+		pexprRightProject, pexprSemiPred);
+	CColRefArray *pdrgpcrTop = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrTop->Append((*pdrgpcrLeft)[0]);
+	CExpression *pexprSource = fix.PexprLogicalProject(pexprSemi, pdrgpcrTop);
+	pdrgpcrTop->Release();
+
+	CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							 pmodel));
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalProject == pexprTarget->Pop()->Eopid());
+	CExpression *pexprJoin = (*pexprTarget)[0];
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin == pexprJoin->Pop()->Eopid());
+	CExpression *pexprDedup = (*pexprJoin)[1];
+	GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprDedup->Pop()->Eopid());
+	GPOS_ASSERT(1 == CLogicalGbAgg::PopConvert(pexprDedup->Pop())
+						 ->Pdrgpcr()
+						 ->Size());
+	GPOS_ASSERT(pcrComputed == (*CLogicalGbAgg::PopConvert(pexprDedup->Pop())
+								 ->Pdrgpcr())[0]);
+	CExpression *pexprComputedProject = (*pexprDedup)[0];
+	GPOS_ASSERT(COperator::EopLogicalProject ==
+				pexprComputedProject->Pop()->Eopid());
+	CExpression *pexprComputedScalar = (*(*pexprComputedProject)[1])[0];
+	GPOS_ASSERT(COperator::EopScalarCoalesce ==
+				(*pexprComputedScalar)[0]->Pop()->Eopid());
 
 	pexprTarget->Release();
 	pmodel->Release();

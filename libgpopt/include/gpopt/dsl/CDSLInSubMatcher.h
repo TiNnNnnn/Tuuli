@@ -37,6 +37,9 @@ private:
 	// both representations.
 	BOOL FMatchInner(const CDSLOp *popInner, CExpression *pexprInner,
 					 const CColRef *pcrProjected, CDSLModel *pmodel) const;
+	BOOL FMatchInner(const CDSLOp *popInner, CExpression *pexprInner,
+					 CColRefArray *pdrgpcrProjected,
+					 CDSLModel *pmodel) const;
 
 	// Reconstruct the equality predicate represented by ScalarSubqueryAny.
 	// Caller owns the returned expression.

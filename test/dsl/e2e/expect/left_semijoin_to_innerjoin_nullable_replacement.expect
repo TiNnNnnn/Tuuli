@@ -11,7 +11,7 @@
         "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
       ],
       "alternative": [
-        "CXformDSLRule_Project"
+        "CXformDSLRule_InSub"
       ]
     }
   ],

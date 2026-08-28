@@ -88,6 +88,14 @@ private:
 						  CExpression *pexprProject,
 						  CDSLModel *pmodel) const;
 
+	// ORCA represents a column-pruning Proj(InSub(...)) at the SemiJoin/Apply/
+	// Select group itself. Expose an identity Project view whose attrs/schema are
+	// that group's output columns; the nested InSub matcher remains the semantic
+	// gate for the carrier.
+	BOOL FMatchIdentityOverInSub(const CDSLOp *popProj,
+								 CExpression *pexprCarrier,
+								 CDSLModel *pmodel) const;
+
 public:
 	CDSLProjMatcher(const CDSLProjMatcher &) = delete;
 

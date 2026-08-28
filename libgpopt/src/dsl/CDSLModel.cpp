@@ -31,6 +31,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjLimitShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjAggShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmVirtualIdentityProj =
+		GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 	m_pdrgpexprNaryUnionTails = GPOS_NEW(mp) CExpressionArray(mp);
@@ -51,6 +53,7 @@ CDSLModel::~CDSLModel()
 	m_phmProjList->Release();
 	m_phmProjLimitShell->Release();
 	m_phmProjAggShell->Release();
+	m_phmVirtualIdentityProj->Release();
 	m_phmJoinPred->Release();
 	m_pdrgpexprUnionBindings->Release();
 	m_pdrgpexprNaryUnionTails->Release();
@@ -209,6 +212,35 @@ CDSLModel::PexprProjList(const CDSLSymbol *psymSchema) const
 	GPOS_ASSERT(nullptr != psymSchema);
 	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
 	return m_phmProjList->Find(psymSchema);
+}
+
+BOOL
+CDSLModel::FSetVirtualIdentityProj(const CDSLSymbol *psymSchema,
+								   CExpression *pexprCarrier)
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	GPOS_ASSERT(nullptr != pexprCarrier);
+
+	CExpression *pexprExisting = m_phmVirtualIdentityProj->Find(psymSchema);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting->Matches(pexprCarrier);
+		pexprCarrier->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmVirtualIdentityProj->Insert(
+		const_cast<CDSLSymbol *>(psymSchema), pexprCarrier);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+BOOL
+CDSLModel::FVirtualIdentityProj(const CDSLSymbol *psymSchema) const
+{
+	GPOS_ASSERT(nullptr != psymSchema);
+	GPOS_ASSERT(EdslsymSchema == psymSchema->Esymkind());
+	return nullptr != m_phmVirtualIdentityProj->Find(psymSchema);
 }
 
 BOOL

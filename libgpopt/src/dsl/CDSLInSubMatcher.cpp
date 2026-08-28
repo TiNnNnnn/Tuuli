@@ -94,6 +94,24 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 							 CExpression *pexprInner,
 							 const CColRef *pcrProjected,
 							 CDSLModel *pmodel) const
+
+{
+	CColRefArray *pdrgpcrProjected = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	if (nullptr != pcrProjected)
+	{
+		pdrgpcrProjected->Append(const_cast<CColRef *>(pcrProjected));
+	}
+	BOOL fMatched =
+		FMatchInner(popInner, pexprInner, pdrgpcrProjected, pmodel);
+	pdrgpcrProjected->Release();
+	return fMatched;
+}
+
+BOOL
+CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
+							 CExpression *pexprInner,
+							 CColRefArray *pdrgpcrProjected,
+							 CDSLModel *pmodel) const
 {
 	// PostgreSQL's ORCA translator removes a pass-through SELECT-list
 	// projection from a scalar IN subquery and stores its selected column
@@ -102,17 +120,38 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 	// projection in both pre- and post-Apply matching. Computed projects remain
 	// CLogicalProject nodes.
 	if (EdslopProj == popInner->Edslop() &&
-		COperator::EopLogicalProject != pexprInner->Pop()->Eopid() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-		2 == popInner->Pdrgpsym()->Size() && nullptr != pcrProjected)
+		2 == popInner->Pdrgpsym()->Size() &&
+		nullptr != pdrgpcrProjected && 0 < pdrgpcrProjected->Size())
 	{
-		CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		pdrgpcr->Append(const_cast<CColRef *>(pcrProjected));
+		CExpression *pexprRel = pexprInner;
+		while (COperator::EopLogicalProject == pexprRel->Pop()->Eopid() &&
+			   2 == pexprRel->Arity())
+		{
+			CColRefSet *pcrsProjected = GPOS_NEW(m_mp) CColRefSet(m_mp);
+			pcrsProjected->Include(pdrgpcrProjected);
+			const BOOL fKeysFromChild =
+				(*pexprRel)[0]->DeriveOutputColumns()->ContainsAll(pcrsProjected);
+			pcrsProjected->Release();
+			if (!fKeysFromChild)
+			{
+				break;
+			}
+			// EXISTS target lists and pass-through IN projections do not define
+			// the comparison keys. They are absent from WeTune's canonical
+			// Proj(key) view, so continue at the relational child. A genuinely
+			// computed key is not available below and therefore remains a real
+			// Project handled by the ordinary matcher.
+			pexprRel = (*pexprRel)[0];
+		}
+		if (COperator::EopLogicalProject == pexprRel->Pop()->Eopid())
+		{
+			return m_pmatcher->FMatch(popInner, pexprInner, pmodel);
+		}
 		BOOL fMatched =
-			pmodel->FBind((*popInner->Pdrgpsym())[0], pdrgpcr) &&
-			pmodel->FBind((*popInner->Pdrgpsym())[1], pdrgpcr) &&
-			m_pmatcher->FMatch((*popInner)[0], pexprInner, pmodel);
-		pdrgpcr->Release();
+			pmodel->FBind((*popInner->Pdrgpsym())[0], pdrgpcrProjected) &&
+			pmodel->FBind((*popInner->Pdrgpsym())[1], pdrgpcrProjected) &&
+			m_pmatcher->FMatch((*popInner)[0], pexprRel, pmodel);
 		return fMatched;
 	}
 
@@ -286,11 +325,13 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 	CColRefSet *pcrsInner = (*pexpr)[1]->DeriveOutputColumns();
 	CExpressionArray *pdrgpexprConj =
 		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[2]);
-	CColRef *pcrOuter = nullptr;
-	CColRef *pcrInner = nullptr;
-	if (1 == pdrgpexprConj->Size())
+	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	BOOL fSimpleCrossEqualities = 0 < pdrgpexprConj->Size();
+	for (ULONG ul = 0; ul < pdrgpexprConj->Size() && fSimpleCrossEqualities;
+		 ul++)
 	{
-		CExpression *pexprCmp = (*pdrgpexprConj)[0];
+		CExpression *pexprCmp = (*pdrgpexprConj)[ul];
 		if (2 == pexprCmp->Arity() &&
 			CPredicateUtils::FPlainEquality(pexprCmp) &&
 			COperator::EopScalarIdent == (*pexprCmp)[0]->Pop()->Eopid() &&
@@ -302,29 +343,38 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 				CScalarIdent::PopConvert((*pexprCmp)[1]->Pop())->Pcr());
 			if (pcrsOuter->FMember(pcr0) && pcrsInner->FMember(pcr1))
 			{
-				pcrOuter = pcr0;
-				pcrInner = pcr1;
+				pdrgpcrOuter->Append(pcr0);
+				pdrgpcrInner->Append(pcr1);
 			}
 			else if (pcrsOuter->FMember(pcr1) && pcrsInner->FMember(pcr0))
 			{
-				pcrOuter = pcr1;
-				pcrInner = pcr0;
+				pdrgpcrOuter->Append(pcr1);
+				pdrgpcrInner->Append(pcr0);
 			}
+			else
+			{
+				fSimpleCrossEqualities = false;
+			}
+		}
+		else
+		{
+			fSimpleCrossEqualities = false;
 		}
 	}
 	pdrgpexprConj->Release();
-	if (nullptr == pcrOuter || nullptr == pcrInner)
+	if (!fSimpleCrossEqualities)
 	{
+		pdrgpcrOuter->Release();
+		pdrgpcrInner->Release();
 		return false;
 	}
 
-	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	pdrgpcrOuter->Append(pcrOuter);
 	BOOL fMatched =
 		pmodel->FBind((*pop->Pdrgpsym())[0], pdrgpcrOuter) &&
 		m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
-		FMatchInner((*pop)[1], (*pexpr)[1], pcrInner, pmodel);
+		FMatchInner((*pop)[1], (*pexpr)[1], pdrgpcrInner, pmodel);
 	pdrgpcrOuter->Release();
+	pdrgpcrInner->Release();
 	if (!fMatched)
 	{
 		return false;

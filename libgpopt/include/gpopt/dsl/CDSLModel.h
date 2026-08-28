@@ -79,6 +79,7 @@ private:
 	CDSLSymbolToExpressionMap *m_phmProjList;
 	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
 	CDSLSymbolToExpressionMap *m_phmProjAggShell;
+	CDSLSymbolToExpressionMap *m_phmVirtualIdentityProj;
 	CDSLSymbolToExpressionMap *m_phmJoinPred;
 
 	// Every matched Union/Union* expression, in source-tree traversal order.
@@ -224,6 +225,14 @@ public:
 	// The project-list subtree for one Proj schema symbol; NULL if it was not
 	// matched. Does NOT transfer ownership.
 	CExpression *PexprProjList(const CDSLSymbol *psymSchema) const;
+
+	// ORCA has no column-pruning logical Project. A Proj(InSub(...)) rule may
+	// therefore be scheduled directly on the equivalent SemiJoin/Apply/Select
+	// group. Record that the source Project was an implicit identity view so
+	// target construction removes only this virtual shell.
+	BOOL FSetVirtualIdentityProj(const CDSLSymbol *psymSchema,
+								 CExpression *pexprCarrier);
+	BOOL FVirtualIdentityProj(const CDSLSymbol *psymSchema) const;
 
 	// ORCA can place an unmentioned Sort/Limit shell between Project and its
 	// relational child. Record it by Project schema so target construction can

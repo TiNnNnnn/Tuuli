@@ -90,6 +90,31 @@ FColArraysSameSet(CMemoryPool *mp, const CColRefArray *pdrgpcrFirst,
 	return fEqual;
 }
 
+// A project list made exclusively of column references can be deduplicated on
+// those referenced columns directly. Besides avoiding a redundant Project, this
+// preserves the dependency columns that existing parents may still require.
+// Any non-leaf scalar must instead be evaluated before deduplication.
+BOOL
+FProjectListIsColumnOnly(const CExpression *pexprProjectList)
+{
+	if (nullptr == pexprProjectList ||
+		COperator::EopScalarProjectList != pexprProjectList->Pop()->Eopid())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pexprProjectList->Arity(); ul++)
+	{
+		CExpression *pexprElem = (*pexprProjectList)[ul];
+		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
+			1 != pexprElem->Arity() ||
+			COperator::EopScalarIdent != (*pexprElem)[0]->Pop()->Eopid())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 BOOL
 FColSetContainsArray(const CColRefSet *pcrs,
 					 const CColRefArray *pdrgpcr)
@@ -734,6 +759,115 @@ CDSLInstantiator::PopSourceProjForSchema(
 	return nullptr;
 }
 
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiator::PexprRemapProjectList
+//
+//	@doc:
+//		Copy the exact scalar expressions captured from a source Proj, remapping
+//		their referenced columns from the source attrs vector to the target attrs
+//		vector. Keeping this operation independent of plain Proj versus Proj*
+//		preserves expression identity for projection and projection-dedup targets.
+//---------------------------------------------------------------------------
+CExpression *
+CDSLInstantiator::PexprRemapProjectList(
+	const CDSLSymbol *psymTargetAttrs, const CDSLSymbol *psymSchema,
+	const CDSLModel *pmodel) const
+{
+	CExpression *pexprProjList = pmodel->PexprProjList(psymSchema);
+	if (nullptr == pexprProjList)
+	{
+		return nullptr;
+	}
+
+	const CDSLOp *popSourceProj = PopSourceProjForSchema(
+		m_prule->PfragSrc()->PopRoot(), psymSchema);
+	if (nullptr == popSourceProj || nullptr == popSourceProj->Pdrgpsym() ||
+		2 != popSourceProj->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	CColRefArray *pdrgpcrSourceAttrs =
+		pmodel->PdrgpcrAttrs((*popSourceProj->Pdrgpsym())[0]);
+	CColRefArray *pdrgpcrTargetAttrs =
+		pmodel->PdrgpcrAttrs(psymTargetAttrs);
+	if (nullptr == pdrgpcrSourceAttrs || nullptr == pdrgpcrTargetAttrs ||
+		pdrgpcrSourceAttrs->Size() != pdrgpcrTargetAttrs->Size())
+	{
+		return nullptr;
+	}
+
+	UlongToColRefMap *colref_mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	BOOL fNeedsRemap = false;
+	for (ULONG ul = 0; ul < pdrgpcrSourceAttrs->Size(); ul++)
+	{
+		CColRef *pcrSource = (*pdrgpcrSourceAttrs)[ul];
+		CColRef *pcrTarget = (*pdrgpcrTargetAttrs)[ul];
+		if (pcrSource == pcrTarget)
+		{
+			continue;
+		}
+		if (!pcrSource->RetrieveType()->MDId()->Equals(
+				pcrTarget->RetrieveType()->MDId()) ||
+			pcrSource->TypeModifier() != pcrTarget->TypeModifier())
+		{
+			colref_mapping->Release();
+			return nullptr;
+		}
+		const ULONG ulSourceId = pcrSource->Id();
+		CColRef *pcrExisting = colref_mapping->Find(&ulSourceId);
+		if (nullptr != pcrExisting)
+		{
+			if (pcrExisting != pcrTarget)
+			{
+				colref_mapping->Release();
+				return nullptr;
+			}
+			continue;
+		}
+		BOOL fInserted GPOS_ASSERTS_ONLY = colref_mapping->Insert(
+			GPOS_NEW(m_mp) ULONG(pcrSource->Id()), pcrTarget);
+		GPOS_ASSERT(fInserted);
+		fNeedsRemap = true;
+	}
+
+	CExpression *pexprTargetProjList = nullptr;
+	if (!fNeedsRemap)
+	{
+		pexprProjList->AddRef();
+		pexprTargetProjList = pexprProjList;
+	}
+	else
+	{
+		CExpressionArray *pdrgpexprTargetElems =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG ul = 0; ul < pexprProjList->Arity(); ul++)
+		{
+			CExpression *pexprSourceElem = (*pexprProjList)[ul];
+			if (COperator::EopScalarProjectElement !=
+					pexprSourceElem->Pop()->Eopid() ||
+				1 != pexprSourceElem->Arity())
+			{
+				pdrgpexprTargetElems->Release();
+				colref_mapping->Release();
+				return nullptr;
+			}
+			CExpression *pexprScalar =
+				(*pexprSourceElem)[0]->PexprCopyWithRemappedColumns(
+					m_mp, colref_mapping, false /*must_exist*/);
+			pexprSourceElem->Pop()->AddRef();
+			pdrgpexprTargetElems->Append(GPOS_NEW(m_mp) CExpression(
+				m_mp, pexprSourceElem->Pop(), pexprScalar));
+		}
+		pexprTargetProjList = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp),
+			pdrgpexprTargetElems);
+	}
+	colref_mapping->Release();
+	return pexprTargetProjList;
+}
+
 CExpression *
 CDSLInstantiator::PexprBuildFilterPredicate(
 	const CDSLOp *popFilter, const CDSLModel *pmodel) const
@@ -1350,6 +1484,27 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+	if (pmodel->FVirtualIdentityProj(psymSchema))
+	{
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
+		CColRefSet *pcrsRequired = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		if (nullptr != pdrgpcrSchema)
+		{
+			pcrsRequired->Include(pdrgpcrSchema);
+		}
+		const BOOL fIdentity = nullptr != pdrgpcrAttrs &&
+			nullptr != pdrgpcrSchema &&
+			CColRef::Equals(pdrgpcrAttrs, pdrgpcrSchema) &&
+			pexprChild->DeriveOutputColumns()->ContainsAll(pcrsRequired);
+		pcrsRequired->Release();
+		if (!fIdentity)
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+		return pexprChild;
+	}
 	CExpression *pexprAggShell = pmodel->PexprProjAggShell(psymSchema);
 	if (nullptr != pexprAggShell)
 	{
@@ -1444,6 +1599,55 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			return nullptr;
 		}
 
+		// Proj* over a matched computed Proj means SELECT DISTINCT e(a), not
+		// DISTINCT a. Rebuild the exact captured expression list first and group
+		// by its output schema. attrs remain the expression dependencies while the
+		// saved scalar tree remains the expression itself.
+		CExpression *pexprBoundProjList =
+			pmodel->PexprProjList(psymSchema);
+		if (nullptr != pexprBoundProjList &&
+			!FProjectListIsColumnOnly(pexprBoundProjList))
+		{
+			CExpression *pexprTargetProjList =
+				PexprRemapProjectList(psymAttrs, psymSchema, pmodel);
+			if (nullptr == pexprTargetProjList ||
+				!pexprChild->DeriveOutputColumns()->ContainsAll(
+					pexprTargetProjList->DeriveUsedColumns()))
+			{
+				CRefCount::SafeRelease(pexprTargetProjList);
+				pexprChild->Release();
+				return nullptr;
+			}
+
+			CExpression *pexprProject = GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild,
+				pexprTargetProjList);
+			CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+			pcrsSchema->Include(pdrgpcrSchema);
+			const BOOL fSchemaProduced =
+				pexprProject->DeriveOutputColumns()->ContainsAll(pcrsSchema);
+			pcrsSchema->Release();
+			if (!fSchemaProduced)
+			{
+				pexprProject->Release();
+				return nullptr;
+			}
+
+			pdrgpcrSchema->AddRef();
+			pdrgpcrSchema->AddRef();
+			CExpression *pexprEmptyList = GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp),
+				GPOS_NEW(m_mp) CExpressionArray(m_mp));
+			return GPOS_NEW(m_mp) CExpression(
+				m_mp,
+				GPOS_NEW(m_mp) CLogicalGbAgg(
+					m_mp, pdrgpcrSchema, pdrgpcrSchema,
+					COperator::EgbaggtypeGlobal,
+					false /* fGeneratesDuplicates */,
+					nullptr /* pdrgpcrArgDQA */),
+				pexprProject, pexprEmptyList);
+		}
+
 		CColRefSet *pcrsChild = pexprChild->DeriveOutputColumns();
 		CColRefSet *pcrsGrouping = GPOS_NEW(m_mp) CColRefSet(m_mp);
 		// The target attrs may deliberately name an equivalent join-key column
@@ -1486,7 +1690,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			m_mp,
 			GPOS_NEW(m_mp) CLogicalGbAgg(
 				m_mp, pdrgpcrAttrs, pdrgpcrAttrs,
-				COperator::EgbaggtypeGlobal),
+				COperator::EgbaggtypeGlobal,
+				false /* fGeneratesDuplicates */, nullptr /* pdrgpcrArgDQA */),
 			pexprChild, pexprEmptyList);
 
 		if (FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
@@ -1560,95 +1765,13 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		return pexprChild;
 	}
 
-	const CDSLOp *popSourceProj = PopSourceProjForSchema(
-		m_prule->PfragSrc()->PopRoot(), psymSchema);
-	if (nullptr == popSourceProj || nullptr == popSourceProj->Pdrgpsym() ||
-		2 != popSourceProj->Pdrgpsym()->Size())
+	CExpression *pexprTargetProjList =
+		PexprRemapProjectList(psymAttrs, psymSchema, pmodel);
+	if (nullptr == pexprTargetProjList)
 	{
 		pexprChild->Release();
 		return nullptr;
 	}
-	const CDSLSymbol *psymSourceAttrs = (*popSourceProj->Pdrgpsym())[0];
-	CColRefArray *pdrgpcrSourceAttrs =
-		pmodel->PdrgpcrAttrs(psymSourceAttrs);
-	CColRefArray *pdrgpcrTargetAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
-	if (nullptr == pdrgpcrSourceAttrs || nullptr == pdrgpcrTargetAttrs ||
-		pdrgpcrSourceAttrs->Size() != pdrgpcrTargetAttrs->Size())
-	{
-		pexprChild->Release();
-		return nullptr;
-	}
-
-	UlongToColRefMap *colref_mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
-	BOOL fNeedsRemap = false;
-	for (ULONG ul = 0; ul < pdrgpcrSourceAttrs->Size(); ul++)
-	{
-		CColRef *pcrSource = (*pdrgpcrSourceAttrs)[ul];
-		CColRef *pcrTarget = (*pdrgpcrTargetAttrs)[ul];
-		if (pcrSource == pcrTarget)
-		{
-			continue;
-		}
-		if (!pcrSource->RetrieveType()->MDId()->Equals(
-				pcrTarget->RetrieveType()->MDId()) ||
-			pcrSource->TypeModifier() != pcrTarget->TypeModifier())
-		{
-			colref_mapping->Release();
-			pexprChild->Release();
-			return nullptr;
-		}
-		const ULONG ulSourceId = pcrSource->Id();
-		CColRef *pcrExisting = colref_mapping->Find(&ulSourceId);
-		if (nullptr != pcrExisting)
-		{
-			if (pcrExisting != pcrTarget)
-			{
-				colref_mapping->Release();
-				pexprChild->Release();
-				return nullptr;
-			}
-			continue;
-		}
-		BOOL fInserted GPOS_ASSERTS_ONLY = colref_mapping->Insert(
-			GPOS_NEW(m_mp) ULONG(pcrSource->Id()), pcrTarget);
-		GPOS_ASSERT(fInserted);
-		fNeedsRemap = true;
-	}
-
-	CExpression *pexprTargetProjList = nullptr;
-	if (!fNeedsRemap)
-	{
-		pexprProjList->AddRef();
-		pexprTargetProjList = pexprProjList;
-	}
-	else
-	{
-		CExpressionArray *pdrgpexprTargetElems =
-			GPOS_NEW(m_mp) CExpressionArray(m_mp);
-		for (ULONG ul = 0; ul < pexprProjList->Arity(); ul++)
-		{
-			CExpression *pexprSourceElem = (*pexprProjList)[ul];
-			if (COperator::EopScalarProjectElement !=
-				pexprSourceElem->Pop()->Eopid() ||
-				1 != pexprSourceElem->Arity())
-			{
-				pdrgpexprTargetElems->Release();
-				colref_mapping->Release();
-				pexprChild->Release();
-				return nullptr;
-			}
-			CExpression *pexprScalar =
-				(*pexprSourceElem)[0]->PexprCopyWithRemappedColumns(
-					m_mp, colref_mapping, false /*must_exist*/);
-			pexprSourceElem->Pop()->AddRef();
-			pdrgpexprTargetElems->Append(GPOS_NEW(m_mp) CExpression(
-				m_mp, pexprSourceElem->Pop(), pexprScalar));
-		}
-		pexprTargetProjList = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp),
-			pdrgpexprTargetElems);
-	}
-	colref_mapping->Release();
 
 	if (!pexprChild->DeriveOutputColumns()->ContainsAll(
 			pexprTargetProjList->DeriveUsedColumns()))

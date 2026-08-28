@@ -114,6 +114,9 @@ private:
 	// project list must be rebound from this source Proj's attrs.
 	const CDSLOp *PopSourceProjForSchema(
 		const CDSLOp *pop, const CDSLSymbol *psymSchema) const;
+	CExpression *PexprRemapProjectList(const CDSLSymbol *psymTargetAttrs,
+									 const CDSLSymbol *psymSchema,
+									 const CDSLModel *pmodel) const;
 
 	// recursively build the target subtree rooted at pop, reading bindings from
 	// pmodel (resolving target symbols through the alias map). Returns NULL if a
