@@ -1,0 +1,65 @@
+{
+  "description": "A proved DSL rule pushes duplicate elimination below a foreign-key inner join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Pure outer foreign-key grouping attrs joined to a unique referred equality key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "d8e3bfd930532f66"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\"",
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

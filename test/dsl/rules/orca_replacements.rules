@@ -28,6 +28,10 @@ Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(Inne
 
 Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);AttrsEq(a3,a0);SchemaEq(s1,s0)
 
+Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a2,a0);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);SchemaEq(s1,s0);AttrsEq(a7,a2);SchemaEq(s2,s0)
+
+Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);NotNull(t0,a0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);SchemaEq(s1,s0);AttrsEq(a7,a2);SchemaEq(s2,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -54,6 +58,19 @@ Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4
 # Join predicate binding preserves every non-equality residual and records its
 # dependencies by child. This directly covers the corresponding unique-output
 # domain of CXformPushGbDedupBelowJoin without reproducing its staging shape.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
+# Line 31 pushes a pure outer-key Dedup below an InnerJoin whose equality is a
+# declared foreign-key reference to a unique inner key. The ordinary target
+# Proj restores the source output after the staged Dedup; both projection
+# layers bind the complete grouping attrs and schema. This covers the exact-FK
+# grouping branch shared by CXformPushGbBelowJoin and
+# CXformPushGbDedupBelowJoin rather than the earlier unique-output shortcut.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
+# Line 33 extends the same staged rewrite to arbitrary outer grouping attrs
+# containing the FK. NotNull is explicit because the projected grouping tuple
+# must preserve the FK's nullability fact across the inner Dedup boundary.
+# Together lines 31 and 33 retain nullable exact-key coverage while widening
+# the non-null domain used by CXformPushGbDedupBelowJoin.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
 # Lines 27 and 29 cover the two non-simple-predicate branches of
 # CXformLeftSemiJoin2InnerJoinUnderGb. The five-symbol InSubFilter preserves the

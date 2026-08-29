@@ -97,6 +97,10 @@ CDSLConstraintTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubAdmit),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubReject),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_AttrsSubAttrsAdmit),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_AttrsSubAttrsReject),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueAdmit),
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_UniqueAdmitOnFixedKey),
@@ -284,6 +288,64 @@ CDSLConstraintTest::EresUnittest_AttrsSubReject()
 	pexprOther->Release();
 	prule->Release();
 	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	AttrsSub(a0,a1)
+//---------------------------------------------------------------------------
+static GPOS_RESULT
+EresAttrsSubAttrs(BOOL fReverse)
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Input<t1>|"
+		"AttrsSub(a0,a1);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOut = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("t0", 3, &pdrgpcrOut);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	pmodel->FBind(PsymByName(prule, "t0"), pexprGet);
+
+	CColRefArray *pdrgpcrNarrow = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrNarrow->Append((*pdrgpcrOut)[0]);
+	CColRefArray *pdrgpcrWide = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrWide->Append((*pdrgpcrOut)[0]);
+	pdrgpcrWide->Append((*pdrgpcrOut)[1]);
+	pmodel->FBind(PsymByName(prule, "a0"),
+				  fReverse ? pdrgpcrWide : pdrgpcrNarrow);
+	pmodel->FBind(PsymByName(prule, "a1"),
+				  fReverse ? pdrgpcrNarrow : pdrgpcrWide);
+	pdrgpcrWide->Release();
+	pdrgpcrNarrow->Release();
+
+	CDSLConstraintChecker checker(mp);
+	const BOOL fHolds = checker.FCheck(prule, pmodel);
+	const GPOS_RESULT eres = fReverse == fHolds ? GPOS_FAILED : GPOS_OK;
+
+	pmodel->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_AttrsSubAttrsAdmit()
+{
+	return EresAttrsSubAttrs(false /*fReverse*/);
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_AttrsSubAttrsReject()
+{
+	return EresAttrsSubAttrs(true /*fReverse*/);
 }
 
 //---------------------------------------------------------------------------

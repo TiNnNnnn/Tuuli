@@ -39,6 +39,8 @@ public:
 	// AttrsSub(a,t): admit when a's columns ⊆ t's output; reject otherwise
 	static GPOS_RESULT EresUnittest_AttrsSubAdmit();
 	static GPOS_RESULT EresUnittest_AttrsSubReject();
+	static GPOS_RESULT EresUnittest_AttrsSubAttrsAdmit();
+	static GPOS_RESULT EresUnittest_AttrsSubAttrsReject();
 
 	// Unique(t,a): admit when a is a key of t; reject when t has no such key
 	static GPOS_RESULT EresUnittest_UniqueAdmit();

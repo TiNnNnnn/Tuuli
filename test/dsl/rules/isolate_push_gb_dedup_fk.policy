@@ -1,0 +1,6 @@
+# Isolate the general FK-subset PushGbDedupBelowJoin replacement from rules
+# that can remove the same unique-output Dedup or convert its source semi join.
+- rule: c602af3fe55f92f7
+  enabled: false
+- rule: 9cab8c80b6430c16
+  enabled: false

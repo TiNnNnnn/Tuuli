@@ -640,7 +640,7 @@ CDSLConstraintChecker::PcrsFromAttrsSym(const CDSLSymbol *psymAttrs,
 //		CDSLConstraintChecker::FCheckAttrsSub
 //
 //	@doc:
-//		AttrsSub(a,x): x is either a table/subtree symbol or a schema symbol.
+//		AttrsSub(a,x): x is an attrs, table/subtree, or schema symbol.
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
@@ -655,7 +655,8 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
 	const CDSLSymbol *psymSource = (*pdrgpsym)[1];
 	if (EdslsymAttrs != psymAttrs->Esymkind() ||
-		(EdslsymTable != psymSource->Esymkind() &&
+		(EdslsymAttrs != psymSource->Esymkind() &&
+		 EdslsymTable != psymSource->Esymkind() &&
 		 EdslsymSchema != psymSource->Esymkind()))
 	{
 		return false;
@@ -683,7 +684,16 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 	}
 
 	BOOL fHolds = false;
-	if (EdslsymTable == psymSource->Esymkind())
+	if (EdslsymAttrs == psymSource->Esymkind())
+	{
+		CColRefSet *pcrsSource = PcrsFromAttrsSym(psymSource, pmodel);
+		if (nullptr != pcrsSource)
+		{
+			fHolds = pcrsSource->ContainsAll(pcrsAttrs);
+			pcrsSource->Release();
+		}
+	}
+	else if (EdslsymTable == psymSource->Esymkind())
 	{
 		CExpression *pexprTable = pmodel->PexprTable(psymSource);
 		fHolds = nullptr != pexprTable &&
