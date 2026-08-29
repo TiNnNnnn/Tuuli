@@ -957,6 +957,42 @@ CDSLConstraintChecker::FCheckPredicateFalse(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckPredicateAnd(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 3 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < 3; ul++)
+	{
+		if (EdslsymPred != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+
+	CExpression *pexprLeft = pmodel->PexprPred((*pdrgpsym)[1]);
+	CExpression *pexprRight = pmodel->PexprPred((*pdrgpsym)[2]);
+	if (nullptr == pexprLeft || nullptr == pexprRight)
+	{
+		return false;
+	}
+
+	CExpression *pexprResult = pmodel->PexprPred((*pdrgpsym)[0]);
+	if (nullptr == pexprResult)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	CExpression *pexprExpected =
+		CPredicateUtils::PexprConjunction(m_mp, pexprLeft, pexprRight);
+	const BOOL fMatches = pexprResult->Matches(pexprExpected);
+	pexprExpected->Release();
+	return fMatches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -1747,6 +1783,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckNotNull(pcon, pmodel);
 		case EdslconPredicateFalse:
 			return FCheckPredicateFalse(pcon, pmodel);
+		case EdslconPredicateAnd:
+			return FCheckPredicateAnd(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

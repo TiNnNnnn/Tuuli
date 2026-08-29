@@ -822,6 +822,63 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 	return nullptr;
 }
 
+CExpression *
+CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
+									   const CDSLModel *pmodel,
+									   ULONG ulDepth) const
+{
+	if (nullptr == psym || nullptr == m_prule ||
+		EdslsymPred != psym->Esymkind() ||
+		ulDepth > m_prule->Pdrgpcon()->Size())
+	{
+		return nullptr;
+	}
+	psym = PsymResolve(psym);
+	CExpression *pexprBound = pmodel->PexprPred(psym);
+	if (nullptr != pexprBound)
+	{
+		pexprBound->AddRef();
+		return pexprBound;
+	}
+
+	const CDSLConstraint *pconDefinition = nullptr;
+	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconPredicateAnd != pcon->Edslcon() ||
+			3 != pcon->Pdrgpsym()->Size() || (*pcon->Pdrgpsym())[0] != psym)
+		{
+			continue;
+		}
+		if (nullptr != pconDefinition)
+		{
+			return nullptr;
+		}
+		pconDefinition = pcon;
+	}
+	if (nullptr == pconDefinition)
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprLeft = PexprResolvePredicate(
+		(*pconDefinition->Pdrgpsym())[1], pmodel, ulDepth + 1);
+	CExpression *pexprRight = PexprResolvePredicate(
+		(*pconDefinition->Pdrgpsym())[2], pmodel, ulDepth + 1);
+	if (nullptr == pexprLeft || nullptr == pexprRight)
+	{
+		CRefCount::SafeRelease(pexprLeft);
+		CRefCount::SafeRelease(pexprRight);
+		return nullptr;
+	}
+	CExpression *pexprResult =
+		CPredicateUtils::PexprConjunction(m_mp, pexprLeft, pexprRight);
+	pexprLeft->Release();
+	pexprRight->Release();
+	return pexprResult;
+}
+
 CColRefArray *
 CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
@@ -1759,13 +1816,13 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		const ULONG ulPredOffset =
 			fPredicateOnly ? 0 : (5 == ulSymbols ? 2 : 4);
-		const CDSLSymbol *psymPred =
-			PsymResolve((*pdrgpsym)[ulPredOffset]);
+		const CDSLSymbol *psymPred = (*pdrgpsym)[ulPredOffset];
 		const CDSLSymbol *psymLeftDeps =
 			PsymResolve((*pdrgpsym)[ulPredOffset + 1]);
 		const CDSLSymbol *psymRightDeps =
 			PsymResolve((*pdrgpsym)[ulPredOffset + 2]);
-		CExpression *pexprResidual = pmodel->PexprPred(psymPred);
+		CExpression *pexprResidual =
+			PexprResolvePredicate(psymPred, pmodel);
 		CColRefArray *pdrgpcrLeftDeps =
 			PdrgpcrResolveCols(psymLeftDeps, pmodel);
 		CColRefArray *pdrgpcrRightDeps =
@@ -1773,6 +1830,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		if (nullptr == pexprResidual || nullptr == pdrgpcrLeftDeps ||
 			nullptr == pdrgpcrRightDeps)
 		{
+			CRefCount::SafeRelease(pexprResidual);
 			return nullptr;
 		}
 		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
@@ -1781,6 +1839,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		const BOOL fDependenciesExact =
 			pcrsDeclared->Equals(pexprResidual->DeriveUsedColumns());
 		pcrsDeclared->Release();
+		pexprResidual->Release();
 		if (!fDependenciesExact)
 		{
 			return nullptr;
@@ -1790,9 +1849,12 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		fPredicateOnly ? nullptr : PsymResolve((*pdrgpsym)[0]);
 	const CDSLSymbol *psymRight =
 		fPredicateOnly ? nullptr : PsymResolve((*pdrgpsym)[1]);
-	CExpression *pexprJoinPred = fPredicateOnly
-		? pmodel->PexprPred(PsymResolve((*pdrgpsym)[0]))
-		: pmodel->PexprJoinPred(psymLeft, psymRight);
+	CExpression *pexprOwnedJoinPred = fPredicateOnly
+		? PexprResolvePredicate((*pdrgpsym)[0], pmodel)
+		: nullptr;
+	CExpression *pexprJoinPred =
+		fPredicateOnly ? pexprOwnedJoinPred
+					   : pmodel->PexprJoinPred(psymLeft, psymRight);
 	if (!fPredicateOnly && nullptr == pexprJoinPred)
 	{
 		ULONG ulInSubMatches = 0;
@@ -1819,11 +1881,13 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	CExpression *pexprLeft = PexprBuild((*pop)[0], pmodel);
 	if (nullptr == pexprLeft)
 	{
+		CRefCount::SafeRelease(pexprOwnedJoinPred);
 		return nullptr;
 	}
 	CExpression *pexprRight = PexprBuild((*pop)[1], pmodel);
 	if (nullptr == pexprRight)
 	{
+		CRefCount::SafeRelease(pexprOwnedJoinPred);
 		pexprLeft->Release();
 		return nullptr;
 	}
@@ -1831,6 +1895,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,
 		pmodel);
+	CRefCount::SafeRelease(pexprOwnedJoinPred);
 	if (nullptr == pexprTargetPred)
 	{
 		pexprLeft->Release();
@@ -2896,10 +2961,10 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		{
 			return nullptr;
 		}
-		const CDSLSymbol *psymPred = PsymResolve((*pdrgpsym)[0]);
+		const CDSLSymbol *psymPred = (*pdrgpsym)[0];
 		const CDSLSymbol *psymLeftDeps = PsymResolve((*pdrgpsym)[1]);
 		const CDSLSymbol *psymRightDeps = PsymResolve((*pdrgpsym)[2]);
-		CExpression *pexprPred = pmodel->PexprPred(psymPred);
+		CExpression *pexprPred = PexprResolvePredicate(psymPred, pmodel);
 		CColRefArray *pdrgpcrLeftDeps =
 			PdrgpcrResolveCols(psymLeftDeps, pmodel);
 		CColRefArray *pdrgpcrRightDeps =
@@ -2907,6 +2972,7 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		if (nullptr == pexprPred || nullptr == pdrgpcrLeftDeps ||
 			nullptr == pdrgpcrRightDeps)
 		{
+			CRefCount::SafeRelease(pexprPred);
 			return nullptr;
 		}
 		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
@@ -2915,6 +2981,7 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		const BOOL fDependenciesExact =
 			pcrsDeclared->Equals(pexprPred->DeriveUsedColumns());
 		pcrsDeclared->Release();
+		pexprPred->Release();
 		if (!fDependenciesExact)
 		{
 			return nullptr;
@@ -2936,9 +3003,10 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 	if (3 == ulSymbols)
 	{
 		CExpression *pexprPred =
-			pmodel->PexprPred(PsymResolve((*pdrgpsym)[0]));
+			PexprResolvePredicate((*pdrgpsym)[0], pmodel);
 		CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 			(*pop)[0], pexprOuter, (*pop)[1], pexprInner, pexprPred, pmodel);
+		CRefCount::SafeRelease(pexprPred);
 		if (nullptr == pexprTargetPred)
 		{
 			pexprOuter->Release();

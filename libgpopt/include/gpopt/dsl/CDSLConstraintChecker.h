@@ -98,6 +98,11 @@ private:
 	BOOL FCheckPredicateFalse(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
+	// PredicateAnd(out,left,right): validate a bound source output exactly, or
+	// defer a target-only output after checking both operands are available.
+	BOOL FCheckPredicateAnd(const CDSLConstraint *pcon,
+							const CDSLModel *pmodel) const;
+
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.
 	BOOL FCheckScalarConstant(const CDSLConstraint *pcon,

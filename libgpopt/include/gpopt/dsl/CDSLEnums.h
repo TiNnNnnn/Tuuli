@@ -145,6 +145,9 @@ enum EDslConstraintKind
 	// Empty ordered column vector. Source bindings are applicability guards;
 	// target-only bindings are materialized by the instantiator.
 	EdslconAttrsEmpty,
+	// PredicateAnd(out,left,right): out is the canonical conjunction of two
+	// predicate symbols. Target-only outputs are materialized lazily.
+	EdslconPredicateAnd,
 	EdslconSentinel
 };
 

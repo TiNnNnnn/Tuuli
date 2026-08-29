@@ -107,6 +107,12 @@ private:
 	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
 								 const CDSLModel *pmodel) const;
 
+	// Resolve a bound/aliased predicate to an owned expression, or lazily build
+	// a target predicate declared by PredicateAnd.
+	CExpression *PexprResolvePredicate(const CDSLSymbol *psym,
+									const CDSLModel *pmodel,
+									ULONG ulDepth = 0) const;
+
 	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
 	// ordered subset; AttrsEmpty materializes a target-only empty attrs vector.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,

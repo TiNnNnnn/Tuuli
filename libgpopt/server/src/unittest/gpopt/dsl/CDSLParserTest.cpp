@@ -215,6 +215,11 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 "
 		"s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);"
 		"ExprSplit(e2,e3,e0,e1)",
+		// Predicate composition is explicit and target predicates can be derived.
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3>(Input<t1>))|"
+		"SemiJoin<p2 a4 a5>(Input<t2>,Input<t3>)|TableEq(t2,t0);"
+		"TableEq(t3,t1);PredicateAnd(p2,p0,p1);AttrsEq(a4,a0);"
+		"AttrsEq(a5,a1)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)
