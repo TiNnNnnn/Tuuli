@@ -409,6 +409,10 @@ CDSLParserTest::EresUnittest_Aliases()
 		 "TableEq(t2,t0)",
 		 "SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Input<t2>|"
 		 "TableEq(t2,t0)"},
+		{"LeftSemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|"
+		 "TableEq(t2,t0)",
+		 "SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|"
+		 "TableEq(t2,t0)"},
 		{"SimpleFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
 		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
 		{"PlainFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",

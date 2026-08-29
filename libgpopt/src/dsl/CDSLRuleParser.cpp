@@ -124,6 +124,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fExists = EdslopExists == edslop;
 	const BOOL fPredicateExists = fExists && 3 == ul_given;
 	const BOOL fSemiJoin = EdslopSemiJoin == edslop;
+	const BOOL fSemiApply = EdslopSemiApply == edslop;
 	// Legacy InSubFilter<a> takes its inner equality key from the RHS projection.
 	// The extended form binds both key vectors and a residual predicate.
 	const BOOL fLegacyInSub = EdslopInSubFilter == edslop && 1 == ul_given;
@@ -156,11 +157,13 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	for (ULONG ul = 0; ul < ul_given; ul++)
 	{
 		std::string name = symlist_ctx->SYMBOL(ul)->getText();
-		if (((fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin) &&
+		if (((fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin ||
+			 fSemiApply) &&
 			((0 == ul && 'p' != name[0]) ||
 			 (0 < ul && 'a' != name[0])))
 		{
-			bctx.Fail("predicate-only operator expects <p a a> symbols");
+			bctx.Fail(
+				"predicate-bearing operator expects one <p> followed by <a> symbols");
 			pdrgpsym->Release();
 			return nullptr;
 		}

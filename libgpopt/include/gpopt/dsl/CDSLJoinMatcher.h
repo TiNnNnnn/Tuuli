@@ -59,7 +59,9 @@ class CDSLMatcher;
 //
 //	@doc:
 //		Matches DSL InnerJoin/LeftJoin keyed forms and the explicit
-//		SemiJoin<p a a> form against their corresponding ORCA logical operators.
+//		SemiJoin<p a a> and SemiApply<p a a a> forms against their corresponding
+//		ORCA logical operators. The fourth SemiApply symbol binds the inner
+//		subtree's references to the current outer child.
 //		Constructed per match attempt
 //		with the transient pool and a back-reference to the generic matcher (so the
 //		two relational children can recurse). Owns no state beyond those.

@@ -22,6 +22,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -470,7 +471,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	GPOS_ASSERT(nullptr != popJoin);
 	GPOS_ASSERT(EdslopInnerJoin == popJoin->Edslop() ||
 				EdslopLeftJoin == popJoin->Edslop() ||
-				EdslopSemiJoin == popJoin->Edslop());
+				EdslopSemiJoin == popJoin->Edslop() ||
+				EdslopSemiApply == popJoin->Edslop());
 	GPOS_ASSERT(nullptr != pexprJoin);
 
 	// identity + arity gate: the live node must be the matching join carrying
@@ -478,10 +480,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const COperator::EOperatorId eopid = pexprJoin->Pop()->Eopid();
 	const BOOL fInner = (EdslopInnerJoin == popJoin->Edslop());
 	const BOOL fSemi = (EdslopSemiJoin == popJoin->Edslop());
+	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const COperator::EOperatorId eopidExpected = fInner
 		? COperator::EopLogicalInnerJoin
 		: (fSemi ? COperator::EopLogicalLeftSemiJoin
-				 : COperator::EopLogicalLeftOuterJoin);
+				 : (fSemiApply ? COperator::EopLogicalLeftSemiApply
+							   : COperator::EopLogicalLeftOuterJoin));
 	if (eopid != eopidExpected || 3 != pexprJoin->Arity())
 	{
 		return false;
@@ -493,8 +497,9 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
 		(fSemi ? 3 != ulSymbols
+			   : (fSemiApply ? 4 != ulSymbols
 			   : (2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
-				  5 != ulSymbols && 7 != ulSymbols)) ||
+				  5 != ulSymbols && 7 != ulSymbols))) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
@@ -505,10 +510,11 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	// two/five/seven-symbol forms. The predicate dependencies give the generic
 	// remapper all information needed to rebuild the same scalar expression over
 	// target children.
-	if (3 == ulSymbols)
+	if ((fSemi && 3 == ulSymbols) || (fSemiApply && 4 == ulSymbols) ||
+		(!fSemi && !fSemiApply && 3 == ulSymbols))
 	{
 		CExpression *pexprPred = nullptr;
-		if (fSemi)
+		if (fSemi || fSemiApply)
 		{
 			// SemiJoin<p a a> always names the complete predicate. Unlike the
 			// legacy three-symbol Join form, equality conjuncts are not split out.
@@ -557,15 +563,29 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		pcrsLeftDeps->Release();
 		pcrsRightDeps->Release();
 
+		CColRefArray *pdrgpcrCorrelations = nullptr;
+		if (fSemiApply)
+		{
+			CColRefSet *pcrsCorrelations = GPOS_NEW(m_mp) CColRefSet(
+				m_mp, *(*pexprJoin)[1]->DeriveOuterReferences());
+			pcrsCorrelations->Intersection(
+				(*pexprJoin)[0]->DeriveOutputColumns());
+			pdrgpcrCorrelations = pcrsCorrelations->Pdrgpcr(m_mp);
+			pcrsCorrelations->Release();
+		}
+
 		BOOL fMatched = fDependenciesExact &&
 			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
 			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel) &&
 			pmodel->FBind((*pdrgpsym)[0], pexprPred) &&
 			pmodel->FBind((*pdrgpsym)[1], pdrgpcrLeftDeps) &&
-			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps);
+			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps) &&
+			(!fSemiApply ||
+			 pmodel->FBind((*pdrgpsym)[3], pdrgpcrCorrelations));
 		pexprPred->Release();
 		pdrgpcrLeftDeps->Release();
 		pdrgpcrRightDeps->Release();
+		CRefCount::SafeRelease(pdrgpcrCorrelations);
 		return fMatched;
 	}
 	const CDSLSymbol *psymLeft = (*pdrgpsym)[0];

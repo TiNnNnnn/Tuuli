@@ -1,0 +1,75 @@
+{
+  "description": "A Rocq-proved explicit SemiApply DSL rule replaces the uncorrelated Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+    ],
+    "scope": "LeftSemiApply whose inner subtree has no references to its current outer child",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "e3458abf2b3167d5"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

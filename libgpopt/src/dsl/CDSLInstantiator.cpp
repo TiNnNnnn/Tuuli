@@ -1717,7 +1717,8 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		CDSLInstantiator::PexprBuildJoin
 //
 //	@doc:
-//		InnerJoin/LeftJoin/SemiJoin rebuild both relational children and graft the
+//		InnerJoin/LeftJoin/SemiJoin/SemiApply rebuild both relational children and
+//		graft the
 //		SOURCE-matched predicate, building the join operator the TARGET op names.
 //		For Inner/LeftJoin, <p a a> carries a complete predicate without extracted
 //		equality keys; SemiJoin always carries the complete predicate, including
@@ -1738,13 +1739,20 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
-	if (nullptr == pdrgpsym ||
-		(2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
-		 5 != ulSymbols && 7 != ulSymbols))
+	const BOOL fSemiJoin = EdslopSemiJoin == pop->Edslop();
+	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
+	const BOOL fValidSymbols = fSemiJoin
+		? 3 == ulSymbols
+		: (fSemiApply ? 4 == ulSymbols
+					  : (2 == ulSymbols || 3 == ulSymbols ||
+						 4 == ulSymbols || 5 == ulSymbols ||
+						 7 == ulSymbols));
+	if (nullptr == pdrgpsym || !fValidSymbols)
 	{
 		return nullptr;
 	}
-	const BOOL fPredicateOnly = 3 == ulSymbols;
+	const BOOL fPredicateOnly =
+		3 == ulSymbols || (fSemiApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
 		fPredicateOnly || 5 == ulSymbols || 7 == ulSymbols;
 	if (fBindsPredicate)
@@ -1831,7 +1839,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 
 	// build the join operator the TARGET names.
-	CLogicalJoin *popJoin = nullptr;
+	COperator *popJoin = nullptr;
 	switch (pop->Edslop())
 	{
 		case EdslopInnerJoin:
@@ -1843,6 +1851,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		case EdslopSemiJoin:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp);
 			break;
+		case EdslopSemiApply:
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiApply(m_mp);
+			break;
 		default:
 			pexprTargetPred->Release();
 			pexprLeft->Release();
@@ -1852,7 +1863,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 	CExpression *pexprResult = GPOS_NEW(m_mp)
 		CExpression(m_mp, popJoin, pexprLeft, pexprRight, pexprTargetPred);
-	if (4 == ulSymbols || 7 == ulSymbols)
+	if (!fSemiApply && (4 == ulSymbols || 7 == ulSymbols))
 	{
 		const CDSLSymbol *psymOutput = PsymResolve((*pdrgpsym)[2]);
 		const CDSLSymbol *psymSchema = PsymResolve((*pdrgpsym)[3]);
@@ -1868,6 +1879,26 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			CColRef::Equals(pdrgpcrOutput, pdrgpcrActual);
 		pdrgpcrActual->Release();
 		if (!fOutputPreserved)
+		{
+			pexprResult->Release();
+			return nullptr;
+		}
+	}
+	if (fSemiApply)
+	{
+		const CDSLSymbol *psymCorrelations =
+			PsymResolve((*pdrgpsym)[3]);
+		CColRefArray *pdrgpcrExpected =
+			PdrgpcrResolveCols(psymCorrelations, pmodel);
+		CColRefSet *pcrsActual = GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *pexprRight->DeriveOuterReferences());
+		pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
+		CColRefArray *pdrgpcrActual = pcrsActual->Pdrgpcr(m_mp);
+		const BOOL fCorrelationsPreserved = nullptr != pdrgpcrExpected &&
+			CColRef::Equals(pdrgpcrExpected, pdrgpcrActual);
+		pdrgpcrActual->Release();
+		pcrsActual->Release();
+		if (!fCorrelationsPreserved)
 		{
 			pexprResult->Release();
 			return nullptr;
@@ -3587,6 +3618,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 		case EdslopSemiJoin:
+		case EdslopSemiApply:
 			return PexprBuildJoin(pop, pmodel);
 		default:
 			return nullptr;
