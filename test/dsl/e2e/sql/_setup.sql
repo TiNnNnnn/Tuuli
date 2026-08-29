@@ -16,7 +16,7 @@ INSERT INTO dsl_exists_inner VALUES (5),(20);
 CREATE TABLE dsl_dqa(empno int PRIMARY KEY, deptno int NOT NULL);
 INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
 
-CREATE TABLE dsl_fk_parent(id int PRIMARY KEY);
+CREATE TABLE dsl_fk_parent(id int PRIMARY KEY, payload int NOT NULL);
 CREATE TABLE dsl_notin_tag(id int PRIMARY KEY);
 CREATE TABLE dsl_fk_child(
     id int PRIMARY KEY,
@@ -24,7 +24,7 @@ CREATE TABLE dsl_fk_child(
 CREATE TABLE dsl_fk_nullable_child(
     id int PRIMARY KEY,
     parent_id int REFERENCES dsl_fk_parent(id));
-INSERT INTO dsl_fk_parent VALUES (10),(20);
+INSERT INTO dsl_fk_parent VALUES (10,100),(20,200);
 INSERT INTO dsl_notin_tag VALUES (1),(2),(3);
 INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
 INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);

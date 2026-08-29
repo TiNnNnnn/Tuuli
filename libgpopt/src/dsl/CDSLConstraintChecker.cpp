@@ -716,6 +716,96 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLConstraintChecker::FCheckAttrsIntersect
+//
+//	@doc:
+//		Validate the generic ordered column-vector intersection relation. The
+//		output is commonly target-side and therefore unbound while matching; in
+//		that case the instantiator materializes the same relation lazily.
+//---------------------------------------------------------------------------
+BOOL
+CDSLConstraintChecker::FCheckAttrsIntersect(const CDSLConstraint *pcon,
+										 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	const CDSLSymbol *psymOut = (*pdrgpsym)[0];
+	const CDSLSymbol *psymInput = (*pdrgpsym)[1];
+	const CDSLSymbol *psymDomain = (*pdrgpsym)[2];
+	if ((EdslsymAttrs != psymOut->Esymkind() &&
+		 EdslsymSchema != psymOut->Esymkind()) ||
+		psymOut->Esymkind() != psymInput->Esymkind())
+	{
+		return false;
+	}
+
+	CRefCount *pvalInput = pmodel->PvalLookup(psymInput);
+	CColRefArray *pdrgpcrInput =
+		dynamic_cast<CColRefArray *>(pvalInput);
+	if (nullptr == pdrgpcrInput)
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsDomain = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	if (EdslsymTable == psymDomain->Esymkind())
+	{
+		CExpression *pexprDomain = pmodel->PexprTable(psymDomain);
+		if (nullptr == pexprDomain)
+		{
+			pcrsDomain->Release();
+			return false;
+		}
+		pcrsDomain->Include(pexprDomain->DeriveOutputColumns());
+	}
+	else if (EdslsymAttrs == psymDomain->Esymkind() ||
+			 EdslsymSchema == psymDomain->Esymkind())
+	{
+		CColRefArray *pdrgpcrDomain =
+			dynamic_cast<CColRefArray *>(pmodel->PvalLookup(psymDomain));
+		if (nullptr == pdrgpcrDomain)
+		{
+			pcrsDomain->Release();
+			return false;
+		}
+		pcrsDomain->Include(pdrgpcrDomain);
+	}
+	else
+	{
+		pcrsDomain->Release();
+		return false;
+	}
+
+	CRefCount *pvalOut = pmodel->PvalLookup(psymOut);
+	if (nullptr == pvalOut)
+	{
+		pcrsDomain->Release();
+		return EdslsideTarget == psymOut->Eside();
+	}
+	CColRefArray *pdrgpcrOut = dynamic_cast<CColRefArray *>(pvalOut);
+	ULONG ulExpected = 0;
+	BOOL fEqual = nullptr != pdrgpcrOut;
+	for (ULONG ul = 0; fEqual && ul < pdrgpcrInput->Size(); ul++)
+	{
+		CColRef *pcr = (*pdrgpcrInput)[ul];
+		if (!pcrsDomain->FMember(pcr))
+		{
+			continue;
+		}
+		fEqual = ulExpected < pdrgpcrOut->Size() &&
+			(*pdrgpcrOut)[ulExpected] == pcr;
+		++ulExpected;
+	}
+	fEqual = fEqual && ulExpected == pdrgpcrOut->Size();
+	pcrsDomain->Release();
+	return fEqual;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLConstraintChecker::FCheckUnique
 //
 //	@doc:
@@ -1570,6 +1660,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 	{
 		case EdslconAttrsSub:
 			return FCheckAttrsSub(pcon, pmodel);
+		case EdslconAttrsIntersect:
+			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconUnique:
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:

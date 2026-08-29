@@ -74,6 +74,12 @@ private:
 	BOOL FCheckAttrsSub(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
 
+	// AttrsIntersect(out,in,domain): out is the ordered subsequence of in whose
+	// columns are exposed by a table/subtree, attrs, or schema domain. During
+	// source matching an unbound target out is validated and deferred.
+	BOOL FCheckAttrsIntersect(const CDSLConstraint *pcon,
+							  const CDSLModel *pmodel) const;
+
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;

@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule pushes the outer-owned portion of a mixed grouping vector below an inner join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Pure grouping attrs span both children and contain an outer FK joined to a unique inner key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "6f1d9b45630f2aa2"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_push_gb_mixed_grouping.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6f1d9b45630f2aa2\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_push_gb_mixed_grouping.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6f1d9b45630f2aa2\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10,100",
+      "20,200"
+    ],
+    "postgres_output": [
+      "10,100",
+      "20,200"
+    ]
+  }
+}

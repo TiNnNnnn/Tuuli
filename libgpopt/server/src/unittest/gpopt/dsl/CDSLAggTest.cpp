@@ -58,6 +58,14 @@ using namespace gpopt;
 	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
+#define GPOPT_DSL_INTERSECT_GROUPING_RULE                                  \
+	"Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"                 \
+	"Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|"   \
+	"AttrsSub(a0,a2);AttrsSub(a1,t1);"                                    \
+	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);"       \
+	"AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);"                  \
+	"AttrsEq(a7,a2);SchemaEq(s2,s0)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -157,6 +165,8 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_InstantiateProducesSelectOverChild),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateDedupToPlainProj),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_InstantiateIntersectedGrouping),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsNonEmptyAggList),
 		GPOS_UNITTEST_FUNC(
@@ -171,6 +181,87 @@ CDSLAggTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateIntersectedGrouping()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_INTERSECT_GROUPING_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("left", 2, &pdrgpcrLeft);
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("right", 2, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrLeft)[0]);
+	pdrgpcrGroup->Append((*pdrgpcrRight)[1]);
+	pdrgpcrGroup->Append((*pdrgpcrLeft)[1]);
+	CExpression *pexprSource =
+		fix.PexprLogicalGbAgg(pexprJoin, pdrgpcrGroup);
+	pdrgpcrGroup->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		CExpression *pexprTargetJoin =
+			nullptr == pexprTgt ? nullptr : (*pexprTgt)[0];
+		CExpression *pexprPushed =
+			nullptr == pexprTargetJoin ? nullptr : (*pexprTargetJoin)[0];
+		CLogicalGbAgg *popPushed =
+			nullptr != pexprPushed &&
+				COperator::EopLogicalGbAgg == pexprPushed->Pop()->Eopid()
+			? CLogicalGbAgg::PopConvert(pexprPushed->Pop())
+			: nullptr;
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalSelect != pexprTgt->Pop()->Eopid() ||
+			nullptr == pexprTargetJoin ||
+			COperator::EopLogicalInnerJoin !=
+				pexprTargetJoin->Pop()->Eopid() ||
+			nullptr == popPushed || 2 != popPushed->Pdrgpcr()->Size() ||
+			(*popPushed->Pdrgpcr())[0] != (*pdrgpcrLeft)[0] ||
+			(*popPushed->Pdrgpcr())[1] != (*pdrgpcrLeft)[1] ||
+			!pexprTgt->DeriveOutputColumns()->ContainsAll(
+				pexprSource->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprJoin->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

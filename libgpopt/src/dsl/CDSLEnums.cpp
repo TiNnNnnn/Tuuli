@@ -108,6 +108,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconExprConcat, "ExprConcat", 3},
 	{EdslconExprDepsDisjoint, "ExprDepsDisjoint", 2},
 	{EdslconExprSplit, "ExprSplit", 4},
+	{EdslconAttrsIntersect, "AttrsIntersect", 3},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -462,6 +463,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprConcat:
 		case EdslconExprDepsDisjoint:
 		case EdslconExprSplit:
+		case EdslconAttrsIntersect:
 			return true;
 		case EdslconSentinel:
 			return false;

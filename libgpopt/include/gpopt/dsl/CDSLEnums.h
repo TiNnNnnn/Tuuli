@@ -128,6 +128,11 @@ enum EDslConstraintKind
 	EdslconExprConcat,
 	EdslconExprDepsDisjoint,
 	EdslconExprSplit,
+	// Ordered column-vector intersection. The first symbol is derived from the
+	// second by retaining only columns exposed by the third symbol (a relational
+	// subtree or another column vector). Attrs and Schema vectors are both
+	// supported, which keeps the operation independent of any one DSL operator.
+	EdslconAttrsIntersect,
 	EdslconSentinel
 };
 

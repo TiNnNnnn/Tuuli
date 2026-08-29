@@ -81,6 +81,10 @@ private:
 	// constraints (owned; released in dtor).
 	CDSLSymbolAliasMap *m_phmAlias;
 
+	// Target column vectors materialized by AttrsIntersect. Values are ordered
+	// CColRefArray objects owned by this per-instantiation cache.
+	mutable CDSLSymbolToRefMap *m_phmDerivedCols;
+
 	// Rule currently being instantiated (not owned). Used to associate a target
 	// Filter's predicate template with the attrs vector of its source Filter.
 	const CDSLRule *m_prule;
@@ -97,6 +101,12 @@ private:
 	// resolve a (possibly target-side) symbol to the source symbol whose binding
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
+
+	// Resolve a bound/aliased attrs or schema vector. If the symbol is the output
+	// of AttrsIntersect, derive it lazily and preserve the left operand's order.
+	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,
+									 const CDSLModel *pmodel,
+									 ULONG ulDepth = 0) const;
 
 	// Resolve an expression-list symbol to an owned CScalarProjectList. Besides
 	// direct/ExprListEq bindings, target symbols may be defined by ExprConcat and

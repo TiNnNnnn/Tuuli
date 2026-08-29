@@ -57,6 +57,10 @@ public:
 	// Proj* has no ORCA project list, instantiate it as a pass-through dedup drop.
 	static GPOS_RESULT EresUnittest_InstantiateDedupToPlainProj();
 
+	// AttrsIntersect derives the ordered outer-only grouping vector needed when
+	// a source DISTINCT groups columns from both sides of a join.
+	static GPOS_RESULT EresUnittest_InstantiateIntersectedGrouping();
+
 	// the rule must NOT fire when the grouping column is not a key (dedup is not
 	// redundant): match succeeds structurally but Unique(t0,a0) gates the check.
 	static GPOS_RESULT EresUnittest_RejectsWithoutUnique();
