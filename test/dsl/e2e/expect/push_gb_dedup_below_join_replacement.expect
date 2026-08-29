@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule pushes non-null foreign-key grouping attrs below an inner join",
+  "description": "A proved DSL rule pushes nullable foreign-key grouping attrs below an inner join",
   "replacement": {
     "xforms": [
       "CXformPushGbDedupBelowJoin"
     ],
-    "scope": "Outer grouping attrs contain a non-null FK joined to a unique referred key",
+    "scope": "Outer grouping attrs contain a nullable FK joined to a unique referred key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d2f8e9cfec8f1840"
+      "43379498a899178d"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d2f8e9cfec8f1840\""
+        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
       ],
       "alternative": [
         "CXformPushGbDedupBelowJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_push_gb_dedup_fk.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d2f8e9cfec8f1840\""
+        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
@@ -62,14 +62,10 @@
       "CXformPushGbDedupBelowJoin"
     ],
     "output": [
-      "1,10",
-      "2,10",
-      "3,20"
+      "1,10"
     ],
     "postgres_output": [
-      "1,10",
-      "2,10",
-      "3,20"
+      "1,10"
     ]
   }
 }
