@@ -109,6 +109,15 @@ CDSLRuleEngine::BucketByRoot()
 					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
 		}
+		// A canonical Union* source is represented by ORCA as a pure global
+		// GbAgg over UnionAll. The union matcher verifies the exact full-row
+		// dedup shape before exposing that view.
+		if (EdslopUnion == prule->PfragSrc()->PopRoot()->Edslop() &&
+			prule->PfragSrc()->PopRoot()->FDistinct())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalGbAgg;
+		}
 		// Before CXformSelect2Apply runs, a DSL Exists source is rooted at an
 		// ORCA Select whose scalar predicate is CScalarSubqueryExists. Put it in
 		// the Select bucket so the DSL can perform the unnesting independently.

@@ -48,6 +48,12 @@ LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<
 # bidirectional-normalization proof, verified 2026-08-29.
 Exists<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);AttrsSub(a0,t0);AttrsEmpty(a1);Deterministic(p0);ScalarOne(n0);ScalarZero(n1);ErrorFree(p0);ErrorFree(p1)
 
+# Replaces the full-row DISTINCT domain of CXformPushGbBelowUnionAll.
+# Union* is exposed from ORCA's pure GbAgg(UnionAll) representation only when
+# the grouping set is the complete UnionAll row. The exact RuleIR returned EQ
+# from WeTune's generic SQLSolver backend on 2026-08-29.
+Union*<a0 s0>(Input<t0>,Input<t1>)|Union*<a1 s1>(Proj*<a2 s2>(Input<t2>),Proj*<a3 s3>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including

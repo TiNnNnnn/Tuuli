@@ -40,6 +40,13 @@ using namespace gpopt;
 	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);"    \
 	"AttrsEq(a2,a0);SchemaEq(s2,s0)"
 
+#define GPOPT_DSL_PUSH_DEDUP_BELOW_UNION_ALL_RULE                      \
+	"Union*<a0 s0>(Input<t0>,Input<t1>)|"                               \
+	"Union*<a1 s1>(Proj*<a2 s2>(Input<t2>),"                            \
+	"Proj*<a3 s3>(Input<t3>))|"                                        \
+	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);"    \
+	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0)"
+
 #define GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE                         \
 	"InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"    \
 	"Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),"              \
@@ -149,6 +156,8 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_InstantiatePreservesColumnMaps),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_OutputBindingBuildsFullRowDedup),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_DistinctUnionViewMatchesFullRowDedup),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SwapsBranchesByConstraints),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_RejectsRemapAcrossOptimizerGbAgg),
@@ -163,6 +172,104 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_DistinctUnionViewMatchesFullRowDedup()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_PUSH_DEDUP_BELOW_UNION_ALL_RULE);
+	CExpression *pexprLeft = nullptr, *pexprRight = nullptr,
+				*pexprUnionAll = nullptr;
+	BuildTwoGetUnion(fix, false, &pexprLeft, &pexprRight, &pexprUnionAll);
+	CLogicalSetOp *popUnionAll =
+		CLogicalSetOp::PopConvert(pexprUnionAll->Pop());
+	CExpression *pexprFullDedup = fix.PexprLogicalGbAgg(
+		pexprUnionAll, popUnionAll->PdrgpcrOutput());
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_FAILED;
+	GPOS_UNITTEST_ASSERT(nullptr != prule);
+	const BOOL fMatched = matcher.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprFullDedup, pmodel);
+	GPOS_UNITTEST_ASSERT(fMatched);
+	const BOOL fConstraints = fMatched && checker.FCheck(prule, pmodel);
+	GPOS_UNITTEST_ASSERT(fConstraints);
+	if (fConstraints)
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
+		if (nullptr != pexprTarget &&
+			COperator::EopLogicalUnion == pexprTarget->Pop()->Eopid() &&
+			2 == pexprTarget->Arity() &&
+			COperator::EopLogicalGbAgg ==
+				(*pexprTarget)[0]->Pop()->Eopid() &&
+			COperator::EopLogicalGbAgg ==
+				(*pexprTarget)[1]->Pop()->Eopid())
+		{
+			CLogicalSetOp *popTarget =
+				CLogicalSetOp::PopConvert(pexprTarget->Pop());
+			eres = popTarget->PdrgpcrOutput()->Equals(
+					   popUnionAll->PdrgpcrOutput())
+				? GPOS_OK
+				: GPOS_FAILED;
+		}
+	}
+	if (GPOS_OK == eres)
+	{
+		CDSLModel *pmodelFixedPoint = GPOS_NEW(mp) CDSLModel(mp);
+		CExpression *pexprFixedPoint = nullptr;
+		if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprTarget,
+						   pmodelFixedPoint) &&
+			checker.FCheck(prule, pmodelFixedPoint))
+		{
+			CDSLInstantiator instantiator(mp);
+			pexprFixedPoint =
+				instantiator.PexprInstantiate(prule, pmodelFixedPoint);
+		}
+		eres = nullptr != pexprFixedPoint &&
+			pexprFixedPoint->Matches(pexprTarget) &&
+			COperator::EopLogicalGbAgg ==
+				(*pexprFixedPoint)[0]->Pop()->Eopid() &&
+			COperator::EopLogicalGbAgg !=
+				(*(*pexprFixedPoint)[0])[0]->Pop()->Eopid()
+			? GPOS_OK
+			: GPOS_FAILED;
+		CRefCount::SafeRelease(pexprFixedPoint);
+		pmodelFixedPoint->Release();
+	}
+
+	// Grouping by a proper subset is not Union*: the same canonical rule must
+	// not match it even though the native xform can optimize that wider domain.
+	CColRefArray *pdrgpcrSubset = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrSubset->Append((*popUnionAll->PdrgpcrOutput())[0]);
+	CExpression *pexprSubsetDedup =
+		fix.PexprLogicalGbAgg(pexprUnionAll, pdrgpcrSubset);
+	CDSLModel *pmodelSubset = GPOS_NEW(mp) CDSLModel(mp);
+	if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSubsetDedup,
+					 pmodelSubset))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelSubset->Release();
+	pexprSubsetDedup->Release();
+	pdrgpcrSubset->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprFullDedup->Release();
+	pexprUnionAll->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	CRefCount::SafeRelease(prule);
+	return eres;
 }
 
 GPOS_RESULT

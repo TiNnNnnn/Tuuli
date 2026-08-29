@@ -133,6 +133,13 @@ public:
 	static CExpression *PexprBinarySetOp(CMemoryPool *mp,
 									 CExpression *pexprSetOp);
 
+	// Expose a pure, global full-row dedup over UnionAll as the canonical DSL
+	// Union* operator. This is an exact semantic view only when the grouping
+	// columns are precisely the set-op output and the aggregate list is empty.
+	// The caller owns the transient expression; NULL means no safe view.
+	static CExpression *PexprDistinctUnion(CMemoryPool *mp,
+									  CExpression *pexprGbAgg);
+
 	// Return every LeftJoin view of Select(FullJoin, predicate) for which the
 	// predicate rejects NULLs from the side made preserved by the view. The
 	// returned array owns each transient LeftJoin expression.

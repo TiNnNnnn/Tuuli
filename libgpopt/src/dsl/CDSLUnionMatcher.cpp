@@ -19,11 +19,27 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 	GPOS_ASSERT(nullptr != pmodel);
 
 	CDSLSymbolArray *pdrgpsym = popUnion->Pdrgpsym();
-	if (2 != popUnion->UlChildren() || 2 > pexprUnion->Arity() ||
+	if (2 != popUnion->UlChildren() ||
 		nullptr == pdrgpsym ||
-		(0 != pdrgpsym->Size() && 2 != pdrgpsym->Size()) ||
-		popUnion->Eopid() != pexprUnion->Pop()->Eopid())
+		(0 != pdrgpsym->Size() && 2 != pdrgpsym->Size()))
 	{
+		return false;
+	}
+
+	// ORCA represents SELECT DISTINCT over UNION ALL as GbAgg(UnionAll),
+	// whereas the proved rule IR exposes the equivalent Union* directly.
+	// Keep that representation bridge centralized and semantic: the view
+	// accepts only pure full-row deduplication.
+	CExpression *pexprDistinctView = popUnion->FDistinct()
+		? CDSLMatchView::PexprDistinctUnion(m_mp, pexprUnion)
+		: nullptr;
+	CExpression *pexprSetOp = nullptr == pexprDistinctView
+		? pexprUnion
+		: pexprDistinctView;
+	if (2 > pexprSetOp->Arity() ||
+		popUnion->Eopid() != pexprSetOp->Pop()->Eopid())
+	{
+		CRefCount::SafeRelease(pexprDistinctView);
 		return false;
 	}
 
@@ -31,14 +47,15 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 	// set-op chains. Match the exact associative view instead of forcing every
 	// proved rule to encode an optimizer representation detail.
 	CExpression *pexprView =
-		CDSLMatchView::PexprBinarySetOp(m_mp, pexprUnion);
-	CExpression *pexprMatch = nullptr == pexprView ? pexprUnion : pexprView;
+		CDSLMatchView::PexprBinarySetOp(m_mp, pexprSetOp);
+	CExpression *pexprMatch = nullptr == pexprView ? pexprSetOp : pexprView;
 
 	CLogicalSetOp *popSet = CLogicalSetOp::PopConvert(pexprMatch->Pop());
 	if (2 != popSet->PdrgpdrgpcrInput()->Size() ||
 		0 == popSet->PdrgpcrOutput()->Size())
 	{
 		CRefCount::SafeRelease(pexprView);
+		CRefCount::SafeRelease(pexprDistinctView);
 		return false;
 	}
 
@@ -46,6 +63,7 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 		!m_pmatcher->FMatch((*popUnion)[1], (*pexprMatch)[1], pmodel))
 	{
 		CRefCount::SafeRelease(pexprView);
+		CRefCount::SafeRelease(pexprDistinctView);
 		return false;
 	}
 
@@ -56,6 +74,7 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 			!pmodel->FBind((*pdrgpsym)[1], pdrgpcrOutput))
 		{
 			CRefCount::SafeRelease(pexprView);
+			CRefCount::SafeRelease(pexprDistinctView);
 			return false;
 		}
 	}
@@ -68,5 +87,6 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 	}
 	pmodel->AddUnionBinding(pexprMatch);
 	CRefCount::SafeRelease(pexprView);
+	CRefCount::SafeRelease(pexprDistinctView);
 	return true;
 }

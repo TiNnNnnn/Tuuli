@@ -11,6 +11,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 
 #include "gpos/base.h"
+#include "gpos/common/CAutoRef.h"
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
@@ -2155,12 +2156,47 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	// elimination rule, a Proj* nested in Union/Join must be rebuilt, not dropped.
 	if (pop->FDistinct())
 	{
-		CColRefArray *pdrgpcrAttrs =
+		CColRefArray *pdrgpcrAttrsBound =
 			PdrgpcrResolveCols(psymAttrs, pmodel);
-		CColRefArray *pdrgpcrSchema =
+		CColRefArray *pdrgpcrSchemaBound =
 			PdrgpcrResolveCols(psymSchema, pmodel);
+		if (nullptr == pdrgpcrAttrsBound || nullptr == pdrgpcrSchemaBound ||
+			0 == pdrgpcrSchemaBound->Size() ||
+			pdrgpcrAttrsBound->Size() != pdrgpcrSchemaBound->Size())
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+
+		// A target projection can move from a SetOp output into one of its
+		// branches. Resolve that positional edge before checking the concrete
+		// child: output CColRefs are commonly the first branch's identities and
+		// therefore cannot be used directly in later branches.
+		CAutoRef<CColRefArray> aMappedAttrs;
+		CAutoRef<CColRefArray> aMappedSchema;
+		CColRefArray *pdrgpcrAttrs = pdrgpcrAttrsBound;
+		CColRefArray *pdrgpcrSchema = pdrgpcrSchemaBound;
+		CExpression *pexprBoundProjectList =
+			pmodel->PexprProjList(psymSchema);
+		const BOOL fMapSetOpPosition = nullptr == pexprBoundProjectList ||
+			FProjectListIsColumnOnly(pexprBoundProjectList);
+		if (fMapSetOpPosition &&
+			!FColSetContainsArray(pexprChild->DeriveOutputColumns(),
+								  pdrgpcrAttrsBound))
+		{
+			aMappedAttrs = PdrgpcrMapToTarget(
+				(*pop)[0], pexprChild, pdrgpcrAttrsBound, pmodel);
+			pdrgpcrAttrs = aMappedAttrs.Value();
+		}
+		if (fMapSetOpPosition &&
+			!FColSetContainsArray(pexprChild->DeriveOutputColumns(),
+								  pdrgpcrSchemaBound))
+		{
+			aMappedSchema = PdrgpcrMapToTarget(
+				(*pop)[0], pexprChild, pdrgpcrSchemaBound, pmodel);
+			pdrgpcrSchema = aMappedSchema.Value();
+		}
 		if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema ||
-			0 == pdrgpcrSchema->Size() ||
 			pdrgpcrAttrs->Size() != pdrgpcrSchema->Size())
 		{
 			pexprChild->Release();
@@ -2243,6 +2279,28 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 				pcrsGrouping->Release();
 				pexprChild->Release();
 				return nullptr;
+			}
+		}
+
+		// DISTINCT is idempotent. Reuse an existing pure global dedup with the
+		// same grouping set instead of manufacturing an indefinitely deep chain
+		// when a bottom-up or Cascade rule reaches its own result again.
+		if (COperator::EopLogicalGbAgg == pexprChild->Pop()->Eopid() &&
+			2 == pexprChild->Arity() && 0 == (*pexprChild)[1]->Arity())
+		{
+			CLogicalGbAgg *popChildGbAgg =
+				CLogicalGbAgg::PopConvert(pexprChild->Pop());
+			CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
+			pcrsSchema->Include(pdrgpcrSchema);
+			const BOOL fSameDedup = popChildGbAgg->FGlobal() &&
+				FColArraysSameSet(m_mp, popChildGbAgg->Pdrgpcr(),
+								 pdrgpcrAttrs) &&
+				pexprChild->DeriveOutputColumns()->ContainsAll(pcrsSchema);
+			pcrsSchema->Release();
+			if (fSameDedup)
+			{
+				pcrsGrouping->Release();
+				return pexprChild;
 			}
 		}
 

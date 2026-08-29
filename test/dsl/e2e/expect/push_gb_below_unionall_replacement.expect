@@ -1,0 +1,75 @@
+{
+  "description": "A proved DSL rule pushes full-row deduplication into every UnionAll branch",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowUnionAll"
+    ],
+    "scope": "Pure global full-row DISTINCT directly above UnionAll; grouping subsets and aggregate functions remain outside this rule",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "dccd371954ea7cb7"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushGbBelowUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"dccd371954ea7cb7\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowUnionAll",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"dccd371954ea7cb7\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowUnionAll"
+    ],
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ]
+  }
+}

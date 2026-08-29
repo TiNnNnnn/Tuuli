@@ -164,6 +164,73 @@ CDSLMatchView::PexprBinarySetOp(CMemoryPool *mp,
 	return GPOS_NEW(mp) CExpression(mp, popBinary, pdrgpexprBinary);
 }
 
+CExpression *
+CDSLMatchView::PexprDistinctUnion(CMemoryPool *mp,
+								  CExpression *pexprGbAgg)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprGbAgg);
+
+	if (COperator::EopLogicalGbAgg != pexprGbAgg->Pop()->Eopid() ||
+		2 != pexprGbAgg->Arity() || 0 != (*pexprGbAgg)[1]->Arity())
+	{
+		return nullptr;
+	}
+
+	CLogicalGbAgg *popGbAgg =
+		CLogicalGbAgg::PopConvert(pexprGbAgg->Pop());
+	CExpression *pexprUnionAll = (*pexprGbAgg)[0];
+	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
+		nullptr != popGbAgg->PdrgpcrMinimal() ||
+		COperator::EopLogicalUnionAll !=
+			pexprUnionAll->Pop()->Eopid())
+	{
+		return nullptr;
+	}
+
+	CLogicalSetOp *popUnionAll =
+		CLogicalSetOp::PopConvert(pexprUnionAll->Pop());
+	CColRefArray *pdrgpcrGrouping = popGbAgg->Pdrgpcr();
+	CColRefArray *pdrgpcrOutput = popUnionAll->PdrgpcrOutput();
+	CColRef2dArray *pdrgpdrgpcrInput =
+		popUnionAll->PdrgpdrgpcrInput();
+	if (2 > pexprUnionAll->Arity() ||
+		pexprUnionAll->Arity() != pdrgpdrgpcrInput->Size() ||
+		0 == pdrgpcrOutput->Size() ||
+		pdrgpcrGrouping->Size() != pdrgpcrOutput->Size())
+	{
+		return nullptr;
+	}
+
+	CColRefSet *pcrsGrouping =
+		GPOS_NEW(mp) CColRefSet(mp, pdrgpcrGrouping);
+	CColRefSet *pcrsOutput = GPOS_NEW(mp) CColRefSet(mp, pdrgpcrOutput);
+	const BOOL fFullRow = pcrsGrouping->Equals(pcrsOutput);
+	pcrsOutput->Release();
+	pcrsGrouping->Release();
+	if (!fFullRow)
+	{
+		return nullptr;
+	}
+
+	// Reuse the set-op's positional maps verbatim. They are semantic state and
+	// cannot be reconstructed from the unordered aggregate output set.
+	pdrgpcrOutput->AddRef();
+	pdrgpdrgpcrInput->AddRef();
+	CExpressionArray *pdrgpexprChildren =
+		GPOS_NEW(mp) CExpressionArray(mp, pexprUnionAll->Arity());
+	for (ULONG ul = 0; ul < pexprUnionAll->Arity(); ul++)
+	{
+		(*pexprUnionAll)[ul]->AddRef();
+		pdrgpexprChildren->Append((*pexprUnionAll)[ul]);
+	}
+	return GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalUnion(mp, pdrgpcrOutput,
+									pdrgpdrgpcrInput),
+		pdrgpexprChildren);
+}
+
 BOOL
 CDSLMatchView::FAggregate(CExpression *pexpr, BOOL fAllowHaving,
 						  SAggregate *pview)
