@@ -145,6 +145,11 @@ private:
 	CExpression *PexprBuildInput(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
 
+	// Empty<t>: build a zero-row ConstTableGet with the output columns of the
+	// resolved table/subtree binding.
+	CExpression *PexprBuildEmpty(const CDSLOp *pop,
+								 const CDSLModel *pmodel) const;
+
 	// Map one source CColRef through the target template/built-expression pair.
 	// Besides direct Input copies, this follows every matched SetOp's ordered
 	// output-to-input correspondence. This is the shared positional adapter used

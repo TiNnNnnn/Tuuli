@@ -88,6 +88,11 @@ private:
 	BOOL FCheckNotNull(const CDSLConstraint *pcon,
 					   const CDSLModel *pmodel) const;
 
+	// PredicateFalse(p): the bound scalar predicate is the SQL boolean FALSE
+	// constant (not merely nullable or constraint-unsatisfiable).
+	BOOL FCheckPredicateFalse(const CDSLConstraint *pcon,
+							  const CDSLModel *pmodel) const;
+
 	// Reference(t0,a0,t1,a1): a0 -> a1 foreign key (see header note)
 	BOOL FCheckReference(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;

@@ -74,6 +74,7 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymExpr, EdslsymAttrs, EdslsymSchema}},
 	{EdslopAny, "Any", 2, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopAll, "All", 2, 2, {EdslsymPred, EdslsymAttrs}},
+	{EdslopEmpty, "Empty", 0, 1, {EdslsymTable}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -109,6 +110,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconExprDepsDisjoint, "ExprDepsDisjoint", 2},
 	{EdslconExprSplit, "ExprSplit", 4},
 	{EdslconAttrsIntersect, "AttrsIntersect", 3},
+	{EdslconPredicateFalse, "PredicateFalse", 1},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -187,8 +189,11 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			// matcher exposes the fused node as the virtual shape
 			// Limit(Sort(child)); both DSL roots therefore share one shell.
 			return COperator::EopLogicalLimit;
+		case EdslopEmpty:
+			return COperator::EopLogicalConstTableGet;
 		case EdslopInput:
 			// base-relation placeholder; no logical op — matched as a subtree.
+			return COperator::EopSentinel;
 		default:
 			return COperator::EopSentinel;
 	}
@@ -222,6 +227,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopSort:
 		case EdslopLimit:
 		case EdslopCompute:
+		case EdslopEmpty:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -249,6 +255,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopSort:
 		case EdslopLimit:
 		case EdslopCompute:
+		case EdslopEmpty:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -294,6 +301,7 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 	};
 	static const SAlias rg_alias[] = {
 		{"Input", EdslopInput, EdslsortNone},
+		{"Empty", EdslopEmpty, EdslsortNone},
 		{"InnerJoin", EdslopInnerJoin, EdslsortNone},
 		{"LeftJoin", EdslopLeftJoin, EdslsortNone},
 		{"Filter", EdslopFilter, EdslsortNone},
@@ -464,6 +472,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprDepsDisjoint:
 		case EdslconExprSplit:
 		case EdslconAttrsIntersect:
+		case EdslconPredicateFalse:
 			return true;
 		case EdslconSentinel:
 			return false;

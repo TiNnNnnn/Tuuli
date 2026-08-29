@@ -23,6 +23,7 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLUnionMatcher.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
@@ -153,6 +154,24 @@ CDSLMatcher::FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 	return pmodel->FBind(psymTable, pexpr);
 }
 
+BOOL
+CDSLMatcher::FMatchEmpty(const CDSLOp *pop, CExpression *pexpr,
+					 CDSLModel *pmodel) const
+{
+	GPOS_ASSERT(EdslopEmpty == pop->Edslop());
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	if (nullptr == pdrgpsym || 1 != pdrgpsym->Size() ||
+		COperator::EopLogicalConstTableGet != pexpr->Pop()->Eopid() ||
+		0 != pexpr->Arity())
+	{
+		return false;
+	}
+	CLogicalConstTableGet *popConst =
+		CLogicalConstTableGet::PopConvert(pexpr->Pop());
+	return 0 == popConst->Pdrgpdrgpdatum()->Size() &&
+		pmodel->FBind((*pdrgpsym)[0], pexpr);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLMatcher::FBindOpSymbols
@@ -256,6 +275,10 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	if (EdslopInput == pop->Edslop())
 	{
 		return FMatchInput(pop, pexpr, pmodel);
+	}
+	if (EdslopEmpty == pop->Edslop())
+	{
+		return FMatchEmpty(pop, pexpr, pmodel);
 	}
 
 	// Filter chain: a DSL single-predicate Filter (chain) matches ONE ORCA

@@ -342,6 +342,14 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconPredicateFalse == edslcon &&
+			EdslsymPred != (*pdrgpsym)[0]->Esymkind())
+		{
+			bctx.Fail("PredicateFalse expects a predicate symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;

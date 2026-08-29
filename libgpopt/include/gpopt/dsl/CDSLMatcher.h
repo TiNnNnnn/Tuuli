@@ -69,6 +69,11 @@ private:
 	BOOL FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 					 CDSLModel *pmodel) const;
 
+	// Empty<t>: match an actual zero-row ConstTableGet and bind its schema
+	// carrier to the table symbol.
+	BOOL FMatchEmpty(const CDSLOp *pop, CExpression *pexpr,
+					 CDSLModel *pmodel) const;
+
 	// bind THIS op's positional symbols against pexpr. Generic ops (Input handled
 	// separately, symbol-free Union) need nothing; Filter/Join/Proj/Agg symbol
 	// binding is delegated to dedicated collaborators (see class doc). Returns

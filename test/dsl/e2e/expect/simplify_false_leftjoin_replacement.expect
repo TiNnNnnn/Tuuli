@@ -1,0 +1,73 @@
+{
+  "description": "Proved Empty rules cover both direct and preprocessed constant-FALSE left joins",
+  "replacement": {
+    "xforms": [
+      "CXformSimplifyLeftOuterJoin"
+    ],
+    "scope": "The complete native promise plus its real preprocess routing shape",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "0a49982c5c679d38",
+      "ffb6e215e00b6e40"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "not_contains": [
+        "Xform: CXformSimplifyLeftOuterJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ffb6e215e00b6e40\""
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyLeftOuterJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyLeftOuterJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyLeftOuterJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ffb6e215e00b6e40\""
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyLeftOuterJoin"
+    ],
+    "output": [
+      "1,",
+      "2,",
+      "3,"
+    ],
+    "postgres_output": [
+      "1,",
+      "2,",
+      "3,"
+    ]
+  }
+}

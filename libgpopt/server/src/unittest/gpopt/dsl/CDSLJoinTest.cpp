@@ -18,6 +18,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -25,6 +26,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -66,6 +68,13 @@ using namespace gpopt;
 	"InnerJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"                        \
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"  \
 	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)"
+
+#define GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE                           \
+	"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
+	"LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|"                         \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);"              \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"                \
+	"AttrsEq(a2,a0);AttrsEq(a3,a1)"
 
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
@@ -112,6 +121,8 @@ CDSLJoinTest::EresUnittest()
 			CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NonEquiPredicateResidual),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PredicateOnlyJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NoFireOnWrongRoot),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK),
 		GPOS_UNITTEST_FUNC(
@@ -121,6 +132,79 @@ CDSLJoinTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprLeft = fix.PexprLogicalGet("t0", 2);
+	CExpression *pexprRight = fix.PexprLogicalGet("t1", 2);
+	CExpression *pexprFalse = CUtils::PexprScalarConstBool(mp, false);
+	CExpression *pexprJoin =
+		fix.PexprLogicalLeftOuterJoin(pexprLeft, pexprRight, pexprFalse);
+	pexprFalse->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalLeftOuterJoin != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalConstTableGet !=
+				(*pexprTarget)[1]->Pop()->Eopid() ||
+			0 != CLogicalConstTableGet::PopConvert((*pexprTarget)[1]->Pop())
+					->Pdrgpdrgpdatum()
+					->Size() ||
+			!pexprRight->DeriveOutputColumns()->Equals(
+				(*pexprTarget)[1]->DeriveOutputColumns()) ||
+			!CUtils::FScalarConstFalse((*pexprTarget)[2]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// The same structure with TRUE must be rejected by PredicateFalse.
+	CExpression *pexprTrue = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *pexprTrueJoin =
+		fix.PexprLogicalLeftOuterJoin(pexprLeft, pexprRight, pexprTrue);
+	pexprTrue->Release();
+	CDSLModel *pmodelTrue = GPOS_NEW(mp) CDSLModel(mp);
+	if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprTrueJoin,
+					   pmodelTrue) &&
+		checker.FCheck(prule, pmodelTrue))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelTrue->Release();
+	pexprTrueJoin->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprJoin->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

@@ -72,6 +72,7 @@ enum EDslOpKind
 	EdslopCompute,		 // ORCA CLogicalProject / ComputeScalar
 	EdslopAny,			 // quantified comparison: predicate is TRUE for some row
 	EdslopAll,			 // quantified comparison: predicate is TRUE for every row
+	EdslopEmpty,		 // zero-row relation carrying a bound table schema
 	EdslopSentinel
 };
 
@@ -133,6 +134,7 @@ enum EDslConstraintKind
 	// subtree or another column vector). Attrs and Schema vectors are both
 	// supported, which keeps the operation independent of any one DSL operator.
 	EdslconAttrsIntersect,
+	EdslconPredicateFalse,
 	EdslconSentinel
 };
 

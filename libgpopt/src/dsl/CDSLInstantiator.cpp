@@ -21,6 +21,7 @@
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -1324,6 +1325,29 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	phm->Release();
 	pdrgpcrFrom->Release();
 	return pexprCopy;
+}
+
+CExpression *
+CDSLInstantiator::PexprBuildEmpty(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	if (nullptr == pdrgpsym || 1 != pdrgpsym->Size())
+	{
+		return nullptr;
+	}
+	const CDSLSymbol *psymTable = PsymResolve((*pdrgpsym)[0]);
+	CExpression *pexprSchemaSource = pmodel->PexprTable(psymTable);
+	if (nullptr == pexprSchemaSource)
+	{
+		return nullptr;
+	}
+	CColRefArray *pdrgpcrOutput =
+		pexprSchemaSource->DeriveOutputColumns()->Pdrgpcr(m_mp);
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CLogicalConstTableGet(
+			m_mp, pdrgpcrOutput, GPOS_NEW(m_mp) IDatum2dArray(m_mp)));
 }
 
 CColRef *
@@ -3410,6 +3434,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 	{
 		case EdslopInput:
 			return PexprBuildInput(pop, pmodel);
+		case EdslopEmpty:
+			return PexprBuildEmpty(pop, pmodel);
 		case EdslopFilter:
 			return PexprBuildFilter(pop, pmodel);
 		case EdslopProj:

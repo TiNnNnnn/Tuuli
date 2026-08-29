@@ -24,6 +24,7 @@
 #include "gpopt/base/CPropConstraint.h"
 #include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/metadata/CTableDescriptor.h"
@@ -918,6 +919,20 @@ CDSLConstraintChecker::FCheckNotNull(const CDSLConstraint *pcon,
 	return fHolds;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckPredicateFalse(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 1 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprPred = pmodel->PexprPred((*pdrgpsym)[0]);
+	return nullptr != pexprPred && CUtils::FScalarConstFalse(pexprPred);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckReference
@@ -1666,6 +1681,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:
 			return FCheckNotNull(pcon, pmodel);
+		case EdslconPredicateFalse:
+			return FCheckPredicateFalse(pcon, pmodel);
 		case EdslconReference:
 			return FCheckReference(pcon, pmodel);
 		case EdslconErrorFree:

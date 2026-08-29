@@ -47,6 +47,10 @@ public:
 	static GPOS_RESULT EresUnittest_NonEquiPredicateResidual();
 	static GPOS_RESULT EresUnittest_PredicateOnlyJoin();
 
+	// PredicateFalse gates a direct constant-FALSE LeftJoin and Empty builds a
+	// zero-row right input with the original output schema.
+	static GPOS_RESULT EresUnittest_FalseLeftJoinBuildsEmptyInput();
+
 	// a join-rooted rule does NOT fire on a Select (operator-identity gate).
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();
 

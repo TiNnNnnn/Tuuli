@@ -38,6 +38,10 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a7,a3);AttrsEq(a8,a4);AttrsIntersect(a9,a2,t0);AttrsIntersect(s1,s0,t0);AttrsEq(a10,a2);SchemaEq(s2,s0)
 
+LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)
+
+LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a3,a0);AttrsEq(a4,a1)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -65,6 +69,11 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJ
 # dependencies by child. This directly covers the corresponding unique-output
 # domain of CXformPushGbDedupBelowJoin without reproducing its staging shape.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
+# Lines 41 and 43 jointly replace CXformSimplifyLeftOuterJoin. The first covers
+# its literal constant-FALSE source; the second covers the real preprocess
+# routing shape LeftJoin(left, Filter(right,FALSE), TRUE). Empty<t> preserves
+# the bound right schema while removing its cardinality and cost. Both exact
+# RuleIR strings returned EQ from SQLSolver on 2026-08-29.
 # Line 37 covers mixed grouping vectors that contain columns from both join
 # children. AttrsIntersect derives the ordered outer-owned portion for the
 # pushed Dedup and its schema without requiring the source grouping to belong
