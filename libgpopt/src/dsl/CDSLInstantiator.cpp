@@ -850,20 +850,43 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	}
 
 	const CDSLConstraint *pconDef = nullptr;
+	BOOL fEmptyDef = false;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
 	{
 		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconAttrsEmpty == pcon->Edslcon() &&
+			1 == pcon->Pdrgpsym()->Size() && (*pcon->Pdrgpsym())[0] == psym)
+		{
+			if (fEmptyDef || nullptr != pconDef ||
+				EdslsymAttrs != psym->Esymkind())
+			{
+				return nullptr;
+			}
+			fEmptyDef = true;
+			continue;
+		}
 		if (EdslconAttrsIntersect == pcon->Edslcon() &&
 			3 == pcon->Pdrgpsym()->Size() &&
 			(*pcon->Pdrgpsym())[0] == psym)
 		{
-			if (nullptr != pconDef)
+			if (fEmptyDef || nullptr != pconDef)
 			{
 				return nullptr;
 			}
 			pconDef = pcon;
 		}
+	}
+	if (fEmptyDef)
+	{
+		CColRefArray *pdrgpcrEmpty = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
+									 pdrgpcrEmpty))
+		{
+			pdrgpcrEmpty->Release();
+			return nullptr;
+		}
+		return pdrgpcrEmpty;
 	}
 	if (nullptr == pconDef)
 	{

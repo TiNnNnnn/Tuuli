@@ -65,9 +65,9 @@ using namespace gpopt;
 
 #define GPOPT_DSL_JOIN_PREDICATE_IDENTITY_RULE                         \
 	"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                        \
-	"InnerJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"                        \
-	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"  \
-	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)"
+		"InnerJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"                        \
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"  \
+		"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEmpty(a1);AttrsEmpty(a3)"
 
 #define GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE                           \
 	"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
@@ -233,7 +233,9 @@ CDSLJoinTest::EresUnittest_PredicateOnlyJoin()
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel))
+	CDSLConstraintChecker checker(mp);
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) ||
+		!checker.FCheck(prule, pmodel))
 	{
 		eres = GPOS_FAILED;
 	}
@@ -266,11 +268,28 @@ CDSLJoinTest::EresUnittest_PredicateOnlyJoin()
 	pexprEq->Release();
 	CDSLModel *pmodelEqui = GPOS_NEW(mp) CDSLModel(mp);
 	if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprEquiJoin,
-					   pmodelEqui))
+						   pmodelEqui))
+	{
+		 eres = GPOS_FAILED;
+	}
+
+	// A non-equality predicate that depends on the right input still matches the
+	// predicate-only shape, but must fail the generic AttrsEmpty applicability
+	// guard.
+	CExpression *pexprRightPred = fix.PexprPredAtom((*pdrgpcrRight)[1]);
+	CExpression *pexprRightJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprRightPred);
+	pexprRightPred->Release();
+	CDSLModel *pmodelRight = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprRightJoin,
+							pmodelRight) ||
+		checker.FCheck(prule, pmodelRight))
 	{
 		eres = GPOS_FAILED;
 	}
 
+	pmodelRight->Release();
+	pexprRightJoin->Release();
 	pmodelEqui->Release();
 	pexprEquiJoin->Release();
 	CRefCount::SafeRelease(pexprTarget);

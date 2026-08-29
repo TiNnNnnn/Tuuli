@@ -140,6 +140,9 @@ enum EDslConstraintKind
 	// flags, and can also validate a source-side bound constant.
 	EdslconScalarOne,
 	EdslconScalarZero,
+	// Empty ordered column vector. Source bindings are applicability guards;
+	// target-only bindings are materialized by the instantiator.
+	EdslconAttrsEmpty,
 	EdslconSentinel
 };
 

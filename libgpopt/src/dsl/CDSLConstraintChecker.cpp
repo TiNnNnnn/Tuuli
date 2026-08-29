@@ -719,6 +719,25 @@ CDSLConstraintChecker::FCheckAttrsSub(const CDSLConstraint *pcon,
 	return fHolds;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckAttrsEmpty(const CDSLConstraint *pcon,
+										 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size() ||
+		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	CColRefArray *pdrgpcr = pmodel->PdrgpcrAttrs(psymAttrs);
+	if (nullptr == pdrgpcr)
+	{
+		return EdslsideTarget == psymAttrs->Eside();
+	}
+	return 0 == pdrgpcr->Size();
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckAttrsIntersect
@@ -1716,8 +1735,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 {
 	switch (pcon->Edslcon())
 	{
-		case EdslconAttrsSub:
-			return FCheckAttrsSub(pcon, pmodel);
+			case EdslconAttrsSub:
+				return FCheckAttrsSub(pcon, pmodel);
+			case EdslconAttrsEmpty:
+				return FCheckAttrsEmpty(pcon, pmodel);
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconUnique:

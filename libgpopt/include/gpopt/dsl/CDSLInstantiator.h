@@ -107,8 +107,8 @@ private:
 	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
 								 const CDSLModel *pmodel) const;
 
-	// Resolve a bound/aliased attrs or schema vector. If the symbol is the output
-	// of AttrsIntersect, derive it lazily and preserve the left operand's order.
+	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
+	// ordered subset; AttrsEmpty materializes a target-only empty attrs vector.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,
 									 const CDSLModel *pmodel,
 									 ULONG ulDepth = 0) const;

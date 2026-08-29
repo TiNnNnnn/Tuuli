@@ -74,6 +74,11 @@ private:
 	BOOL FCheckAttrsSub(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
 
+	// AttrsEmpty(a): the bound vector is empty; target-only vectors are deferred
+	// to construction, where the instantiator materializes the empty vector.
+	BOOL FCheckAttrsEmpty(const CDSLConstraint *pcon,
+						  const CDSLModel *pmodel) const;
+
 	// AttrsIntersect(out,in,domain): out is the ordered subsequence of in whose
 	// columns are exposed by a table/subtree, attrs, or schema domain. During
 	// source matching an unbound target out is validated and deferred.

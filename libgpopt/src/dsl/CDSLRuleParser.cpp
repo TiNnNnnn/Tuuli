@@ -359,6 +359,14 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconAttrsEmpty == edslcon &&
+			EdslsymAttrs != (*pdrgpsym)[0]->Esymkind())
+		{
+			bctx.Fail("AttrsEmpty expects an attrs symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;
