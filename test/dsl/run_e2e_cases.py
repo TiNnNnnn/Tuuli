@@ -197,13 +197,13 @@ def produced_alternative(output: str, xform: str) -> bool:
     in_xform = False
     in_alternatives = False
     for line in output.splitlines():
-        if f"Xform: {xform}" in line:
-            in_xform = True
+        marker = 'TRACE,"Xform: '
+        if marker in line:
+            traced_xform = line.split(marker, 1)[1].strip()
+            in_xform = traced_xform == xform
             in_alternatives = False
             continue
-        if in_xform and 'TRACE,"Xform:' in line:
-            in_xform = False
-        elif in_xform and line.startswith("Alternatives:"):
+        if in_xform and line.startswith("Alternatives:"):
             in_alternatives = True
         elif in_xform and in_alternatives and line.startswith("0:"):
             return True

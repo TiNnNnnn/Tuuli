@@ -22,6 +22,7 @@ from run_dphyper_stability import imported_cases, parse_dphyper_events, summariz
 from run_e2e_cases import (
     bool_guc_setting,
     disabled_xform_settings,
+    produced_alternative,
     validate_replacement_matrix,
 )
 from run_trace_corpus import (
@@ -129,6 +130,21 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(
             bool_guc_setting("pg_orca.enable_dphyper", "default", False),
             "RESET pg_orca.enable_dphyper;",
+        )
+
+    def test_e2e_alternative_matching_rejects_xform_name_prefixes(self) -> None:
+        output = (
+            'TRACE,"Xform: CXformPushGbBelowUnionAll\n'
+            "Input:\nAlternatives:\n0:\n"
+            'TRACE,"Xform: CXformPushGbBelowUnion\n'
+            "Input:\nAlternatives:\n"
+        )
+
+        self.assertTrue(
+            produced_alternative(output, "CXformPushGbBelowUnionAll")
+        )
+        self.assertFalse(
+            produced_alternative(output, "CXformPushGbBelowUnion")
         )
 
     def test_dphyper_stability_preserves_imported_statement_ids(self) -> None:

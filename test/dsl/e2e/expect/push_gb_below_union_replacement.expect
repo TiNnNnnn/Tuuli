@@ -1,0 +1,71 @@
+{
+  "description": "A proved DSL rule pushes a grouping subset into both branches of Union distinct",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowUnion"
+    ],
+    "scope": "Pure global grouping over Union distinct with grouping attrs drawn from the complete set-op output",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "5cb275809f4a03a3"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushGbBelowUnion"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5cb275809f4a03a3\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowUnion",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowUnion"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowUnion\nInput:"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowUnion"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5cb275809f4a03a3\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowUnion"
+    ],
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

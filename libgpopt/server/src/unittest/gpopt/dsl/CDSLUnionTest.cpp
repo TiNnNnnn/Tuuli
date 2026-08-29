@@ -47,6 +47,14 @@ using namespace gpopt;
 	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);"    \
 	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0)"
 
+#define GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_RULE                       \
+	"Proj*<a0 s0>(Union*<a1 s1>(Input<t0>,Input<t1>))|"                 \
+	"Union*<a2 s2>(Proj*<a3 s3>(Input<t2>),"                            \
+	"Proj*<a4 s4>(Input<t3>))|"                                        \
+	"AttrsSub(a0,a1);AttrsSub(a0,s1);TableEq(t2,t0);TableEq(t3,t1);"   \
+	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0);"   \
+	"AttrsEq(a4,a0);SchemaEq(s4,s0)"
+
 #define GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE                         \
 	"InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"    \
 	"Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),"              \
@@ -158,6 +166,8 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_OutputBindingBuildsFullRowDedup),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_DistinctUnionViewMatchesFullRowDedup),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SwapsBranchesByConstraints),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_RejectsRemapAcrossOptimizerGbAgg),
@@ -172,6 +182,86 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_RULE);
+	CExpression *pexprLeft = nullptr, *pexprRight = nullptr,
+				*pexprUnion = nullptr;
+	BuildTwoGetUnion(fix, true, &pexprLeft, &pexprRight, &pexprUnion);
+	CLogicalSetOp *popUnion = CLogicalSetOp::PopConvert(pexprUnion->Pop());
+	CColRefArray *pdrgpcrSubset = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrSubset->Append((*popUnion->PdrgpcrOutput())[0]);
+	CExpression *pexprSource =
+		fix.PexprLogicalGbAgg(pexprUnion, pdrgpcrSubset);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_FAILED;
+	GPOS_UNITTEST_ASSERT(nullptr != prule);
+	const BOOL fMatched = matcher.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+	GPOS_UNITTEST_ASSERT(fMatched);
+	const BOOL fConstraints = fMatched && checker.FCheck(prule, pmodel);
+	GPOS_UNITTEST_ASSERT(fConstraints);
+	if (fConstraints)
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
+		CExpression *pexprTargetUnion = pexprTarget;
+		while (2 == pexprTargetUnion->Arity() &&
+			   (COperator::EopLogicalProject ==
+					pexprTargetUnion->Pop()->Eopid() ||
+				COperator::EopLogicalSelect ==
+					pexprTargetUnion->Pop()->Eopid()))
+		{
+			pexprTargetUnion = (*pexprTargetUnion)[0];
+		}
+		if (nullptr != pexprTargetUnion &&
+			COperator::EopLogicalUnion ==
+				pexprTargetUnion->Pop()->Eopid() &&
+			2 == pexprTargetUnion->Arity() &&
+			COperator::EopLogicalGbAgg ==
+				(*pexprTargetUnion)[0]->Pop()->Eopid() &&
+			COperator::EopLogicalGbAgg ==
+				(*pexprTargetUnion)[1]->Pop()->Eopid())
+		{
+			CLogicalSetOp *popTarget =
+				CLogicalSetOp::PopConvert(pexprTargetUnion->Pop());
+			CLogicalGbAgg *popLeftDedup =
+				CLogicalGbAgg::PopConvert((*pexprTargetUnion)[0]->Pop());
+			CLogicalGbAgg *popRightDedup =
+				CLogicalGbAgg::PopConvert((*pexprTargetUnion)[1]->Pop());
+			eres = 1 == popTarget->PdrgpcrOutput()->Size() &&
+				1 == popLeftDedup->Pdrgpcr()->Size() &&
+				1 == popRightDedup->Pdrgpcr()->Size() &&
+				(*popLeftDedup->Pdrgpcr())[0] ==
+					(*(*popTarget->PdrgpdrgpcrInput())[0])[0] &&
+				(*popRightDedup->Pdrgpcr())[0] ==
+					(*(*popTarget->PdrgpdrgpcrInput())[1])[0]
+				? GPOS_OK
+				: GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	pdrgpcrSubset->Release();
+	pexprUnion->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	CRefCount::SafeRelease(prule);
+	return eres;
 }
 
 GPOS_RESULT
