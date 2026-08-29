@@ -148,6 +148,13 @@ private:
 								const CColRefArray *pdrgpcrSource,
 								const CDSLModel *pmodel) const;
 
+	// Remap an exact source predicate over a rebuilt binary target. Every used
+	// column must be supplied unambiguously by exactly one target child.
+	CExpression *PexprRemapPredicateToChildren(
+		const CDSLOp *popLeft, CExpression *pexprLeft,
+		const CDSLOp *popRight, CExpression *pexprRight,
+		CExpression *pexprSourcePred, const CDSLModel *pmodel) const;
+
 	// Flatten a target Filter chain into one Select whose conjunction contains
 	// each target predicate plus matcher residuals exactly once.
 	CExpression *PexprBuildFilter(const CDSLOp *pop,
@@ -184,8 +191,8 @@ private:
 	CExpression *PexprBuildExists(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const;
 
-	// InSubFilter<a>(outer,inner): rebuild a LeftSemiApplyIn using the exact
-	// equality predicate captured from ScalarSubqueryAny/ApplyIn.
+	// InSubFilter<a [a p a a]>(outer,inner): rebuild equality-only ApplyIn or
+	// an extended residual-aware LeftSemiJoin from the exact captured predicate.
 	CExpression *PexprBuildInSub(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
 

@@ -120,22 +120,27 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 		EdslopInnerJoin == edslop || EdslopLeftJoin == edslop;
 	const BOOL fCompatibleJoin = fJoin &&
 		(2 == ul_given || 4 == ul_given || 5 == ul_given || 7 == ul_given);
+	// Legacy InSubFilter<a> takes its inner equality key from the RHS projection.
+	// The extended form binds both key vectors and a residual predicate.
+	const BOOL fLegacyInSub = EdslopInSubFilter == edslop && 1 == ul_given;
 	// Existing WeTune corpora declare no Union symbols. The extended
 	// Union<a s> form exposes the ordered full-row output so a later operator can
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
-		!fLegacyUnion)
+		!fLegacyInSub && !fLegacyUnion)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
 		   << (EdslopAgg == edslop
 				   ? "5 or 6"
-				   : (fJoin
+					   : (fJoin
 						  ? "2, 4, 5, or 7"
-						  : (EdslopUnion == edslop
-								 ? "0 or 2"
-								 : std::to_string(ul_expected))))
+						  : (EdslopInSubFilter == edslop
+								 ? "1 or 5"
+								 : (EdslopUnion == edslop
+										? "0 or 2"
+										: std::to_string(ul_expected)))))
 		   << " symbol(s) in <...>, got " << ul_given;
 		bctx.Fail(os.str());
 		return nullptr;

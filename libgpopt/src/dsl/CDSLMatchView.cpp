@@ -7,6 +7,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 
 #include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -20,9 +21,79 @@
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
+
+namespace
+{
+CColRef *
+PcrJoinKeyOperand(CExpression *pexpr)
+{
+	if (COperator::EopScalarIdent == pexpr->Pop()->Eopid())
+	{
+		return const_cast<CColRef *>(
+			CScalarIdent::PopConvert(pexpr->Pop())->Pcr());
+	}
+	if (CCastUtils::FBinaryCoercibleCastedScId(pexpr))
+	{
+		return const_cast<CColRef *>(
+			CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr());
+	}
+	return nullptr;
+}
+}  // namespace
+
+BOOL
+CDSLMatchView::FSplitJoinPredicate(
+	CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeftRel,
+	CColRefArray *pdrgpcrLeft, CColRefArray *pdrgpcrRight,
+	CExpressionArray *pdrgpexprResidual)
+{
+	CColRefSet *pcrsLeft = pexprLeftRel->DeriveOutputColumns();
+	CExpressionArray *pdrgpexprConj =
+		CPredicateUtils::PdrgpexprConjuncts(mp, pexprPred);
+	for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+	{
+		CExpression *pexprConj = (*pdrgpexprConj)[ul];
+		if (2 != pexprConj->Arity() ||
+			!CPredicateUtils::IsEqualityOp(pexprConj))
+		{
+			pexprConj->AddRef();
+			pdrgpexprResidual->Append(pexprConj);
+			continue;
+		}
+
+		CColRef *pcr0 = PcrJoinKeyOperand((*pexprConj)[0]);
+		CColRef *pcr1 = PcrJoinKeyOperand((*pexprConj)[1]);
+		if (nullptr == pcr0 || nullptr == pcr1)
+		{
+			pexprConj->AddRef();
+			pdrgpexprResidual->Append(pexprConj);
+			continue;
+		}
+		const BOOL f0Left = pcrsLeft->FMember(pcr0);
+		const BOOL f1Left = pcrsLeft->FMember(pcr1);
+		if (f0Left && !f1Left)
+		{
+			pdrgpcrLeft->Append(pcr0);
+			pdrgpcrRight->Append(pcr1);
+		}
+		else if (f1Left && !f0Left)
+		{
+			pdrgpcrLeft->Append(pcr1);
+			pdrgpcrRight->Append(pcr0);
+		}
+		else
+		{
+			pexprConj->AddRef();
+			pdrgpexprResidual->Append(pexprConj);
+		}
+	}
+	pdrgpexprConj->Release();
+	return true;
+}
 
 CExpression *
 CDSLMatchView::PexprBinarySetOp(CMemoryPool *mp,

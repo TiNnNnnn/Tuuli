@@ -19,6 +19,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
@@ -221,7 +222,7 @@ PopOnlyBoundInSub(const CDSLOp *pop, const CDSLModel *pmodel,
 {
 	const CDSLOp *popFound = nullptr;
 	if (EdslopInSubFilter == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
-		1 == pop->Pdrgpsym()->Size() &&
+		(1 == pop->Pdrgpsym()->Size() || 5 == pop->Pdrgpsym()->Size()) &&
 		nullptr != pmodel->PexprInSubPred((*pop->Pdrgpsym())[0]))
 	{
 		(*pulMatches)++;
@@ -1329,6 +1330,77 @@ CDSLInstantiator::PdrgpcrMapToTarget(
 	return pdrgpcrMapped;
 }
 
+CExpression *
+CDSLInstantiator::PexprRemapPredicateToChildren(
+	const CDSLOp *popLeft, CExpression *pexprLeft,
+	const CDSLOp *popRight, CExpression *pexprRight,
+	CExpression *pexprSourcePred, const CDSLModel *pmodel) const
+{
+	if (nullptr == pexprSourcePred)
+	{
+		return nullptr;
+	}
+
+	UlongToColRefMap *phmPred = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+	CColRefArray *pdrgpcrUsed =
+		pexprSourcePred->DeriveUsedColumns()->Pdrgpcr(m_mp);
+	BOOL fRemapPred = false;
+	for (ULONG ul = 0; ul < pdrgpcrUsed->Size(); ul++)
+	{
+		CColRef *pcrSource = (*pdrgpcrUsed)[ul];
+		if (pexprLeft->DeriveOutputColumns()->FMember(pcrSource) ||
+			pexprRight->DeriveOutputColumns()->FMember(pcrSource))
+		{
+			continue;
+		}
+		CColRef *pcrLeft =
+			PcrMapToTarget(popLeft, pexprLeft, pcrSource, pmodel);
+		CColRef *pcrRight =
+			PcrMapToTarget(popRight, pexprRight, pcrSource, pmodel);
+		if ((nullptr == pcrLeft) == (nullptr == pcrRight))
+		{
+			pdrgpcrUsed->Release();
+			phmPred->Release();
+			return nullptr;
+		}
+		CColRef *pcrTarget = nullptr != pcrLeft ? pcrLeft : pcrRight;
+		BOOL fInserted GPOS_ASSERTS_ONLY = phmPred->Insert(
+			GPOS_NEW(m_mp) ULONG(pcrSource->Id()), pcrTarget);
+		GPOS_ASSERT(fInserted);
+		fRemapPred = true;
+	}
+	pdrgpcrUsed->Release();
+
+	CExpression *pexprTargetPred = nullptr;
+	if (fRemapPred)
+	{
+		CExpression *pexprCopied =
+			pexprSourcePred->PexprCopyWithRemappedColumns(
+				m_mp, phmPred, false /*must_exist*/);
+		pexprTargetPred = PexprRebuildComparisons(m_mp, pexprCopied);
+		pexprCopied->Release();
+	}
+	else
+	{
+		pexprSourcePred->AddRef();
+		pexprTargetPred = pexprSourcePred;
+	}
+	phmPred->Release();
+
+	CColRefSet *pcrsAvailable = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAvailable->Union(pexprLeft->DeriveOutputColumns());
+	pcrsAvailable->Union(pexprRight->DeriveOutputColumns());
+	const BOOL fAvailable = nullptr != pexprTargetPred &&
+		pcrsAvailable->ContainsAll(pexprTargetPred->DeriveUsedColumns());
+	pcrsAvailable->Release();
+	if (!fAvailable)
+	{
+		CRefCount::SafeRelease(pexprTargetPred);
+		return nullptr;
+	}
+	return pexprTargetPred;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuildFilter
@@ -1511,7 +1583,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			m_prule->PfragSrc()->PopRoot(), pmodel, &ulInSubMatches);
 		if (1 == ulInSubMatches && nullptr != popSourceInSub &&
 			nullptr != popSourceInSub->Pdrgpsym() &&
-			1 == popSourceInSub->Pdrgpsym()->Size())
+			(1 == popSourceInSub->Pdrgpsym()->Size() ||
+			 5 == popSourceInSub->Pdrgpsym()->Size()))
 		{
 			const CDSLSymbol *psymInSubAttrs =
 				(*popSourceInSub->Pdrgpsym())[0];
@@ -1538,63 +1611,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
-	UlongToColRefMap *phmPred = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
-	CColRefArray *pdrgpcrUsed =
-		pexprJoinPred->DeriveUsedColumns()->Pdrgpcr(m_mp);
-	BOOL fRemapPred = false;
-	for (ULONG ul = 0; ul < pdrgpcrUsed->Size(); ul++)
+	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
+		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,
+		pmodel);
+	if (nullptr == pexprTargetPred)
 	{
-		CColRef *pcrSource = (*pdrgpcrUsed)[ul];
-		if (pexprLeft->DeriveOutputColumns()->FMember(pcrSource) ||
-			pexprRight->DeriveOutputColumns()->FMember(pcrSource))
-		{
-			continue;
-		}
-		CColRef *pcrLeft = PcrMapToTarget(
-			(*pop)[0], pexprLeft, pcrSource, pmodel);
-		CColRef *pcrRight = PcrMapToTarget(
-			(*pop)[1], pexprRight, pcrSource, pmodel);
-		if ((nullptr == pcrLeft) == (nullptr == pcrRight))
-		{
-			// Neither side can provide the column, or both sides claim different
-			// positional origins. In either case the target predicate is ambiguous.
-			pdrgpcrUsed->Release();
-			phmPred->Release();
-			pexprLeft->Release();
-			pexprRight->Release();
-			return nullptr;
-		}
-		CColRef *pcrTarget = nullptr != pcrLeft ? pcrLeft : pcrRight;
-		BOOL fInserted GPOS_ASSERTS_ONLY = phmPred->Insert(
-			GPOS_NEW(m_mp) ULONG(pcrSource->Id()), pcrTarget);
-		GPOS_ASSERT(fInserted);
-		fRemapPred = true;
-	}
-	pdrgpcrUsed->Release();
-	CExpression *pexprTargetPred = nullptr;
-	if (fRemapPred)
-	{
-		CExpression *pexprCopied =
-			pexprJoinPred->PexprCopyWithRemappedColumns(
-				m_mp, phmPred, false /*must_exist*/);
-		pexprTargetPred = PexprRebuildComparisons(m_mp, pexprCopied);
-		pexprCopied->Release();
-	}
-	else
-	{
-		pexprJoinPred->AddRef();
-		pexprTargetPred = pexprJoinPred;
-	}
-	phmPred->Release();
-	CColRefSet *pcrsAvailable = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsAvailable->Union(pexprLeft->DeriveOutputColumns());
-	pcrsAvailable->Union(pexprRight->DeriveOutputColumns());
-	const BOOL fPredicateAvailable = nullptr != pexprTargetPred &&
-		pcrsAvailable->ContainsAll(pexprTargetPred->DeriveUsedColumns());
-	pcrsAvailable->Release();
-	if (!fPredicateAvailable)
-	{
-		CRefCount::SafeRelease(pexprTargetPred);
 		pexprLeft->Release();
 		pexprRight->Release();
 		return nullptr;
@@ -2624,13 +2645,180 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const
 {
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		1 != pop->Pdrgpsym()->Size())
+		(1 != pop->Pdrgpsym()->Size() && 5 != pop->Pdrgpsym()->Size()))
 	{
 		return nullptr;
 	}
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
 	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
+	if (nullptr == pexprOuter || nullptr == pexprInner)
+	{
+		CRefCount::SafeRelease(pexprOuter);
+		CRefCount::SafeRelease(pexprInner);
+		return nullptr;
+	}
+
+	if (5 == pop->Pdrgpsym()->Size())
+	{
+		CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+		const CDSLSymbol *psymOuter = PsymResolve((*pdrgpsym)[0]);
+		const CDSLSymbol *psymInner = PsymResolve((*pdrgpsym)[1]);
+		CExpression *pexprSourcePred =
+			pmodel->PexprJoinPred(psymOuter, psymInner);
+		const CDSLSymbol *psymInSubOwner = psymOuter;
+		if (nullptr == pexprSourcePred)
+		{
+			pexprSourcePred = pmodel->PexprInSubPred(psymInSubOwner);
+		}
+		if (nullptr == pexprSourcePred)
+		{
+			ULONG ulBoundInSub = 0;
+			const CDSLOp *popSourceInSub = PopOnlyBoundInSub(
+				m_prule->PfragSrc()->PopRoot(), pmodel, &ulBoundInSub);
+			if (1 == ulBoundInSub && nullptr != popSourceInSub)
+			{
+				psymInSubOwner = (*popSourceInSub->Pdrgpsym())[0];
+				pexprSourcePred = pmodel->PexprInSubPred(psymInSubOwner);
+			}
+		}
+
+		CColRefArray *pdrgpcrOuterSource = pmodel->PdrgpcrAttrs(psymOuter);
+		CColRefArray *pdrgpcrInnerSource = pmodel->PdrgpcrAttrs(psymInner);
+		CColRefArray *pdrgpcrOuterTarget = nullptr;
+		CColRefArray *pdrgpcrInnerTarget = nullptr;
+		if (nullptr != pdrgpcrOuterSource && nullptr != pdrgpcrInnerSource)
+		{
+			pdrgpcrOuterTarget = PdrgpcrMapToTarget(
+				(*pop)[0], pexprOuter, pdrgpcrOuterSource, pmodel);
+			pdrgpcrInnerTarget = PdrgpcrMapToTarget(
+				(*pop)[1], pexprInner, pdrgpcrInnerSource, pmodel);
+		}
+		CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
+			(*pop)[0], pexprOuter, (*pop)[1], pexprInner,
+			pexprSourcePred, pmodel);
+
+		const CDSLSymbol *psymResidual = PsymResolve((*pdrgpsym)[2]);
+		const CDSLSymbol *psymOuterDeps = PsymResolve((*pdrgpsym)[3]);
+		const CDSLSymbol *psymInnerDeps = PsymResolve((*pdrgpsym)[4]);
+		CExpression *pexprSourceResidual = pmodel->PexprPred(psymResidual);
+		CColRefArray *pdrgpcrOuterDepsSource =
+			pmodel->PdrgpcrAttrs(psymOuterDeps);
+		CColRefArray *pdrgpcrInnerDepsSource =
+			pmodel->PdrgpcrAttrs(psymInnerDeps);
+		CExpression *pexprTargetResidual =
+			PexprRemapPredicateToChildren(
+				(*pop)[0], pexprOuter, (*pop)[1], pexprInner,
+				pexprSourceResidual, pmodel);
+		CColRefArray *pdrgpcrOuterDepsTarget = nullptr;
+		CColRefArray *pdrgpcrInnerDepsTarget = nullptr;
+		if (nullptr != pdrgpcrOuterDepsSource &&
+			nullptr != pdrgpcrInnerDepsSource)
+		{
+			pdrgpcrOuterDepsTarget = PdrgpcrMapToTarget(
+				(*pop)[0], pexprOuter, pdrgpcrOuterDepsSource, pmodel);
+			pdrgpcrInnerDepsTarget = PdrgpcrMapToTarget(
+				(*pop)[1], pexprInner, pdrgpcrInnerDepsSource, pmodel);
+		}
+
+		CColRefArray *pdrgpcrActualOuter =
+			GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CColRefArray *pdrgpcrActualInner =
+			GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CExpressionArray *pdrgpexprActualResidual =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		BOOL fValid = nullptr != pexprTargetPred &&
+			nullptr != pexprTargetResidual &&
+			nullptr != pdrgpcrOuterTarget && nullptr != pdrgpcrInnerTarget &&
+			nullptr != pdrgpcrOuterDepsTarget &&
+			nullptr != pdrgpcrInnerDepsTarget &&
+			CDSLMatchView::FSplitJoinPredicate(
+				m_mp, pexprTargetPred, pexprOuter, pdrgpcrActualOuter,
+				pdrgpcrActualInner, pdrgpexprActualResidual) &&
+			0 < pdrgpcrActualOuter->Size() &&
+			0 < pdrgpexprActualResidual->Size();
+		CExpression *pexprActualResidual = nullptr;
+		CColRefArray *pdrgpcrActualOuterDeps = nullptr;
+		CColRefArray *pdrgpcrActualInnerDeps = nullptr;
+		if (fValid)
+		{
+			pexprActualResidual = CPredicateUtils::PexprConjunction(
+				m_mp, pdrgpexprActualResidual);
+			CColRefSet *pcrsOuterDeps = GPOS_NEW(m_mp) CColRefSet(
+				m_mp, *pexprActualResidual->DeriveUsedColumns());
+			pcrsOuterDeps->Intersection(pexprOuter->DeriveOutputColumns());
+			CColRefSet *pcrsInnerDeps = GPOS_NEW(m_mp) CColRefSet(
+				m_mp, *pexprActualResidual->DeriveUsedColumns());
+			pcrsInnerDeps->Intersection(pexprInner->DeriveOutputColumns());
+			pdrgpcrActualOuterDeps = pcrsOuterDeps->Pdrgpcr(m_mp);
+			pdrgpcrActualInnerDeps = pcrsInnerDeps->Pdrgpcr(m_mp);
+			pcrsOuterDeps->Release();
+			pcrsInnerDeps->Release();
+			fValid = CColRef::Equals(pdrgpcrOuterTarget,
+								   pdrgpcrActualOuter) &&
+				CColRef::Equals(pdrgpcrInnerTarget,
+							 pdrgpcrActualInner) &&
+				pexprTargetResidual->Matches(pexprActualResidual) &&
+				CColRef::Equals(pdrgpcrOuterDepsTarget,
+							 pdrgpcrActualOuterDeps) &&
+				CColRef::Equals(pdrgpcrInnerDepsTarget,
+							 pdrgpcrActualInnerDeps);
+		}
+		else
+		{
+			pdrgpexprActualResidual->Release();
+		}
+
+		CRefCount::SafeRelease(pexprActualResidual);
+		CRefCount::SafeRelease(pexprTargetResidual);
+		CRefCount::SafeRelease(pdrgpcrActualOuterDeps);
+		CRefCount::SafeRelease(pdrgpcrActualInnerDeps);
+		CRefCount::SafeRelease(pdrgpcrOuterTarget);
+		CRefCount::SafeRelease(pdrgpcrInnerTarget);
+		CRefCount::SafeRelease(pdrgpcrOuterDepsTarget);
+		CRefCount::SafeRelease(pdrgpcrInnerDepsTarget);
+		pdrgpcrActualOuter->Release();
+		pdrgpcrActualInner->Release();
+		if (!fValid)
+		{
+			CRefCount::SafeRelease(pexprTargetPred);
+			pexprOuter->Release();
+			pexprInner->Release();
+			return nullptr;
+		}
+
+		CExpression *pexprCarrier =
+			pmodel->PexprInSubCarrier(psymInSubOwner);
+		CXform::EXformId exfidOrigin = CXform::ExfInvalid;
+		if (nullptr != pexprCarrier &&
+			COperator::EopLogicalLeftSemiJoin ==
+				pexprCarrier->Pop()->Eopid())
+		{
+			exfidOrigin = CLogicalLeftSemiJoin::PopConvert(
+				pexprCarrier->Pop())->OriginXform();
+		}
+		CExpression *pexprResult = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp, exfidOrigin),
+			pexprOuter, pexprInner, pexprTargetPred);
+		CExpressionArray *pdrgpexprResidual =
+			pmodel->PdrgpexprInSubResidual();
+		if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
+		{
+			CExpressionArray *pdrgpexprCopy =
+				GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
+			{
+				CExpression *pexprConj = (*pdrgpexprResidual)[ul];
+				pexprConj->AddRef();
+				pdrgpexprCopy->Append(pexprConj);
+			}
+			pexprResult = GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
+				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
+		}
+		return pexprResult;
+	}
+
 	const CDSLSymbol *psymTargetAttrs =
 		PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSourceAttrs = psymTargetAttrs;
@@ -2659,11 +2847,10 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 			: PexprRemapInSubPredicate(m_mp, pexprPredBound,
 									 pdrgpcrSourceAttrs,
 									 pdrgpcrTargetAttrs);
-	if (nullptr == pexprOuter || nullptr == pexprInner || nullptr == pexprPred)
+	if (nullptr == pexprPred)
 	{
-		CRefCount::SafeRelease(pexprOuter);
-		CRefCount::SafeRelease(pexprInner);
-		CRefCount::SafeRelease(pexprPred);
+		pexprOuter->Release();
+		pexprInner->Release();
 		return nullptr;
 	}
 	if (nullptr == pdrgpcrTargetAttrs ||

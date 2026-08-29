@@ -19,9 +19,10 @@ using namespace gpos;
 
 class CDSLMatcher;
 
-// Match WeTune's plain InSubFilter<a>(outer,inner) both before ORCA subquery
-// unnesting (Select + ScalarSubqueryAny) and after it (LeftSemiApplyIn). Shared
-// structural decoding and join-spine routing live in CDSLMatchView.
+// Match WeTune's equality-only InSubFilter<a>(outer,inner) before and after
+// subquery unnesting. The extended five-symbol form additionally binds the RHS
+// equality key and a residual predicate with per-child dependencies at a
+// decorrelated LeftSemiJoin. Shared structural decoding lives in CDSLMatchView.
 class CDSLInSubMatcher
 {
 private:

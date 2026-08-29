@@ -330,58 +330,73 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	CColRefSet *pcrsOuter = (*pexpr)[0]->DeriveOutputColumns();
-	CColRefSet *pcrsInner = (*pexpr)[1]->DeriveOutputColumns();
-	CExpressionArray *pdrgpexprConj =
-		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[2]);
-	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	CColRefArray *pdrgpcrInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	BOOL fSimpleCrossEqualities = 0 < pdrgpexprConj->Size();
-	for (ULONG ul = 0; ul < pdrgpexprConj->Size() && fSimpleCrossEqualities;
-		 ul++)
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
+	if (1 != ulSymbols && 5 != ulSymbols)
 	{
-		CExpression *pexprCmp = (*pdrgpexprConj)[ul];
-		if (2 == pexprCmp->Arity() &&
-			CPredicateUtils::FPlainEquality(pexprCmp) &&
-			COperator::EopScalarIdent == (*pexprCmp)[0]->Pop()->Eopid() &&
-			COperator::EopScalarIdent == (*pexprCmp)[1]->Pop()->Eopid())
-		{
-			CColRef *pcr0 = const_cast<CColRef *>(
-				CScalarIdent::PopConvert((*pexprCmp)[0]->Pop())->Pcr());
-			CColRef *pcr1 = const_cast<CColRef *>(
-				CScalarIdent::PopConvert((*pexprCmp)[1]->Pop())->Pcr());
-			if (pcrsOuter->FMember(pcr0) && pcrsInner->FMember(pcr1))
-			{
-				pdrgpcrOuter->Append(pcr0);
-				pdrgpcrInner->Append(pcr1);
-			}
-			else if (pcrsOuter->FMember(pcr1) && pcrsInner->FMember(pcr0))
-			{
-				pdrgpcrOuter->Append(pcr1);
-				pdrgpcrInner->Append(pcr0);
-			}
-			else
-			{
-				fSimpleCrossEqualities = false;
-			}
-		}
-		else
-		{
-			fSimpleCrossEqualities = false;
-		}
-	}
-	pdrgpexprConj->Release();
-	if (!fSimpleCrossEqualities)
-	{
-		pdrgpcrOuter->Release();
-		pdrgpcrInner->Release();
 		return false;
 	}
 
-	BOOL fMatched =
-		pmodel->FBind((*pop->Pdrgpsym())[0], pdrgpcrOuter) &&
-		m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
-		FMatchInner((*pop)[1], (*pexpr)[1], pdrgpcrInner, pmodel);
+	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CExpressionArray *pdrgpexprResidual =
+		GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	if (!CDSLMatchView::FSplitJoinPredicate(
+			m_mp, (*pexpr)[2], (*pexpr)[0], pdrgpcrOuter, pdrgpcrInner,
+			pdrgpexprResidual) ||
+		0 == pdrgpcrOuter->Size())
+	{
+		pdrgpcrOuter->Release();
+		pdrgpcrInner->Release();
+		pdrgpexprResidual->Release();
+		return false;
+	}
+
+	// The legacy shape is equality-only and obtains the RHS key through the
+	// transparent subquery projection. The extended shape binds both key vectors
+	// and the exact non-equality remainder, matching Join's predicate contract.
+	const BOOL fExtended = 5 == ulSymbols;
+	if ((!fExtended && 0 != pdrgpexprResidual->Size()) ||
+		(fExtended && 0 == pdrgpexprResidual->Size()))
+	{
+		pdrgpcrOuter->Release();
+		pdrgpcrInner->Release();
+		pdrgpexprResidual->Release();
+		return false;
+	}
+
+	BOOL fMatched = m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+		(fExtended
+			 ? m_pmatcher->FMatch((*pop)[1], (*pexpr)[1], pmodel)
+			 : FMatchInner((*pop)[1], (*pexpr)[1], pdrgpcrInner, pmodel)) &&
+		pmodel->FBind((*pdrgpsym)[0], pdrgpcrOuter);
+	if (fMatched && fExtended)
+	{
+		CExpression *pexprResidual =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual);
+		CColRefSet *pcrsOuterDeps = GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *pexprResidual->DeriveUsedColumns());
+		pcrsOuterDeps->Intersection((*pexpr)[0]->DeriveOutputColumns());
+		CColRefSet *pcrsInnerDeps = GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *pexprResidual->DeriveUsedColumns());
+		pcrsInnerDeps->Intersection((*pexpr)[1]->DeriveOutputColumns());
+		CColRefArray *pdrgpcrOuterDeps = pcrsOuterDeps->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrInnerDeps = pcrsInnerDeps->Pdrgpcr(m_mp);
+		pcrsOuterDeps->Release();
+		pcrsInnerDeps->Release();
+
+		fMatched = pmodel->FBind((*pdrgpsym)[1], pdrgpcrInner) &&
+			pmodel->FBind((*pdrgpsym)[2], pexprResidual) &&
+			pmodel->FBind((*pdrgpsym)[3], pdrgpcrOuterDeps) &&
+			pmodel->FBind((*pdrgpsym)[4], pdrgpcrInnerDeps);
+		pexprResidual->Release();
+		pdrgpcrOuterDeps->Release();
+		pdrgpcrInnerDeps->Release();
+	}
+	else
+	{
+		pdrgpexprResidual->Release();
+	}
 	pdrgpcrOuter->Release();
 	pdrgpcrInner->Release();
 	if (!fMatched)
@@ -389,7 +404,7 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	const CDSLSymbol *psymAttrs = (*pop->Pdrgpsym())[0];
+	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
 	(*pexpr)[2]->AddRef();
 	BOOL fStored = pmodel->FSetInSubPred(psymAttrs, (*pexpr)[2]);
 	if (fStored)
@@ -513,8 +528,16 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	GPOS_ASSERT(nullptr != pmodel);
 
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		1 != pop->Pdrgpsym()->Size())
+		(1 != pop->Pdrgpsym()->Size() && 5 != pop->Pdrgpsym()->Size()))
 	{
+		return false;
+	}
+	const BOOL fExtended = 5 == pop->Pdrgpsym()->Size();
+	if (fExtended &&
+		COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid())
+	{
+		// Pre-unnest ANY/EXISTS and routed join-spine adapters expose only the
+		// equality key. They must not silently discard an extended residual.
 		return false;
 	}
 

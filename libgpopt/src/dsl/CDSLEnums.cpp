@@ -37,7 +37,8 @@ struct SDslOpDesc
 //                                      and its per-child dependencies)
 //   LeftJoin   <a a [a s] [p a a]>
 //   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
-//   InSubFilter<a>     (attrs)
+//   InSubFilter<a [a p a a]> (outer key, optional inner key, residual predicate
+//                              and its per-child dependencies)
 //   Exists     <>      (no symbols)
 //   NotExists  <>      (no symbols)
 //   Any        <p a>   (comparison predicate, outer dependencies)
@@ -57,7 +58,9 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema,
 	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopFilter, "Filter", 1, 2, {EdslsymPred, EdslsymAttrs}},
-	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
+	{EdslopInSubFilter, "InSubFilter", 2, 5,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymPred, EdslsymAttrs,
+	  EdslsymAttrs}},
 	{EdslopExists, "Exists", 2, 0, {}},
 	{EdslopNotExists, "NotExists", 2, 0, {}},
 	{EdslopProj, "Proj", 1, 2, {EdslsymAttrs, EdslsymSchema}},

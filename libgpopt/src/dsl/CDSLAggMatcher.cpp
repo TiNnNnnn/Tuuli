@@ -11,6 +11,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
@@ -287,6 +288,49 @@ CDSLAggMatcher::FMatchDroppedDedup(const CDSLOp *popAgg,
 }
 
 BOOL
+CDSLAggMatcher::FMatchKeyedIdentity(const CDSLOp *popAgg,
+							 CExpression *pexpr,
+							 CDSLModel *pmodel) const
+{
+	const CDSLRule *prule = m_pmatcher->Prule();
+	if (nullptr == prule || popAgg != prule->PfragSrc()->PopRoot() ||
+		1 != popAgg->UlChildren() ||
+		COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsOutput = pexpr->DeriveOutputColumns();
+	CKeyCollection *pkc = pexpr->DeriveKeyCollection();
+	if (nullptr == pkc || 0 == pcrsOutput->Size() ||
+		!pkc->FKey(pcrsOutput, false /*fExactMatch*/))
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = popAgg->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrOutput = pcrsOutput->Pdrgpcr(m_mp);
+	BOOL fMatched = pmodel->FBind((*pdrgpsym)[0], pdrgpcrOutput) &&
+		pmodel->FBind((*pdrgpsym)[1], pdrgpcrOutput) &&
+		m_pmatcher->FMatch((*popAgg)[0], pexpr, pmodel);
+	pdrgpcrOutput->Release();
+	if (!fMatched)
+	{
+		return false;
+	}
+
+	// There is no concrete GbAgg/project list to restore on the target side.
+	// Mark the schema as an identity projection carrier, just like the ordinary
+	// projection matcher does for ORCA's projection-free memo representation.
+	pexpr->AddRef();
+	return pmodel->FSetVirtualIdentityProj((*pdrgpsym)[1], pexpr);
+}
+
+BOOL
 CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 								 CExpression *pexprAgg,
 								 CExpression *pexprHaving,
@@ -417,6 +461,11 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 	GPOS_ASSERT(nullptr != pexprAgg);
 	if (EdslopProj == popAgg->Edslop() && popAgg->FDistinct() &&
 		FMatchDroppedDedup(popAgg, pexprAgg, pmodel))
+	{
+		return true;
+	}
+	if (EdslopProj == popAgg->Edslop() && popAgg->FDistinct() &&
+		FMatchKeyedIdentity(popAgg, pexprAgg, pmodel))
 	{
 		return true;
 	}

@@ -96,6 +96,16 @@ CDSLRuleEngine::BucketByRoot()
 		{
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalGbAggDeduplicate;
+			const CDSLOp *popProj = prule->PfragSrc()->PopRoot();
+			if (1 == popProj->UlChildren() &&
+				EdslopInSubFilter == (*popProj)[0]->Edslop())
+			{
+				// A keyed semi join already satisfies an enclosing DISTINCT. Route
+				// this exact source shape to the semi-join bucket; the aggregate
+				// matcher independently verifies the key before exposing the view.
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalLeftSemiJoin;
+			}
 		}
 		// Before CXformSelect2Apply runs, a DSL Exists source is rooted at an
 		// ORCA Select whose scalar predicate is CScalarSubqueryExists. Put it in

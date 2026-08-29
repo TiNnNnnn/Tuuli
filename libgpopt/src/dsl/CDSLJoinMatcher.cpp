@@ -15,37 +15,20 @@
 
 #include "gpos/base.h"
 
-#include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CPropConstraint.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarIdent.h"
 
 using namespace gpopt;
 
 namespace
 {
-CColRef *
-PcrJoinKeyOperand(CExpression *pexpr)
-{
-	if (COperator::EopScalarIdent == pexpr->Pop()->Eopid())
-	{
-		return const_cast<CColRef *>(
-			CScalarIdent::PopConvert(pexpr->Pop())->Pcr());
-	}
-	if (CCastUtils::FBinaryCoercibleCastedScId(pexpr))
-	{
-		return const_cast<CColRef *>(
-			CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr());
-	}
-	return nullptr;
-}
-
 // Return the already-bound source attrs connected to psymJoin by a direct
 // AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
 // constrain this match. Multiple declarations are accepted only when they
@@ -470,64 +453,9 @@ CDSLJoinMatcher::FSplitPredicate(CExpression *pexprPred,
 								 CColRefArray *pdrgpcrRight,
 								 CExpressionArray *pdrgpexprResidual) const
 {
-	CColRefSet *pcrsLeft = pexprLeftRel->DeriveOutputColumns();
-
-	CExpressionArray *pdrgpexprConj =
-		CPredicateUtils::PdrgpexprConjuncts(m_mp, pexprPred);
-	const ULONG ulConj = pdrgpexprConj->Size();
-	BOOL fOk = true;
-	for (ULONG ul = 0; ul < ulConj && fOk; ul++)
-	{
-		CExpression *pexprConj = (*pdrgpexprConj)[ul];
-
-		// FPlainEquality does unchecked operator[]; a non-materialized conjunct
-		// (arity 0) would abort. With CPatternTree the predicate tree is fully
-		// materialized, but guard defensively anyway.
-		if (2 != pexprConj->Arity() ||
-			!CPredicateUtils::IsEqualityOp(pexprConj))
-		{
-			// non-equi conjunct: preserve as residual (AddRef — the array owns it).
-			pexprConj->AddRef();
-			pdrgpexprResidual->Append(pexprConj);
-			continue;
-		}
-
-		// Equality over identifiers, optionally hidden below binary-coercible
-		// casts, is still a positional join-key equality. Non-binary casts remain
-		// residual because they need not preserve the FK/uniqueness semantics.
-		CColRef *pcr0 = PcrJoinKeyOperand((*pexprConj)[0]);
-		CColRef *pcr1 = PcrJoinKeyOperand((*pexprConj)[1]);
-		if (nullptr == pcr0 || nullptr == pcr1)
-		{
-			pexprConj->AddRef();
-			pdrgpexprResidual->Append(pexprConj);
-			continue;
-		}
-
-		// orient by which column belongs to the left relation's output.
-		BOOL f0Left = pcrsLeft->FMember(pcr0);
-		BOOL f1Left = pcrsLeft->FMember(pcr1);
-		if (f0Left && !f1Left)
-		{
-			pdrgpcrLeft->Append(pcr0);
-			pdrgpcrRight->Append(pcr1);
-		}
-		else if (f1Left && !f0Left)
-		{
-			pdrgpcrLeft->Append(pcr1);
-			pdrgpcrRight->Append(pcr0);
-		}
-		else
-		{
-			// both or neither on the left: not a cross-child join key we can
-			// orient (e.g. a same-side equality). Keep it as residual so nothing
-			// is dropped, but it does not contribute to <a>/<a> key binding.
-			pexprConj->AddRef();
-			pdrgpexprResidual->Append(pexprConj);
-		}
-	}
-	pdrgpexprConj->Release();
-	return fOk;
+	return CDSLMatchView::FSplitJoinPredicate(
+		m_mp, pexprPred, pexprLeftRel, pdrgpcrLeft, pdrgpcrRight,
+		pdrgpexprResidual);
 }
 
 //---------------------------------------------------------------------------

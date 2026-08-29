@@ -187,6 +187,11 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		// InSubFilter + Limit + Input-only target
 		"InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Limit<n0 n1>"
 		"(Input<t2>)|TableEq(t2,t0);ScalarEq(n0,n1)",
+		// Extended InSub binds both equality keys and an exact residual predicate.
+		"InSubFilter<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|InnerJoin<a4 "
+		"a5 p1 a6 a7>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		"AttrsEq(a4,a0);AttrsEq(a5,a1);PredicateEq(p1,p0);AttrsEq(a6,a2);"
+		"AttrsEq(a7,a3)",
 		// Extended Union output binding remains optional and round-trips exactly.
 		"Union*<a0 s0>(Input<t0>,Input<t1>)|Union<a1 s1>(Input<t2>,"
 		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
@@ -325,6 +330,26 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	join4->Release();
 	join5->Release();
 	join7->Release();
+	// InSub keeps its equality-only one-symbol corpus form and accepts the
+	// complete key/predicate/dependency extension, but no partial declaration.
+	bad = Parse(
+		mp,
+		"InSubFilter<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *insub1 = Parse(
+		mp, "InSubFilter<a0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *insub5 = Parse(
+		mp,
+		"InSubFilter<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|Input<t2>|"
+		"TableEq(t2,t0)");
+	if (nullptr != bad || nullptr == insub1 || nullptr == insub5)
+	{
+		CRefCount::SafeRelease(bad);
+		CRefCount::SafeRelease(insub1);
+		CRefCount::SafeRelease(insub5);
+		return GPOS_FAILED;
+	}
+	insub1->Release();
+	insub5->Release();
 	// Correct arities parse.
 	CDSLRule *ok =
 		Parse(mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");

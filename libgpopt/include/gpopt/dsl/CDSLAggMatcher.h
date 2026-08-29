@@ -84,6 +84,12 @@ private:
 	BOOL FMatchDroppedDedup(const CDSLOp *popAgg, CExpression *pexprMarker,
 							CDSLModel *pmodel) const;
 
+	// A distinct projection is an identity when a semi join's complete live
+	// output already contains an outer key. This virtual source-root view covers
+	// ORCA's unmaterialized GbAggDeduplicate representation boundary.
+	BOOL FMatchKeyedIdentity(const CDSLOp *popAgg, CExpression *pexpr,
+							CDSLModel *pmodel) const;
+
 	// WeTune represents DISTINCT aggregate inputs as an inner Proj*. ORCA keeps
 	// the same deduplication as CScalarAggFunc::IsDistinct on the outer GbAgg.
 	BOOL FMatchDistinctAggDedup(const CDSLOp *popAgg,

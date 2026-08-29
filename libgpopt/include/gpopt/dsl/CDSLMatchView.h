@@ -83,6 +83,14 @@ public:
 	// Decode one safe global LogicalLimit, including its fused order property.
 	static BOOL FOrderLimit(CExpression *pexpr, SOrderLimit *pview);
 
+	// Split a join/semi-join predicate into ordered cross-child equality keys
+	// and the exact remaining conjuncts. The caller owns appended refs.
+	static BOOL FSplitJoinPredicate(CMemoryPool *mp, CExpression *pexprPred,
+								 CExpression *pexprLeftRel,
+								 CColRefArray *pdrgpcrLeft,
+								 CColRefArray *pdrgpcrRight,
+								 CExpressionArray *pdrgpexprResidual);
+
 	// Recognize the memo-safe identity marker Select(pure-global-dedup, TRUE).
 	// The returned expression and grouping array are non-owning.
 	static BOOL FDedupIdentity(CExpression *pexpr,
