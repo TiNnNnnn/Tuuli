@@ -22,6 +22,8 @@ Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(I
 
 All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
 
+Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s1,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -43,6 +45,12 @@ All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(I
 # RuleIR/U-expression operator rather than a rule-specific proof path.
 # ANY/ALL bind the complete comparison predicate; their exact rules were also
 # proved EQ by the generic SQLSolver U-expression backend on 2026-08-29.
+# Line 25 removes a redundant pure Dedup above an InnerJoin when the projected
+# outer attributes and the inner equality key are both unique. The explicit
+# Join predicate binding preserves every non-equality residual and records its
+# dependencies by child. This directly covers the corresponding unique-output
+# domain of CXformPushGbDedupBelowJoin without reproducing its staging shape.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
 # Line 9 covers the equality branch of
 # CXformLeftSemiJoin2InnerJoin. InSubFilter is the shared view over both the
 # pre-unnest form and CLogicalLeftSemiJoin; the target deduplicates the inner

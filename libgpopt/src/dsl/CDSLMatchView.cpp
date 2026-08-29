@@ -109,8 +109,10 @@ CDSLMatchView::FAggregate(CExpression *pexpr, BOOL fAllowHaving,
 		pview->m_pexprHaving = (*pexpr)[1];
 	}
 
-	return COperator::EopLogicalGbAgg ==
-			   pview->m_pexprAgg->Pop()->Eopid() &&
+	const COperator::EOperatorId eopid =
+		pview->m_pexprAgg->Pop()->Eopid();
+	return (COperator::EopLogicalGbAgg == eopid ||
+			COperator::EopLogicalGbAggDeduplicate == eopid) &&
 		   2 == pview->m_pexprAgg->Arity();
 }
 

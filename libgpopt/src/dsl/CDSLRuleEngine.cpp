@@ -88,6 +88,15 @@ CDSLRuleEngine::BucketByRoot()
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
 		}
+		// Proj* is the DSL's logical duplicate-elimination operator. ORCA uses
+		// both a regular GbAgg and the semi-join-specific GbAggDeduplicate for
+		// that same shape, so route the template to both operator families.
+		if (EdslopProj == prule->PfragSrc()->PopRoot()->Edslop() &&
+			prule->PfragSrc()->PopRoot()->FDistinct())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalGbAggDeduplicate;
+		}
 		// Before CXformSelect2Apply runs, a DSL Exists source is rooted at an
 		// ORCA Select whose scalar predicate is CScalarSubqueryExists. Put it in
 		// the Select bucket so the DSL can perform the unnesting independently.

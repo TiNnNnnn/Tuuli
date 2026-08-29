@@ -132,7 +132,11 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		COperator::EopLogicalInnerJoin == pedge->m_eopid &&
 		(COperator::EopLogicalLeftOuterJoin == pop->Eopid() ||
 		 COperator::EopLogicalFullOuterJoin == pop->Eopid());
-	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView)
+	const BOOL fDedupAggView =
+		COperator::EopLogicalGbAgg == pedge->m_eopid &&
+		COperator::EopLogicalGbAggDeduplicate == pop->Eopid();
+	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
+		!fDedupAggView)
 	{
 		return false;
 	}
@@ -272,7 +276,10 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 
 	// A rule routed to a different shell is handled through a representation
 	// adapter. Its literal source root is not a necessary prefix in this bucket.
-	if (popRoot->Eopid() == eopidBucket)
+	const BOOL fDedupAggView =
+		EdslopProj == popRoot->Edslop() && popRoot->FDistinct() &&
+		COperator::EopLogicalGbAggDeduplicate == eopidBucket;
+	if (popRoot->Eopid() == eopidBucket || fDedupAggView)
 	{
 		pnodeTerminal =
 			PnodeInsertOp(m_pnodeRoot, popRoot, true, &fComplete);

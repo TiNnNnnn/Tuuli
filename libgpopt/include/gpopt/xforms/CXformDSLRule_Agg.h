@@ -5,8 +5,8 @@
 //		CXformDSLRule_Agg.h
 //
 //	@doc:
-//		Thin exploration-xform shell whose SOURCE root operator is
-//		CLogicalGbAgg. Like the other DSL shells it owns no rewrite logic: on
+//		Thin exploration-xform shell whose SOURCE root operator is an ORCA
+//		aggregate/dedup shell. Like the other DSL shells it owns no rewrite logic: on
 //		Transform it hands the matched expression to the shared CDSLRuleEngine,
 //		which applies every loaded DSL rule bucketed under EopLogicalGbAgg.
 //
@@ -15,10 +15,9 @@
 //		five/six-symbol real aggregate rules; HAVING rules are additionally routed
 //		through the Select shell. See docs/DSL_WETUNE_ALIGNMENT.md.
 //
-//		Pattern: CLogicalGbAgg(CPatternTree, CPatternTree) — a relational child and
-//		the aggregate project list, both CPatternTree so the memo binder
-//		MATERIALIZES the subtrees (a CPatternLeaf would leave arity-0 stubs the
-//		matcher cannot inspect — same lesson as the join/proj shells).
+//		Pattern: CPatternTree. Registration limits the xform to CLogicalGbAgg and
+//		CLogicalGbAggDeduplicate, while the complete-tree binding lets their shared
+//		matcher inspect both relational and scalar children.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CXformDSLRule_Agg_H
 #define GPOPT_CXformDSLRule_Agg_H

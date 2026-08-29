@@ -221,6 +221,7 @@ CLogicalGbAggDeduplicate::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(CXform::ExfSplitGbAggDedup);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAggDedup2HashAggDedup);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAggDedup2StreamAggDedup);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleAgg);
 	return xform_set;
 }
 

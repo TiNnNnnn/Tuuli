@@ -19,6 +19,7 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -132,6 +133,17 @@ PexprPrefixGbAgg(CMemoryPool *mp, COperator::EGbAggType egbaggtype,
 		mp,
 		GPOS_NEW(mp)
 			CLogicalGbAgg(mp, GPOS_NEW(mp) CColRefArray(mp), egbaggtype),
+		pexprRel, PexprPrefixLeaf(mp));
+}
+
+CExpression *
+PexprPrefixGbAggDeduplicate(CMemoryPool *mp, CExpression *pexprRel)
+{
+	return GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalGbAggDeduplicate(
+			mp, GPOS_NEW(mp) CColRefArray(mp),
+			COperator::EgbaggtypeGlobal, GPOS_NEW(mp) CColRefArray(mp)),
 		pexprRel, PexprPrefixLeaf(mp));
 }
 
@@ -309,6 +321,30 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pdrgprule->Release();
 	pexpr->Release();
 	GPOS_DELETE(pindex);
+
+	// The semi-join-specific GbAggDeduplicate is the same logical Proj* view.
+	// Its dedicated bucket still compiles the exact GbAgg prefix (no fallback)
+	// and preserves the child-shape discrimination.
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleDistinct, 0,
+				   COperator::EopLogicalGbAggDeduplicate);
+	pexpr = PexprPrefixGbAggDeduplicate(
+		mp, PexprPrefixJoin(mp, PexprPrefixLeaf(mp),
+							 PexprPrefixLeaf(mp)));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+			  1 == pdrgprule->Size() &&
+			  pruleDistinct == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+
+	CLogicalGbAggDeduplicate *popDedup =
+		GPOS_NEW(mp) CLogicalGbAggDeduplicate(mp);
+	CXformSet *pxfsDedup = popDedup->PxfsCandidates(mp);
+	fValid = fValid && pxfsDedup->Get(CXform::ExfDSLRuleAgg);
+	pxfsDedup->Release();
+	popDedup->Release();
 	pruleDistinct->Release();
 
 	return fValid ? GPOS_OK : GPOS_FAILED;

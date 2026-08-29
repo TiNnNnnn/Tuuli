@@ -75,7 +75,8 @@ private:
 public:
 	CDSLMatchView() = delete;
 
-	// Decode a direct GbAgg, or (when allowed) Select(GbAgg, HAVING).
+	// Decode a direct GbAgg/GbAggDeduplicate, or (when allowed)
+	// Select(GbAgg, HAVING).
 	static BOOL FAggregate(CExpression *pexpr, BOOL fAllowHaving,
 						 SAggregate *pview);
 

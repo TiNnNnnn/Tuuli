@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule removes unique output dedup across an inner join while preserving residual predicates",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbDedupBelowJoin"
+    ],
+    "scope": "Unique outer projection joined to a unique inner equality key, with an arbitrary residual predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "c602af3fe55f92f7"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushGbDedupBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c602af3fe55f92f7\""
+      ],
+      "alternative": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbDedupBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c602af3fe55f92f7\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin"
+    ],
+    "output": [
+      "1,10",
+      "2,10",
+      "3,20"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,10",
+      "3,20"
+    ]
+  }
+}
