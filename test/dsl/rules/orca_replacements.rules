@@ -42,6 +42,12 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|
 
 LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a3,a0);AttrsEq(a4,a1)
 
+# Replaces CXformLeftSemiJoin2CrossProduct when the semi predicate does not
+# depend on the inner input. The inner LIMIT 1 preserves existential bag
+# multiplicity. This exact RuleIR is accepted by the generic FormalSQL/Rocq
+# bidirectional-normalization proof, verified 2026-08-29.
+Exists<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);AttrsSub(a0,t0);AttrsEmpty(a1);Deterministic(p0);ScalarOne(n0);ScalarZero(n1);ErrorFree(p0);ErrorFree(p1)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including

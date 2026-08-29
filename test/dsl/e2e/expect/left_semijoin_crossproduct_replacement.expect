@@ -1,0 +1,63 @@
+{
+  "description": "A Rocq-proved DSL rule implements LeftSemiJoin2CrossProduct semantics after Apply normalization",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiJoin2CrossProduct"
+    ],
+    "scope": "Deterministic, error-free semi predicate independent of the inner input; PostgreSQL translation normalizes the predicate into the outer match view",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "fea1b374f7c9216c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"fea1b374f7c9216c\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2CrossProduct"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2CrossProduct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2CrossProduct"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"fea1b374f7c9216c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2CrossProduct"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}
