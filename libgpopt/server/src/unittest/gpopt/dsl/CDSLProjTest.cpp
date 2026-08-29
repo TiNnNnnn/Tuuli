@@ -86,6 +86,13 @@ using namespace gpopt;
 	"Compute<e3 a3 s3>(Compute<e2 a2 s2>(Input<t1>))|"                    \
 	"TableEq(t1,t0);ExprSplit(e2,e3,e0,e1)"
 
+#define GPOPT_DSL_COMPUTE_FILTER_COMMUTE_RULE                              \
+	"Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|"                      \
+	"Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|"                      \
+	"TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a5,a0);SchemaEq(s1,s0);"     \
+	"PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);"                    \
+	"ExprFilterCommute(e0,p0,s0);ErrorFree(e0);Deterministic(e0)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -159,6 +166,8 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_CollapseIdentityProject),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeExactRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
@@ -315,6 +324,87 @@ CDSLProjTest::EresUnittest_ComputeExactRoundTrip()
 	pmodel->Release();
 	pexprProject->Release();
 	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_COMPUTE_FILTER_COMMUTE_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("commute_outer", 1, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("commute_inner", 1, &pdrgpcrInner);
+	CExpression *pexprPred = fix.PexprPredAtom((*pdrgpcrOuter)[0]);
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprPred);
+	CColRef *pcrDefined = fix.PcrCreateInt4("commuted_constant");
+	CExpression *pexprProject = PexprProjectWithScalar(
+		mp, pexprSelect, pcrDefined, CUtils::PexprScalarConstInt4(mp, 1));
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalProject != (*pexprTarget)[0]->Pop()->Eopid() ||
+			COperator::EopLogicalGet != (*(*pexprTarget)[0])[0]->Pop()->Eopid() ||
+			!(*pexprTarget)[1]->Matches(pexprPred) ||
+			!pexprTarget->DeriveOutputColumns()->Equals(
+				pexprProject->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// The same structural rule must reject a predicate that consumes a column
+	// defined by the Compute layer: moving it below that definition is ill-scoped.
+	CExpression *pexprDefinedPred = fix.PexprPredAtom(pcrDefined);
+	CExpression *pexprInvalidSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprDefinedPred);
+	CExpression *pexprInvalidProject = PexprProjectWithScalar(
+		mp, pexprInvalidSelect, pcrDefined,
+		CUtils::PexprScalarConstInt4(mp, 1));
+	CDSLModel *pmodelInvalid = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherInvalid(mp, prule);
+	if (!matcherInvalid.FMatch(prule->PfragSrc()->PopRoot(),
+								 pexprInvalidProject, pmodelInvalid) ||
+		checker.FCheck(prule, pmodelInvalid))
+	{
+		eres = GPOS_FAILED;
+	}
+	pmodelInvalid->Release();
+	pexprInvalidProject->Release();
+	pexprInvalidSelect->Release();
+	pexprDefinedPred->Release();
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
+	pexprSelect->Release();
+	pexprPred->Release();
+	pexprInner->Release();
+	pexprOuter->Release();
 	prule->Release();
 	return eres;
 }

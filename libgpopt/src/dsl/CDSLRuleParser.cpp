@@ -385,6 +385,17 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
+		if (EdslconExprFilterCommute == edslcon &&
+			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymSchema != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail(
+				"ExprFilterCommute expects expression-list, predicate, and schema symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

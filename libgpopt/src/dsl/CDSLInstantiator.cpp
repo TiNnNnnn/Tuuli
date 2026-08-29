@@ -1156,7 +1156,8 @@ CDSLInstantiator::PopSourceFilterForPredicate(
 	const CDSLOp *pop, const CDSLSymbol *psymPred) const
 {
 	if (EdslopFilter == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
-		2 == pop->Pdrgpsym()->Size() && (*pop->Pdrgpsym())[0] == psymPred)
+		(2 == pop->Pdrgpsym()->Size() || 3 == pop->Pdrgpsym()->Size()) &&
+		(*pop->Pdrgpsym())[0] == psymPred)
 	{
 		return pop;
 	}
@@ -1308,7 +1309,8 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 {
 	GPOS_ASSERT(nullptr != m_prule);
 	CDSLSymbolArray *pdrgpsymTarget = popFilter->Pdrgpsym();
-	if (nullptr == pdrgpsymTarget || 2 != pdrgpsymTarget->Size())
+	if (nullptr == pdrgpsymTarget ||
+		(2 != pdrgpsymTarget->Size() && 3 != pdrgpsymTarget->Size()))
 	{
 		return nullptr;
 	}
@@ -1319,19 +1321,7 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 		m_prule->PfragSrc()->PopRoot(), psymSourcePred);
 	if (nullptr == pexprBound || nullptr == popSourceFilter ||
 		nullptr == popSourceFilter->Pdrgpsym() ||
-		2 != popSourceFilter->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-
-	const CDSLSymbol *psymSourceAttrs = (*popSourceFilter->Pdrgpsym())[1];
-	const CDSLSymbol *psymTargetAttrs = PsymResolve((*pdrgpsymTarget)[1]);
-	CColRefArray *pdrgpcrFrom =
-		PdrgpcrResolveCols(psymSourceAttrs, pmodel);
-	CColRefArray *pdrgpcrTo =
-		PdrgpcrResolveCols(psymTargetAttrs, pmodel);
-	if (nullptr == pdrgpcrFrom || nullptr == pdrgpcrTo ||
-		pdrgpcrFrom->Size() != pdrgpcrTo->Size())
+		popSourceFilter->Pdrgpsym()->Size() != pdrgpsymTarget->Size())
 	{
 		return nullptr;
 	}
@@ -1339,18 +1329,46 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 	UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
 	BOOL fRemap = false;
 	BOOL fTypeChange = false;
-	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
+	for (ULONG ulPart = 1; ulPart < pdrgpsymTarget->Size(); ulPart++)
 	{
-		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
-		CColRef *pcrTo = (*pdrgpcrTo)[ul];
-		fTypeChange = fTypeChange ||
-			!pcrFrom->RetrieveType()->MDId()->Equals(
-				pcrTo->RetrieveType()->MDId());
-		if (pcrFrom != pcrTo)
+		const CDSLSymbol *psymSourceAttrs =
+			(*popSourceFilter->Pdrgpsym())[ulPart];
+		const CDSLSymbol *psymTargetAttrs =
+			PsymResolve((*pdrgpsymTarget)[ulPart]);
+		CColRefArray *pdrgpcrFrom =
+			PdrgpcrResolveCols(psymSourceAttrs, pmodel);
+		CColRefArray *pdrgpcrTo =
+			PdrgpcrResolveCols(psymTargetAttrs, pmodel);
+		if (nullptr == pdrgpcrFrom || nullptr == pdrgpcrTo ||
+			pdrgpcrFrom->Size() != pdrgpcrTo->Size())
 		{
-			BOOL fInserted GPOS_ASSERTS_ONLY = phm->Insert(
-				GPOS_NEW(m_mp) ULONG(pcrFrom->Id()), pcrTo);
-			GPOS_ASSERT(fInserted);
+			phm->Release();
+			return nullptr;
+		}
+		for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
+		{
+			CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
+			CColRef *pcrTo = (*pdrgpcrTo)[ul];
+			fTypeChange = fTypeChange ||
+				!pcrFrom->RetrieveType()->MDId()->Equals(
+					pcrTo->RetrieveType()->MDId());
+			if (pcrFrom == pcrTo)
+			{
+				continue;
+			}
+			ULONG ulSourceId = pcrFrom->Id();
+			CColRef *pcrExisting = phm->Find(&ulSourceId);
+			if (nullptr != pcrExisting && pcrExisting != pcrTo)
+			{
+				phm->Release();
+				return nullptr;
+			}
+			if (nullptr == pcrExisting)
+			{
+				BOOL fInserted GPOS_ASSERTS_ONLY = phm->Insert(
+					GPOS_NEW(m_mp) ULONG(ulSourceId), pcrTo);
+				GPOS_ASSERT(fInserted);
+			}
 			fRemap = true;
 		}
 	}
@@ -1724,7 +1742,8 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 	while (nullptr != popCurrent && EdslopFilter == popCurrent->Edslop())
 	{
 		CDSLSymbolArray *pdrgpsym = popCurrent->Pdrgpsym();
-		if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+		if (nullptr == pdrgpsym ||
+			(2 != pdrgpsym->Size() && 3 != pdrgpsym->Size()) ||
 			1 != popCurrent->UlChildren())
 		{
 			pdrgpexpr->Release();
@@ -1785,18 +1804,44 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 		}
 	}
 	// Both remapped target predicates and untouched residuals must be evaluable
-	// over the rebuilt child. This is the construction-time half of target-side
-	// AttrsSub checking.
+	// over the rebuilt child plus any explicitly declared correlated outer
+	// dependencies. This is the construction-time half of target-side AttrsSub
+	// checking; treating outer refs as child outputs would reject every valid
+	// Filter<p local outer> target.
+	CColRefSet *pcrsAvailable = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAvailable->Include(pexprChild->DeriveOutputColumns());
+	const CDSLOp *popAvailable = pop;
+	while (nullptr != popAvailable &&
+		   EdslopFilter == popAvailable->Edslop())
+	{
+		CDSLSymbolArray *pdrgpsym = popAvailable->Pdrgpsym();
+		if (nullptr != pdrgpsym && 3 == pdrgpsym->Size())
+		{
+			CColRefArray *pdrgpcrOuter = PdrgpcrResolveCols(
+				PsymResolve((*pdrgpsym)[2]), pmodel);
+			if (nullptr == pdrgpcrOuter)
+			{
+				pcrsAvailable->Release();
+				pexprChild->Release();
+				pdrgpexpr->Release();
+				return nullptr;
+			}
+			pcrsAvailable->Include(pdrgpcrOuter);
+		}
+		popAvailable = (*popAvailable)[0];
+	}
 	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
 	{
-		if (!pexprChild->DeriveOutputColumns()->ContainsAll(
+		if (!pcrsAvailable->ContainsAll(
 				(*pdrgpexpr)[ul]->DeriveUsedColumns()))
 		{
+			pcrsAvailable->Release();
 			pexprChild->Release();
 			pdrgpexpr->Release();
 			return nullptr;
 		}
 	}
+	pcrsAvailable->Release();
 	if (0 == pdrgpexpr->Size())
 	{
 		pdrgpexpr->Release();

@@ -1,12 +1,13 @@
 {
-  "description": "A Rocq-proved SemiApply/Filter DSL rule replaces one-step correlated EXISTS decorrelation",
+  "description": "Two Rocq-proved DSL rules expose and decorrelate a correlated EXISTS below a safe Compute layer",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoin"
     ],
-    "scope": "LeftSemiApply over one correlated Filter with error-free deterministic predicates",
+    "scope": "LeftSemiApply over a correlated Filter, directly or below an error-free deterministic Compute/LET",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
+      "59b32af5adab80da",
       "977b505669323220"
     ]
   },
@@ -23,10 +24,12 @@
       "name": "shadow",
       "trace": true,
       "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ],
       "alternative": [
         "CXformLeftSemiApply2LeftSemiJoin",
+        "CXformDSLRule_Project",
         "CXformDSLRule_Exists"
       ]
     },
@@ -48,9 +51,11 @@
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ],
       "alternative": [
+        "CXformDSLRule_Project",
         "CXformDSLRule_Exists"
       ]
     }

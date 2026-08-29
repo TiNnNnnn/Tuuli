@@ -151,6 +151,10 @@ enum EDslConstraintKind
 	// AttrsUnion(out,left,right): stable, duplicate-free union of two attribute
 	// vectors. Target-only outputs are materialized lazily.
 	EdslconAttrsUnion,
+	// ExprFilterCommute(expr,pred,schema): a Compute/LET expression list can be
+	// evaluated before the predicate without changing outcomes. Schema names the
+	// columns defined by the Compute layer.
+	EdslconExprFilterCommute,
 	EdslconSentinel
 };
 

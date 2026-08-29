@@ -90,6 +90,11 @@ private:
 	BOOL FCheckAttrsUnion(const CDSLConstraint *pcon,
 						  const CDSLModel *pmodel) const;
 
+	// ExprFilterCommute(e,p,s): the predicate does not consume columns defined
+	// by the Compute list, whose evaluation is immutable and error-free.
+	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,
+								 const CDSLModel *pmodel) const;
+
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;
