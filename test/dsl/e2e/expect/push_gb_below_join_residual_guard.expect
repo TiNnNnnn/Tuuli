@@ -1,0 +1,28 @@
+{
+  "description": "FK grouping pushdown rejects a residual outer dependency absent from grouping",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\"",
+        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10"
+    ],
+    "postgres_output": [
+      "10"
+    ]
+  }
+}

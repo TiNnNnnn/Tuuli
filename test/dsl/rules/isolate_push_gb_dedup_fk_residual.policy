@@ -1,0 +1,8 @@
+# Isolate the explicit residual-predicate FK dedup pushdown from the unique
+# output shortcut, the two-symbol FK rule, and the semi-join producer rule.
+- rule: c602af3fe55f92f7
+  enabled: false
+- rule: 43379498a899178d
+  enabled: false
+- rule: 9cab8c80b6430c16
+  enabled: false

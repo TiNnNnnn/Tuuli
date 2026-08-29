@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule pushes nullable foreign-key grouping attrs below an inner join",
+  "description": "A proved DSL rule pushes nullable foreign-key grouping attrs below an inner join with a residual predicate",
   "replacement": {
     "xforms": [
       "CXformPushGbDedupBelowJoin"
     ],
-    "scope": "Outer grouping attrs contain a nullable FK joined to a unique referred key",
+    "scope": "Outer grouping attrs contain a nullable FK and every outer residual dependency",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "43379498a899178d"
+      "dc768bb1f1a116ef"
     ]
   },
   "plans": [
@@ -22,9 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_push_gb_dedup_fk.policy",
+      "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
+        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
       ],
       "alternative": [
         "CXformPushGbDedupBelowJoin",
@@ -48,9 +48,9 @@
       "disable_xforms": [
         "CXformPushGbDedupBelowJoin"
       ],
-      "policy": "isolate_push_gb_dedup_fk.policy",
+      "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
+        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

@@ -32,6 +32,8 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);SchemaEq(s1,s0);AttrsEq(a7,a2);SchemaEq(s2,s0)
 
+Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a7,a3);AttrsEq(a8,a4);AttrsEq(a9,a2);SchemaEq(s1,s0);AttrsEq(a10,a2);SchemaEq(s2,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -70,6 +72,11 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 # containing the FK, including nullable references. The inner-join equality
 # supplies the local non-null witness; SQLSolver propagates it through the
 # projected grouping tuple without requiring a global NotNull constraint.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
+# Line 35 covers the residual-predicate sibling explicitly. Its outer predicate
+# dependencies must be contained in the grouping attrs, while inner dependencies
+# remain available from the unmodified referred side. PredicateEq and both
+# dependency vectors make the proved RuleIR identical to the runtime rewrite.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
 # Lines 27 and 29 cover the two non-simple-predicate branches of
 # CXformLeftSemiJoin2InnerJoinUnderGb. The five-symbol InSubFilter preserves the
