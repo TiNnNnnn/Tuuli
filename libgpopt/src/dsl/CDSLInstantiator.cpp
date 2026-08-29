@@ -785,6 +785,42 @@ CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 	return (nullptr != psymSrc) ? psymSrc : psym;
 }
 
+CExpression *
+CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
+									const CDSLModel *pmodel) const
+{
+	if (nullptr == psym || EdslsymScalar != psym->Esymkind())
+	{
+		return nullptr;
+	}
+	const CDSLSymbol *psymResolved = PsymResolve(psym);
+	CExpression *pexpr = pmodel->PexprScalar(psymResolved);
+	if (nullptr != pexpr)
+	{
+		pexpr->AddRef();
+		return pexpr;
+	}
+	if (nullptr == m_prule)
+	{
+		return nullptr;
+	}
+
+	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if ((EdslconScalarOne != pcon->Edslcon() &&
+			 EdslconScalarZero != pcon->Edslcon()) ||
+			1 != pcon->Pdrgpsym()->Size() || (*pcon->Pdrgpsym())[0] != psym)
+		{
+			continue;
+		}
+		return CUtils::PexprScalarConstInt8(
+			m_mp, EdslconScalarOne == pcon->Edslcon() ? 1 : 0);
+	}
+	return nullptr;
+}
+
 CColRefArray *
 CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
@@ -3367,11 +3403,13 @@ CDSLInstantiator::PexprBuildLimit(const CDSLOp *pop,
 	}
 
 	CExpression *pexprCount =
-		pmodel->PexprScalar(PsymResolve((*pop->Pdrgpsym())[0]));
+		PexprResolveScalar((*pop->Pdrgpsym())[0], pmodel);
 	CExpression *pexprOffset =
-		pmodel->PexprScalar(PsymResolve((*pop->Pdrgpsym())[1]));
+		PexprResolveScalar((*pop->Pdrgpsym())[1], pmodel);
 	if (nullptr == pexprCount || nullptr == pexprOffset)
 	{
+		CRefCount::SafeRelease(pexprCount);
+		CRefCount::SafeRelease(pexprOffset);
 		return nullptr;
 	}
 
@@ -3393,6 +3431,8 @@ CDSLInstantiator::PexprBuildLimit(const CDSLOp *pop,
 	}
 	if (nullptr == pexprChild)
 	{
+		pexprCount->Release();
+		pexprOffset->Release();
 		return nullptr;
 	}
 
@@ -3408,11 +3448,11 @@ CDSLInstantiator::PexprBuildLimit(const CDSLOp *pop,
 	if (nullptr == pos)
 	{
 		pexprChild->Release();
+		pexprCount->Release();
+		pexprOffset->Release();
 		return nullptr;
 	}
 
-	pexprOffset->AddRef();
-	pexprCount->AddRef();
 	return GPOS_NEW(m_mp) CExpression(
 		m_mp,
 		GPOS_NEW(m_mp) CLogicalLimit(m_mp, pos, true /*global*/,

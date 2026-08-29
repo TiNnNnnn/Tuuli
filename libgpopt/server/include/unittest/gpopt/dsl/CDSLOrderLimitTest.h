@@ -16,6 +16,7 @@ public:
 	static GPOS_RESULT EresUnittest_PlainLimitRejectsHiddenOrder();
 	static GPOS_RESULT EresUnittest_OffsetOnlyLimitRoundTrip();
 	static GPOS_RESULT EresUnittest_NonDefaultNullOrderRejects();
+	static GPOS_RESULT EresUnittest_TargetScalarConstants();
 };
 }  // namespace gpopt
 

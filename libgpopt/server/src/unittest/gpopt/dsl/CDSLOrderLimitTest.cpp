@@ -5,6 +5,7 @@
 
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -61,6 +62,8 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_OffsetOnlyLimitRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects),
+		GPOS_UNITTEST_FUNC(
+			CDSLOrderLimitTest::EresUnittest_TargetScalarConstants),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
@@ -268,6 +271,51 @@ CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects()
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
 	pexprLive->Release();
+	pexprGet->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_TargetScalarConstants()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *pexprGet = fix.PexprLogicalGet("target_constants", 1, nullptr);
+	CDSLRule *prule = Prule(mp,
+		"Input<t0>|Limit<n0 n1>(Input<t1>)|"
+		"TableEq(t1,t0);ScalarOne(n0);ScalarZero(n1)");
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = GPOS_OK;
+	if (nullptr == prule ||
+		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGet, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CExpression *pexprTgt = nullptr;
+	if (GPOS_OK == eres)
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTgt = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprOne = CUtils::PexprScalarConstInt8(mp, 1);
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalLimit != pexprTgt->Pop()->Eopid() ||
+			!CLogicalLimit::PopConvert(pexprTgt->Pop())->FHasCount() ||
+			!CUtils::FHasZeroOffset(pexprTgt) ||
+			!(*pexprTgt)[2]->Matches(pexprOne))
+		{
+			eres = GPOS_FAILED;
+		}
+		pexprOne->Release();
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	CRefCount::SafeRelease(prule);
 	pexprGet->Release();
 	return eres;
 }

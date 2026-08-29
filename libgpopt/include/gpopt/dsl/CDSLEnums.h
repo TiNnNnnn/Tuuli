@@ -135,6 +135,11 @@ enum EDslConstraintKind
 	// supported, which keeps the operation independent of any one DSL operator.
 	EdslconAttrsIntersect,
 	EdslconPredicateFalse,
+	// Fixed scalar constructors used by target-side Limit/Top-N templates.
+	// They are semantic predicates over any scalar symbol, not xform-specific
+	// flags, and can also validate a source-side bound constant.
+	EdslconScalarOne,
+	EdslconScalarZero,
 	EdslconSentinel
 };
 

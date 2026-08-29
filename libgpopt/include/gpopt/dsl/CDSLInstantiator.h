@@ -102,6 +102,11 @@ private:
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
 
+	// Resolve a scalar alias to an owned expression, or materialize a target
+	// symbol declared by ScalarOne/ScalarZero.
+	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
+								 const CDSLModel *pmodel) const;
+
 	// Resolve a bound/aliased attrs or schema vector. If the symbol is the output
 	// of AttrsIntersect, derive it lazily and preserve the left operand's order.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,

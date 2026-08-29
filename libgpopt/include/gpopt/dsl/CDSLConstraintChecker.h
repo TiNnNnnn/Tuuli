@@ -93,6 +93,11 @@ private:
 	BOOL FCheckPredicateFalse(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
+	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
+	// symbol is intentionally unbound here and is materialized by instantiation.
+	BOOL FCheckScalarConstant(const CDSLConstraint *pcon,
+							 const CDSLModel *pmodel, LINT value) const;
+
 	// Reference(t0,a0,t1,a1): a0 -> a1 foreign key (see header note)
 	BOOL FCheckReference(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;

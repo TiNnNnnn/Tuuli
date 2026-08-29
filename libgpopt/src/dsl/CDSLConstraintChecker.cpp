@@ -40,8 +40,12 @@
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/IMDFunction.h"
 #include "naucrates/md/IMDRelation.h"
+#include "naucrates/base/IDatumInt2.h"
+#include "naucrates/base/IDatumInt4.h"
+#include "naucrates/base/IDatumInt8.h"
 
 using namespace gpopt;
+using namespace gpnaucrates;
 
 namespace
 {
@@ -933,6 +937,45 @@ CDSLConstraintChecker::FCheckPredicateFalse(
 	return nullptr != pexprPred && CUtils::FScalarConstFalse(pexprPred);
 }
 
+BOOL
+CDSLConstraintChecker::FCheckScalarConstant(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 1 != pdrgpsym->Size() ||
+		EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexpr = pmodel->PexprScalar((*pdrgpsym)[0]);
+	if (nullptr == pexpr)
+	{
+		// A target-only scalar is constructed by CDSLInstantiator.
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	if (COperator::EopScalarConst != pexpr->Pop()->Eopid())
+	{
+		return false;
+	}
+	IDatum *pdatum = CScalarConst::PopConvert(pexpr->Pop())->GetDatum();
+	if (pdatum->IsNull())
+	{
+		return false;
+	}
+	switch (pdatum->GetDatumType())
+	{
+		case IMDType::EtiInt2:
+			return value == dynamic_cast<IDatumInt2 *>(pdatum)->Value();
+		case IMDType::EtiInt4:
+			return value == dynamic_cast<IDatumInt4 *>(pdatum)->Value();
+		case IMDType::EtiInt8:
+			return value == dynamic_cast<IDatumInt8 *>(pdatum)->Value();
+		default:
+			return false;
+	}
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckReference
@@ -1683,6 +1726,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckNotNull(pcon, pmodel);
 		case EdslconPredicateFalse:
 			return FCheckPredicateFalse(pcon, pmodel);
+		case EdslconScalarOne:
+			return FCheckScalarConstant(pcon, pmodel, 1);
+		case EdslconScalarZero:
+			return FCheckScalarConstant(pcon, pmodel, 0);
 		case EdslconReference:
 			return FCheckReference(pcon, pmodel);
 		case EdslconErrorFree:

@@ -350,6 +350,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
+			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
+		{
+			bctx.Fail(std::string(CDSLConstraintKindTable::SzName(edslcon)) +
+					  " expects a scalar symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;
