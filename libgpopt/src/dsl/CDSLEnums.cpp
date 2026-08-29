@@ -121,6 +121,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconScalarZero, "ScalarZero", 1},
 	{EdslconAttrsEmpty, "AttrsEmpty", 1},
 	{EdslconPredicateAnd, "PredicateAnd", 3},
+	{EdslconAttrsUnion, "AttrsUnion", 3},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -499,6 +500,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconScalarZero:
 		case EdslconAttrsEmpty:
 		case EdslconPredicateAnd:
+		case EdslconAttrsUnion:
 			return true;
 		case EdslconSentinel:
 			return false;

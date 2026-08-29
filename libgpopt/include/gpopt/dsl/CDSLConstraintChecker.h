@@ -85,6 +85,11 @@ private:
 	BOOL FCheckAttrsIntersect(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
+	// AttrsUnion(out,left,right): validate the stable duplicate-free union of
+	// two attrs vectors, or defer a target-only output to instantiation.
+	BOOL FCheckAttrsUnion(const CDSLConstraint *pcon,
+						  const CDSLModel *pmodel) const;
+
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;

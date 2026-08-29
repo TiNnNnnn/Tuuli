@@ -924,7 +924,8 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			fEmptyDef = true;
 			continue;
 		}
-		if (EdslconAttrsIntersect == pcon->Edslcon() &&
+		if ((EdslconAttrsIntersect == pcon->Edslcon() ||
+			 EdslconAttrsUnion == pcon->Edslcon()) &&
 			3 == pcon->Pdrgpsym()->Size() &&
 			(*pcon->Pdrgpsym())[0] == psym)
 		{
@@ -949,6 +950,51 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	if (nullptr == pconDef)
 	{
 		return nullptr;
+	}
+	if (EdslconAttrsUnion == pconDef->Edslcon())
+	{
+		const CDSLSymbol *psymLeft =
+			PsymResolve((*pconDef->Pdrgpsym())[1]);
+		const CDSLSymbol *psymRight =
+			PsymResolve((*pconDef->Pdrgpsym())[2]);
+		if (EdslsymAttrs != psym->Esymkind() ||
+			EdslsymAttrs != psymLeft->Esymkind() ||
+			EdslsymAttrs != psymRight->Esymkind())
+		{
+			return nullptr;
+		}
+		CColRefArray *pdrgpcrLeft =
+			PdrgpcrResolveCols(psymLeft, pmodel, ulDepth + 1);
+		CColRefArray *pdrgpcrRight =
+			PdrgpcrResolveCols(psymRight, pmodel, ulDepth + 1);
+		if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight)
+		{
+			return nullptr;
+		}
+
+		CColRefArray *pdrgpcrResult = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CColRefSet *pcrsSeen = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		CColRefArray *rgpdrgpcr[] = {pdrgpcrLeft, pdrgpcrRight};
+		for (ULONG ulInput = 0; ulInput < 2; ulInput++)
+		{
+			for (ULONG ul = 0; ul < rgpdrgpcr[ulInput]->Size(); ul++)
+			{
+				CColRef *pcr = (*rgpdrgpcr[ulInput])[ul];
+				if (!pcrsSeen->FMember(pcr))
+				{
+					pcrsSeen->Include(pcr);
+					pdrgpcrResult->Append(pcr);
+				}
+			}
+		}
+		pcrsSeen->Release();
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
+									 pdrgpcrResult))
+		{
+			pdrgpcrResult->Release();
+			return nullptr;
+		}
+		return pdrgpcrResult;
 	}
 
 	const CDSLSymbol *psymInput = (*pconDef->Pdrgpsym())[1];

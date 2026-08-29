@@ -1,0 +1,73 @@
+{
+  "description": "A Rocq-proved SemiApply/Filter DSL rule replaces one-step correlated EXISTS decorrelation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply over one correlated Filter with error-free deterministic predicates",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "977b505669323220"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoin",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "10",
+      "20",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "20",
+      "30"
+    ]
+  }
+}

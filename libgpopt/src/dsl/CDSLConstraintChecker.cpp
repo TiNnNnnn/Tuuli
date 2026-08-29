@@ -162,6 +162,8 @@ FScalarTreeProvablyErrorFree(const CExpression *pexpr)
 		case COperator::EopScalarIdent:
 		case COperator::EopScalarConst:
 			return true;
+		case COperator::EopScalarNullTest:
+		case COperator::EopScalarBoolOp:
 		case COperator::EopScalarProjectElement:
 		case COperator::EopScalarProjectList:
 			break;
@@ -825,6 +827,66 @@ CDSLConstraintChecker::FCheckAttrsIntersect(const CDSLConstraint *pcon,
 	}
 	fEqual = fEqual && ulExpected == pdrgpcrOut->Size();
 	pcrsDomain->Release();
+	return fEqual;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckAttrsUnion(const CDSLConstraint *pcon,
+									 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < 3; ul++)
+	{
+		if (EdslsymAttrs != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+
+	CColRefArray *pdrgpcrLeft =
+		dynamic_cast<CColRefArray *>(pmodel->PvalLookup((*pdrgpsym)[1]));
+	CColRefArray *pdrgpcrRight =
+		dynamic_cast<CColRefArray *>(pmodel->PvalLookup((*pdrgpsym)[2]));
+	if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight)
+	{
+		return false;
+	}
+	CRefCount *pvalOut = pmodel->PvalLookup((*pdrgpsym)[0]);
+	if (nullptr == pvalOut)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	CColRefArray *pdrgpcrOut = dynamic_cast<CColRefArray *>(pvalOut);
+	if (nullptr == pdrgpcrOut)
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsSeen = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	ULONG ulExpected = 0;
+	BOOL fEqual = true;
+	CColRefArray *rgpdrgpcr[] = {pdrgpcrLeft, pdrgpcrRight};
+	for (ULONG ulInput = 0; fEqual && ulInput < 2; ulInput++)
+	{
+		for (ULONG ul = 0; fEqual && ul < rgpdrgpcr[ulInput]->Size(); ul++)
+		{
+			CColRef *pcr = (*rgpdrgpcr[ulInput])[ul];
+			if (pcrsSeen->FMember(pcr))
+			{
+				continue;
+			}
+			pcrsSeen->Include(pcr);
+			fEqual = ulExpected < pdrgpcrOut->Size() &&
+				(*pdrgpcrOut)[ulExpected] == pcr;
+			++ulExpected;
+		}
+	}
+	fEqual = fEqual && ulExpected == pdrgpcrOut->Size();
+	pcrsSeen->Release();
 	return fEqual;
 }
 
@@ -1598,6 +1660,47 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 	const CDSLSymbol *psymBound = psym;
 	if (nullptr == pmodel->PvalLookup(psymBound))
 	{
+		// A target predicate synthesized by PredicateAnd inherits both scalar
+		// properties from its bound operands. This is construction semantics, not
+		// an assumption about an arbitrary unbound target symbol.
+		if (EdslsymPred == psym->Esymkind())
+		{
+			CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+			for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+			{
+				const CDSLConstraint *pconAnd = (*pdrgpcon)[ul];
+				if (EdslconPredicateAnd != pconAnd->Edslcon() ||
+					3 != pconAnd->Pdrgpsym()->Size() ||
+					(*pconAnd->Pdrgpsym())[0] != psym)
+				{
+					continue;
+				}
+				CExpression *pexprLeft =
+					pmodel->PexprPred((*pconAnd->Pdrgpsym())[1]);
+				CExpression *pexprRight =
+					pmodel->PexprPred((*pconAnd->Pdrgpsym())[2]);
+				if (nullptr == pexprLeft || nullptr == pexprRight)
+				{
+					return false;
+				}
+				if (EdslconErrorFree == pcon->Edslcon())
+				{
+					return FScalarTreeProvablyErrorFree(pexprLeft) &&
+						FScalarTreeProvablyErrorFree(pexprRight);
+				}
+				const BOOL fLeftHasNonScalar =
+					pexprLeft->DeriveHasNonScalarFunction();
+				const BOOL fRightHasNonScalar =
+					pexprRight->DeriveHasNonScalarFunction();
+				const IMDFunction::EFuncStbl efsLeft =
+					pexprLeft->DeriveScalarFunctionProperties()->Efs();
+				const IMDFunction::EFuncStbl efsRight =
+					pexprRight->DeriveScalarFunctionProperties()->Efs();
+				return !fLeftHasNonScalar && !fRightHasNonScalar &&
+					IMDFunction::EfsImmutable == efsLeft &&
+					IMDFunction::EfsImmutable == efsRight;
+			}
+		}
 		// Resolve a target annotation only through an explicit equality to an
 		// already-bound source artifact. Treating an arbitrary unbound target as
 		// safe would silently discard the proof precondition.
@@ -1777,6 +1880,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsEmpty(pcon, pmodel);
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
+		case EdslconAttrsUnion:
+			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconUnique:
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:

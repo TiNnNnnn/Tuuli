@@ -148,6 +148,9 @@ enum EDslConstraintKind
 	// PredicateAnd(out,left,right): out is the canonical conjunction of two
 	// predicate symbols. Target-only outputs are materialized lazily.
 	EdslconPredicateAnd,
+	// AttrsUnion(out,left,right): stable, duplicate-free union of two attribute
+	// vectors. Target-only outputs are materialized lazily.
+	EdslconAttrsUnion,
 	EdslconSentinel
 };
 

@@ -372,6 +372,19 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
+		if (EdslconAttrsUnion == edslcon)
+		{
+			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+			{
+				if (EdslsymAttrs != (*pdrgpsym)[ul]->Esymkind())
+				{
+					bctx.Fail("AttrsUnion expects attrs symbols");
+					pdrgpsym->Release();
+					pdrgpcon->Release();
+					return nullptr;
+				}
+			}
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{
