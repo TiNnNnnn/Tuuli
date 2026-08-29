@@ -58,8 +58,9 @@ class CDSLMatcher;
 //		CDSLJoinMatcher
 //
 //	@doc:
-//		Matches a DSL InnerJoin/LeftJoin<a a [a s] [p a a]> template against an ORCA
-//		CLogicalInnerJoin / CLogicalLeftOuterJoin. Constructed per match attempt
+//		Matches DSL InnerJoin/LeftJoin keyed forms and the explicit
+//		SemiJoin<p a a> form against their corresponding ORCA logical operators.
+//		Constructed per match attempt
 //		with the transient pool and a back-reference to the generic matcher (so the
 //		two relational children can recurse). Owns no state beyond those.
 //---------------------------------------------------------------------------

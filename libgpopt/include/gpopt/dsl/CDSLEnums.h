@@ -73,6 +73,7 @@ enum EDslOpKind
 	EdslopAny,			 // quantified comparison: predicate is TRUE for some row
 	EdslopAll,			 // quantified comparison: predicate is TRUE for every row
 	EdslopEmpty,		 // zero-row relation carrying a bound table schema
+	EdslopSemiJoin,		 // explicit relational left semi join
 	EdslopSentinel
 };
 

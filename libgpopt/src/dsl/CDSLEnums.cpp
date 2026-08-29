@@ -49,6 +49,7 @@ struct SDslOpDesc
 //   Limit      <n n>   (limit, offset)
 //   Union      <a s>   (optional ordered full-row output attrs/schema)
 //   Compute    <e a s> (exact expression list, dependencies, defined columns)
+//   SemiJoin   <p a a> (complete predicate, left/right dependencies)
 const SDslOpDesc rg_op_desc[] = {
 	{EdslopInput, "Input", 0, 1, {EdslsymTable}},
 	{EdslopInnerJoin, "InnerJoin", 2, 7,
@@ -75,6 +76,8 @@ const SDslOpDesc rg_op_desc[] = {
 	{EdslopAny, "Any", 2, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopAll, "All", 2, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopEmpty, "Empty", 0, 1, {EdslsymTable}},
+	{EdslopSemiJoin, "SemiJoin", 2, 3,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -170,6 +173,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalInnerJoin;
 		case EdslopLeftJoin:
 			return COperator::EopLogicalLeftOuterJoin;
+		case EdslopSemiJoin:
+			return COperator::EopLogicalLeftSemiJoin;
 		case EdslopAgg:
 			return COperator::EopLogicalGbAgg;
 		case EdslopExists:
@@ -231,6 +236,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopLimit:
 		case EdslopCompute:
 		case EdslopEmpty:
+		case EdslopSemiJoin:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -259,6 +265,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopLimit:
 		case EdslopCompute:
 		case EdslopEmpty:
+		case EdslopSemiJoin:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -307,6 +314,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"Empty", EdslopEmpty, EdslsortNone},
 		{"InnerJoin", EdslopInnerJoin, EdslsortNone},
 		{"LeftJoin", EdslopLeftJoin, EdslsortNone},
+		{"SemiJoin", EdslopSemiJoin, EdslsortNone},
+		{"LeftSemiJoin", EdslopSemiJoin, EdslsortNone},
 		{"Filter", EdslopFilter, EdslsortNone},
 		{"PlainFilter", EdslopFilter, EdslsortNone},
 		{"SimpleFilter", EdslopFilter, EdslsortNone},

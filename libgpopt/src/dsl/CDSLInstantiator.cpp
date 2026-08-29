@@ -1717,11 +1717,13 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		CDSLInstantiator::PexprBuildJoin
 //
 //	@doc:
-//		InnerJoin/LeftJoin rebuild both relational children and graft the
+//		InnerJoin/LeftJoin/SemiJoin rebuild both relational children and graft the
 //		SOURCE-matched predicate, building the join operator the TARGET op names.
-//		The <p a a> form carries a complete predicate without equality keys. Keyed
-//		forms bind the join predicate directly or obtain it from a unique InSub
-//		source when a proved rule turns a semi-join view into an inner join.
+//		For Inner/LeftJoin, <p a a> carries a complete predicate without extracted
+//		equality keys; SemiJoin always carries the complete predicate, including
+//		equality. Keyed forms bind the join predicate directly or obtain it from a
+//		unique InSub source when a proved rule turns a semi-join view into an inner
+//		join.
 //		Reusing the exact predicate subtree preserves comparison semantics, while
 //		the shared positional remapper adapts columns to rebuilt target children.
 //---------------------------------------------------------------------------
@@ -1828,7 +1830,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
-	// build the join operator the TARGET names (Inner or LeftOuter).
+	// build the join operator the TARGET names.
 	CLogicalJoin *popJoin = nullptr;
 	switch (pop->Edslop())
 	{
@@ -1837,6 +1839,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			break;
 		case EdslopLeftJoin:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterJoin(m_mp);
+			break;
+		case EdslopSemiJoin:
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp);
 			break;
 		default:
 			pexprTargetPred->Release();
@@ -3581,6 +3586,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildLimit(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
+		case EdslopSemiJoin:
 			return PexprBuildJoin(pop, pmodel);
 		default:
 			return nullptr;

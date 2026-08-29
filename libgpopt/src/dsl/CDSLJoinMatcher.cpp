@@ -23,6 +23,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 
 using namespace gpopt;
@@ -468,16 +469,19 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 {
 	GPOS_ASSERT(nullptr != popJoin);
 	GPOS_ASSERT(EdslopInnerJoin == popJoin->Edslop() ||
-				EdslopLeftJoin == popJoin->Edslop());
+				EdslopLeftJoin == popJoin->Edslop() ||
+				EdslopSemiJoin == popJoin->Edslop());
 	GPOS_ASSERT(nullptr != pexprJoin);
 
 	// identity + arity gate: the live node must be the matching join carrying
 	// (left rel, right rel, scalar predicate).
 	const COperator::EOperatorId eopid = pexprJoin->Pop()->Eopid();
 	const BOOL fInner = (EdslopInnerJoin == popJoin->Edslop());
-	const COperator::EOperatorId eopidExpected =
-		fInner ? COperator::EopLogicalInnerJoin
-			   : COperator::EopLogicalLeftOuterJoin;
+	const BOOL fSemi = (EdslopSemiJoin == popJoin->Edslop());
+	const COperator::EOperatorId eopidExpected = fInner
+		? COperator::EopLogicalInnerJoin
+		: (fSemi ? COperator::EopLogicalLeftSemiJoin
+				 : COperator::EopLogicalLeftOuterJoin);
 	if (eopid != eopidExpected || 3 != pexprJoin->Arity())
 	{
 		return false;
@@ -488,8 +492,9 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	CDSLSymbolArray *pdrgpsym = popJoin->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
-		 5 != ulSymbols && 7 != ulSymbols) ||
+		(fSemi ? 3 != ulSymbols
+			   : (2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
+				  5 != ulSymbols && 7 != ulSymbols)) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
@@ -502,24 +507,39 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	// target children.
 	if (3 == ulSymbols)
 	{
-		CColRefArray *pdrgpcrLeftKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		CColRefArray *pdrgpcrRightKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		CExpressionArray *pdrgpexprPred =
-			GPOS_NEW(m_mp) CExpressionArray(m_mp);
-		FSplitPredicate((*pexprJoin)[2], (*pexprJoin)[0], pdrgpcrLeftKeys,
-						pdrgpcrRightKeys, pdrgpexprPred);
-		const BOOL fPredicateOnly = 0 == pdrgpcrLeftKeys->Size() &&
-			0 == pdrgpcrRightKeys->Size() && 0 < pdrgpexprPred->Size();
-		pdrgpcrLeftKeys->Release();
-		pdrgpcrRightKeys->Release();
-		if (!fPredicateOnly)
+		CExpression *pexprPred = nullptr;
+		if (fSemi)
 		{
-			pdrgpexprPred->Release();
-			return false;
+			// SemiJoin<p a a> always names the complete predicate. Unlike the
+			// legacy three-symbol Join form, equality conjuncts are not split out.
+			pexprPred = (*pexprJoin)[2];
+			pexprPred->AddRef();
 		}
+		else
+		{
+			CColRefArray *pdrgpcrLeftKeys =
+				GPOS_NEW(m_mp) CColRefArray(m_mp);
+			CColRefArray *pdrgpcrRightKeys =
+				GPOS_NEW(m_mp) CColRefArray(m_mp);
+			CExpressionArray *pdrgpexprPred =
+				GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			FSplitPredicate((*pexprJoin)[2], (*pexprJoin)[0],
+							pdrgpcrLeftKeys, pdrgpcrRightKeys,
+							pdrgpexprPred);
+			const BOOL fPredicateOnly = 0 == pdrgpcrLeftKeys->Size() &&
+				0 == pdrgpcrRightKeys->Size() &&
+				0 < pdrgpexprPred->Size();
+			pdrgpcrLeftKeys->Release();
+			pdrgpcrRightKeys->Release();
+			if (!fPredicateOnly)
+			{
+				pdrgpexprPred->Release();
+				return false;
+			}
 
-		CExpression *pexprPred =
-			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+			pexprPred =
+				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+		}
 		CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
 		CColRefSet *pcrsLeftDeps =
 			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);

@@ -367,7 +367,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// children. Like Filter/Proj, the join predicate (child[2]) is scalar structure
 	// only operator-specific code reads, so join does not go through generic child
 	// recursion (see CDSLJoinMatcher, doc M2).
-	if (EdslopInnerJoin == pop->Edslop() || EdslopLeftJoin == pop->Edslop())
+	if (EdslopInnerJoin == pop->Edslop() || EdslopLeftJoin == pop->Edslop() ||
+		EdslopSemiJoin == pop->Edslop())
 	{
 		CDSLJoinMatcher jm(m_mp, this, m_prule);
 		return jm.FMatch(pop, pexpr, pmodel);

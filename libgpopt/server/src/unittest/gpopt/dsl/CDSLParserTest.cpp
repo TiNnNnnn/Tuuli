@@ -170,6 +170,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);"
 		"AttrsEq(a7,a2);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a8,a3);"
 		"AttrsEq(a9,a4)",
+		// Explicit SemiJoin binds its complete predicate and exact dependencies.
+		"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|SemiJoin<p1 a2 a3>"
+		"(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)",
 		// Existing MONSOON corpus form (fewshot_curated.txt): bare Agg with five
 		// symbols groupBy, aggAttrs, func, schema, having.
 		"Exists(Proj<a0 s0>(Input<t0>),Agg<a1 a2 f0 s1 p0>(Input<t1>))|"
@@ -336,6 +340,20 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	join4->Release();
 	join5->Release();
 	join7->Release();
+	// SemiJoin always binds one complete predicate and its exact dependencies.
+	bad = Parse(
+		mp,
+		"SemiJoin<a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *semiJoin = Parse(
+		mp,
+		"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr != bad || nullptr == semiJoin)
+	{
+		CRefCount::SafeRelease(bad);
+		CRefCount::SafeRelease(semiJoin);
+		return GPOS_FAILED;
+	}
+	semiJoin->Release();
 	// InSub keeps its equality-only one-symbol corpus form and accepts the
 	// complete key/predicate/dependency extension, but no partial declaration.
 	bad = Parse(
@@ -387,6 +405,10 @@ CDSLParserTest::EresUnittest_Aliases()
 		 "Exists(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)"},
 		{"NotExistsFilter(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)",
 		 "NotExists(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)"},
+		{"LeftSemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Input<t2>|"
+		 "TableEq(t2,t0)",
+		 "SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Input<t2>|"
+		 "TableEq(t2,t0)"},
 		{"SimpleFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
 		 "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"},
 		{"PlainFilter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",

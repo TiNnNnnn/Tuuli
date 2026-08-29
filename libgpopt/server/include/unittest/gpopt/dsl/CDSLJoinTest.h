@@ -11,8 +11,9 @@
 //		residual, recurse both children, and instantiate a target join that grafts
 //		the exact predicate (equi + non-equi) — output-column invariant preserved.
 //
-//		M2 covers InnerJoin / LeftJoin structural rewrites (base A) and the
-//		Reference/FK check (which needs live relcache metadata — base C; here we
+//		M2 covers InnerJoin / LeftJoin / SemiJoin structural rewrites (base A)
+//		and the Reference/FK check (which needs live relcache metadata — base C;
+//		here we
 //		only assert it REJECTS on the FK-less programmatic fixture, so a
 //		Reference-guarded rule does not fire).
 //---------------------------------------------------------------------------
@@ -46,6 +47,7 @@ public:
 	// predicate is complete.
 	static GPOS_RESULT EresUnittest_NonEquiPredicateResidual();
 	static GPOS_RESULT EresUnittest_PredicateOnlyJoin();
+	static GPOS_RESULT EresUnittest_ExplicitSemiJoinBindsCompletePredicate();
 
 	// PredicateFalse gates a direct constant-FALSE LeftJoin and Empty builds a
 	// zero-row right input with the original output schema.
