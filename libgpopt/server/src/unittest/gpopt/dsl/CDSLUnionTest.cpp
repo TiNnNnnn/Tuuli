@@ -55,6 +55,14 @@ using namespace gpopt;
 	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0);"   \
 	"AttrsEq(a4,a0);SchemaEq(s4,s0)"
 
+#define GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_ALL_RULE                   \
+	"Proj*<a0 s0>(Union<a1 s1>(Input<t0>,Input<t1>))|"                  \
+	"Union*<a2 s2>(Proj*<a3 s3>(Input<t2>),"                            \
+	"Proj*<a4 s4>(Input<t3>))|"                                        \
+	"AttrsSub(a0,a1);AttrsSub(a0,s1);TableEq(t2,t0);TableEq(t3,t1);"   \
+	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0);"   \
+	"AttrsEq(a4,a0);SchemaEq(s4,s0)"
+
 #define GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE                         \
 	"InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"    \
 	"Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),"              \
@@ -153,48 +161,16 @@ BuildTwoGetUnion(CDSLTestFixture &fix, BOOL fDistinct,
 						  *ppRight, pdrgpcrRight);
 }
 
-GPOS_RESULT
-CDSLUnionTest::EresUnittest()
-{
-	CUnittest rgut[] = {
-		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_InstantiatePreservesColumnMaps),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_OutputBindingBuildsFullRowDedup),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_DistinctUnionViewMatchesFullRowDedup),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion),
-		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SwapsBranchesByConstraints),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_RejectsRemapAcrossOptimizerGbAgg),
-		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_CorpusTwoProjects),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_CorpusNestedDistinctProjects),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_JoinDistributionBuildsFreshBranches),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_LeftJoinDistributionBuildsFreshBranches),
-		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
-	};
-	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
-}
-
-GPOS_RESULT
-CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion()
+static GPOS_RESULT
+EresGroupingSubsetPushesBelowUnion(BOOL fDistinct, const CHAR *szRule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule = PdslruleParseLocal(
-		mp, GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, szRule);
 	CExpression *pexprLeft = nullptr, *pexprRight = nullptr,
 				*pexprUnion = nullptr;
-	BuildTwoGetUnion(fix, true, &pexprLeft, &pexprRight, &pexprUnion);
+	BuildTwoGetUnion(fix, fDistinct, &pexprLeft, &pexprRight, &pexprUnion);
 	CLogicalSetOp *popUnion = CLogicalSetOp::PopConvert(pexprUnion->Pop());
 	CColRefArray *pdrgpcrSubset = GPOS_NEW(mp) CColRefArray(mp);
 	pdrgpcrSubset->Append((*popUnion->PdrgpcrOutput())[0]);
@@ -226,8 +202,7 @@ CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion()
 		{
 			pexprTargetUnion = (*pexprTargetUnion)[0];
 		}
-		if (nullptr != pexprTargetUnion &&
-			COperator::EopLogicalUnion ==
+		if (COperator::EopLogicalUnion ==
 				pexprTargetUnion->Pop()->Eopid() &&
 			2 == pexprTargetUnion->Arity() &&
 			COperator::EopLogicalGbAgg ==
@@ -262,6 +237,53 @@ CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion()
 	pexprRight->Release();
 	CRefCount::SafeRelease(prule);
 	return eres;
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest()
+{
+	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_InstantiatePreservesColumnMaps),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_OutputBindingBuildsFullRowDedup),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_DistinctUnionViewMatchesFullRowDedup),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowUnionAll),
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SwapsBranchesByConstraints),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_RejectsRemapAcrossOptimizerGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_CorpusTwoProjects),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_CorpusNestedDistinctProjects),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_JoinDistributionBuildsFreshBranches),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_LeftJoinDistributionBuildsFreshBranches),
+		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
+	};
+	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowDistinctUnion()
+{
+	return EresGroupingSubsetPushesBelowUnion(
+		true, GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_RULE);
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_GroupingSubsetPushesBelowUnionAll()
+{
+	return EresGroupingSubsetPushesBelowUnion(
+		false, GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_ALL_RULE);
 }
 
 GPOS_RESULT

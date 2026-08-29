@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule pushes full-row deduplication into every UnionAll branch",
+  "description": "A proved DSL rule pushes an arbitrary grouping subset into every UnionAll branch",
   "replacement": {
     "xforms": [
       "CXformPushGbBelowUnionAll"
     ],
-    "scope": "Pure global full-row DISTINCT directly above UnionAll; grouping subsets and aggregate functions remain outside this rule",
-    "status": "verified_partial_replacement",
+    "scope": "Complete pure Global grouping domain of CXformPushGbBelowUnionAll; aggregate functions remain outside the native xform itself",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "dccd371954ea7cb7"
+      "d2588917b10afdab"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"dccd371954ea7cb7\""
+        "\"status\":\"applied\",\"rule_hash\":\"d2588917b10afdab\""
       ],
       "alternative": [
         "CXformPushGbBelowUnionAll",
@@ -48,7 +48,7 @@
         "CXformPushGbBelowUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"dccd371954ea7cb7\""
+        "\"status\":\"applied\",\"rule_hash\":\"d2588917b10afdab\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

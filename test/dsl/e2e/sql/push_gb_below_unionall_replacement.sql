@@ -1,7 +1,8 @@
-SELECT DISTINCT k
+SELECT k
 FROM (
-    SELECT k FROM dsl_eq_left
+    SELECT k, k % 2 AS v FROM dsl_eq_left
     UNION ALL
-    SELECT k FROM dsl_eq_right
+    SELECT k, k % 2 AS v FROM dsl_eq_right
 ) AS union_rows
+GROUP BY k
 ORDER BY k;

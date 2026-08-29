@@ -20,6 +20,7 @@ public:
 	static GPOS_RESULT EresUnittest_OutputBindingBuildsFullRowDedup();
 	static GPOS_RESULT EresUnittest_DistinctUnionViewMatchesFullRowDedup();
 	static GPOS_RESULT EresUnittest_GroupingSubsetPushesBelowDistinctUnion();
+	static GPOS_RESULT EresUnittest_GroupingSubsetPushesBelowUnionAll();
 	static GPOS_RESULT EresUnittest_SwapsBranchesByConstraints();
 	static GPOS_RESULT EresUnittest_RejectsRemapAcrossOptimizerGbAgg();
 	static GPOS_RESULT EresUnittest_CorpusTwoProjects();
