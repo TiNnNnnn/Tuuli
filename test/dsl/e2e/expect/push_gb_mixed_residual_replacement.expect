@@ -1,0 +1,75 @@
+{
+  "description": "A proved DSL rule pushes mixed grouping below an inner join while preserving a residual predicate",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Mixed grouping contains the FK and all residual outer dependencies",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "c29e145d47af5690"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_push_gb_mixed_residual.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c29e145d47af5690\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_push_gb_mixed_residual.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c29e145d47af5690\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10,1,100",
+      "10,2,100",
+      "20,3,200"
+    ],
+    "postgres_output": [
+      "10,1,100",
+      "10,2,100",
+      "20,3,200"
+    ]
+  }
+}
