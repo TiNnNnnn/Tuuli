@@ -109,9 +109,10 @@ private:
 								   CExpression *pexprBase,
 								   CExpression *pexprCandidate) const;
 
-	// bind one DSL Filter op's <p a> symbols to conjunct pexprConj (pred + its
-	// used columns). Returns false on an incompatible equality-class rebind.
+	// Bind Filter<p,local[,outer]>. The legacy vector receives every dependency;
+	// the extended vectors partition dependencies by the actual child output.
 	BOOL FBindFilterSymbols(const CDSLOp *popFilter, CExpression *pexprConj,
+							CExpression *pexprBase,
 							CDSLModel *pmodel) const;
 
 	// after a successful assignment, record the conjuncts left unused on the

@@ -22,6 +22,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -76,11 +77,93 @@ CDSLFilterSplitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLFilterSplitTest::EresUnittest_ConstraintAwareBacktracking),
 		GPOS_UNITTEST_FUNC(
+			CDSLFilterSplitTest::EresUnittest_CorrelatedDependencyPartitions),
+		GPOS_UNITTEST_FUNC(
 			CDSLFilterSplitTest::
 				EresUnittest_NormalizedDuplicateFilterMatchesOnce),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLFilterSplitTest::EresUnittest_CorrelatedDependencyPartitions
+//
+//	@doc:
+//		Both predicates use the same inner column but different outer columns.
+//		AttrsEq(local0,local1) must therefore match, while each outer vector stays
+//		distinct. Comparing the predicates' complete used-column sets would reject
+//		this valid assignment.
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLFilterSplitTest::EresUnittest_CorrelatedDependencyPartitions()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p1 a1 o1>(Filter<p0 a0 o0>(Input<t0>))|Input<t1>|"
+		"AttrsEq(a0,a1);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrInner = nullptr;
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("partition_inner", 1, &pdrgpcrInner);
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("partition_outer", 2, &pdrgpcrOuter);
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]));
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrOuter)[1]));
+	CExpression *pexprPred =
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj);
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprInner, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLOp *popOuterFilter = prule->PfragSrc()->PopRoot();
+	CDSLOp *popInnerFilter = (*popOuterFilter)[0];
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(popOuterFilter, pexprSelect, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CColRefArray *pdrgpcrLocal0 =
+			pmodel->PdrgpcrAttrs((*popInnerFilter->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrOuter0 =
+			pmodel->PdrgpcrAttrs((*popInnerFilter->Pdrgpsym())[2]);
+		CColRefArray *pdrgpcrLocal1 =
+			pmodel->PdrgpcrAttrs((*popOuterFilter->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrOuter1 =
+			pmodel->PdrgpcrAttrs((*popOuterFilter->Pdrgpsym())[2]);
+		if (nullptr == pdrgpcrLocal0 || nullptr == pdrgpcrOuter0 ||
+			nullptr == pdrgpcrLocal1 || nullptr == pdrgpcrOuter1 ||
+			1 != pdrgpcrLocal0->Size() || 1 != pdrgpcrLocal1->Size() ||
+			1 != pdrgpcrOuter0->Size() || 1 != pdrgpcrOuter1->Size() ||
+			(*pdrgpcrLocal0)[0] != (*pdrgpcrLocal1)[0] ||
+			(*pdrgpcrOuter0)[0] == (*pdrgpcrOuter1)[0])
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	pmodel->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	pexprSelect->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

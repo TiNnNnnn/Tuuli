@@ -100,10 +100,10 @@ using namespace gpopt;
 	"ErrorFree(p0);ErrorFree(p1)"
 
 #define GPOPT_DSL_SEMI_APPLY_FILTER_TO_JOIN_RULE                         \
-	"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3>(Input<t1>))|"       \
-	"SemiJoin<p2 a4 a5>(Input<t2>,Input<t3>)|"                           \
+	"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"    \
+	"SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"                           \
 	"TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p2,p0,p1);"              \
-	"AttrsEq(a4,a0);AttrsEq(a5,a3)"
+	"AttrsEq(a5,a0);AttrsEq(a5,a4);AttrsEq(a6,a3)"
 
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
@@ -190,8 +190,9 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		fix.PexprLogicalGet("predicate_and_outer", 2, &pdrgpcrOuter);
 	CExpression *pexprInner =
 		fix.PexprLogicalGet("predicate_and_inner", 2, &pdrgpcrInner);
-	CExpression *pexprApplyPred = fix.PexprPredAtom((*pdrgpcrOuter)[0]);
-	CExpression *pexprFilterPred = fix.PexprPredAtom((*pdrgpcrInner)[1]);
+	CExpression *pexprApplyPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+	CExpression *pexprFilterPred =
+		fix.PexprEqPred((*pdrgpcrOuter)[1], (*pdrgpcrInner)[0]);
 	CExpression *pexprFilteredInner =
 		fix.PexprLogicalSelect(pexprInner, pexprFilterPred);
 	pexprOuter->AddRef();

@@ -33,6 +33,15 @@ using namespace gpopt;
 // than allocating), which is safe — such a rule simply won't fire here.
 #define GPOPT_DSL_MAX_FILTER_CHAIN 16
 
+namespace
+{
+CColRefArray *PdrgpcrFilterDependencies(CMemoryPool *mp,
+										const CDSLOp *popFilter,
+										CExpression *pexprPredicate,
+										CExpression *pexprBase,
+										ULONG ulSymbol);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLFilterMatcher::PopCollectChain
@@ -82,18 +91,20 @@ CDSLFilterMatcher::PopCollectChain(const CDSLOp *popFilterRoot,
 BOOL
 CDSLFilterMatcher::FBindFilterSymbols(const CDSLOp *popFilter,
 									  CExpression *pexprConj,
+									  CExpression *pexprBase,
 									  CDSLModel *pmodel) const
 {
 	GPOS_ASSERT(EdslopFilter == popFilter->Edslop());
 
 	CDSLSymbolArray *pdrgpsym = popFilter->Pdrgpsym();
-	// Filter schema is <p a> — pred first, attrs second (validated at parse).
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	// Filter schema is <p local> or <p local outer>.
+	if (nullptr == pdrgpsym ||
+		(2 != pdrgpsym->Size() && 3 != pdrgpsym->Size()) ||
+		nullptr == pexprBase)
 	{
 		return false;
 	}
 	const CDSLSymbol *psymPred = (*pdrgpsym)[0];
-	const CDSLSymbol *psymAttrs = (*pdrgpsym)[1];
 
 	// <p> -> the conjunct predicate subtree
 	if (!pmodel->FBind(psymPred, pexprConj))
@@ -101,13 +112,26 @@ CDSLFilterMatcher::FBindFilterSymbols(const CDSLOp *popFilter,
 		return false;
 	}
 
-	// <a> -> the columns this conjunct references (its "attrs"). Materialize the
-	// used-column set as an ordered CColRefArray (the model stores arrays for
-	// attrs symbols). FBind AddRefs it, so we release our local ref after.
-	CColRefSet *pcrsUsed = pexprConj->DeriveUsedColumns();
-	CColRefArray *pdrgpcr = pcrsUsed->Pdrgpcr(m_mp);
-	BOOL fBound = pmodel->FBind(psymAttrs, pdrgpcr);
-	pdrgpcr->Release();
+	// Materialize dependency vectors with the same partitioning helper used by
+	// rollback-free candidate selection below. FBind AddRefs arrays, so release
+	// each local reference after binding.
+	if (2 == pdrgpsym->Size())
+	{
+		CColRefArray *pdrgpcrDeps = PdrgpcrFilterDependencies(
+			m_mp, popFilter, pexprConj, pexprBase, 1);
+		BOOL fBound = pmodel->FBind((*pdrgpsym)[1], pdrgpcrDeps);
+		pdrgpcrDeps->Release();
+		return fBound;
+	}
+
+	CColRefArray *pdrgpcrLocal = PdrgpcrFilterDependencies(
+		m_mp, popFilter, pexprConj, pexprBase, 1);
+	CColRefArray *pdrgpcrOuter = PdrgpcrFilterDependencies(
+		m_mp, popFilter, pexprConj, pexprBase, 2);
+	BOOL fBound = pmodel->FBind((*pdrgpsym)[1], pdrgpcrLocal) &&
+		pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter);
+	pdrgpcrLocal->Release();
+	pdrgpcrOuter->Release();
 	return fBound;
 }
 
@@ -157,15 +181,6 @@ FDirectEquality(const CDSLRule *prule, EDslConstraintKind edslcon,
 }
 
 BOOL
-FUsedColumnsEqual(CExpression *pexprFirst, CExpression *pexprSecond)
-{
-	CColRefSet *pcrsFirst = pexprFirst->DeriveUsedColumns();
-	CColRefSet *pcrsSecond = pexprSecond->DeriveUsedColumns();
-	return pcrsFirst->Size() == pcrsSecond->Size() &&
-		   pcrsFirst->ContainsAll(pcrsSecond);
-}
-
-BOOL
 FUsedColumnsEqual(CMemoryPool *mp, CExpression *pexpr,
 				  CColRefArray *pdrgpcr)
 {
@@ -176,6 +191,44 @@ FUsedColumnsEqual(CMemoryPool *mp, CExpression *pexpr,
 				  pcrsUsed->ContainsAll(pcrsExpected);
 	pcrsExpected->Release();
 	return fEqual;
+}
+
+// Materialize one Filter dependency vector using the same definition during
+// candidate selection and final binding. The legacy two-symbol form has one
+// vector containing every used column. The extended form partitions that set
+// by whether the column is produced by the Filter's relational child.
+CColRefArray *
+PdrgpcrFilterDependencies(CMemoryPool *mp, const CDSLOp *popFilter,
+						  CExpression *pexprPredicate,
+						  CExpression *pexprBase, ULONG ulSymbol)
+{
+	GPOS_ASSERT(nullptr != popFilter && EdslopFilter == popFilter->Edslop());
+	GPOS_ASSERT(nullptr != pexprPredicate && nullptr != pexprBase);
+	CDSLSymbolArray *pdrgpsym = popFilter->Pdrgpsym();
+	GPOS_ASSERT(nullptr != pdrgpsym &&
+				(2 == pdrgpsym->Size() || 3 == pdrgpsym->Size()));
+	GPOS_ASSERT(0 < ulSymbol && ulSymbol < pdrgpsym->Size());
+
+	CColRefArray *pdrgpcrUsed =
+		pexprPredicate->DeriveUsedColumns()->Pdrgpcr(mp);
+	if (2 == pdrgpsym->Size())
+	{
+		return pdrgpcrUsed;
+	}
+
+	CColRefSet *pcrsLocal = pexprBase->DeriveOutputColumns();
+	CColRefArray *pdrgpcrDeps = GPOS_NEW(mp) CColRefArray(mp);
+	for (ULONG ul = 0; ul < pdrgpcrUsed->Size(); ul++)
+	{
+		CColRef *pcr = (*pdrgpcrUsed)[ul];
+		const BOOL fLocal = pcrsLocal->FMember(pcr);
+		if ((1 == ulSymbol && fLocal) || (2 == ulSymbol && !fLocal))
+		{
+			pdrgpcrDeps->Append(pcr);
+		}
+	}
+	pdrgpcrUsed->Release();
+	return pdrgpcrDeps;
 }
 
 void
@@ -396,7 +449,8 @@ CDSLFilterMatcher::FBaseAssignmentCompatible(
 		 EdslopLeftJoin != popBase->Edslop()) ||
 		3 != pexprBase->Arity() || nullptr == popBase->Pdrgpsym() ||
 		2 != popBase->Pdrgpsym()->Size() || nullptr == popFilter->Pdrgpsym() ||
-		2 != popFilter->Pdrgpsym()->Size())
+		(2 != popFilter->Pdrgpsym()->Size() &&
+		 3 != popFilter->Pdrgpsym()->Size()))
 	{
 		return true;
 	}
@@ -410,42 +464,56 @@ CDSLFilterMatcher::FBaseAssignmentCompatible(
 		return true;
 	}
 
-	const CDSLSymbol *psymFilterAttrs = (*popFilter->Pdrgpsym())[1];
-	BOOL fLinkedLeft = FDirectEquality(
-		m_prule, EdslconAttrsEq, psymFilterAttrs,
-		(*popBase->Pdrgpsym())[0]);
-	BOOL fLinkedRight = FDirectEquality(
-		m_prule, EdslconAttrsEq, psymFilterAttrs,
-		(*popBase->Pdrgpsym())[1]);
-	if (!fLinkedLeft && !fLinkedRight)
-	{
-		return true;
-	}
-
 	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	ExtractJoinKeys(m_mp, pexprBase, pdrgpcrLeft, pdrgpcrRight);
-	BOOL fCompatible =
-		(fLinkedLeft && 0 < pdrgpcrLeft->Size() &&
-		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrLeft)) ||
-		(fLinkedRight && 0 < pdrgpcrRight->Size() &&
-		 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrRight));
-	// A BottomUp RBO sees only the translator's inner-join orientation. The
-	// actual candidate can therefore use the opposite member of the same join
-	// equality while a commuted match view binds the source template side named
-	// by AttrsEq. This is safe only for InnerJoin; outer-join sides are not
-	// interchangeable.
-	if (!fCompatible && COperator::EopLogicalInnerJoin == eopidExpected)
+	BOOL fLinked = false;
+	BOOL fCompatible = false;
+	CDSLSymbolArray *pdrgpsymFilter = popFilter->Pdrgpsym();
+	for (ULONG ulSymbol = 1; ulSymbol < pdrgpsymFilter->Size(); ulSymbol++)
 	{
+		const CDSLSymbol *psymFilterAttrs = (*pdrgpsymFilter)[ulSymbol];
+		const BOOL fLinkedLeft = FDirectEquality(
+			m_prule, EdslconAttrsEq, psymFilterAttrs,
+			(*popBase->Pdrgpsym())[0]);
+		const BOOL fLinkedRight = FDirectEquality(
+			m_prule, EdslconAttrsEq, psymFilterAttrs,
+			(*popBase->Pdrgpsym())[1]);
+		if (!fLinkedLeft && !fLinkedRight)
+		{
+			continue;
+		}
+
+		fLinked = true;
+		CColRefArray *pdrgpcrDeps = PdrgpcrFilterDependencies(
+			m_mp, popFilter, pexprCandidate, pexprBase, ulSymbol);
 		fCompatible =
-			(fLinkedLeft && 0 < pdrgpcrRight->Size() &&
-			 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrRight)) ||
-			(fLinkedRight && 0 < pdrgpcrLeft->Size() &&
-			 FUsedColumnsEqual(m_mp, pexprCandidate, pdrgpcrLeft));
+			(fLinkedLeft && 0 < pdrgpcrLeft->Size() &&
+			 CColRef::Equals(pdrgpcrDeps, pdrgpcrLeft)) ||
+			(fLinkedRight && 0 < pdrgpcrRight->Size() &&
+			 CColRef::Equals(pdrgpcrDeps, pdrgpcrRight));
+		// A BottomUp RBO sees only the translator's inner-join orientation. The
+		// actual candidate can therefore use the opposite member of the same join
+		// equality while a commuted match view binds the source template side named
+		// by AttrsEq. This is safe only for InnerJoin; outer-join sides are not
+		// interchangeable.
+		if (!fCompatible && COperator::EopLogicalInnerJoin == eopidExpected)
+		{
+			fCompatible =
+				(fLinkedLeft && 0 < pdrgpcrRight->Size() &&
+				 CColRef::Equals(pdrgpcrDeps, pdrgpcrRight)) ||
+				(fLinkedRight && 0 < pdrgpcrLeft->Size() &&
+				 CColRef::Equals(pdrgpcrDeps, pdrgpcrLeft));
+		}
+		pdrgpcrDeps->Release();
+		if (!fCompatible)
+		{
+			break;
+		}
 	}
 	pdrgpcrRight->Release();
 	pdrgpcrLeft->Release();
-	return fCompatible;
+	return !fLinked || fCompatible;
 }
 
 BOOL
@@ -458,24 +526,52 @@ CDSLFilterMatcher::FAssignmentCompatible(
 	CDSLSymbolArray *pdrgpsymCandidate =
 		rgpopFilters[ulFilter]->Pdrgpsym();
 	GPOS_ASSERT(nullptr != pdrgpsymCandidate &&
-				2 == pdrgpsymCandidate->Size());
+				(2 == pdrgpsymCandidate->Size() ||
+				 3 == pdrgpsymCandidate->Size()));
 	const CDSLSymbol *psymPredCandidate = (*pdrgpsymCandidate)[0];
-	const CDSLSymbol *psymAttrsCandidate = (*pdrgpsymCandidate)[1];
 
 	for (ULONG ulPrevious = 0; ulPrevious < ulFilter; ulPrevious++)
 	{
 		CDSLSymbolArray *pdrgpsymPrevious =
 			rgpopFilters[ulPrevious]->Pdrgpsym();
 		GPOS_ASSERT(nullptr != pdrgpsymPrevious &&
-					2 == pdrgpsymPrevious->Size());
+					(2 == pdrgpsymPrevious->Size() ||
+					 3 == pdrgpsymPrevious->Size()));
 		CExpression *pexprPrevious =
 			(*pdrgpexprConj)[rgulAssigned[ulPrevious]];
 
-		if (FDirectEquality(m_prule, EdslconAttrsEq, psymAttrsCandidate,
-						(*pdrgpsymPrevious)[1]) &&
-			!FUsedColumnsEqual(pexprCandidate, pexprPrevious))
+		// Compare the exact dependency partitions selected by AttrsEq. This must
+		// mirror final binding because the model has no rollback after a conjunct
+		// assignment is committed.
+		for (ULONG ulCandidate = 1; ulCandidate < pdrgpsymCandidate->Size();
+			 ulCandidate++)
 		{
-			return false;
+			for (ULONG ulPreviousSym = 1;
+				 ulPreviousSym < pdrgpsymPrevious->Size(); ulPreviousSym++)
+			{
+				if (FDirectEquality(
+						m_prule, EdslconAttrsEq,
+						(*pdrgpsymCandidate)[ulCandidate],
+						(*pdrgpsymPrevious)[ulPreviousSym]))
+				{
+					CColRefArray *pdrgpcrCandidate =
+						PdrgpcrFilterDependencies(
+							m_mp, rgpopFilters[ulFilter], pexprCandidate,
+							pexprBase, ulCandidate);
+					CColRefArray *pdrgpcrPrevious =
+						PdrgpcrFilterDependencies(
+							m_mp, rgpopFilters[ulPrevious], pexprPrevious,
+							pexprBase, ulPreviousSym);
+					const BOOL fEqual = CColRef::Equals(
+						pdrgpcrCandidate, pdrgpcrPrevious);
+					pdrgpcrPrevious->Release();
+					pdrgpcrCandidate->Release();
+					if (!fEqual)
+					{
+						return false;
+					}
+				}
+			}
 		}
 		if (FDirectEquality(m_prule, EdslconPredicateEq,
 						psymPredCandidate, (*pdrgpsymPrevious)[0]) &&
@@ -664,6 +760,7 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 			{
 				fBound = FBindFilterSymbols(
 					rgpopFilters[ul], (*pdrgpexprConj)[rgulAssigned[ul]],
+					(*pexprSelect)[0],
 					pmodel);
 			}
 			// 3b. the chain base recurses against the Select's relational child.

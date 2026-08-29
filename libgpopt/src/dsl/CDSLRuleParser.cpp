@@ -125,6 +125,9 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fPredicateExists = fExists && 3 == ul_given;
 	const BOOL fSemiJoin = EdslopSemiJoin == edslop;
 	const BOOL fSemiApply = EdslopSemiApply == edslop;
+	// Filter<p,localDeps> is the established spelling. The extended
+	// Filter<p,localDeps,outerDeps> form makes correlation explicit.
+	const BOOL fLegacyFilter = EdslopFilter == edslop && 2 == ul_given;
 	// Legacy InSubFilter<a> takes its inner equality key from the RHS projection.
 	// The extended form binds both key vectors and a residual predicate.
 	const BOOL fLegacyInSub = EdslopInSubFilter == edslop && 1 == ul_given;
@@ -133,7 +136,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
-		!fPredicateExists && !fLegacyInSub && !fLegacyUnion)
+		!fPredicateExists && !fLegacyInSub && !fLegacyUnion && !fLegacyFilter)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
@@ -145,9 +148,11 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 							 ? "0 or 3"
 						  : (EdslopInSubFilter == edslop
 								 ? "1 or 5"
-								 : (EdslopUnion == edslop
+									 : (EdslopUnion == edslop
 										? "0 or 2"
-										: std::to_string(ul_expected))))))
+									 : (EdslopFilter == edslop
+										? "2 or 3"
+										: std::to_string(ul_expected)))))))
 		   << " symbol(s) in <...>, got " << ul_given;
 		bctx.Fail(os.str());
 		return nullptr;

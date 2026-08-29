@@ -44,6 +44,10 @@ public:
 	// a failed candidate must not poison the final model bindings.
 	static GPOS_RESULT EresUnittest_ConstraintAwareBacktracking();
 
+	// Extended Filter dependencies compare local and outer partitions
+	// independently; different correlations do not invalidate equal local deps.
+	static GPOS_RESULT EresUnittest_CorrelatedDependencyPartitions();
+
 	// ORCA normalizes Filter(p,Filter(p,x)) to one conjunct; both placeholders
 	// may bind that same conjunct and it is consumed only once.
 	static GPOS_RESULT EresUnittest_NormalizedDuplicateFilterMatchesOnce();
