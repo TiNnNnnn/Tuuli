@@ -7,7 +7,7 @@
     "scope": "Keyed semi join with at least one equality key and a residual predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "2f0291d38be8aaf0"
+      "9cab8c80b6430c16"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"2f0291d38be8aaf0\""
+        "\"status\":\"applied\",\"rule_hash\":\"9cab8c80b6430c16\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoinUnderGb",
@@ -48,7 +48,7 @@
         "CXformLeftSemiJoin2InnerJoinUnderGb"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"2f0291d38be8aaf0\""
+        "\"status\":\"applied\",\"rule_hash\":\"9cab8c80b6430c16\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
@@ -60,14 +60,12 @@
       "CXformLeftSemiJoin2InnerJoinUnderGb"
     ],
     "output": [
-      "1,10",
-      "2,10",
-      "3,20"
+      "10",
+      "20"
     ],
     "postgres_output": [
-      "1,10",
-      "2,10",
-      "3,20"
+      "10",
+      "20"
     ]
   }
 }

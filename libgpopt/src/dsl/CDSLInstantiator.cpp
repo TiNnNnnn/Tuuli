@@ -1838,7 +1838,7 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
-	if (pmodel->FVirtualIdentityProj(psymSchema))
+	if (pmodel->FVirtualIdentityProj(psymSchema) && !pop->FDistinct())
 	{
 		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
 		CColRefArray *pdrgpcrSchema = pmodel->PdrgpcrSchema(psymSchema);
