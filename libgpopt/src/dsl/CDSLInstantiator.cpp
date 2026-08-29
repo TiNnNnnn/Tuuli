@@ -1462,10 +1462,43 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(2 != pdrgpsym->Size() && 4 != pdrgpsym->Size()))
+		(2 != ulSymbols && 4 != ulSymbols && 5 != ulSymbols &&
+		 7 != ulSymbols))
 	{
 		return nullptr;
+	}
+	const BOOL fBindsResidual = 5 == ulSymbols || 7 == ulSymbols;
+	if (fBindsResidual)
+	{
+		const ULONG ulPredOffset = 5 == ulSymbols ? 2 : 4;
+		const CDSLSymbol *psymPred =
+			PsymResolve((*pdrgpsym)[ulPredOffset]);
+		const CDSLSymbol *psymLeftDeps =
+			PsymResolve((*pdrgpsym)[ulPredOffset + 1]);
+		const CDSLSymbol *psymRightDeps =
+			PsymResolve((*pdrgpsym)[ulPredOffset + 2]);
+		CExpression *pexprResidual = pmodel->PexprPred(psymPred);
+		CColRefArray *pdrgpcrLeftDeps =
+			pmodel->PdrgpcrAttrs(psymLeftDeps);
+		CColRefArray *pdrgpcrRightDeps =
+			pmodel->PdrgpcrAttrs(psymRightDeps);
+		if (nullptr == pexprResidual || nullptr == pdrgpcrLeftDeps ||
+			nullptr == pdrgpcrRightDeps)
+		{
+			return nullptr;
+		}
+		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsDeclared->Include(pdrgpcrLeftDeps);
+		pcrsDeclared->Include(pdrgpcrRightDeps);
+		const BOOL fDependenciesExact =
+			pcrsDeclared->Equals(pexprResidual->DeriveUsedColumns());
+		pcrsDeclared->Release();
+		if (!fDependenciesExact)
+		{
+			return nullptr;
+		}
 	}
 	const CDSLSymbol *psymLeft = PsymResolve((*pdrgpsym)[0]);
 	const CDSLSymbol *psymRight = PsymResolve((*pdrgpsym)[1]);
@@ -1586,7 +1619,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 	CExpression *pexprResult = GPOS_NEW(m_mp)
 		CExpression(m_mp, popJoin, pexprLeft, pexprRight, pexprTargetPred);
-	if (4 == pdrgpsym->Size())
+	if (4 == ulSymbols || 7 == ulSymbols)
 	{
 		const CDSLSymbol *psymOutput = PsymResolve((*pdrgpsym)[2]);
 		const CDSLSymbol *psymSchema = PsymResolve((*pdrgpsym)[3]);

@@ -54,6 +54,13 @@ using namespace gpopt;
 	"TableEq(t2,t1);TableEq(t3,t0);AttrsEq(a3,a1);AttrsEq(a4,a0);"       \
 	"AttrsEq(a5,a2);SchemaEq(s1,s0)"
 
+#define GPOPT_DSL_JOIN_RESIDUAL_IDENTITY_RULE                            \
+	"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|"                    \
+	"InnerJoin<a4 a5 p1 a6 a7>(Input<t2>,Input<t3>)|"                    \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t1);"   \
+	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"       \
+	"PredicateEq(p1,p0);AttrsEq(a6,a2);AttrsEq(a7,a3)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -352,7 +359,8 @@ CDSLJoinTest::EresUnittest_NonEquiPredicateResidual()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 
-	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_JOIN_IDENTITY_RULE);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_JOIN_RESIDUAL_IDENTITY_RULE);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -388,11 +396,20 @@ CDSLJoinTest::EresUnittest_NonEquiPredicateResidual()
 	}
 	else
 	{
-		// One equi key each side; the complete node-local predicate retains the
-		// non-equi atom.
+		// One equi key each side; the residual expression and its dependencies
+		// are first-class bindings rather than an unstructured leftover.
 		CDSLSymbolArray *pdrgpsym = prule->PfragSrc()->PopRoot()->Pdrgpsym();
 		CColRefArray *pdrgpcrL = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
-		if (nullptr == pdrgpcrL || 1 != pdrgpcrL->Size())
+		CExpression *pexprResidual = pmodel->PexprPred((*pdrgpsym)[2]);
+		CColRefArray *pdrgpcrResidualL =
+			pmodel->PdrgpcrAttrs((*pdrgpsym)[3]);
+		CColRefArray *pdrgpcrResidualR =
+			pmodel->PdrgpcrAttrs((*pdrgpsym)[4]);
+		if (nullptr == pdrgpcrL || 1 != pdrgpcrL->Size() ||
+			nullptr == pexprResidual ||
+			nullptr == pdrgpcrResidualL || 1 != pdrgpcrResidualL->Size() ||
+			nullptr == pdrgpcrResidualR || 0 != pdrgpcrResidualR->Size() ||
+			!pexprResidual->Matches(pexprAtom))
 		{
 			eres = GPOS_FAILED;
 		}

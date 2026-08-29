@@ -555,10 +555,13 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		return false;
 	}
 
-	// join schema is <a a> — left keys then right keys (validated at parse).
+	// Join symbols are equality keys followed by optional output/schema and/or
+	// residual predicate plus its left/right dependency vectors.
 	CDSLSymbolArray *pdrgpsym = popJoin->Pdrgpsym();
+	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(2 != pdrgpsym->Size() && 4 != pdrgpsym->Size()) ||
+		(2 != ulSymbols && 4 != ulSymbols && 5 != ulSymbols &&
+		 7 != ulSymbols) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
@@ -659,7 +662,9 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				  pmodel->FBind(psymRight, pdrgpcrRight);
 	pdrgpcrLeft->Release();
 	pdrgpcrRight->Release();
-	if (fBound && 4 == pdrgpsym->Size())
+	const BOOL fBindsOutput = 4 == ulSymbols || 7 == ulSymbols;
+	const BOOL fBindsResidual = 5 == ulSymbols || 7 == ulSymbols;
+	if (fBound && fBindsOutput)
 	{
 		// ORCA exposes relational outputs by stable CColRef identity. Sorting the
 		// complete set by CColRef id gives a deterministic ordered binding that is
@@ -676,10 +681,50 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		return false;
 	}
 
-	// The complete predicate already retains every residual conjunct. Do not put
-	// Join residuals in the Filter-global residual slot: nested joins/filters must
-	// not overwrite or inherit one another's predicates.
-	pdrgpexprResidual->Release();
+	if (fBindsResidual)
+	{
+		// An explicit Join predicate binding denotes the non-equality remainder,
+		// not the key equalities already represented by the first two symbols.
+		// Requiring at least one residual keeps this form shape-sensitive; an
+		// equality-only Join continues to use the two/four-symbol forms.
+		if (0 == pdrgpexprResidual->Size())
+		{
+			pdrgpexprResidual->Release();
+			return false;
+		}
+		CExpression *pexprResidual =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual);
+		const ULONG ulPredOffset = 5 == ulSymbols ? 2 : 4;
+
+		CColRefSet *pcrsLeftDeps = GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *pexprResidual->DeriveUsedColumns());
+		pcrsLeftDeps->Intersection(pexprLeftRel->DeriveOutputColumns());
+		CColRefSet *pcrsRightDeps = GPOS_NEW(m_mp) CColRefSet(
+			m_mp, *pexprResidual->DeriveUsedColumns());
+		pcrsRightDeps->Intersection(pexprRightRel->DeriveOutputColumns());
+		CColRefArray *pdrgpcrLeftDeps = pcrsLeftDeps->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrRightDeps = pcrsRightDeps->Pdrgpcr(m_mp);
+		pcrsLeftDeps->Release();
+		pcrsRightDeps->Release();
+
+		fBound = pmodel->FBind((*pdrgpsym)[ulPredOffset], pexprResidual) &&
+			pmodel->FBind((*pdrgpsym)[ulPredOffset + 1],
+						  pdrgpcrLeftDeps) &&
+			pmodel->FBind((*pdrgpsym)[ulPredOffset + 2],
+						  pdrgpcrRightDeps);
+		pexprResidual->Release();
+		pdrgpcrLeftDeps->Release();
+		pdrgpcrRightDeps->Release();
+		if (!fBound)
+		{
+			return false;
+		}
+	}
+	else
+	{
+		// The complete predicate retained below already carries every residual.
+		pdrgpexprResidual->Release();
+	}
 
 	// Record by this Join node's attrs pair, so nested joins retain independent
 	// predicates and target-side AttrsEq aliases can find the right one.

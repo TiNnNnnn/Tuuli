@@ -8,7 +8,8 @@
 //		Stage ① symbol binding for the join operators (see
 //		docs/DSL_WETUNE_ALIGNMENT.md M2).
 //
-//		DSL   : InnerJoin<a a [a s]>(left, right) / LeftJoin<a a [a s]>(...)
+//		DSL   : InnerJoin<a a [a s] [p a a]>(left, right)
+//		        / LeftJoin<a a [a s] [p a a]>(...)
 //		        — first two <a> are join keys; optional <a s> bind the complete
 //		          stable output row and schema.
 //		ORCA  : CLogicalInnerJoin / CLogicalLeftOuterJoin(left, right, joinpred)
@@ -57,7 +58,7 @@ class CDSLMatcher;
 //		CDSLJoinMatcher
 //
 //	@doc:
-//		Matches a DSL InnerJoin/LeftJoin<a a [a s]> template against an ORCA
+//		Matches a DSL InnerJoin/LeftJoin<a a [a s] [p a a]> template against an ORCA
 //		CLogicalInnerJoin / CLogicalLeftOuterJoin. Constructed per match attempt
 //		with the transient pool and a back-reference to the generic matcher (so the
 //		two relational children can recurse). Owns no state beyond those.

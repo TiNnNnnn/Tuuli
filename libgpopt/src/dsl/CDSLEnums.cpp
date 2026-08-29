@@ -33,8 +33,9 @@ struct SDslOpDesc
 //   - positional symbols   : SymbolsImpl.bindSymbol() + FragmentUtils.bindNames()
 // WeTune positional order (INSIDE <...>), verified against fewshot rules:
 //   Input      <t>                        Filter<p0 a1> => [pred, attrs]
-//   InnerJoin  <a a [a s]> (lhsAttrs, rhsAttrs, optional full output/schema)
-//   LeftJoin   <a a [a s]>
+//   InnerJoin  <a a [a s] [p a a]> (keys, optional output, residual predicate
+//                                      and its per-child dependencies)
+//   LeftJoin   <a a [a s] [p a a]>
 //   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
 //   InSubFilter<a>     (attrs)
 //   Exists     <>      (no symbols)
@@ -49,10 +50,12 @@ struct SDslOpDesc
 //   Compute    <e a s> (exact expression list, dependencies, defined columns)
 const SDslOpDesc rg_op_desc[] = {
 	{EdslopInput, "Input", 0, 1, {EdslsymTable}},
-	{EdslopInnerJoin, "InnerJoin", 2, 4,
-	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema}},
-	{EdslopLeftJoin, "LeftJoin", 2, 4,
-	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema}},
+	{EdslopInnerJoin, "InnerJoin", 2, 7,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema,
+	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopLeftJoin, "LeftJoin", 2, 7,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema,
+	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopFilter, "Filter", 1, 2, {EdslsymPred, EdslsymAttrs}},
 	{EdslopInSubFilter, "InSubFilter", 2, 1, {EdslsymAttrs}},
 	{EdslopExists, "Exists", 2, 0, {}},

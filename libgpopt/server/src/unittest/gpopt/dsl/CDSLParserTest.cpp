@@ -157,6 +157,19 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|InnerJoin<a3 a4 a5 "
 		"s1>(Input<t2>,Input<t3>)|TableEq(t2,t1);TableEq(t3,t0);"
 		"AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a2);SchemaEq(s1,s0)",
+		// Join residual predicates bind the expression and dependencies by side.
+		"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|InnerJoin<a4 a5 "
+		"p1 a6 a7>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);"
+		"AttrsSub(a2,t0);AttrsSub(a3,t1);TableEq(t2,t0);TableEq(t3,t1);"
+		"AttrsEq(a4,a0);AttrsEq(a5,a1);PredicateEq(p1,p0);AttrsEq(a6,a2);"
+		"AttrsEq(a7,a3)",
+		// Output and residual bindings compose without changing their order.
+		"InnerJoin<a0 a1 a2 s0 p0 a3 a4>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a5 a6 a7 s1 p1 a8 a9>(Input<t2>,Input<t3>)|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t0);AttrsSub(a4,t1);"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);"
+		"AttrsEq(a7,a2);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a8,a3);"
+		"AttrsEq(a9,a4)",
 		// Existing MONSOON corpus form (fewshot_curated.txt): bare Agg with five
 		// symbols groupBy, aggAttrs, func, schema, having.
 		"Exists(Proj<a0 s0>(Input<t0>),Agg<a1 a2 f0 s1 p0>(Input<t1>))|"
@@ -272,8 +285,9 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	}
 	union0->Release();
 	union2->Release();
-	// Join keeps the legacy two-key form and accepts a complete output attrs /
-	// schema pair. Three symbols would leave output identity underspecified.
+	// Join keeps the legacy two-key form and independently accepts a complete
+	// output pair and a residual-predicate/dependency triple. Partial groups are
+	// ambiguous and rejected.
 	bad = Parse(
 		mp,
 		"InnerJoin<a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
@@ -288,14 +302,29 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	CDSLRule *join4 = Parse(
 		mp,
 		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
-	if (nullptr == join2 || nullptr == join4)
+	CDSLRule *join5 = Parse(
+		mp,
+		"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *join7 = Parse(
+		mp,
+		"InnerJoin<a0 a1 a2 s0 p0 a3 a4>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	bad = Parse(
+		mp,
+		"InnerJoin<a0 a1 a2 s0 p0 a3>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == join2 || nullptr == join4 || nullptr == join5 ||
+		nullptr == join7 || nullptr != bad)
 	{
 		CRefCount::SafeRelease(join2);
 		CRefCount::SafeRelease(join4);
+		CRefCount::SafeRelease(join5);
+		CRefCount::SafeRelease(join7);
+		CRefCount::SafeRelease(bad);
 		return GPOS_FAILED;
 	}
 	join2->Release();
 	join4->Release();
+	join5->Release();
+	join7->Release();
 	// Correct arities parse.
 	CDSLRule *ok =
 		Parse(mp, "Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)");

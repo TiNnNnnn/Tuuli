@@ -153,9 +153,10 @@ private:
 	CExpression *PexprBuildFilter(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const;
 
-	// InnerJoin/LeftJoin<a a>: join(child0, child1, bound-predicate). The
-	// predicate is taken from the SOURCE match if a pred was bound; structural
-	// join rules that merely reshape carry the predicate on the model.
+	// InnerJoin/LeftJoin<a a [a s] [p a a]>: join both rebuilt children with
+	// the bound predicate. Explicit residual bindings are validated against
+	// their declared per-child dependencies before the exact source predicate is
+	// remapped.
 	CExpression *PexprBuildJoin(const CDSLOp *pop,
 								const CDSLModel *pmodel) const;
 

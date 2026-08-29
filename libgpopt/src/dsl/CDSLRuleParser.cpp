@@ -113,24 +113,26 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// Accept both wire formats; the matcher/instantiator infer legacy aggregate
 	// output columns from schema - groupByAttrs.
 	const BOOL fLegacyAgg = EdslopAgg == edslop && 5 == ul_given;
-	// Legacy Join<a a> binds only the equality keys. The extended
-	// Join<a a a s> form also binds the complete externally visible output.
-	const BOOL fLegacyJoin =
-		(EdslopInnerJoin == edslop || EdslopLeftJoin == edslop) &&
-		2 == ul_given;
+	// Join always binds equality keys. It may additionally bind the complete
+	// output (<a s>), the non-equality residual predicate and its dependencies
+	// (<p a a>), or both. Keep every historical form wire-compatible.
+	const BOOL fJoin =
+		EdslopInnerJoin == edslop || EdslopLeftJoin == edslop;
+	const BOOL fCompatibleJoin = fJoin &&
+		(2 == ul_given || 4 == ul_given || 5 == ul_given || 7 == ul_given);
 	// Existing WeTune corpora declare no Union symbols. The extended
 	// Union<a s> form exposes the ordered full-row output so a later operator can
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
-	if (ul_given != ul_expected && !fLegacyAgg && !fLegacyJoin &&
+	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
 		!fLegacyUnion)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
 		   << (EdslopAgg == edslop
 				   ? "5 or 6"
-				   : ((EdslopInnerJoin == edslop || EdslopLeftJoin == edslop)
-						  ? "2 or 4"
+				   : (fJoin
+						  ? "2, 4, 5, or 7"
 						  : (EdslopUnion == edslop
 								 ? "0 or 2"
 								 : std::to_string(ul_expected))))
@@ -157,6 +159,12 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			// Current schema is [a,a,a,f,s,p]; removing aggregateOutputAttrs
 			// yields the legacy [a,a,f,s,p] layout.
 			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul + 1);
+		}
+		else if (fJoin && 5 == ul_given && 2 <= ul)
+		{
+			// Predicate-only Join<a a p a a> skips the optional output pair in
+			// the canonical [a,a,a,s,p,a,a] descriptor.
+			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul + 2);
 		}
 		else
 		{

@@ -132,7 +132,7 @@ enum EDslConstraintKind
 };
 
 // Max number of positional symbols any operator declares inside <...> (Agg = 6).
-#define GPOPT_DSL_MAX_OP_SYMS 6
+#define GPOPT_DSL_MAX_OP_SYMS 7
 
 //---------------------------------------------------------------------------
 //	@class:
