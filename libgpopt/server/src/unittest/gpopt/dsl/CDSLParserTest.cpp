@@ -291,8 +291,8 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	union0->Release();
 	union2->Release();
 	// Join keeps the legacy two-key form and independently accepts a complete
-	// output pair and a residual-predicate/dependency triple. Partial groups are
-	// ambiguous and rejected.
+	// predicate/dependency triple, output pair, and keyed residual triple.
+	// A three-attrs declaration is not the predicate-only <p a a> form.
 	bad = Parse(
 		mp,
 		"InnerJoin<a0 a1 a2>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
@@ -304,6 +304,9 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	CDSLRule *join2 = Parse(
 		mp,
 		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *join3 = Parse(
+		mp,
+		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
 	CDSLRule *join4 = Parse(
 		mp,
 		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
@@ -316,10 +319,12 @@ CDSLParserTest::EresUnittest_SymbolArity()
 	bad = Parse(
 		mp,
 		"InnerJoin<a0 a1 a2 s0 p0 a3>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
-	if (nullptr == join2 || nullptr == join4 || nullptr == join5 ||
+	if (nullptr == join2 || nullptr == join3 || nullptr == join4 ||
+		nullptr == join5 ||
 		nullptr == join7 || nullptr != bad)
 	{
 		CRefCount::SafeRelease(join2);
+		CRefCount::SafeRelease(join3);
 		CRefCount::SafeRelease(join4);
 		CRefCount::SafeRelease(join5);
 		CRefCount::SafeRelease(join7);
@@ -327,6 +332,7 @@ CDSLParserTest::EresUnittest_SymbolArity()
 		return GPOS_FAILED;
 	}
 	join2->Release();
+	join3->Release();
 	join4->Release();
 	join5->Release();
 	join7->Release();

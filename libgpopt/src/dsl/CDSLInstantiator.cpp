@@ -1517,10 +1517,11 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		CDSLInstantiator::PexprBuildJoin
 //
 //	@doc:
-//		InnerJoin/LeftJoin<a a>: rebuild both relational children and graft the
-//		SOURCE-matched equality predicate, building the join operator the TARGET op
-//		names. Join sources bind it directly; a unique InSub source may supply the
-//		same equality when a proved rule turns a semi-join view into an inner join.
+//		InnerJoin/LeftJoin rebuild both relational children and graft the
+//		SOURCE-matched predicate, building the join operator the TARGET op names.
+//		The <p a a> form carries a complete predicate without equality keys. Keyed
+//		forms bind the join predicate directly or obtain it from a unique InSub
+//		source when a proved rule turns a semi-join view into an inner join.
 //		Reusing the exact predicate subtree preserves comparison semantics, while
 //		the shared positional remapper adapts columns to rebuilt target children.
 //---------------------------------------------------------------------------
@@ -1536,15 +1537,18 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(2 != ulSymbols && 4 != ulSymbols && 5 != ulSymbols &&
-		 7 != ulSymbols))
+		(2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
+		 5 != ulSymbols && 7 != ulSymbols))
 	{
 		return nullptr;
 	}
-	const BOOL fBindsResidual = 5 == ulSymbols || 7 == ulSymbols;
-	if (fBindsResidual)
+	const BOOL fPredicateOnly = 3 == ulSymbols;
+	const BOOL fBindsPredicate =
+		fPredicateOnly || 5 == ulSymbols || 7 == ulSymbols;
+	if (fBindsPredicate)
 	{
-		const ULONG ulPredOffset = 5 == ulSymbols ? 2 : 4;
+		const ULONG ulPredOffset =
+			fPredicateOnly ? 0 : (5 == ulSymbols ? 2 : 4);
 		const CDSLSymbol *psymPred =
 			PsymResolve((*pdrgpsym)[ulPredOffset]);
 		const CDSLSymbol *psymLeftDeps =
@@ -1572,11 +1576,14 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			return nullptr;
 		}
 	}
-	const CDSLSymbol *psymLeft = PsymResolve((*pdrgpsym)[0]);
-	const CDSLSymbol *psymRight = PsymResolve((*pdrgpsym)[1]);
-	CExpression *pexprJoinPred =
-		pmodel->PexprJoinPred(psymLeft, psymRight);
-	if (nullptr == pexprJoinPred)
+	const CDSLSymbol *psymLeft =
+		fPredicateOnly ? nullptr : PsymResolve((*pdrgpsym)[0]);
+	const CDSLSymbol *psymRight =
+		fPredicateOnly ? nullptr : PsymResolve((*pdrgpsym)[1]);
+	CExpression *pexprJoinPred = fPredicateOnly
+		? pmodel->PexprPred(PsymResolve((*pdrgpsym)[0]))
+		: pmodel->PexprJoinPred(psymLeft, psymRight);
+	if (!fPredicateOnly && nullptr == pexprJoinPred)
 	{
 		ULONG ulInSubMatches = 0;
 		const CDSLOp *popSourceInSub = PopOnlyBoundInSub(
@@ -2566,10 +2573,42 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		0 != pop->Pdrgpsym()->Size())
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
+	if (2 != pop->UlChildren() || nullptr == pdrgpsym ||
+		(0 != ulSymbols && 3 != ulSymbols))
 	{
 		return nullptr;
+	}
+	if (3 == ulSymbols)
+	{
+		if (fNegated)
+		{
+			return nullptr;
+		}
+		const CDSLSymbol *psymPred = PsymResolve((*pdrgpsym)[0]);
+		const CDSLSymbol *psymLeftDeps = PsymResolve((*pdrgpsym)[1]);
+		const CDSLSymbol *psymRightDeps = PsymResolve((*pdrgpsym)[2]);
+		CExpression *pexprPred = pmodel->PexprPred(psymPred);
+		CColRefArray *pdrgpcrLeftDeps =
+			pmodel->PdrgpcrAttrs(psymLeftDeps);
+		CColRefArray *pdrgpcrRightDeps =
+			pmodel->PdrgpcrAttrs(psymRightDeps);
+		if (nullptr == pexprPred || nullptr == pdrgpcrLeftDeps ||
+			nullptr == pdrgpcrRightDeps)
+		{
+			return nullptr;
+		}
+		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsDeclared->Include(pdrgpcrLeftDeps);
+		pcrsDeclared->Include(pdrgpcrRightDeps);
+		const BOOL fDependenciesExact =
+			pcrsDeclared->Equals(pexprPred->DeriveUsedColumns());
+		pcrsDeclared->Release();
+		if (!fDependenciesExact)
+		{
+			return nullptr;
+		}
 	}
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
@@ -2582,6 +2621,22 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 	{
 		pexprOuter->Release();
 		return nullptr;
+	}
+
+	if (3 == ulSymbols)
+	{
+		CExpression *pexprPred =
+			pmodel->PexprPred(PsymResolve((*pdrgpsym)[0]));
+		CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
+			(*pop)[0], pexprOuter, (*pop)[1], pexprInner, pexprPred, pmodel);
+		if (nullptr == pexprTargetPred)
+		{
+			pexprOuter->Release();
+			pexprInner->Release();
+			return nullptr;
+		}
+		return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
+			m_mp, pexprOuter, pexprInner, pexprTargetPred);
 	}
 
 	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();

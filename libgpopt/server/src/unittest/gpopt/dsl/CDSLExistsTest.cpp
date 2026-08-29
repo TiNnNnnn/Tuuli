@@ -24,6 +24,7 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
@@ -46,6 +47,12 @@ using namespace gpopt;
 	"AttrsSub(a0,t1);TableEq(t2,t0);TableEq(t3,t1);"                     \
 	"AttrsEq(a1,a0);SchemaEq(s1,s0)"
 
+#define GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE                         \
+	"Exists<p0 a0 a1>(Input<t0>,Input<t1>)|"                            \
+	"Exists<p1 a2 a3>(Input<t2>,Input<t3>)|"                            \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"   \
+	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)"
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
@@ -61,8 +68,64 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_PostApplyNotExistsDistinctDrop),
 		GPOS_UNITTEST_FUNC(
-			CDSLExistsTest::EresUnittest_ExistsPolarityIsolation)};
+			CDSLExistsTest::EresUnittest_ExistsPolarityIsolation),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("predicate_exists_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("predicate_exists_inner", 2, &pdrgpcrInner);
+	CExpression *pexprPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+	CExpression *pexprSemiJoin =
+		CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
+			mp, pexprOuter, pexprInner, pexprPred);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE, "EQ", &strErr);
+	if (nullptr == prule)
+	{
+		pexprSemiJoin->Release();
+		return GPOS_FAILED;
+	}
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSemiJoin, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTarget = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalLeftSemiJoin != pexprTarget->Pop()->Eopid() ||
+			!(*pexprTarget)[2]->Matches((*pexprSemiJoin)[2]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	prule->Release();
+	pexprSemiJoin->Release();
+	return eres;
 }
 
 GPOS_RESULT

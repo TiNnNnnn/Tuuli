@@ -45,6 +45,7 @@ public:
 	// key and preserves the non-equi conjunct as residual; the instantiated join's
 	// predicate is complete.
 	static GPOS_RESULT EresUnittest_NonEquiPredicateResidual();
+	static GPOS_RESULT EresUnittest_PredicateOnlyJoin();
 
 	// a join-rooted rule does NOT fire on a Select (operator-identity gate).
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();

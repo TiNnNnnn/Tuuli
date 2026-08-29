@@ -8,6 +8,7 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
@@ -87,10 +88,76 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 				EdslopNotExists == pop->Edslop());
 	const BOOL fNegated = EdslopNotExists == pop->Edslop();
 
-	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		0 != pop->Pdrgpsym()->Size())
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
+	if (2 != pop->UlChildren() || nullptr == pdrgpsym ||
+		(0 != ulSymbols && 3 != ulSymbols))
 	{
 		return false;
+	}
+
+	// The predicate-bearing form is the common view of a decorrelated
+	// semi-join whose condition has no extractable equality key. Equality-plus-
+	// residual conditions use InSubFilter<a a p a a>; keeping the shapes
+	// disjoint prevents two different DSL operators from claiming the same
+	// expression. The complete predicate and its dependencies remain ordinary
+	// symbols, so rules can move them without understanding ORCA scalar nodes.
+	if (3 == ulSymbols)
+	{
+		if (fNegated ||
+			COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid() ||
+			3 != pexpr->Arity() ||
+			0 != pexpr->DeriveOuterReferences()->Size())
+		{
+			return false;
+		}
+
+		CColRefArray *pdrgpcrLeftKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CColRefArray *pdrgpcrRightKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CExpressionArray *pdrgpexprPred =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		CDSLMatchView::FSplitJoinPredicate(
+			m_mp, (*pexpr)[2], (*pexpr)[0], pdrgpcrLeftKeys,
+			pdrgpcrRightKeys, pdrgpexprPred);
+		const BOOL fPredicateOnly = 0 == pdrgpcrLeftKeys->Size() &&
+			0 == pdrgpcrRightKeys->Size() && 0 < pdrgpexprPred->Size();
+		pdrgpcrLeftKeys->Release();
+		pdrgpcrRightKeys->Release();
+		if (!fPredicateOnly)
+		{
+			pdrgpexprPred->Release();
+			return false;
+		}
+
+		CExpression *pexprPred =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+		CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
+		CColRefSet *pcrsLeftDeps =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+		pcrsLeftDeps->Intersection((*pexpr)[0]->DeriveOutputColumns());
+		CColRefSet *pcrsRightDeps =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+		pcrsRightDeps->Intersection((*pexpr)[1]->DeriveOutputColumns());
+		CColRefSet *pcrsDeclared =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsLeftDeps);
+		pcrsDeclared->Union(pcrsRightDeps);
+		const BOOL fDependenciesExact = pcrsDeclared->Equals(pcrsUsed);
+		CColRefArray *pdrgpcrLeftDeps = pcrsLeftDeps->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrRightDeps = pcrsRightDeps->Pdrgpcr(m_mp);
+		pcrsDeclared->Release();
+		pcrsLeftDeps->Release();
+		pcrsRightDeps->Release();
+
+		BOOL fMatched = fDependenciesExact &&
+			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+			m_pmatcher->FMatch((*pop)[1], (*pexpr)[1], pmodel) &&
+			pmodel->FBind((*pdrgpsym)[0], pexprPred) &&
+			pmodel->FBind((*pdrgpsym)[1], pdrgpcrLeftDeps) &&
+			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps);
+		pexprPred->Release();
+		pdrgpcrLeftDeps->Release();
+		pdrgpcrRightDeps->Release();
+		return fMatched;
 	}
 
 	// Before native subquery unnesting, EXISTS is represented as

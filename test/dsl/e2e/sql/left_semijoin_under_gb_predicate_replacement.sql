@@ -1,0 +1,7 @@
+SELECT p.id
+FROM dsl_fk_parent AS p
+WHERE EXISTS (
+  SELECT 1
+  FROM dsl_fk_child AS c
+  WHERE c.id < p.id)
+ORDER BY p.id;

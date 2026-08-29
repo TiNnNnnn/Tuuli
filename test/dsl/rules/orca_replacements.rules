@@ -26,6 +26,8 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJo
 
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)
 
+Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);AttrsEq(a3,a0);SchemaEq(s1,s0)
+
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
@@ -53,13 +55,14 @@ Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(Inne
 # dependencies by child. This directly covers the corresponding unique-output
 # domain of CXformPushGbDedupBelowJoin without reproducing its staging shape.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
-# Line 27 covers the keyed equality-plus-residual branch of
+# Lines 27 and 29 cover the two non-simple-predicate branches of
 # CXformLeftSemiJoin2InnerJoinUnderGb. The five-symbol InSubFilter preserves the
-# complete residual predicate and records its dependencies on both inputs. The
-# source Proj* is exposed only when the semi join's output already contains a
-# key, matching the native xform's redundant-dedup precondition. The target
-# Proj* remains explicit because the InnerJoin can multiply an outer row when
-# multiple inner rows satisfy the same key and residual.
+# equality keys plus residual; the three-symbol Exists preserves a complete
+# predicate when no equality key can be extracted. Both record dependencies on
+# each input. The source Proj* is exposed only when the semi join's output has a
+# key, matching the native xform's precondition. The target Proj* remains
+# explicit because the InnerJoin can multiply an outer row when multiple inner
+# rows satisfy the predicate.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-29.
 # Line 9 covers the equality branch of
 # CXformLeftSemiJoin2InnerJoin. InSubFilter is the shared view over both the

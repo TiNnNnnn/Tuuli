@@ -1,0 +1,73 @@
+{
+  "description": "A proved DSL rule replaces predicate-only semi-join conversion under duplicate elimination",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "scope": "Semi join with a non-equality predicate and no extractable equality key",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "9dc5c70cd1245677",
+      "9cab8c80b6430c16",
+      "28b86d7a3ca3ef1b"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"28b86d7a3ca3ef1b\""
+      ],
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2InnerJoinUnderGb"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"28b86d7a3ca3ef1b\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

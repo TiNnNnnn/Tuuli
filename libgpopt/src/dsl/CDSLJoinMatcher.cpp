@@ -488,11 +488,65 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	CDSLSymbolArray *pdrgpsym = popJoin->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(2 != ulSymbols && 4 != ulSymbols && 5 != ulSymbols &&
-		 7 != ulSymbols) ||
+		(2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
+		 5 != ulSymbols && 7 != ulSymbols) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
+	}
+
+	// InnerJoin/LeftJoin<p a a> binds a complete predicate that has no
+	// extractable equality keys. This is deliberately disjoint from the keyed
+	// two/five/seven-symbol forms. The predicate dependencies give the generic
+	// remapper all information needed to rebuild the same scalar expression over
+	// target children.
+	if (3 == ulSymbols)
+	{
+		CColRefArray *pdrgpcrLeftKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CColRefArray *pdrgpcrRightKeys = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		CExpressionArray *pdrgpexprPred =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		FSplitPredicate((*pexprJoin)[2], (*pexprJoin)[0], pdrgpcrLeftKeys,
+						pdrgpcrRightKeys, pdrgpexprPred);
+		const BOOL fPredicateOnly = 0 == pdrgpcrLeftKeys->Size() &&
+			0 == pdrgpcrRightKeys->Size() && 0 < pdrgpexprPred->Size();
+		pdrgpcrLeftKeys->Release();
+		pdrgpcrRightKeys->Release();
+		if (!fPredicateOnly)
+		{
+			pdrgpexprPred->Release();
+			return false;
+		}
+
+		CExpression *pexprPred =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+		CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
+		CColRefSet *pcrsLeftDeps =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+		pcrsLeftDeps->Intersection((*pexprJoin)[0]->DeriveOutputColumns());
+		CColRefSet *pcrsRightDeps =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+		pcrsRightDeps->Intersection((*pexprJoin)[1]->DeriveOutputColumns());
+		CColRefSet *pcrsDeclared =
+			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsLeftDeps);
+		pcrsDeclared->Union(pcrsRightDeps);
+		const BOOL fDependenciesExact = pcrsDeclared->Equals(pcrsUsed);
+		CColRefArray *pdrgpcrLeftDeps = pcrsLeftDeps->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrRightDeps = pcrsRightDeps->Pdrgpcr(m_mp);
+		pcrsDeclared->Release();
+		pcrsLeftDeps->Release();
+		pcrsRightDeps->Release();
+
+		BOOL fMatched = fDependenciesExact &&
+			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
+			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel) &&
+			pmodel->FBind((*pdrgpsym)[0], pexprPred) &&
+			pmodel->FBind((*pdrgpsym)[1], pdrgpcrLeftDeps) &&
+			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps);
+		pexprPred->Release();
+		pdrgpcrLeftDeps->Release();
+		pdrgpcrRightDeps->Release();
+		return fMatched;
 	}
 	const CDSLSymbol *psymLeft = (*pdrgpsym)[0];
 	const CDSLSymbol *psymRight = (*pdrgpsym)[1];

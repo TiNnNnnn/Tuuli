@@ -82,8 +82,10 @@ CDSLOp::CDSLOp(CMemoryPool *,  // mp unused: children/syms arrays pre-built
 	GPOS_ASSERT(CDSLOpKindTable::UlSyms(edslop) == pdrgpsym->Size() ||
 				(EdslopAgg == edslop && 5 == pdrgpsym->Size()) ||
 				((EdslopInnerJoin == edslop || EdslopLeftJoin == edslop) &&
-				 (2 == pdrgpsym->Size() || 4 == pdrgpsym->Size() ||
+				 (2 == pdrgpsym->Size() || 3 == pdrgpsym->Size() ||
+				  4 == pdrgpsym->Size() ||
 				  5 == pdrgpsym->Size())) ||
+				(EdslopExists == edslop && 3 == pdrgpsym->Size()) ||
 				(EdslopInSubFilter == edslop && 1 == pdrgpsym->Size()) ||
 				(EdslopUnion == edslop && 0 == pdrgpsym->Size()));
 }

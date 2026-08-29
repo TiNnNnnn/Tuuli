@@ -113,13 +113,16 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// Accept both wire formats; the matcher/instantiator infer legacy aggregate
 	// output columns from schema - groupByAttrs.
 	const BOOL fLegacyAgg = EdslopAgg == edslop && 5 == ul_given;
-	// Join always binds equality keys. It may additionally bind the complete
-	// output (<a s>), the non-equality residual predicate and its dependencies
-	// (<p a a>), or both. Keep every historical form wire-compatible.
+	// A Join may bind only a complete non-equality predicate (<p a a>), or
+	// equality keys followed by optional output and/or residual bindings. Keep
+	// every historical form wire-compatible.
 	const BOOL fJoin =
 		EdslopInnerJoin == edslop || EdslopLeftJoin == edslop;
 	const BOOL fCompatibleJoin = fJoin &&
-		(2 == ul_given || 4 == ul_given || 5 == ul_given || 7 == ul_given);
+		(2 == ul_given || 3 == ul_given || 4 == ul_given ||
+		 5 == ul_given || 7 == ul_given);
+	const BOOL fExists = EdslopExists == edslop;
+	const BOOL fPredicateExists = fExists && 3 == ul_given;
 	// Legacy InSubFilter<a> takes its inner equality key from the RHS projection.
 	// The extended form binds both key vectors and a residual predicate.
 	const BOOL fLegacyInSub = EdslopInSubFilter == edslop && 1 == ul_given;
@@ -128,19 +131,21 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
-		!fLegacyInSub && !fLegacyUnion)
+		!fPredicateExists && !fLegacyInSub && !fLegacyUnion)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
 		   << (EdslopAgg == edslop
 				   ? "5 or 6"
 					   : (fJoin
-						  ? "2, 4, 5, or 7"
+						  ? "2, 3, 4, 5, or 7"
+						  : (fExists
+							 ? "0 or 3"
 						  : (EdslopInSubFilter == edslop
 								 ? "1 or 5"
 								 : (EdslopUnion == edslop
 										? "0 or 2"
-										: std::to_string(ul_expected)))))
+										: std::to_string(ul_expected))))))
 		   << " symbol(s) in <...>, got " << ul_given;
 		bctx.Fail(os.str());
 		return nullptr;
@@ -150,6 +155,14 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	for (ULONG ul = 0; ul < ul_given; ul++)
 	{
 		std::string name = symlist_ctx->SYMBOL(ul)->getText();
+		if (((fJoin && 3 == ul_given) || fPredicateExists) &&
+			((0 == ul && 'p' != name[0]) ||
+			 (0 < ul && 'a' != name[0])))
+		{
+			bctx.Fail("predicate-only operator expects <p a a> symbols");
+			pdrgpsym->Release();
+			return nullptr;
+		}
 		if (bctx.symtab.find(name) != bctx.symtab.end())
 		{
 			// redeclaration (incl. cross-side reuse) — WeTune BiMap collision
@@ -164,6 +177,14 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			// Current schema is [a,a,a,f,s,p]; removing aggregateOutputAttrs
 			// yields the legacy [a,a,f,s,p] layout.
 			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul + 1);
+		}
+		else if ((fJoin && 3 == ul_given) || fPredicateExists)
+		{
+			// Predicate-only binary operators use [p,a,a], independent of their
+			// canonical descriptor's historical symbol layout.
+			static const EDslSymbolKind rgesymkPredicate[] = {
+				EdslsymPred, EdslsymAttrs, EdslsymAttrs};
+			esymk = rgesymkPredicate[ul];
 		}
 		else if (fJoin && 5 == ul_given && 2 <= ul)
 		{

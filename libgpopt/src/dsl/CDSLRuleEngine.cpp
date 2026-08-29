@@ -98,11 +98,13 @@ CDSLRuleEngine::BucketByRoot()
 				(ULONG) COperator::EopLogicalGbAggDeduplicate;
 			const CDSLOp *popProj = prule->PfragSrc()->PopRoot();
 			if (1 == popProj->UlChildren() &&
-				EdslopInSubFilter == (*popProj)[0]->Edslop())
+				(EdslopInSubFilter == (*popProj)[0]->Edslop() ||
+				 EdslopExists == (*popProj)[0]->Edslop()))
 			{
-				// A keyed semi join already satisfies an enclosing DISTINCT. Route
-				// this exact source shape to the semi-join bucket; the aggregate
-				// matcher independently verifies the key before exposing the view.
+				// A semi join whose outer output has a key is the representation of
+				// an enclosing DISTINCT. Route this exact source shape to the
+				// semi-join bucket; the aggregate matcher independently verifies the
+				// key before exposing the view.
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
@@ -116,6 +118,11 @@ CDSLRuleEngine::BucketByRoot()
 			EdslopAll == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
+		}
+		if (EdslopExists == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiJoin;
 		}
 		if (EdslopAny == prule->PfragSrc()->PopRoot()->Edslop())
 		{

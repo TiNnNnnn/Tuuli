@@ -33,13 +33,13 @@ struct SDslOpDesc
 //   - positional symbols   : SymbolsImpl.bindSymbol() + FragmentUtils.bindNames()
 // WeTune positional order (INSIDE <...>), verified against fewshot rules:
 //   Input      <t>                        Filter<p0 a1> => [pred, attrs]
-//   InnerJoin  <a a [a s] [p a a]> (keys, optional output, residual predicate
-//                                      and its per-child dependencies)
-//   LeftJoin   <a a [a s] [p a a]>
+//   InnerJoin  <[a a] [a s] p a a> (optional keys/output, predicate and its
+//                                     per-child dependencies)
+//   LeftJoin   <[a a] [a s] p a a>
 //   Filter     <p a>   (predicate, attrs)      <-- pred FIRST
 //   InSubFilter<a [a p a a]> (outer key, optional inner key, residual predicate
 //                              and its per-child dependencies)
-//   Exists     <>      (no symbols)
+//   Exists     <[p a a]> (optional predicate and per-child dependencies)
 //   NotExists  <>      (no symbols)
 //   Any        <p a>   (comparison predicate, outer dependencies)
 //   All        <p a>   (comparison predicate, outer dependencies)
