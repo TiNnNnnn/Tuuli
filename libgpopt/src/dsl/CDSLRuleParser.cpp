@@ -127,6 +127,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fSemiApply = EdslopSemiApply == edslop;
 	const BOOL fAntiJoin = EdslopAntiJoin == edslop;
 	const BOOL fAntiApply = EdslopAntiApply == edslop;
+	const BOOL fInnerApply = EdslopInnerApply == edslop;
 	// Filter<p,localDeps> is the established spelling. The extended
 	// Filter<p,localDeps,outerDeps> form makes correlation explicit.
 	const BOOL fLegacyFilter = EdslopFilter == edslop && 2 == ul_given;
@@ -165,7 +166,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	{
 		std::string name = symlist_ctx->SYMBOL(ul)->getText();
 		if (((fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin ||
-			 fSemiApply || fAntiJoin || fAntiApply) &&
+			 fSemiApply || fAntiJoin || fAntiApply || fInnerApply) &&
 			((0 == ul && 'p' != name[0]) ||
 			 (0 < ul && 'a' != name[0])))
 		{

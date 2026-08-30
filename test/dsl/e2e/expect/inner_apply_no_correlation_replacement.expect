@@ -1,0 +1,68 @@
+{
+  "description": "A Rocq-proved explicit InnerApply DSL rule replaces the uncorrelated Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "scope": "InnerApply whose inner subtree has no references to its current outer child",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "ebadfb129130abb8"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

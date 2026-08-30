@@ -26,6 +26,7 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
@@ -1978,8 +1979,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
 	const BOOL fAntiJoin = EdslopAntiJoin == pop->Edslop();
 	const BOOL fAntiApply = EdslopAntiApply == pop->Edslop();
+	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
 	const BOOL fPredicateJoin = fSemiJoin || fAntiJoin;
-	const BOOL fPredicateApply = fSemiApply || fAntiApply;
+	const BOOL fPredicateApply = fSemiApply || fAntiApply || fInnerApply;
 	const BOOL fValidSymbols = fPredicateJoin
 		? 3 == ulSymbols
 		: (fPredicateApply ? 4 == ulSymbols
@@ -2107,6 +2109,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		case EdslopAntiApply:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApply(m_mp);
 			break;
+		case EdslopInnerApply:
+			popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(m_mp);
+			break;
 		default:
 			pexprTargetPred->Release();
 			pexprLeft->Release();
@@ -2137,7 +2142,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			return nullptr;
 		}
 	}
-	if (fSemiApply)
+	if (fPredicateApply)
 	{
 		const CDSLSymbol *psymCorrelations =
 			PsymResolve((*pdrgpsym)[3]);
@@ -3906,6 +3911,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopSemiApply:
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
+		case EdslopInnerApply:
 			return PexprBuildJoin(pop, pmodel);
 		default:
 			return nullptr;

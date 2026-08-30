@@ -123,6 +123,14 @@ Proj*<a0 s0>(Union*<a1 s1>(Input<t0>,Input<t1>))|Union*<a2 s2>(Proj*<a3 s3>(Inpu
 # required.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);MinimalGrouping(a0,s0)
 
+# Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
+# exact right-to-left dependency set separately from the scalar predicate's
+# ordinary child dependencies. AttrsEmpty states the native xform's complete
+# applicability condition. The exact RuleIR is an outcome-equivalence proof
+# accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
+# preserves scalar errors without an ErrorFree assumption.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)
+
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

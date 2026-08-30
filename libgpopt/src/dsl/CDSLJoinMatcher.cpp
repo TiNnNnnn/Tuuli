@@ -22,6 +22,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -476,7 +477,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				EdslopSemiJoin == popJoin->Edslop() ||
 				EdslopSemiApply == popJoin->Edslop() ||
 				EdslopAntiJoin == popJoin->Edslop() ||
-				EdslopAntiApply == popJoin->Edslop());
+				EdslopAntiApply == popJoin->Edslop() ||
+				EdslopInnerApply == popJoin->Edslop());
 	GPOS_ASSERT(nullptr != pexprJoin);
 
 	// identity + arity gate: the live node must be the matching join carrying
@@ -487,15 +489,18 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
+	const BOOL fInnerApply = (EdslopInnerApply == popJoin->Edslop());
 	const BOOL fPredicateJoin = fSemi || fAnti;
-	const BOOL fPredicateApply = fSemiApply || fAntiApply;
+	const BOOL fPredicateApply = fSemiApply || fAntiApply || fInnerApply;
 	const COperator::EOperatorId eopidExpected = fInner
 		? COperator::EopLogicalInnerJoin
 		: (fSemi ? COperator::EopLogicalLeftSemiJoin
 				 : (fSemiApply ? COperator::EopLogicalLeftSemiApply
 					: (fAnti ? COperator::EopLogicalLeftAntiSemiJoin
 						: (fAntiApply ? COperator::EopLogicalLeftAntiSemiApply
-									  : COperator::EopLogicalLeftOuterJoin))));
+									  : (fInnerApply
+											 ? COperator::EopLogicalInnerApply
+											 : COperator::EopLogicalLeftOuterJoin)))));
 	if (eopid != eopidExpected || 3 != pexprJoin->Arity())
 	{
 		return false;

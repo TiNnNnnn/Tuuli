@@ -93,6 +93,7 @@ CLogicalInnerApply::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(
 		CXform::ExfInnerApply2InnerJoinNoCorrelations);
 	(void) xform_set->ExchangeSet(CXform::ExfInnerApplyWithOuterKey2InnerJoin);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleInnerApply);
 
 	return xform_set;
 }

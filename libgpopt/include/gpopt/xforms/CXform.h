@@ -259,6 +259,7 @@ public:
 		ExfDSLRuleUnionAll,
 		ExfDSLRuleLimit,
 		ExfDPHyperJoinRegion,
+		ExfDSLRuleInnerApply,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};
@@ -266,7 +267,8 @@ public:
 	static BOOL
 	FDSLShell(EXformId exfid)
 	{
-		return ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit;
+		return (ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit) ||
+			ExfDSLRuleInnerApply == exfid;
 	}
 
 	static BOOL

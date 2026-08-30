@@ -371,7 +371,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		EdslopSemiJoin == pop->Edslop() ||
 		EdslopSemiApply == pop->Edslop() ||
 		EdslopAntiJoin == pop->Edslop() ||
-		EdslopAntiApply == pop->Edslop())
+		EdslopAntiApply == pop->Edslop() ||
+		EdslopInnerApply == pop->Edslop())
 	{
 		CDSLJoinMatcher jm(m_mp, this, m_prule);
 		return jm.FMatch(pop, pexpr, pmodel);

@@ -30,6 +30,7 @@
 #include "gpopt/xforms/CXformDSLRule_Exists.h"
 #include "gpopt/xforms/CXformDSLRule_NotExists.h"
 #include "gpopt/xforms/CXformDSLRule_InSub.h"
+#include "gpopt/xforms/CXformDSLRule_InnerApply.h"
 #include "gpopt/xforms/CXformDSLRule_InnerJoin.h"
 #include "gpopt/xforms/CXformDSLRule_LeftJoin.h"
 #include "gpopt/xforms/CXformDSLRule_Limit.h"

@@ -20,6 +20,7 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
+#include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -568,6 +569,8 @@ CDSLEngineTest::EresUnittest_SubqueryRepresentationCapability()
 GPOS_RESULT
 CDSLEngineTest::EresUnittest_ShellRegistered()
 {
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
 	CXformFactory *pxff = CXformFactory::Pxff();
 	if (nullptr == pxff)
 	{
@@ -584,6 +587,25 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 
 	// same instance is reachable by id
 	if (pxform != pxff->Pxf(CXform::ExfDSLRuleSelect))
+	{
+		return GPOS_FAILED;
+	}
+
+	CXform *pxformInnerApply = pxff->Pxf("CXformDSLRule_InnerApply");
+	if (nullptr == pxformInnerApply ||
+		CXform::ExfDSLRuleInnerApply != pxformInnerApply->Exfid() ||
+		!pxformInnerApply->FExploration() ||
+		pxformInnerApply->FImplementation())
+	{
+		return GPOS_FAILED;
+	}
+	CLogicalInnerApply *popInnerApply =
+		GPOS_NEW(mp) CLogicalInnerApply(mp);
+	CXformSet *pxfs = popInnerApply->PxfsCandidates(mp);
+	const BOOL fDispatched = pxfs->Get(CXform::ExfDSLRuleInnerApply);
+	pxfs->Release();
+	popInnerApply->Release();
+	if (!fDispatched)
 	{
 		return GPOS_FAILED;
 	}

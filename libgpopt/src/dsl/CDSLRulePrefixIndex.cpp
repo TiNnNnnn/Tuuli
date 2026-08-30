@@ -106,6 +106,7 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 		case EdslopSemiApply:
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
+		case EdslopInnerApply:
 			return true;
 
 		// These matchers expose one or more virtual/normalized views whose live
