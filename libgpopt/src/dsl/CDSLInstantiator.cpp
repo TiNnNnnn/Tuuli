@@ -27,6 +27,7 @@
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
@@ -2098,6 +2099,42 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 	// build the join operator the TARGET names.
 	COperator *popJoin = nullptr;
+	if (fInnerApply)
+	{
+		const CDSLSymbol *psymPred = PsymResolve((*pdrgpsym)[0]);
+		CExpression *pexprCarrier = pmodel->PexprApplyCarrier(psymPred);
+		if (nullptr != pexprCarrier)
+		{
+			CLogicalApply *popCarrier =
+				CLogicalApply::PopConvert(pexprCarrier->Pop());
+			CColRefArray *pdrgpcrInner = popCarrier->PdrgPcrInner();
+			CColRefArray *pdrgpcrTargetInner =
+				nullptr == pdrgpcrInner
+					? nullptr
+					: PdrgpcrMapToTarget((*pop)[1], pexprRight,
+										 pdrgpcrInner, pmodel);
+			if (nullptr == pdrgpcrTargetInner ||
+				0 == pdrgpcrTargetInner->Size())
+			{
+				CRefCount::SafeRelease(pdrgpcrTargetInner);
+				pexprTargetPred->Release();
+				pexprLeft->Release();
+				pexprRight->Release();
+				return nullptr;
+			}
+			if (COperator::EopLogicalInnerCorrelatedApply ==
+				pexprCarrier->Pop()->Eopid())
+			{
+				popJoin = GPOS_NEW(m_mp) CLogicalInnerCorrelatedApply(
+					m_mp, pdrgpcrTargetInner, popCarrier->EopidOriginSubq());
+			}
+			else
+			{
+				popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(
+					m_mp, pdrgpcrTargetInner, popCarrier->EopidOriginSubq());
+			}
+		}
+	}
 	switch (pop->Edslop())
 	{
 		case EdslopInnerJoin:
@@ -2119,7 +2156,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApply(m_mp);
 			break;
 		case EdslopInnerApply:
-			popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(m_mp);
+			if (nullptr == popJoin)
+			{
+				popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(m_mp);
+			}
 			break;
 		case EdslopLeftOuterApply:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterApply(m_mp);

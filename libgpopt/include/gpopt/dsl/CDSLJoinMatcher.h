@@ -89,6 +89,13 @@ private:
 						 CColRefArray *pdrgpcrLeft, CColRefArray *pdrgpcrRight,
 						 CExpressionArray *pdrgpexprResidual) const;
 
+	// Expose a Select predicate containing exactly one scalar single-row
+	// subquery as the InnerApply representation used by ORCA after unnesting.
+	// Other subquery kinds and multiple subqueries fail closed.
+	BOOL FMatchScalarSubquerySelect(const CDSLOp *popJoin,
+								 CExpression *pexprSelect,
+								 CDSLModel *pmodel) const;
+
 public:
 	CDSLJoinMatcher(const CDSLJoinMatcher &) = delete;
 

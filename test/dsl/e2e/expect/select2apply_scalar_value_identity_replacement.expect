@@ -1,0 +1,75 @@
+{
+  "description": "The generic InnerApply identity preserves correlated scalar-value cardinality semantics",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "Correlated scalar value subquery requiring runtime single-row enforcement",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "3fa670693d6ae8f7"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformDSLRule_Select",
+        "\"rule_hash\":\"3fa670693d6ae8f7\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalInnerCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"3fa670693d6ae8f7\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "isolate_select2apply_identity.policy",
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}

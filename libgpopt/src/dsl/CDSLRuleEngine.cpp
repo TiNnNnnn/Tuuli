@@ -151,6 +151,18 @@ CDSLRuleEngine::BucketByRoot()
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn;
 		}
+		// A scalar single-row subquery in a Select predicate lowers to an
+		// InnerApply. The matcher exposes that representation through the shared
+		// subquery handler, while the proved InnerApply rule remains the policy
+		// owner of whether the lowering is admitted.
+		if (EdslopInnerApply ==
+			prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalSelect;
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalInnerCorrelatedApply;
+		}
 		if (EdslopInSubFilter == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
