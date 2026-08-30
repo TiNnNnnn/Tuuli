@@ -1,0 +1,55 @@
+{
+  "description": "The proved aggregate/filter commute and anti-Apply rules compose when correlation is already grouped",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "LeftAntiSemiApply whose grouped inner input filters on an existing grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "d68592c2926cec06",
+      "ab62b940bd5b19d2"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ab62b940bd5b19d2\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "4"
+    ],
+    "postgres_output": [
+      "4"
+    ]
+  }
+}

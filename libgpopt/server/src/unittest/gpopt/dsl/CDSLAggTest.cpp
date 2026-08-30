@@ -468,6 +468,38 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 			}
 		}
 		pexprAntiApply->Release();
+
+		// If the correlation key is already grouped, ordered unions are stable
+		// identities and the same atomic rule must still decorrelate the Apply.
+		CExpression *pexprGroupedCorrelation =
+			fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]);
+		CExpression *pexprGroupedSelect =
+			fix.PexprLogicalSelect(pexprInner, pexprGroupedCorrelation);
+		pexprGroupedCorrelation->Release();
+		CColRefArray *pdrgpcrExistingGroup = GPOS_NEW(mp) CColRefArray(mp);
+		pdrgpcrExistingGroup->Append((*pdrgpcrInner)[0]);
+		pdrgpcrExistingGroup->Append((*pdrgpcrInner)[1]);
+		CExpression *pexprGroupedAgg = fix.PexprLogicalGbAgg(
+			pexprGroupedSelect, pdrgpcrExistingGroup, pcrAggOut,
+			(*pdrgpcrInner)[1]);
+		pexprGroupedSelect->Release();
+		pexprOuter->AddRef();
+		pexprGroupedAgg->AddRef();
+		CExpression *pexprGroupedAntiApply =
+			CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(
+				mp, pexprOuter, pexprGroupedAgg, (*pdrgpcrInner)[1],
+				COperator::EopScalarSubqueryNotExists);
+		CDSLModel *pmodelGrouped = GPOS_NEW(mp) CDSLModel(mp);
+		if (!matcherAnti.FMatch(pruleAnti->PfragSrc()->PopRoot(),
+							pexprGroupedAntiApply, pmodelGrouped) ||
+			!checker.FCheck(pruleAnti, pmodelGrouped))
+		{
+			eres = GPOS_FAILED;
+		}
+		pmodelGrouped->Release();
+		pexprGroupedAntiApply->Release();
+		pexprGroupedAgg->Release();
+		pdrgpcrExistingGroup->Release();
 	}
 
 	// The same shape with independent local/outer atoms is correlated but is

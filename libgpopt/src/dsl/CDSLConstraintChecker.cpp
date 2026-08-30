@@ -1115,7 +1115,6 @@ CDSLConstraintChecker::FCheckAggCorrelationPullup(
 	pcrsLocal->Include(pdrgpcrLocal);
 	pcrsOuter->Include(pdrgpcrOuter);
 
-	const BOOL fNeedsExpansion = !pcrsGroup->ContainsAll(pcrsLocal);
 	const BOOL fDisjoint = !pcrsLocal->FIntersects(pcrsOuter);
 	const BOOL fEqualityOnly = fDisjoint && FCollectCrossEqualityColumns(
 		pexprCorrelation, pcrsLocal, pcrsOuter, pcrsSeenLocal,
@@ -1129,7 +1128,11 @@ CDSLConstraintChecker::FCheckAggCorrelationPullup(
 	pcrsOuter->Release();
 	pcrsLocal->Release();
 	pcrsGroup->Release();
-	return fNeedsExpansion && fComplete;
+	// The semantic contract is equally valid when the correlation key already
+	// belongs to the grouping set. AttrsUnion/SchemaUnion then become stable
+	// identities; requiring physical expansion would unnecessarily block the
+	// same atomic decorrelation and leave a correlated Apply behind.
+	return fComplete;
 }
 
 //---------------------------------------------------------------------------

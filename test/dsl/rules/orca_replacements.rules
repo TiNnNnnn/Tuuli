@@ -87,8 +87,9 @@ Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1
 # new grouping columns is intentionally a separate schema-construction domain.
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);AggFilterCommute(a0,a1,f0,s0,p0,p1,a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
-# Atomically decorrelates a SemiApply when equality correlation columns must be
-# added to a grouped aggregate. The atomic Apply-rooted replacement preserves
+# Atomically decorrelates a SemiApply across a grouped aggregate. Equality
+# correlation columns are retained or added to grouping as needed. The atomic
+# Apply-rooted replacement preserves
 # the Cascade memo output contract; ordered unions construct the expanded
 # grouping, predicate dependencies, and aggregate schema. This exact RuleIR is
 # accepted by the generic FormalSQL/Rocq proof kernel.
