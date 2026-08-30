@@ -58,6 +58,14 @@ using namespace gpopt;
 	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
+#define GPOPT_DSL_AGG_FILTER_COMMUTE_RULE                                  \
+	"Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|"                   \
+	"Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|"                  \
+	"TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);"         \
+	"SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);"              \
+	"AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);"                      \
+	"AggFilterCommute(a0,a1,f0,s0,p0,p1,a2)"
+
 #define GPOPT_DSL_INTERSECT_GROUPING_RULE                                  \
 	"Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"                 \
 	"Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|"   \
@@ -176,11 +184,144 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_FILTER_COMMUTE_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet =
+		fix.PexprLogicalGet("t0", 2, &pdrgpcrInput);
+	CColRef *pcrOuter = fix.PcrCreateInt4("outer_g");
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_c1");
+
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrInput)[0], pcrOuter);
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprGet, pexprPred);
+	CExpression *pexprPlainAgg = fix.PexprLogicalGbAgg(
+		pexprSelect, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[1]);
+	// Preprocessing can attach a child-dependent minimal grouping set before the
+	// expression reaches Cascade.  A real DSL Agg must still match that memo
+	// representation, while its target is rebuilt from the full grouping set.
+	CColRefArray *pdrgpcrMinimal = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrMinimal->Append((*pdrgpcrInput)[0]);
+	pdrgpcrGroup->AddRef();
+	(*pexprPlainAgg)[0]->AddRef();
+	(*pexprPlainAgg)[1]->AddRef();
+	CExpression *pexprAgg = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CLogicalGbAgg(
+			mp, pdrgpcrGroup, pdrgpcrMinimal,
+			COperator::EgbaggtypeGlobal),
+		(*pexprPlainAgg)[0], (*pexprPlainAgg)[1]);
+	pexprPlainAgg->Release();
+
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprAgg, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTarget = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg != (*pexprTarget)[0]->Pop()->Eopid() ||
+			nullptr != CLogicalGbAgg::PopConvert(
+						(*pexprTarget)[0]->Pop())->PdrgpcrMinimal() ||
+			(*(*pexprTarget)[0])[0] != pexprGet ||
+			!(*pexprTarget)[1]->Matches(pexprPred))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// An identity-shaped Agg rule must retain the source annotation. Otherwise
+	// it creates a second Global aggregate that native split/collapse xforms can
+	// repeatedly expand with fresh aggregate-output columns.
+	CDSLRule *pruleIdentity =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_IDENTITY_RULE);
+	CDSLModel *pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherIdentity(mp, pruleIdentity);
+	CExpression *pexprIdentity = nullptr;
+	if (nullptr == pruleIdentity ||
+		!matcherIdentity.FMatch(
+			pruleIdentity->PfragSrc()->PopRoot(), pexprAgg, pmodelIdentity) ||
+		!checker.FCheck(pruleIdentity, pmodelIdentity))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprIdentity = inst.PexprInstantiate(pruleIdentity, pmodelIdentity);
+		if (nullptr == pexprIdentity ||
+			COperator::EopLogicalGbAgg != pexprIdentity->Pop()->Eopid() ||
+			nullptr == CLogicalGbAgg::PopConvert(
+						pexprIdentity->Pop())->PdrgpcrMinimal())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	// A predicate on a non-grouping input column must not commute. It would not
+	// be evaluable above the aggregate and is outside the proved semantic domain.
+	CExpression *pexprNonGroupPred =
+		fix.PexprEqPred((*pdrgpcrInput)[1], pcrOuter);
+	CExpression *pexprNonGroupSelect =
+		fix.PexprLogicalSelect(pexprGet, pexprNonGroupPred);
+	CExpression *pexprNonGroupAgg = fix.PexprLogicalGbAgg(
+		pexprNonGroupSelect, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[1]);
+	CDSLModel *pmodelReject = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(
+			prule->PfragSrc()->PopRoot(), pexprNonGroupAgg, pmodelReject) ||
+		checker.FCheck(prule, pmodelReject))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelReject->Release();
+	CRefCount::SafeRelease(pexprIdentity);
+	pmodelIdentity->Release();
+	CRefCount::SafeRelease(pruleIdentity);
+	pmodel->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pexprNonGroupAgg->Release();
+	pexprNonGroupSelect->Release();
+	pexprNonGroupPred->Release();
+	pexprAgg->Release();
+	pexprSelect->Release();
+	pexprPred->Release();
+	pdrgpcrGroup->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

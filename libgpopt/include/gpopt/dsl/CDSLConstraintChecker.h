@@ -95,6 +95,12 @@ private:
 	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const;
 
+	// AggFilterCommute(g,a,f,s,h,p,l): l is a non-empty subset of grouping
+	// columns. The remaining arguments must be exact bound aggregate artifacts;
+	// ErrorFree/Deterministic constraints independently validate scalar safety.
+	BOOL FCheckAggFilterCommute(const CDSLConstraint *pcon,
+							  const CDSLModel *pmodel) const;
+
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;

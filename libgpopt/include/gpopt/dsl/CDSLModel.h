@@ -80,6 +80,7 @@ private:
 	CDSLSymbolToExpressionMap *m_phmProjList;
 	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
 	CDSLSymbolToExpressionMap *m_phmProjAggShell;
+	CDSLSymbolToExpressionMap *m_phmAggBinding;
 	CDSLSymbolToExpressionMap *m_phmVirtualIdentityProj;
 	CDSLSymbolToExpressionMap *m_phmJoinPred;
 
@@ -248,6 +249,12 @@ public:
 	// aggregate input.
 	BOOL FSetProjAggShell(const CDSLSymbol *psymSchema, CExpression *pexpr);
 	CExpression *PexprProjAggShell(const CDSLSymbol *psymSchema) const;
+
+	// Preserve optimizer-only metadata when a target Agg keeps the same full
+	// grouping set and relational child.  The source expression is keyed by its
+	// schema symbol so SchemaEq aliases resolve to the correct matched Agg.
+	BOOL FSetAggBinding(const CDSLSymbol *psymSchema, CExpression *pexpr);
+	CExpression *PexprAggBinding(const CDSLSymbol *psymSchema) const;
 
 	//------------------------------------------------------------------
 	// set-op mappings (Union match produces, instantiator consumes)

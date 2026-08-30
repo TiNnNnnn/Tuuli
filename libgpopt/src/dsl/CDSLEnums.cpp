@@ -123,6 +123,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconPredicateAnd, "PredicateAnd", 3},
 	{EdslconAttrsUnion, "AttrsUnion", 3},
 	{EdslconExprFilterCommute, "ExprFilterCommute", 3},
+	{EdslconAggFilterCommute, "AggFilterCommute", 7},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -503,6 +504,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconPredicateAnd:
 		case EdslconAttrsUnion:
 		case EdslconExprFilterCommute:
+		case EdslconAggFilterCommute:
 			return true;
 		case EdslconSentinel:
 			return false;

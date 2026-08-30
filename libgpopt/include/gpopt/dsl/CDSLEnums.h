@@ -155,6 +155,11 @@ enum EDslConstraintKind
 	// evaluated before the predicate without changing outcomes. Schema names the
 	// columns defined by the Compute layer.
 	EdslconExprFilterCommute,
+	// AggFilterCommute(group,agg_inputs,func,schema,having,pred,local): a
+	// correlated predicate whose non-outer dependencies are non-empty grouping
+	// keys can move above the aggregate under the accompanying scalar-safety
+	// constraints.
+	EdslconAggFilterCommute,
 	EdslconSentinel
 };
 

@@ -87,6 +87,10 @@ public:
 	// the same two-node shape end to end.
 	static GPOS_RESULT EresUnittest_HavingRoundTrip();
 
+	// A correlated Filter commutes above Agg only when its non-outer dependency
+	// vector is non-empty and contained in the existing grouping keys.
+	static GPOS_RESULT EresUnittest_AggFilterCommuteGroupingGuard();
+
 	// Function-specific templates do not match a different aggregate kind.
 	static GPOS_RESULT EresUnittest_RejectsWrongAggFunction();
 

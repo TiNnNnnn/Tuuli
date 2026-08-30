@@ -339,12 +339,16 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
 	CExpression *pexprAggList = (*pexprAgg)[1];
 	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
-		nullptr != popGbAgg->PdrgpcrMinimal() ||
 		COperator::EopScalarProjectList != pexprAggList->Pop()->Eopid() ||
 		0 == pexprAggList->Arity())
 	{
 		return false;
 	}
+	// PdrgpcrMinimal is optimizer metadata derived for this particular child,
+	// not part of the logical aggregate represented by the DSL.  It must not
+	// prevent a real Agg from matching.  Instantiation preserves the full
+	// grouping columns and intentionally does not copy child-dependent minimal
+	// grouping metadata across a rewrite.
 
 	CDSLSymbolArray *pdrgpsym = popAgg->Pdrgpsym();
 	if (nullptr == pdrgpsym ||
@@ -435,6 +439,12 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 			 pmodel->FBind((*pdrgpsym)[ulFunc], pdrgpexprFuncs) &&
 			 pmodel->FBind((*pdrgpsym)[ulSchema], pdrgpcrSchema) &&
 			 pmodel->FBind((*pdrgpsym)[ulHaving], pexprHaving);
+	if (fBound)
+	{
+		pexprAgg->AddRef();
+		fBound = pmodel->FSetAggBinding(
+			(*pdrgpsym)[ulSchema], pexprAgg);
+	}
 
 	pdrgpcrGroup->Release();
 	pdrgpcrAggInputs->Release();

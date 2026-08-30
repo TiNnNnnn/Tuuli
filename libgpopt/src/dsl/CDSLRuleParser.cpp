@@ -396,6 +396,26 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconAggFilterCommute == edslcon)
+		{
+			const EDslSymbolKind rgExpected[] = {
+				EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
+				EdslsymPred, EdslsymPred, EdslsymAttrs};
+			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
+			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
+			{
+				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
+			}
+			if (!fTyped)
+			{
+				bctx.Fail(
+					"AggFilterCommute expects grouping attrs, aggregate attrs, function, "
+					"schema, having predicate, filter predicate, and local attrs");
+				pdrgpsym->Release();
+				pdrgpcon->Release();
+				return nullptr;
+			}
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

@@ -3005,12 +3005,40 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	CExpression *pexprAggList = GPOS_NEW(m_mp) CExpression(
 		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprPrEl);
 
+	// Rebuild from the semantic (full) grouping set. Preserve minimal-grouping
+	// metadata only when the target keeps both that set and the relational child;
+	// otherwise it was derived for an old child and may no longer be valid.
+	CColRefArray *pdrgpcrMinimal = nullptr;
+	CExpression *pexprSourceAgg = pmodel->PexprAggBinding(psymSchema);
+	if (nullptr != pexprSourceAgg &&
+		COperator::EopLogicalGbAgg == pexprSourceAgg->Pop()->Eopid())
+	{
+		CLogicalGbAgg *popSourceAgg =
+			CLogicalGbAgg::PopConvert(pexprSourceAgg->Pop());
+		if (nullptr != popSourceAgg->PdrgpcrMinimal() &&
+			CColRef::Equals(popSourceAgg->Pdrgpcr(), pdrgpcrGroup) &&
+			((*pexprSourceAgg)[0] == pexprChild ||
+			 (*pexprSourceAgg)[0]->Matches(pexprChild)))
+		{
+			pdrgpcrMinimal = popSourceAgg->PdrgpcrMinimal();
+			pdrgpcrMinimal->AddRef();
+		}
+	}
 	pdrgpcrGroup->AddRef();
+	CLogicalGbAgg *popTargetAgg = nullptr;
+	if (nullptr == pdrgpcrMinimal)
+	{
+		popTargetAgg = GPOS_NEW(m_mp) CLogicalGbAgg(
+			m_mp, pdrgpcrGroup, COperator::EgbaggtypeGlobal);
+	}
+	else
+	{
+		popTargetAgg = GPOS_NEW(m_mp) CLogicalGbAgg(
+			m_mp, pdrgpcrGroup, pdrgpcrMinimal,
+			COperator::EgbaggtypeGlobal);
+	}
 	CExpression *pexprResult = GPOS_NEW(m_mp) CExpression(
-		m_mp,
-		GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, pdrgpcrGroup,
-									 COperator::EgbaggtypeGlobal),
-		pexprChild, pexprAggList);
+		m_mp, popTargetAgg, pexprChild, pexprAggList);
 
 	if (!CUtils::FScalarConstTrue(pexprHaving))
 	{

@@ -222,10 +222,15 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	if (fSourceRoot && EdslopAgg == pop->Edslop() &&
 		1 == pop->UlChildren())
 	{
+		// A real aggregate remains the same DSL operator when ORCA annotates a
+		// Global GbAgg with a minimal grouping set before memo insertion.  Unlike
+		// Proj* (the empty aggregate-list/dedup view), matching Agg does not delete
+		// the grouping operator, so the annotation is not a semantic eligibility
+		// gate.  The target builder conservatively recreates the full grouping set
+		// and lets ORCA derive any valid minimal set for the rewritten child.
 		SNode *pnodeCurrent =
 			PnodeExact(pnode, COperator::EopLogicalGbAgg, 1,
-					   SExactEdge::EafGbAggGlobal |
-						   SExactEdge::EafGbAggNoMinimal);
+					   SExactEdge::EafGbAggGlobal);
 		return PnodeInsertOp(pnodeCurrent, (*pop)[0], false, pfComplete);
 	}
 

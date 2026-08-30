@@ -1,0 +1,55 @@
+{
+  "description": "A proved aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "d68592c2926cec06"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}

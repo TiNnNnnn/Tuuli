@@ -34,6 +34,7 @@
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -182,8 +183,22 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 				return false;
 			}
 			break;
+		case COperator::EopScalarAggFunc:
+		{
+			// COUNT is the only aggregate whose evaluation is currently known not to
+			// raise a data-dependent SQL error. SUM/AVG and user-defined aggregates
+			// remain rejected until metadata exposes an equivalent safety property.
+			CScalarAggFunc *popAgg =
+				CScalarAggFunc::PopConvert(pexpr->Pop());
+			if (!popAgg->FCountStar() && !popAgg->FCountAny())
+			{
+				return false;
+			}
+			break;
+		}
 		case COperator::EopScalarNullTest:
 		case COperator::EopScalarBoolOp:
+		case COperator::EopScalarValuesList:
 		case COperator::EopScalarProjectElement:
 		case COperator::EopScalarProjectList:
 			break;
@@ -944,6 +959,44 @@ CDSLConstraintChecker::FCheckExprFilterCommute(
 		!pexprPred->DeriveUsedColumns()->FIntersects(pcrsDefined);
 	pcrsDefined->Release();
 	return fDisjoint;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckAggFilterCommute(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (7 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	const EDslSymbolKind rgExpected[] = {
+		EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
+		EdslsymPred, EdslsymPred, EdslsymAttrs};
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
+	{
+		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind() ||
+			nullptr == pmodel->PvalLookup((*pdrgpsym)[ul]))
+		{
+			return false;
+		}
+	}
+
+	CColRefArray *pdrgpcrGroup = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrLocal = pmodel->PdrgpcrAttrs((*pdrgpsym)[6]);
+	if (nullptr == pdrgpcrGroup || nullptr == pdrgpcrLocal ||
+		0 == pdrgpcrLocal->Size())
+	{
+		return false;
+	}
+	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsGroup->Include(pdrgpcrGroup);
+	CColRefSet *pcrsLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsLocal->Include(pdrgpcrLocal);
+	const BOOL fSubset = pcrsGroup->ContainsAll(pcrsLocal);
+	pcrsLocal->Release();
+	pcrsGroup->Release();
+	return fSubset;
 }
 
 //---------------------------------------------------------------------------
@@ -1799,7 +1852,40 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		case EdslsymAttrs:
 			pexpr = PexprProjectListForAttrs(
 				prule->PfragSrc()->PopRoot(), psymBound, pmodel);
+			// A bare attribute vector denotes existing column references and has no
+			// evaluation of its own. Project-defined attrs retain their exact scalar
+			// list above and must pass the normal checks.
+			if (nullptr == pexpr)
+			{
+				return nullptr != pmodel->PdrgpcrAttrs(psymBound);
+			}
 			break;
+		case EdslsymFunc:
+		{
+			CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psymBound);
+			if (nullptr == pdrgpexpr)
+			{
+				return false;
+			}
+			for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+			{
+				CExpression *pexprFunc = (*pdrgpexpr)[ul];
+				if (EdslconErrorFree == pcon->Edslcon())
+				{
+					if (!FScalarTreeProvablyErrorFree(pexprFunc))
+					{
+						return false;
+					}
+				}
+				else if (pexprFunc->DeriveHasNonScalarFunction() ||
+						 IMDFunction::EfsImmutable !=
+							 pexprFunc->DeriveScalarFunctionProperties()->Efs())
+				{
+					return false;
+				}
+			}
+			return true;
+		}
 		case EdslsymPred:
 			pexpr = pmodel->PexprPred(psymBound);
 			break;
@@ -1940,6 +2026,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconExprFilterCommute:
 			return FCheckExprFilterCommute(pcon, pmodel);
+		case EdslconAggFilterCommute:
+			return FCheckAggFilterCommute(pcon, pmodel);
 		case EdslconUnique:
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:
