@@ -3762,10 +3762,19 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 		}
 		else
 		{
+			CExpression *pexprViolation =
+				CDSLMatchView::PexprInverseComparison(m_mp, pexprPred);
+			pexprPred->Release();
+			if (nullptr == pexprViolation)
+			{
+				pexprOuter->Release();
+				pexprInner->Release();
+				return nullptr;
+			}
 			pexprResult =
 				CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(
 					m_mp, pexprOuter, pexprInner, pcrInner,
-					COperator::EopScalarSubqueryAll, pexprPred);
+					COperator::EopScalarSubqueryAll, pexprViolation);
 		}
 	}
 

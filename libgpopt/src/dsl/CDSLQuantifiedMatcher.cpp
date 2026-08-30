@@ -5,6 +5,7 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -141,9 +142,9 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return fMatched;
 	}
 
-	// Post-unnest ANY and ALL both retain the quantified comparison. The NotIn
-	// anti-apply implements ALL/NULL semantics; its scalar child is not a
-	// separately negated or inverted witness predicate.
+	// Correlated ALL retains the quantified comparison. A regular NotIn Apply
+	// instead stores the inverse comparison identifying rows that violate ALL.
+	// Bind the same logical DSL predicate from both carrier representations.
 	const COperator::EOperatorId eopidApply =
 		fAll ? COperator::EopLogicalLeftAntiSemiApplyNotIn
 			 : COperator::EopLogicalLeftSemiApplyIn;
@@ -165,8 +166,20 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	CExpression *pexprCmp = (*pexpr)[2];
-	pexprCmp->AddRef();
+	const BOOL fCorrelatedCarrier =
+		eopidCorrelatedApply == pexpr->Pop()->Eopid();
+	CExpression *pexprCmp =
+		fAll && !fCorrelatedCarrier
+			? CDSLMatchView::PexprInverseComparison(m_mp, (*pexpr)[2])
+			: (*pexpr)[2];
+	if (!fAll || fCorrelatedCarrier)
+	{
+		pexprCmp->AddRef();
+	}
+	if (nullptr == pexprCmp)
+	{
+		return false;
+	}
 	CColRefSet *pcrsOuterUsed =
 		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprCmp->DeriveUsedColumns());
 	pcrsOuterUsed->Exclude((*pexpr)[1]->DeriveOutputColumns());

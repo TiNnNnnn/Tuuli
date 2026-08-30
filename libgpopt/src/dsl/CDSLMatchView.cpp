@@ -8,6 +8,7 @@
 
 #include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/CCastUtils.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -22,9 +23,11 @@
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/xforms/CSubqueryHandler.h"
+#include "naucrates/md/IMDScalarOp.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
@@ -71,6 +74,35 @@ CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
 	}
 }
 }  // namespace
+
+CExpression *
+CDSLMatchView::PexprInverseComparison(CMemoryPool *mp,
+									  CExpression *pexprCmp)
+{
+	if (nullptr == pexprCmp ||
+		COperator::EopScalarCmp != pexprCmp->Pop()->Eopid() ||
+		2 != pexprCmp->Arity())
+	{
+		return nullptr;
+	}
+
+	CScalarCmp *popCmp = CScalarCmp::PopConvert(pexprCmp->Pop());
+	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
+	IMDId *pmdidInverse =
+		pmda->RetrieveScOp(popCmp->MdIdOp())->GetInverseOpMdid();
+	if (!IMDId::IsValid(pmdidInverse))
+	{
+		return nullptr;
+	}
+
+	const CWStringConst *pstrInverse =
+		pmda->RetrieveScOp(pmdidInverse)->Mdname().GetMDName();
+	(*pexprCmp)[0]->AddRef();
+	(*pexprCmp)[1]->AddRef();
+	pmdidInverse->AddRef();
+	return CUtils::PexprScalarCmp(mp, (*pexprCmp)[0], (*pexprCmp)[1],
+								 *pstrInverse, pmdidInverse);
+}
 
 CExpression *
 CDSLMatchView::PexprLowerSingleSubquery(CMemoryPool *mp,

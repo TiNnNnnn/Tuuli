@@ -113,6 +113,12 @@ public:
 	static BOOL FDirectExists(CExpression *pexpr);
 	static BOOL FPlainEqAny(CExpression *pexpr);
 
+	// Build the metadata-defined inverse of a binary comparison. This adapts
+	// ORCA's non-correlated ALL/NotIn carrier without assuming a comparison
+	// family such as equality.
+	static CExpression *PexprInverseComparison(CMemoryPool *mp,
+										   CExpression *pexprCmp);
+
 	// Lower a Select or Project containing exactly one subquery through ORCA's
 	// production handler. Select callers retain the scalar-only default;
 	// Project value contexts may admit one existential or quantified subquery.
