@@ -61,9 +61,10 @@ FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
 }
 
 BOOL
-FProjectChainEndsInLeftApply(const CDSLOp *pop)
+FCompensationChainEndsInLeftApply(const CDSLOp *pop)
 {
-	while (nullptr != pop && EdslopProj == pop->Edslop() &&
+	while (nullptr != pop &&
+		   (EdslopProj == pop->Edslop() || EdslopAgg == pop->Edslop()) &&
 		   1 == pop->UlChildren())
 	{
 		pop = (*pop)[0];
@@ -484,7 +485,7 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 		COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid() &&
 		2 == pexprAgg->Arity() && (*pexprAgg)[1]->DeriveHasSubquery() &&
 		1 == popAgg->UlChildren() &&
-		FProjectChainEndsInLeftApply((*popAgg)[0]))
+		FCompensationChainEndsInLeftApply((*popAgg)[0]))
 	{
 		const BOOL fSourceNamesDirectApply =
 			EdslopLeftOuterApply == (*popAgg)[0]->Edslop();

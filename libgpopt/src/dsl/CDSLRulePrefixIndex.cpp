@@ -17,9 +17,10 @@ using namespace gpopt;
 namespace
 {
 BOOL
-FProjectChainEndsInLeftApply(const CDSLOp *pop)
+FCompensationChainEndsInLeftApply(const CDSLOp *pop)
 {
-	while (nullptr != pop && EdslopProj == pop->Edslop() &&
+	while (nullptr != pop &&
+		   (EdslopProj == pop->Edslop() || EdslopAgg == pop->Edslop()) &&
 		   1 == pop->UlChildren())
 	{
 		pop = (*pop)[0];
@@ -281,12 +282,12 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	if (fSourceRoot && EdslopAgg == pop->Edslop() &&
 		1 == pop->UlChildren())
 	{
-		if (FProjectChainEndsInLeftApply((*pop)[0]))
+		if (FCompensationChainEndsInLeftApply((*pop)[0]))
 		{
 			// Before GbAgg2Apply, a subquery in an aggregate argument is encoded
 			// in the scalar project list, not in the live relational child.  Index
-			// the stable aggregate shell and let CDSLAggMatcher validate either the
-			// direct correlated or compensation-Project production view.
+			// the stable aggregate shell and let CDSLAggMatcher validate the exact
+			// Apply, Project and aggregate compensation chain named by the rule.
 			*pfComplete = false;
 			return PnodeExact(pnode, COperator::EopLogicalGbAgg,
 							  0 /*relational children*/,

@@ -288,3 +288,18 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t
 # above LeftApply. Preserve every Project and Apply binding exactly; this
 # structural identity was accepted by the FormalSQL/Rocq kernel on 2026-08-30.
 Agg<a0 a1 f0 s0 p0>(Proj<a2 s1>(LeftApply<p1 a3 a4 a5>(Input<t0>,Input<t1>)))|Agg<a6 a7 f1 s2 p2>(Proj<a8 s3>(LeftApply<p3 a9 a10 a11>(Input<t2>,Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a6,a0);AttrsEq(a7,a1);FuncEq(f1,f0);SchemaEq(s2,s0);PredicateEq(p2,p0);AttrsEq(a8,a2);SchemaEq(s3,s1);PredicateEq(p3,p1);AttrsEq(a9,a3);AttrsEq(a10,a4);AttrsEq(a11,a5)
+
+# A production alternative may add a real aggregate compensation layer above
+# LeftApply. This exact structural identity was accepted by FormalSQL/Rocq on
+# 2026-08-31; the rule itself is independent of subquery kind.
+Agg<a0 a1 f0 s0 p0>(Agg<a2 a3 f1 s1 p1>(LeftApply<p2 a4 a5 a6>(Input<t0>,Input<t1>)))|Agg<a7 a8 f2 s2 p3>(Agg<a9 a10 f3 s3 p4>(LeftApply<p5 a11 a12 a13>(Input<t2>,Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a0);AttrsEq(a8,a1);FuncEq(f2,f0);SchemaEq(s2,s0);PredicateEq(p3,p0);AttrsEq(a9,a2);AttrsEq(a10,a3);FuncEq(f3,f1);SchemaEq(s3,s1);PredicateEq(p4,p1);PredicateEq(p5,p2);AttrsEq(a11,a4);AttrsEq(a12,a5);AttrsEq(a13,a6)
+
+# Quantified value decorrelation adds the same grouping compensation plus a
+# Project carrying its count/null summary. FormalSQL/Rocq accepted the complete
+# operator-local identity on 2026-08-31.
+Agg<a0 a1 f0 s0 p0>(Agg<a2 a3 f1 s1 p1>(Proj<a4 s2>(LeftApply<p2 a5 a6 a7>(Input<t0>,Input<t1>))))|Agg<a8 a9 f2 s3 p3>(Agg<a10 a11 f3 s4 p4>(Proj<a12 s5>(LeftApply<p5 a13 a14 a15>(Input<t2>,Input<t3>))))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a8,a0);AttrsEq(a9,a1);FuncEq(f2,f0);SchemaEq(s3,s0);PredicateEq(p3,p0);AttrsEq(a10,a2);AttrsEq(a11,a3);FuncEq(f3,f1);SchemaEq(s4,s1);PredicateEq(p4,p1);AttrsEq(a12,a4);SchemaEq(s5,s2);PredicateEq(p5,p2);AttrsEq(a13,a5);AttrsEq(a14,a6);AttrsEq(a15,a7)
+
+# A grouping-only compensation GbAgg is the DSL's Proj* (dedup), not a real
+# Agg. Preserve that distinct domain around LeftApply. FormalSQL/Rocq accepted
+# this operator-local identity on 2026-08-31.
+Agg<a0 a1 f0 s0 p0>(Proj*<a2 s1>(LeftApply<p1 a3 a4 a5>(Input<t0>,Input<t1>)))|Agg<a6 a7 f1 s2 p2>(Proj*<a8 s3>(LeftApply<p3 a9 a10 a11>(Input<t2>,Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a6,a0);AttrsEq(a7,a1);FuncEq(f1,f0);SchemaEq(s2,s0);PredicateEq(p2,p0);AttrsEq(a8,a2);SchemaEq(s3,s1);PredicateEq(p3,p1);AttrsEq(a9,a3);AttrsEq(a10,a4);AttrsEq(a11,a5)

@@ -368,15 +368,38 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 		mp,
 		"Agg<a0 a1 f0 s0 p0>(Proj<a2 s1>(LeftApply<p1 a3 a4 a5>("
 		"Input<t0>,Input<t1>)))|Input<t2>|TableEq(t2,t0)");
-	if (nullptr == pruleAggApply || nullptr == pruleAggProjApply)
+	CDSLRule *pruleAggDistinctApply = PrulePrefix(
+		mp,
+		"Agg<a0 a1 f0 s0 p0>(Proj*<a2 s1>(LeftApply<p1 a3 a4 a5>("
+		"Input<t0>,Input<t1>)))|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *pruleAggNestedApply = PrulePrefix(
+		mp,
+		"Agg<a0 a1 f0 s0 p0>(Agg<a2 a3 f1 s1 p1>(LeftApply<p2 a4 a5 a6>("
+		"Input<t0>,Input<t1>)))|Input<t2>|TableEq(t2,t0)");
+	CDSLRule *pruleAggNestedProjApply = PrulePrefix(
+		mp,
+		"Agg<a0 a1 f0 s0 p0>(Agg<a2 a3 f1 s1 p1>(Proj<a4 s2>("
+		"LeftApply<p2 a5 a6 a7>(Input<t0>,Input<t1>))))|Input<t2>|"
+		"TableEq(t2,t0)");
+	if (nullptr == pruleAggApply || nullptr == pruleAggProjApply ||
+		nullptr == pruleAggDistinctApply ||
+		nullptr == pruleAggNestedApply ||
+		nullptr == pruleAggNestedProjApply)
 	{
 		CRefCount::SafeRelease(pruleAggApply);
 		CRefCount::SafeRelease(pruleAggProjApply);
+		CRefCount::SafeRelease(pruleAggDistinctApply);
+		CRefCount::SafeRelease(pruleAggNestedApply);
+		CRefCount::SafeRelease(pruleAggNestedProjApply);
 		return GPOS_FAILED;
 	}
 	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
 	pindex->Insert(pruleAggApply, 0, COperator::EopLogicalGbAgg);
 	pindex->Insert(pruleAggProjApply, 1, COperator::EopLogicalGbAgg);
+	pindex->Insert(pruleAggDistinctApply, 2, COperator::EopLogicalGbAgg);
+	pindex->Insert(pruleAggNestedApply, 3, COperator::EopLogicalGbAgg);
+	pindex->Insert(pruleAggNestedProjApply, 4,
+				   COperator::EopLogicalGbAgg);
 	pexpr = PexprPrefixGbAgg(mp, COperator::EgbaggtypeGlobal,
 							 PexprPrefixLeaf(mp));
 	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
@@ -385,6 +408,9 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pdrgprule->Release();
 	pexpr->Release();
 	GPOS_DELETE(pindex);
+	pruleAggNestedProjApply->Release();
+	pruleAggNestedApply->Release();
+	pruleAggDistinctApply->Release();
 	pruleAggProjApply->Release();
 	pruleAggApply->Release();
 
