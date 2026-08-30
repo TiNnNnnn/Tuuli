@@ -25,44 +25,19 @@
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
+#include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
-#include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/xforms/CSubqueryHandler.h"
 
 using namespace gpopt;
 
 namespace
 {
-void
-CountScalarSubqueries(CExpression *pexpr, ULONG *pulScalar,
-					   BOOL *pfOtherSubquery)
-{
-	switch (pexpr->Pop()->Eopid())
-	{
-		case COperator::EopScalarSubquery:
-			(*pulScalar)++;
-			break;
-		case COperator::EopScalarSubqueryExists:
-		case COperator::EopScalarSubqueryNotExists:
-		case COperator::EopScalarSubqueryAny:
-		case COperator::EopScalarSubqueryAll:
-			*pfOtherSubquery = true;
-			break;
-		default:
-			break;
-	}
-	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
-	{
-		CountScalarSubqueries((*pexpr)[ul], pulScalar, pfOtherSubquery);
-	}
-}
-
 // Return the already-bound source attrs connected to psymJoin by a direct
 // AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
 // constrain this match. Multiple declarations are accepted only when they
@@ -549,7 +524,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		fInnerApply &&
 		(COperator::EopLogicalInnerApply == eopid ||
 		 COperator::EopLogicalInnerCorrelatedApply == eopid);
+	const BOOL fExpectedLeftOuterApply =
+		fLeftOuterApply &&
+		(COperator::EopLogicalLeftOuterApply == eopid ||
+		 COperator::EopLogicalLeftOuterCorrelatedApply == eopid);
 	if ((!fExpectedSemiApply && !fExpectedInnerApply &&
+		 !fExpectedLeftOuterApply &&
 		 eopid != eopidExpected) ||
 		3 != pexprJoin->Arity())
 	{
@@ -648,6 +628,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps) &&
 			(!fPredicateApply ||
 			 pmodel->FBind((*pdrgpsym)[3], pdrgpcrCorrelations));
+		if (fMatched && (fInnerApply || fLeftOuterApply))
+		{
+			pexprJoin->AddRef();
+			fMatched =
+				pmodel->FSetApplyCarrier((*pdrgpsym)[0], pexprJoin);
+		}
 		pexprPred->Release();
 		pdrgpcrLeftDeps->Release();
 		pdrgpcrRightDeps->Release();
@@ -817,7 +803,16 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	// Record by this Join node's attrs pair, so nested joins retain independent
 	// predicates and target-side AttrsEq aliases can find the right one.
 	CExpression *pexprPred = (*pexprJoin)[2];
-	return pmodel->FSetJoinPred(psymLeft, psymRight, pexprPred);
+	BOOL fMatched = pmodel->FSetJoinPred(psymLeft, psymRight, pexprPred);
+	if (fMatched && (fInnerApply || fLeftOuterApply))
+	{
+		// Apply operators carry optimizer-owned required-inner-column and
+		// origin-subquery metadata that is not part of the DSL surface. Keep the
+		// exact matched carrier for any Apply-rooted target that preserves it.
+		pexprJoin->AddRef();
+		fMatched = pmodel->FSetApplyCarrier((*pdrgpsym)[0], pexprJoin);
+	}
+	return fMatched;
 }
 
 BOOL
@@ -831,37 +826,12 @@ CDSLJoinMatcher::FMatchScalarSubquerySelect(const CDSLOp *popJoin,
 		return false;
 	}
 
-	ULONG ulScalar = 0;
-	BOOL fOtherSubquery = false;
-	CountScalarSubqueries((*pexprSelect)[1], &ulScalar, &fOtherSubquery);
-	if (1 != ulScalar || fOtherSubquery)
-	{
-		return false;
-	}
-
-	CExpression *pexprOuter = (*pexprSelect)[0];
-	pexprOuter->AddRef();
-	CExpression *pexprNewOuter = nullptr;
-	CExpression *pexprResidual = nullptr;
-	CSubqueryHandler handler(m_mp, false /*fEnforceCorrelatedApply*/);
-	if (!handler.FProcess(pexprOuter, (*pexprSelect)[1],
-						  CSubqueryHandler::EsqctxtFilter, &pexprNewOuter,
-						  &pexprResidual))
-	{
-		CRefCount::SafeRelease(pexprNewOuter);
-		CRefCount::SafeRelease(pexprResidual);
-		return false;
-	}
-
-	CExpression *pexprLowered = GPOS_NEW(m_mp) CExpression(
-		m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprNewOuter,
-		pexprResidual);
-	CExpression *pexprNormalized =
-		CNormalizer::PexprNormalize(m_mp, pexprLowered);
-	pexprLowered->Release();
 	CExpression *pexprCanonical =
-		CNormalizer::PexprPullUpProjections(m_mp, pexprNormalized);
-	pexprNormalized->Release();
+		CDSLMatchView::PexprLowerSingleScalarSubquery(m_mp, pexprSelect);
+	if (nullptr == pexprCanonical)
+	{
+		return false;
+	}
 
 	const COperator::EOperatorId eopid = pexprCanonical->Pop()->Eopid();
 	if ((COperator::EopLogicalInnerApply != eopid &&
@@ -873,12 +843,6 @@ CDSLJoinMatcher::FMatchScalarSubquerySelect(const CDSLOp *popJoin,
 	}
 
 	BOOL fMatched = FMatch(popJoin, pexprCanonical, pmodel);
-	if (fMatched)
-	{
-		pexprCanonical->AddRef();
-		fMatched = pmodel->FSetApplyCarrier(
-			(*popJoin->Pdrgpsym())[0], pexprCanonical);
-	}
 	pexprCanonical->Release();
 	return fMatched;
 }

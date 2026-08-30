@@ -307,6 +307,22 @@ CDSLProjMatcher::FMatchIdentityOverInSub(const CDSLOp *popProj,
 	return pmodel->FSetVirtualIdentityProj((*pdrgpsym)[1], pexprCarrier);
 }
 
+BOOL
+CDSLProjMatcher::FMatchScalarSubqueryProject(const CDSLOp *popProj,
+										 CExpression *pexprProject,
+										 CDSLModel *pmodel) const
+{
+	CExpression *pexprLowered =
+		CDSLMatchView::PexprLowerSingleScalarSubquery(m_mp, pexprProject);
+	if (nullptr == pexprLowered)
+	{
+		return false;
+	}
+	BOOL fMatched = m_pmatcher->FMatch(popProj, pexprLowered, pmodel);
+	pexprLowered->Release();
+	return fMatched;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjMatcher::FMatch
@@ -322,6 +338,12 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	if (COperator::EopLogicalSelect == pexprProject->Pop()->Eopid())
 	{
 		return FMatchTrivialSelectOverDedup(popProj, pexprProject, pmodel);
+	}
+	if (COperator::EopLogicalProject == pexprProject->Pop()->Eopid() &&
+		2 == pexprProject->Arity() &&
+		(*pexprProject)[1]->DeriveHasSubquery())
+	{
+		return FMatchScalarSubqueryProject(popProj, pexprProject, pmodel);
 	}
 
 	// the live node must be a Project carrying (relational child, project list).

@@ -45,6 +45,13 @@ All<p0 a0>(Input<t0>,Input<t1>)|All<p1 a1>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);
 # RuleIR is accepted by the FormalSQL/Rocq structural proof kernel.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerApply<p1 a3 a4 a5>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2)
 
+# Representation-lowering identity for a scalar single-row subquery in a
+# projection value. The Project matcher exposes ORCA's normalized
+# Proj(LeftApply) carrier and the target retains the exact residual project
+# expressions plus Apply cardinality/correlation metadata. FormalSQL/Rocq
+# proves the complete Proj/LeftApply structure, not an operator-local shortcut.
+Proj<a0 s0>(LeftApply<p0 a1 a2 a3>(Input<t0>,Input<t1>))|Proj<a4 s1>(LeftApply<p1 a5 a6 a7>(Input<t2>,Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a5,a1);AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsEq(a4,a0);SchemaEq(s1,s0)
+
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)

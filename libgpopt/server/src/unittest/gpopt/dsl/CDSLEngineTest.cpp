@@ -294,6 +294,30 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleProjInner->Release();
 	pruleProjLeft->Release();
 
+	// Proj(Apply) may be presented before unnesting as Project(base,
+	// ScalarSubquery). Its necessary trie prefix stops at Project, so the rule
+	// remains a candidate even when the live relational child is not yet Apply.
+	CDSLRule *pruleProjApply = PrulePrefix(
+		mp,
+		"Proj<a0 s0>(LeftApply<p0 a1 a2 a3>(Input<t0>,Input<t1>))|"
+		"Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleProjApply)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleProjApply, 0, COperator::EopLogicalProject);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), PexprPrefixLeaf(mp),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+		1 == pdrgprule->Size() && pruleProjApply == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleProjApply->Release();
+
 	// Proj* and Agg source matchers accept only canonical Global GbAgg roots.
 	// The trie token must reject Local split alternatives before full matching.
 	CDSLRule *pruleDistinct = PrulePrefix(

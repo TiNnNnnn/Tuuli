@@ -15,13 +15,16 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/xforms/CSubqueryHandler.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
@@ -43,7 +46,82 @@ PcrJoinKeyOperand(CExpression *pexpr)
 	}
 	return nullptr;
 }
+
+void
+CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
+				   BOOL *pfOtherSubquery)
+{
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopScalarSubquery:
+			(*pulScalar)++;
+			break;
+		case COperator::EopScalarSubqueryExists:
+		case COperator::EopScalarSubqueryNotExists:
+		case COperator::EopScalarSubqueryAny:
+		case COperator::EopScalarSubqueryAll:
+			*pfOtherSubquery = true;
+			break;
+		default:
+			break;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CountSubqueryKinds((*pexpr)[ul], pulScalar, pfOtherSubquery);
+	}
+}
 }  // namespace
+
+CExpression *
+CDSLMatchView::PexprLowerSingleScalarSubquery(CMemoryPool *mp,
+										  CExpression *pexprUnary)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprUnary);
+
+	const COperator::EOperatorId eopid = pexprUnary->Pop()->Eopid();
+	if ((COperator::EopLogicalSelect != eopid &&
+		 COperator::EopLogicalProject != eopid) ||
+		2 != pexprUnary->Arity())
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprScalar = (*pexprUnary)[1];
+	ULONG ulScalar = 0;
+	BOOL fOtherSubquery = false;
+	CountSubqueryKinds(pexprScalar, &ulScalar, &fOtherSubquery);
+	if (1 != ulScalar || fOtherSubquery)
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprOuter = (*pexprUnary)[0];
+	pexprOuter->AddRef();
+	CExpression *pexprNewOuter = nullptr;
+	CExpression *pexprResidual = nullptr;
+	CSubqueryHandler handler(mp, false /*fEnforceCorrelatedApply*/);
+	if (!handler.FProcess(pexprOuter, pexprScalar,
+					  CSubqueryHandler::EsqctxtFilter, &pexprNewOuter,
+					  &pexprResidual))
+	{
+		CRefCount::SafeRelease(pexprNewOuter);
+		CRefCount::SafeRelease(pexprResidual);
+		return nullptr;
+	}
+
+	CExpression *pexprLowered = COperator::EopLogicalProject == eopid
+		? CUtils::PexprLogicalProject(mp, pexprNewOuter, pexprResidual,
+									 false /*fNewComputedCol*/)
+		: CUtils::PexprLogicalSelect(mp, pexprNewOuter, pexprResidual);
+	CExpression *pexprNormalized =
+		CNormalizer::PexprNormalize(mp, pexprLowered);
+	pexprLowered->Release();
+	CExpression *pexprCanonical =
+		CNormalizer::PexprPullUpProjections(mp, pexprNormalized);
+	pexprNormalized->Release();
+	return pexprCanonical;
+}
 
 BOOL
 CDSLMatchView::FSplitJoinPredicate(

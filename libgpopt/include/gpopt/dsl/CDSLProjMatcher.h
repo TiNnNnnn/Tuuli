@@ -97,6 +97,12 @@ private:
 								 CExpression *pexprCarrier,
 								 CDSLModel *pmodel) const;
 
+	// Expose a Project list containing exactly one scalar single-row subquery as
+	// the normalized Proj(LeftApply(...)) representation produced by ORCA.
+	BOOL FMatchScalarSubqueryProject(const CDSLOp *popProj,
+									 CExpression *pexprProject,
+									 CDSLModel *pmodel) const;
+
 public:
 	CDSLProjMatcher(const CDSLProjMatcher &) = delete;
 

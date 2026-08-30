@@ -163,6 +163,12 @@ CDSLRuleEngine::BucketByRoot()
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalInnerCorrelatedApply;
 		}
+		if (EdslopLeftOuterApply ==
+			prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftOuterCorrelatedApply;
+		}
 		if (EdslopInSubFilter == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;

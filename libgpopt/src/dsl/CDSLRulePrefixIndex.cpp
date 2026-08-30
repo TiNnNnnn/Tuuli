@@ -197,6 +197,21 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	if (fSourceRoot && EdslopProj == pop->Edslop() &&
 		1 == pop->UlChildren())
 	{
+		const EDslOpKind edslopChild = (*pop)[0]->Edslop();
+		if (!pop->FDistinct() &&
+			(EdslopInnerApply == edslopChild ||
+			 EdslopLeftOuterApply == edslopChild))
+		{
+			// A pre-unnest Project has the Apply encoded in its scalar project
+			// list, not in its live relational child. Index only the stable Project
+			// root for an Apply-shaped source; the shared Project match view and
+			// ordinary matcher remain the complete semantic gate. Using zero
+			// relational children also gives memo binding construction a valid root
+			// witness instead of trying to consume the not-yet-materialized Apply.
+			*pfComplete = false;
+			return PnodeExact(pnode, pop->Eopid(), 0);
+		}
+
 		ULONG ulAdapterFlags = SExactEdge::EafNone;
 		if (pop->FDistinct())
 		{
@@ -207,7 +222,6 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		}
 		else
 		{
-			const EDslOpKind edslopChild = (*pop)[0]->Edslop();
 			if (EdslopLimit != edslopChild && EdslopSort != edslopChild)
 			{
 				ulAdapterFlags |= SExactEdge::EafProjectPeelLimit;

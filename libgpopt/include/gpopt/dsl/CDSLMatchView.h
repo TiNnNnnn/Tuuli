@@ -113,6 +113,13 @@ public:
 	static BOOL FDirectExists(CExpression *pexpr);
 	static BOOL FPlainEqAny(CExpression *pexpr);
 
+	// Lower a Select or Project containing exactly one scalar single-row
+	// subquery through ORCA's production subquery handler. Existential,
+	// quantified, mixed, and multiple-subquery scalar trees fail closed. The
+	// caller owns the returned normalized expression.
+	static CExpression *PexprLowerSingleScalarSubquery(CMemoryPool *mp,
+											 CExpression *pexprUnary);
+
 	// Clone a Select or LeftSemiApplyIn carrier with a replacement outer
 	// relation. The caller owns the returned transient expression.
 	static CExpression *PexprRebaseInSubCarrier(CMemoryPool *mp,
