@@ -217,6 +217,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
@@ -227,6 +228,34 @@ CDSLAggTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefArray *pdrgpcrMinimal = GPOS_NEW(mp) CColRefArray(mp);
+	CLogicalGbAgg *popOriginal = GPOS_NEW(mp) CLogicalGbAgg(
+		mp, pdrgpcrGroup, pdrgpcrMinimal, COperator::EgbaggtypeGlobal);
+	GPOS_ASSERT(popOriginal->FGlobal());
+	GPOS_ASSERT(popOriginal->FGeneratesDuplicates());
+
+	UlongToColRefMap *colref_mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+	COperator *popCopy = popOriginal->PopCopyWithRemappedColumns(
+		mp, colref_mapping, false /*must_exist*/);
+	colref_mapping->Release();
+
+	CLogicalGbAgg *popGbAggCopy = CLogicalGbAgg::PopConvert(popCopy);
+	GPOS_ASSERT(popGbAggCopy->FGlobal());
+	GPOS_ASSERT(popGbAggCopy->FGeneratesDuplicates());
+	GPOS_ASSERT(nullptr == popGbAggCopy->PdrgpcrArgDQA());
+
+	popCopy->Release();
+	popOriginal->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT

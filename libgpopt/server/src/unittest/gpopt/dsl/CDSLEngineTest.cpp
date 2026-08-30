@@ -29,6 +29,7 @@
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPatternTree.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
@@ -135,7 +136,9 @@ PexprPrefixGbAgg(CMemoryPool *mp, COperator::EGbAggType egbaggtype,
 		mp,
 		GPOS_NEW(mp)
 			CLogicalGbAgg(mp, GPOS_NEW(mp) CColRefArray(mp), egbaggtype),
-		pexprRel, PexprPrefixLeaf(mp));
+		pexprRel,
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp)));
 }
 
 CExpression *
@@ -352,27 +355,37 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleNestedProjApply->Release();
 	pruleProjApply->Release();
 
-	// Agg(LeftApply) has the same pre-unnest boundary: the subquery is in the
-	// aggregate project list, while the live relational child is still the
-	// original input. The stable Global GbAgg shell must retain the candidate.
+	// Agg(LeftApply) and its compensation-Project alternative have the same
+	// pre-unnest boundary: the subquery is in the aggregate project list, while
+	// the live relational child is still the original input. A plain Global
+	// GbAgg without a scalar subquery must not admit either adapter candidate;
+	// real pre-unnest positive routing is covered by the native-off E2E cases.
 	CDSLRule *pruleAggApply = PrulePrefix(
 		mp,
 		"Agg<a0 a1 f0 s0 p0>(LeftApply<p1 a2 a3 a4>(Input<t0>,Input<t1>))|"
 		"Input<t2>|TableEq(t2,t0)");
-	if (nullptr == pruleAggApply)
+	CDSLRule *pruleAggProjApply = PrulePrefix(
+		mp,
+		"Agg<a0 a1 f0 s0 p0>(Proj<a2 s1>(LeftApply<p1 a3 a4 a5>("
+		"Input<t0>,Input<t1>)))|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleAggApply || nullptr == pruleAggProjApply)
 	{
+		CRefCount::SafeRelease(pruleAggApply);
+		CRefCount::SafeRelease(pruleAggProjApply);
 		return GPOS_FAILED;
 	}
 	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
 	pindex->Insert(pruleAggApply, 0, COperator::EopLogicalGbAgg);
+	pindex->Insert(pruleAggProjApply, 1, COperator::EopLogicalGbAgg);
 	pexpr = PexprPrefixGbAgg(mp, COperator::EgbaggtypeGlobal,
 							 PexprPrefixLeaf(mp));
 	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
 	fValid = fValid && 0 == pindex->UlFallbackRules() &&
-		1 == pdrgprule->Size() && pruleAggApply == (*pdrgprule)[0];
+		0 == pdrgprule->Size();
 	pdrgprule->Release();
 	pexpr->Release();
 	GPOS_DELETE(pindex);
+	pruleAggProjApply->Release();
 	pruleAggApply->Release();
 
 	// Proj* and Agg source matchers accept only canonical Global GbAgg roots.

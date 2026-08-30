@@ -59,7 +59,10 @@ private:
 			// A Filter(InnerJoin) matcher can expose a null-rejected
 			// Select(LeftJoin) as the same logical source shape. The index may
 			// admit that conservative candidate; the matcher proves null rejection.
-			EafNullRejectedInnerJoin = 16
+			EafNullRejectedInnerJoin = 16,
+			// A pre-unnest Agg(Apply) view exists only while the Global GbAgg's
+			// scalar project list still contains a subquery.
+			EafGbAggHasSubquery = 32
 		};
 
 		COperator::EOperatorId m_eopid;
@@ -141,7 +144,8 @@ private:
 	// representation adapter and therefore end the safe indexed prefix.
 	static BOOL FStructurallyExact(const CDSLOp *pop);
 	static BOOL FEdgeMatchesOperator(const SExactEdge *pedge,
-								 COperator *pop);
+								 COperator *pop,
+								 BOOL fGbAggHasSubquery);
 
 	// Insert as much of one source template as is guaranteed to be a necessary
 	// live-expression prefix. *pfComplete is false when an adapter boundary

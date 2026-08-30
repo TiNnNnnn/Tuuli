@@ -276,9 +276,21 @@ CLogicalGbAgg::PopCopyWithRemappedColumns(CMemoryPool *mp,
 											 colref_mapping, must_exist);
 	}
 
-	return GPOS_NEW(mp)
-		CLogicalGbAgg(mp, colref_array, pdrgpcrMinimal, Egbaggtype(),
-					  m_fGeneratesDuplicates, pdrgpcrArgDQA);
+	// CXformSplitGbAgg builds both Local and Global stages with the
+	// minimal-grouping constructor. That constructor intentionally marks both
+	// stages as duplicate-generating; the explicit-bool constructor below has a
+	// narrower invariant which accepts that flag only for Local stages. Preserve
+	// the original constructor domain when no DQA argument vector is present so
+	// a legal split Global aggregate can be copied during memo-root freshening.
+	if (m_fGeneratesDuplicates && nullptr == pdrgpcrArgDQA)
+	{
+		return GPOS_NEW(mp) CLogicalGbAgg(
+			mp, colref_array, pdrgpcrMinimal, Egbaggtype());
+	}
+
+	return GPOS_NEW(mp) CLogicalGbAgg(
+		mp, colref_array, pdrgpcrMinimal, Egbaggtype(),
+		m_fGeneratesDuplicates, pdrgpcrArgDQA);
 }
 
 //---------------------------------------------------------------------------

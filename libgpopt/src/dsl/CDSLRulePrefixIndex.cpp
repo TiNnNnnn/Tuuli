@@ -7,11 +7,26 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
 
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FProjectChainEndsInLeftApply(const CDSLOp *pop)
+{
+	while (nullptr != pop && EdslopProj == pop->Edslop() &&
+		   1 == pop->UlChildren())
+	{
+		pop = (*pop)[0];
+	}
+	return nullptr != pop && EdslopLeftOuterApply == pop->Edslop();
+}
+}  // namespace
 
 CDSLRulePrefixIndex::SExactEdge::~SExactEdge()
 {
@@ -131,7 +146,8 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 
 BOOL
 CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
-									  COperator *pop)
+									  COperator *pop,
+									  BOOL fGbAggHasSubquery)
 {
 	const BOOL fNullRejectedInnerView =
 		0 != (pedge->m_ulAdapterFlags &
@@ -147,9 +163,16 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	{
 		return false;
 	}
+	if (0 != (pedge->m_ulAdapterFlags &
+			  SExactEdge::EafGbAggHasSubquery) &&
+		!fGbAggHasSubquery)
+	{
+		return false;
+	}
 	if (0 == (pedge->m_ulAdapterFlags &
 			  (SExactEdge::EafGbAggGlobal |
-			   SExactEdge::EafGbAggNoMinimal)))
+			   SExactEdge::EafGbAggNoMinimal |
+			   SExactEdge::EafGbAggHasSubquery)))
 	{
 		return true;
 	}
@@ -258,16 +281,17 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	if (fSourceRoot && EdslopAgg == pop->Edslop() &&
 		1 == pop->UlChildren())
 	{
-		if (EdslopLeftOuterApply == (*pop)[0]->Edslop())
+		if (FProjectChainEndsInLeftApply((*pop)[0]))
 		{
 			// Before GbAgg2Apply, a subquery in an aggregate argument is encoded
 			// in the scalar project list, not in the live relational child.  Index
-			// the stable aggregate shell and let CDSLAggMatcher validate the full
-			// production Agg(LeftApply) view.
+			// the stable aggregate shell and let CDSLAggMatcher validate either the
+			// direct correlated or compensation-Project production view.
 			*pfComplete = false;
 			return PnodeExact(pnode, COperator::EopLogicalGbAgg,
 							  0 /*relational children*/,
-							  SExactEdge::EafGbAggGlobal);
+							  SExactEdge::EafGbAggGlobal |
+								  SExactEdge::EafGbAggHasSubquery);
 		}
 		// A real aggregate remains the same DSL operator when ORCA annotates a
 		// Global GbAgg with a minimal grouping set before memo insertion.  Unlike
@@ -446,7 +470,11 @@ CDSLRulePrefixIndex::MatchOne(
 	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
-		if (!FEdgeMatchesOperator(pedge, pexpr->Pop()) ||
+		const BOOL fGbAggHasSubquery =
+			COperator::EopLogicalGbAgg == pexpr->Pop()->Eopid() &&
+			2 == pexpr->Arity() && (*pexpr)[1]->DeriveHasSubquery();
+		if (!FEdgeMatchesOperator(pedge, pexpr->Pop(),
+							  fGbAggHasSubquery) ||
 			pexpr->Arity() < pedge->m_ulChildren ||
 			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{
@@ -794,11 +822,20 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 
 	SBindingStateArray *pdrgpstateResult =
 		GPOS_NEW(mp) SBindingStateArray(mp);
+	BOOL fGbAggHasSubquery = false;
+	if (COperator::EopLogicalGbAgg == pgexpr->Pop()->Eopid() &&
+		2 == pgexpr->Arity())
+	{
+		CExpressionHandle exprhdl(mp);
+		exprhdl.Attach(pgexpr);
+		fGbAggHasSubquery = exprhdl.DeriveHasSubquery(1);
+	}
 
 	for (ULONG ulEdge = 0; ulEdge < pnode->m_pdrgpedgeExact->Size(); ulEdge++)
 	{
 		const SExactEdge *pedge = (*pnode->m_pdrgpedgeExact)[ulEdge];
-		if (!FEdgeMatchesOperator(pedge, pgexpr->Pop()) ||
+		if (!FEdgeMatchesOperator(pedge, pgexpr->Pop(),
+							  fGbAggHasSubquery) ||
 			pgexpr->Arity() < pedge->m_ulChildren ||
 			!FNodeHasAvailableRule(pedge->m_pnodeChild))
 		{

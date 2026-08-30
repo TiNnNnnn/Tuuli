@@ -88,6 +88,10 @@ public:
 	// not rematch an already annotated aggregate.
 	static GPOS_RESULT EresUnittest_MinimalGroupingMetadata();
 
+	// Copying a split-like Global aggregate preserves the constructor domain
+	// which permits duplicate-generating partial aggregate state.
+	static GPOS_RESULT EresUnittest_CopySplitGlobalGbAgg();
+
 	// ORCA Select(GbAgg,HAVING) binds p to the real predicate and reconstructs
 	// the same two-node shape end to end.
 	static GPOS_RESULT EresUnittest_HavingRoundTrip();

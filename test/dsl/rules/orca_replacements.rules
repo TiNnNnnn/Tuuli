@@ -283,3 +283,8 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t
 # Line 3 replaces CXformUnion2UnionAll. The explicit Union output binding makes
 # Proj* a full-row identity dedup rather than an arbitrary subset projection.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
+
+# The non-correlated GbAgg2Apply alternative inserts a compensation Project
+# above LeftApply. Preserve every Project and Apply binding exactly; this
+# structural identity was accepted by the FormalSQL/Rocq kernel on 2026-08-30.
+Agg<a0 a1 f0 s0 p0>(Proj<a2 s1>(LeftApply<p1 a3 a4 a5>(Input<t0>,Input<t1>)))|Agg<a6 a7 f1 s2 p2>(Proj<a8 s3>(LeftApply<p3 a9 a10 a11>(Input<t2>,Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a6,a0);AttrsEq(a7,a1);FuncEq(f1,f0);SchemaEq(s2,s0);PredicateEq(p2,p0);AttrsEq(a8,a2);SchemaEq(s3,s1);PredicateEq(p3,p1);AttrsEq(a9,a3);AttrsEq(a10,a4);AttrsEq(a11,a5)

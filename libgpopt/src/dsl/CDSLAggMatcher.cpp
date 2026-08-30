@@ -59,6 +59,17 @@ FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
 				CDSLOpKindTable::SzAggFuncName(popAgg->Edslaggfunc()));
 	}
 }
+
+BOOL
+FProjectChainEndsInLeftApply(const CDSLOp *pop)
+{
+	while (nullptr != pop && EdslopProj == pop->Edslop() &&
+		   1 == pop->UlChildren())
+	{
+		pop = (*pop)[0];
+	}
+	return nullptr != pop && EdslopLeftOuterApply == pop->Edslop();
+}
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -473,8 +484,10 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 		COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid() &&
 		2 == pexprAgg->Arity() && (*pexprAgg)[1]->DeriveHasSubquery() &&
 		1 == popAgg->UlChildren() &&
-		EdslopLeftOuterApply == (*popAgg)[0]->Edslop())
+		FProjectChainEndsInLeftApply((*popAgg)[0]))
 	{
+		const BOOL fSourceNamesDirectApply =
+			EdslopLeftOuterApply == (*popAgg)[0]->Edslop();
 		CExpression *pexprLowered = CDSLMatchView::PexprLowerSubqueries(
 			m_mp, pexprAgg, false /*fEnforceCorrelatedApply*/,
 			false /*fScalarOnly*/);
@@ -488,12 +501,13 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 			COperator::EopLogicalLeftOuterApply == eopidLoweredChild ||
 			COperator::EopLogicalLeftOuterCorrelatedApply ==
 				eopidLoweredChild;
-		if (nullptr != pexprLowered && !fDirectLeftApply)
+		if (nullptr != pexprLowered && fSourceNamesDirectApply &&
+			!fDirectLeftApply)
 		{
 			// Count-zero and quantified value semantics may add a compensating
-			// Project in the regular alternative.  When the DSL source names a
-			// direct LeftApply, select the production handler's existing correlated
-			// alternative before any aggregate symbols are bound.
+			// Project in the regular alternative. A direct-Apply source explicitly
+			// selects the production handler's correlated alternative; a
+			// Proj...(LeftApply) source retains and matches the regular alternative.
 			pexprLowered->Release();
 			pexprLowered = CDSLMatchView::PexprLowerSubqueries(
 				m_mp, pexprAgg, true /*fEnforceCorrelatedApply*/,
