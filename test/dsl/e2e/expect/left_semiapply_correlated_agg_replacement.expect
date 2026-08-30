@@ -2,7 +2,7 @@
   "description": "A proved aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
   "replacement": {
     "xforms": [
-      "CXformLeftSemiApply2LeftSemiJoin"
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
     "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key",
     "status": "verified_partial_replacement",
@@ -14,7 +14,10 @@
     {
       "name": "native",
       "dsl": false,
-      "trace": true
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
     },
     {
       "name": "shadow",
@@ -25,23 +28,29 @@
       "dsl": false,
       "trace": true,
       "disable_xforms": [
-        "CXformLeftSemiApply2LeftSemiJoin"
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
       ]
     },
     {
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformLeftSemiApply2LeftSemiJoin"
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\""
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
       ]
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformLeftSemiApply2LeftSemiJoin"
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
     "output": [
       "2",
