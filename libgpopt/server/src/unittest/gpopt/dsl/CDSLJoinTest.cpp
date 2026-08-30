@@ -31,6 +31,7 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
+#include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBoolOp.h"
@@ -484,6 +485,36 @@ CDSLJoinTest::EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin()
 		}
 	}
 
+	// IN/ANY is an operator tag on the same positive semi-apply semantics.
+	// Reuse the exact template and constraints rather than duplicating a rule.
+	pexprOuter->AddRef();
+	pexprInner->AddRef();
+	CExpression *pexprApplyIn =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			mp, pexprOuter, pexprInner, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubqueryAny);
+	CDSLModel *pmodelApplyIn = GPOS_NEW(mp) CDSLModel(mp);
+	CExpression *pexprApplyInTarget = nullptr;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApplyIn,
+						pmodelApplyIn) ||
+		!checker.FCheck(prule, pmodelApplyIn))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprApplyInTarget =
+			instantiator.PexprInstantiate(prule, pmodelApplyIn);
+		if (nullptr == pexprApplyInTarget ||
+			COperator::EopLogicalLeftSemiJoin !=
+				pexprApplyInTarget->Pop()->Eopid() ||
+			!(*pexprApplyInTarget)[2]->Matches((*pexprApplyIn)[2]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
 	// The same template must expose, and therefore reject, an actual reference
 	// from the inner subtree to the current outer input.
 	CExpression *pexprCorrelation =
@@ -508,6 +539,9 @@ CDSLJoinTest::EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin()
 	pmodelCorrelated->Release();
 	pexprCorrelatedApply->Release();
 	pexprCorrelatedInner->Release();
+	CRefCount::SafeRelease(pexprApplyInTarget);
+	pmodelApplyIn->Release();
+	pexprApplyIn->Release();
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprApply->Release();

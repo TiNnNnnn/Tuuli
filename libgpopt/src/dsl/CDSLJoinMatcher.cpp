@@ -508,7 +508,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 										 : (fLeftOuterApply
 											? COperator::EopLogicalLeftOuterApply
 											: COperator::EopLogicalLeftOuterJoin))))));
-	if (eopid != eopidExpected || 3 != pexprJoin->Arity())
+	const BOOL fExpectedSemiApply =
+		fSemiApply &&
+		(COperator::EopLogicalLeftSemiApply == eopid ||
+		 COperator::EopLogicalLeftSemiApplyIn == eopid);
+	if ((!fExpectedSemiApply && eopid != eopidExpected) ||
+		3 != pexprJoin->Arity())
 	{
 		return false;
 	}

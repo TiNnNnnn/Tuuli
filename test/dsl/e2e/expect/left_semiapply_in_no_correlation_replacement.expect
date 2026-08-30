@@ -1,0 +1,73 @@
+{
+  "description": "The proved SemiApply DSL rule also replaces the uncorrelated IN-tagged Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "scope": "LeftSemiApplyIn whose inner subtree has no references to its current outer child",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "e3458abf2b3167d5"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}

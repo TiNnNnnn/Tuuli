@@ -133,6 +133,14 @@ CDSLRuleEngine::BucketByRoot()
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiJoin;
 		}
+		// LeftSemiApplyIn is the IN/ANY-tagged subclass of LeftSemiApply. Once
+		// represented as a relational semi apply, both have the same positive
+		// row-existence semantics; keep one DSL operator and one proved rule.
+		if (EdslopSemiApply == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiApplyIn;
+		}
 		if (EdslopAny == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] =
