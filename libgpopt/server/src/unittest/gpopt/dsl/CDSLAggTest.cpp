@@ -29,6 +29,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -65,6 +66,17 @@ using namespace gpopt;
 	"SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);"              \
 	"AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);"                      \
 	"AggFilterCommute(a0,a1,f0,s0,p0,p1,a2)"
+
+#define GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE                              \
+	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
+	"a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
+	"p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"                        \
+	"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"           \
+	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
+	"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"               \
+	"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"           \
+	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
+	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
 
 #define GPOPT_DSL_INTERSECT_GROUPING_RULE                                  \
 	"Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"                 \
@@ -186,6 +198,8 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_AggCorrelationPullup),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
@@ -320,6 +334,119 @@ CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard()
 	pexprPred->Release();
 	pdrgpcrGroup->Release();
 	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_AggCorrelationPullup()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("agg_corr_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("agg_corr_inner", 2, &pdrgpcrInner);
+	CExpression *pexprCorrelation =
+		fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]);
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprCorrelation);
+	pexprCorrelation->Release();
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInner)[1]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_corr_v");
+	CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+		pexprSelect, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInner)[1]);
+	pexprSelect->Release();
+	pexprOuter->AddRef();
+	pexprAgg->AddRef();
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+			mp, pexprOuter, pexprAgg, (*pdrgpcrInner)[1],
+			COperator::EopScalarSubqueryExists);
+
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalLeftSemiJoin != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalGbAgg != (*pexprTarget)[1]->Pop()->Eopid())
+		{
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			CLogicalGbAgg *popTargetAgg =
+				CLogicalGbAgg::PopConvert((*pexprTarget)[1]->Pop());
+			CColRefSet *pcrsTargetGroup = GPOS_NEW(mp) CColRefSet(mp);
+			pcrsTargetGroup->Include(popTargetAgg->Pdrgpcr());
+			if (2 != popTargetAgg->Pdrgpcr()->Size() ||
+				!pcrsTargetGroup->FMember((*pdrgpcrInner)[0]) ||
+				!pcrsTargetGroup->FMember((*pdrgpcrInner)[1]) ||
+				!(*pexprTarget)[1]->DeriveOutputColumns()->FMember(
+					(*pdrgpcrInner)[0]))
+			{
+				eres = GPOS_FAILED;
+			}
+			pcrsTargetGroup->Release();
+		}
+	}
+
+	// The same shape with independent local/outer atoms is correlated but is
+	// not an equality edge, so the generic semantic contract must reject it.
+	CColRef *rgpcrAtoms[] = {(*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]};
+	CExpression *pexprNonEquality =
+		fix.PexprConjunctionOfAtoms(rgpcrAtoms, GPOS_ARRAY_SIZE(rgpcrAtoms));
+	CExpression *pexprBadSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprNonEquality);
+	pexprNonEquality->Release();
+	CExpression *pexprBadAgg = fix.PexprLogicalGbAgg(
+		pexprBadSelect, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInner)[1]);
+	pexprBadSelect->Release();
+	pexprOuter->AddRef();
+	pexprBadAgg->AddRef();
+	CExpression *pexprBadApply =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
+			mp, pexprOuter, pexprBadAgg, (*pdrgpcrInner)[1],
+			COperator::EopScalarSubqueryExists);
+	CDSLModel *pmodelBad = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprBadApply,
+						pmodelBad) || checker.FCheck(prule, pmodelBad))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelBad->Release();
+	pexprBadApply->Release();
+	pexprBadAgg->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprApply->Release();
+	pexprAgg->Release();
+	pdrgpcrGroup->Release();
+	pexprInner->Release();
+	pexprOuter->Release();
 	prule->Release();
 	return eres;
 }

@@ -73,6 +73,13 @@ Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1
 # new grouping columns is intentionally a separate schema-construction domain.
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);AggFilterCommute(a0,a1,f0,s0,p0,p1,a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
+# Atomically decorrelates a SemiApply when equality correlation columns must be
+# added to a grouped aggregate. The atomic Apply-rooted replacement preserves
+# the Cascade memo output contract; ordered unions construct the expanded
+# grouping, predicate dependencies, and aggregate schema. This exact RuleIR is
+# accepted by the generic FormalSQL/Rocq proof kernel.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
+
 # Replaces the complete pure-grouping domain of CXformPushGbBelowUnionAll.
 # The outer grouping may be any subset of the UnionAll row. Explicit output
 # bindings preserve the reduced target schema and set-op position maps. This

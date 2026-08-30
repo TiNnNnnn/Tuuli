@@ -91,6 +91,10 @@ public:
 	// vector is non-empty and contained in the existing grouping keys.
 	static GPOS_RESULT EresUnittest_AggFilterCommuteGroupingGuard();
 
+	// Equality-only correlation keys not already grouped are pulled into both
+	// target grouping and schema; non-equality correlations are rejected.
+	static GPOS_RESULT EresUnittest_AggCorrelationPullup();
+
 	// Function-specific templates do not match a different aggregate kind.
 	static GPOS_RESULT EresUnittest_RejectsWrongAggFunction();
 

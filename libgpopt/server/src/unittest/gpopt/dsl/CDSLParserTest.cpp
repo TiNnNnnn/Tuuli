@@ -220,6 +220,15 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"SemiJoin<p2 a4 a5>(Input<t2>,Input<t3>)|TableEq(t2,t0);"
 		"TableEq(t3,t1);PredicateAnd(p2,p0,p1);AttrsEq(a4,a0);"
 		"AttrsEq(a5,a1)",
+		// Aggregate decorrelation declares target grouping/schema constructors
+		// and a reusable equality-only pullup contract.
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 "
+		"a5 a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 "
+		"s1 p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"
+		"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"
+		"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"
+		"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"
+		"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)

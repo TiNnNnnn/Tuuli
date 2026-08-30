@@ -458,6 +458,56 @@ PcrEqualityOperand(CExpression *pexpr)
 	return nullptr;
 }
 
+BOOL
+FCollectCrossEqualityColumns(CExpression *pexprPred,
+							 const CColRefSet *pcrsLocal,
+							 const CColRefSet *pcrsOuter,
+							 CColRefSet *pcrsSeenLocal,
+							 CColRefSet *pcrsSeenOuter)
+{
+	if (CPredicateUtils::FAnd(pexprPred))
+	{
+		if (0 == pexprPred->Arity())
+		{
+			return false;
+		}
+		for (ULONG ul = 0; ul < pexprPred->Arity(); ul++)
+		{
+			if (!FCollectCrossEqualityColumns(
+					(*pexprPred)[ul], pcrsLocal, pcrsOuter,
+					pcrsSeenLocal, pcrsSeenOuter))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	if (!CPredicateUtils::IsEqualityOp(pexprPred) || 2 != pexprPred->Arity())
+	{
+		return false;
+	}
+
+	const CColRef *pcrLeft = PcrEqualityOperand((*pexprPred)[0]);
+	const CColRef *pcrRight = PcrEqualityOperand((*pexprPred)[1]);
+	if (nullptr == pcrLeft || nullptr == pcrRight)
+	{
+		return false;
+	}
+	if (pcrsLocal->FMember(pcrLeft) && pcrsOuter->FMember(pcrRight))
+	{
+		pcrsSeenLocal->Include(const_cast<CColRef *>(pcrLeft));
+		pcrsSeenOuter->Include(const_cast<CColRef *>(pcrRight));
+		return true;
+	}
+	if (pcrsLocal->FMember(pcrRight) && pcrsOuter->FMember(pcrLeft))
+	{
+		pcrsSeenLocal->Include(const_cast<CColRef *>(pcrRight));
+		pcrsSeenOuter->Include(const_cast<CColRef *>(pcrLeft));
+		return true;
+	}
+	return false;
+}
+
 void
 CollectConnectedColumns(CExpression *pexprPred,
 						const CColRefSet *pcrsCandidate,
@@ -874,12 +924,21 @@ CDSLConstraintChecker::FCheckAttrsUnion(const CDSLConstraint *pcon,
 	{
 		return false;
 	}
-	for (ULONG ul = 0; ul < 3; ul++)
+	const BOOL fAttrsUnion = EdslconAttrsUnion == pcon->Edslcon();
+	if (!fAttrsUnion && EdslconSchemaUnion != pcon->Edslcon())
 	{
-		if (EdslsymAttrs != (*pdrgpsym)[ul]->Esymkind())
-		{
-			return false;
-		}
+		return false;
+	}
+	if ((fAttrsUnion &&
+		 (EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+		  EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+		  EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())) ||
+		(!fAttrsUnion &&
+		 (EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
+		  EdslsymSchema != (*pdrgpsym)[1]->Esymkind() ||
+		  EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())))
+	{
+		return false;
 	}
 
 	CColRefArray *pdrgpcrLeft =
@@ -997,6 +1056,80 @@ CDSLConstraintChecker::FCheckAggFilterCommute(
 	pcrsLocal->Release();
 	pcrsGroup->Release();
 	return fSubset;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckAggCorrelationPullup(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	const EDslSymbolKind rgExpected[] = {
+		EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
+		EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
+		EdslsymSchema, EdslsymPred, EdslsymAttrs, EdslsymAttrs};
+	if (GPOS_ARRAY_SIZE(rgExpected) != pdrgpsym->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
+	{
+		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+
+	// Target-only derived symbols are checked by PredicateAnd/AttrsUnion/
+	// SchemaUnion and materialized by the instantiator. Every source artifact in
+	// this semantic contract must already have an exact matcher binding.
+	const ULONG rgulSource[] = {0, 1, 3, 5, 6, 7, 9, 10, 11};
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgulSource); ul++)
+	{
+		if (nullptr == pmodel->PvalLookup((*pdrgpsym)[rgulSource[ul]]))
+		{
+			return false;
+		}
+	}
+
+	CExpression *pexprCorrelation =
+		pmodel->PexprPred((*pdrgpsym)[1]);
+	CColRefArray *pdrgpcrSourceGroup =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[3]);
+	CColRefArray *pdrgpcrLocal =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[10]);
+	CColRefArray *pdrgpcrOuter =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[11]);
+	if (nullptr == pexprCorrelation || nullptr == pdrgpcrSourceGroup ||
+		nullptr == pdrgpcrLocal || nullptr == pdrgpcrOuter ||
+		0 == pdrgpcrLocal->Size() || 0 == pdrgpcrOuter->Size())
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsSeenLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsSeenOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsGroup->Include(pdrgpcrSourceGroup);
+	pcrsLocal->Include(pdrgpcrLocal);
+	pcrsOuter->Include(pdrgpcrOuter);
+
+	const BOOL fNeedsExpansion = !pcrsGroup->ContainsAll(pcrsLocal);
+	const BOOL fDisjoint = !pcrsLocal->FIntersects(pcrsOuter);
+	const BOOL fEqualityOnly = fDisjoint && FCollectCrossEqualityColumns(
+		pexprCorrelation, pcrsLocal, pcrsOuter, pcrsSeenLocal,
+		pcrsSeenOuter);
+	const BOOL fComplete = fEqualityOnly &&
+		pcrsSeenLocal->ContainsAll(pcrsLocal) &&
+		pcrsSeenOuter->ContainsAll(pcrsOuter);
+
+	pcrsSeenOuter->Release();
+	pcrsSeenLocal->Release();
+	pcrsOuter->Release();
+	pcrsLocal->Release();
+	pcrsGroup->Release();
+	return fNeedsExpansion && fComplete;
 }
 
 //---------------------------------------------------------------------------
@@ -2023,11 +2156,14 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconAttrsUnion:
+		case EdslconSchemaUnion:
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconExprFilterCommute:
 			return FCheckExprFilterCommute(pcon, pmodel);
 		case EdslconAggFilterCommute:
 			return FCheckAggFilterCommute(pcon, pmodel);
+		case EdslconAggCorrelationPullup:
+			return FCheckAggCorrelationPullup(pcon, pmodel);
 		case EdslconUnique:
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:

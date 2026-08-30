@@ -925,7 +925,8 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			continue;
 		}
 		if ((EdslconAttrsIntersect == pcon->Edslcon() ||
-			 EdslconAttrsUnion == pcon->Edslcon()) &&
+			 EdslconAttrsUnion == pcon->Edslcon() ||
+			 EdslconSchemaUnion == pcon->Edslcon()) &&
 			3 == pcon->Pdrgpsym()->Size() &&
 			(*pcon->Pdrgpsym())[0] == psym)
 		{
@@ -951,15 +952,22 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	{
 		return nullptr;
 	}
-	if (EdslconAttrsUnion == pconDef->Edslcon())
+	if (EdslconAttrsUnion == pconDef->Edslcon() ||
+		EdslconSchemaUnion == pconDef->Edslcon())
 	{
 		const CDSLSymbol *psymLeft =
 			PsymResolve((*pconDef->Pdrgpsym())[1]);
 		const CDSLSymbol *psymRight =
 			PsymResolve((*pconDef->Pdrgpsym())[2]);
-		if (EdslsymAttrs != psym->Esymkind() ||
-			EdslsymAttrs != psymLeft->Esymkind() ||
-			EdslsymAttrs != psymRight->Esymkind())
+		const BOOL fAttrsUnion = EdslconAttrsUnion == pconDef->Edslcon();
+		if ((fAttrsUnion &&
+			 (EdslsymAttrs != psym->Esymkind() ||
+			  EdslsymAttrs != psymLeft->Esymkind() ||
+			  EdslsymAttrs != psymRight->Esymkind())) ||
+			(!fAttrsUnion &&
+			 (EdslsymSchema != psym->Esymkind() ||
+			  EdslsymSchema != psymLeft->Esymkind() ||
+			  EdslsymAttrs != psymRight->Esymkind())))
 		{
 			return nullptr;
 		}

@@ -1,0 +1,57 @@
+{
+  "description": "An atomic CBO DSL rule decorrelates a grouped subquery by extending its grouping and output schema with the equality key",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "c39b6b8f6cf9a70a"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c39b6b8f6cf9a70a\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "1",
+      "1",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "3"
+    ]
+  }
+}

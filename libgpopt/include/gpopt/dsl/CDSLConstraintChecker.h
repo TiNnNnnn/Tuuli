@@ -85,8 +85,8 @@ private:
 	BOOL FCheckAttrsIntersect(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
-	// AttrsUnion(out,left,right): validate the stable duplicate-free union of
-	// two attrs vectors, or defer a target-only output to instantiation.
+	// AttrsUnion(out,left,right) and SchemaUnion(out,input,extra): validate a
+	// stable duplicate-free column-vector union, or defer a target-only output.
 	BOOL FCheckAttrsUnion(const CDSLConstraint *pcon,
 						  const CDSLModel *pmodel) const;
 
@@ -100,6 +100,11 @@ private:
 	// ErrorFree/Deterministic constraints independently validate scalar safety.
 	BOOL FCheckAggFilterCommute(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
+
+	// AggCorrelationPullup(...): validate the equality-only correlation domain
+	// used when decorrelation must extend aggregate grouping and schema.
+	BOOL FCheckAggCorrelationPullup(const CDSLConstraint *pcon,
+								 const CDSLModel *pmodel) const;
 
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,

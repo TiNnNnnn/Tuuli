@@ -385,6 +385,16 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
+		if (EdslconSchemaUnion == edslcon &&
+			(EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail("SchemaUnion expects output schema, input schema, and attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconExprFilterCommute == edslcon &&
 			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
@@ -411,6 +421,25 @@ PdrgpconBuild(SBuildCtx &bctx,
 				bctx.Fail(
 					"AggFilterCommute expects grouping attrs, aggregate attrs, function, "
 					"schema, having predicate, filter predicate, and local attrs");
+				pdrgpsym->Release();
+				pdrgpcon->Release();
+				return nullptr;
+			}
+		}
+		if (EdslconAggCorrelationPullup == edslcon)
+		{
+			const EDslSymbolKind rgExpected[] = {
+				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
+				EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
+				EdslsymSchema, EdslsymPred, EdslsymAttrs, EdslsymAttrs};
+			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
+			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
+			{
+				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
+			}
+			if (!fTyped)
+			{
+				bctx.Fail("AggCorrelationPullup expects its aggregate decorrelation symbols");
 				pdrgpsym->Release();
 				pdrgpcon->Release();
 				return nullptr;
