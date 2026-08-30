@@ -30,7 +30,6 @@ private:
 					 CColRefArray *pdrgpcrProjected,
 					 CDSLModel *pmodel) const;
 	CExpression *PexprComparison(CExpression *pexprSubquery) const;
-	CExpression *PexprInverseComparison(CExpression *pexprCmp) const;
 
 public:
 	CDSLQuantifiedMatcher(const CDSLQuantifiedMatcher &) = delete;

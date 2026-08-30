@@ -1,0 +1,5 @@
+# Keep representation-lowering identity tests causal. The proved InSub-to-join
+# replacement also recognizes correlated EXISTS through the shared InSub view;
+# it is an independent alternative, not part of Select2Apply lowering.
+- rule: 9cab8c80b6430c16
+  enabled: false

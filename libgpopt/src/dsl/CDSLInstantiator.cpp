@@ -43,6 +43,7 @@
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarConst.h"
@@ -51,7 +52,6 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
-#include "naucrates/md/IMDScalarOp.h"
 
 using namespace gpopt;
 
@@ -318,35 +318,6 @@ PexprRemapInSubPredicate(CMemoryPool *mp, CExpression *pexprPred,
 		return pexprTyped;
 	}
 	return pexprRemapped;
-}
-
-// ORCA represents ALL as an anti-apply over rows that violate the original
-// comparison. Build that internal predicate from metadata instead of assuming
-// a particular comparison family (for example, equality/inequality).
-CExpression *
-PexprInverseComparison(CMemoryPool *mp, CExpression *pexprCmp)
-{
-	if (nullptr == pexprCmp ||
-		COperator::EopScalarCmp != pexprCmp->Pop()->Eopid() ||
-		2 != pexprCmp->Arity())
-	{
-		return nullptr;
-	}
-	CScalarCmp *popCmp = CScalarCmp::PopConvert(pexprCmp->Pop());
-	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
-	IMDId *pmdidInverse =
-		pmda->RetrieveScOp(popCmp->MdIdOp())->GetInverseOpMdid();
-	if (!IMDId::IsValid(pmdidInverse))
-	{
-		return nullptr;
-	}
-	const CWStringConst *pstrInverse =
-		pmda->RetrieveScOp(pmdidInverse)->Mdname().GetMDName();
-	(*pexprCmp)[0]->AddRef();
-	(*pexprCmp)[1]->AddRef();
-	pmdidInverse->AddRef();
-	return CUtils::PexprScalarCmp(mp, (*pexprCmp)[0], (*pexprCmp)[1],
-								 *pstrInverse, pmdidInverse);
 }
 
 // Copy a recorded LogicalLimit chain while replacing its deepest relational
@@ -3263,6 +3234,22 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		return nullptr;
 	}
 
+	// A plain Project in an EXISTS target list is cardinality preserving and
+	// its values are semantically unobserved. Keeping SELECT 1 (or an equivalent
+	// scalar list) under a correlated Apply can leave the DXL translator looking
+	// for pass-through attributes in that Project's explicit list. Canonicalize
+	// away only ordinary scalar Projects; an SRF/non-scalar Project can change
+	// cardinality and must remain part of the EXISTS input.
+	while (COperator::EopLogicalProject == pexprInner->Pop()->Eopid() &&
+		   2 == pexprInner->Arity() &&
+		   !(*pexprInner)[1]->DeriveHasNonScalarFunction())
+	{
+		CExpression *pexprChild = (*pexprInner)[0];
+		pexprChild->AddRef();
+		pexprInner->Release();
+		pexprInner = pexprChild;
+	}
+
 	if (3 == ulSymbols)
 	{
 		CExpression *pexprPred =
@@ -3329,7 +3316,13 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
 			pexprPred);
 	}
-	return pexprResult;
+	CExpression *pexprNormalized =
+		CNormalizer::PexprNormalize(m_mp, pexprResult);
+	pexprResult->Release();
+	CExpression *pexprCanonical =
+		CNormalizer::PexprPullUpProjections(m_mp, pexprNormalized);
+	pexprNormalized->Release();
+	return pexprCanonical;
 }
 
 //---------------------------------------------------------------------------
@@ -3704,28 +3697,19 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 	}
 	else
 	{
-		CExpression *pexprViolation =
-			PexprInverseComparison(m_mp, pexprPred);
-		pexprPred->Release();
-		if (nullptr == pexprViolation)
-		{
-			pexprOuter->Release();
-			pexprInner->Release();
-			return nullptr;
-		}
 		if (fCorrelated)
 		{
 			pexprResult = CUtils::PexprLogicalApply<
 				CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
 				m_mp, pexprOuter, pexprInner, pcrInner,
-				COperator::EopScalarSubqueryAll, pexprViolation);
+				COperator::EopScalarSubqueryAll, pexprPred);
 		}
 		else
 		{
 			pexprResult =
 				CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(
 					m_mp, pexprOuter, pexprInner, pcrInner,
-					COperator::EopScalarSubqueryAll, pexprViolation);
+					COperator::EopScalarSubqueryAll, pexprPred);
 		}
 	}
 
@@ -3745,7 +3729,13 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
 			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
 	}
-	return pexprResult;
+	CExpression *pexprNormalized =
+		CNormalizer::PexprNormalize(m_mp, pexprResult);
+	pexprResult->Release();
+	CExpression *pexprCanonical =
+		CNormalizer::PexprPullUpProjections(m_mp, pexprNormalized);
+	pexprNormalized->Release();
+	return pexprCanonical;
 }
 
 //---------------------------------------------------------------------------

@@ -4,14 +4,11 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 
 #include "gpopt/base/CColRefSet.h"
-#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
-#include "naucrates/md/IMDScalarOp.h"
 
 using namespace gpopt;
 
@@ -68,31 +65,6 @@ CDSLQuantifiedMatcher::PexprComparison(CExpression *pexprSubquery) const
 	return CUtils::PexprScalarCmp(m_mp, pexprOuterScalar,
 								 popQuantified->Pcr(),
 								 *popQuantified->PstrOp(), pmdidOp);
-}
-
-CExpression *
-CDSLQuantifiedMatcher::PexprInverseComparison(CExpression *pexprCmp) const
-{
-	if (COperator::EopScalarCmp != pexprCmp->Pop()->Eopid() ||
-		2 != pexprCmp->Arity())
-	{
-		return nullptr;
-	}
-	CScalarCmp *popCmp = CScalarCmp::PopConvert(pexprCmp->Pop());
-	CMDAccessor *pmda = COptCtxt::PoctxtFromTLS()->Pmda();
-	IMDId *pmdidInverse =
-		pmda->RetrieveScOp(popCmp->MdIdOp())->GetInverseOpMdid();
-	if (!IMDId::IsValid(pmdidInverse))
-	{
-		return nullptr;
-	}
-	const CWStringConst *pstrInverse =
-		pmda->RetrieveScOp(pmdidInverse)->Mdname().GetMDName();
-	(*pexprCmp)[0]->AddRef();
-	(*pexprCmp)[1]->AddRef();
-	pmdidInverse->AddRef();
-	return CUtils::PexprScalarCmp(m_mp, (*pexprCmp)[0], (*pexprCmp)[1],
-								 *pstrInverse, pmdidInverse);
 }
 
 BOOL
@@ -169,9 +141,9 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return fMatched;
 	}
 
-	// Post-unnest ANY retains its comparison. ALL is represented by a NotIn
-	// anti-apply whose live predicate is the inverse (the violating witness), so
-	// invert it once more before binding the DSL predicate.
+	// Post-unnest ANY and ALL both retain the quantified comparison. The NotIn
+	// anti-apply implements ALL/NULL semantics; its scalar child is not a
+	// separately negated or inverted witness predicate.
 	const COperator::EOperatorId eopidApply =
 		fAll ? COperator::EopLogicalLeftAntiSemiApplyNotIn
 			 : COperator::EopLogicalLeftSemiApplyIn;
@@ -193,16 +165,8 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	CExpression *pexprCmp = fAll ? PexprInverseComparison((*pexpr)[2])
-								 : (*pexpr)[2];
-	if (!fAll)
-	{
-		pexprCmp->AddRef();
-	}
-	if (nullptr == pexprCmp)
-	{
-		return false;
-	}
+	CExpression *pexprCmp = (*pexpr)[2];
+	pexprCmp->AddRef();
 	CColRefSet *pcrsOuterUsed =
 		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprCmp->DeriveUsedColumns());
 	pcrsOuterUsed->Exclude((*pexpr)[1]->DeriveOutputColumns());

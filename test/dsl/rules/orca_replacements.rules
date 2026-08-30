@@ -22,6 +22,21 @@ Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(I
 
 All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
 
+# Representation-lowering identities for the four relationally valued
+# subquery predicates handled by CXformSelect2Apply. The DSL operators denote
+# the same logic before and after unnesting; when the source is a scalar
+# Select predicate, their existing target builders materialize the appropriate
+# Apply and preserve every residual conjunct. These rules change no logical
+# operator order and all four exact RuleIR strings returned EQ from SQLSolver
+# on 2026-08-30. Scalar single-row subqueries remain a separate operator gap.
+Exists(Input<t0>,Input<t1>)|Exists(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1)
+
+NotExists(Input<t0>,Input<t1>)|NotExists(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1)
+
+Any<p0 a0>(Input<t0>,Input<t1>)|Any<p1 a1>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)
+
+All<p0 a0>(Input<t0>,Input<t1>)|All<p1 a1>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)
+
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)
