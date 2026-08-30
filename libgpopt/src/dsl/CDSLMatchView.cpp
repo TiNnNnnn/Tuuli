@@ -49,7 +49,7 @@ PcrJoinKeyOperand(CExpression *pexpr)
 
 void
 CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
-				   BOOL *pfOtherSubquery)
+				   ULONG *pulOtherSubquery)
 {
 	switch (pexpr->Pop()->Eopid())
 	{
@@ -60,22 +60,23 @@ CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
 		case COperator::EopScalarSubqueryNotExists:
 		case COperator::EopScalarSubqueryAny:
 		case COperator::EopScalarSubqueryAll:
-			*pfOtherSubquery = true;
+			(*pulOtherSubquery)++;
 			break;
 		default:
 			break;
 	}
 	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
 	{
-		CountSubqueryKinds((*pexpr)[ul], pulScalar, pfOtherSubquery);
+		CountSubqueryKinds((*pexpr)[ul], pulScalar, pulOtherSubquery);
 	}
 }
 }  // namespace
 
 CExpression *
-CDSLMatchView::PexprLowerSingleScalarSubquery(CMemoryPool *mp,
+CDSLMatchView::PexprLowerSingleSubquery(CMemoryPool *mp,
 										  CExpression *pexprUnary,
-										  BOOL fEnforceCorrelatedApply)
+										  BOOL fEnforceCorrelatedApply,
+										  BOOL fScalarOnly)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != pexprUnary);
@@ -90,9 +91,10 @@ CDSLMatchView::PexprLowerSingleScalarSubquery(CMemoryPool *mp,
 
 	CExpression *pexprScalar = (*pexprUnary)[1];
 	ULONG ulScalar = 0;
-	BOOL fOtherSubquery = false;
-	CountSubqueryKinds(pexprScalar, &ulScalar, &fOtherSubquery);
-	if (1 != ulScalar || fOtherSubquery)
+	ULONG ulOtherSubquery = 0;
+	CountSubqueryKinds(pexprScalar, &ulScalar, &ulOtherSubquery);
+	if ((fScalarOnly && (1 != ulScalar || 0 != ulOtherSubquery)) ||
+		(!fScalarOnly && 1 != ulScalar + ulOtherSubquery))
 	{
 		return nullptr;
 	}

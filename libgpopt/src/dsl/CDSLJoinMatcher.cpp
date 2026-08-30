@@ -827,7 +827,7 @@ CDSLJoinMatcher::FMatchScalarSubquerySelect(const CDSLOp *popJoin,
 	}
 
 	CExpression *pexprCanonical =
-		CDSLMatchView::PexprLowerSingleScalarSubquery(m_mp, pexprSelect);
+		CDSLMatchView::PexprLowerSingleSubquery(m_mp, pexprSelect);
 	if (nullptr == pexprCanonical)
 	{
 		return false;

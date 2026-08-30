@@ -1,0 +1,79 @@
+{
+  "description": "The Proj(LeftApply) identity lowers one EXISTS value through the shared Project view",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply"
+    ],
+    "scope": "One correlated EXISTS in a Project value context",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "f94c37fc9c3e1750"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply"
+      ],
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply"
+    ],
+    "policy": "isolate_select2apply_identity.policy",
+    "output": [
+      "1,t",
+      "2,t",
+      "3,f"
+    ],
+    "postgres_output": [
+      "1,t",
+      "2,t",
+      "3,f"
+    ]
+  }
+}
