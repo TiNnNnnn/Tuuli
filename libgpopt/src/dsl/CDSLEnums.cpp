@@ -87,6 +87,8 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopInnerApply, "InnerApply", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopLeftOuterApply, "LeftApply", 2, 4,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -199,6 +201,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLeftAntiSemiApply;
 		case EdslopInnerApply:
 			return COperator::EopLogicalInnerApply;
+		case EdslopLeftOuterApply:
+			return COperator::EopLogicalLeftOuterApply;
 		case EdslopAgg:
 			return COperator::EopLogicalGbAgg;
 		case EdslopExists:
@@ -265,6 +269,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
 		case EdslopInnerApply:
+		case EdslopLeftOuterApply:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -298,6 +303,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
 		case EdslopInnerApply:
+		case EdslopLeftOuterApply:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -355,6 +361,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"AntiApply", EdslopAntiApply, EdslsortNone},
 		{"LeftAntiSemiApply", EdslopAntiApply, EdslsortNone},
 		{"InnerApply", EdslopInnerApply, EdslsortNone},
+		{"LeftApply", EdslopLeftOuterApply, EdslsortNone},
+		{"LeftOuterApply", EdslopLeftOuterApply, EdslsortNone},
 		{"Filter", EdslopFilter, EdslsortNone},
 		{"PlainFilter", EdslopFilter, EdslsortNone},
 		{"SimpleFilter", EdslopFilter, EdslsortNone},

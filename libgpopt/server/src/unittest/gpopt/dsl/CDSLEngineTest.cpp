@@ -21,6 +21,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -591,9 +592,9 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 		return GPOS_FAILED;
 	}
 
-	CXform *pxformInnerApply = pxff->Pxf("CXformDSLRule_InnerApply");
+	CXform *pxformInnerApply = pxff->Pxf("CXformDSLRule_JoinApply");
 	if (nullptr == pxformInnerApply ||
-		CXform::ExfDSLRuleInnerApply != pxformInnerApply->Exfid() ||
+		CXform::ExfDSLRuleJoinApply != pxformInnerApply->Exfid() ||
 		!pxformInnerApply->FExploration() ||
 		pxformInnerApply->FImplementation())
 	{
@@ -602,9 +603,16 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 	CLogicalInnerApply *popInnerApply =
 		GPOS_NEW(mp) CLogicalInnerApply(mp);
 	CXformSet *pxfs = popInnerApply->PxfsCandidates(mp);
-	const BOOL fDispatched = pxfs->Get(CXform::ExfDSLRuleInnerApply);
+	BOOL fDispatched = pxfs->Get(CXform::ExfDSLRuleJoinApply);
 	pxfs->Release();
 	popInnerApply->Release();
+	CLogicalLeftOuterApply *popLeftOuterApply =
+		GPOS_NEW(mp) CLogicalLeftOuterApply(mp);
+	pxfs = popLeftOuterApply->PxfsCandidates(mp);
+	fDispatched =
+		fDispatched && pxfs->Get(CXform::ExfDSLRuleJoinApply);
+	pxfs->Release();
+	popLeftOuterApply->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

@@ -131,6 +131,14 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # preserves scalar errors without an ErrorFree assumption.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)
 
+# Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
+# the JoinApply correlation contract with InnerApply but retains NULL-extension
+# through an explicit LeftJoin target. AttrsEmpty excludes dependencies on the
+# current left row while permitting references supplied by an enclosing scope,
+# matching the native promise. This exact RuleIR is an outcome-equivalence
+# proof accepted by FormalSQL/Rocq.
+LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)
+
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

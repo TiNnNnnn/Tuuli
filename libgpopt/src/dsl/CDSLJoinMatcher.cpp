@@ -23,6 +23,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -478,7 +479,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				EdslopSemiApply == popJoin->Edslop() ||
 				EdslopAntiJoin == popJoin->Edslop() ||
 				EdslopAntiApply == popJoin->Edslop() ||
-				EdslopInnerApply == popJoin->Edslop());
+				EdslopInnerApply == popJoin->Edslop() ||
+				EdslopLeftOuterApply == popJoin->Edslop());
 	GPOS_ASSERT(nullptr != pexprJoin);
 
 	// identity + arity gate: the live node must be the matching join carrying
@@ -490,8 +492,11 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
 	const BOOL fInnerApply = (EdslopInnerApply == popJoin->Edslop());
+	const BOOL fLeftOuterApply =
+		(EdslopLeftOuterApply == popJoin->Edslop());
 	const BOOL fPredicateJoin = fSemi || fAnti;
-	const BOOL fPredicateApply = fSemiApply || fAntiApply || fInnerApply;
+	const BOOL fPredicateApply =
+		fSemiApply || fAntiApply || fInnerApply || fLeftOuterApply;
 	const COperator::EOperatorId eopidExpected = fInner
 		? COperator::EopLogicalInnerJoin
 		: (fSemi ? COperator::EopLogicalLeftSemiJoin
@@ -499,8 +504,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 					: (fAnti ? COperator::EopLogicalLeftAntiSemiJoin
 						: (fAntiApply ? COperator::EopLogicalLeftAntiSemiApply
 									  : (fInnerApply
-											 ? COperator::EopLogicalInnerApply
-											 : COperator::EopLogicalLeftOuterJoin)))));
+										 ? COperator::EopLogicalInnerApply
+										 : (fLeftOuterApply
+											? COperator::EopLogicalLeftOuterApply
+											: COperator::EopLogicalLeftOuterJoin))))));
 	if (eopid != eopidExpected || 3 != pexprJoin->Arity())
 	{
 		return false;

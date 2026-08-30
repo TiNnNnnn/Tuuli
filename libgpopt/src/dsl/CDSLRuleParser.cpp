@@ -127,7 +127,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fSemiApply = EdslopSemiApply == edslop;
 	const BOOL fAntiJoin = EdslopAntiJoin == edslop;
 	const BOOL fAntiApply = EdslopAntiApply == edslop;
-	const BOOL fInnerApply = EdslopInnerApply == edslop;
+	const BOOL fInnerApply = EdslopInnerApply == edslop ||
+		EdslopLeftOuterApply == edslop;
 	// Filter<p,localDeps> is the established spelling. The extended
 	// Filter<p,localDeps,outerDeps> form makes correlation explicit.
 	const BOOL fLegacyFilter = EdslopFilter == edslop && 2 == ul_given;

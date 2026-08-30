@@ -34,6 +34,7 @@ public:
 		EmtMatchSemiOrAntiSemiJoin,
 		EmtMatchInSubApplyOrSemiJoin,
 		EmtMatchAllApply,
+		EmtMatchJoinApply,
 		EmtSentinel
 	};
 
@@ -112,6 +113,10 @@ public:
 				return COperator::EopLogicalLeftAntiSemiApplyNotIn == opid ||
 					   COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn ==
 						   opid;
+
+			case EmtMatchJoinApply:
+				return COperator::EopLogicalInnerApply == opid ||
+					   COperator::EopLogicalLeftOuterApply == opid;
 
 			default:
 				return false;

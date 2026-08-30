@@ -27,6 +27,7 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -108,6 +109,12 @@ using namespace gpopt;
 	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
 	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)"
 
+#define GPOPT_DSL_UNCORRELATED_LEFT_OUTER_APPLY_RULE                  \
+	"LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                    \
+	"LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                        \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
+	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)"
+
 #define GPOPT_DSL_BUILD_UNCORRELATED_SEMI_APPLY_RULE                  \
 	"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                        \
 	"SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"                    \
@@ -186,6 +193,8 @@ CDSLJoinTest::EresUnittest()
 			CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_UncorrelatedLeftOuterApplyBuildsLeftJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_SemiJoinBuildsUncorrelatedSemiApply),
 		GPOS_UNITTEST_FUNC(
@@ -569,6 +578,91 @@ CDSLJoinTest::EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin()
 	pexprCorrelatedInner->AddRef();
 	CExpression *pexprCorrelatedApply =
 		CUtils::PexprLogicalApply<CLogicalInnerApply>(
+			mp, pexprOuter, pexprCorrelatedInner, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubquery);
+	CDSLModel *pmodelCorrelated = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprCorrelatedApply,
+						pmodelCorrelated) ||
+		checker.FCheck(prule, pmodelCorrelated))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	pmodelCorrelated->Release();
+	pexprCorrelatedApply->Release();
+	pexprCorrelatedInner->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprApply->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_UncorrelatedLeftOuterApplyBuildsLeftJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_UNCORRELATED_LEFT_OUTER_APPLY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("left_apply_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("left_apply_inner", 2, &pdrgpcrInner);
+	pexprOuter->AddRef();
+	pexprInner->AddRef();
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftOuterApply>(
+			mp, pexprOuter, pexprInner, (*pdrgpcrInner)[0],
+			COperator::EopScalarSubquery);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLSymbolArray *pdrgpsym =
+			prule->PfragSrc()->PopRoot()->Pdrgpsym();
+		CColRefArray *pdrgpcrCorrelations =
+			pmodel->PdrgpcrAttrs((*pdrgpsym)[3]);
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pdrgpcrCorrelations ||
+			0 != pdrgpcrCorrelations->Size() || nullptr == pexprTarget ||
+			COperator::EopLogicalLeftOuterJoin !=
+				pexprTarget->Pop()->Eopid() ||
+			!(*pexprTarget)[2]->Matches((*pexprApply)[2]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CExpression *pexprCorrelation =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprCorrelatedInner =
+		fix.PexprLogicalSelect(pexprInner, pexprCorrelation);
+	pexprCorrelation->Release();
+	pexprOuter->AddRef();
+	pexprCorrelatedInner->AddRef();
+	CExpression *pexprCorrelatedApply =
+		CUtils::PexprLogicalApply<CLogicalLeftOuterApply>(
 			mp, pexprOuter, pexprCorrelatedInner, (*pdrgpcrInner)[0],
 			COperator::EopScalarSubquery);
 	CDSLModel *pmodelCorrelated = GPOS_NEW(mp) CDSLModel(mp);

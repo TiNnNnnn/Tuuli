@@ -1,18 +1,20 @@
 //---------------------------------------------------------------------------
-// Thin Cascade shell routing InnerApply-rooted expressions to the DSL engine.
+// Thin Cascade shell routing join-producing Apply expressions to the DSL engine.
 //---------------------------------------------------------------------------
-#include "gpopt/xforms/CXformDSLRule_InnerApply.h"
+#include "gpopt/xforms/CXformDSLRule_JoinApply.h"
 
 #include "gpopt/dsl/CDSLRuleEngine.h"
-#include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CPatternNode.h"
 #include "gpopt/operators/CPatternTree.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 
-CXformDSLRule_InnerApply::CXformDSLRule_InnerApply(CMemoryPool *mp)
+CXformDSLRule_JoinApply::CXformDSLRule_JoinApply(CMemoryPool *mp)
 	: CXformExploration(GPOS_NEW(mp) CExpression(
-		  mp, GPOS_NEW(mp) CLogicalInnerApply(mp),
+		  mp,
+		  GPOS_NEW(mp) CPatternNode(mp, CPatternNode::EmtMatchJoinApply),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))))
@@ -20,25 +22,23 @@ CXformDSLRule_InnerApply::CXformDSLRule_InnerApply(CMemoryPool *mp)
 }
 
 CXform::EXformPromise
-CXformDSLRule_InnerApply::Exfp(CExpressionHandle &) const
+CXformDSLRule_JoinApply::Exfp(CExpressionHandle &exprhdl) const
 {
 	if (!GPOS_FTRACE(EopttracePreserveOpsForDSL))
 	{
 		return CXform::ExfpNone;
 	}
-
 	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
 	return nullptr != engine &&
-			   0 < engine->PdrgpruleForRoot(
-						 COperator::EopLogicalInnerApply)->Size()
+			   0 < engine->PdrgpruleForRoot(exprhdl.Pop()->Eopid())->Size()
 		   ? CXform::ExfpHigh
 		   : CXform::ExfpNone;
 }
 
 void
-CXformDSLRule_InnerApply::Transform(CXformContext *context,
-									CXformResult *result,
-									CExpression *expression) const
+CXformDSLRule_JoinApply::Transform(CXformContext *context,
+								   CXformResult *result,
+								   CExpression *expression) const
 {
 	GPOS_ASSERT(nullptr != context);
 	GPOS_ASSERT(FPromising(context->Pmp(), this, expression));
@@ -48,7 +48,7 @@ CXformDSLRule_InnerApply::Transform(CXformContext *context,
 	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != engine);
 	CDSLRuleArray *rules = engine->PdrgpruleCandidates(
-		mp, COperator::EopLogicalInnerApply, expression);
+		mp, expression->Pop()->Eopid(), expression);
 	for (ULONG index = 0; index < rules->Size(); ++index)
 	{
 		CExpression *target =

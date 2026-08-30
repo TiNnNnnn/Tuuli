@@ -1,0 +1,68 @@
+{
+  "description": "A Rocq-proved LeftApply DSL rule replaces the uncorrelated left outer Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+    ],
+    "scope": "LeftOuterApply whose inner subtree has no references to its current outer child",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "4fbf993ef8bfe114"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+    ],
+    "output": [
+      "1,4",
+      "1,4",
+      "2,4",
+      "3,4"
+    ],
+    "postgres_output": [
+      "1,4",
+      "1,4",
+      "2,4",
+      "3,4"
+    ]
+  }
+}
