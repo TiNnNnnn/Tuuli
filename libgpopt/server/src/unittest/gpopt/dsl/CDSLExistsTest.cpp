@@ -186,7 +186,9 @@ CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip()
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalGbAgg == (*pexprTarget)[0]->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalLimit == (*pexprTarget)[1]->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalProject ==
+	// EXISTS does not observe target-list values, so an ordinary scalar Project
+	// is removed before the Limit carrier is constructed.
+	GPOS_ASSERT(COperator::EopLogicalGet ==
 				(*(*pexprTarget)[1])[0]->Pop()->Eopid());
 	GPOS_ASSERT(CUtils::FScalarConstTrue((*pexprTarget)[2]));
 	GPOS_ASSERT(COperator::EopScalarSubqueryExists ==
@@ -255,7 +257,7 @@ CDSLExistsTest::EresUnittest_PreApplyCorpusAggProjRoundTrip()
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalGbAgg == (*pexprTarget)[0]->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalLimit == (*pexprTarget)[1]->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalProject ==
+	GPOS_ASSERT(COperator::EopLogicalGet ==
 				(*(*pexprTarget)[1])[0]->Pop()->Eopid());
 	GPOS_ASSERT(CUtils::FScalarConstTrue((*pexprTarget)[2]));
 	GPOS_ASSERT(COperator::EopScalarSubqueryExists ==
@@ -327,10 +329,15 @@ CDSLExistsTest::EresUnittest_PreApplyPreservesResidual()
 	CExpression *pexprTarget =
 		instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopLogicalLeftSemiApply ==
+				pexprTarget->Pop()->Eopid());
+	// Normalization pushes an outer-only sibling predicate below SemiApply. It
+	// must remain attached to the outer Agg rather than being discarded.
+	GPOS_ASSERT(COperator::EopLogicalSelect ==
 				(*pexprTarget)[0]->Pop()->Eopid());
-	GPOS_ASSERT((*pexprTarget)[1]->Matches(pexprResidual));
+	GPOS_ASSERT(COperator::EopLogicalGbAgg ==
+				(*(*pexprTarget)[0])[0]->Pop()->Eopid());
+	GPOS_ASSERT((*(*pexprTarget)[0])[1]->Matches(pexprResidual));
 	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
 		pexprTarget->DeriveOutputColumns()));
 
