@@ -42,6 +42,10 @@ public:
 	// residuals occur once in its conjunction.
 	static GPOS_RESULT EresUnittest_TargetFilterChainFlattened();
 
+	// A target-only predicate defined by PredicateAnd is constructed for Filter
+	// just as it is for Join/Exists, with exact declared dependencies.
+	static GPOS_RESULT EresUnittest_DerivedFilterConjunction();
+
 	// A Filter pushed through a nested InnerJoin input is exposed as the
 	// equivalent source view; target attrs remap it to the opposite root key.
 	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();

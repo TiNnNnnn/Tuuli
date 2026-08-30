@@ -75,11 +75,98 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_TargetFilterChainFlattened),
 		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_DerivedFilterConjunction),
+		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_BaseSubtreeReused),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiateTest::EresUnittest_DerivedFilterConjunction
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_DerivedFilterConjunction()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p0 a0>(Filter<p1 a1>(Input<t0>))|"
+		"Filter<p2 a2>(Input<t1>)|TableEq(t1,t0);"
+		"PredicateAnd(p2,p0,p1);AttrsUnion(a2,a0,a1)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOut = nullptr;
+	CExpression *pexprGet =
+		fix.PexprLogicalGet("derived_filter", 2, &pdrgpcrOut);
+	CColRef *pcrInner = (*pdrgpcrOut)[0];
+	CExpression *pexprPredInner =
+		fix.PexprConjunctionOfAtoms(&pcrInner, 1);
+	CExpression *pexprInner =
+		fix.PexprLogicalSelect(pexprGet, pexprPredInner);
+	pexprPredInner->Release();
+	CColRef *pcrOuter = (*pdrgpcrOut)[1];
+	CExpression *pexprPredOuter =
+		fix.PexprConjunctionOfAtoms(&pcrOuter, 1);
+	CExpression *pexprSelect =
+		fix.PexprLogicalSelect(pexprInner, pexprPredOuter);
+	pexprPredOuter->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSelect, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLConstraintChecker checker(mp);
+		CDSLInstantiator instantiator(mp);
+		if (!checker.FCheck(prule, pmodel))
+		{
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+			if (nullptr == pexprTarget ||
+				COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
+				2 != pexprTarget->Arity() ||
+				COperator::EopLogicalGet != (*pexprTarget)[0]->Pop()->Eopid())
+			{
+				eres = GPOS_FAILED;
+			}
+			else
+			{
+				CExpressionArray *pdrgpexprTarget =
+					CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[1]);
+				if (2 != pdrgpexprTarget->Size())
+				{
+					eres = GPOS_FAILED;
+				}
+				pdrgpexprTarget->Release();
+			}
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSelect->Release();
+	pexprInner->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

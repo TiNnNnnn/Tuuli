@@ -14,13 +14,14 @@
 //		  WeTune : Filter<p2 a2>(Filter<p1 a1>(Filter<p0 a0>(base)))  — a chain of
 //		           single-predicate Filters, matched holistically with subset /
 //		           reorder / merge (FilterMatcher / FilterChain / FilterAssignments).
-//		  ORCA   : CLogicalSelect(base, And(c0, c1, c2, ...))          — ONE Select
-//		           whose child[1] is the whole conjunctive predicate.
+//		  ORCA   : CLogicalSelect(base, And(c0, c1, c2, ...)), or adjacent
+//		           Select nodes retained in separate Memo groups.
 //
 //		Approach (engine-side; ORCA core untouched):
 //		  1. MATCH  — peel the DSL Filter chain (root, following child[0], while
 //		     the op is a Filter) down to its non-Filter base op. Flatten the
-//		     Select's predicate to a conjunct SET via
+//		     predicates from only as many adjacent Select levels as the source
+//		     template declares, then flatten them to a conjunct SET via
 //		     CPredicateUtils::PdrgpexprConjuncts. Assign each DSL Filter's pred
 //		     symbol <p> to a DISTINCT conjunct and its attrs symbol <a> to that
 //		     conjunct's used columns — a subset match with reordering

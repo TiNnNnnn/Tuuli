@@ -40,6 +40,36 @@ CColRefArray *PdrgpcrFilterDependencies(CMemoryPool *mp,
 										CExpression *pexprPredicate,
 										CExpression *pexprBase,
 										ULONG ulSymbol);
+
+// ORCA may retain adjacent Select nodes in separate Memo groups or normalize
+// them into one AND predicate. Present both physical forms as one Filter chain
+// to the DSL matcher and return the relational child left after consuming only
+// the number of Filter placeholders declared by the source template.
+CExpression *
+PexprCollectSelectChain(CMemoryPool *mp, CExpression *pexprSelect,
+						ULONG ulRequiredFilters,
+						CExpressionArray *pdrgpexprConj)
+{
+	CExpression *pexprCurrent = pexprSelect;
+	while (COperator::EopLogicalSelect == pexprCurrent->Pop()->Eopid() &&
+		   2 == pexprCurrent->Arity())
+	{
+		CExpressionArray *pdrgpexprLevel =
+			CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprCurrent)[1]);
+		CUtils::AddRefAppend(pdrgpexprConj, pdrgpexprLevel);
+		pdrgpexprLevel->Release();
+		pexprCurrent = (*pexprCurrent)[0];
+		// A source rule may consume only the Filter nodes it declares. Descend
+		// into another physical Select only when the conjuncts collected so far
+		// cannot bind the remaining DSL Filter placeholders. This keeps a
+		// one-Filter rule from silently absorbing an adjacent inner Filter.
+		if (pdrgpexprConj->Size() >= ulRequiredFilters)
+		{
+			break;
+		}
+	}
+	return pexprCurrent;
+}
 }
 
 //---------------------------------------------------------------------------
@@ -728,31 +758,45 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 		return false;
 	}
 
+	// Treat adjacent Select nodes and one conjunctive Select as the same DSL
+	// Filter-chain representation. Every collected predicate remains available
+	// for assignment/residual preservation; only the physical wrappers disappear
+	// from the read-only match view.
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	CExpression *pexprBase =
+		PexprCollectSelectChain(m_mp, pexprSelect, ulFilters, pdrgpexprConj);
+
 	// A predicate that rejects NULLs from a LeftJoin's nullable side makes the
 	// filtered result exactly equivalent to filtering an InnerJoin. Expose that
 	// representation to InnerJoin-rooted DSL rules before the ordinary matcher;
 	// the view is read-only and CPredicateUtils proves the semantic precondition.
 	const COperator::EOperatorId eopidFilterChild =
-		(*pexprSelect)[0]->Pop()->Eopid();
+		pexprBase->Pop()->Eopid();
 	if (EdslopInnerJoin == popBase->Edslop() &&
 		(COperator::EopLogicalLeftOuterJoin == eopidFilterChild ||
 		 COperator::EopLogicalFullOuterJoin == eopidFilterChild))
 	{
+		CExpressionArray *pdrgpexprPred = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		CUtils::AddRefAppend(pdrgpexprPred, pdrgpexprConj);
+		CExpression *pexprCombined =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+		pexprBase->AddRef();
+		CExpression *pexprSelectView = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprBase,
+			pexprCombined);
 		CExpression *pexprInnerView =
-			CDSLMatchView::PexprNullRejectedInnerJoin(m_mp, pexprSelect);
+			CDSLMatchView::PexprNullRejectedInnerJoin(m_mp, pexprSelectView);
+		pexprSelectView->Release();
 		if (nullptr == pexprInnerView)
 		{
+			pdrgpexprConj->Release();
 			return false;
 		}
 		BOOL fMatched = FMatch(popFilterRoot, pexprInnerView, pmodel);
 		pexprInnerView->Release();
+		pdrgpexprConj->Release();
 		return fMatched;
 	}
-
-	// 2. flatten the Select's conjunctive predicate into a conjunct set.
-	CExpression *pexprPred = (*pexprSelect)[1];
-	CExpressionArray *pdrgpexprConj =
-		CPredicateUtils::PdrgpexprConjuncts(m_mp, pexprPred);
 
 	const ULONG ulConj = pdrgpexprConj->Size();
 
@@ -764,9 +808,13 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	if (1 == ulFilters && nullptr != rgpopFilters[0]->Pdrgpsym() &&
 		3 == rgpopFilters[0]->Pdrgpsym()->Size())
 	{
+		CExpressionArray *pdrgpexprPred = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		CUtils::AddRefAppend(pdrgpexprPred, pdrgpexprConj);
+		CExpression *pexprPred =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
 		if (FBindFilterSymbols(rgpopFilters[0], pexprPred,
-							   (*pexprSelect)[0], pmodel) &&
-			m_pmatcher->FMatch(popBase, (*pexprSelect)[0], pmodel))
+							   pexprBase, pmodel) &&
+			m_pmatcher->FMatch(popBase, pexprBase, pmodel))
 		{
 			BOOL *rgfUsed = GPOS_NEW_ARRAY(m_mp, BOOL, ulConj);
 			for (ULONG ul = 0; ul < ulConj; ul++)
@@ -777,6 +825,7 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 			GPOS_DELETE_ARRAY(rgfUsed);
 			fMatched = true;
 		}
+		pexprPred->Release();
 		pdrgpexprConj->Release();
 		return fMatched;
 	}
@@ -793,19 +842,19 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 
 		// 3a. assign each DSL Filter to a distinct conjunct (subset + reorder).
 		if (FAssign(rgpopFilters, ulFilters, 0 /*ulFilter*/, pdrgpexprConj,
-					popBase, (*pexprSelect)[0], rgfUsed, rgulAssigned))
+					popBase, pexprBase, rgfUsed, rgulAssigned))
 		{
 			BOOL fBound = true;
 			for (ULONG ul = 0; fBound && ul < ulFilters; ul++)
 			{
 				fBound = FBindFilterSymbols(
 					rgpopFilters[ul], (*pdrgpexprConj)[rgulAssigned[ul]],
-					(*pexprSelect)[0],
+					pexprBase,
 					pmodel);
 			}
 			// 3b. the chain base recurses against the Select's relational child.
 			if (fBound &&
-				m_pmatcher->FMatch(popBase, (*pexprSelect)[0], pmodel))
+				m_pmatcher->FMatch(popBase, pexprBase, pmodel))
 			{
 				// 3c. carry the unconsumed conjuncts forward.
 				RecordResidual(pdrgpexprConj, rgfUsed, pmodel);

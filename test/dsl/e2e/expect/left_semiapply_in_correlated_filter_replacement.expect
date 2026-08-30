@@ -1,0 +1,73 @@
+{
+  "description": "Two proved DSL rules collapse adjacent correlated Filters and decorrelate the resulting SemiApply",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApplyIn whose inner relation contains two adjacent error-free correlated Filters",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "592029aaa72e88fb",
+      "977b505669323220"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"592029aaa72e88fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"592029aaa72e88fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select",
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}

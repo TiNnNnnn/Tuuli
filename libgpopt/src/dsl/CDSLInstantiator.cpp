@@ -1406,9 +1406,44 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 
 	const CDSLSymbol *psymSourcePred = PsymResolve((*pdrgpsymTarget)[0]);
 	CExpression *pexprBound = pmodel->PexprPred(psymSourcePred);
+	if (nullptr == pexprBound)
+	{
+		// PredicateAnd defines a target-only predicate rather than aliasing one
+		// source Filter. Join and Exists already resolve this form through the
+		// shared predicate resolver; Filter uses the same construction whenever
+		// its declared dependency partitions exactly describe the conjunction.
+		CExpression *pexprDerived =
+			PexprResolvePredicate((*pdrgpsymTarget)[0], pmodel);
+		if (nullptr == pexprDerived)
+		{
+			return nullptr;
+		}
+		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		for (ULONG ulPart = 1; ulPart < pdrgpsymTarget->Size(); ulPart++)
+		{
+			CColRefArray *pdrgpcrPart = PdrgpcrResolveCols(
+				PsymResolve((*pdrgpsymTarget)[ulPart]), pmodel);
+			if (nullptr == pdrgpcrPart)
+			{
+				pcrsDeclared->Release();
+				pexprDerived->Release();
+				return nullptr;
+			}
+			pcrsDeclared->Include(pdrgpcrPart);
+		}
+		const BOOL fDependenciesExact =
+			pcrsDeclared->Equals(pexprDerived->DeriveUsedColumns());
+		pcrsDeclared->Release();
+		if (!fDependenciesExact)
+		{
+			pexprDerived->Release();
+			return nullptr;
+		}
+		return pexprDerived;
+	}
 	const CDSLOp *popSourceFilter = PopSourceFilterForPredicate(
 		m_prule->PfragSrc()->PopRoot(), psymSourcePred);
-	if (nullptr == pexprBound || nullptr == popSourceFilter ||
+	if (nullptr == popSourceFilter ||
 		nullptr == popSourceFilter->Pdrgpsym() ||
 		popSourceFilter->Pdrgpsym()->Size() != pdrgpsymTarget->Size())
 	{
