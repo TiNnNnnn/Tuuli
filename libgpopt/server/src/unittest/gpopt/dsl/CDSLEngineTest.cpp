@@ -301,21 +301,30 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 		mp,
 		"Proj<a0 s0>(LeftApply<p0 a1 a2 a3>(Input<t0>,Input<t1>))|"
 		"Input<t2>|TableEq(t2,t0)");
-	if (nullptr == pruleProjApply)
+	CDSLRule *pruleNestedProjApply = PrulePrefix(
+		mp,
+		"Proj<a0 s0>(Proj<a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,"
+		"Input<t1>)))|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleProjApply || nullptr == pruleNestedProjApply)
 	{
+		CRefCount::SafeRelease(pruleProjApply);
+		CRefCount::SafeRelease(pruleNestedProjApply);
 		return GPOS_FAILED;
 	}
 	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
 	pindex->Insert(pruleProjApply, 0, COperator::EopLogicalProject);
+	pindex->Insert(pruleNestedProjApply, 1, COperator::EopLogicalProject);
 	pexpr = GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalProject(mp), PexprPrefixLeaf(mp),
 		PexprPrefixLeaf(mp));
 	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
 	fValid = fValid && 0 == pindex->UlFallbackRules() &&
-		1 == pdrgprule->Size() && pruleProjApply == (*pdrgprule)[0];
+		2 == pdrgprule->Size() && pruleProjApply == (*pdrgprule)[0] &&
+		pruleNestedProjApply == (*pdrgprule)[1];
 	pdrgprule->Release();
 	pexpr->Release();
 	GPOS_DELETE(pindex);
+	pruleNestedProjApply->Release();
 	pruleProjApply->Release();
 
 	// Proj* and Agg source matchers accept only canonical Global GbAgg roots.

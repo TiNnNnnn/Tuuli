@@ -1,0 +1,83 @@
+{
+  "description": "The Proj(LeftApply) identity preserves correlated count empty-set semantics",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply"
+    ],
+    "scope": "Correlated scalar count in a Project list, including empty input",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "f94c37fc9c3e1750",
+      "ef0858d9db6d38c3"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ef0858d9db6d38c3\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply"
+      ],
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "CScalarCoalesce",
+        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ef0858d9db6d38c3\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply"
+    ],
+    "policy": "isolate_select2apply_identity.policy",
+    "output": [
+      "1,1",
+      "2,1",
+      "3,0"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,1",
+      "3,0"
+    ]
+  }
+}

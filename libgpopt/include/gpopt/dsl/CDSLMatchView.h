@@ -117,8 +117,9 @@ public:
 	// subquery through ORCA's production subquery handler. Existential,
 	// quantified, mixed, and multiple-subquery scalar trees fail closed. The
 	// caller owns the returned normalized expression.
-	static CExpression *PexprLowerSingleScalarSubquery(CMemoryPool *mp,
-											 CExpression *pexprUnary);
+	static CExpression *PexprLowerSingleScalarSubquery(
+		CMemoryPool *mp, CExpression *pexprUnary,
+		BOOL fEnforceCorrelatedApply = false);
 
 	// Clone a Select or LeftSemiApplyIn carrier with a replacement outer
 	// relation. The caller owns the returned transient expression.

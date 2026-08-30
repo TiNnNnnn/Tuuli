@@ -74,7 +74,8 @@ CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
 
 CExpression *
 CDSLMatchView::PexprLowerSingleScalarSubquery(CMemoryPool *mp,
-										  CExpression *pexprUnary)
+										  CExpression *pexprUnary,
+										  BOOL fEnforceCorrelatedApply)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != pexprUnary);
@@ -100,7 +101,7 @@ CDSLMatchView::PexprLowerSingleScalarSubquery(CMemoryPool *mp,
 	pexprOuter->AddRef();
 	CExpression *pexprNewOuter = nullptr;
 	CExpression *pexprResidual = nullptr;
-	CSubqueryHandler handler(mp, false /*fEnforceCorrelatedApply*/);
+	CSubqueryHandler handler(mp, fEnforceCorrelatedApply);
 	if (!handler.FProcess(pexprOuter, pexprScalar,
 					  CSubqueryHandler::EsqctxtFilter, &pexprNewOuter,
 					  &pexprResidual))

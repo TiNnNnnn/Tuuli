@@ -314,6 +314,34 @@ CDSLProjMatcher::FMatchScalarSubqueryProject(const CDSLOp *popProj,
 {
 	CExpression *pexprLowered =
 		CDSLMatchView::PexprLowerSingleScalarSubquery(m_mp, pexprProject);
+	const EDslOpKind edslopChild = 1 == popProj->UlChildren()
+		? (*popProj)[0]->Edslop()
+		: EdslopSentinel;
+	const COperator::EOperatorId eopidLoweredChild =
+		(nullptr != pexprLowered &&
+		 COperator::EopLogicalProject == pexprLowered->Pop()->Eopid() &&
+		 2 == pexprLowered->Arity())
+		? (*pexprLowered)[0]->Pop()->Eopid()
+		: COperator::EopSentinel;
+	const BOOL fDirectInnerApply = EdslopInnerApply == edslopChild &&
+		(COperator::EopLogicalInnerApply == eopidLoweredChild ||
+		 COperator::EopLogicalInnerCorrelatedApply == eopidLoweredChild);
+	const BOOL fDirectLeftApply = EdslopLeftOuterApply == edslopChild &&
+		(COperator::EopLogicalLeftOuterApply == eopidLoweredChild ||
+		 COperator::EopLogicalLeftOuterCorrelatedApply == eopidLoweredChild);
+	if ((EdslopInnerApply == edslopChild ||
+		 EdslopLeftOuterApply == edslopChild) &&
+		!fDirectInnerApply && !fDirectLeftApply)
+	{
+		// The non-enforced handler may choose a semantically equivalent shell,
+		// such as Project(Project(LeftApply)) for count-zero compensation. ORCA
+		// also produces an enforced-correlated alternative. Select that existing
+		// alternative when it is the one whose root shape the DSL names, before
+		// any symbols are bound to the model.
+		CRefCount::SafeRelease(pexprLowered);
+		pexprLowered = CDSLMatchView::PexprLowerSingleScalarSubquery(
+			m_mp, pexprProject, true /*fEnforceCorrelatedApply*/);
+	}
 	if (nullptr == pexprLowered)
 	{
 		return false;

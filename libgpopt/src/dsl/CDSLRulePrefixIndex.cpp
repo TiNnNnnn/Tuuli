@@ -198,16 +198,22 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		1 == pop->UlChildren())
 	{
 		const EDslOpKind edslopChild = (*pop)[0]->Edslop();
-		if (!pop->FDistinct() &&
-			(EdslopInnerApply == edslopChild ||
-			 EdslopLeftOuterApply == edslopChild))
+		const CDSLOp *popAfterProjectChain = (*pop)[0];
+		while (EdslopProj == popAfterProjectChain->Edslop() &&
+			   1 == popAfterProjectChain->UlChildren())
 		{
-			// A pre-unnest Project has the Apply encoded in its scalar project
-			// list, not in its live relational child. Index only the stable Project
-			// root for an Apply-shaped source; the shared Project match view and
-			// ordinary matcher remain the complete semantic gate. Using zero
-			// relational children also gives memo binding construction a valid root
-			// witness instead of trying to consume the not-yet-materialized Apply.
+			popAfterProjectChain = (*popAfterProjectChain)[0];
+		}
+		if (!pop->FDistinct() &&
+			(EdslopInnerApply == popAfterProjectChain->Edslop() ||
+			 EdslopLeftOuterApply == popAfterProjectChain->Edslop()))
+		{
+			// A pre-unnest Project has the Apply and any compensation Project
+			// encoded in its scalar project list, not in its live relational child.
+			// Index only the stable Project root for this Apply-terminated Project
+			// chain; the shared match view remains the complete semantic gate. Using
+			// zero relational children also gives memo binding construction a valid
+			// witness instead of consuming the not-yet-materialized chain.
 			*pfComplete = false;
 			return PnodeExact(pnode, pop->Eopid(), 0);
 		}
