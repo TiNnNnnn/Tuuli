@@ -685,6 +685,23 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	// matcher below.
 	if (COperator::EopLogicalInnerJoin == pexprSelect->Pop()->Eopid())
 	{
+		// The explicit three-symbol Filter is the correlation-aware form.  A
+		// correlated InnerJoin ON predicate is relationally identical to a Filter
+		// over the same join with TRUE as its local predicate.  Keeping this in the
+		// shared view layer lets operator-local DSL rules compose without teaching
+		// them ORCA's decorrelator recursion.
+		CDSLSymbolArray *pdrgpsym = popFilterRoot->Pdrgpsym();
+		if (nullptr != pdrgpsym && 3 == pdrgpsym->Size())
+		{
+			CExpression *pexprView =
+				CDSLMatchView::PexprCorrelatedInnerJoinFilter(m_mp, pexprSelect);
+			if (nullptr != pexprView)
+			{
+				BOOL fMatched = FMatch(popFilterRoot, pexprView, pmodel);
+				pexprView->Release();
+				return fMatched;
+			}
+		}
 		return FMatchPushedDownInnerJoin(popFilterRoot, pexprSelect, pmodel);
 	}
 	if (COperator::EopLogicalLeftSemiApplyIn == pexprSelect->Pop()->Eopid() ||
@@ -740,6 +757,29 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	const ULONG ulConj = pdrgpexprConj->Size();
 
 	BOOL fMatched = false;
+	// Filter<p,local,outer> is an explicit complete-predicate binding.  Unlike
+	// the historical two-symbol Filter-chain form, it must not silently select
+	// one conjunct: a rewrite that absorbs this Filter (for example into a
+	// SemiJoin predicate) would otherwise lose the unselected correlations.
+	if (1 == ulFilters && nullptr != rgpopFilters[0]->Pdrgpsym() &&
+		3 == rgpopFilters[0]->Pdrgpsym()->Size())
+	{
+		if (FBindFilterSymbols(rgpopFilters[0], pexprPred,
+							   (*pexprSelect)[0], pmodel) &&
+			m_pmatcher->FMatch(popBase, (*pexprSelect)[0], pmodel))
+		{
+			BOOL *rgfUsed = GPOS_NEW_ARRAY(m_mp, BOOL, ulConj);
+			for (ULONG ul = 0; ul < ulConj; ul++)
+			{
+				rgfUsed[ul] = true;
+			}
+			RecordResidual(pdrgpexprConj, rgfUsed, pmodel);
+			GPOS_DELETE_ARRAY(rgfUsed);
+			fMatched = true;
+		}
+		pdrgpexprConj->Release();
+		return fMatched;
+	}
 	// A shorter normalized conjunction may represent a longer Filter chain when
 	// duplicate predicates were eliminated before xform exploration.
 	if (0 < ulConj)

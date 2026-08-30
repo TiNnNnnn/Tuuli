@@ -10,6 +10,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -24,8 +25,55 @@ CDSLMatchViewTest::EresUnittest()
 			CDSLMatchViewTest::EresUnittest_JoinSpineAndCarrierViews),
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView),
+		GPOS_UNITTEST_FUNC(
+			CDSLMatchViewTest::EresUnittest_CorrelatedInnerJoinFilterView),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLMatchViewTest::EresUnittest_CorrelatedInnerJoinFilterView()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("match_view_corr_left", 1, &pdrgpcrLeft);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("match_view_corr_right", 1, &pdrgpcrRight);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("match_view_corr_outer", 1, &pdrgpcrOuter);
+
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]));
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrOuter)[0]));
+	CExpression *pexprPred =
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprPred->Release();
+
+	CExpression *pexprView =
+		CDSLMatchView::PexprCorrelatedInnerJoinFilter(mp, pexprJoin);
+	GPOS_ASSERT(nullptr != pexprView);
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprView->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
+				(*pexprView)[0]->Pop()->Eopid());
+	GPOS_ASSERT(CUtils::FScalarConstTrue((*(*pexprView)[0])[2]));
+	GPOS_ASSERT((*pexprView)[1]->Matches((*pexprJoin)[2]));
+
+	pexprView->Release();
+	pexprJoin->Release();
+	pexprOuter->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT

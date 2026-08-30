@@ -48,6 +48,10 @@ public:
 	// independently; different correlations do not invalidate equal local deps.
 	static GPOS_RESULT EresUnittest_CorrelatedDependencyPartitions();
 
+	// A single explicit correlation-aware Filter binds the whole normalized
+	// conjunction, so an absorbing target cannot lose sibling predicates.
+	static GPOS_RESULT EresUnittest_CorrelatedFilterBindsWholePredicate();
+
 	// ORCA normalizes Filter(p,Filter(p,x)) to one conjunct; both placeholders
 	// may bind that same conjunct and it is consumed only once.
 	static GPOS_RESULT EresUnittest_NormalizedDuplicateFilterMatchesOnce();

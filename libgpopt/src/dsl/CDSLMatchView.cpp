@@ -473,6 +473,44 @@ CDSLMatchView::PexprNullRejectedInnerJoin(CMemoryPool *mp,
 		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprInnerJoin, pexprPred);
 }
 
+CExpression *
+CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
+										  CExpression *pexprJoin)
+{
+	GPOS_ASSERT(nullptr != mp);
+	GPOS_ASSERT(nullptr != pexprJoin);
+
+	if (COperator::EopLogicalInnerJoin != pexprJoin->Pop()->Eopid() ||
+		3 != pexprJoin->Arity())
+	{
+		return nullptr;
+	}
+
+	CColRefSet *pcrsInputs = GPOS_NEW(mp) CColRefSet(
+		mp, *(*pexprJoin)[0]->DeriveOutputColumns());
+	pcrsInputs->Union((*pexprJoin)[1]->DeriveOutputColumns());
+	CColRefSet *pcrsOuter = GPOS_NEW(mp) CColRefSet(
+		mp, *(*pexprJoin)[2]->DeriveUsedColumns());
+	pcrsOuter->Exclude(pcrsInputs);
+	const BOOL fCorrelated = 0 < pcrsOuter->Size();
+	pcrsOuter->Release();
+	pcrsInputs->Release();
+	if (!fCorrelated)
+	{
+		return nullptr;
+	}
+
+	(*pexprJoin)[0]->AddRef();
+	(*pexprJoin)[1]->AddRef();
+	(*pexprJoin)[2]->AddRef();
+	CExpression *pexprLocalJoin = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), (*pexprJoin)[0],
+		(*pexprJoin)[1], CUtils::PexprScalarConstBool(mp, true));
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprLocalJoin,
+		(*pexprJoin)[2]);
+}
+
 CExpressionArray *
 CDSLMatchView::PdrgpexprNullRejectedLeftJoins(CMemoryPool *mp,
 										 CExpression *pexprSelect)

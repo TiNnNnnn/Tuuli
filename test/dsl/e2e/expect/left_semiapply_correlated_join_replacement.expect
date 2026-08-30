@@ -1,0 +1,76 @@
+{
+  "description": "A shared match view exposes a correlated InnerJoin ON predicate to the proved Compute and SemiApply DSL rules",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose inner Compute/LET contains a correlated InnerJoin ON predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "59b32af5adab80da",
+      "977b505669323220"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApply2LeftSemiJoin",
+        "CXformDSLRule_Project",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project",
+        "CXformDSLRule_Exists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "10",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "30"
+    ]
+  }
+}

@@ -80,10 +80,79 @@ CDSLFilterSplitTest::EresUnittest()
 			CDSLFilterSplitTest::EresUnittest_CorrelatedDependencyPartitions),
 		GPOS_UNITTEST_FUNC(
 			CDSLFilterSplitTest::
+				EresUnittest_CorrelatedFilterBindsWholePredicate),
+		GPOS_UNITTEST_FUNC(
+			CDSLFilterSplitTest::
 				EresUnittest_NormalizedDuplicateFilterMatchesOnce),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLFilterSplitTest::EresUnittest_CorrelatedFilterBindsWholePredicate()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Filter<p0 a0 o0>(Input<t0>)|Filter<p1 a1 o1>(Input<t1>)|"
+			"TableEq(t1,t0);PredicateEq(p1,p0);AttrsEq(a1,a0);"
+			"AttrsEq(o1,o0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrInner = nullptr;
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("whole_pred_inner", 2, &pdrgpcrInner);
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("whole_pred_outer", 1, &pdrgpcrOuter);
+	CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrInner)[1]));
+	pdrgpexprConj->Append(
+		fix.PexprEqPred((*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]));
+	CExpression *pexprPred =
+		CPredicateUtils::PexprConjunction(mp, pdrgpexprConj);
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprInner, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLOp *popFilter = prule->PfragSrc()->PopRoot();
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(popFilter, pexprSelect, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CExpression *pexprBound =
+			pmodel->PexprPred((*popFilter->Pdrgpsym())[0]);
+		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
+		CColRefArray *pdrgpcrLocal =
+			pmodel->PdrgpcrAttrs((*popFilter->Pdrgpsym())[1]);
+		CColRefArray *pdrgpcrOuterBound =
+			pmodel->PdrgpcrAttrs((*popFilter->Pdrgpsym())[2]);
+		if (nullptr == pexprBound || !pexprBound->Matches((*pexprSelect)[1]) ||
+			nullptr == pdrgpexprResidual || 0 != pdrgpexprResidual->Size() ||
+			nullptr == pdrgpcrLocal || 2 != pdrgpcrLocal->Size() ||
+			nullptr == pdrgpcrOuterBound || 1 != pdrgpcrOuterBound->Size())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	pmodel->Release();
+	pexprSelect->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

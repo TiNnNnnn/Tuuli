@@ -236,9 +236,8 @@ CDSLProjTest::EresUnittest_CollapseIdentityProject()
 		}
 	}
 
-	// ErrorFree admits structural boolean/null-test composition, but continues
-	// to reject operators whose runtime error behaviour is not represented by
-	// scalar metadata.
+	// ErrorFree admits structural boolean/null-test composition and ORCA's
+	// explicitly recognized built-in equality operators.
 	CDSLRule *pruleSafety = PdslruleParseLocal(
 		mp, "Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
 			"TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0);"
@@ -251,7 +250,7 @@ CDSLProjTest::EresUnittest_CollapseIdentityProject()
 	CDSLMatcher matcherUnsafe(mp, pruleSafety);
 	if (!matcherUnsafe.FMatch(pruleSafety->PfragSrc()->PopRoot(),
 							  pexprUnsafe, pmodelUnsafe) ||
-		checker.FCheck(pruleSafety, pmodelUnsafe))
+		!checker.FCheck(pruleSafety, pmodelUnsafe))
 	{
 		eres = GPOS_FAILED;
 	}

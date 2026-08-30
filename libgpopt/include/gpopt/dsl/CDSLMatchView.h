@@ -126,6 +126,13 @@ public:
 	static CExpression *PexprNullRejectedInnerJoin(CMemoryPool *mp,
 										 CExpression *pexprSelect);
 
+	// Expose an InnerJoin whose ON predicate references columns outside both
+	// inputs as Filter(predicate, InnerJoin(TRUE)).  This is an exact relational
+	// identity and gives the DSL one canonical place to bind local versus outer
+	// predicate dependencies.  The caller owns the transient expression.
+	static CExpression *PexprCorrelatedInnerJoinFilter(
+		CMemoryPool *mp, CExpression *pexprJoin);
+
 	// Expose an n-ary Union/UnionAll as a binary head plus a UnionAll tail.
 	// Set-op associativity makes this view exact, and using a bag-union tail is
 	// valid for both outer UNION DISTINCT and UNION ALL. The caller owns the

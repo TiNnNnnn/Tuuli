@@ -33,6 +33,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -155,13 +156,32 @@ PcrResolveIdentityLineage(const CDSLRule *prule, const CDSLModel *pmodel,
 }
 
 BOOL
-FScalarTreeProvablyErrorFree(const CExpression *pexpr)
+FScalarTreeProvablyErrorFree(CExpression *pexpr)
 {
 	switch (pexpr->Pop()->Eopid())
 	{
 		case COperator::EopScalarIdent:
 		case COperator::EopScalarConst:
 			return true;
+		case COperator::EopScalarCmp:
+			// Admit only the built-in equality operators whose behavior ORCA knows
+			// explicitly.  User-defined equality may still throw, so equality shape
+			// alone is not sufficient evidence for ErrorFree.
+			if (!CPredicateUtils::IsEqualityOp(pexpr) ||
+				!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					CScalarCmp::PopConvert(pexpr->Pop())->MdIdOp()))
+			{
+				return false;
+			}
+			break;
+		case COperator::EopScalarCast:
+			// Only a binary-coercible identity cast is structurally error-free.
+			// Parsing or narrowing casts can still fail and are deliberately rejected.
+			if (!CCastUtils::FBinaryCoercibleCastedScId(pexpr))
+			{
+				return false;
+			}
+			break;
 		case COperator::EopScalarNullTest:
 		case COperator::EopScalarBoolOp:
 		case COperator::EopScalarProjectElement:
