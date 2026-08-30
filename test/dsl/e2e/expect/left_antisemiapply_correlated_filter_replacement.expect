@@ -1,0 +1,62 @@
+{
+  "description": "A Rocq-proved DSL rule decorrelates ordinary NOT EXISTS over a correlated Filter",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "LeftAntiSemiApply whose right child is one correlated Filter",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "5004b2a4db64e478"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "20"
+    ],
+    "postgres_output": [
+      "20"
+    ]
+  }
+}

@@ -52,6 +52,7 @@ public:
 	static GPOS_RESULT EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin();
 	static GPOS_RESULT EresUnittest_SemiJoinBuildsUncorrelatedSemiApply();
 	static GPOS_RESULT EresUnittest_PredicateAndBuildsSemiJoinCondition();
+	static GPOS_RESULT EresUnittest_PredicateAndBuildsAntiJoinCondition();
 
 	// PredicateFalse gates a direct constant-FALSE LeftJoin and Empty builds a
 	// zero-row right input with the original output schema.

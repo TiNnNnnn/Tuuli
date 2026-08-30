@@ -117,6 +117,15 @@ using namespace gpopt;
 	"Deterministic(p0);Deterministic(p1);Deterministic(p2);"             \
 	"ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)"
 
+#define GPOPT_DSL_ANTI_APPLY_FILTER_TO_JOIN_RULE                         \
+	"AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"    \
+	"AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"                           \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p2,p0,p1);"              \
+	"AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);"          \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);"   \
+	"Deterministic(p0);Deterministic(p1);Deterministic(p2);"             \
+	"ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -172,6 +181,8 @@ CDSLJoinTest::EresUnittest()
 			CDSLJoinTest::EresUnittest_SemiJoinBuildsUncorrelatedSemiApply),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NoFireOnWrongRoot),
@@ -242,6 +253,85 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		}
 		if (nullptr == pexprTarget ||
 			COperator::EopLogicalLeftSemiJoin !=
+				pexprTarget->Pop()->Eopid() ||
+			nullptr == pdrgpexprConjuncts || 2 != pdrgpexprConjuncts->Size() ||
+			!(*pdrgpexprConjuncts)[0]->Matches(pexprApplyPred) ||
+			!(*pdrgpexprConjuncts)[1]->Matches(pexprFilterPred))
+		{
+			eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(pdrgpexprConjuncts);
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprApply->Release();
+	pexprFilteredInner->Release();
+	pexprApplyPred->Release();
+	pexprFilterPred->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_ANTI_APPLY_FILTER_TO_JOIN_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("anti_predicate_and_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("anti_predicate_and_inner", 2, &pdrgpcrInner);
+	CExpression *pexprApplyPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+	CExpressionArray *pdrgpexprOr = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprOr->Append(fix.PexprPredAtom((*pdrgpcrOuter)[0]));
+	pdrgpexprOr->Append(fix.PexprPredAtom((*pdrgpcrInner)[0]));
+	CExpression *pexprFilterPred = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopOr),
+		pdrgpexprOr);
+	CExpression *pexprFilteredInner =
+		fix.PexprLogicalSelect(pexprInner, pexprFilterPred);
+	pexprOuter->AddRef();
+	pexprFilteredInner->AddRef();
+	pexprApplyPred->AddRef();
+	CExpression *pexprApply = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftAntiSemiApply(mp), pexprOuter,
+		pexprFilteredInner, pexprApplyPred);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpressionArray *pdrgpexprConjuncts = nullptr;
+		if (nullptr != pexprTarget)
+		{
+			pdrgpexprConjuncts =
+				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
+		}
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalLeftAntiSemiJoin !=
 				pexprTarget->Pop()->Eopid() ||
 			nullptr == pdrgpexprConjuncts || 2 != pdrgpexprConjuncts->Size() ||
 			!(*pdrgpexprConjuncts)[0]->Matches(pexprApplyPred) ||
