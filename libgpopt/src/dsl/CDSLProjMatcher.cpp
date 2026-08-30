@@ -313,7 +313,7 @@ CDSLProjMatcher::FMatchScalarSubqueryProject(const CDSLOp *popProj,
 										 CDSLModel *pmodel) const
 {
 	CExpression *pexprLowered =
-		CDSLMatchView::PexprLowerSingleSubquery(
+		CDSLMatchView::PexprLowerSubqueries(
 			m_mp, pexprProject, false /*fEnforceCorrelatedApply*/,
 			false /*fScalarOnly*/);
 	const EDslOpKind edslopChild = 1 == popProj->UlChildren()
@@ -341,7 +341,7 @@ CDSLProjMatcher::FMatchScalarSubqueryProject(const CDSLOp *popProj,
 		// alternative when it is the one whose root shape the DSL names, before
 		// any symbols are bound to the model.
 		CRefCount::SafeRelease(pexprLowered);
-		pexprLowered = CDSLMatchView::PexprLowerSingleSubquery(
+		pexprLowered = CDSLMatchView::PexprLowerSubqueries(
 			m_mp, pexprProject, true /*fEnforceCorrelatedApply*/,
 			false /*fScalarOnly*/);
 	}

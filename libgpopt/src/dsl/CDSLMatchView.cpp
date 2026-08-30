@@ -105,7 +105,7 @@ CDSLMatchView::PexprInverseComparison(CMemoryPool *mp,
 }
 
 CExpression *
-CDSLMatchView::PexprLowerSingleSubquery(CMemoryPool *mp,
+CDSLMatchView::PexprLowerSubqueries(CMemoryPool *mp,
 										  CExpression *pexprUnary,
 										  BOOL fEnforceCorrelatedApply,
 										  BOOL fScalarOnly)
@@ -125,8 +125,8 @@ CDSLMatchView::PexprLowerSingleSubquery(CMemoryPool *mp,
 	ULONG ulScalar = 0;
 	ULONG ulOtherSubquery = 0;
 	CountSubqueryKinds(pexprScalar, &ulScalar, &ulOtherSubquery);
-	if ((fScalarOnly && (1 != ulScalar || 0 != ulOtherSubquery)) ||
-		(!fScalarOnly && 1 != ulScalar + ulOtherSubquery))
+	if ((fScalarOnly && (0 == ulScalar || 0 != ulOtherSubquery)) ||
+		(!fScalarOnly && 0 == ulScalar + ulOtherSubquery))
 	{
 		return nullptr;
 	}
