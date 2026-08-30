@@ -56,6 +56,13 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n
 # 2026-08-29.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
+# Replaces CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations. AntiApply
+# binds the exact inner-to-outer dependency set; AttrsEmpty is therefore the
+# native promise expressed as data. AntiJoin is ordinary NOT EXISTS semantics,
+# distinct from the NULL-aware AntiJoinNotIn family. This exact RuleIR is
+# accepted by the FormalSQL/Rocq kernel.
+AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
+
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter

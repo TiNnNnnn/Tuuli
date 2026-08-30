@@ -81,6 +81,10 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopSemiApply, "SemiApply", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopAntiJoin, "AntiJoin", 2, 3,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopAntiApply, "AntiApply", 2, 4,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -186,6 +190,10 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLeftSemiJoin;
 		case EdslopSemiApply:
 			return COperator::EopLogicalLeftSemiApply;
+		case EdslopAntiJoin:
+			return COperator::EopLogicalLeftAntiSemiJoin;
+		case EdslopAntiApply:
+			return COperator::EopLogicalLeftAntiSemiApply;
 		case EdslopAgg:
 			return COperator::EopLogicalGbAgg;
 		case EdslopExists:
@@ -249,6 +257,8 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopEmpty:
 		case EdslopSemiJoin:
 		case EdslopSemiApply:
+		case EdslopAntiJoin:
+		case EdslopAntiApply:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -279,6 +289,8 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopEmpty:
 		case EdslopSemiJoin:
 		case EdslopSemiApply:
+		case EdslopAntiJoin:
+		case EdslopAntiApply:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -331,6 +343,10 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"LeftSemiJoin", EdslopSemiJoin, EdslsortNone},
 		{"SemiApply", EdslopSemiApply, EdslsortNone},
 		{"LeftSemiApply", EdslopSemiApply, EdslsortNone},
+		{"AntiJoin", EdslopAntiJoin, EdslsortNone},
+		{"LeftAntiSemiJoin", EdslopAntiJoin, EdslsortNone},
+		{"AntiApply", EdslopAntiApply, EdslsortNone},
+		{"LeftAntiSemiApply", EdslopAntiApply, EdslsortNone},
 		{"Filter", EdslopFilter, EdslsortNone},
 		{"PlainFilter", EdslopFilter, EdslsortNone},
 		{"SimpleFilter", EdslopFilter, EdslsortNone},

@@ -1,0 +1,68 @@
+{
+  "description": "A Rocq-proved explicit AntiApply DSL rule replaces the uncorrelated NOT EXISTS Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "561de687652328df"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

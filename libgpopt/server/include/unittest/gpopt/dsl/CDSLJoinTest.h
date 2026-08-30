@@ -49,6 +49,7 @@ public:
 	static GPOS_RESULT EresUnittest_PredicateOnlyJoin();
 	static GPOS_RESULT EresUnittest_ExplicitSemiJoinBindsCompletePredicate();
 	static GPOS_RESULT EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin();
+	static GPOS_RESULT EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin();
 	static GPOS_RESULT EresUnittest_SemiJoinBuildsUncorrelatedSemiApply();
 	static GPOS_RESULT EresUnittest_PredicateAndBuildsSemiJoinCondition();
 

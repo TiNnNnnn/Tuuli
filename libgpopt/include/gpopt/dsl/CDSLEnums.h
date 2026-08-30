@@ -75,6 +75,8 @@ enum EDslOpKind
 	EdslopEmpty,		 // zero-row relation carrying a bound table schema
 	EdslopSemiJoin,		 // explicit relational left semi join
 	EdslopSemiApply,	 // dependent left semi apply with explicit correlations
+	EdslopAntiJoin,		 // explicit relational left anti semi join
+	EdslopAntiApply,	 // dependent left anti semi apply with explicit correlations
 	EdslopSentinel
 };
 
