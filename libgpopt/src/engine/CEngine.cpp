@@ -494,6 +494,30 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 	InsertExpressionChildren(pexpr, pdrgpgroupChildren, exfidOrigin,
 							 pgexprOrigin);
 
+	// A DSL target may contain fresh intermediate nodes which resolve to an
+	// existing Memo group only during recursive insertion. If such a resolved
+	// child already reaches the target group, adding the target root would close
+	// a relational dependency cycle and leave exploration/implementation jobs
+	// mutually queued. Unrelated native xforms retain their original insertion
+	// semantics; carry the guard through native descendants of a DSL alternative
+	// because provenance (and therefore the possible back-edge) is transitive.
+	const BOOL fDSLProvenance =
+		CGroupExpression::FDSLRuleXform(exfidOrigin) ||
+		(nullptr != pgexprOrigin && pgexprOrigin->FHasDSLProvenance());
+	if (nullptr != pgroupTarget && fDSLProvenance)
+	{
+		for (ULONG ul = 0; ul < pdrgpgroupChildren->Size(); ul++)
+		{
+			CGroup *pgroupChild = (*pdrgpgroupChildren)[ul];
+			if (!pgroupChild->FScalar() &&
+				CGroup::FReachable(m_mp, pgroupChild, pgroupTarget))
+			{
+				pdrgpgroupChildren->Release();
+				return pgroupTarget;
+			}
+		}
+	}
+
 	COperator *pop = pexpr->Pop();
 	pop->AddRef();
 	CGroupExpression *pgexpr = GPOS_NEW(m_mp)

@@ -23,9 +23,38 @@
 #include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/search/CGroup.h"
+#include "gpopt/search/CGroupExpression.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
+
+namespace
+{
+// A DSL target is inserted into the source expression's Memo group. Reused
+// target subtrees may already belong to the Memo; none may depend on that
+// source group, otherwise insertion would add a relational back-edge and
+// deadlock exploration/implementation job queues. Fresh target nodes are
+// traversed until their memo-bound frontier is reached.
+BOOL
+FTargetDependsOnGroup(CMemoryPool *mp, CExpression *pexpr,
+					  CGroup *pgroupTarget)
+{
+	if (nullptr != pexpr->Pgexpr())
+	{
+		return CGroup::FReachable(mp, pexpr->Pgexpr()->Pgroup(),
+							  pgroupTarget);
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		if (FTargetDependsOnGroup(mp, (*pexpr)[ul], pgroupTarget))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+}  // namespace
 
 // global instance
 CDSLRuleEngine *CDSLRuleEngine::m_instance = nullptr;
@@ -696,6 +725,19 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// may repeatedly fire as native xforms enumerate equivalent children.
 		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
 					 pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
+					 ulConstraintUs, ulInstantiateUs);
+		GPOS_DELETE(pdecision);
+		return nullptr;
+	}
+	if (EdsldecisionReady == pdecision->Status() &&
+		nullptr != pexpr->Pgexpr() &&
+		FTargetDependsOnGroup(mp, pexprTgt, pexpr->Pgexpr()->Pgroup()))
+	{
+		// This is a valid algebraic result but not a legal Cascades insertion
+		// from the current binding: one of its reused subtrees is an ancestor of
+		// the source group. Another acyclic binding may still apply the same rule.
+		TraceDSLRule(mp, ulRuleId, EdsltraceInstantiateRejected, prule, pmodel,
+					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 					 ulConstraintUs, ulInstantiateUs);
 		GPOS_DELETE(pdecision);
 		return nullptr;
