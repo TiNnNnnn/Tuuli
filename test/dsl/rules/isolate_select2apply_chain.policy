@@ -1,0 +1,10 @@
+# Isolate the two-step lowering of repeated Select subqueries: consume one
+# direct conjunct, then preserve/lower the residual value through LeftApply.
+- rule: '*'
+  enabled: false
+- rule: 820ba716dc954542
+  enabled: true
+- rule: 886ab560bb224b86
+  enabled: true
+- rule: 59c08d845aff822c
+  enabled: true

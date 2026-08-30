@@ -1,0 +1,75 @@
+{
+  "description": "Two proved representation identities compose to lower multiple quantified conjuncts",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "Two correlated ANY conjuncts with distinct comparison predicates",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "886ab560bb224b86",
+      "59c08d845aff822c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_chain.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"rule_hash\":\"886ab560bb224b86\"",
+        "\"rule_hash\":\"59c08d845aff822c\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "isolate_select2apply_chain.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"status\":\"applied\",\"rule_hash\":\"886ab560bb224b86\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59c08d845aff822c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "isolate_select2apply_chain.policy",
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ]
+  }
+}

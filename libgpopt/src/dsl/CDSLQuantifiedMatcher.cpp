@@ -92,16 +92,15 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		CExpressionArray *pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
 		CExpression *pexprQuantified = nullptr;
-		ULONG ulQuantified = 0;
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
-			if (eopidSubquery == (*pdrgpexprConj)[ul]->Pop()->Eopid())
+			if (nullptr == pexprQuantified &&
+				eopidSubquery == (*pdrgpexprConj)[ul]->Pop()->Eopid())
 			{
 				pexprQuantified = (*pdrgpexprConj)[ul];
-				ulQuantified++;
 			}
 		}
-		if (1 != ulQuantified)
+		if (nullptr == pexprQuantified)
 		{
 			pdrgpexprConj->Release();
 			return false;

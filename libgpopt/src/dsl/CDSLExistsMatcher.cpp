@@ -177,19 +177,18 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		CExpressionArray *pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
 		CExpression *pexprExists = nullptr;
-		ULONG ulExists = 0;
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
 			CExpression *pexprConj = (*pdrgpexprConj)[ul];
-			if (FDirectExistential(pexprConj, fNegated))
+			if (nullptr == pexprExists &&
+				FDirectExistential(pexprConj, fNegated))
 			{
 				pexprExists = pexprConj;
-				ulExists++;
 			}
 		}
 
 		BOOL fMatched = false;
-		if (1 == ulExists &&
+		if (nullptr != pexprExists &&
 			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
 			m_pmatcher->FMatch((*pop)[1], (*pexprExists)[0], pmodel))
 		{
