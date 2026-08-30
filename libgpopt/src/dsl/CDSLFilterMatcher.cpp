@@ -740,6 +740,62 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 		return FMatchSubqueryCarrier(popFilterRoot, pexprSelect, pmodel);
 	}
 
+	// A subquery used below OR/NOT or another general boolean expression is
+	// not a relational semi/anti filter.  The production subquery handler
+	// preserves its three-valued value semantics as a Select over an
+	// LeftOuterApply.  Expose that exact tree to an explicitly LeftApply-shaped
+	// DSL template; ordinary Filter rules continue to see the
+	// untranslated Select and therefore cannot acquire implicit lowering
+	// behavior.
+	if (COperator::EopLogicalSelect == pexprSelect->Pop()->Eopid() &&
+		2 == pexprSelect->Arity() && (*pexprSelect)[1]->DeriveHasSubquery())
+	{
+		const CDSLOp *rgpopFilters[GPOPT_DSL_MAX_FILTER_CHAIN];
+		ULONG ulFilters = 0;
+		const CDSLOp *popBase = PopCollectChain(
+			popFilterRoot, rgpopFilters, GPOPT_DSL_MAX_FILTER_CHAIN, &ulFilters);
+		if (nullptr != popBase &&
+			EdslopLeftOuterApply == popBase->Edslop())
+		{
+			CExpression *pexprLowered = CDSLMatchView::PexprLowerSubqueries(
+				m_mp, pexprSelect, false /*fEnforceCorrelatedApply*/,
+				false /*fScalarOnly*/);
+			CExpression *pexprLoweredBase = pexprLowered;
+			while (nullptr != pexprLoweredBase &&
+				   COperator::EopLogicalSelect ==
+					   pexprLoweredBase->Pop()->Eopid() &&
+				   2 == pexprLoweredBase->Arity())
+			{
+				pexprLoweredBase = (*pexprLoweredBase)[0];
+			}
+			const COperator::EOperatorId eopidLoweredBase =
+				nullptr == pexprLoweredBase
+					? COperator::EopSentinel
+					: pexprLoweredBase->Pop()->Eopid();
+			const BOOL fDirectLeftApply =
+				COperator::EopLogicalLeftOuterApply == eopidLoweredBase ||
+				COperator::EopLogicalLeftOuterCorrelatedApply ==
+					 eopidLoweredBase;
+			if (nullptr != pexprLowered && !fDirectLeftApply)
+			{
+				// The regular value-context alternative may place a compensating
+				// GbAgg above LeftApply.  When this rule explicitly names a direct
+				// Apply, select the production handler's existing correlated
+				// alternative before binding any model symbols.
+				pexprLowered->Release();
+				pexprLowered = CDSLMatchView::PexprLowerSubqueries(
+					m_mp, pexprSelect, true /*fEnforceCorrelatedApply*/,
+					false /*fScalarOnly*/);
+			}
+			if (nullptr != pexprLowered)
+			{
+				const BOOL fMatched = FMatch(popFilterRoot, pexprLowered, pmodel);
+				pexprLowered->Release();
+				return fMatched;
+			}
+		}
+	}
+
 	// Otherwise the live node must be a Select carrying (relational child,
 	// predicate).
 	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||

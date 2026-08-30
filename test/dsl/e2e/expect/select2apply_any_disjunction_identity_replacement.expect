@@ -1,0 +1,74 @@
+{
+  "description": "The proved Filter(LeftApply) identity also preserves ANY under a general boolean expression",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "Correlated single-column ANY used as one arm of a disjunction",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "59c08d845aff822c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"rule_hash\":\"59c08d845aff822c\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "isolate_select2apply_identity.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"status\":\"applied\",\"rule_hash\":\"59c08d845aff822c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "isolate_select2apply_identity.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

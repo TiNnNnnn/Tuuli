@@ -253,6 +253,31 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleFilterInner->Release();
 	pruleFilterLeft->Release();
 
+	// Filter(LeftApply) is the production view of a value subquery under a
+	// general boolean expression. Before Select2Apply, the live Select child is
+	// still the original outer relation, so the index must retain the rule based
+	// on the stable Select shell and leave the complete view to the matcher.
+	CDSLRule *pruleFilterApply = PrulePrefix(
+		mp,
+		"Filter<p0 a0 a1>(LeftApply<p1 a2 a3 a4>(Input<t0>,Input<t1>))|"
+		"Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleFilterApply)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleFilterApply, 0, COperator::EopLogicalSelect);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), PexprPrefixLeaf(mp),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+		1 == pdrgprule->Size() && pruleFilterApply == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleFilterApply->Release();
+
 	// Ordinary root Proj has a stable Project prefix even though its matcher may
 	// peel representation shells below it. The direct child path remains fully
 	// discriminated for the common case.

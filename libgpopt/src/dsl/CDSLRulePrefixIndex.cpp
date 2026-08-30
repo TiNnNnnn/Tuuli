@@ -184,6 +184,18 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		{
 			popBase = (*popBase)[0];
 		}
+		if (EdslopLeftOuterApply == popBase->Edslop())
+		{
+			// A value subquery below a general boolean expression is still encoded
+			// in the live Select predicate before Select2Apply.  Its production
+			// view is Filter(Apply), so the Apply is not a physical child that the
+			// prefix can inspect yet.  Index the stable Select shell only and leave
+			// the complete Filter/Apply validation to CDSLFilterMatcher.  This is
+			// the Filter counterpart of the Project(Apply) adapter below.
+			*pfComplete = false;
+			return PnodeExact(
+				pnode, COperator::EopLogicalSelect, 0 /*relational children*/);
+		}
 		SNode *pnodeCurrent = PnodeExact(
 			pnode, COperator::EopLogicalSelect, 1 /*relational child*/);
 		const ULONG ulBaseAdapterFlags =
