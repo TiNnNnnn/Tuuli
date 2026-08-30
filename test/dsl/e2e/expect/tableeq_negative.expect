@@ -1,5 +1,5 @@
 {
-  "description": "TableEq rejects two different inner relations",
+  "description": "TableEq rejects every ordering of three different relations",
   "plans": [
     {
       "name": "on-native-off",

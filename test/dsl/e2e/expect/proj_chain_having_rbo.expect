@@ -1,5 +1,5 @@
 {
-  "description": "BottomUp RBO preserves a removed dedup as a proven nested Proj* dependency view across HAVING",
+  "description": "BottomUp RBO removes redundant dedup projection and then merges the normalized HAVING filters",
   "plans": [
     {
       "name": "rbo",
@@ -7,7 +7,7 @@
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
         "\"rule_id\":43,\"status\":\"applied_rbo\"",
-        "\"rule_id\":74,\"status\":\"applied_rbo\"",
+        "\"rule_id\":58,\"status\":\"applied_rbo\"",
         "\"placement\":\"rbo\""
       ]
     }

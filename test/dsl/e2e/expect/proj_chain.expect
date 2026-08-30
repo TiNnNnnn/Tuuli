@@ -27,8 +27,7 @@
       ],
       "alternative": [
         "CXformCollapseGbAgg",
-        "CXformDSLRule_Agg",
-        "CXformDSLRule_Project"
+        "CXformDSLRule_Agg"
       ]
     },
     {
@@ -52,8 +51,7 @@
         "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
       ],
       "alternative": [
-        "CXformDSLRule_Agg",
-        "CXformDSLRule_Project"
+        "CXformDSLRule_Agg"
       ]
     }
   ],
