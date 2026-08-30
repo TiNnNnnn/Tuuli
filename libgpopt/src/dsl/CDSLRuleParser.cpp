@@ -447,6 +447,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 				return nullptr;
 			}
 		}
+		if (EdslconMinimalGrouping == edslcon &&
+			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("MinimalGrouping expects grouping attrs and aggregate schema symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

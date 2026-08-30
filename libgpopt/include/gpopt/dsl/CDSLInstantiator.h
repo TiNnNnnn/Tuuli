@@ -120,6 +120,13 @@ private:
 									 const CDSLModel *pmodel,
 									 ULONG ulDepth = 0) const;
 
+	// Materialize child-dependent minimal grouping metadata when the rule
+	// explicitly declares MinimalGrouping(group,schema). Returns an owned array,
+	// or NULL when this target aggregate has no such property declaration.
+	CColRefArray *PdrgpcrMinimalGrouping(const CDSLSymbol *psymGroup,
+									const CDSLSymbol *psymSchema,
+									const CDSLModel *pmodel) const;
+
 	// Resolve an expression-list symbol to an owned CScalarProjectList. Besides
 	// direct/ExprListEq bindings, target symbols may be defined by ExprConcat and
 	// are

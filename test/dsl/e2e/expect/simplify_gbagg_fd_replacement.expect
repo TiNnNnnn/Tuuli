@@ -1,0 +1,63 @@
+{
+  "description": "DSL constructs FD-backed minimal grouping metadata for a real aggregate",
+  "replacement": {
+    "xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "scope": "real aggregate with key-determined grouping columns",
+    "status": "verified_partial_replacement"
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "output": [
+      "1,10,10",
+      "2,10,10",
+      "3,20,20"
+    ],
+    "postgres_output": [
+      "1,10,10",
+      "2,10,10",
+      "3,20,20"
+    ]
+  }
+}

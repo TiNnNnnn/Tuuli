@@ -83,6 +83,11 @@ public:
 	// aggregate output columns from schema - groupByAttrs.
 	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
 
+	// MinimalGrouping derives the same FD-backed metadata as
+	// CXformSimplifyGbAgg without changing the full semantic grouping, and does
+	// not rematch an already annotated aggregate.
+	static GPOS_RESULT EresUnittest_MinimalGroupingMetadata();
+
 	// ORCA Select(GbAgg,HAVING) binds p to the real predicate and reconstructs
 	// the same two-node shape end to end.
 	static GPOS_RESULT EresUnittest_HavingRoundTrip();

@@ -61,6 +61,14 @@ using namespace gpopt;
 	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
+#define GPOPT_DSL_AGG_MINIMAL_GROUPING_RULE                                \
+	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
+	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
+	"AttrsSub(a0,t0);AttrsSub(a1,t0);"                                     \
+	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
+	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);"                    \
+	"MinimalGrouping(a0,s0)"
+
 #define GPOPT_DSL_AGG_FILTER_COMMUTE_RULE                                  \
 	"Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|"                   \
 	"Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|"                  \
@@ -208,6 +216,7 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_DistinctAggregateRejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
@@ -218,6 +227,85 @@ CDSLAggTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_MinimalGroupingMetadata()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_MINIMAL_GROUPING_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"fd_agg", 3, &pdrgpcrInput, 0 /*ulKeyCol*/);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[1]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_fd_c2");
+	CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+		pexprGet, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[2]);
+	pdrgpcrGroup->Release();
+
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprAgg, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalGbAgg != pexprTarget->Pop()->Eopid())
+		{
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			CLogicalGbAgg *popTarget =
+				CLogicalGbAgg::PopConvert(pexprTarget->Pop());
+			if (2 != popTarget->Pdrgpcr()->Size() ||
+				nullptr == popTarget->PdrgpcrMinimal() ||
+				1 != popTarget->PdrgpcrMinimal()->Size() ||
+				(*pdrgpcrInput)[0] != (*popTarget->PdrgpcrMinimal())[0])
+			{
+				eres = GPOS_FAILED;
+			}
+		}
+	}
+
+	// The metadata constructor is one-shot. This is the property-level analogue
+	// of native SimplifyGbAgg's PdrgpcrMinimal promise guard.
+	if (nullptr != pexprTarget)
+	{
+		CDSLModel *pmodelAgain = GPOS_NEW(mp) CDSLModel(mp);
+		if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprTarget,
+						 pmodelAgain) ||
+			checker.FCheck(prule, pmodelAgain))
+		{
+			eres = GPOS_FAILED;
+		}
+		pmodelAgain->Release();
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprAgg->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

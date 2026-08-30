@@ -114,6 +114,15 @@ Proj*<a0 s0>(Union*<a1 s1>(Input<t0>,Input<t1>))|Union*<a2 s2>(Proj*<a3 s3>(Inpu
 
 # Rules in this file exist only to replace native ORCA logical xforms. Each
 # rule must be independently proved before admission and carry causal E2E.
+# Replaces the functional-dependency metadata branch of
+# CXformSimplifyGbAgg for real aggregates. MinimalGrouping is an explicit
+# optimizer-property premise: it preserves the full semantic grouping while
+# deriving the smaller child-dependent grouping used by later xforms. The
+# exact RuleIR is an outcome-equivalence proof accepted by FormalSQL/Rocq;
+# aligned expressions preserve errors, so no scalar ErrorFree premise is
+# required.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);MinimalGrouping(a0,s0)
+
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

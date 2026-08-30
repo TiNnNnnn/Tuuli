@@ -1192,6 +1192,61 @@ CDSLConstraintChecker::FCheckUnique(const CDSLConstraint *pcon,
 	return fHolds;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckMinimalGrouping(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() ||
+		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymSchema != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+
+	CRefCount *pvalGroup = pmodel->PvalLookup((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrGroup =
+		dynamic_cast<CColRefArray *>(pvalGroup);
+	CExpression *pexprAgg =
+		pmodel->PexprAggBinding((*pdrgpsym)[1]);
+	if (nullptr == pdrgpcrGroup || nullptr == pexprAgg ||
+		COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	CLogicalGbAgg *popAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	if (!popAgg->FGlobal() || nullptr != popAgg->PdrgpcrMinimal() ||
+		0 == pdrgpcrGroup->Size() ||
+		!CColRef::Equals(popAgg->Pdrgpcr(), pdrgpcrGroup))
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsGroup->Include(pdrgpcrGroup);
+	CColRefSet *pcrsCovered = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsMinimal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CFunctionalDependencyArray *pdrgpfd =
+		pexprAgg->DeriveFunctionalDependencies();
+	for (ULONG ul = 0; nullptr != pdrgpfd && ul < pdrgpfd->Size(); ul++)
+	{
+		CFunctionalDependency *pfd = (*pdrgpfd)[ul];
+		if (pfd->FIncluded(pcrsGroup))
+		{
+			pcrsCovered->Include(pfd->PcrsDetermined());
+			pcrsCovered->Include(pfd->PcrsKey());
+			pcrsMinimal->Include(pfd->PcrsKey());
+		}
+	}
+	const BOOL fHolds = pcrsCovered->Equals(pcrsGroup) &&
+		0 < pcrsMinimal->Size();
+	pcrsMinimal->Release();
+	pcrsCovered->Release();
+	pcrsGroup->Release();
+	return fHolds;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckNotNull
@@ -2167,6 +2222,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAggFilterCommute(pcon, pmodel);
 		case EdslconAggCorrelationPullup:
 			return FCheckAggCorrelationPullup(pcon, pmodel);
+		case EdslconMinimalGrouping:
+			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:
 			return FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:

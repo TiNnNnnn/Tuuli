@@ -1068,6 +1068,84 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	return pdrgpcrResult;
 }
 
+CColRefArray *
+CDSLInstantiator::PdrgpcrMinimalGrouping(
+	const CDSLSymbol *psymGroup, const CDSLSymbol *psymSchema,
+	const CDSLModel *pmodel) const
+{
+	if (nullptr == m_prule)
+	{
+		return nullptr;
+	}
+	psymGroup = PsymResolve(psymGroup);
+	psymSchema = PsymResolve(psymSchema);
+	BOOL fDeclared = false;
+	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconMinimalGrouping != pcon->Edslcon() ||
+			2 != pcon->Pdrgpsym()->Size())
+		{
+			continue;
+		}
+		if (PsymResolve((*pcon->Pdrgpsym())[0]) == psymGroup &&
+			PsymResolve((*pcon->Pdrgpsym())[1]) == psymSchema)
+		{
+			if (fDeclared)
+			{
+				return nullptr;
+			}
+			fDeclared = true;
+		}
+	}
+	if (!fDeclared)
+	{
+		return nullptr;
+	}
+
+	CColRefArray *pdrgpcrGroup = PdrgpcrResolveCols(psymGroup, pmodel);
+	CExpression *pexprAgg = pmodel->PexprAggBinding(psymSchema);
+	if (nullptr == pdrgpcrGroup || nullptr == pexprAgg ||
+		COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid())
+	{
+		return nullptr;
+	}
+	CLogicalGbAgg *popAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	if (!popAgg->FGlobal() || nullptr != popAgg->PdrgpcrMinimal() ||
+		0 == pdrgpcrGroup->Size() ||
+		!CColRef::Equals(popAgg->Pdrgpcr(), pdrgpcrGroup))
+	{
+		return nullptr;
+	}
+
+	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsGroup->Include(pdrgpcrGroup);
+	CColRefSet *pcrsCovered = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsMinimal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CFunctionalDependencyArray *pdrgpfd =
+		pexprAgg->DeriveFunctionalDependencies();
+	for (ULONG ul = 0; nullptr != pdrgpfd && ul < pdrgpfd->Size(); ul++)
+	{
+		CFunctionalDependency *pfd = (*pdrgpfd)[ul];
+		if (pfd->FIncluded(pcrsGroup))
+		{
+			pcrsCovered->Include(pfd->PcrsDetermined());
+			pcrsCovered->Include(pfd->PcrsKey());
+			pcrsMinimal->Include(pfd->PcrsKey());
+		}
+	}
+	CColRefArray *pdrgpcrMinimal = nullptr;
+	if (pcrsCovered->Equals(pcrsGroup) && 0 < pcrsMinimal->Size())
+	{
+		pdrgpcrMinimal = pcrsMinimal->Pdrgpcr(m_mp);
+	}
+	pcrsMinimal->Release();
+	pcrsCovered->Release();
+	pcrsGroup->Release();
+	return pdrgpcrMinimal;
+}
+
 CExpression *
 CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 								   const CDSLModel *pmodel,
@@ -3027,9 +3105,10 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	// Rebuild from the semantic (full) grouping set. Preserve minimal-grouping
 	// metadata only when the target keeps both that set and the relational child;
 	// otherwise it was derived for an old child and may no longer be valid.
-	CColRefArray *pdrgpcrMinimal = nullptr;
+	CColRefArray *pdrgpcrMinimal =
+		PdrgpcrMinimalGrouping(psymGroup, psymSchema, pmodel);
 	CExpression *pexprSourceAgg = pmodel->PexprAggBinding(psymSchema);
-	if (nullptr != pexprSourceAgg &&
+	if (nullptr == pdrgpcrMinimal && nullptr != pexprSourceAgg &&
 		COperator::EopLogicalGbAgg == pexprSourceAgg->Pop()->Eopid())
 	{
 		CLogicalGbAgg *popSourceAgg =

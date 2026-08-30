@@ -170,6 +170,10 @@ enum EDslConstraintKind
 	// correlated filter is a conjunction of cross-input equalities whose local
 	// columns are added to the aggregate grouping and output schema.
 	EdslconAggCorrelationPullup,
+	// MinimalGrouping(group,schema): derive ORCA's child-dependent minimal
+	// grouping metadata for the aggregate identified by its full grouping and
+	// output schema.  This property does not change relational semantics.
+	EdslconMinimalGrouping,
 	EdslconSentinel
 };
 

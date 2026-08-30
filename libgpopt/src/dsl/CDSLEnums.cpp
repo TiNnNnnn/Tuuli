@@ -130,6 +130,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconAggFilterCommute, "AggFilterCommute", 7},
 	{EdslconSchemaUnion, "SchemaUnion", 3},
 	{EdslconAggCorrelationPullup, "AggCorrelationPullup", 12},
+	{EdslconMinimalGrouping, "MinimalGrouping", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -525,6 +526,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconAggFilterCommute:
 		case EdslconSchemaUnion:
 		case EdslconAggCorrelationPullup:
+		case EdslconMinimalGrouping:
 			return true;
 		case EdslconSentinel:
 			return false;

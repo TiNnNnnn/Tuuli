@@ -106,6 +106,12 @@ private:
 	BOOL FCheckAggCorrelationPullup(const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const;
 
+	// MinimalGrouping(group,schema): the matched global aggregate has no
+	// minimal-group annotation yet, and its functional dependencies cover the
+	// complete grouping set with a derivable determinant.
+	BOOL FCheckMinimalGrouping(const CDSLConstraint *pcon,
+							 const CDSLModel *pmodel) const;
+
 	// Unique(t,a): cols(<a>) is a key of <t>'s subtree
 	BOOL FCheckUnique(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;
