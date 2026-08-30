@@ -29,6 +29,8 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
@@ -70,6 +72,17 @@ using namespace gpopt;
 #define GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE                              \
 	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
 	"a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
+	"p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"                        \
+	"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"           \
+	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
+	"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"               \
+	"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"           \
+	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
+	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
+
+#define GPOPT_DSL_AGG_ANTI_CORRELATION_PULLUP_RULE                         \
+	"AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
+	"a6>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
 	"p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"                        \
 	"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"           \
 	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
@@ -413,6 +426,50 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 		}
 	}
 
+	// The same grouping contract is polarity-independent: ordinary NOT EXISTS
+	// builds an anti semi join with the identical expanded aggregate schema.
+	CDSLRule *pruleAnti =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_ANTI_CORRELATION_PULLUP_RULE);
+	CExpression *pexprAntiTarget = nullptr;
+	CDSLModel *pmodelAnti = GPOS_NEW(mp) CDSLModel(mp);
+	if (nullptr == pruleAnti)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprOuter->AddRef();
+		pexprAgg->AddRef();
+		CExpression *pexprAntiApply =
+			CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(
+				mp, pexprOuter, pexprAgg, (*pdrgpcrInner)[1],
+				COperator::EopScalarSubqueryNotExists);
+		CDSLMatcher matcherAnti(mp, pruleAnti);
+		if (!matcherAnti.FMatch(pruleAnti->PfragSrc()->PopRoot(),
+							pexprAntiApply, pmodelAnti) ||
+			!checker.FCheck(pruleAnti, pmodelAnti))
+		{
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			CDSLInstantiator instantiator(mp);
+			pexprAntiTarget =
+				instantiator.PexprInstantiate(pruleAnti, pmodelAnti);
+			if (nullptr == pexprAntiTarget ||
+				COperator::EopLogicalLeftAntiSemiJoin !=
+					pexprAntiTarget->Pop()->Eopid() ||
+				COperator::EopLogicalGbAgg !=
+					(*pexprAntiTarget)[1]->Pop()->Eopid() ||
+				2 != CLogicalGbAgg::PopConvert(
+						 (*pexprAntiTarget)[1]->Pop())->Pdrgpcr()->Size())
+			{
+				eres = GPOS_FAILED;
+			}
+		}
+		pexprAntiApply->Release();
+	}
+
 	// The same shape with independent local/outer atoms is correlated but is
 	// not an equality edge, so the generic semantic contract must reject it.
 	CColRef *rgpcrAtoms[] = {(*pdrgpcrInner)[0], (*pdrgpcrOuter)[0]};
@@ -441,6 +498,9 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 	pexprBadApply->Release();
 	pexprBadAgg->Release();
 	CRefCount::SafeRelease(pexprTarget);
+	CRefCount::SafeRelease(pexprAntiTarget);
+	pmodelAnti->Release();
+	CRefCount::SafeRelease(pruleAnti);
 	pmodel->Release();
 	pexprApply->Release();
 	pexprAgg->Release();

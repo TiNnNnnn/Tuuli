@@ -1,0 +1,53 @@
+{
+  "description": "A proved atomic anti-Apply rule decorrelates a grouped subquery by extending grouping and schema",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "LeftAntiSemiApply whose grouped inner correlation key is not already a grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "ab62b940bd5b19d2"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ab62b940bd5b19d2\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ]
+  }
+}
