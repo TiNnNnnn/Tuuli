@@ -29,6 +29,20 @@ INSERT INTO dsl_notin_tag VALUES (1),(2),(3);
 INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
 INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);
 
+CREATE TABLE dsl_composite_fk_parent(
+    k1 int,
+    k2 int,
+    payload int NOT NULL,
+    PRIMARY KEY (k1, k2));
+CREATE TABLE dsl_composite_fk_child(
+    id int PRIMARY KEY,
+    k1 int,
+    k2 int,
+    FOREIGN KEY (k1, k2) REFERENCES dsl_composite_fk_parent(k1, k2));
+INSERT INTO dsl_composite_fk_parent VALUES (10,100,1),(20,200,2);
+INSERT INTO dsl_composite_fk_child VALUES
+    (1,10,100),(2,10,100),(3,20,200),(4,NULL,NULL);
+
 CREATE TABLE dsl_eq_left(k int NOT NULL);
 CREATE TABLE dsl_eq_right(k int NOT NULL);
 INSERT INTO dsl_eq_left VALUES (1),(1),(2),(3);

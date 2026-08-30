@@ -1,0 +1,75 @@
+{
+  "description": "A proved DSL rule replaces composite foreign-key dedup pushdown as one vector rewrite",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbDedupBelowJoin"
+    ],
+    "scope": "Composite FK grouping attrs and every outer residual dependency",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "dc768bb1f1a116ef"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbDedupBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_push_gb_dedup_fk_residual.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
+      ],
+      "alternative": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbDedupBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "policy": "isolate_push_gb_dedup_fk_residual.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin"
+    ],
+    "output": [
+      "1,10,100",
+      "2,10,100",
+      "3,20,200"
+    ],
+    "postgres_output": [
+      "1,10,100",
+      "2,10,100",
+      "3,20,200"
+    ]
+  }
+}

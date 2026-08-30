@@ -5,7 +5,7 @@
       "CXformPushGbDedupBelowJoin"
     ],
     "scope": "Outer grouping attrs contain a nullable FK and every outer residual dependency",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "dc768bb1f1a116ef"
     ]
