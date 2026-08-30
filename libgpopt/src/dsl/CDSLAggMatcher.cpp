@@ -469,6 +469,43 @@ CDSLAggMatcher::FMatch(const CDSLOp *popAgg, CExpression *pexprAgg,
 	GPOS_ASSERT(EdslopProj == popAgg->Edslop() ||
 				EdslopAgg == popAgg->Edslop());
 	GPOS_ASSERT(nullptr != pexprAgg);
+	if (EdslopAgg == popAgg->Edslop() &&
+		COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid() &&
+		2 == pexprAgg->Arity() && (*pexprAgg)[1]->DeriveHasSubquery() &&
+		1 == popAgg->UlChildren() &&
+		EdslopLeftOuterApply == (*popAgg)[0]->Edslop())
+	{
+		CExpression *pexprLowered = CDSLMatchView::PexprLowerSubqueries(
+			m_mp, pexprAgg, false /*fEnforceCorrelatedApply*/,
+			false /*fScalarOnly*/);
+		const COperator::EOperatorId eopidLoweredChild =
+			(nullptr != pexprLowered &&
+			 COperator::EopLogicalGbAgg == pexprLowered->Pop()->Eopid() &&
+			 2 == pexprLowered->Arity())
+				? (*pexprLowered)[0]->Pop()->Eopid()
+				: COperator::EopSentinel;
+		const BOOL fDirectLeftApply =
+			COperator::EopLogicalLeftOuterApply == eopidLoweredChild ||
+			COperator::EopLogicalLeftOuterCorrelatedApply ==
+				eopidLoweredChild;
+		if (nullptr != pexprLowered && !fDirectLeftApply)
+		{
+			// Count-zero and quantified value semantics may add a compensating
+			// Project in the regular alternative.  When the DSL source names a
+			// direct LeftApply, select the production handler's existing correlated
+			// alternative before any aggregate symbols are bound.
+			pexprLowered->Release();
+			pexprLowered = CDSLMatchView::PexprLowerSubqueries(
+				m_mp, pexprAgg, true /*fEnforceCorrelatedApply*/,
+				false /*fScalarOnly*/);
+		}
+		if (nullptr != pexprLowered)
+		{
+			const BOOL fMatched = FMatch(popAgg, pexprLowered, pmodel);
+			pexprLowered->Release();
+			return fMatched;
+		}
+	}
 	if (EdslopProj == popAgg->Edslop() && popAgg->FDistinct() &&
 		FMatchDroppedDedup(popAgg, pexprAgg, pmodel))
 	{

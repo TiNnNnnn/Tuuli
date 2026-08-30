@@ -352,6 +352,29 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleNestedProjApply->Release();
 	pruleProjApply->Release();
 
+	// Agg(LeftApply) has the same pre-unnest boundary: the subquery is in the
+	// aggregate project list, while the live relational child is still the
+	// original input. The stable Global GbAgg shell must retain the candidate.
+	CDSLRule *pruleAggApply = PrulePrefix(
+		mp,
+		"Agg<a0 a1 f0 s0 p0>(LeftApply<p1 a2 a3 a4>(Input<t0>,Input<t1>))|"
+		"Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleAggApply)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleAggApply, 0, COperator::EopLogicalGbAgg);
+	pexpr = PexprPrefixGbAgg(mp, COperator::EgbaggtypeGlobal,
+							 PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+		1 == pdrgprule->Size() && pruleAggApply == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleAggApply->Release();
+
 	// Proj* and Agg source matchers accept only canonical Global GbAgg roots.
 	// The trie token must reject Local split alternatives before full matching.
 	CDSLRule *pruleDistinct = PrulePrefix(

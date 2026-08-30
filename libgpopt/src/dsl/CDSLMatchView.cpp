@@ -115,7 +115,8 @@ CDSLMatchView::PexprLowerSubqueries(CMemoryPool *mp,
 
 	const COperator::EOperatorId eopid = pexprUnary->Pop()->Eopid();
 	if ((COperator::EopLogicalSelect != eopid &&
-		 COperator::EopLogicalProject != eopid) ||
+		 COperator::EopLogicalProject != eopid &&
+		 COperator::EopLogicalGbAgg != eopid) ||
 		2 != pexprUnary->Arity())
 	{
 		return nullptr;
@@ -145,10 +146,25 @@ CDSLMatchView::PexprLowerSubqueries(CMemoryPool *mp,
 		return nullptr;
 	}
 
-	CExpression *pexprLowered = COperator::EopLogicalProject == eopid
-		? CUtils::PexprLogicalProject(mp, pexprNewOuter, pexprResidual,
-									 false /*fNewComputedCol*/)
-		: CUtils::PexprLogicalSelect(mp, pexprNewOuter, pexprResidual);
+	CExpression *pexprLowered = nullptr;
+	if (COperator::EopLogicalProject == eopid)
+	{
+		pexprLowered = CUtils::PexprLogicalProject(
+			mp, pexprNewOuter, pexprResidual, false /*fNewComputedCol*/);
+	}
+	else if (COperator::EopLogicalGbAgg == eopid)
+	{
+		CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprUnary->Pop());
+		popGbAgg->Pdrgpcr()->AddRef();
+		pexprLowered = CUtils::PexprLogicalGbAgg(
+			mp, popGbAgg->Pdrgpcr(), pexprNewOuter, pexprResidual,
+			popGbAgg->Egbaggtype());
+	}
+	else
+	{
+		pexprLowered =
+			CUtils::PexprLogicalSelect(mp, pexprNewOuter, pexprResidual);
+	}
 	CExpression *pexprNormalized =
 		CNormalizer::PexprNormalize(mp, pexprLowered);
 	pexprLowered->Release();

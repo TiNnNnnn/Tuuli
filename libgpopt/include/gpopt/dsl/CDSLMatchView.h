@@ -119,10 +119,10 @@ public:
 	static CExpression *PexprInverseComparison(CMemoryPool *mp,
 										   CExpression *pexprCmp);
 
-	// Lower a Select or Project containing one or more subqueries through
+	// Lower a Select, Project, or GbAgg containing one or more subqueries through
 	// ORCA's production handler. Select callers retain the scalar-only default;
-	// Project value contexts may mix scalar, existential, and quantified
-	// subqueries. The caller owns the returned normalized expression.
+	// Project and aggregate value contexts may mix scalar, existential, and
+	// quantified subqueries. The caller owns the returned normalized expression.
 	static CExpression *PexprLowerSubqueries(
 		CMemoryPool *mp, CExpression *pexprUnary,
 		BOOL fEnforceCorrelatedApply = false, BOOL fScalarOnly = true);

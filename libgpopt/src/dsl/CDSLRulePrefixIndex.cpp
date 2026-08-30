@@ -258,6 +258,17 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	if (fSourceRoot && EdslopAgg == pop->Edslop() &&
 		1 == pop->UlChildren())
 	{
+		if (EdslopLeftOuterApply == (*pop)[0]->Edslop())
+		{
+			// Before GbAgg2Apply, a subquery in an aggregate argument is encoded
+			// in the scalar project list, not in the live relational child.  Index
+			// the stable aggregate shell and let CDSLAggMatcher validate the full
+			// production Agg(LeftApply) view.
+			*pfComplete = false;
+			return PnodeExact(pnode, COperator::EopLogicalGbAgg,
+							  0 /*relational children*/,
+							  SExactEdge::EafGbAggGlobal);
+		}
 		// A real aggregate remains the same DSL operator when ORCA annotates a
 		// Global GbAgg with a minimal grouping set before memo insertion.  Unlike
 		// Proj* (the empty aggregate-list/dedup view), matching Agg does not delete
