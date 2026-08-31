@@ -85,6 +85,8 @@ using namespace gpopt;
 	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
 	"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"               \
 	"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"           \
+	"CorrelationEquality(p2,a5,a6);"                                       \
+	"AggCorrelationGrouping(p2,a3,a9,a4,f0,s0,s1,p1,a5,a6);"              \
 	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
 	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
 

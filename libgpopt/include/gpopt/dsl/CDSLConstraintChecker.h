@@ -112,6 +112,12 @@ private:
 	BOOL FCheckCorrelationEquality(const CDSLConstraint *pcon,
 								   const CDSLModel *pmodel) const;
 
+	// AggCorrelationGrouping(...): operator-local aggregate correlation
+	// contract. Target grouping/schema are constructed by independent ordered
+	// union constraints; this checker validates the exact source evidence.
+	BOOL FCheckAggCorrelationGrouping(const CDSLConstraint *pcon,
+									 const CDSLModel *pmodel) const;
+
 	// MinimalGrouping(group,schema): the matched global aggregate has no
 	// minimal-group annotation yet, and its functional dependencies cover the
 	// complete grouping set with a derivable determinant.

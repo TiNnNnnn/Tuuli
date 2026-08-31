@@ -141,6 +141,8 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconAggCorrelationPullup, "AggCorrelationPullup", 12},
 	{EdslconMinimalGrouping, "MinimalGrouping", 2},
 	{EdslconCorrelationEquality, "CorrelationEquality", 3},
+	{EdslconAggCorrelationGrouping, "AggCorrelationGrouping", 10},
+	{EdslconQuantifiedPredicateEq, "QuantifiedPredicateEq", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -561,6 +563,8 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconAggCorrelationPullup:
 		case EdslconMinimalGrouping:
 		case EdslconCorrelationEquality:
+		case EdslconAggCorrelationGrouping:
+		case EdslconQuantifiedPredicateEq:
 			return true;
 		case EdslconSentinel:
 			return false;

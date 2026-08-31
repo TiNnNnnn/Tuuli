@@ -35,11 +35,14 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/md/CMDForeignKey.h"
+#include "naucrates/md/CMDIdGPDB.h"
+#include "naucrates/dxl/gpdb_types.h"
 #include "naucrates/md/IMDFunction.h"
 #include "naucrates/md/IMDRelation.h"
 #include "naucrates/base/IDatumInt2.h"
@@ -51,6 +54,37 @@ using namespace gpnaucrates;
 
 namespace
 {
+BOOL
+FScalarCastProvablyErrorFree(CExpression *pexpr)
+{
+	CScalarCast *popCast = CScalarCast::PopConvert(pexpr->Pop());
+	if (popCast->IsBinaryCoercible())
+	{
+		return true;
+	}
+	if (1 != pexpr->Arity())
+	{
+		return false;
+	}
+
+	IMDId *pmdidSource = CScalar::PopConvert((*pexpr)[0]->Pop())->MdidType();
+	IMDId *pmdidTarget = popCast->MdidType();
+	if (IMDId::EmdidGeneral != pmdidSource->MdidType() ||
+		IMDId::EmdidGeneral != pmdidTarget->MdidType())
+	{
+		return false;
+	}
+	const OID oidSource = CMDIdGPDB::CastMdid(pmdidSource)->Oid();
+	const OID oidTarget = CMDIdGPDB::CastMdid(pmdidTarget)->Oid();
+
+	// PostgreSQL's signed-integer widening casts are total over their source
+	// domains. Keep the whitelist directional so narrowing and parsing casts
+	// remain conservatively rejected.
+	return (GPDB_INT2 == oidSource &&
+		 (GPDB_INT4 == oidTarget || GPDB_INT8 == oidTarget)) ||
+		(GPDB_INT4 == oidSource && GPDB_INT8 == oidTarget);
+}
+
 CExpression *
 PexprProjectListForAttrs(const CDSLOp *pop, const CDSLSymbol *psymAttrs,
 						 const CDSLModel *pmodel)
@@ -165,20 +199,19 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 		case COperator::EopScalarConst:
 			return true;
 		case COperator::EopScalarCmp:
-			// Admit only the built-in equality operators whose behavior ORCA knows
-			// explicitly.  User-defined equality may still throw, so equality shape
-			// alone is not sufficient evidence for ErrorFree.
-			if (!CPredicateUtils::IsEqualityOp(pexpr) ||
-				!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+			// Admit every comparison in ORCA's explicit built-in strict whitelist.
+			// This includes the <>/< <=/> >= operators used by quantified ALL, while
+			// still rejecting user-defined comparisons whose evaluation may throw.
+			if (!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
 					CScalarCmp::PopConvert(pexpr->Pop())->MdIdOp()))
 			{
 				return false;
 			}
 			break;
 		case COperator::EopScalarCast:
-			// Only a binary-coercible identity cast is structurally error-free.
-			// Parsing or narrowing casts can still fail and are deliberately rejected.
-			if (!CCastUtils::FBinaryCoercibleCastedScId(pexpr))
+			// Binary coercions and explicitly whitelisted widening casts are total.
+			// Parsing or narrowing casts can still fail and remain rejected.
+			if (!FScalarCastProvablyErrorFree(pexpr))
 			{
 				return false;
 			}
@@ -1164,6 +1197,45 @@ CDSLConstraintChecker::FCheckCorrelationEquality(
 		m_mp, pmodel->PexprPred((*pdrgpsym)[0]),
 		pmodel->PdrgpcrAttrs((*pdrgpsym)[1]),
 		pmodel->PdrgpcrAttrs((*pdrgpsym)[2]));
+}
+
+BOOL
+CDSLConstraintChecker::FCheckAggCorrelationGrouping(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	const EDslSymbolKind rgExpected[] = {
+		EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
+		EdslsymFunc, EdslsymSchema, EdslsymSchema, EdslsymPred,
+		EdslsymAttrs, EdslsymAttrs};
+	if (GPOS_ARRAY_SIZE(rgExpected) != pdrgpsym->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
+	{
+		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+
+	// Target group/schema (2 and 6) are constructed by AttrsUnion/SchemaUnion.
+	// Every remaining artifact is exact source evidence and must be bound before
+	// the semantic contract can be admitted.
+	const ULONG rgulSource[] = {0, 1, 3, 4, 5, 7, 8, 9};
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgulSource); ul++)
+	{
+		if (nullptr == pmodel->PvalLookup((*pdrgpsym)[rgulSource[ul]]))
+		{
+			return false;
+		}
+	}
+
+	return FCorrelationEqualityHolds(
+		m_mp, pmodel->PexprPred((*pdrgpsym)[0]),
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[8]),
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[9]));
 }
 
 //---------------------------------------------------------------------------
@@ -2195,6 +2267,7 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 				prule, pmodel, pmodel->PdrgpcrSchema(psymFirst),
 				pmodel->PdrgpcrSchema(psymSecond));
 		case EdslconPredicateEq:
+		case EdslconQuantifiedPredicateEq:
 			return pmodel->PexprPred(psymFirst)->Matches(
 				pmodel->PexprPred(psymSecond));
 		case EdslconFuncEq:
@@ -2255,6 +2328,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAggCorrelationPullup(pcon, pmodel);
 		case EdslconCorrelationEquality:
 			return FCheckCorrelationEquality(pcon, pmodel);
+		case EdslconAggCorrelationGrouping:
+			return FCheckAggCorrelationGrouping(pcon, pmodel);
 		case EdslconMinimalGrouping:
 			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:
@@ -2284,6 +2359,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconTableEq:
 		case EdslconAttrsEq:
 		case EdslconPredicateEq:
+		case EdslconQuantifiedPredicateEq:
 		case EdslconSchemaEq:
 		case EdslconFuncEq:
 		case EdslconScalarEq:

@@ -157,6 +157,15 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t
 # 2026-08-31.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p3,p1);AttrsEq(a7,a4);AttrsEq(a8,a3);AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)
 
+# Extends the NULL-aware decorrelation domain across a grouped aggregate when
+# its correlation key is not already grouped. AttrsUnion/SchemaUnion construct
+# the compensated aggregate, CorrelationEquality validates an exact conjunction
+# of cross-input equality edges, and AggCorrelationGrouping states the reusable
+# operator-local movement contract. QuantifiedPredicateEq preserves the actual
+# three-valued ALL operator and arguments independently of the RHS qualifier.
+# This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p3,p0);QuantifiedPredicateEq(p3,p0);AttrsEq(a7,a0);AttrsEq(a8,a1);PredicateEq(p4,p2);AttrsEq(a9,a6);AttrsEq(a10,a5);AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);AttrsEq(a12,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p5,p1);CorrelationEquality(p2,a5,a6);AggCorrelationGrouping(p2,a3,a11,a4,f0,s0,s1,p1,a5,a6);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
+
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter

@@ -183,6 +183,16 @@ enum EDslConstraintKind
 	// This is operator-independent decorrelation evidence; aggregate grouping,
 	// join construction, and other consumers remain separate constraints.
 	EdslconCorrelationEquality,
+	// AggCorrelationGrouping(corr,source_group,target_group,agg_inputs,func,
+	// source_schema,target_schema,having,local,outer): moving corr above the
+	// aggregate is valid when target grouping/schema are extended by local.
+	// The surrounding Apply/quantifier is deliberately outside this contract.
+	EdslconAggCorrelationGrouping,
+	// QuantifiedPredicateEq(left,right): expression-level equality for the
+	// operator/argument interpretation of a Predicate symbol used by ANY/ALL.
+	// Runtime ORCA validates the same scalar tree as PredicateEq; proof backends
+	// additionally relate the quantified decomposition.
+	EdslconQuantifiedPredicateEq,
 	EdslconSentinel
 };
 
