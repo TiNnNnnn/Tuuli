@@ -1,0 +1,72 @@
+{
+  "description": "An error-free Compute/Filter normalization feeds the qualified NOT IN decorrelation rule",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Correlated NOT IN over an error-free computed comparison expression",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "59b32af5adab80da",
+      "59a6d12ce1dd7d88"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project",
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project",
+        "CXformDSLRule_All"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

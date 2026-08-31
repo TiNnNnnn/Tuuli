@@ -1,0 +1,67 @@
+{
+  "description": "Aggregate/filter commute feeds the qualified NOT IN decorrelation rule when correlation is grouped",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Correlated NOT IN whose aggregate groups the local correlation key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "d68592c2926cec06",
+      "59a6d12ce1dd7d88"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg",
+        "CXformDSLRule_All"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  }
+}
