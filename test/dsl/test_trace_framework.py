@@ -18,6 +18,7 @@ from build_reference_manifest import build_manifest
 from build_xform_replacement_inventory import merge_inventory
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
+from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
     bool_guc_setting,
@@ -41,6 +42,26 @@ from run_trace_corpus import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
+        rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
+        identities, errors = audit_rule_file(rule_file)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(
+            sum(item.classification.startswith("BRIDGE(") for item in identities),
+            14,
+        )
+        self.assertEqual(
+            sum(item.classification.startswith("DIRECT(") for item in identities),
+            2,
+        )
+
+    def test_replacement_rule_identity_requires_an_immediate_tag(self) -> None:
+        rule = "Input<t0>|Input<t1>|TableEq(t1,t0)\n"
+        _, errors = audit_rule_text(rule)
+
+        self.assertRegex(errors[0], "requires exactly one immediate")
+
     def test_replacement_inventory_merges_runtime_and_causal_evidence(self) -> None:
         runtime = {
             "xforms": [
