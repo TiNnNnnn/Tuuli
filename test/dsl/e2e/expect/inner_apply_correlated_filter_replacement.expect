@@ -1,0 +1,64 @@
+{
+  "description": "A SQLSolver-proved DSL rule replaces correlated InnerApply Filter normalization",
+  "replacement": {
+    "xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "scope": "InnerApply whose right child is one correlated Filter with safe deterministic predicates",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "22de86cebf7ac288"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "output": [
+      "1,10",
+      "2,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,30"
+    ]
+  }
+}

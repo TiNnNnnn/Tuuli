@@ -1,0 +1,66 @@
+{
+  "description": "A SQLSolver-proved DSL rule replaces correlated LeftApply Filter normalization",
+  "replacement": {
+    "xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "scope": "LeftApply whose right child is one correlated Filter with safe deterministic predicates",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "283d176f5bcef54e"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"283d176f5bcef54e\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"283d176f5bcef54e\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,10,10",
+      ",20,",
+      "2,30,30"
+    ],
+    "postgres_output": [
+      "1,10,10",
+      ",20,",
+      "2,30,30"
+    ]
+  }
+}
