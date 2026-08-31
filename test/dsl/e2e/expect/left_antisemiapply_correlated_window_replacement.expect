@@ -1,0 +1,68 @@
+{
+  "description": "The generic Window/Filter normalization composes with ordinary AntiApply decorrelation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "LeftAntiSemiApply whose inner correlated Filter is below a partition-compatible aggregate Window",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "cca9b9fe61c75e60",
+      "5004b2a4db64e478"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+        "CLogicalSequenceProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Xform: CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "Xform: CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "20"
+    ],
+    "postgres_output": [
+      "20"
+    ]
+  }
+}
