@@ -161,8 +161,14 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	const BOOL fDedupAggView =
 		COperator::EopLogicalGbAgg == pedge->m_eopid &&
 		COperator::EopLogicalGbAggDeduplicate == pop->Eopid();
+	// Filter-context NOT IN is lowered directly to the correlated carrier. Both
+	// carriers implement the same DSL AntiApplyNotIn semantics; the matcher
+	// normalizes their different stored-predicate polarity.
+	const BOOL fCorrelatedNotInApplyView =
+		COperator::EopLogicalLeftAntiSemiApplyNotIn == pedge->m_eopid &&
+		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == pop->Eopid();
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
-		!fDedupAggView)
+		!fDedupAggView && !fCorrelatedNotInApplyView)
 	{
 		return false;
 	}
@@ -361,7 +367,11 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 	const BOOL fDedupAggView =
 		EdslopProj == popRoot->Edslop() && popRoot->FDistinct() &&
 		COperator::EopLogicalGbAggDeduplicate == eopidBucket;
-	if (popRoot->Eopid() == eopidBucket || fDedupAggView)
+	const BOOL fCorrelatedNotInApplyView =
+		EdslopAntiApplyNotIn == popRoot->Edslop() &&
+		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopidBucket;
+	if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
+		fCorrelatedNotInApplyView)
 	{
 		pnodeTerminal =
 			PnodeInsertOp(m_pnodeRoot, popRoot, true, &fComplete);

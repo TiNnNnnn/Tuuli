@@ -51,6 +51,7 @@ public:
 	static GPOS_RESULT EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin();
 	static GPOS_RESULT EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin();
 	static GPOS_RESULT EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin();
+	static GPOS_RESULT EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin();
 	static GPOS_RESULT EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin();
 	static GPOS_RESULT
 	EresUnittest_UncorrelatedLeftOuterApplyBuildsLeftJoin();

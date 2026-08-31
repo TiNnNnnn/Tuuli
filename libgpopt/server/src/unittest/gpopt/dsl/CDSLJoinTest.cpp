@@ -22,6 +22,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -30,6 +31,7 @@
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -112,6 +114,14 @@ using namespace gpopt;
 	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
 	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);"                   \
 	"AttrsSub(a0,t0);AttrsSub(a1,t1)"
+
+#define GPOPT_DSL_CORRELATED_NOT_IN_FILTER_RULE                           \
+	"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|" \
+	"AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|"              \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);"                    \
+	"AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p3,p1);"                    \
+	"AttrsEq(a7,a4);AttrsEq(a8,a3);AttrsEq(a2,a4);"                        \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)"
 
 #define GPOPT_DSL_UNCORRELATED_INNER_APPLY_RULE                       \
 	"InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                   \
@@ -203,6 +213,8 @@ CDSLJoinTest::EresUnittest()
 			CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin),
 		GPOS_UNITTEST_FUNC(
@@ -873,6 +885,86 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprApply->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_CORRELATED_NOT_IN_FILTER_RULE);
+	if (nullptr == prule)
+		return GPOS_FAILED;
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("not_in_correlated_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("not_in_correlated_inner", 2, &pdrgpcrInner);
+	CExpression *pexprViolation =
+		fix.PexprEqPred((*pdrgpcrOuter)[1], (*pdrgpcrInner)[1]);
+	CExpression *pexprComparison =
+		CDSLMatchView::PexprInverseComparison(mp, pexprViolation);
+	CExpression *pexprQualifier =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprFilteredInner =
+		fix.PexprLogicalSelect(pexprInner, pexprQualifier);
+	pexprOuter->AddRef();
+	pexprFilteredInner->AddRef();
+	pexprComparison->AddRef();
+	CExpression *pexprApply = CUtils::PexprLogicalApply<
+		CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
+		mp, pexprOuter, pexprFilteredInner, (*pdrgpcrInner)[1],
+		COperator::EopScalarSubqueryAll, pexprComparison);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpressionArray *pdrgpexprConjuncts = nullptr;
+		if (nullptr != pexprTarget)
+		{
+			pdrgpexprConjuncts =
+				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
+		}
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalLeftAntiSemiJoinNotIn !=
+				pexprTarget->Pop()->Eopid() ||
+			nullptr == pdrgpexprConjuncts ||
+			2 != pdrgpexprConjuncts->Size() ||
+			!(*pdrgpexprConjuncts)[0]->Matches(pexprViolation) ||
+			!(*pdrgpexprConjuncts)[1]->Matches(pexprQualifier) ||
+			!(*pexprTarget)[1]->Matches(pexprInner))
+		{
+			eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(pdrgpexprConjuncts);
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprApply->Release();
+	pexprFilteredInner->Release();
+	pexprViolation->Release();
+	pexprComparison->Release();
+	pexprQualifier->Release();
 	pexprOuter->Release();
 	pexprInner->Release();
 	prule->Release();

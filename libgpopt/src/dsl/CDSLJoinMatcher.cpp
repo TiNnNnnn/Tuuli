@@ -563,8 +563,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		fLeftOuterApply &&
 		(COperator::EopLogicalLeftOuterApply == eopid ||
 		 COperator::EopLogicalLeftOuterCorrelatedApply == eopid);
+	const BOOL fExpectedAntiApplyNotIn =
+		fAntiApplyNotIn &&
+		(COperator::EopLogicalLeftAntiSemiApplyNotIn == eopid ||
+		 COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopid);
 	if ((!fExpectedSemiApply && !fExpectedInnerApply &&
-		 !fExpectedLeftOuterApply &&
+		 !fExpectedLeftOuterApply && !fExpectedAntiApplyNotIn &&
 		 eopid != eopidExpected) ||
 		3 != pexprJoin->Arity())
 	{
@@ -599,7 +603,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		{
 			// SemiJoin<p a a> always names the complete predicate. Unlike the
 			// legacy three-symbol Join form, equality conjuncts are not split out.
-			if (fAntiJoinNotIn || fAntiApplyNotIn)
+			const BOOL fCorrelatedAntiApplyNotIn = fAntiApplyNotIn &&
+				COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopid;
+			if (fAntiJoinNotIn ||
+				(fAntiApplyNotIn && !fCorrelatedAntiApplyNotIn))
 			{
 				pexprPred = CDSLMatchView::PexprInverseComparison(
 					m_mp, (*pexprJoin)[2]);

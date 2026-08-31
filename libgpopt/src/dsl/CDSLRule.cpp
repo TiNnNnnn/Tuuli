@@ -88,7 +88,8 @@ CDSLOp::CDSLOp(CMemoryPool *,  // mp unused: children/syms arrays pre-built
 				(EdslopExists == edslop && 3 == pdrgpsym->Size()) ||
 				(EdslopFilter == edslop && 2 == pdrgpsym->Size()) ||
 				(EdslopInSubFilter == edslop && 1 == pdrgpsym->Size()) ||
-				(EdslopUnion == edslop && 0 == pdrgpsym->Size()));
+				(EdslopUnion == edslop && 0 == pdrgpsym->Size()) ||
+				(EdslopAntiJoinNotIn == edslop && 3 == pdrgpsym->Size()));
 }
 
 CDSLOp::~CDSLOp()

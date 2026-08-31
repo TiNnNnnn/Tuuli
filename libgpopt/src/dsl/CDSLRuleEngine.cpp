@@ -175,6 +175,14 @@ CDSLRuleEngine::BucketByRoot()
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiCorrelatedApplyIn;
 		}
+		// Filtering-context NOT IN is represented by the correlated carrier even
+		// though its DSL semantics are the same AntiApplyNotIn operator.
+		if (EdslopAntiApplyNotIn ==
+			prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] = (ULONG)
+				COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn;
+		}
 		if (EdslopAll == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] =

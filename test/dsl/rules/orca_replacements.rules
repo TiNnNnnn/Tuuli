@@ -149,6 +149,15 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1)
 
 # Replaces the single correlated-Filter decorrelation domain of
+# CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn. The first target predicate
+# is the user-visible ALL comparison; the second is the RHS qualification that
+# selects which inner rows participate. The adapter emits ORCA's equivalent raw
+# predicate, inverse(comparison) AND qualification, without conflating the two
+# dependency domains. This exact RuleIR was proved EQ by SQLSolver on
+# 2026-08-31.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p3,p1);AttrsEq(a7,a4);AttrsEq(a8,a3);AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)
+
+# Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. This exact RuleIR is accepted by the

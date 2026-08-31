@@ -1997,8 +1997,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
+	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
-		? 3 == ulSymbols
+		? (3 == ulSymbols || fQualifiedAntiJoinNotIn)
 		: (fPredicateApply ? 4 == ulSymbols
 					  : (2 == ulSymbols || 3 == ulSymbols ||
 						 4 == ulSymbols || 5 == ulSymbols ||
@@ -2007,8 +2008,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	const BOOL fPredicateOnly =
-		3 == ulSymbols || (fPredicateApply && 4 == ulSymbols);
+	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
+		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
 		fPredicateOnly || 5 == ulSymbols || 7 == ulSymbols;
 	if (fBindsPredicate)
@@ -2039,6 +2040,38 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			pcrsDeclared->Equals(pexprResidual->DeriveUsedColumns());
 		pcrsDeclared->Release();
 		pexprResidual->Release();
+		if (!fDependenciesExact)
+		{
+			return nullptr;
+		}
+	}
+	if (fQualifiedAntiJoinNotIn)
+	{
+		const CDSLSymbol *psymQualifier = (*pdrgpsym)[3];
+		const CDSLSymbol *psymQualifierLeftDeps =
+			PsymResolve((*pdrgpsym)[4]);
+		const CDSLSymbol *psymQualifierRightDeps =
+			PsymResolve((*pdrgpsym)[5]);
+		CExpression *pexprQualifier =
+			PexprResolvePredicate(psymQualifier, pmodel);
+		CColRefArray *pdrgpcrQualifierLeftDeps =
+			PdrgpcrResolveCols(psymQualifierLeftDeps, pmodel);
+		CColRefArray *pdrgpcrQualifierRightDeps =
+			PdrgpcrResolveCols(psymQualifierRightDeps, pmodel);
+		if (nullptr == pexprQualifier ||
+			nullptr == pdrgpcrQualifierLeftDeps ||
+			nullptr == pdrgpcrQualifierRightDeps)
+		{
+			CRefCount::SafeRelease(pexprQualifier);
+			return nullptr;
+		}
+		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		pcrsDeclared->Include(pdrgpcrQualifierLeftDeps);
+		pcrsDeclared->Include(pdrgpcrQualifierRightDeps);
+		const BOOL fDependenciesExact =
+			pcrsDeclared->Equals(pexprQualifier->DeriveUsedColumns());
+		pcrsDeclared->Release();
+		pexprQualifier->Release();
 		if (!fDependenciesExact)
 		{
 			return nullptr;
@@ -2113,6 +2146,27 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			pexprRight->Release();
 			return nullptr;
 		}
+	}
+	if (fQualifiedAntiJoinNotIn)
+	{
+		CExpression *pexprSourceQualifier =
+			PexprResolvePredicate((*pdrgpsym)[3], pmodel);
+		CExpression *pexprTargetQualifier = PexprRemapPredicateToChildren(
+			(*pop)[0], pexprLeft, (*pop)[1], pexprRight,
+			pexprSourceQualifier, pmodel);
+		CRefCount::SafeRelease(pexprSourceQualifier);
+		if (nullptr == pexprTargetQualifier)
+		{
+			pexprTargetPred->Release();
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
+		CExpression *pexprQualified = CPredicateUtils::PexprConjunction(
+			m_mp, pexprTargetPred, pexprTargetQualifier);
+		pexprTargetPred->Release();
+		pexprTargetQualifier->Release();
+		pexprTargetPred = pexprQualified;
 	}
 
 	// build the join operator the TARGET names.

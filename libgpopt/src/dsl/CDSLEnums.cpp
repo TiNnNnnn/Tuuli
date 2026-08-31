@@ -89,8 +89,9 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopLeftOuterApply, "LeftApply", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
-	{EdslopAntiJoinNotIn, "AntiJoinNotIn", 2, 3,
-	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopAntiJoinNotIn, "AntiJoinNotIn", 2, 6,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymPred,
+	  EdslsymAttrs, EdslsymAttrs}},
 	{EdslopAntiApplyNotIn, "AntiApplyNotIn", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 };

@@ -1,0 +1,69 @@
+{
+  "description": "A SQLSolver-proved qualified NOT IN rule replaces correlated Filter decorrelation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Correlated single-Filter NOT IN with exact outer/local predicate dependencies",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "59a6d12ce1dd7d88"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ]
+  }
+}

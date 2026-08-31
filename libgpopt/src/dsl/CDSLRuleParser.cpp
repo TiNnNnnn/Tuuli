@@ -128,6 +128,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fAntiJoin = EdslopAntiJoin == edslop;
 	const BOOL fAntiApply = EdslopAntiApply == edslop;
 	const BOOL fAntiJoinNotIn = EdslopAntiJoinNotIn == edslop;
+	const BOOL fLegacyAntiJoinNotIn = fAntiJoinNotIn && 3 == ul_given;
 	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == edslop;
 	const BOOL fInnerApply = EdslopInnerApply == edslop ||
 		EdslopLeftOuterApply == edslop;
@@ -142,24 +143,28 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
-		!fPredicateExists && !fLegacyInSub && !fLegacyUnion && !fLegacyFilter)
+		!fPredicateExists && !fLegacyInSub && !fLegacyUnion && !fLegacyFilter &&
+		!fLegacyAntiJoinNotIn)
 	{
 		std::ostringstream os;
-		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects "
-		   << (EdslopAgg == edslop
-				   ? "5 or 6"
-					   : (fJoin
-						  ? "2, 3, 4, 5, or 7"
-						  : (fExists
-							 ? "0 or 3"
-						  : (EdslopInSubFilter == edslop
-								 ? "1 or 5"
-									 : (EdslopUnion == edslop
-										? "0 or 2"
-									 : (EdslopFilter == edslop
-										? "2 or 3"
-										: std::to_string(ul_expected)))))))
-		   << " symbol(s) in <...>, got " << ul_given;
+		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects ";
+		if (EdslopAgg == edslop)
+			os << "5 or 6";
+		else if (fJoin)
+			os << "2, 3, 4, 5, or 7";
+		else if (fExists)
+			os << "0 or 3";
+		else if (EdslopInSubFilter == edslop)
+			os << "1 or 5";
+		else if (EdslopUnion == edslop)
+			os << "0 or 2";
+		else if (EdslopFilter == edslop)
+			os << "2 or 3";
+		else if (fAntiJoinNotIn)
+			os << "3 or 6";
+		else
+			os << ul_expected;
+		os << " symbol(s) in <...>, got " << ul_given;
 		bctx.Fail(os.str());
 		return nullptr;
 	}
@@ -168,11 +173,17 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	for (ULONG ul = 0; ul < ul_given; ul++)
 	{
 		std::string name = symlist_ctx->SYMBOL(ul)->getText();
-		if (((fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin ||
-			 fSemiApply || fAntiJoin || fAntiApply || fAntiJoinNotIn ||
-			 fAntiApplyNotIn || fInnerApply) &&
-			((0 == ul && 'p' != name[0]) ||
-			 (0 < ul && 'a' != name[0])))
+		const BOOL fValidNotInSymbol = !fAntiJoinNotIn ||
+			(3 == ul_given ? (0 == ul ? 'p' : 'a')
+						   : ((0 == ul || 3 == ul) ? 'p' : 'a')) == name[0];
+		const BOOL fSinglePredicateLayout =
+			(fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin ||
+			fSemiApply || fAntiJoin || fAntiApply || fAntiApplyNotIn ||
+			fInnerApply;
+		const BOOL fValidSinglePredicateSymbol =
+			!fSinglePredicateLayout ||
+			(0 == ul ? 'p' == name[0] : 'a' == name[0]);
+		if (!fValidSinglePredicateSymbol || !fValidNotInSymbol)
 		{
 			bctx.Fail(
 				"predicate-bearing operator expects one <p> followed by <a> symbols");
