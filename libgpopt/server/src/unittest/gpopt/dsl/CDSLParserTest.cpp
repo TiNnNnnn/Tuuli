@@ -240,6 +240,8 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);"
 		"WindowEq(w1,w0);ErrorFree(w0)",
 		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)",
+		"Assert<p0 a0>(Input<t0>)|Assert<p1 a1>(Input<t1>)|TableEq(t1,t0);"
+		"PredicateEq(p1,p0);AttrsEq(a1,a0)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)

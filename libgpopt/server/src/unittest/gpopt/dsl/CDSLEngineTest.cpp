@@ -574,7 +574,8 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopMaxOneRow, false) ||
 		CDSLOpKindTable::FSourceRootDispatchSupported(
-			EdslopAssertMaxOneRow, false))
+			EdslopAssertMaxOneRow, false) ||
+		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopAssert, false))
 	{
 		return GPOS_FAILED;
 	}

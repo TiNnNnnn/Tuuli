@@ -255,6 +255,8 @@ private:
 	// the scalar-subquery cardinality contract.
 	CExpression *PexprBuildAssertMaxOneRow(const CDSLOp *pop,
 									 const CDSLModel *pmodel) const;
+	CExpression *PexprBuildAssert(const CDSLOp *pop,
+							 const CDSLModel *pmodel) const;
 	COrderSpec *PosBuildSort(const CDSLOp *pop,
 							 const CDSLModel *pmodel,
 							 CExpression *pexprChild) const;
