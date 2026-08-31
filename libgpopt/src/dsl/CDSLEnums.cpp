@@ -372,12 +372,6 @@ CDSLOpKindTable::FSourceRootDispatchSupported(EDslOpKind edslop,
 	{
 		return false;
 	}
-	// Assert is currently a complete nested operator. Rooted Assert rules need
-	// a dedicated Cascade shell before they may be advertised as dispatchable.
-	if (EdslopAssert == edslop)
-	{
-		return false;
-	}
 	return EdslopInput != edslop && FMatcherSupported(edslop) &&
 		   COperator::EopSentinel != Eopid(edslop, fDistinct);
 }
