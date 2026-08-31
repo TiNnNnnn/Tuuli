@@ -178,6 +178,11 @@ enum EDslConstraintKind
 	// grouping metadata for the aggregate identified by its full grouping and
 	// output schema.  This property does not change relational semantics.
 	EdslconMinimalGrouping,
+	// CorrelationEquality(pred,local,outer): pred is a non-empty conjunction of
+	// cross-domain column equalities and covers exactly both dependency vectors.
+	// This is operator-independent decorrelation evidence; aggregate grouping,
+	// join construction, and other consumers remain separate constraints.
+	EdslconCorrelationEquality,
 	EdslconSentinel
 };
 

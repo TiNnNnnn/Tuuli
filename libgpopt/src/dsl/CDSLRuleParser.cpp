@@ -472,6 +472,17 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconCorrelationEquality == edslcon &&
+			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail(
+				"CorrelationEquality expects predicate, local attrs, and outer attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

@@ -106,6 +106,12 @@ private:
 	BOOL FCheckAggCorrelationPullup(const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const;
 
+	// CorrelationEquality(p,l,o): p is a non-empty conjunction of equality
+	// edges crossing the disjoint local/outer domains, with no hidden or missing
+	// dependencies in either vector.
+	BOOL FCheckCorrelationEquality(const CDSLConstraint *pcon,
+								   const CDSLModel *pmodel) const;
+
 	// MinimalGrouping(group,schema): the matched global aggregate has no
 	// minimal-group annotation yet, and its functional dependencies cover the
 	// complete grouping set with a derivable determinant.

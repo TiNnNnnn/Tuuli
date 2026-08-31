@@ -508,6 +508,39 @@ FCollectCrossEqualityColumns(CExpression *pexprPred,
 	return false;
 }
 
+BOOL
+FCorrelationEqualityHolds(CMemoryPool *mp, CExpression *pexprPred,
+						  CColRefArray *pdrgpcrLocal,
+						  CColRefArray *pdrgpcrOuter)
+{
+	if (nullptr == pexprPred || nullptr == pdrgpcrLocal ||
+		nullptr == pdrgpcrOuter || 0 == pdrgpcrLocal->Size() ||
+		0 == pdrgpcrOuter->Size())
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsLocal = GPOS_NEW(mp) CColRefSet(mp);
+	CColRefSet *pcrsOuter = GPOS_NEW(mp) CColRefSet(mp);
+	CColRefSet *pcrsSeenLocal = GPOS_NEW(mp) CColRefSet(mp);
+	CColRefSet *pcrsSeenOuter = GPOS_NEW(mp) CColRefSet(mp);
+	pcrsLocal->Include(pdrgpcrLocal);
+	pcrsOuter->Include(pdrgpcrOuter);
+
+	const BOOL fDisjoint = !pcrsLocal->FIntersects(pcrsOuter);
+	const BOOL fEqualityOnly = fDisjoint && FCollectCrossEqualityColumns(
+		pexprPred, pcrsLocal, pcrsOuter, pcrsSeenLocal, pcrsSeenOuter);
+	const BOOL fComplete = fEqualityOnly &&
+		pcrsSeenLocal->ContainsAll(pcrsLocal) &&
+		pcrsSeenOuter->ContainsAll(pcrsOuter);
+
+	pcrsSeenOuter->Release();
+	pcrsSeenLocal->Release();
+	pcrsOuter->Release();
+	pcrsLocal->Release();
+	return fComplete;
+}
+
 void
 CollectConnectedColumns(CExpression *pexprPred,
 						const CColRefSet *pcrsCandidate,
@@ -1106,33 +1139,31 @@ CDSLConstraintChecker::FCheckAggCorrelationPullup(
 		return false;
 	}
 
-	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	CColRefSet *pcrsLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	CColRefSet *pcrsOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	CColRefSet *pcrsSeenLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	CColRefSet *pcrsSeenOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsGroup->Include(pdrgpcrSourceGroup);
-	pcrsLocal->Include(pdrgpcrLocal);
-	pcrsOuter->Include(pdrgpcrOuter);
-
-	const BOOL fDisjoint = !pcrsLocal->FIntersects(pcrsOuter);
-	const BOOL fEqualityOnly = fDisjoint && FCollectCrossEqualityColumns(
-		pexprCorrelation, pcrsLocal, pcrsOuter, pcrsSeenLocal,
-		pcrsSeenOuter);
-	const BOOL fComplete = fEqualityOnly &&
-		pcrsSeenLocal->ContainsAll(pcrsLocal) &&
-		pcrsSeenOuter->ContainsAll(pcrsOuter);
-
-	pcrsSeenOuter->Release();
-	pcrsSeenLocal->Release();
-	pcrsOuter->Release();
-	pcrsLocal->Release();
-	pcrsGroup->Release();
 	// The semantic contract is equally valid when the correlation key already
 	// belongs to the grouping set. AttrsUnion/SchemaUnion then become stable
 	// identities; requiring physical expansion would unnecessarily block the
 	// same atomic decorrelation and leave a correlated Apply behind.
-	return fComplete;
+	return FCorrelationEqualityHolds(
+		m_mp, pexprCorrelation, pdrgpcrLocal, pdrgpcrOuter);
+}
+
+BOOL
+CDSLConstraintChecker::FCheckCorrelationEquality(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+
+	return FCorrelationEqualityHolds(
+		m_mp, pmodel->PexprPred((*pdrgpsym)[0]),
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[1]),
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[2]));
 }
 
 //---------------------------------------------------------------------------
@@ -2222,6 +2253,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAggFilterCommute(pcon, pmodel);
 		case EdslconAggCorrelationPullup:
 			return FCheckAggCorrelationPullup(pcon, pmodel);
+		case EdslconCorrelationEquality:
+			return FCheckCorrelationEquality(pcon, pmodel);
 		case EdslconMinimalGrouping:
 			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:

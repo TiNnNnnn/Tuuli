@@ -99,6 +99,11 @@ using namespace gpopt;
 	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
 	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
 
+#define GPOPT_DSL_CORRELATION_EQUALITY_RULE                               \
+	"Filter<p0 a0 a1>(Input<t0>)|Filter<p1 a2 a3>(Input<t1>)|"            \
+	"TableEq(t1,t0);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);"    \
+	"CorrelationEquality(p0,a0,a1)"
+
 #define GPOPT_DSL_INTERSECT_GROUPING_RULE                                  \
 	"Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"                 \
 	"Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|"   \
@@ -510,6 +515,24 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
+	CDSLRule *pruleCorrelation =
+		PdslruleParseLocal(mp, GPOPT_DSL_CORRELATION_EQUALITY_RULE);
+	CDSLModel *pmodelCorrelation = GPOS_NEW(mp) CDSLModel(mp);
+	if (nullptr == pruleCorrelation)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLMatcher matcherCorrelation(mp, pruleCorrelation);
+		if (!matcherCorrelation.FMatch(
+				pruleCorrelation->PfragSrc()->PopRoot(), (*pexprAgg)[0],
+				pmodelCorrelation) ||
+			!checker.FCheck(pruleCorrelation, pmodelCorrelation))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
 	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
 		!checker.FCheck(prule, pmodel))
 	{
@@ -642,7 +665,20 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 	{
 		eres = GPOS_FAILED;
 	}
+	CDSLModel *pmodelCorrelationBad = GPOS_NEW(mp) CDSLModel(mp);
+	if (nullptr != pruleCorrelation)
+	{
+		CDSLMatcher matcherCorrelation(mp, pruleCorrelation);
+		if (!matcherCorrelation.FMatch(
+				pruleCorrelation->PfragSrc()->PopRoot(), (*pexprBadAgg)[0],
+				pmodelCorrelationBad) ||
+			checker.FCheck(pruleCorrelation, pmodelCorrelationBad))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
 
+	pmodelCorrelationBad->Release();
 	pmodelBad->Release();
 	pexprBadApply->Release();
 	pexprBadAgg->Release();
@@ -656,6 +692,8 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 	pdrgpcrGroup->Release();
 	pexprInner->Release();
 	pexprOuter->Release();
+	pmodelCorrelation->Release();
+	CRefCount::SafeRelease(pruleCorrelation);
 	prule->Release();
 	return eres;
 }
