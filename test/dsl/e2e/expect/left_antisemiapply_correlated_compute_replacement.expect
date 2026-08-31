@@ -1,0 +1,70 @@
+{
+  "description": "The generic Compute/Filter normalization also exposes correlated NOT EXISTS",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "LeftAntiSemiApply over a correlated Filter below a safe Compute/LET",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "59b32af5adab80da",
+      "5004b2a4db64e478"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ],
+      "alternative": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+        "CXformDSLRule_Project",
+        "CXformDSLRule_NotExists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project",
+        "CXformDSLRule_NotExists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [],
+    "postgres_output": []
+  }
+}
