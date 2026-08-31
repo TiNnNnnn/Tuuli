@@ -139,6 +139,15 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t
 # accepted by the FormalSQL/Rocq kernel.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
+# Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
+# AntiApplyNotIn and AntiJoinNotIn are first-class NULL-aware operators rather
+# than aliases of ordinary anti semantics. Their predicate denotes the
+# user-visible ALL comparison; the ORCA adapter alone handles the inverse
+# comparison stored by its physical operator representation. AttrsEmpty is the
+# native xform's complete uncorrelated applicability domain. This exact RuleIR
+# was proved EQ by SQLSolver on 2026-08-31.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1)
+
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter

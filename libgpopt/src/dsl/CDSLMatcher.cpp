@@ -372,6 +372,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		EdslopSemiApply == pop->Edslop() ||
 		EdslopAntiJoin == pop->Edslop() ||
 		EdslopAntiApply == pop->Edslop() ||
+		EdslopAntiJoinNotIn == pop->Edslop() ||
+		EdslopAntiApplyNotIn == pop->Edslop() ||
 		EdslopInnerApply == pop->Edslop() ||
 		EdslopLeftOuterApply == pop->Edslop())
 	{

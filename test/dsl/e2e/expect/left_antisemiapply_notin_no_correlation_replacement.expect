@@ -1,0 +1,73 @@
+{
+  "description": "A SQLSolver-proved NULL-aware DSL rule replaces uncorrelated NOT IN Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+    ],
+    "scope": "Uncorrelated single-column NOT IN across empty, match, inner-NULL, outer-NULL and nonmatching inputs",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "5fd635f26b08fa62"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5fd635f26b08fa62\""
+      ],
+      "alternative": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5fd635f26b08fa62\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+    ],
+    "output": [
+      "empty:1",
+      "empty:2",
+      "nonnull:5"
+    ],
+    "postgres_output": [
+      "empty:1",
+      "empty:2",
+      "nonnull:5"
+    ]
+  }
+}

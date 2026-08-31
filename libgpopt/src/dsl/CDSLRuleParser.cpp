@@ -127,6 +127,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fSemiApply = EdslopSemiApply == edslop;
 	const BOOL fAntiJoin = EdslopAntiJoin == edslop;
 	const BOOL fAntiApply = EdslopAntiApply == edslop;
+	const BOOL fAntiJoinNotIn = EdslopAntiJoinNotIn == edslop;
+	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == edslop;
 	const BOOL fInnerApply = EdslopInnerApply == edslop ||
 		EdslopLeftOuterApply == edslop;
 	// Filter<p,localDeps> is the established spelling. The extended
@@ -167,7 +169,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	{
 		std::string name = symlist_ctx->SYMBOL(ul)->getText();
 		if (((fJoin && 3 == ul_given) || fPredicateExists || fSemiJoin ||
-			 fSemiApply || fAntiJoin || fAntiApply || fInnerApply) &&
+			 fSemiApply || fAntiJoin || fAntiApply || fAntiJoinNotIn ||
+			 fAntiApplyNotIn || fInnerApply) &&
 			((0 == ul && 'p' != name[0]) ||
 			 (0 < ul && 'a' != name[0])))
 		{

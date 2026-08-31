@@ -29,7 +29,9 @@
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -103,6 +105,13 @@ using namespace gpopt;
 	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
 	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);"                   \
 	"ErrorFree(p0);ErrorFree(p1)"
+
+#define GPOPT_DSL_UNCORRELATED_NOT_IN_APPLY_RULE                     \
+	"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"              \
+	"AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|"                  \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
+	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);"                   \
+	"AttrsSub(a0,t0);AttrsSub(a1,t1)"
 
 #define GPOPT_DSL_UNCORRELATED_INNER_APPLY_RULE                       \
 	"InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                   \
@@ -192,6 +201,8 @@ CDSLJoinTest::EresUnittest()
 			CDSLJoinTest::EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin),
 		GPOS_UNITTEST_FUNC(
@@ -795,6 +806,70 @@ CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin()
 	pmodelCorrelated->Release();
 	pexprCorrelatedApply->Release();
 	pexprCorrelatedInner->Release();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprApply->Release();
+	pexprOuter->Release();
+	pexprInner->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_UNCORRELATED_NOT_IN_APPLY_RULE);
+	if (nullptr == prule)
+		return GPOS_FAILED;
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("not_in_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("not_in_inner", 2, &pdrgpcrInner);
+	CExpression *pexprViolation =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	pexprOuter->AddRef();
+	pexprInner->AddRef();
+	pexprViolation->AddRef();
+	CExpression *pexprApply = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftAntiSemiApplyNotIn(mp), pexprOuter,
+		pexprInner, pexprViolation);
+	pexprViolation->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLSymbolArray *pdrgpsym =
+			prule->PfragSrc()->PopRoot()->Pdrgpsym();
+		CExpression *pexprLogicalAll = pmodel->PexprPred((*pdrgpsym)[0]);
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprLogicalAll ||
+			pexprLogicalAll->Matches((*pexprApply)[2]) ||
+			nullptr == pexprTarget ||
+			COperator::EopLogicalLeftAntiSemiJoinNotIn !=
+				pexprTarget->Pop()->Eopid() ||
+			!(*pexprTarget)[2]->Matches((*pexprApply)[2]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprApply->Release();

@@ -33,6 +33,7 @@
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -1988,11 +1989,14 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
 	const BOOL fAntiJoin = EdslopAntiJoin == pop->Edslop();
 	const BOOL fAntiApply = EdslopAntiApply == pop->Edslop();
+	const BOOL fAntiJoinNotIn = EdslopAntiJoinNotIn == pop->Edslop();
+	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == pop->Edslop();
 	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
 	const BOOL fLeftOuterApply = EdslopLeftOuterApply == pop->Edslop();
-	const BOOL fPredicateJoin = fSemiJoin || fAntiJoin;
+	const BOOL fPredicateJoin = fSemiJoin || fAntiJoin || fAntiJoinNotIn;
 	const BOOL fPredicateApply =
-		fSemiApply || fAntiApply || fInnerApply || fLeftOuterApply;
+		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
+		fLeftOuterApply;
 	const BOOL fValidSymbols = fPredicateJoin
 		? 3 == ulSymbols
 		: (fPredicateApply ? 4 == ulSymbols
@@ -2097,6 +2101,19 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pexprRight->Release();
 		return nullptr;
 	}
+	if (fAntiJoinNotIn || fAntiApplyNotIn)
+	{
+		CExpression *pexprInverse =
+			CDSLMatchView::PexprInverseComparison(m_mp, pexprTargetPred);
+		pexprTargetPred->Release();
+		pexprTargetPred = pexprInverse;
+		if (nullptr == pexprTargetPred)
+		{
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
+	}
 
 	// build the join operator the TARGET names.
 	COperator *popJoin = nullptr;
@@ -2167,6 +2184,12 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			break;
 		case EdslopAntiApply:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApply(m_mp);
+			break;
+		case EdslopAntiJoinNotIn:
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiJoinNotIn(m_mp);
+			break;
+		case EdslopAntiApplyNotIn:
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApplyNotIn(m_mp);
 			break;
 		case EdslopInnerApply:
 			if (nullptr == popJoin)
@@ -4007,6 +4030,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopSemiApply:
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
+		case EdslopAntiJoinNotIn:
+		case EdslopAntiApplyNotIn:
 		case EdslopInnerApply:
 		case EdslopLeftOuterApply:
 			return PexprBuildJoin(pop, pmodel);

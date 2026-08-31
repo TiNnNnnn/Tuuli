@@ -27,7 +27,9 @@
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -482,6 +484,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				EdslopSemiApply == popJoin->Edslop() ||
 				EdslopAntiJoin == popJoin->Edslop() ||
 				EdslopAntiApply == popJoin->Edslop() ||
+				EdslopAntiJoinNotIn == popJoin->Edslop() ||
+				EdslopAntiApplyNotIn == popJoin->Edslop() ||
 				EdslopInnerApply == popJoin->Edslop() ||
 				EdslopLeftOuterApply == popJoin->Edslop());
 	GPOS_ASSERT(nullptr != pexprJoin);
@@ -494,28 +498,59 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
+	const BOOL fAntiJoinNotIn =
+		(EdslopAntiJoinNotIn == popJoin->Edslop());
+	const BOOL fAntiApplyNotIn =
+		(EdslopAntiApplyNotIn == popJoin->Edslop());
 	const BOOL fInnerApply = (EdslopInnerApply == popJoin->Edslop());
 	const BOOL fLeftOuterApply =
 		(EdslopLeftOuterApply == popJoin->Edslop());
-	const BOOL fPredicateJoin = fSemi || fAnti;
+	const BOOL fPredicateJoin = fSemi || fAnti || fAntiJoinNotIn;
 	const BOOL fPredicateApply =
-		fSemiApply || fAntiApply || fInnerApply || fLeftOuterApply;
+		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
+		fLeftOuterApply;
 	if (fInnerApply &&
 		COperator::EopLogicalSelect == pexprJoin->Pop()->Eopid())
 	{
 		return FMatchScalarSubquerySelect(popJoin, pexprJoin, pmodel);
 	}
-	const COperator::EOperatorId eopidExpected = fInner
-		? COperator::EopLogicalInnerJoin
-		: (fSemi ? COperator::EopLogicalLeftSemiJoin
-				 : (fSemiApply ? COperator::EopLogicalLeftSemiApply
-					: (fAnti ? COperator::EopLogicalLeftAntiSemiJoin
-						: (fAntiApply ? COperator::EopLogicalLeftAntiSemiApply
-									  : (fInnerApply
-										 ? COperator::EopLogicalInnerApply
-										 : (fLeftOuterApply
-											? COperator::EopLogicalLeftOuterApply
-											: COperator::EopLogicalLeftOuterJoin))))));
+	COperator::EOperatorId eopidExpected = COperator::EopLogicalLeftOuterJoin;
+	if (fInner)
+	{
+		eopidExpected = COperator::EopLogicalInnerJoin;
+	}
+	else if (fSemi)
+	{
+		eopidExpected = COperator::EopLogicalLeftSemiJoin;
+	}
+	else if (fSemiApply)
+	{
+		eopidExpected = COperator::EopLogicalLeftSemiApply;
+	}
+	else if (fAnti)
+	{
+		eopidExpected = COperator::EopLogicalLeftAntiSemiJoin;
+	}
+	else if (fAntiApply)
+	{
+		eopidExpected = COperator::EopLogicalLeftAntiSemiApply;
+	}
+	else if (fAntiJoinNotIn)
+	{
+		eopidExpected = COperator::EopLogicalLeftAntiSemiJoinNotIn;
+	}
+	else if (fAntiApplyNotIn)
+	{
+		eopidExpected = COperator::EopLogicalLeftAntiSemiApplyNotIn;
+	}
+	else if (fInnerApply)
+	{
+		eopidExpected = COperator::EopLogicalInnerApply;
+	}
+	else if (fLeftOuterApply)
+	{
+		eopidExpected = COperator::EopLogicalLeftOuterApply;
+	}
 	const BOOL fExpectedSemiApply =
 		fSemiApply &&
 		(COperator::EopLogicalLeftSemiApply == eopid ||
@@ -564,8 +599,20 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		{
 			// SemiJoin<p a a> always names the complete predicate. Unlike the
 			// legacy three-symbol Join form, equality conjuncts are not split out.
-			pexprPred = (*pexprJoin)[2];
-			pexprPred->AddRef();
+			if (fAntiJoinNotIn || fAntiApplyNotIn)
+			{
+				pexprPred = CDSLMatchView::PexprInverseComparison(
+					m_mp, (*pexprJoin)[2]);
+				if (nullptr == pexprPred)
+				{
+					return false;
+				}
+			}
+			else
+			{
+				pexprPred = (*pexprJoin)[2];
+				pexprPred->AddRef();
+			}
 		}
 		else
 		{

@@ -79,6 +79,8 @@ enum EDslOpKind
 	EdslopAntiApply,	 // dependent left anti semi apply with explicit correlations
 	EdslopInnerApply,	 // dependent inner apply with explicit correlations
 	EdslopLeftOuterApply,  // dependent left outer apply with explicit correlations
+	EdslopAntiJoinNotIn,   // NULL-aware relational left anti semi join
+	EdslopAntiApplyNotIn,  // dependent NULL-aware anti apply
 	EdslopSentinel
 };
 

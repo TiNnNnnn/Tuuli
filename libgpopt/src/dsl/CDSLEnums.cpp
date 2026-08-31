@@ -89,6 +89,10 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopLeftOuterApply, "LeftApply", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopAntiJoinNotIn, "AntiJoinNotIn", 2, 3,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopAntiApplyNotIn, "AntiApplyNotIn", 2, 4,
+	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -199,6 +203,10 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLeftAntiSemiJoin;
 		case EdslopAntiApply:
 			return COperator::EopLogicalLeftAntiSemiApply;
+		case EdslopAntiJoinNotIn:
+			return COperator::EopLogicalLeftAntiSemiJoinNotIn;
+		case EdslopAntiApplyNotIn:
+			return COperator::EopLogicalLeftAntiSemiApplyNotIn;
 		case EdslopInnerApply:
 			return COperator::EopLogicalInnerApply;
 		case EdslopLeftOuterApply:
@@ -268,6 +276,8 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopSemiApply:
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
+		case EdslopAntiJoinNotIn:
+		case EdslopAntiApplyNotIn:
 		case EdslopInnerApply:
 		case EdslopLeftOuterApply:
 			return true;
@@ -302,6 +312,8 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopSemiApply:
 		case EdslopAntiJoin:
 		case EdslopAntiApply:
+		case EdslopAntiJoinNotIn:
+		case EdslopAntiApplyNotIn:
 		case EdslopInnerApply:
 		case EdslopLeftOuterApply:
 			return true;
@@ -360,6 +372,10 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"LeftAntiSemiJoin", EdslopAntiJoin, EdslsortNone},
 		{"AntiApply", EdslopAntiApply, EdslsortNone},
 		{"LeftAntiSemiApply", EdslopAntiApply, EdslsortNone},
+		{"AntiJoinNotIn", EdslopAntiJoinNotIn, EdslsortNone},
+		{"LeftAntiSemiJoinNotIn", EdslopAntiJoinNotIn, EdslsortNone},
+		{"AntiApplyNotIn", EdslopAntiApplyNotIn, EdslsortNone},
+		{"LeftAntiSemiApplyNotIn", EdslopAntiApplyNotIn, EdslsortNone},
 		{"InnerApply", EdslopInnerApply, EdslsortNone},
 		{"LeftApply", EdslopLeftOuterApply, EdslsortNone},
 		{"LeftOuterApply", EdslopLeftOuterApply, EdslsortNone},
