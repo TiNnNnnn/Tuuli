@@ -1,0 +1,69 @@
+{
+  "description": "The quantified Agg decorrelation rule admits OID-whitelisted total integer MAX",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Correlated aggregate NOT IN with a safe integer MAX and an added correlation grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "6a1ab4393b48ea73"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6a1ab4393b48ea73\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6a1ab4393b48ea73\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ]
+  }
+}

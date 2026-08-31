@@ -1,0 +1,30 @@
+{
+  "description": "Potentially overflowing SUM remains outside the ErrorFree aggregate whitelist",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6a1ab4393b48ea73\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ]
+  }
+}

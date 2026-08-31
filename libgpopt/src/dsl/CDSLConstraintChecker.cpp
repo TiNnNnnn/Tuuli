@@ -42,6 +42,9 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/CMDIdGPDB.h"
+#include "naucrates/md/CMDTypeInt2GPDB.h"
+#include "naucrates/md/CMDTypeInt4GPDB.h"
+#include "naucrates/md/CMDTypeInt8GPDB.h"
 #include "naucrates/dxl/gpdb_types.h"
 #include "naucrates/md/IMDFunction.h"
 #include "naucrates/md/IMDRelation.h"
@@ -83,6 +86,33 @@ FScalarCastProvablyErrorFree(CExpression *pexpr)
 	return (GPDB_INT2 == oidSource &&
 		 (GPDB_INT4 == oidTarget || GPDB_INT8 == oidTarget)) ||
 		(GPDB_INT4 == oidSource && GPDB_INT8 == oidTarget);
+}
+
+BOOL
+FAggFuncProvablyErrorFree(CScalarAggFunc *popAgg)
+{
+	if (popAgg->FCountStar() || popAgg->FCountAny())
+	{
+		return true;
+	}
+	IMDId *pmdid = popAgg->MDId();
+	if (IMDId::EmdidGeneral != pmdid->MdidType())
+	{
+		return false;
+	}
+	const OID oid = CMDIdGPDB::CastMdid(pmdid)->Oid();
+	switch (oid)
+	{
+		case GPDB_INT2_AGG_MIN:
+		case GPDB_INT2_AGG_MAX:
+		case GPDB_INT4_AGG_MIN:
+		case GPDB_INT4_AGG_MAX:
+		case GPDB_INT8_AGG_MIN:
+		case GPDB_INT8_AGG_MAX:
+			return true;
+		default:
+			return false;
+	}
 }
 
 CExpression *
@@ -218,12 +248,12 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 			break;
 		case COperator::EopScalarAggFunc:
 		{
-			// COUNT is the only aggregate whose evaluation is currently known not to
-			// raise a data-dependent SQL error. SUM/AVG and user-defined aggregates
-			// remain rejected until metadata exposes an equivalent safety property.
+			// Admit only aggregates whose exact built-in OID has a total transition:
+			// COUNT and signed-integer MIN/MAX. SUM/AVG can overflow, and user-defined
+			// aggregates remain rejected without an equivalent metadata property.
 			CScalarAggFunc *popAgg =
 				CScalarAggFunc::PopConvert(pexpr->Pop());
-			if (!popAgg->FCountStar() && !popAgg->FCountAny())
+			if (!FAggFuncProvablyErrorFree(popAgg))
 			{
 				return false;
 			}
