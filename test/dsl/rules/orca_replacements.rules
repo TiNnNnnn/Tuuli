@@ -182,6 +182,14 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Inpu
 # on 2026-08-31.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);QuantifiedPredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);WindowFrameCorrelationPartition(p1,a3,o0,m0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
+# Pull a correlated Filter above a Window when every local correlation key is
+# covered by the partition. These are operator-local rules: once the Filter is
+# exposed, every Apply family reuses its existing Filter decorrelation rule by
+# ordinary Cascade chaining. Both RuleIRs are accepted by FormalSQL/Rocq; no
+# Apply-specific lowering is hidden in this normalization.
+WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowCorrelationPartition(p0,a0,o0,w0,a1,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
+Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowFrameCorrelationPartition(p0,a0,o0,m0,w0,a1,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
+
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter

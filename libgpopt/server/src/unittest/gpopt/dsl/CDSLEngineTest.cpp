@@ -25,6 +25,7 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalAssert.h"
@@ -74,6 +75,7 @@ GPOS_RESULT
 CDSLEngineTest::EresUnittest_DPHyperNativeOwnership()
 {
 	if (!CXform::FDSLShell(CXform::ExfDSLRuleLimit) ||
+		!CXform::FDSLShell(CXform::ExfDSLRuleWindow) ||
 		CXform::FDSLShell(CXform::ExfDPHyperJoinRegion) ||
 		!CXform::FPGORCAExploration(CXform::ExfDPHyperJoinRegion) ||
 		CXform::FPGORCAExploration(CXform::ExfSimplifyGbAgg))
@@ -777,6 +779,24 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 	fDispatched = pxfs->Get(CXform::ExfDSLRuleAssert);
 	pxfs->Release();
 	popAssert->Release();
+	if (!fDispatched)
+	{
+		return GPOS_FAILED;
+	}
+
+	CXform *pxformWindow = pxff->Pxf("CXformDSLRule_Window");
+	if (nullptr == pxformWindow ||
+		CXform::ExfDSLRuleWindow != pxformWindow->Exfid() ||
+		!pxformWindow->FExploration() || pxformWindow->FImplementation())
+	{
+		return GPOS_FAILED;
+	}
+	CLogicalSequenceProject *popWindow =
+		GPOS_NEW(mp) CLogicalSequenceProject(mp);
+	pxfs = popWindow->PxfsCandidates(mp);
+	fDispatched = pxfs->Get(CXform::ExfDSLRuleWindow);
+	pxfs->Release();
+	popWindow->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

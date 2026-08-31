@@ -1,0 +1,70 @@
+{
+  "description": "A proved Window/Filter normalization composes with the correlated SemiApply rule",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose inner correlated Filter is below a partition-compatible aggregate Window",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "cca9b9fe61c75e60",
+      "977b505669323220"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin",
+        "CLogicalSequenceProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Xform: CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "Xform: CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "10",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "30"
+    ]
+  }
+}
