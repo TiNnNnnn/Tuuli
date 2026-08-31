@@ -177,6 +177,9 @@ bool  pg_orca_enable_dynamic_tablescan = true;
  */
 bool  pg_orca_enable_dsl_rule = false;
 
+/* Expose ORCA's existing MaxOneRow implementation gate for replacement tests. */
+bool  pg_orca_enable_assert_maxonerow = false;
+
 /* Enable the in-Cascades DPHyper join-region enumerator. */
 // Standalone tools do not run _PG_init(), so keep conservative storage
 // initializers here. PostgreSQL assigns the production defaults declared by
@@ -866,6 +869,17 @@ void _PG_init(void)
         "during exploration.",
         NULL,
         &pg_orca_enable_dsl_rule,
+        false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.enable_assert_maxonerow",
+        "Enable ORCA's MaxOneRow-to-Assert logical implementation. The default "
+        "remains off; this switch makes the native capability independently "
+        "testable against a DSL replacement.",
+        NULL,
+        &pg_orca_enable_assert_maxonerow,
         false,
         PGC_USERSET,
         0, NULL, NULL, NULL);

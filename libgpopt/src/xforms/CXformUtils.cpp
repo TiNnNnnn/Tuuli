@@ -2003,7 +2003,7 @@ CXformUtils::PexprAssertOneRow(CMemoryPool *mp, CExpression *pexprChild)
 		CScalarProjectElement::PopConvert((*(*pexprSeqPrj)[1])[0]->Pop())
 			->Pcr();
 	CExpression *pexprCmp = CUtils::PexprScalarEqCmp(
-		mp, pcrRowNumber, CUtils::PexprScalarConstInt4(mp, 1 /*value*/));
+		mp, pcrRowNumber, CUtils::PexprScalarConstInt8(mp, 1 /*value*/));
 
 	CWStringConst *pstrErrorMsg = PstrErrorMessage(
 		mp, gpos::CException::ExmaSQL, gpos::CException::ExmiSQLMaxOneRow);

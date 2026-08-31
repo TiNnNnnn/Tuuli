@@ -32,6 +32,7 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "naucrates/dxl/operators/CDXLTableDescr.h"  // UNASSIGNED_QUERYID
 #include "naucrates/md/CMDAggregateGPDB.h"
+#include "naucrates/md/CMDFunctionGPDB.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDName.h"
 #include "naucrates/md/CMDProviderGeneric.h"
@@ -75,6 +76,24 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt8GPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeBoolGPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeOidGPDB(mp));
+
+	// The default optimizer configuration uses the synthetic row_number OID
+	// below. AssertMaxOneRow and other window-backed DSL targets must exercise
+	// the real metadata lookup rather than bypassing CScalarWindowFunc.
+	{
+		CMDName *pmdnameRowNumber = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("row_number")),
+			true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+			mp,
+			GPOS_NEW(mp)
+				CMDIdGPDB(IMDId::EmdidGeneral, DUMMY_ROW_NUMBER_OID),
+			pmdnameRowNumber,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
+			IMDFunction::EfsImmutable, false /*strict*/,
+			false /*ndv preserving*/, true /*allowed for PS*/));
+	}
 
 	// int4 MAX aggregate metadata, used to build a genuine CScalarAggFunc in
 	// the Agg DSL tests. The synthetic result/intermediate types are both int4;
@@ -138,6 +157,41 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
 								   GPDB_INT4_EQ_OP) /*inverse*/,
+			IMDType::EcmptNEq, false /*returns null*/,
+			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+	}
+
+	// int8 '=' and '<>' support the row_number predicate produced by ORCA's
+	// canonical MaxOneRow implementation without relying on implicit casts.
+	{
+		CMDName *pmdnameEq = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
+			mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
+			pmdnameEq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
+			IMDType::EcmptEq, false /*returns null*/,
+			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+	}
+	{
+		CMDName *pmdnameNeq = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("<>")), true /*owns*/);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
+			mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
+			pmdnameNeq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
 			IMDType::EcmptNEq, false /*returns null*/,
 			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
 	}

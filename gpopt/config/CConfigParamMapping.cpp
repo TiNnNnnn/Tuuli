@@ -23,6 +23,7 @@ extern int optimizer_join_order;
 extern bool pg_orca_enable_dynamic_tablescan;
 // pg_orca.enable_dsl_rule GUC (pg_orca.cpp): preserve logical ops for DSL match.
 extern bool pg_orca_enable_dsl_rule;
+extern bool pg_orca_enable_assert_maxonerow;
 extern bool pg_orca_enable_dphyper;
 extern bool pg_orca_dphyper_shadow;
 // pg_orca.dsl_only_xforms / pg_orca.trace_dsl_rule (pg_orca.cpp): scoped
@@ -109,7 +110,6 @@ static bool enable_indexjoin         = true;
 static bool orca_enable_bitmapscan   = true;
 static bool enable_dynamic_bitmapscan = true;
 static bool enable_oj2unionall       = true;
-static bool enable_assert_maxonerow  = false;
 static bool enable_dynamic_tablescan = true; // enabled for HashJoin DPE via CustomScan
 static bool enable_tablescan         = true;
 static bool enable_push_join_unionall = true;
@@ -506,7 +506,7 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 			CXform::ExfLeftOuter2InnerUnionAllLeftAntiSemiJoin));
 	}
 
-	if (!enable_assert_maxonerow)
+	if (!pg_orca_enable_assert_maxonerow)
 	{
 		traceflag_bitset->ExchangeSet(
 			GPOPT_DISABLE_XFORM_TF(CXform::ExfMaxOneRow2Assert));

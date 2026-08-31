@@ -405,6 +405,36 @@ CDSLRuleEngine::PdrgpruleForRoot(COperator::EOperatorId eopid) const
 	return pdrgprule;
 }
 
+BOOL
+CDSLRuleEngine::FHasEnabledCBORuleForRoot(COperator::EOperatorId eopid) const
+{
+	const CDSLRuleArray *rules = PdrgpruleForRoot(eopid);
+	if (0 == rules->Size())
+	{
+		return false;
+	}
+
+	COptCtxt *opt_ctxt = COptCtxt::PoctxtFromTLS();
+	const CDSLPolicySnapshot *snapshot = nullptr == opt_ctxt
+		? nullptr
+		: opt_ctxt->PdslPolicySnapshot();
+	if (nullptr == snapshot)
+	{
+		return true;
+	}
+
+	for (ULONG rule = 0; rule < rules->Size(); ++rule)
+	{
+		const SDSLRulePolicy *policy = snapshot->Ppolicy((*rules)[rule]);
+		if (nullptr != policy && policy->m_fEnabled &&
+			EdslplacementCBO == policy->m_edslplacement)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 CDSLRuleArray *
 CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 									COperator::EOperatorId eopid,

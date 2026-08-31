@@ -140,10 +140,11 @@ CLogicalAssert::DeriveMaxCard(CMemoryPool *,  // mp
 		return CMaxCard(1 /*ull*/);
 	}
 
-	// if Assert operator was generated from MaxOneRow operator,
-	// then a max cardinality of 1 is expected
-	if (nullptr != exprhdl.Pgexpr() &&
-		CXform::ExfMaxOneRow2Assert == exprhdl.Pgexpr()->ExfidOrigin())
+	// The MaxOneRow contract is carried by the assertion's error semantics,
+	// independent of whether the equivalent Assert shape came from the native
+	// xform or an admitted DSL replacement.
+	if (nullptr != m_pexc && gpos::CException::ExmaSQL == m_pexc->Major() &&
+		gpos::CException::ExmiSQLMaxOneRow == m_pexc->Minor())
 	{
 		return CMaxCard(1 /*ull*/);
 	}

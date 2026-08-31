@@ -1,0 +1,80 @@
+{
+  "description": "The outcome-proved DSL cardinality contract replaces CXformMaxOneRow2Assert",
+  "replacement": {
+    "xforms": [
+      "CXformMaxOneRow2Assert"
+    ],
+    "scope": "Scalar subquery MaxOneRow contracts lowered to ORCA's standard Assert implementation",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "770daa019ca274ae"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "assert_maxonerow": true,
+      "contains": [
+        "Xform: CXformMaxOneRow2Assert"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "assert_maxonerow": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformMaxOneRow2Assert"
+      ],
+      "assert_maxonerow": true,
+      "not_contains": [
+        "Xform: CXformMaxOneRow2Assert"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformMaxOneRow2Assert"
+      ],
+      "assert_maxonerow": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+      ],
+      "not_contains": [
+        "Xform: CXformMaxOneRow2Assert"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformMaxOneRow2Assert"
+    ],
+    "assert_maxonerow": true,
+    "output": [
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2"
+    ],
+    "postgres_output": [
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2"
+    ]
+  }
+}

@@ -98,6 +98,8 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymOrder, EdslsymWindow}},
 	{EdslopWindowFrame, "Window", 1, 4,
 	 {EdslsymAttrs, EdslsymOrder, EdslsymFrame, EdslsymWindow}},
+	{EdslopMaxOneRow, "MaxOneRow", 1, 0, {}},
+	{EdslopAssertMaxOneRow, "AssertMaxOneRow", 1, 0, {}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -250,6 +252,12 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
 			return COperator::EopLogicalSequenceProject;
+		case EdslopMaxOneRow:
+			return COperator::EopLogicalMaxOneRow;
+		case EdslopAssertMaxOneRow:
+			// This is a semantic DSL operator whose target builder expands ORCA's
+			// canonical SequenceProject + Assert implementation.
+			return COperator::EopLogicalAssert;
 		case EdslopEmpty:
 			return COperator::EopLogicalConstTableGet;
 		case EdslopInput:
@@ -299,7 +307,9 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopLeftOuterApply:
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopMaxOneRow:
 			return true;
+		case EdslopAssertMaxOneRow:
 		case EdslopSentinel:
 			return false;
 	}
@@ -337,7 +347,9 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopLeftOuterApply:
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopAssertMaxOneRow:
 			return true;
+		case EdslopMaxOneRow:
 		case EdslopSentinel:
 			return false;
 	}
@@ -436,6 +448,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"SortDesc", EdslopSort, EdslsortDesc},
 		{"WindowRows", EdslopWindowRows, EdslsortNone},
 		{"Window", EdslopWindowFrame, EdslsortNone},
+		{"MaxOneRow", EdslopMaxOneRow, EdslsortNone},
+		{"AssertMaxOneRow", EdslopAssertMaxOneRow, EdslsortNone},
 	};
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rg_alias); ul++)
 	{

@@ -56,6 +56,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
+#include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
 
@@ -4117,6 +4118,27 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 		popSource->Pdrgpwf(), pexprChild, (*pexprCarrier)[1]);
 }
 
+CExpression *
+CDSLInstantiator::PexprBuildAssertMaxOneRow(const CDSLOp *pop,
+										const CDSLModel *pmodel) const
+{
+	if (EdslopAssertMaxOneRow != pop->Edslop() ||
+		1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		0 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+	CExpression *pexprAssert =
+		CXformUtils::PexprAssertOneRow(m_mp, pexprChild);
+	pexprChild->Release();
+	return pexprAssert;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuild
@@ -4157,6 +4179,12 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
 			return PexprBuildWindow(pop, pmodel);
+		case EdslopAssertMaxOneRow:
+			return PexprBuildAssertMaxOneRow(pop, pmodel);
+		case EdslopMaxOneRow:
+			// MaxOneRow is an input/source contract. Targets use its executable
+			// AssertMaxOneRow representation so no logical placeholder survives.
+			return nullptr;
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 		case EdslopSemiJoin:

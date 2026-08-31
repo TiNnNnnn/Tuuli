@@ -260,6 +260,7 @@ public:
 		ExfDSLRuleLimit,
 		ExfDPHyperJoinRegion,
 		ExfDSLRuleJoinApply,
+		ExfDSLRuleMaxOneRow,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};
@@ -268,7 +269,7 @@ public:
 	FDSLShell(EXformId exfid)
 	{
 		return (ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit) ||
-			ExfDSLRuleJoinApply == exfid;
+			ExfDSLRuleJoinApply == exfid || ExfDSLRuleMaxOneRow == exfid;
 	}
 
 	static BOOL

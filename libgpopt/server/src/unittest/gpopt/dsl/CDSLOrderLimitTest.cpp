@@ -13,6 +13,8 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalAssert.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
@@ -109,8 +111,59 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_TargetScalarConstants),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *pexprGet = fix.PexprLogicalGet("scalar_input", 1, nullptr);
+	pexprGet->AddRef();
+	CExpression *pexprLive = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprGet);
+
+	CDSLRule *prule = Prule(mp,
+		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)");
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_RESULT eres = GPOS_OK;
+	if (nullptr == prule ||
+		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CExpression *pexprTarget = nullptr;
+	if (GPOS_OK == eres)
+	{
+		CDSLConstraintChecker checker(mp);
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (!checker.FCheck(prule, pmodel) || nullptr == pexprTarget ||
+			COperator::EopLogicalAssert != pexprTarget->Pop()->Eopid() ||
+			2 != pexprTarget->Arity() ||
+			COperator::EopLogicalSequenceProject !=
+				(*pexprTarget)[0]->Pop()->Eopid() ||
+			gpos::CException::ExmiSQLMaxOneRow !=
+				CLogicalAssert::PopConvert(pexprTarget->Pop())
+					->Pexc()->Minor())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	CRefCount::SafeRelease(prule);
+	pexprLive->Release();
+	pexprGet->Release();
+	return eres;
 }
 
 GPOS_RESULT

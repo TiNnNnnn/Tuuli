@@ -29,6 +29,7 @@
 
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/exception.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -57,8 +58,35 @@
 #include "naucrates/md/IMDScalarOp.h"
 #include "naucrates/md/IMDTypeBool.h"
 #include "naucrates/md/IMDTypeInt8.h"
+#include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
+
+namespace
+{
+// Semantic preparation may construct an operator whose executable lowering is
+// supplied either by a native xform or by a DSL shell.  Keep that decision at
+// the producer boundary so disabling the native xform does not silently change
+// the input representation presented to an admitted DSL replacement.
+BOOL
+FRewriteAvailable(CXform::EXformId native_xform, CXform::EXformId dsl_shell,
+				  COperator::EOperatorId source_root)
+{
+	if (GPOPT_FENABLED_XFORM(native_xform))
+	{
+		return true;
+	}
+
+	if (!GPOS_FTRACE(EopttracePreserveOpsForDSL) ||
+		!GPOPT_FENABLED_XFORM(dsl_shell))
+	{
+		return false;
+	}
+
+	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
+	return nullptr != engine && engine->FHasEnabledCBORuleForRoot(source_root);
+}
+}  // namespace
 
 #ifdef GPOS_DEBUG
 //---------------------------------------------------------------------------
@@ -634,8 +662,11 @@ CSubqueryHandler::FGenerateCorrelatedApplyForScalarSubquery(
 	// (1) correlated execution is not enforced,
 	// (2) there are no outer references below, and
 	// (3) transformation converting MaxOneRow to Assert is enabled
-	BOOL fUseMaxOneRow = !fEnforceCorrelatedApply && !psd->m_fHasOuterRefs &&
-						 GPOPT_FENABLED_XFORM(CXform::ExfMaxOneRow2Assert);
+	BOOL fUseMaxOneRow =
+		!fEnforceCorrelatedApply && !psd->m_fHasOuterRefs &&
+		FRewriteAvailable(CXform::ExfMaxOneRow2Assert,
+						  CXform::ExfDSLRuleMaxOneRow,
+						  COperator::EopLogicalMaxOneRow);
 
 	if (psd->m_fValueSubquery)
 	{

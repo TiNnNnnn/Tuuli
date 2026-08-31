@@ -86,6 +86,8 @@ enum EDslOpKind
 	EdslopAntiApplyNotIn,  // dependent NULL-aware anti apply
 	EdslopWindowRows,	   // cumulative/default-frame window
 	EdslopWindowFrame,	   // window with explicit frame metadata
+	EdslopMaxOneRow,		   // scalar-subquery cardinality contract
+	EdslopAssertMaxOneRow,  // executable assertion for the same contract
 	EdslopSentinel
 };
 

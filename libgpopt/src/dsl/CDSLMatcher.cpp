@@ -439,6 +439,14 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return FMatchWindow(pop, pexpr, pmodel);
 	}
 
+	// AssertMaxOneRow is a target-only semantic macro. Its live ORCA shape is
+	// intentionally not reverse-matched as a generic Assert because the scalar
+	// predicate and row-number shell must remain an indivisible implementation.
+	if (EdslopAssertMaxOneRow == pop->Edslop())
+	{
+		return false;
+	}
+
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>
 	// symbols, keep non-equi conjuncts as residual, and recurse both relational
 	// children. Like Filter/Proj, the join predicate (child[2]) is scalar structure

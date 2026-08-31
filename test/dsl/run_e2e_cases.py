@@ -178,6 +178,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
 {policy_setting(args, plan)}
+{bool_guc_setting('pg_orca.enable_assert_maxonerow', plan.get('assert_maxonerow'), False)}
 {bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
 {bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), True)}
 SET pg_orca.dphyper_edge_budget={edge_budget};
@@ -216,7 +217,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         for key in (
             "name", "dsl", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
-            "disable_xforms", "policy"
+            "disable_xforms", "policy", "assert_maxonerow"
         )
         if key in expected
     }
@@ -250,6 +251,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
 {policy_setting(args, expected)}
+SET pg_orca.enable_assert_maxonerow={'on' if expected.get('assert_maxonerow', False) else 'off'};
 SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
 SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
@@ -273,7 +275,8 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
         key: expected[key]
         for key in (
             "dphyper", "dphyper_shadow", "dphyper_edge_budget",
-            "dphyper_pair_budget", "native", "disable_xforms", "policy"
+            "dphyper_pair_budget", "native", "disable_xforms", "policy",
+            "assert_maxonerow"
         )
         if key in expected
     }

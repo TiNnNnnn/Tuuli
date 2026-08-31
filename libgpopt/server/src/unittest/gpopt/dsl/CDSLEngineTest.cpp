@@ -26,6 +26,7 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPatternTree.h"
@@ -554,9 +555,11 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 	for (ULONG ul = 0; ul < EdslopSentinel; ul++)
 	{
 		const EDslOpKind edslop = static_cast<EDslOpKind>(ul);
-		const BOOL fExpected = true;
-		if (fExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
-			fExpected != CDSLOpKindTable::FInstantiatorSupported(edslop))
+		const BOOL fMatcherExpected = EdslopAssertMaxOneRow != edslop;
+		const BOOL fInstantiatorExpected = EdslopMaxOneRow != edslop;
+		if (fMatcherExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
+			fInstantiatorExpected !=
+				CDSLOpKindTable::FInstantiatorSupported(edslop))
 		{
 			return GPOS_FAILED;
 		}
@@ -568,7 +571,10 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopSort, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopLimit, false) ||
 		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowRows, false) ||
-		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false))
+		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopMaxOneRow, false) ||
+		CDSLOpKindTable::FSourceRootDispatchSupported(
+			EdslopAssertMaxOneRow, false))
 	{
 		return GPOS_FAILED;
 	}
@@ -735,6 +741,23 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 		fDispatched && pxfs->Get(CXform::ExfDSLRuleJoinApply);
 	pxfs->Release();
 	popLeftOuterApply->Release();
+	if (!fDispatched)
+	{
+		return GPOS_FAILED;
+	}
+
+	CXform *pxformMaxOneRow = pxff->Pxf("CXformDSLRule_MaxOneRow");
+	if (nullptr == pxformMaxOneRow ||
+		CXform::ExfDSLRuleMaxOneRow != pxformMaxOneRow->Exfid() ||
+		!pxformMaxOneRow->FExploration() || pxformMaxOneRow->FImplementation())
+	{
+		return GPOS_FAILED;
+	}
+	CLogicalMaxOneRow *popMaxOneRow = GPOS_NEW(mp) CLogicalMaxOneRow(mp);
+	pxfs = popMaxOneRow->PxfsCandidates(mp);
+	fDispatched = pxfs->Get(CXform::ExfDSLRuleMaxOneRow);
+	pxfs->Release();
+	popMaxOneRow->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

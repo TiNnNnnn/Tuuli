@@ -78,6 +78,7 @@ CLogicalMaxOneRow::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfMaxOneRow2Assert);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleMaxOneRow);
 	return xform_set;
 }
 

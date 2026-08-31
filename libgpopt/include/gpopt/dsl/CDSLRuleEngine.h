@@ -141,6 +141,11 @@ public:
 	// rules whose SOURCE root maps to eopid (never NULL; empty bucket if none)
 	const CDSLRuleArray *PdrgpruleForRoot(COperator::EOperatorId eopid) const;
 
+	// Whether the current query policy admits at least one CBO rule for this
+	// root. Semantic-preparation producers use this before constructing a
+	// logical contract that needs a DSL lowering to remain implementable.
+	BOOL FHasEnabledCBORuleForRoot(COperator::EOperatorId eopid) const;
+
 	// Candidate rules selected by the source-template prefix trie. Caller owns
 	// the returned array; rule order remains the physical rule-file order.
 	CDSLRuleArray *PdrgpruleCandidates(CMemoryPool *mp,

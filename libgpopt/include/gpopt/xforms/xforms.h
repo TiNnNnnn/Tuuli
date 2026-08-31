@@ -34,6 +34,7 @@
 #include "gpopt/xforms/CXformDSLRule_InnerJoin.h"
 #include "gpopt/xforms/CXformDSLRule_LeftJoin.h"
 #include "gpopt/xforms/CXformDSLRule_Limit.h"
+#include "gpopt/xforms/CXformDSLRule_MaxOneRow.h"
 #include "gpopt/xforms/CXformDSLRule_Project.h"
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformDSLRule_Union.h"
