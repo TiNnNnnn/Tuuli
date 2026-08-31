@@ -566,7 +566,9 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopFilter, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopProj, true) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopSort, false) ||
-		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopLimit, false))
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopLimit, false) ||
+		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowRows, false) ||
+		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false))
 	{
 		return GPOS_FAILED;
 	}

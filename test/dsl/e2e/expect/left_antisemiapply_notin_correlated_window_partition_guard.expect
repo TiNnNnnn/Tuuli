@@ -1,0 +1,35 @@
+{
+  "description": "Window decorrelation rejects correlation keys that are not covered by PARTITION BY",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0475f8993d7aa87\"",
+        "\"failed_constraint\":\"WindowFrameCorrelationPartition\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f0475f8993d7aa87\"",
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ]
+  }
+}

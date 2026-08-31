@@ -248,6 +248,8 @@ private:
 								const CDSLModel *pmodel) const;
 	CExpression *PexprBuildLimit(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
+	CExpression *PexprBuildWindow(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const;
 	COrderSpec *PosBuildSort(const CDSLOp *pop,
 							 const CDSLModel *pmodel,
 							 CExpression *pexprChild) const;

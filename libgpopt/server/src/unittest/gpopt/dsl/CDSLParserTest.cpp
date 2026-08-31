@@ -231,6 +231,14 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"
 		"CorrelationEquality(p2,a5,a6);"
 		"AggCorrelationGrouping(p2,a3,a9,a4,f0,s0,s1,p1,a5,a6)",
+		// Window metadata uses the same positional vocabulary as WeTune. The
+		// default-frame and explicit-frame spellings remain distinct in the IR.
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);WindowEq(w1,w0);"
+		"ErrorFree(w0)",
+		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);"
+		"WindowEq(w1,w0);ErrorFree(w0)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)

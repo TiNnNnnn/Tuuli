@@ -94,6 +94,12 @@ private:
 	BOOL FMatchSortView(const CDSLOp *popSort, CExpression *pexprChild,
 						  const COrderSpec *pos, CDSLModel *pmodel) const;
 
+	// Bind a SequenceProject without flattening its per-window order/frame
+	// arrays. Partition columns are exposed as Attrs; the remaining metadata is
+	// preserved as opaque, equality-comparable artifacts.
+	BOOL FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
+					 CDSLModel *pmodel) const;
+
 public:
 	CDSLMatcher(const CDSLMatcher &) = delete;
 

@@ -512,6 +512,48 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		const EDslSymbolKind esymEq =
+			EdslconOrderEq == edslcon ? EdslsymOrder
+			: (EdslconWindowEq == edslcon ? EdslsymWindow
+											 : (EdslconFrameEq == edslcon
+													? EdslsymFrame
+													: EdslsymSentinel));
+		if (EdslsymSentinel != esymEq &&
+			(esymEq != (*pdrgpsym)[0]->Esymkind() ||
+			 esymEq != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail(std::string(CDSLConstraintKindTable::SzName(edslcon)) +
+					  " expects two matching window-metadata symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
+		if (EdslconWindowCorrelationPartition == edslcon ||
+			EdslconWindowFrameCorrelationPartition == edslcon)
+		{
+			const BOOL fFrame =
+				EdslconWindowFrameCorrelationPartition == edslcon;
+			const EDslSymbolKind rgRows[] = {
+				EdslsymPred, EdslsymAttrs, EdslsymOrder,
+				EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
+			const EDslSymbolKind rgFrame[] = {
+				EdslsymPred, EdslsymAttrs, EdslsymOrder, EdslsymFrame,
+				EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
+			BOOL fTyped = pdrgpsym->Size() == (fFrame ? 7 : 6);
+			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
+			{
+				fTyped = (fFrame ? rgFrame[ul] : rgRows[ul]) ==
+					(*pdrgpsym)[ul]->Esymkind();
+			}
+			if (!fTyped)
+			{
+				bctx.Fail(
+					"window correlation constraint expects predicate, window metadata, and local/outer attrs");
+				pdrgpsym->Release();
+				pdrgpcon->Release();
+				return nullptr;
+			}
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

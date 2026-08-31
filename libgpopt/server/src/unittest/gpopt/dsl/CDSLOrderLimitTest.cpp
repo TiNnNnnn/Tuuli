@@ -1,9 +1,11 @@
 #include "unittest/gpopt/dsl/CDSLOrderLimitTest.h"
 
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/string/CWStringConst.h"
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
@@ -11,6 +13,13 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarWindowFunc.h"
+#include "naucrates/md/CMDIdGPDB.h"
+#include "naucrates/md/CMDAggregateGPDB.h"
+#include "naucrates/md/CMDTypeInt4GPDB.h"
+#include "naucrates/dxl/gpdb_types.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -46,6 +55,40 @@ Prule(CMemoryPool *mp, const CHAR *szRule)
 {
 	return CDSLRuleParser::PdslruleParse(mp, szRule, "EQ", nullptr);
 }
+
+CExpression *
+PexprWindowRows(CMemoryPool *mp, CDSLTestFixture &fix,
+				CExpression *pexprChild, CColRef *pcrPartition,
+				CColRef *pcrArgument)
+{
+	CExpressionArray *pdrgpexprDist = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprDist->Append(CUtils::PexprScalarIdent(mp, pcrPartition));
+	CDistributionSpec *pds =
+		GPOS_NEW(mp) CDistributionSpecHashed(pdrgpexprDist, true);
+	COrderSpecArray *pdrgpos = GPOS_NEW(mp) COrderSpecArray(mp);
+	CWindowFrameArray *pdrgpwf = GPOS_NEW(mp) CWindowFrameArray(mp);
+
+	CScalarWindowFunc *popWindow = GPOS_NEW(mp) CScalarWindowFunc(
+		mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_AGG_MAX),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+		GPOS_NEW(mp) CWStringConst(mp, GPOS_WSZ_LIT("max")),
+		CScalarWindowFunc::EwsImmediate, false, false, true);
+	CExpressionArray *pdrgpexprArgs = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprArgs->Append(CUtils::PexprScalarIdent(mp, pcrArgument));
+	CExpression *pexprWindow =
+		GPOS_NEW(mp) CExpression(mp, popWindow, pdrgpexprArgs);
+	CColRef *pcrOutput = fix.PcrCreateInt4("win");
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprElems->Append(
+		CUtils::PexprScalarProjectElement(mp, pcrOutput, pexprWindow));
+	CExpression *pexprList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+
+	pexprChild->AddRef();
+	return CUtils::PexprLogicalSequenceProject(
+		mp, COperator::EsptypeGlobalOneStep, pds, pdrgpos, pdrgpwf,
+		pexprChild, pexprList);
+}
 }  // namespace
 
 GPOS_RESULT
@@ -64,8 +107,58 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_TargetScalarConstants),
+		GPOS_UNITTEST_FUNC(
+			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *pdrgpcr = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("windowed", 2, &pdrgpcr);
+	CExpression *pexprLive =
+		PexprWindowRows(mp, fix, pexprGet, (*pdrgpcr)[0], (*pdrgpcr)[1]);
+
+	CDSLRule *prule = Prule(mp,
+		"WindowRows<a0 o0 w0>(Input<t0>)|"
+		"WindowRows<a1 o1 w1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);WindowEq(w1,w0);"
+		"ErrorFree(w0);ErrorFree(w1)");
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_RESULT eres = GPOS_OK;
+	if (nullptr == prule ||
+		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CExpression *pexprTarget = nullptr;
+	if (GPOS_OK == eres)
+	{
+		CDSLConstraintChecker checker(mp);
+		CDSLInstantiator instantiator(mp);
+		if (!checker.FCheck(prule, pmodel) ||
+			nullptr == (pexprTarget = instantiator.PexprInstantiate(prule, pmodel)) ||
+			COperator::EopLogicalSequenceProject !=
+				pexprTarget->Pop()->Eopid() ||
+			!pexprTarget->Matches(pexprLive))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	CRefCount::SafeRelease(prule);
+	pexprLive->Release();
+	pexprGet->Release();
+	return eres;
 }
 
 GPOS_RESULT

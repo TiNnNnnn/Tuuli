@@ -94,6 +94,10 @@ const SDslOpDesc rg_op_desc[] = {
 	  EdslsymAttrs, EdslsymAttrs}},
 	{EdslopAntiApplyNotIn, "AntiApplyNotIn", 2, 4,
 	 {EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopWindowRows, "WindowRows", 1, 3,
+	 {EdslsymAttrs, EdslsymOrder, EdslsymWindow}},
+	{EdslopWindowFrame, "Window", 1, 4,
+	 {EdslsymAttrs, EdslsymOrder, EdslsymFrame, EdslsymWindow}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -143,12 +147,18 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconCorrelationEquality, "CorrelationEquality", 3},
 	{EdslconAggCorrelationGrouping, "AggCorrelationGrouping", 10},
 	{EdslconQuantifiedPredicateEq, "QuantifiedPredicateEq", 2},
+	{EdslconOrderEq, "OrderEq", 2},
+	{EdslconWindowEq, "WindowEq", 2},
+	{EdslconFrameEq, "FrameEq", 2},
+	{EdslconWindowCorrelationPartition, "WindowCorrelationPartition", 6},
+	{EdslconWindowFrameCorrelationPartition,
+	 "WindowFrameCorrelationPartition", 7},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
 
 // symbol-prefix letters, indexed by EDslSymbolKind
-const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e'};
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm'};
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -237,6 +247,9 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			// matcher exposes the fused node as the virtual shape
 			// Limit(Sort(child)); both DSL roots therefore share one shell.
 			return COperator::EopLogicalLimit;
+		case EdslopWindowRows:
+		case EdslopWindowFrame:
+			return COperator::EopLogicalSequenceProject;
 		case EdslopEmpty:
 			return COperator::EopLogicalConstTableGet;
 		case EdslopInput:
@@ -284,6 +297,8 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopAntiApplyNotIn:
 		case EdslopInnerApply:
 		case EdslopLeftOuterApply:
+		case EdslopWindowRows:
+		case EdslopWindowFrame:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -320,6 +335,8 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopAntiApplyNotIn:
 		case EdslopInnerApply:
 		case EdslopLeftOuterApply:
+		case EdslopWindowRows:
+		case EdslopWindowFrame:
 			return true;
 		case EdslopSentinel:
 			return false;
@@ -331,6 +348,13 @@ BOOL
 CDSLOpKindTable::FSourceRootDispatchSupported(EDslOpKind edslop,
 										   BOOL fDistinct)
 {
+	// SequenceProject is currently supported as a nested template node.  A
+	// standalone Window-root rule needs its own Cascade shell before the audit
+	// may advertise it as dispatchable.
+	if (EdslopWindowRows == edslop || EdslopWindowFrame == edslop)
+	{
+		return false;
+	}
 	return EdslopInput != edslop && FMatcherSupported(edslop) &&
 		   COperator::EopSentinel != Eopid(edslop, fDistinct);
 }
@@ -410,6 +434,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"Sort", EdslopSort, EdslsortNone},
 		{"SortAsc", EdslopSort, EdslsortAsc},
 		{"SortDesc", EdslopSort, EdslsortDesc},
+		{"WindowRows", EdslopWindowRows, EdslsortNone},
+		{"Window", EdslopWindowFrame, EdslsortNone},
 	};
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rg_alias); ul++)
 	{
@@ -565,6 +591,11 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconCorrelationEquality:
 		case EdslconAggCorrelationGrouping:
 		case EdslconQuantifiedPredicateEq:
+		case EdslconOrderEq:
+		case EdslconWindowEq:
+		case EdslconFrameEq:
+		case EdslconWindowCorrelationPartition:
+		case EdslconWindowFrameCorrelationPartition:
 			return true;
 		case EdslconSentinel:
 			return false;

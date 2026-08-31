@@ -36,6 +36,8 @@
 #include "gpos/common/CHashMap.h"
 
 #include "gpopt/base/CColRef.h"
+#include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CWindowFrame.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/operators/CExpression.h"
 
@@ -84,6 +86,7 @@ private:
 	CDSLSymbolToExpressionMap *m_phmAggBinding;
 	CDSLSymbolToExpressionMap *m_phmVirtualIdentityProj;
 	CDSLSymbolToExpressionMap *m_phmJoinPred;
+	CDSLSymbolToExpressionMap *m_phmWindowCarrier;
 
 	// Every matched Union/Union* expression, in source-tree traversal order.
 	// The operator owns the ordered output-column array and one ordered input
@@ -162,6 +165,9 @@ public:
 	CColRefArray *PdrgpcrAttrs(const CDSLSymbol *psym) const;
 	CColRefArray *PdrgpcrSchema(const CDSLSymbol *psym) const;
 	CExpressionArray *PdrgpexprFunc(const CDSLSymbol *psym) const;
+	COrderSpecArray *PdrgposOrder(const CDSLSymbol *psym) const;
+	CExpression *PexprWindow(const CDSLSymbol *psym) const;
+	CWindowFrameArray *PdrgpwfFrame(const CDSLSymbol *psym) const;
 
 	ULONG Size() const { return m_phmSymToRef->Size(); }
 
@@ -294,6 +300,13 @@ public:
 	// did not come from one matched source Join. Does not AddRef.
 	CExpression *PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
 						   const CDSLSymbol *psymRightAttrs) const;
+
+	// Preserve the exact ORCA SequenceProject shell by its window-items symbol.
+	// Partition/order/frame symbols remain independently bound for constraints;
+	// this carrier prevents target construction from approximating optimizer
+	// metadata that the surface DSL intentionally treats as opaque values.
+	BOOL FSetWindowCarrier(const CDSLSymbol *psymWindow, CExpression *pexpr);
+	CExpression *PexprWindowCarrier(const CDSLSymbol *psymWindow) const;
 
 	//------------------------------------------------------------------
 	// dedup drop (Agg match — Agg matcher produces, instantiator consumes)

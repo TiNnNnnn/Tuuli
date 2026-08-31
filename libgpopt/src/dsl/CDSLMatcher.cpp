@@ -23,7 +23,10 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLUnionMatcher.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
@@ -123,6 +126,74 @@ CDSLMatcher::FMatchOrderLimit(const CDSLOp *pop, CExpression *pexpr,
 	// property which the target side would be unable to reconstruct.
 	return view.m_pos->IsEmpty() &&
 		   FMatch(popChild, view.m_pexprChild, pmodel);
+}
+
+BOOL
+CDSLMatcher::FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
+					  CDSLModel *pmodel) const
+{
+	const BOOL fFrame = EdslopWindowFrame == pop->Edslop();
+	if ((!fFrame && EdslopWindowRows != pop->Edslop()) ||
+		COperator::EopLogicalSequenceProject != pexpr->Pop()->Eopid() ||
+		2 != pexpr->Arity() || 1 != pop->UlChildren() ||
+		nullptr == pop->Pdrgpsym() ||
+		(fFrame ? 4 : 3) != pop->Pdrgpsym()->Size())
+	{
+		return false;
+	}
+
+	CLogicalSequenceProject *popWindow =
+		CLogicalSequenceProject::PopConvert(pexpr->Pop());
+	if (fFrame != popWindow->FHasFrameSpecs())
+	{
+		return false;
+	}
+
+	CColRefArray *pdrgpcrPartition = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CDistributionSpec *pds = popWindow->Pds();
+	if (CDistributionSpec::EdtHashed == pds->Edt())
+	{
+		CExpressionArray *pdrgpexpr =
+			CDistributionSpecHashed::PdsConvert(pds)->Pdrgpexpr();
+		for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+		{
+			CExpression *pexprPart = (*pdrgpexpr)[ul];
+			if (COperator::EopScalarIdent != pexprPart->Pop()->Eopid())
+			{
+				pdrgpcrPartition->Release();
+				return false;
+			}
+			pdrgpcrPartition->Append(const_cast<CColRef *>(
+				CScalarIdent::PopConvert(pexprPart->Pop())->Pcr()));
+		}
+	}
+	else if (CDistributionSpec::EdtSingleton != pds->Edt())
+	{
+		pdrgpcrPartition->Release();
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const ULONG ulWindow = fFrame ? 3 : 2;
+	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrPartition) &&
+		pmodel->FBind((*pdrgpsym)[1], popWindow->Pdrgpos());
+	pdrgpcrPartition->Release();
+	if (fFrame)
+	{
+		fBound = fBound &&
+			pmodel->FBind((*pdrgpsym)[2], popWindow->Pdrgpwf());
+	}
+	fBound = fBound && pmodel->FBind((*pdrgpsym)[ulWindow], (*pexpr)[1]);
+	if (!fBound)
+	{
+		return false;
+	}
+	pexpr->AddRef();
+	if (!pmodel->FSetWindowCarrier((*pdrgpsym)[ulWindow], pexpr))
+	{
+		return false;
+	}
+	return FMatch((*pop)[0], (*pexpr)[0], pmodel);
 }
 
 //---------------------------------------------------------------------------
@@ -360,6 +431,12 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	if (EdslopSort == pop->Edslop() || EdslopLimit == pop->Edslop())
 	{
 		return FMatchOrderLimit(pop, pexpr, pmodel);
+	}
+
+	if (EdslopWindowRows == pop->Edslop() ||
+		EdslopWindowFrame == pop->Edslop())
+	{
+		return FMatchWindow(pop, pexpr, pmodel);
 	}
 
 	// InnerJoin/LeftJoin<a a>: bind the equi-join key columns to the two <a>

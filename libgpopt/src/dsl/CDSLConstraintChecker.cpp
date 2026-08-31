@@ -40,6 +40,7 @@
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDTypeInt2GPDB.h"
@@ -103,6 +104,31 @@ FAggFuncProvablyErrorFree(CScalarAggFunc *popAgg)
 	const OID oid = CMDIdGPDB::CastMdid(pmdid)->Oid();
 	switch (oid)
 	{
+		case GPDB_INT2_AGG_MIN:
+		case GPDB_INT2_AGG_MAX:
+		case GPDB_INT4_AGG_MIN:
+		case GPDB_INT4_AGG_MAX:
+		case GPDB_INT8_AGG_MIN:
+		case GPDB_INT8_AGG_MAX:
+			return true;
+		default:
+			return false;
+	}
+}
+
+BOOL
+FWindowFuncProvablyErrorFree(CScalarWindowFunc *popWindow)
+{
+	if (!popWindow->FAgg() ||
+		IMDId::EmdidGeneral != popWindow->FuncMdId()->MdidType())
+	{
+		return false;
+	}
+	const OID oid = CMDIdGPDB::CastMdid(popWindow->FuncMdId())->Oid();
+	switch (oid)
+	{
+		case GPDB_COUNT_STAR:
+		case GPDB_INT4_AGG_COUNT:
 		case GPDB_INT2_AGG_MIN:
 		case GPDB_INT2_AGG_MAX:
 		case GPDB_INT4_AGG_MIN:
@@ -259,6 +285,13 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 			}
 			break;
 		}
+		case COperator::EopScalarWindowFunc:
+			if (!FWindowFuncProvablyErrorFree(
+					CScalarWindowFunc::PopConvert(pexpr->Pop())))
+			{
+				return false;
+			}
+			break;
 		case COperator::EopScalarNullTest:
 		case COperator::EopScalarBoolOp:
 		case COperator::EopScalarValuesList:
@@ -1268,6 +1301,85 @@ CDSLConstraintChecker::FCheckAggCorrelationGrouping(
 		pmodel->PdrgpcrAttrs((*pdrgpsym)[9]));
 }
 
+BOOL
+CDSLConstraintChecker::FCheckWindowCorrelationPartition(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel, BOOL fFrame) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	const EDslSymbolKind rgRows[] = {
+		EdslsymPred, EdslsymAttrs, EdslsymOrder,
+		EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
+	const EDslSymbolKind rgFrame[] = {
+		EdslsymPred, EdslsymAttrs, EdslsymOrder, EdslsymFrame,
+		EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
+	if (pdrgpsym->Size() != (fFrame ? 7 : 6))
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+	{
+		if ((fFrame ? rgFrame[ul] : rgRows[ul]) !=
+				(*pdrgpsym)[ul]->Esymkind() ||
+			nullptr == pmodel->PvalLookup((*pdrgpsym)[ul]))
+		{
+			return false;
+		}
+	}
+
+	const ULONG ulWindow = fFrame ? 4 : 3;
+	const ULONG ulLocal = fFrame ? 5 : 4;
+	const ULONG ulOuter = fFrame ? 6 : 5;
+	CExpression *pexprCorrelation = pmodel->PexprPred((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrPartition =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
+	COrderSpecArray *pdrgpos = pmodel->PdrgposOrder((*pdrgpsym)[2]);
+	CExpression *pexprWindow =
+		pmodel->PexprWindow((*pdrgpsym)[ulWindow]);
+	CColRefArray *pdrgpcrLocal =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[ulLocal]);
+	CColRefArray *pdrgpcrOuter =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[ulOuter]);
+	if (nullptr == pexprCorrelation || nullptr == pdrgpcrPartition ||
+		nullptr == pdrgpos || nullptr == pexprWindow ||
+		nullptr == pdrgpcrLocal || nullptr == pdrgpcrOuter ||
+		0 == pdrgpcrLocal->Size() ||
+		!CUtils::FHasAggWindowFunc(pexprWindow) ||
+		!FCorrelationEqualityHolds(m_mp, pexprCorrelation, pdrgpcrLocal,
+									  pdrgpcrOuter))
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsPartition = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsPartition->Include(pdrgpcrPartition);
+	CColRefSet *pcrsLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsLocal->Include(pdrgpcrLocal);
+	CColRefSet *pcrsOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsOuter->Include(pdrgpcrOuter);
+	CColRefSet *pcrsOrder = COrderSpec::GetColRefSet(m_mp, pdrgpos);
+	BOOL fValid = pcrsPartition->ContainsAll(pcrsLocal) &&
+		pcrsPartition->IsDisjoint(pcrsOuter) &&
+		pcrsOrder->IsDisjoint(pcrsOuter) &&
+		pexprWindow->DeriveUsedColumns()->IsDisjoint(pcrsOuter);
+
+	if (fValid && fFrame)
+	{
+		CWindowFrameArray *pdrgpwf =
+			pmodel->PdrgpwfFrame((*pdrgpsym)[3]);
+		for (ULONG ul = 0; fValid && ul < pdrgpwf->Size(); ul++)
+		{
+			CWindowFrame *pwf = (*pdrgpwf)[ul];
+			fValid = CWindowFrame::IsEmpty(pwf) ||
+				pwf->PcrsUsed()->IsDisjoint(pcrsOuter);
+		}
+	}
+	pcrsOrder->Release();
+	pcrsOuter->Release();
+	pcrsLocal->Release();
+	pcrsPartition->Release();
+	return fValid;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckUnique
@@ -2146,10 +2258,14 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			const BOOL fEquality = EdslconTableEq == edslconEq ||
 				EdslconAttrsEq == edslconEq ||
 				EdslconPredicateEq == edslconEq ||
+				EdslconQuantifiedPredicateEq == edslconEq ||
 				EdslconSchemaEq == edslconEq ||
 				EdslconFuncEq == edslconEq ||
 				EdslconScalarEq == edslconEq ||
-				EdslconExprListEq == edslconEq;
+				EdslconExprListEq == edslconEq ||
+				EdslconOrderEq == edslconEq ||
+				EdslconWindowEq == edslconEq ||
+				EdslconFrameEq == edslconEq;
 			if (!fEquality || 2 != pconEq->Pdrgpsym()->Size())
 			{
 				continue;
@@ -2218,6 +2334,9 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			break;
 		case EdslsymExpr:
 			pexpr = pmodel->PexprExpr(psymBound);
+			break;
+		case EdslsymWindow:
+			pexpr = pmodel->PexprWindow(psymBound);
 			break;
 		default:
 			break;
@@ -2325,6 +2444,15 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 		case EdslconExprListEq:
 			return pmodel->PexprExpr(psymFirst)->Matches(
 				pmodel->PexprExpr(psymSecond));
+		case EdslconOrderEq:
+			return COrderSpec::Equals(pmodel->PdrgposOrder(psymFirst),
+									 pmodel->PdrgposOrder(psymSecond));
+		case EdslconWindowEq:
+			return pmodel->PexprWindow(psymFirst)->Matches(
+				pmodel->PexprWindow(psymSecond));
+		case EdslconFrameEq:
+			return CWindowFrame::Equals(pmodel->PdrgpwfFrame(psymFirst),
+									   pmodel->PdrgpwfFrame(psymSecond));
 		default:
 			return false;
 	}
@@ -2360,6 +2488,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckCorrelationEquality(pcon, pmodel);
 		case EdslconAggCorrelationGrouping:
 			return FCheckAggCorrelationGrouping(pcon, pmodel);
+		case EdslconWindowCorrelationPartition:
+			return FCheckWindowCorrelationPartition(pcon, pmodel, false);
+		case EdslconWindowFrameCorrelationPartition:
+			return FCheckWindowCorrelationPartition(pcon, pmodel, true);
 		case EdslconMinimalGrouping:
 			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:
@@ -2394,6 +2526,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconFuncEq:
 		case EdslconScalarEq:
 		case EdslconExprListEq:
+		case EdslconOrderEq:
+		case EdslconWindowEq:
+		case EdslconFrameEq:
 			return FCheckEquality(prule, pcon, pmodel);
 
 		default:

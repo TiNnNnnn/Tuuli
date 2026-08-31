@@ -38,6 +38,7 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
@@ -706,6 +707,9 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 			case EdslconFuncEq:
 			case EdslconScalarEq:
 			case EdslconExprListEq:
+			case EdslconOrderEq:
+			case EdslconWindowEq:
+			case EdslconFrameEq:
 				break;	// an aliasing equality
 			default:
 				continue;  // structural constraint: not an alias
@@ -4055,6 +4059,64 @@ CDSLInstantiator::PexprBuildLimit(const CDSLOp *pop,
 		pexprChild, pexprOffset, pexprCount);
 }
 
+CExpression *
+CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
+								   const CDSLModel *pmodel) const
+{
+	const BOOL fFrame = EdslopWindowFrame == pop->Edslop();
+	if ((!fFrame && EdslopWindowRows != pop->Edslop()) ||
+		1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
+		(fFrame ? 4 : 3) != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	const ULONG ulWindow = fFrame ? 3 : 2;
+	const CDSLSymbol *psymWindow =
+		PsymResolve((*pop->Pdrgpsym())[ulWindow]);
+	CExpression *pexprCarrier = pmodel->PexprWindowCarrier(psymWindow);
+	if (nullptr == pexprCarrier ||
+		COperator::EopLogicalSequenceProject !=
+			pexprCarrier->Pop()->Eopid() ||
+		2 != pexprCarrier->Arity())
+	{
+		return nullptr;
+	}
+
+	CLogicalSequenceProject *popSource =
+		CLogicalSequenceProject::PopConvert(pexprCarrier->Pop());
+	if (fFrame != popSource->FHasFrameSpecs())
+	{
+		return nullptr;
+	}
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+
+	// Reusing an opaque window shell is valid only while every input column it
+	// references remains available. A future operator that remaps columns must
+	// provide an explicit remapping contract instead of silently producing a
+	// dangling SequenceProject.
+	CColRefSet *pcrsOutput = pexprChild->DeriveOutputColumns();
+	CColRefSet *pcrsProject = (*pexprCarrier)[1]->DeriveUsedColumns();
+	if (!pcrsOutput->ContainsAll(popSource->PcrsLocalUsed()) ||
+		!pcrsOutput->ContainsAll(pcrsProject))
+	{
+		pexprChild->Release();
+		return nullptr;
+	}
+
+	popSource->Pds()->AddRef();
+	popSource->Pdrgpos()->AddRef();
+	popSource->Pdrgpwf()->AddRef();
+	(*pexprCarrier)[1]->AddRef();
+	return CUtils::PexprLogicalSequenceProject(
+		m_mp, popSource->Pspt(), popSource->Pds(), popSource->Pdrgpos(),
+		popSource->Pdrgpwf(), pexprChild, (*pexprCarrier)[1]);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuild
@@ -4092,6 +4154,9 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildSort(pop, pmodel);
 		case EdslopLimit:
 			return PexprBuildLimit(pop, pmodel);
+		case EdslopWindowRows:
+		case EdslopWindowFrame:
+			return PexprBuildWindow(pop, pmodel);
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
 		case EdslopSemiJoin:

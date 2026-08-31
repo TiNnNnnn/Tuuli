@@ -36,6 +36,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmVirtualIdentityProj =
 		GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmWindowCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 	m_pdrgpexprNaryUnionTails = GPOS_NEW(mp) CExpressionArray(mp);
 }
@@ -59,6 +60,7 @@ CDSLModel::~CDSLModel()
 	m_phmAggBinding->Release();
 	m_phmVirtualIdentityProj->Release();
 	m_phmJoinPred->Release();
+	m_phmWindowCarrier->Release();
 	m_pdrgpexprUnionBindings->Release();
 	m_pdrgpexprNaryUnionTails->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
@@ -563,6 +565,55 @@ CDSLModel::PdrgpexprFunc(const CDSLSymbol *psym) const
 {
 	GPOS_ASSERT(EdslsymFunc == psym->Esymkind());
 	return static_cast<CExpressionArray *>(PvalLookup(psym));
+}
+
+COrderSpecArray *
+CDSLModel::PdrgposOrder(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymOrder == psym->Esymkind());
+	return static_cast<COrderSpecArray *>(PvalLookup(psym));
+}
+
+CExpression *
+CDSLModel::PexprWindow(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymWindow == psym->Esymkind());
+	return dynamic_cast<CExpression *>(PvalLookup(psym));
+}
+
+CWindowFrameArray *
+CDSLModel::PdrgpwfFrame(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymFrame == psym->Esymkind());
+	return static_cast<CWindowFrameArray *>(PvalLookup(psym));
+}
+
+BOOL
+CDSLModel::FSetWindowCarrier(const CDSLSymbol *psymWindow,
+							 CExpression *pexpr)
+{
+	GPOS_ASSERT(nullptr != psymWindow);
+	GPOS_ASSERT(EdslsymWindow == psymWindow->Esymkind());
+	GPOS_ASSERT(nullptr != pexpr);
+	CExpression *pexprExisting = m_phmWindowCarrier->Find(psymWindow);
+	if (nullptr != pexprExisting)
+	{
+		BOOL fCompatible = pexprExisting == pexpr;
+		pexpr->Release();
+		return fCompatible;
+	}
+	BOOL fInserted = m_phmWindowCarrier->Insert(
+		const_cast<CDSLSymbol *>(psymWindow), pexpr);
+	GPOS_ASSERT(fInserted);
+	return fInserted;
+}
+
+CExpression *
+CDSLModel::PexprWindowCarrier(const CDSLSymbol *psymWindow) const
+{
+	GPOS_ASSERT(nullptr != psymWindow);
+	GPOS_ASSERT(EdslsymWindow == psymWindow->Esymkind());
+	return m_phmWindowCarrier->Find(psymWindow);
 }
 
 // EOF

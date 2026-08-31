@@ -49,6 +49,9 @@ enum EDslSymbolKind
 	EdslsymFunc,		 // f
 	EdslsymScalar,		 // n
 	EdslsymExpr,		 // e (exact CScalarProjectList / expression list)
+	EdslsymOrder,		 // o (complete window order-spec array)
+	EdslsymWindow,		 // w (exact window project list)
+	EdslsymFrame,		 // m (complete window-frame array)
 	EdslsymSentinel
 };
 
@@ -81,6 +84,8 @@ enum EDslOpKind
 	EdslopLeftOuterApply,  // dependent left outer apply with explicit correlations
 	EdslopAntiJoinNotIn,   // NULL-aware relational left anti semi join
 	EdslopAntiApplyNotIn,  // dependent NULL-aware anti apply
+	EdslopWindowRows,	   // cumulative/default-frame window
+	EdslopWindowFrame,	   // window with explicit frame metadata
 	EdslopSentinel
 };
 
@@ -193,6 +198,14 @@ enum EDslConstraintKind
 	// Runtime ORCA validates the same scalar tree as PredicateEq; proof backends
 	// additionally relate the quantified decomposition.
 	EdslconQuantifiedPredicateEq,
+	EdslconOrderEq,
+	EdslconWindowEq,
+	EdslconFrameEq,
+	// WindowCorrelationPartition(corr,partition,order,items,local,outer) and
+	// its explicit-frame variant validate the operator-local preconditions for
+	// pulling a correlation equality above a partition-preserving window.
+	EdslconWindowCorrelationPartition,
+	EdslconWindowFrameCorrelationPartition,
 	EdslconSentinel
 };
 
