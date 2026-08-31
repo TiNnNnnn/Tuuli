@@ -2134,6 +2134,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pexprRight->Release();
 		return nullptr;
 	}
+	CExpression *pexprNotInComparison = nullptr;
 	if (fAntiJoinNotIn || fAntiApplyNotIn)
 	{
 		CExpression *pexprInverse =
@@ -2149,6 +2150,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 	if (fQualifiedAntiJoinNotIn)
 	{
+		// Retain the raw violation comparison independently of its position in
+		// the conjunction. Scalar AND children are unordered in the memo, so a
+		// numeric split point would not survive extraction.
+		pexprTargetPred->AddRef();
+		pexprNotInComparison = pexprTargetPred;
 		CExpression *pexprSourceQualifier =
 			PexprResolvePredicate((*pdrgpsym)[3], pmodel);
 		CExpression *pexprTargetQualifier = PexprRemapPredicateToChildren(
@@ -2157,6 +2163,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		CRefCount::SafeRelease(pexprSourceQualifier);
 		if (nullptr == pexprTargetQualifier)
 		{
+			pexprNotInComparison->Release();
 			pexprTargetPred->Release();
 			pexprLeft->Release();
 			pexprRight->Release();
@@ -2240,7 +2247,13 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApply(m_mp);
 			break;
 		case EdslopAntiJoinNotIn:
-			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiJoinNotIn(m_mp);
+			popJoin = nullptr == pexprNotInComparison
+				? static_cast<COperator *>(GPOS_NEW(m_mp)
+					  CLogicalLeftAntiSemiJoinNotIn(m_mp))
+				: static_cast<COperator *>(GPOS_NEW(m_mp)
+					  CLogicalLeftAntiSemiJoinNotIn(
+						  m_mp, pexprNotInComparison));
+			pexprNotInComparison = nullptr;
 			break;
 		case EdslopAntiApplyNotIn:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApplyNotIn(m_mp);
@@ -2258,6 +2271,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 			break;
 		default:
+			CRefCount::SafeRelease(pexprNotInComparison);
 			pexprTargetPred->Release();
 			pexprLeft->Release();
 			pexprRight->Release();

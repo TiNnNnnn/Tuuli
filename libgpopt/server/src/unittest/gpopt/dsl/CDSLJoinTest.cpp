@@ -123,6 +123,13 @@ using namespace gpopt;
 	"AttrsEq(a7,a4);AttrsEq(a8,a3);AttrsEq(a2,a4);"                        \
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)"
 
+#define GPOPT_DSL_QUALIFIED_NOT_IN_IDENTITY_RULE                         \
+	"AntiJoinNotIn<p0 a0 a1 p1 a2 a3>(Input<t0>,Input<t1>)|"             \
+	"AntiJoinNotIn<p2 a4 a5 p3 a6 a7>(Input<t2>,Input<t3>)|"             \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);"                   \
+	"AttrsEq(a4,a0);AttrsEq(a5,a1);PredicateEq(p3,p1);"                  \
+	"AttrsEq(a6,a2);AttrsEq(a7,a3)"
+
 #define GPOPT_DSL_UNCORRELATED_INNER_APPLY_RULE                       \
 	"InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                   \
 	"InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                       \
@@ -956,6 +963,68 @@ CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
 			eres = GPOS_FAILED;
 		}
 		CRefCount::SafeRelease(pdrgpexprConjuncts);
+		if (GPOS_OK == eres)
+		{
+			UlongToColRefMap *colrefMapping =
+				GPOS_NEW(mp) UlongToColRefMap(mp);
+			CExpression *pexprCopy =
+				pexprTarget->PexprCopyWithRemappedColumns(
+					mp, colrefMapping, false /*must_exist*/);
+			colrefMapping->Release();
+			CExpression *pexprCopyComparison =
+				CLogicalLeftAntiSemiJoinNotIn::PopConvert(pexprCopy->Pop())
+					->PexprNotInComparison();
+			if (nullptr == pexprCopyComparison ||
+				!CUtils::Equals(pexprCopyComparison, pexprViolation))
+			{
+				eres = GPOS_FAILED;
+			}
+			pexprCopy->Release();
+		}
+
+		// A subsequent DSL rule must recover comparison and qualifier after the
+		// target enters the memo. Exercise the harder ordering explicitly: AND is
+		// commutative, so put the qualifier before the comparison while retaining
+		// the operator's semantic marker.
+		CDSLRule *pruleIdentity = PdslruleParseLocal(
+			mp, GPOPT_DSL_QUALIFIED_NOT_IN_IDENTITY_RULE);
+		CExpression *pexprReordered = nullptr;
+		CDSLModel *pmodelIdentity = nullptr;
+		if (GPOS_OK == eres && nullptr != pruleIdentity)
+		{
+			CExpression *pexprReorderedPred =
+				CPredicateUtils::PexprConjunction(mp, pexprQualifier,
+										  pexprViolation);
+			pexprTarget->Pop()->AddRef();
+			(*pexprTarget)[0]->AddRef();
+			(*pexprTarget)[1]->AddRef();
+			pexprReordered = GPOS_NEW(mp) CExpression(
+				mp, pexprTarget->Pop(), (*pexprTarget)[0], (*pexprTarget)[1],
+				pexprReorderedPred);
+			pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcherIdentity(mp, pruleIdentity);
+			CDSLSymbolArray *pdrgpsymIdentity =
+				pruleIdentity->PfragSrc()->PopRoot()->Pdrgpsym();
+			if (!matcherIdentity.FMatch(
+					pruleIdentity->PfragSrc()->PopRoot(), pexprReordered,
+					pmodelIdentity) ||
+				!CUtils::Equals(
+					pmodelIdentity->PexprPred((*pdrgpsymIdentity)[0]),
+					pexprComparison) ||
+				!CUtils::Equals(
+					pmodelIdentity->PexprPred((*pdrgpsymIdentity)[3]),
+					pexprQualifier))
+			{
+				eres = GPOS_FAILED;
+			}
+		}
+		else
+		{
+			eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(pmodelIdentity);
+		CRefCount::SafeRelease(pexprReordered);
+		CRefCount::SafeRelease(pruleIdentity);
 	}
 
 	CRefCount::SafeRelease(pexprTarget);

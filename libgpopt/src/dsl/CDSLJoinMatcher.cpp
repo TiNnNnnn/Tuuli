@@ -17,6 +17,7 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CPropConstraint.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -40,6 +41,30 @@ using namespace gpopt;
 
 namespace
 {
+// Derive the exact left/right dependency vectors of a predicate. Predicates
+// using a column outside both relational inputs fail closed.
+BOOL
+FDerivePredicateDependencies(CMemoryPool *mp, CExpression *pexprPred,
+							 CExpression *pexprLeft, CExpression *pexprRight,
+							 CColRefArray **ppdrgpcrLeft,
+							 CColRefArray **ppdrgpcrRight)
+{
+	CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
+	CColRefSet *pcrsLeft = GPOS_NEW(mp) CColRefSet(mp, *pcrsUsed);
+	pcrsLeft->Intersection(pexprLeft->DeriveOutputColumns());
+	CColRefSet *pcrsRight = GPOS_NEW(mp) CColRefSet(mp, *pcrsUsed);
+	pcrsRight->Intersection(pexprRight->DeriveOutputColumns());
+	CColRefSet *pcrsDeclared = GPOS_NEW(mp) CColRefSet(mp, *pcrsLeft);
+	pcrsDeclared->Union(pcrsRight);
+	const BOOL fExact = pcrsDeclared->Equals(pcrsUsed);
+	*ppdrgpcrLeft = pcrsLeft->Pdrgpcr(mp);
+	*ppdrgpcrRight = pcrsRight->Pdrgpcr(mp);
+	pcrsDeclared->Release();
+	pcrsLeft->Release();
+	pcrsRight->Release();
+	return fExact;
+}
+
 // Return the already-bound source attrs connected to psymJoin by a direct
 // AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
 // constrain this match. Multiple declarations are accepted only when they
@@ -580,13 +605,92 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	CDSLSymbolArray *pdrgpsym = popJoin->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
 	if (nullptr == pdrgpsym ||
-		(fPredicateJoin ? 3 != ulSymbols
+		(fPredicateJoin ? (3 != ulSymbols &&
+							 !(fAntiJoinNotIn && 6 == ulSymbols))
 			   : (fPredicateApply ? 4 != ulSymbols
 			   : (2 != ulSymbols && 3 != ulSymbols && 4 != ulSymbols &&
 				  5 != ulSymbols && 7 != ulSymbols))) ||
 		2 != popJoin->UlChildren())
 	{
 		return false;
+	}
+
+	// A qualified AntiJoinNotIn keeps its user-visible ALL comparison separate
+	// from the row qualifier. ORCA executes inverse(comparison) AND qualifier as
+	// one scalar child, whose AND inputs are unordered in the memo. The operator
+	// marker identifies the comparison by semantic expression equality;
+	// everything else is the exact qualifier, independent of conjunct order.
+	if (fAntiJoinNotIn && 6 == ulSymbols)
+	{
+		CExpression *pexprRawComparison =
+			CLogicalLeftAntiSemiJoinNotIn::PopConvert(pexprJoin->Pop())
+				->PexprNotInComparison();
+		if (nullptr == pexprRawComparison)
+		{
+			return false;
+		}
+
+		CExpressionArray *pdrgpexprConjuncts =
+			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexprJoin)[2]);
+		CExpressionArray *pdrgpexprQualifier =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		BOOL fFoundComparison = false;
+		for (ULONG ul = 0; ul < pdrgpexprConjuncts->Size(); ul++)
+		{
+			CExpression *pexprConjunct = (*pdrgpexprConjuncts)[ul];
+			if (!fFoundComparison &&
+				CUtils::Equals(pexprRawComparison, pexprConjunct))
+			{
+				fFoundComparison = true;
+				continue;
+			}
+			pexprConjunct->AddRef();
+			pdrgpexprQualifier->Append(pexprConjunct);
+		}
+		pdrgpexprConjuncts->Release();
+		if (!fFoundComparison)
+		{
+			pdrgpexprQualifier->Release();
+			return false;
+		}
+
+		CExpression *pexprComparison =
+			CDSLMatchView::PexprInverseComparison(m_mp, pexprRawComparison);
+		CExpression *pexprQualifier =
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprQualifier);
+		if (nullptr == pexprComparison)
+		{
+			pexprQualifier->Release();
+			return false;
+		}
+
+		CColRefArray *pdrgpcrComparisonLeft = nullptr;
+		CColRefArray *pdrgpcrComparisonRight = nullptr;
+		CColRefArray *pdrgpcrQualifierLeft = nullptr;
+		CColRefArray *pdrgpcrQualifierRight = nullptr;
+		const BOOL fComparisonDeps = FDerivePredicateDependencies(
+			m_mp, pexprComparison, (*pexprJoin)[0], (*pexprJoin)[1],
+			&pdrgpcrComparisonLeft, &pdrgpcrComparisonRight);
+		const BOOL fQualifierDeps = FDerivePredicateDependencies(
+			m_mp, pexprQualifier, (*pexprJoin)[0], (*pexprJoin)[1],
+			&pdrgpcrQualifierLeft, &pdrgpcrQualifierRight);
+
+		BOOL fMatched = fComparisonDeps && fQualifierDeps &&
+			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
+			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel) &&
+			pmodel->FBind((*pdrgpsym)[0], pexprComparison) &&
+			pmodel->FBind((*pdrgpsym)[1], pdrgpcrComparisonLeft) &&
+			pmodel->FBind((*pdrgpsym)[2], pdrgpcrComparisonRight) &&
+			pmodel->FBind((*pdrgpsym)[3], pexprQualifier) &&
+			pmodel->FBind((*pdrgpsym)[4], pdrgpcrQualifierLeft) &&
+			pmodel->FBind((*pdrgpsym)[5], pdrgpcrQualifierRight);
+		pexprComparison->Release();
+		pexprQualifier->Release();
+		pdrgpcrComparisonLeft->Release();
+		pdrgpcrComparisonRight->Release();
+		pdrgpcrQualifierLeft->Release();
+		pdrgpcrQualifierRight->Release();
+		return fMatched;
 	}
 
 	// InnerJoin/LeftJoin<p a a> binds a complete predicate that has no
@@ -646,22 +750,11 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 			pexprPred =
 				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
 		}
-		CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
-		CColRefSet *pcrsLeftDeps =
-			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
-		pcrsLeftDeps->Intersection((*pexprJoin)[0]->DeriveOutputColumns());
-		CColRefSet *pcrsRightDeps =
-			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
-		pcrsRightDeps->Intersection((*pexprJoin)[1]->DeriveOutputColumns());
-		CColRefSet *pcrsDeclared =
-			GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsLeftDeps);
-		pcrsDeclared->Union(pcrsRightDeps);
-		const BOOL fDependenciesExact = pcrsDeclared->Equals(pcrsUsed);
-		CColRefArray *pdrgpcrLeftDeps = pcrsLeftDeps->Pdrgpcr(m_mp);
-		CColRefArray *pdrgpcrRightDeps = pcrsRightDeps->Pdrgpcr(m_mp);
-		pcrsDeclared->Release();
-		pcrsLeftDeps->Release();
-		pcrsRightDeps->Release();
+		CColRefArray *pdrgpcrLeftDeps = nullptr;
+		CColRefArray *pdrgpcrRightDeps = nullptr;
+		const BOOL fDependenciesExact = FDerivePredicateDependencies(
+			m_mp, pexprPred, (*pexprJoin)[0], (*pexprJoin)[1],
+			&pdrgpcrLeftDeps, &pdrgpcrRightDeps);
 
 		CColRefArray *pdrgpcrCorrelations = nullptr;
 		if (fPredicateApply)
