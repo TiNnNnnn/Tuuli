@@ -107,6 +107,8 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_UniqueAdmitThroughJoin),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueReject),
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_KeyedOutputAdmit),
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_KeyedOutputReject),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullAdmit),
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_NotNullThroughLeftJoin),
@@ -114,6 +116,48 @@ CDSLConstraintTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+static GPOS_RESULT
+EresKeyedOutput(BOOL fHasKey)
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Input<t0>|Filter<p0 a0>(Input<t1>)|"
+			"KeyedOutput(a0,t0);TableEq(t1,t0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOut = nullptr;
+	CExpression *pexprGet = fHasKey
+		? fix.PexprLogicalGet("keyed_output", 3, &pdrgpcrOut, 0 /*key*/)
+		: fix.PexprLogicalGet("unkeyed_output", 3, &pdrgpcrOut);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	pmodel->FBind(PsymByName(prule, "t0"), pexprGet);
+
+	CDSLConstraintChecker checker(mp);
+	const BOOL fHolds = checker.FCheck(prule, pmodel);
+	const GPOS_RESULT eres = fHolds == fHasKey ? GPOS_OK : GPOS_FAILED;
+	pmodel->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_KeyedOutputAdmit()
+{
+	return EresKeyedOutput(true);
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_KeyedOutputReject()
+{
+	return EresKeyedOutput(false);
 }
 
 GPOS_RESULT

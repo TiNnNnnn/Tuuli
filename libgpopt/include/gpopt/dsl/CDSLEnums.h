@@ -209,6 +209,11 @@ enum EDslConstraintKind
 	// pulling a correlation equality above a partition-preserving window.
 	EdslconWindowCorrelationPartition,
 	EdslconWindowFrameCorrelationPartition,
+	// KeyedOutput(out,relation): out is the complete ordered output vector of
+	// relation, and that relation exposes a key. Target-only out symbols are
+	// materialized lazily. This is the generic relation-level building block for
+	// rewrites that must group without losing any output column.
+	EdslconKeyedOutput,
 	EdslconSentinel
 };
 

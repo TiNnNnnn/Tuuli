@@ -48,6 +48,11 @@ public:
 	static GPOS_RESULT EresUnittest_UniqueAdmitThroughJoin();
 	static GPOS_RESULT EresUnittest_UniqueReject();
 
+	// KeyedOutput(a,t): target-only a is admitted for a keyed relation and the
+	// same relation without a key is rejected before instantiation.
+	static GPOS_RESULT EresUnittest_KeyedOutputAdmit();
+	static GPOS_RESULT EresUnittest_KeyedOutputReject();
+
 	// NotNull(t,a): admit when a's columns are non-nullable; reject when nullable
 	static GPOS_RESULT EresUnittest_NotNullAdmit();
 	static GPOS_RESULT EresUnittest_NotNullThroughLeftJoin();

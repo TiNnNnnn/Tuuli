@@ -90,6 +90,11 @@ private:
 	BOOL FCheckAttrsUnion(const CDSLConstraint *pcon,
 						  const CDSLModel *pmodel) const;
 
+	// KeyedOutput(a,t): a is t's complete output vector and t exposes a key.
+	// A target-only a is deferred to the instantiator after validating t.
+	BOOL FCheckKeyedOutput(const CDSLConstraint *pcon,
+						   const CDSLModel *pmodel) const;
+
 	// ExprFilterCommute(e,p,s): the predicate does not consume columns defined
 	// by the Compute list, whose evaluation is immutable and error-free.
 	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,

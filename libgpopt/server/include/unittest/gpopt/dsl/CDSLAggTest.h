@@ -83,6 +83,10 @@ public:
 	// aggregate output columns from schema - groupByAttrs.
 	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
 
+	// KeyedOutput validates a source full-row grouping and lazily derives the
+	// corresponding target grouping from a keyed relational child.
+	static GPOS_RESULT EresUnittest_InstantiateKeyedOutputGrouping();
+
 	// MinimalGrouping derives the same FD-backed metadata as
 	// CXformSimplifyGbAgg without changing the full semantic grouping, and does
 	// not rematch an already annotated aggregate.

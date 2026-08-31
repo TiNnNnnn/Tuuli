@@ -156,6 +156,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconWindowCorrelationPartition, "WindowCorrelationPartition", 6},
 	{EdslconWindowFrameCorrelationPartition,
 	 "WindowFrameCorrelationPartition", 7},
+	{EdslconKeyedOutput, "KeyedOutput", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -616,6 +617,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconFrameEq:
 		case EdslconWindowCorrelationPartition:
 		case EdslconWindowFrameCorrelationPartition:
+		case EdslconKeyedOutput:
 			return true;
 		case EdslconSentinel:
 			return false;

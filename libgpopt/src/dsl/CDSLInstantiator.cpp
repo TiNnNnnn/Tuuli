@@ -15,6 +15,7 @@
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
@@ -918,6 +919,17 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
+		if (EdslconKeyedOutput == pcon->Edslcon() &&
+			2 == pcon->Pdrgpsym()->Size() &&
+			(*pcon->Pdrgpsym())[0] == psym)
+		{
+			if (fEmptyDef || nullptr != pconDef ||
+				EdslsymAttrs != psym->Esymkind())
+			{
+				return nullptr;
+			}
+			pconDef = pcon;
+		}
 	}
 	if (fEmptyDef)
 	{
@@ -933,6 +945,38 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	if (nullptr == pconDef)
 	{
 		return nullptr;
+	}
+	if (EdslconKeyedOutput == pconDef->Edslcon())
+	{
+		const CDSLSymbol *psymTable =
+			PsymResolve((*pconDef->Pdrgpsym())[1]);
+		if (EdslsymTable != psymTable->Esymkind())
+		{
+			return nullptr;
+		}
+		CExpression *pexprTable = pmodel->PexprTable(psymTable);
+		if (nullptr == pexprTable ||
+			nullptr == pexprTable->DeriveKeyCollection())
+		{
+			return nullptr;
+		}
+		CColRefSet *pcrsOutput = pexprTable->DeriveOutputColumns();
+		CColRefSetIter iter(*pcrsOutput);
+		while (iter.Advance())
+		{
+			if (iter.Pcr()->IsSystemCol())
+			{
+				return nullptr;
+			}
+		}
+		CColRefArray *pdrgpcrResult = pcrsOutput->Pdrgpcr(m_mp);
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
+									 pdrgpcrResult))
+		{
+			pdrgpcrResult->Release();
+			return nullptr;
+		}
+		return pdrgpcrResult;
 	}
 	if (EdslconAttrsUnion == pconDef->Edslcon() ||
 		EdslconSchemaUnion == pconDef->Edslcon())

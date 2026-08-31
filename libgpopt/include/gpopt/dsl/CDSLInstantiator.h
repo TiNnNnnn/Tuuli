@@ -114,8 +114,9 @@ private:
 									ULONG ulDepth = 0) const;
 
 	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
-	// ordered subset, AttrsUnion a stable duplicate-free union, and AttrsEmpty
-	// materializes a target-only empty attrs vector.
+	// ordered subset, AttrsUnion a stable duplicate-free union, AttrsEmpty
+	// materializes a target-only empty attrs vector, and KeyedOutput derives the
+	// complete output vector of a keyed relation.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,
 									 const CDSLModel *pmodel,
 									 ULONG ulDepth = 0) const;

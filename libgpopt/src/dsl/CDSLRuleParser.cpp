@@ -571,6 +571,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconKeyedOutput == edslcon &&
+			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("KeyedOutput expects attrs and table symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;

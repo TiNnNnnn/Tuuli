@@ -69,6 +69,13 @@ using namespace gpopt;
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);"                    \
 	"MinimalGrouping(a0,s0)"
 
+#define GPOPT_DSL_AGG_KEYED_OUTPUT_RULE                                    \
+	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
+	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
+	"KeyedOutput(a0,t0);KeyedOutput(a2,t0);AttrsSub(a1,t0);"                \
+	"TableEq(t1,t0);AttrsEq(a3,a1);FuncEq(f1,f0);"                          \
+	"SchemaEq(s1,s0);PredicateEq(p1,p0)"
+
 #define GPOPT_DSL_AGG_FILTER_COMMUTE_RULE                                  \
 	"Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|"                   \
 	"Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|"                  \
@@ -223,6 +230,8 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_DistinctAggregateRejectsWithoutUnique),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
@@ -926,6 +935,73 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 	pmodel->Release();
 	pexprGet->Release();
 	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_KEYED_OUTPUT_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrInput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"keyed_agg", 2, &pdrgpcrInput, 0 /*key*/);
+	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+	pdrgpcrGroup->Append((*pdrgpcrInput)[1]);
+	CColRef *pcrAggOut = fix.PcrCreateInt4("max_keyed_c1");
+	CExpression *pexprSource = fix.PexprLogicalGbAgg(
+		pexprGet, pdrgpcrGroup, pcrAggOut, (*pdrgpcrInput)[1]);
+	pdrgpcrGroup->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CLogicalGbAgg *popTarget =
+			nullptr != pexprTarget &&
+				COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid()
+			? CLogicalGbAgg::PopConvert(pexprTarget->Pop())
+			: nullptr;
+		CColRefSet *pcrsExpected = GPOS_NEW(mp) CColRefSet(mp);
+		pcrsExpected->Include(pdrgpcrInput);
+		CColRefSet *pcrsActual = GPOS_NEW(mp) CColRefSet(mp);
+		if (nullptr != popTarget)
+		{
+			pcrsActual->Include(popTarget->Pdrgpcr());
+		}
+		if (nullptr == popTarget || 2 != popTarget->Pdrgpcr()->Size() ||
+			!pcrsExpected->Equals(pcrsActual) || (*pexprTarget)[0] != pexprGet)
+		{
+			eres = GPOS_FAILED;
+		}
+		pcrsActual->Release();
+		pcrsExpected->Release();
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprGet->Release();
 	prule->Release();
 	return eres;
 }

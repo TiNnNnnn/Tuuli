@@ -956,6 +956,56 @@ CDSLConstraintChecker::FCheckAttrsEmpty(const CDSLConstraint *pcon,
 
 //---------------------------------------------------------------------------
 //	@function:
+//		CDSLConstraintChecker::FCheckKeyedOutput
+//
+//	@doc:
+//		KeyedOutput(a,t): t has a derived key and a is exactly t's output set.
+//		The attrs symbol is normally target-only, so matching validates the
+//		relation now and leaves materialization to CDSLInstantiator.
+//---------------------------------------------------------------------------
+BOOL
+CDSLConstraintChecker::FCheckKeyedOutput(const CDSLConstraint *pcon,
+										 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() ||
+		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+
+	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	CExpression *pexprTable = pmodel->PexprTable((*pdrgpsym)[1]);
+	if (nullptr == pexprTable || nullptr == pexprTable->DeriveKeyCollection())
+	{
+		return false;
+	}
+
+	CColRefSet *pcrsOutput = pexprTable->DeriveOutputColumns();
+	CColRefSetIter iter(*pcrsOutput);
+	while (iter.Advance())
+	{
+		if (iter.Pcr()->IsSystemCol())
+		{
+			return false;
+		}
+	}
+
+	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+	if (nullptr == pdrgpcrAttrs)
+	{
+		return EdslsideTarget == psymAttrs->Eside();
+	}
+	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAttrs->Include(pdrgpcrAttrs);
+	const BOOL fEqual = pcrsOutput->Equals(pcrsAttrs);
+	pcrsAttrs->Release();
+	return fEqual;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
 //		CDSLConstraintChecker::FCheckAttrsIntersect
 //
 //	@doc:
@@ -2473,6 +2523,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsSub(pcon, pmodel);
 			case EdslconAttrsEmpty:
 				return FCheckAttrsEmpty(pcon, pmodel);
+		case EdslconKeyedOutput:
+			return FCheckKeyedOutput(pcon, pmodel);
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconAttrsUnion:
