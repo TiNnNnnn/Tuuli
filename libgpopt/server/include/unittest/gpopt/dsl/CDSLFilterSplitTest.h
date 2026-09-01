@@ -52,6 +52,14 @@ public:
 	// conjunction, so an absorbing target cannot lose sibling predicates.
 	static GPOS_RESULT EresUnittest_CorrelatedFilterBindsWholePredicate();
 
+	// A PredicateDomainSplit source Filter binds every predicate from adjacent
+	// physical Select nodes and exposes their common relational base.
+	static GPOS_RESULT EresUnittest_CorrelatedFilterCollectsSelectChain();
+
+	// Without an explicit whole-chain constraint, a correlation-aware Filter
+	// consumes one Select boundary and leaves the child subtree opaque.
+	static GPOS_RESULT EresUnittest_CorrelatedFilterKeepsSelectBoundary();
+
 	// ORCA normalizes Filter(p,Filter(p,x)) to one conjunct; both placeholders
 	// may bind that same conjunct and it is consumed only once.
 	static GPOS_RESULT EresUnittest_NormalizedDuplicateFilterMatchesOnce();

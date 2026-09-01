@@ -1,0 +1,71 @@
+{
+  "description": "The proved external SemiApply rule also expands the IN-tagged carrier without duplicating RuleIR",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "Base-input LeftSemiApplyIn whose comparison is current-domain and inner Filter is enclosing-domain",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "1e4d3313e9d2ed00"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1e4d3313e9d2ed00\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1e4d3313e9d2ed00\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

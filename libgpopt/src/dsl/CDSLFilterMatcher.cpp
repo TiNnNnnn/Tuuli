@@ -43,11 +43,12 @@ CColRefArray *PdrgpcrFilterDependencies(CMemoryPool *mp,
 
 // ORCA may retain adjacent Select nodes in separate Memo groups or normalize
 // them into one AND predicate. Present both physical forms as one Filter chain
-// to the DSL matcher and return the relational child left after consuming only
-// the number of Filter placeholders declared by the source template.
+// to the DSL matcher and return the relational child left after consuming the
+// requested Filter placeholders. A constraint that explicitly partitions a
+// complete predicate domain may request the whole adjacent Select chain.
 CExpression *
 PexprCollectSelectChain(CMemoryPool *mp, CExpression *pexprSelect,
-						ULONG ulRequiredFilters,
+						ULONG ulRequiredFilters, BOOL fCollectAll,
 						CExpressionArray *pdrgpexprConj)
 {
 	CExpression *pexprCurrent = pexprSelect;
@@ -63,7 +64,7 @@ PexprCollectSelectChain(CMemoryPool *mp, CExpression *pexprSelect,
 		// into another physical Select only when the conjuncts collected so far
 		// cannot bind the remaining DSL Filter placeholders. This keeps a
 		// one-Filter rule from silently absorbing an adjacent inner Filter.
-		if (pdrgpexprConj->Size() >= ulRequiredFilters)
+		if (!fCollectAll && pdrgpexprConj->Size() >= ulRequiredFilters)
 		{
 			break;
 		}
@@ -203,6 +204,41 @@ FDirectEquality(const CDSLRule *prule, EDslConstraintKind edslcon,
 		if (2 == pdrgpsym->Size() &&
 			((psymFirst == (*pdrgpsym)[0] && psymSecond == (*pdrgpsym)[1]) ||
 			 (psymFirst == (*pdrgpsym)[1] && psymSecond == (*pdrgpsym)[0])))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+// PredicateDomainSplit reasons about the conjunction of its two source
+// predicates as a whole. If one of those predicates is carried by a Filter,
+// adjacent physical Select wrappers are normalization artifacts rather than
+// independent DSL Filter boundaries. Other three-symbol Filters retain their
+// ordinary one-level behavior so operator-local rewrites can compose.
+BOOL
+FRequiresCompleteSelectChain(const CDSLRule *prule, const CDSLOp *popFilter)
+{
+	if (nullptr == prule || nullptr == popFilter ||
+		nullptr == popFilter->Pdrgpsym() ||
+		3 != popFilter->Pdrgpsym()->Size())
+	{
+		return false;
+	}
+
+	const CDSLSymbol *psymPredicate = (*popFilter->Pdrgpsym())[0];
+	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconPredicateDomainSplit != pcon->Edslcon())
+		{
+			continue;
+		}
+		CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+		if (10 == pdrgpsym->Size() &&
+			(psymPredicate == (*pdrgpsym)[0] ||
+			 psymPredicate == (*pdrgpsym)[1]))
 		{
 			return true;
 		}
@@ -819,8 +855,15 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	// for assignment/residual preservation; only the physical wrappers disappear
 	// from the read-only match view.
 	CExpressionArray *pdrgpexprConj = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	const BOOL fCompletePredicate =
+		1 == ulFilters && nullptr != rgpopFilters[0]->Pdrgpsym() &&
+		3 == rgpopFilters[0]->Pdrgpsym()->Size();
+	const BOOL fCollectAllSelects =
+		fCompletePredicate &&
+		FRequiresCompleteSelectChain(m_prule, rgpopFilters[0]);
 	CExpression *pexprBase =
-		PexprCollectSelectChain(m_mp, pexprSelect, ulFilters, pdrgpexprConj);
+		PexprCollectSelectChain(m_mp, pexprSelect, ulFilters,
+							fCollectAllSelects, pdrgpexprConj);
 
 	// A predicate that rejects NULLs from a LeftJoin's nullable side makes the
 	// filtered result exactly equivalent to filtering an InnerJoin. Expose that
@@ -861,8 +904,7 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	// the historical two-symbol Filter-chain form, it must not silently select
 	// one conjunct: a rewrite that absorbs this Filter (for example into a
 	// SemiJoin predicate) would otherwise lose the unselected correlations.
-	if (1 == ulFilters && nullptr != rgpopFilters[0]->Pdrgpsym() &&
-		3 == rgpopFilters[0]->Pdrgpsym()->Size())
+	if (fCompletePredicate)
 	{
 		CExpressionArray *pdrgpexprPred = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 		CUtils::AddRefAppend(pdrgpexprPred, pdrgpexprConj);
