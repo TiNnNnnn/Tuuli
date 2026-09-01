@@ -50,6 +50,14 @@ public:
 	// equivalent source view; target attrs remap it to the opposite root key.
 	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();
 
+	// PredicateDomainSplit atomically derives residual/external predicates and
+	// their exact dependency partitions from two current relation domains.
+	static GPOS_RESULT EresUnittest_PredicateDomainSplit();
+
+	// A single conjunct spanning both current domains and an external domain is
+	// not separable and must make target instantiation fail.
+	static GPOS_RESULT EresUnittest_PredicateDomainSplitRejectsMixedAtom();
+
 	// the reused base subtree is grafted (the target's Get child is the same
 	// bound subtree the source matched).
 	static GPOS_RESULT EresUnittest_BaseSubtreeReused();

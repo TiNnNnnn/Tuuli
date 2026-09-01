@@ -1030,6 +1030,101 @@ CDSLConstraintChecker::FCheckSchemaFromAttrs(
 	return CColRef::Equals(pdrgpcrSchema, pdrgpcrAttrs);
 }
 
+BOOL
+CDSLConstraintChecker::FCheckPredicateDomainSplit(
+	const CDSLRule *prule, const CDSLConstraint *pcon,
+	const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (9 != pdrgpsym->Size())
+	{
+		return false;
+	}
+	const EDslSymbolKind rgExpected[] = {
+		EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
+		EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymTable,
+		EdslsymTable};
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
+	{
+		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
+		{
+			return false;
+		}
+	}
+
+	// Positions 1..6 are an atomic target-side decomposition. Accepting a
+	// partially bound mixture would let independently matched artifacts disagree
+	// with the partition recomputed by the instantiator.
+	for (ULONG ul = 1; ul <= 6; ul++)
+	{
+		if (EdslsideTarget != (*pdrgpsym)[ul]->Eside() ||
+			nullptr != pmodel->PvalLookup((*pdrgpsym)[ul]))
+		{
+			return false;
+		}
+		for (ULONG ulOther = ul + 1; ulOther <= 6; ulOther++)
+		{
+			if ((*pdrgpsym)[ul] == (*pdrgpsym)[ulOther])
+			{
+				return false;
+			}
+		}
+	}
+	if (nullptr == pmodel->PexprPred((*pdrgpsym)[0]) &&
+		EdslsideTarget != (*pdrgpsym)[0]->Eside())
+	{
+		return false;
+	}
+
+	// Partitioning changes conjunction evaluation order. Admit it only when the
+	// rule explicitly asks the ordinary scalar checker to establish both safety
+	// properties on the complete source predicate. This keeps the split
+	// constraint structural and reuses the same proof guards as every other DSL
+	// rewrite that moves scalar evaluation.
+	BOOL fErrorFree = false;
+	BOOL fDeterministic = false;
+	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
+	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+	{
+		const CDSLConstraint *pconProperty = (*pdrgpcon)[ul];
+		if (EdslconPredicateEq == pconProperty->Edslcon() ||
+			EdslconAttrsEq == pconProperty->Edslcon())
+		{
+			for (ULONG ulArg = 0; ulArg < pconProperty->Pdrgpsym()->Size();
+				 ulArg++)
+			{
+				for (ULONG ulOutput = 1; ulOutput <= 6; ulOutput++)
+				{
+					if ((*pconProperty->Pdrgpsym())[ulArg] ==
+						(*pdrgpsym)[ulOutput])
+					{
+						return false;
+					}
+				}
+			}
+		}
+		if (1 != pconProperty->Pdrgpsym()->Size() ||
+			(*pconProperty->Pdrgpsym())[0] != (*pdrgpsym)[0])
+		{
+			continue;
+		}
+		fErrorFree = fErrorFree ||
+			EdslconErrorFree == pconProperty->Edslcon();
+		fDeterministic = fDeterministic ||
+			EdslconDeterministic == pconProperty->Edslcon();
+	}
+	if (!fErrorFree || !fDeterministic)
+	{
+		return false;
+	}
+
+	CExpression *pexprOuter = pmodel->PexprTable((*pdrgpsym)[7]);
+	CExpression *pexprInner = pmodel->PexprTable((*pdrgpsym)[8]);
+	return nullptr != pexprOuter && nullptr != pexprInner &&
+		pexprOuter->DeriveOutputColumns()->IsDisjoint(
+			pexprInner->DeriveOutputColumns());
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckAttrsIntersect
@@ -2553,6 +2648,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckKeyedOutput(pcon, pmodel);
 		case EdslconSchemaFromAttrs:
 			return FCheckSchemaFromAttrs(pcon, pmodel);
+		case EdslconPredicateDomainSplit:
+			return FCheckPredicateDomainSplit(prule, pcon, pmodel);
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconAttrsUnion:

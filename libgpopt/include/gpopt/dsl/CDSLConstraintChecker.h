@@ -99,6 +99,12 @@ private:
 	BOOL FCheckSchemaFromAttrs(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
+	// PredicateDomainSplit(...): validate typed input/output domains. Concrete
+	// partitioning is performed atomically by the target instantiator.
+	BOOL FCheckPredicateDomainSplit(const CDSLRule *prule,
+								  const CDSLConstraint *pcon,
+								  const CDSLModel *pmodel) const;
+
 	// ExprFilterCommute(e,p,s): the predicate does not consume columns defined
 	// by the Compute list, whose evaluation is immutable and error-free.
 	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,

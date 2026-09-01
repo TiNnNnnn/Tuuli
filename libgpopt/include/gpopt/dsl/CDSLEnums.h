@@ -217,6 +217,11 @@ enum EDslConstraintKind
 	// SchemaFromAttrs(schema,attrs): schema is the same ordered concrete column
 	// vector as attrs, crossing the DSL's distinct symbol namespaces explicitly.
 	EdslconSchemaFromAttrs,
+	// PredicateDomainSplit(source,residual,external,residual_outer,
+	// residual_inner,external_local,external_outer,outer,inner): partition
+	// source conjuncts by the two current relational domains. A conjunct that
+	// mixes both current domains with an external domain is rejected.
+	EdslconPredicateDomainSplit,
 	EdslconSentinel
 };
 

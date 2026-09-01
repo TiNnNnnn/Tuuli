@@ -85,6 +85,10 @@ private:
 	// CColRefArray objects owned by this per-instantiation cache.
 	mutable CDSLSymbolToRefMap *m_phmDerivedCols;
 
+	// Target predicates materialized by multi-output predicate algebra such as
+	// PredicateDomainSplit. Values are owned by this instantiation.
+	mutable CDSLSymbolToExpressionMap *m_phmDerivedPreds;
+
 	// Rule currently being instantiated (not owned). Used to associate a target
 	// Filter's predicate template with the attrs vector of its source Filter.
 	const CDSLRule *m_prule;
@@ -112,6 +116,13 @@ private:
 	CExpression *PexprResolvePredicate(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
 									ULONG ulDepth = 0) const;
+
+	// Atomically partition one conjunction and populate its two predicate plus
+	// four dependency-vector outputs. Returns false for mixed three-domain atoms
+	// or when no genuine external dependency exists.
+	BOOL FMaterializePredicateDomainSplit(const CDSLConstraint *pcon,
+									   const CDSLModel *pmodel,
+									   ULONG ulDepth) const;
 
 	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
 	// ordered subset, AttrsUnion a stable duplicate-free union, AttrsEmpty

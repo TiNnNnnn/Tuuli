@@ -78,10 +78,206 @@ CDSLInstantiateTest::EresUnittest()
 			CDSLInstantiateTest::EresUnittest_DerivedFilterConjunction),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped),
+		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_PredicateDomainSplit),
+		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_BaseSubtreeReused),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiateTest::EresUnittest_PredicateDomainSplit
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"TableEq(t2,t0);TableEq(t3,t1);"
+		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1);"
+		"ErrorFree(p0);Deterministic(p0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CColRefArray *pdrgpcrExternal = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("split_outer", 1, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("split_inner", 2, &pdrgpcrInner);
+	CExpression *pexprExternal =
+		fix.PexprLogicalGet("split_external", 1, &pdrgpcrExternal);
+	CExpression *pexprResidual =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprOuter, pexprInner, pexprResidual);
+	CExpression *pexprExternalPred =
+		fix.PexprEqPred((*pdrgpcrInner)[1], (*pdrgpcrExternal)[0]);
+	CExpression *pexprCombined = CPredicateUtils::PexprConjunction(
+		mp, pexprResidual, pexprExternalPred);
+	CExpression *pexprSource =
+		fix.PexprLogicalSelect(pexprJoin, pexprCombined);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	const BOOL fMatched =
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+	const BOOL fChecked = fMatched && checker.FCheck(prule, pmodel);
+	if (!fMatched || !fChecked)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalInnerJoin != (*pexprTarget)[0]->Pop()->Eopid() ||
+			!(*pexprTarget)[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrInner)[1]) ||
+			!(*pexprTarget)[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrExternal)[0]) ||
+			(*pexprTarget)[1]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrOuter)[0]) ||
+			!(*(*pexprTarget)[0])[2]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrOuter)[0]) ||
+			!(*(*pexprTarget)[0])[2]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrInner)[0]) ||
+			(*(*pexprTarget)[0])[2]->DeriveUsedColumns()->FMember(
+				(*pdrgpcrExternal)[0]))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+	CDSLRule *pruleUnsafe = PdslruleParseLocal(
+		mp,
+		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"TableEq(t2,t0);TableEq(t3,t1);"
+		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1)");
+	CDSLModel *pmodelUnsafe = GPOS_NEW(mp) CDSLModel(mp);
+	if (nullptr == pruleUnsafe ||
+		!CDSLMatcher(mp, pruleUnsafe)
+			 .FMatch(pruleUnsafe->PfragSrc()->PopRoot(), pexprSource,
+					 pmodelUnsafe) ||
+		checker.FCheck(pruleUnsafe, pmodelUnsafe))
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodelUnsafe->Release();
+	CRefCount::SafeRelease(pruleUnsafe);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprCombined->Release();
+	pexprExternalPred->Release();
+	pexprJoin->Release();
+	pexprResidual->Release();
+	pexprExternal->Release();
+	pexprInner->Release();
+	pexprOuter->Release();
+	prule->Release();
+	return eres;
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"TableEq(t2,t0);TableEq(t3,t1);"
+		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1);"
+		"ErrorFree(p0);Deterministic(p0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CColRefArray *pdrgpcrExternal = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("mixed_outer", 1, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("mixed_inner", 2, &pdrgpcrInner);
+	CExpression *pexprExternal =
+		fix.PexprLogicalGet("mixed_external", 1, &pdrgpcrExternal);
+	CExpression *pexprResidual =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprOuter, pexprInner, pexprResidual);
+	CExpression *pexprCurrentDomains =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[1]);
+	CExpression *pexprExternalDomain =
+		fix.PexprEqPred((*pdrgpcrInner)[1], (*pdrgpcrExternal)[0]);
+	// OR is one top-level conjunct. It cannot be split without changing its
+	// Boolean structure, and together its dependencies span all three domains.
+	CExpression *pexprMixed = CPredicateUtils::PexprDisjunction(
+		mp, pexprCurrentDomains, pexprExternalDomain);
+	CExpression *pexprSource = fix.PexprLogicalSelect(pexprJoin, pexprMixed);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	const BOOL fMatched =
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+	const BOOL fChecked = fMatched && checker.FCheck(prule, pmodel);
+	if (!fMatched || !fChecked)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr != pexprTarget)
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprMixed->Release();
+	pexprExternalDomain->Release();
+	pexprCurrentDomains->Release();
+	pexprJoin->Release();
+	pexprResidual->Release();
+	pexprExternal->Release();
+	pexprInner->Release();
+	pexprOuter->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------

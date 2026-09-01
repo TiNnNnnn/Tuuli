@@ -662,12 +662,14 @@ CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_phmAlias(nullptr),
 	  m_phmDerivedCols(nullptr),
+	  m_phmDerivedPreds(nullptr),
 	  m_prule(nullptr),
 	  m_pdrgpsymBuiltInputs(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmAlias = GPOS_NEW(mp) CDSLSymbolAliasMap(mp);
 	m_phmDerivedCols = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
+	m_phmDerivedPreds = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpsymBuiltInputs = GPOS_NEW(mp) CDSLSymbolArray(mp);
 }
 
@@ -678,6 +680,7 @@ CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
 CDSLInstantiator::~CDSLInstantiator()
 {
 	m_pdrgpsymBuiltInputs->Release();
+	m_phmDerivedPreds->Release();
 	m_phmDerivedCols->Release();
 	m_phmAlias->Release();
 }
@@ -805,6 +808,177 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 	return nullptr;
 }
 
+BOOL
+CDSLInstantiator::FMaterializePredicateDomainSplit(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel, ULONG ulDepth) const
+{
+	if (nullptr == pcon || 9 != pcon->Pdrgpsym()->Size() ||
+		nullptr == m_prule || ulDepth > m_prule->Pdrgpcon()->Size())
+	{
+		return false;
+	}
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	const CDSLSymbol *psymResidual = PsymResolve((*pdrgpsym)[1]);
+	const CDSLSymbol *psymExternal = PsymResolve((*pdrgpsym)[2]);
+	const CDSLSymbol *psymResidualOuter = PsymResolve((*pdrgpsym)[3]);
+	const CDSLSymbol *psymResidualInner = PsymResolve((*pdrgpsym)[4]);
+	const CDSLSymbol *psymExternalLocal = PsymResolve((*pdrgpsym)[5]);
+	const CDSLSymbol *psymExternalOuter = PsymResolve((*pdrgpsym)[6]);
+	const BOOL fAllCached =
+		nullptr != m_phmDerivedPreds->Find(psymResidual) &&
+		nullptr != m_phmDerivedPreds->Find(psymExternal) &&
+		nullptr != m_phmDerivedCols->Find(psymResidualOuter) &&
+		nullptr != m_phmDerivedCols->Find(psymResidualInner) &&
+		nullptr != m_phmDerivedCols->Find(psymExternalLocal) &&
+		nullptr != m_phmDerivedCols->Find(psymExternalOuter);
+	if (fAllCached)
+	{
+		return true;
+	}
+	if (nullptr != m_phmDerivedPreds->Find(psymResidual) ||
+		nullptr != m_phmDerivedPreds->Find(psymExternal) ||
+		nullptr != m_phmDerivedCols->Find(psymResidualOuter) ||
+		nullptr != m_phmDerivedCols->Find(psymResidualInner) ||
+		nullptr != m_phmDerivedCols->Find(psymExternalLocal) ||
+		nullptr != m_phmDerivedCols->Find(psymExternalOuter))
+	{
+		return false;
+	}
+
+	CExpression *pexprSource = PexprResolvePredicate(
+		(*pdrgpsym)[0], pmodel, ulDepth + 1);
+	CExpression *pexprOuter =
+		pmodel->PexprTable(PsymResolve((*pdrgpsym)[7]));
+	CExpression *pexprInner =
+		pmodel->PexprTable(PsymResolve((*pdrgpsym)[8]));
+	if (nullptr == pexprSource || nullptr == pexprOuter ||
+		nullptr == pexprInner)
+	{
+		CRefCount::SafeRelease(pexprSource);
+		return false;
+	}
+
+	CColRefSet *pcrsOuter = pexprOuter->DeriveOutputColumns();
+	CColRefSet *pcrsInner = pexprInner->DeriveOutputColumns();
+	if (!pcrsOuter->IsDisjoint(pcrsInner))
+	{
+		pexprSource->Release();
+		return false;
+	}
+	CColRefSet *pcrsChildren = GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsOuter);
+	pcrsChildren->Union(pcrsInner);
+	CColRefSet *pcrsResidualOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsResidualInner = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsExternalLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSet *pcrsExternalOuter = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CExpressionArray *pdrgpexprResidual = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	CExpressionArray *pdrgpexprExternal = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	CExpressionArray *pdrgpexprConjuncts =
+		CPredicateUtils::PdrgpexprConjuncts(m_mp, pexprSource);
+	BOOL fValid = true;
+	for (ULONG ul = 0; fValid && ul < pdrgpexprConjuncts->Size(); ul++)
+	{
+		CExpression *pexprConjunct = (*pdrgpexprConjuncts)[ul];
+		CColRefSet *pcrsUsed = GPOS_NEW(m_mp)
+			CColRefSet(m_mp, *pexprConjunct->DeriveUsedColumns());
+		if (pcrsUsed->IsDisjoint(pcrsOuter) ||
+			pcrsUsed->IsDisjoint(pcrsInner))
+		{
+			pexprConjunct->AddRef();
+			pdrgpexprExternal->Append(pexprConjunct);
+			CColRefSet *pcrsLocal =
+				GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+			pcrsLocal->Intersection(pcrsChildren);
+			pcrsExternalLocal->Union(pcrsLocal);
+			pcrsLocal->Release();
+			pcrsUsed->Difference(pcrsChildren);
+			pcrsExternalOuter->Union(pcrsUsed);
+		}
+		else if (pcrsChildren->ContainsAll(pcrsUsed))
+		{
+			pexprConjunct->AddRef();
+			pdrgpexprResidual->Append(pexprConjunct);
+			CColRefSet *pcrsCurrent =
+				GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+			pcrsCurrent->Intersection(pcrsOuter);
+			pcrsResidualOuter->Union(pcrsCurrent);
+			pcrsCurrent->Release();
+			pcrsCurrent = GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+			pcrsCurrent->Intersection(pcrsInner);
+			pcrsResidualInner->Union(pcrsCurrent);
+			pcrsCurrent->Release();
+		}
+		else
+		{
+			fValid = false;
+		}
+		pcrsUsed->Release();
+	}
+	pdrgpexprConjuncts->Release();
+	pexprSource->Release();
+	fValid = fValid && 0 < pdrgpexprExternal->Size() &&
+		0 < pcrsExternalOuter->Size();
+	if (!fValid)
+	{
+		pdrgpexprResidual->Release();
+		pdrgpexprExternal->Release();
+		pcrsResidualOuter->Release();
+		pcrsResidualInner->Release();
+		pcrsExternalLocal->Release();
+		pcrsExternalOuter->Release();
+		pcrsChildren->Release();
+		return false;
+	}
+	pcrsChildren->Release();
+
+	CExpression *pexprResidual =
+		CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual);
+	CExpression *pexprExternal =
+		CPredicateUtils::PexprConjunction(m_mp, pdrgpexprExternal);
+	CColRefArray *pdrgpcrResidualOuter = pcrsResidualOuter->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrResidualInner = pcrsResidualInner->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrExternalLocal = pcrsExternalLocal->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrExternalOuter = pcrsExternalOuter->Pdrgpcr(m_mp);
+	pcrsResidualOuter->Release();
+	pcrsResidualInner->Release();
+	pcrsExternalLocal->Release();
+	pcrsExternalOuter->Release();
+
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedPreds->Insert(
+			const_cast<CDSLSymbol *>(psymResidual), pexprResidual);
+		GPOS_ASSERT(fInserted);
+	}
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedPreds->Insert(
+			const_cast<CDSLSymbol *>(psymExternal), pexprExternal);
+		GPOS_ASSERT(fInserted);
+	}
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedCols->Insert(
+			const_cast<CDSLSymbol *>(psymResidualOuter),
+			pdrgpcrResidualOuter);
+		GPOS_ASSERT(fInserted);
+	}
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedCols->Insert(
+			const_cast<CDSLSymbol *>(psymResidualInner),
+			pdrgpcrResidualInner);
+		GPOS_ASSERT(fInserted);
+	}
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedCols->Insert(
+			const_cast<CDSLSymbol *>(psymExternalLocal), pdrgpcrExternalLocal);
+		GPOS_ASSERT(fInserted);
+	}
+	{
+		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmDerivedCols->Insert(
+			const_cast<CDSLSymbol *>(psymExternalOuter), pdrgpcrExternalOuter);
+		GPOS_ASSERT(fInserted);
+	}
+	return true;
+}
+
 CExpression *
 CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 									   const CDSLModel *pmodel,
@@ -823,12 +997,31 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		pexprBound->AddRef();
 		return pexprBound;
 	}
+	CExpression *pexprDerived = m_phmDerivedPreds->Find(psym);
+	if (nullptr != pexprDerived)
+	{
+		pexprDerived->AddRef();
+		return pexprDerived;
+	}
 
 	const CDSLConstraint *pconDefinition = nullptr;
+	const CDSLConstraint *pconSplit = nullptr;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
 	{
 		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
+			9 == pcon->Pdrgpsym()->Size() &&
+			((*pcon->Pdrgpsym())[1] == psym ||
+			 (*pcon->Pdrgpsym())[2] == psym))
+		{
+			if (nullptr != pconSplit)
+			{
+				return nullptr;
+			}
+			pconSplit = pcon;
+			continue;
+		}
 		if (EdslconPredicateAnd != pcon->Edslcon() ||
 			3 != pcon->Pdrgpsym()->Size() || (*pcon->Pdrgpsym())[0] != psym)
 		{
@@ -839,6 +1032,20 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 			return nullptr;
 		}
 		pconDefinition = pcon;
+	}
+	if (nullptr != pconSplit)
+	{
+		if (nullptr != pconDefinition ||
+			!FMaterializePredicateDomainSplit(pconSplit, pmodel, ulDepth + 1))
+		{
+			return nullptr;
+		}
+		CExpression *pexprSplit = m_phmDerivedPreds->Find(psym);
+		if (nullptr != pexprSplit)
+		{
+			pexprSplit->AddRef();
+		}
+		return pexprSplit;
 	}
 	if (nullptr == pconDefinition)
 	{
@@ -941,6 +1148,24 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
+		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
+			9 == pcon->Pdrgpsym()->Size())
+		{
+			BOOL fDefines = false;
+			for (ULONG ulOutput = 3; ulOutput <= 6; ulOutput++)
+			{
+				fDefines = fDefines || (*pcon->Pdrgpsym())[ulOutput] == psym;
+			}
+			if (fDefines)
+			{
+				if (fEmptyDef || nullptr != pconDef ||
+					EdslsymAttrs != psym->Esymkind())
+				{
+					return nullptr;
+				}
+				pconDef = pcon;
+			}
+		}
 	}
 	if (fEmptyDef)
 	{
@@ -956,6 +1181,14 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	if (nullptr == pconDef)
 	{
 		return nullptr;
+	}
+	if (EdslconPredicateDomainSplit == pconDef->Edslcon())
+	{
+		if (!FMaterializePredicateDomainSplit(pconDef, pmodel, ulDepth + 1))
+		{
+			return nullptr;
+		}
+		return dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
 	}
 	if (EdslconKeyedOutput == pconDef->Edslcon())
 	{

@@ -589,6 +589,25 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconPredicateDomainSplit == edslcon)
+		{
+			const EDslSymbolKind rgExpected[] = {
+				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
+				EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymTable,
+				EdslsymTable};
+			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
+			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
+			{
+				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
+			}
+			if (!fTyped)
+			{
+				bctx.Fail("PredicateDomainSplit expects three predicates, four attrs, and two tables");
+				pdrgpsym->Release();
+				pdrgpcon->Release();
+				return nullptr;
+			}
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;
