@@ -956,6 +956,20 @@ CDSLConstraintChecker::FCheckAttrsEmpty(const CDSLConstraint *pcon,
 	return 0 == pdrgpcr->Size();
 }
 
+BOOL
+CDSLConstraintChecker::FCheckAttrsNonEmpty(const CDSLConstraint *pcon,
+											const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size() ||
+		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcr = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
+	return nullptr != pdrgpcr && 0 < pdrgpcr->Size();
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckOutputAttrs
@@ -1292,44 +1306,6 @@ CDSLConstraintChecker::FCheckAttrsUnion(const CDSLConstraint *pcon,
 	fEqual = fEqual && ulExpected == pdrgpcrOut->Size();
 	pcrsSeen->Release();
 	return fEqual;
-}
-
-BOOL
-CDSLConstraintChecker::FCheckAggFilterCommute(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (7 != pdrgpsym->Size())
-	{
-		return false;
-	}
-	const EDslSymbolKind rgExpected[] = {
-		EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
-		EdslsymPred, EdslsymPred, EdslsymAttrs};
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
-	{
-		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind() ||
-			nullptr == pmodel->PvalLookup((*pdrgpsym)[ul]))
-		{
-			return false;
-		}
-	}
-
-	CColRefArray *pdrgpcrGroup = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
-	CColRefArray *pdrgpcrLocal = pmodel->PdrgpcrAttrs((*pdrgpsym)[6]);
-	if (nullptr == pdrgpcrGroup || nullptr == pdrgpcrLocal ||
-		0 == pdrgpcrLocal->Size())
-	{
-		return false;
-	}
-	CColRefSet *pcrsGroup = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsGroup->Include(pdrgpcrGroup);
-	CColRefSet *pcrsLocal = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsLocal->Include(pdrgpcrLocal);
-	const BOOL fSubset = pcrsGroup->ContainsAll(pcrsLocal);
-	pcrsLocal->Release();
-	pcrsGroup->Release();
-	return fSubset;
 }
 
 BOOL
@@ -2572,6 +2548,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsSub(pcon, pmodel);
 			case EdslconAttrsEmpty:
 				return FCheckAttrsEmpty(pcon, pmodel);
+		case EdslconAttrsNonEmpty:
+			return FCheckAttrsNonEmpty(pcon, pmodel);
 		case EdslconOutputAttrs:
 			return FCheckOutputAttrs(pcon, pmodel);
 		case EdslconSchemaFromAttrs:
@@ -2583,8 +2561,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconAttrsUnion:
 		case EdslconSchemaUnion:
 			return FCheckAttrsUnion(pcon, pmodel);
-		case EdslconAggFilterCommute:
-			return FCheckAggFilterCommute(pcon, pmodel);
 		case EdslconCorrelationEquality:
 			return FCheckCorrelationEquality(pcon, pmodel);
 		case EdslconAggCorrelationGrouping:

@@ -7,7 +7,7 @@
     "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d68592c2926cec06"
+      "acc0381a6ee39104"
     ]
   },
   "plans": [
@@ -41,7 +41,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\""
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\""
       ],
       "not_contains": [
         "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"

@@ -439,26 +439,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconAggFilterCommute == edslcon)
-		{
-			const EDslSymbolKind rgExpected[] = {
-				EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
-				EdslsymPred, EdslsymPred, EdslsymAttrs};
-			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
-			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
-			{
-				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
-			}
-			if (!fTyped)
-			{
-				bctx.Fail(
-					"AggFilterCommute expects grouping attrs, aggregate attrs, function, "
-					"schema, having predicate, filter predicate, and local attrs");
-				pdrgpsym->Release();
-				pdrgpcon->Release();
-				return nullptr;
-			}
-		}
 		if (EdslconMinimalGrouping == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind()))
@@ -550,10 +530,11 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconAttrsEmpty == edslcon &&
+		if ((EdslconAttrsEmpty == edslcon ||
+			 EdslconAttrsNonEmpty == edslcon) &&
 			EdslsymAttrs != (*pdrgpsym)[0]->Esymkind())
 		{
-			bctx.Fail("AttrsEmpty expects an attrs symbol");
+			bctx.Fail("AttrsEmpty/AttrsNonEmpty expects an attrs symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

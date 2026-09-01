@@ -144,12 +144,13 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(P
 
 # The grouped sibling is atomic only at the RuleIR/Cascades boundary: a parent
 # Apply binding is not required to wait for a child Agg(Filter) alternative.
-# Its proof composes the generic AggFilterCommute contract with the same
+# Its proof composes the generic aggregate movement law from AttrsNonEmpty,
+# AttrsSub, ErrorFree, and Deterministic with the same
 # arbitrary-right-tree CorrelationEquality law as the rule above.  Local filter
 # dependencies must already be grouping keys, so this rule neither widens the
 # aggregate schema nor depends on an xform-specific exception.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);PredicateAnd(p6,p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);PredicateAnd(p6,p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 
 # When local correlation keys are not already grouped, construct the native
 # aggregate compensation with AttrsUnion/SchemaUnion. AggCorrelationGrouping
@@ -247,7 +248,7 @@ Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
 # new grouping columns is intentionally a separate schema-construction domain.
-Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);AggFilterCommute(a0,a1,f0,s0,p0,p1,a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
+Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
 # correlation columns are retained or added to grouping as needed. The atomic

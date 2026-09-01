@@ -109,7 +109,7 @@ public:
 
 	// A correlated Filter commutes above Agg only when its non-outer dependency
 	// vector is non-empty and contained in the existing grouping keys.
-	static GPOS_RESULT EresUnittest_AggFilterCommuteGroupingGuard();
+	static GPOS_RESULT EresUnittest_AggFilterMovementGroupingGuard();
 
 	// The proved grouped external-correlation rule composes aggregate and join
 	// constraints in one RuleIR and must remain parser/loader compatible.

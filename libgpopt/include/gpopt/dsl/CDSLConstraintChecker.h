@@ -78,6 +78,9 @@ private:
 	// to construction, where the instantiator materializes the empty vector.
 	BOOL FCheckAttrsEmpty(const CDSLConstraint *pcon,
 						  const CDSLModel *pmodel) const;
+	// AttrsNonEmpty(a): the bound vector contains at least one column.
+	BOOL FCheckAttrsNonEmpty(const CDSLConstraint *pcon,
+							 const CDSLModel *pmodel) const;
 
 	// AttrsIntersect(out,in,domain): out is the ordered subsequence of in whose
 	// columns are exposed by a table/subtree, attrs, or schema domain. During
@@ -104,12 +107,6 @@ private:
 	BOOL FCheckPredicateDomainSplit(const CDSLRule *prule,
 								  const CDSLConstraint *pcon,
 								  const CDSLModel *pmodel) const;
-
-	// AggFilterCommute(g,a,f,s,h,p,l): l is a non-empty subset of grouping
-	// columns. The remaining arguments must be exact bound aggregate artifacts;
-	// ErrorFree/Deterministic constraints independently validate scalar safety.
-	BOOL FCheckAggFilterCommute(const CDSLConstraint *pcon,
-							  const CDSLModel *pmodel) const;
 
 	// CorrelationEquality(p,l,o): p is a non-empty conjunction of equality
 	// edges crossing the disjoint local/outer domains, with no hidden or missing

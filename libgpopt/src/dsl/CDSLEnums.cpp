@@ -140,9 +140,9 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconScalarOne, "ScalarOne", 1},
 	{EdslconScalarZero, "ScalarZero", 1},
 	{EdslconAttrsEmpty, "AttrsEmpty", 1},
+	{EdslconAttrsNonEmpty, "AttrsNonEmpty", 1},
 	{EdslconPredicateAnd, "PredicateAnd", 3},
 	{EdslconAttrsUnion, "AttrsUnion", 3},
-	{EdslconAggFilterCommute, "AggFilterCommute", 7},
 	{EdslconSchemaUnion, "SchemaUnion", 3},
 	{EdslconMinimalGrouping, "MinimalGrouping", 2},
 	{EdslconCorrelationEquality, "CorrelationEquality", 3},
@@ -562,6 +562,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
 		case EdslconAttrsEmpty:
+		case EdslconAttrsNonEmpty:
 		case EdslconOutputAttrs:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconSchemaFromAttrs:
@@ -635,9 +636,9 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconScalarOne:
 		case EdslconScalarZero:
 		case EdslconAttrsEmpty:
+		case EdslconAttrsNonEmpty:
 		case EdslconPredicateAnd:
 		case EdslconAttrsUnion:
-		case EdslconAggFilterCommute:
 		case EdslconSchemaUnion:
 		case EdslconMinimalGrouping:
 		case EdslconCorrelationEquality:

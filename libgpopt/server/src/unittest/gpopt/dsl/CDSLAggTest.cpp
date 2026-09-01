@@ -86,7 +86,7 @@ using namespace gpopt;
 	"TableEq(t1,t0);AttrsEq(a4,a0);AttrsEq(a5,a1);FuncEq(f1,f0);"         \
 	"SchemaEq(s1,s0);PredicateEq(p3,p0);PredicateEq(p2,p1);"              \
 	"AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);"                      \
-	"AggFilterCommute(a0,a1,f0,s0,p0,p1,a2)"
+	"AttrsNonEmpty(a2)"
 
 #define GPOPT_DSL_AGG_EXTERNAL_SEMI_APPLY_RULE                            \
 	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
@@ -97,7 +97,7 @@ using namespace gpopt;
 	"PredicateAnd(p6,p0,p2);"                                            \
 	"PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);"              \
 	"CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);"                   \
-	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);OutputAttrs(a13,t0);Unique(t0,a13);"        \
+	"AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);"                \
 	"AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14)"
 
 #define GPOPT_DSL_AGG_CORRELATION_COMPOSITION_RULE                         \
@@ -262,7 +262,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
-			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
+			CDSLAggTest::EresUnittest_AggFilterMovementGroupingGuard),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip),
 		GPOS_UNITTEST_FUNC(
@@ -449,7 +449,7 @@ CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
 }
 
 GPOS_RESULT
-CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard()
+CDSLAggTest::EresUnittest_AggFilterMovementGroupingGuard()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();

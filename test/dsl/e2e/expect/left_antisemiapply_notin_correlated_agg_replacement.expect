@@ -7,7 +7,7 @@
     "scope": "Correlated NOT IN whose aggregate groups the local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d68592c2926cec06",
+      "acc0381a6ee39104",
       "59a6d12ce1dd7d88"
     ]
   },
@@ -36,7 +36,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
         "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
       ],
       "alternative": [

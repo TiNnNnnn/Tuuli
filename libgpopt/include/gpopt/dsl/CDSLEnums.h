@@ -161,17 +161,14 @@ enum EDslConstraintKind
 	// Empty ordered column vector. Source bindings are applicability guards;
 	// target-only bindings are materialized by the instantiator.
 	EdslconAttrsEmpty,
+	// Non-empty ordered column vector, independent of any consuming operator.
+	EdslconAttrsNonEmpty,
 	// PredicateAnd(out,left,right): out is the canonical conjunction of two
 	// predicate symbols. Target-only outputs are materialized lazily.
 	EdslconPredicateAnd,
 	// AttrsUnion(out,left,right): stable, duplicate-free union of two attribute
 	// vectors. Target-only outputs are materialized lazily.
 	EdslconAttrsUnion,
-	// AggFilterCommute(group,agg_inputs,func,schema,having,pred,local): a
-	// correlated predicate whose non-outer dependencies are non-empty grouping
-	// keys can move above the aggregate under the accompanying scalar-safety
-	// constraints.
-	EdslconAggFilterCommute,
 	// SchemaUnion(out,input,extra): stable, duplicate-free extension of an
 	// aggregate output schema with relational attributes.
 	EdslconSchemaUnion,

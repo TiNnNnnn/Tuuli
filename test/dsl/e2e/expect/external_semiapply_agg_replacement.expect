@@ -7,8 +7,8 @@
     "scope": "Equality correlations below a grouped aggregate whose grouping covers every local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d68592c2926cec06",
-      "0b569245cde23a13"
+      "acc0381a6ee39104",
+      "783c620153b85545"
     ]
   },
   "plans": [
@@ -24,8 +24,8 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
-        "\"status\":\"applied\",\"rule_hash\":\"0b569245cde23a13\""
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -50,8 +50,8 @@
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
-        "\"status\":\"applied\",\"rule_hash\":\"0b569245cde23a13\""
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"
