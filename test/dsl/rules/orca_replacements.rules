@@ -189,10 +189,10 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn
 # its correlation key is not already grouped. AttrsUnion/SchemaUnion construct
 # the compensated aggregate, CorrelationEquality validates an exact conjunction
 # of cross-input equality edges, and AggCorrelationGrouping states the reusable
-# operator-local movement contract. QuantifiedPredicateEq preserves the actual
-# three-valued ALL operator and arguments independently of the RHS qualifier.
+# operator-local movement contract. PredicateEq preserves the complete
+# three-valued ALL scalar tree independently of the RHS qualifier.
 # This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p3,p0);QuantifiedPredicateEq(p3,p0);AttrsEq(a7,a0);AttrsEq(a8,a1);PredicateEq(p4,p2);AttrsEq(a9,a6);AttrsEq(a10,a5);AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);AttrsEq(a12,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p5,p1);CorrelationEquality(p2,a5,a6);AggCorrelationGrouping(p2,a3,a11,a4,f0,s0,s1,p1,a5,a6);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p3,p0);AttrsEq(a7,a0);AttrsEq(a8,a1);PredicateEq(p4,p2);AttrsEq(a9,a6);AttrsEq(a10,a5);AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);AttrsEq(a12,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p5,p1);CorrelationEquality(p2,a5,a6);AggCorrelationGrouping(p2,a3,a11,a4,f0,s0,s1,p1,a5,a6);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
 
 # Extends NULL-aware decorrelation across a cumulative Window.  The runtime
 # contract admits only a pure equality correlation whose local keys are covered
@@ -201,14 +201,14 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input
 # The target keeps the exact Window metadata and moves the correlation into the
 # AntiJoinNotIn qualifier.  FormalSQL/Rocq accepted this operator-local theorem
 # on 2026-08-31.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);QuantifiedPredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);WindowEq(w1,w0);WindowCorrelationPartition(p1,a3,o0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);WindowEq(w1,w0);WindowCorrelationPartition(p1,a3,o0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # The explicit-frame sibling covers ORCA's normalized representation of SQL
 # default frames as well as genuine ROWS/RANGE frames.  FrameEq preserves the
 # exact frame and the frame-aware contract additionally rejects outer-column
 # references in frame edges.  FormalSQL/Rocq accepted the generic frame theorem
 # on 2026-08-31.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);QuantifiedPredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);WindowFrameCorrelationPartition(p1,a3,o0,m0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);WindowFrameCorrelationPartition(p1,a3,o0,m0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # Pull a correlated Filter above a Window when every local correlation key is
 # covered by the partition. These are operator-local rules: once the Filter is

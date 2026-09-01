@@ -499,15 +499,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 				return nullptr;
 			}
 		}
-		if (EdslconQuantifiedPredicateEq == edslcon &&
-			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymPred != (*pdrgpsym)[1]->Esymkind()))
-		{
-			bctx.Fail("QuantifiedPredicateEq expects two predicate symbols");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
 		const EDslSymbolKind esymEq =
 			EdslconOrderEq == edslcon ? EdslsymOrder
 			: (EdslconWindowEq == edslcon ? EdslsymWindow

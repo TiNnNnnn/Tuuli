@@ -2359,7 +2359,6 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			const BOOL fEquality = EdslconTableEq == edslconEq ||
 				EdslconAttrsEq == edslconEq ||
 				EdslconPredicateEq == edslconEq ||
-				EdslconQuantifiedPredicateEq == edslconEq ||
 				EdslconSchemaEq == edslconEq ||
 				EdslconFuncEq == edslconEq ||
 				EdslconScalarEq == edslconEq ||
@@ -2517,7 +2516,6 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 				prule, pmodel, pmodel->PdrgpcrSchema(psymFirst),
 				pmodel->PdrgpcrSchema(psymSecond));
 		case EdslconPredicateEq:
-		case EdslconQuantifiedPredicateEq:
 			return pmodel->PexprPred(psymFirst)->Matches(
 				pmodel->PexprPred(psymSecond));
 		case EdslconFuncEq:
@@ -2624,7 +2622,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconTableEq:
 		case EdslconAttrsEq:
 		case EdslconPredicateEq:
-		case EdslconQuantifiedPredicateEq:
 		case EdslconSchemaEq:
 		case EdslconFuncEq:
 		case EdslconScalarEq:

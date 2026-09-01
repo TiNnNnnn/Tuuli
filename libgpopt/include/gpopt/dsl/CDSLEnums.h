@@ -189,11 +189,6 @@ enum EDslConstraintKind
 	// aggregate is valid when target grouping/schema are extended by local.
 	// The surrounding Apply/quantifier is deliberately outside this contract.
 	EdslconAggCorrelationGrouping,
-	// QuantifiedPredicateEq(left,right): expression-level equality for the
-	// operator/argument interpretation of a Predicate symbol used by ANY/ALL.
-	// Runtime ORCA validates the same scalar tree as PredicateEq; proof backends
-	// additionally relate the quantified decomposition.
-	EdslconQuantifiedPredicateEq,
 	EdslconOrderEq,
 	EdslconWindowEq,
 	EdslconFrameEq,
