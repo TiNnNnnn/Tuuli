@@ -114,12 +114,6 @@ private:
 	BOOL FCheckCorrelationEquality(const CDSLConstraint *pcon,
 								   const CDSLModel *pmodel) const;
 
-	// AggCorrelationGrouping(...): operator-local aggregate correlation
-	// contract. Target grouping/schema are constructed by independent ordered
-	// union constraints; this checker validates the exact source evidence.
-	BOOL FCheckAggCorrelationGrouping(const CDSLConstraint *pcon,
-									 const CDSLModel *pmodel) const;
-
 	BOOL FCheckWindowCorrelationPartition(const CDSLConstraint *pcon,
 										 const CDSLModel *pmodel,
 										 BOOL fFrame) const;

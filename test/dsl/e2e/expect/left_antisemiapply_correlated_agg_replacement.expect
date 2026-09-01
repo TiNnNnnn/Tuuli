@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "acc0381a6ee39104",
-      "e7f71e74e676960d"
+      "8acf52440ec02ea3"
     ]
   },
   "plans": [
@@ -37,7 +37,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e7f71e74e676960d\""
+        "\"status\":\"applied\",\"rule_hash\":\"8acf52440ec02ea3\""
       ]
     }
   ],

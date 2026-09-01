@@ -459,26 +459,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconAggCorrelationGrouping == edslcon)
-		{
-			const EDslSymbolKind rgExpected[] = {
-				EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
-				EdslsymFunc, EdslsymSchema, EdslsymSchema, EdslsymPred,
-				EdslsymAttrs, EdslsymAttrs};
-			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
-			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
-			{
-				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
-			}
-			if (!fTyped)
-			{
-				bctx.Fail(
-					"AggCorrelationGrouping expects correlation, aggregate artifacts, and local/outer attrs");
-				pdrgpsym->Release();
-				pdrgpcon->Release();
-				return nullptr;
-			}
-		}
 		const EDslSymbolKind esymEq =
 			EdslconOrderEq == edslcon ? EdslsymOrder
 			: (EdslconWindowEq == edslcon ? EdslsymWindow

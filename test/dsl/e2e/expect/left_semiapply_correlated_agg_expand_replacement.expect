@@ -7,7 +7,7 @@
     "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "37c0e36af29bd305"
+      "88f3ce3adc6c520b"
     ]
   },
   "plans": [
@@ -35,7 +35,7 @@
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"37c0e36af29bd305\""
+        "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\""
       ]
     }
   ],

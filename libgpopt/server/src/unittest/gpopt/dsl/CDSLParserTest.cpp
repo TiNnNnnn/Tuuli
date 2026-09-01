@@ -228,8 +228,7 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"
 		"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"
 		"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"
-		"CorrelationEquality(p2,a5,a6);"
-		"AggCorrelationGrouping(p2,a3,a9,a4,f0,s0,s1,p1,a5,a6)",
+		"CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5)",
 		// Window metadata uses the same positional vocabulary as WeTune. The
 		// default-frame and explicit-frame spellings remain distinct in the IR.
 		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|"

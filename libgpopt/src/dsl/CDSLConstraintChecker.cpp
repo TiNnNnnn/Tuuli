@@ -1328,45 +1328,6 @@ CDSLConstraintChecker::FCheckCorrelationEquality(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckAggCorrelationGrouping(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	const EDslSymbolKind rgExpected[] = {
-		EdslsymPred, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
-		EdslsymFunc, EdslsymSchema, EdslsymSchema, EdslsymPred,
-		EdslsymAttrs, EdslsymAttrs};
-	if (GPOS_ARRAY_SIZE(rgExpected) != pdrgpsym->Size())
-	{
-		return false;
-	}
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
-	{
-		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
-		{
-			return false;
-		}
-	}
-
-	// Target group/schema (2 and 6) are constructed by AttrsUnion/SchemaUnion.
-	// Every remaining artifact is exact source evidence and must be bound before
-	// the semantic contract can be admitted.
-	const ULONG rgulSource[] = {0, 1, 3, 4, 5, 7, 8, 9};
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgulSource); ul++)
-	{
-		if (nullptr == pmodel->PvalLookup((*pdrgpsym)[rgulSource[ul]]))
-		{
-			return false;
-		}
-	}
-
-	return FCorrelationEqualityHolds(
-		m_mp, pmodel->PexprPred((*pdrgpsym)[0]),
-		pmodel->PdrgpcrAttrs((*pdrgpsym)[8]),
-		pmodel->PdrgpcrAttrs((*pdrgpsym)[9]));
-}
-
-BOOL
 CDSLConstraintChecker::FCheckWindowCorrelationPartition(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, BOOL fFrame) const
 {
@@ -2563,8 +2524,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconCorrelationEquality:
 			return FCheckCorrelationEquality(pcon, pmodel);
-		case EdslconAggCorrelationGrouping:
-			return FCheckAggCorrelationGrouping(pcon, pmodel);
 		case EdslconWindowCorrelationPartition:
 			return FCheckWindowCorrelationPartition(pcon, pmodel, false);
 		case EdslconWindowFrameCorrelationPartition:
