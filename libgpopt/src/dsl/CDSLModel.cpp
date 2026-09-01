@@ -30,7 +30,6 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmInSubCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmFilterCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmApplyCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
-	m_phmAssertCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjList = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjLimitShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmProjAggShell = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
@@ -57,7 +56,6 @@ CDSLModel::~CDSLModel()
 	m_phmInSubCarrier->Release();
 	m_phmFilterCarrier->Release();
 	m_phmApplyCarrier->Release();
-	m_phmAssertCarrier->Release();
 	m_phmProjList->Release();
 	m_phmProjLimitShell->Release();
 	m_phmProjAggShell->Release();
@@ -193,35 +191,6 @@ CDSLModel::PexprApplyCarrier(const CDSLSymbol *psymPred) const
 	GPOS_ASSERT(nullptr != psymPred);
 	GPOS_ASSERT(EdslsymPred == psymPred->Esymkind());
 	return m_phmApplyCarrier->Find(psymPred);
-}
-
-BOOL
-CDSLModel::FSetAssertCarrier(const CDSLSymbol *psymPred,
-							 CExpression *pexpr)
-{
-	GPOS_ASSERT(nullptr != psymPred);
-	GPOS_ASSERT(EdslsymPred == psymPred->Esymkind());
-	GPOS_ASSERT(nullptr != pexpr);
-
-	CExpression *pexprExisting = m_phmAssertCarrier->Find(psymPred);
-	if (nullptr != pexprExisting)
-	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
-		pexpr->Release();
-		return fCompatible;
-	}
-	BOOL fInserted = m_phmAssertCarrier->Insert(
-		const_cast<CDSLSymbol *>(psymPred), pexpr);
-	GPOS_ASSERT(fInserted);
-	return fInserted;
-}
-
-CExpression *
-CDSLModel::PexprAssertCarrier(const CDSLSymbol *psymPred) const
-{
-	GPOS_ASSERT(nullptr != psymPred);
-	GPOS_ASSERT(EdslsymPred == psymPred->Esymkind());
-	return m_phmAssertCarrier->Find(psymPred);
 }
 
 void

@@ -28,7 +28,6 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
-#include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPatternTree.h"
@@ -577,8 +576,7 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopMaxOneRow, false) ||
 		CDSLOpKindTable::FSourceRootDispatchSupported(
-			EdslopAssertMaxOneRow, false) ||
-		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopAssert, false))
+			EdslopAssertMaxOneRow, false))
 	{
 		return GPOS_FAILED;
 	}
@@ -762,23 +760,6 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 	fDispatched = pxfs->Get(CXform::ExfDSLRuleMaxOneRow);
 	pxfs->Release();
 	popMaxOneRow->Release();
-	if (!fDispatched)
-	{
-		return GPOS_FAILED;
-	}
-
-	CXform *pxformAssert = pxff->Pxf("CXformDSLRule_Assert");
-	if (nullptr == pxformAssert ||
-		CXform::ExfDSLRuleAssert != pxformAssert->Exfid() ||
-		!pxformAssert->FExploration() || pxformAssert->FImplementation())
-	{
-		return GPOS_FAILED;
-	}
-	CLogicalAssert *popAssert = GPOS_NEW(mp) CLogicalAssert(mp);
-	pxfs = popAssert->PxfsCandidates(mp);
-	fDispatched = pxfs->Get(CXform::ExfDSLRuleAssert);
-	pxfs->Release();
-	popAssert->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

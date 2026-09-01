@@ -322,7 +322,6 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDPHyperJoinRegion(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_JoinApply(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_MaxOneRow(m_mp));
-	Add(GPOS_NEW(m_mp) CXformDSLRule_Assert(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Window(m_mp));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&

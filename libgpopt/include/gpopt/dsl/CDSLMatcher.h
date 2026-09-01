@@ -100,11 +100,6 @@ private:
 	BOOL FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
 					 CDSLModel *pmodel) const;
 
-	// Assert<p,a>(child): bind the exact predicate and its dependency columns,
-	// and keep the live operator as the error-contract carrier.
-	BOOL FMatchAssert(const CDSLOp *pop, CExpression *pexpr,
-					 CDSLModel *pmodel) const;
-
 public:
 	CDSLMatcher(const CDSLMatcher &) = delete;
 

@@ -27,7 +27,6 @@
 #include "gpopt/xforms/CXformContext.h"
 #include "gpopt/xforms/CXformDSLRule_Agg.h"
 #include "gpopt/xforms/CXformDSLRule_All.h"
-#include "gpopt/xforms/CXformDSLRule_Assert.h"
 #include "gpopt/xforms/CXformDSLRule_Exists.h"
 #include "gpopt/xforms/CXformDSLRule_NotExists.h"
 #include "gpopt/xforms/CXformDSLRule_InSub.h"

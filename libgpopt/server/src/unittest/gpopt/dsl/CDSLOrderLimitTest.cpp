@@ -18,7 +18,6 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
-#include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDAggregateGPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
@@ -114,56 +113,8 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement),
-		GPOS_UNITTEST_FUNC(
-			CDSLOrderLimitTest::EresUnittest_AssertRoundTrip),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
-}
-
-GPOS_RESULT
-CDSLOrderLimitTest::EresUnittest_AssertRoundTrip()
-{
-	CAutoMemoryPool amp;
-	CMemoryPool *mp = amp.Pmp();
-	CDSLTestFixture fix(mp);
-	CExpression *pexprGet = fix.PexprLogicalGet("assert_input", 1, nullptr);
-	CExpression *pexprLive = CXformUtils::PexprAssertOneRow(mp, pexprGet);
-
-	CDSLRule *prule = Prule(mp,
-		"Assert<p0 a0>(Input<t0>)|Assert<p1 a1>(Input<t1>)|"
-		"TableEq(t1,t0);PredicateEq(p1,p0);AttrsEq(a1,a0)");
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp, prule);
-	GPOS_RESULT eres = GPOS_OK;
-	if (nullptr == prule ||
-		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel))
-	{
-		eres = GPOS_FAILED;
-	}
-
-	CExpression *pexprTarget = nullptr;
-	if (GPOS_OK == eres)
-	{
-		CDSLConstraintChecker checker(mp);
-		CDSLInstantiator instantiator(mp);
-		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
-		if (!checker.FCheck(prule, pmodel) || nullptr == pexprTarget ||
-			COperator::EopLogicalAssert != pexprTarget->Pop()->Eopid() ||
-			pexprTarget->Pop() != pexprLive->Pop() ||
-			(*pexprTarget)[1] != (*pexprLive)[1] ||
-			gpos::CException::ExmiSQLMaxOneRow !=
-				CLogicalAssert::PopConvert(pexprTarget->Pop())->Pexc()->Minor())
-		{
-			eres = GPOS_FAILED;
-		}
-	}
-
-	CRefCount::SafeRelease(pexprTarget);
-	pmodel->Release();
-	CRefCount::SafeRelease(prule);
-	pexprLive->Release();
-	pexprGet->Release();
-	return eres;
 }
 
 GPOS_RESULT

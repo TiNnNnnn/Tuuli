@@ -84,7 +84,6 @@ private:
 	CDSLSymbolToExpressionMap *m_phmInSubCarrier;
 	CDSLSymbolToExpressionMap *m_phmFilterCarrier;
 	CDSLSymbolToExpressionMap *m_phmApplyCarrier;
-	CDSLSymbolToExpressionMap *m_phmAssertCarrier;
 	CDSLSymbolToExpressionMap *m_phmProjList;
 	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
 	CDSLSymbolToExpressionMap *m_phmProjAggShell;
@@ -232,11 +231,6 @@ public:
 	// origin-subquery metadata instead of manufacturing a pattern Apply.
 	BOOL FSetApplyCarrier(const CDSLSymbol *psymPred, CExpression *pexpr);
 	CExpression *PexprApplyCarrier(const CDSLSymbol *psymPred) const;
-
-	// Preserve an assertion's operator (including error code) and exact scalar
-	// predicate while its relational child is recursively rewritten.
-	BOOL FSetAssertCarrier(const CDSLSymbol *psymPred, CExpression *pexpr);
-	CExpression *PexprAssertCarrier(const CDSLSymbol *psymPred) const;
 
 	void SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr);
 

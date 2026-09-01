@@ -19,7 +19,6 @@ public:
 	static GPOS_RESULT EresUnittest_TargetScalarConstants();
 	static GPOS_RESULT EresUnittest_WindowRowsRoundTrip();
 	static GPOS_RESULT EresUnittest_MaxOneRowReplacement();
-	static GPOS_RESULT EresUnittest_AssertRoundTrip();
 };
 }  // namespace gpopt
 

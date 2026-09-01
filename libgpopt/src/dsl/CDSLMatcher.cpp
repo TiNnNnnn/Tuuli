@@ -196,40 +196,6 @@ CDSLMatcher::FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
 	return FMatch((*pop)[0], (*pexpr)[0], pmodel);
 }
 
-BOOL
-CDSLMatcher::FMatchAssert(const CDSLOp *pop, CExpression *pexpr,
-					  CDSLModel *pmodel) const
-{
-	if (EdslopAssert != pop->Edslop() || 1 != pop->UlChildren() ||
-		nullptr == pop->Pdrgpsym() || 2 != pop->Pdrgpsym()->Size() ||
-		COperator::EopLogicalAssert != pexpr->Pop()->Eopid() ||
-		2 != pexpr->Arity())
-	{
-		return false;
-	}
-
-	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
-	CExpression *pexprPredicate = (*pexpr)[1];
-	CColRefArray *pdrgpcrUsed =
-		pexprPredicate->DeriveUsedColumns()->Pdrgpcr(m_mp);
-	BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pexprPredicate) &&
-		pmodel->FBind((*pdrgpsym)[1], pdrgpcrUsed);
-	pdrgpcrUsed->Release();
-	if (!fBound)
-	{
-		return false;
-	}
-
-	// The operator owns the SQL error identity; predicate binding alone cannot
-	// reconstruct it. Keep the complete live node and only replace child[0].
-	pexpr->AddRef();
-	if (!pmodel->FSetAssertCarrier((*pdrgpsym)[0], pexpr))
-	{
-		return false;
-	}
-	return FMatch((*pop)[0], (*pexpr)[0], pmodel);
-}
-
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLMatcher::FMatchInput
@@ -471,11 +437,6 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		EdslopWindowFrame == pop->Edslop())
 	{
 		return FMatchWindow(pop, pexpr, pmodel);
-	}
-
-	if (EdslopAssert == pop->Edslop())
-	{
-		return FMatchAssert(pop, pexpr, pmodel);
 	}
 
 	// AssertMaxOneRow is a target-only semantic macro. Its live ORCA shape is

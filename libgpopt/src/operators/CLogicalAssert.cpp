@@ -116,7 +116,6 @@ CLogicalAssert::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementAssert);
-	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleAssert);
 	return xform_set;
 }
 

@@ -4527,59 +4527,6 @@ CDSLInstantiator::PexprBuildAssertMaxOneRow(const CDSLOp *pop,
 	return pexprAssert;
 }
 
-CExpression *
-CDSLInstantiator::PexprBuildAssert(const CDSLOp *pop,
-								  const CDSLModel *pmodel) const
-{
-	if (EdslopAssert != pop->Edslop() || 1 != pop->UlChildren() ||
-		nullptr == pop->Pdrgpsym() || 2 != pop->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-
-	const CDSLSymbol *psymPredicate =
-		PsymResolve((*pop->Pdrgpsym())[0]);
-	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[1]);
-	CExpression *pexprCarrier =
-		pmodel->PexprAssertCarrier(psymPredicate);
-	CExpression *pexprPredicate = pmodel->PexprPred(psymPredicate);
-	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
-	if (nullptr == pexprCarrier || nullptr == pexprPredicate ||
-		nullptr == pdrgpcrAttrs ||
-		COperator::EopLogicalAssert != pexprCarrier->Pop()->Eopid() ||
-		2 != pexprCarrier->Arity() || (*pexprCarrier)[1] != pexprPredicate)
-	{
-		return nullptr;
-	}
-
-	// Attrs is the complete dependency contract of the preserved predicate,
-	// rather than an independently synthesized projection list.
-	CColRefSet *pcrsUsed = pexprPredicate->DeriveUsedColumns();
-	if (pcrsUsed->Size() != pdrgpcrAttrs->Size() ||
-		!FColSetContainsArray(pcrsUsed, pdrgpcrAttrs))
-	{
-		return nullptr;
-	}
-
-	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
-	if (nullptr == pexprChild)
-	{
-		return nullptr;
-	}
-	if (!pexprChild->DeriveOutputColumns()->ContainsAll(pcrsUsed))
-	{
-		pexprChild->Release();
-		return nullptr;
-	}
-
-	// Preserve both the assertion operator (and therefore its exception code)
-	// and its exact scalar subtree. Only the relational child is rewritten.
-	pexprCarrier->Pop()->AddRef();
-	pexprPredicate->AddRef();
-	return GPOS_NEW(m_mp) CExpression(
-		m_mp, pexprCarrier->Pop(), pexprChild, pexprPredicate);
-}
-
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::PexprBuild
@@ -4622,8 +4569,6 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildWindow(pop, pmodel);
 		case EdslopAssertMaxOneRow:
 			return PexprBuildAssertMaxOneRow(pop, pmodel);
-		case EdslopAssert:
-			return PexprBuildAssert(pop, pmodel);
 		case EdslopMaxOneRow:
 			// MaxOneRow is an input/source contract. Targets use its executable
 			// AssertMaxOneRow representation so no logical placeholder survives.
