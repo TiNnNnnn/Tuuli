@@ -209,11 +209,10 @@ enum EDslConstraintKind
 	// pulling a correlation equality above a partition-preserving window.
 	EdslconWindowCorrelationPartition,
 	EdslconWindowFrameCorrelationPartition,
-	// KeyedOutput(out,relation): out is the complete ordered output vector of
-	// relation, and that relation exposes a key. Target-only out symbols are
-	// materialized lazily. This is the generic relation-level building block for
-	// rewrites that must group without losing any output column.
-	EdslconKeyedOutput,
+	// OutputAttrs(out,relation): out is the complete ordered logical output
+	// vector of relation. Target-only out symbols are materialized lazily.
+	// Uniqueness is deliberately expressed by the independent Unique constraint.
+	EdslconOutputAttrs,
 	// SchemaFromAttrs(schema,attrs): schema is the same ordered concrete column
 	// vector as attrs, crossing the DSL's distinct symbol namespaces explicitly.
 	EdslconSchemaFromAttrs,

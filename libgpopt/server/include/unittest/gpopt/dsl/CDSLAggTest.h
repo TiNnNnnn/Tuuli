@@ -83,9 +83,9 @@ public:
 	// aggregate output columns from schema - groupByAttrs.
 	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
 
-	// KeyedOutput validates a source full-row grouping and lazily derives the
+	// OutputAttrs validates a source full-row grouping and lazily derives the
 	// corresponding target grouping from a keyed relational child.
-	static GPOS_RESULT EresUnittest_InstantiateKeyedOutputGrouping();
+	static GPOS_RESULT EresUnittest_InstantiateOutputAttrsGrouping();
 
 	// SchemaFromAttrs supplies the schema half of a target-only Proj* from the
 	// same derived keyed-output vector.

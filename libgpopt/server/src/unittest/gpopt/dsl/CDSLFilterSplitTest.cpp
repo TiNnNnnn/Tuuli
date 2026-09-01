@@ -177,7 +177,7 @@ CDSLFilterSplitTest::EresUnittest_CorrelatedFilterCollectsSelectChain()
 		"Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,"
 		"Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);"
 		"PredicateDomainSplit(p0,p1,p2,p3,a5,a6,a7,a8,t0,t1);"
-		"CorrelationEquality(p3,a7,a8);KeyedOutput(a9,t0);"
+		"CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);"
 		"AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p0);"
 		"Deterministic(p0);ErrorFree(p1);Deterministic(p1);"
 		"ErrorFree(p2);Deterministic(p2);ErrorFree(p3);"

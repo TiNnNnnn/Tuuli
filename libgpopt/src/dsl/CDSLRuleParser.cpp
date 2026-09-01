@@ -586,11 +586,11 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconKeyedOutput == edslcon &&
+		if (EdslconOutputAttrs == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
 		{
-			bctx.Fail("KeyedOutput expects attrs and table symbols");
+			bctx.Fail("OutputAttrs expects attrs and table symbols");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

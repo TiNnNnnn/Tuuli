@@ -126,7 +126,7 @@ private:
 
 	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
 	// ordered subset, AttrsUnion a stable duplicate-free union, AttrsEmpty
-	// materializes a target-only empty attrs vector, and KeyedOutput derives the
+	// materializes a target-only empty attrs vector, and OutputAttrs derives the
 	// complete output vector of a keyed relation. SchemaFromAttrs explicitly
 	// carries a resolved attrs vector into the schema namespace.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,

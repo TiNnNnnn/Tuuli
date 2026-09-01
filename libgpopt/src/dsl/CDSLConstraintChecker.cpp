@@ -958,18 +958,18 @@ CDSLConstraintChecker::FCheckAttrsEmpty(const CDSLConstraint *pcon,
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLConstraintChecker::FCheckKeyedOutput
+//		CDSLConstraintChecker::FCheckOutputAttrs
 //
 //	@doc:
-//		KeyedOutput(a,t): t has a derived key and a is exactly t's logical output
-//		set. ORCA Get also derives implicit system columns (ctid/xmin/etc.); those
+//		OutputAttrs(a,t): a is exactly t's logical output set. ORCA Get also
+//		derives implicit system columns (ctid/xmin/etc.); those
 //		are storage artifacts rather than DSL table attributes and cannot safely
 //		become grouping columns.
-//		The attrs symbol is normally target-only, so matching validates the
-//		relation now and leaves materialization to CDSLInstantiator.
+//		The attrs symbol is normally target-only, so matching leaves materialization
+//		to CDSLInstantiator. Key requirements use the independent Unique constraint.
 //---------------------------------------------------------------------------
 BOOL
-CDSLConstraintChecker::FCheckKeyedOutput(const CDSLConstraint *pcon,
+CDSLConstraintChecker::FCheckOutputAttrs(const CDSLConstraint *pcon,
 										 const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
@@ -982,7 +982,7 @@ CDSLConstraintChecker::FCheckKeyedOutput(const CDSLConstraint *pcon,
 
 	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
 	CExpression *pexprTable = pmodel->PexprTable((*pdrgpsym)[1]);
-	if (nullptr == pexprTable || nullptr == pexprTable->DeriveKeyCollection())
+	if (nullptr == pexprTable)
 	{
 		return false;
 	}
@@ -2667,8 +2667,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsSub(pcon, pmodel);
 			case EdslconAttrsEmpty:
 				return FCheckAttrsEmpty(pcon, pmodel);
-		case EdslconKeyedOutput:
-			return FCheckKeyedOutput(pcon, pmodel);
+		case EdslconOutputAttrs:
+			return FCheckOutputAttrs(pcon, pmodel);
 		case EdslconSchemaFromAttrs:
 			return FCheckSchemaFromAttrs(pcon, pmodel);
 		case EdslconPredicateDomainSplit:

@@ -1208,7 +1208,7 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
-		if (EdslconKeyedOutput == pcon->Edslcon() &&
+		if (EdslconOutputAttrs == pcon->Edslcon() &&
 			2 == pcon->Pdrgpsym()->Size() &&
 			(*pcon->Pdrgpsym())[0] == psym)
 		{
@@ -1272,7 +1272,7 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		}
 		return dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
 	}
-	if (EdslconKeyedOutput == pconDef->Edslcon())
+	if (EdslconOutputAttrs == pconDef->Edslcon())
 	{
 		const CDSLSymbol *psymTable =
 			PsymResolve((*pconDef->Pdrgpsym())[1]);
@@ -1281,8 +1281,7 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			return nullptr;
 		}
 		CExpression *pexprTable = pmodel->PexprTable(psymTable);
-		if (nullptr == pexprTable ||
-			nullptr == pexprTable->DeriveKeyCollection())
+		if (nullptr == pexprTable)
 		{
 			return nullptr;
 		}

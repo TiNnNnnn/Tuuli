@@ -48,11 +48,10 @@ public:
 	static GPOS_RESULT EresUnittest_UniqueAdmitThroughJoin();
 	static GPOS_RESULT EresUnittest_UniqueReject();
 
-	// KeyedOutput(a,t): target-only a is admitted for a keyed relation and the
-	// same relation without a key is rejected before instantiation. Implicit
+	// OutputAttrs(a,t): target-only a is admitted independently of keys. Implicit
 	// ORCA system columns are outside the DSL's logical output domain.
-	static GPOS_RESULT EresUnittest_KeyedOutputAdmit();
-	static GPOS_RESULT EresUnittest_KeyedOutputReject();
+	static GPOS_RESULT EresUnittest_OutputAttrsAdmit();
+	static GPOS_RESULT EresUnittest_OutputAttrsAdmitWithoutKey();
 
 	// NotNull(t,a): admit when a's columns are non-nullable; reject when nullable
 	static GPOS_RESULT EresUnittest_NotNullAdmit();

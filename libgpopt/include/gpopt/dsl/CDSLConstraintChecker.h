@@ -90,9 +90,9 @@ private:
 	BOOL FCheckAttrsUnion(const CDSLConstraint *pcon,
 						  const CDSLModel *pmodel) const;
 
-	// KeyedOutput(a,t): a is t's complete output vector and t exposes a key.
-	// A target-only a is deferred to the instantiator after validating t.
-	BOOL FCheckKeyedOutput(const CDSLConstraint *pcon,
+	// OutputAttrs(a,t): a is t's complete logical output vector. A target-only
+	// a is deferred to the instantiator. Unique(t,a) is checked independently.
+	BOOL FCheckOutputAttrs(const CDSLConstraint *pcon,
 						   const CDSLModel *pmodel) const;
 
 	// SchemaFromAttrs(s,a): s and a denote the same ordered CColRef vector.

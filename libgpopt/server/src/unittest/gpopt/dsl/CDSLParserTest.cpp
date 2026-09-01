@@ -538,7 +538,7 @@ CDSLParserTest::EresUnittest_Constraints()
 	// constraints may consume it in declaration order.
 	const CHAR *szLocal =
 		"Input<t0>|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
-		"KeyedOutput(a9,t0);AttrsUnion(a0,a9,a9);SchemaFromAttrs(s0,a0)";
+		"OutputAttrs(a9,t0);Unique(t0,a9);AttrsUnion(a0,a9,a9);SchemaFromAttrs(s0,a0)";
 	CDSLRule *local = Parse(mp, szLocal);
 	if (nullptr == local || !FRoundTrips(mp, szLocal))
 	{

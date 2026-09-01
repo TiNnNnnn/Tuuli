@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "d68592c2926cec06",
-      "90c021146686e547"
+      "d2ea58ef0f7b578d"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
-        "\"status\":\"applied\",\"rule_hash\":\"90c021146686e547\""
+        "\"status\":\"applied\",\"rule_hash\":\"d2ea58ef0f7b578d\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -51,7 +51,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
-        "\"status\":\"applied\",\"rule_hash\":\"90c021146686e547\""
+        "\"status\":\"applied\",\"rule_hash\":\"d2ea58ef0f7b578d\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"

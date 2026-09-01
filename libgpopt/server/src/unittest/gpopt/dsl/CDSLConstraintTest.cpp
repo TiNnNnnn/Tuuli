@@ -107,8 +107,9 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_UniqueAdmitThroughJoin),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_UniqueReject),
-		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_KeyedOutputAdmit),
-		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_KeyedOutputReject),
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_OutputAttrsAdmit),
+		GPOS_UNITTEST_FUNC(
+			CDSLConstraintTest::EresUnittest_OutputAttrsAdmitWithoutKey),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullAdmit),
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_NotNullThroughLeftJoin),
@@ -119,14 +120,14 @@ CDSLConstraintTest::EresUnittest()
 }
 
 static GPOS_RESULT
-EresKeyedOutput(BOOL fHasKey)
+EresOutputAttrs(BOOL fHasKey)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(
 		mp, "Input<t0>|Filter<p0 a0>(Input<t1>)|"
-			"KeyedOutput(a0,t0);TableEq(t1,t0)");
+			"OutputAttrs(a0,t0);TableEq(t1,t0)");
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -141,7 +142,7 @@ EresKeyedOutput(BOOL fHasKey)
 
 	CDSLConstraintChecker checker(mp);
 	const BOOL fHolds = checker.FCheck(prule, pmodel);
-	const GPOS_RESULT eres = fHolds == fHasKey ? GPOS_OK : GPOS_FAILED;
+	const GPOS_RESULT eres = fHolds ? GPOS_OK : GPOS_FAILED;
 	pmodel->Release();
 	pexprGet->Release();
 	prule->Release();
@@ -149,15 +150,15 @@ EresKeyedOutput(BOOL fHasKey)
 }
 
 GPOS_RESULT
-CDSLConstraintTest::EresUnittest_KeyedOutputAdmit()
+CDSLConstraintTest::EresUnittest_OutputAttrsAdmit()
 {
-	return EresKeyedOutput(true);
+	return EresOutputAttrs(true);
 }
 
 GPOS_RESULT
-CDSLConstraintTest::EresUnittest_KeyedOutputReject()
+CDSLConstraintTest::EresUnittest_OutputAttrsAdmitWithoutKey()
 {
-	return EresKeyedOutput(false);
+	return EresOutputAttrs(false);
 }
 
 GPOS_RESULT

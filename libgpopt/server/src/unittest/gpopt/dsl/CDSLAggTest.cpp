@@ -72,13 +72,13 @@ using namespace gpopt;
 #define GPOPT_DSL_AGG_KEYED_OUTPUT_RULE                                    \
 	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
 	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
-	"KeyedOutput(a0,t0);KeyedOutput(a2,t0);AttrsSub(a1,t0);"                \
+	"OutputAttrs(a0,t0);Unique(t0,a0);OutputAttrs(a2,t0);Unique(t0,a2);AttrsSub(a1,t0);"                \
 	"TableEq(t1,t0);AttrsEq(a3,a1);FuncEq(f1,f0);"                          \
 	"SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
 #define GPOPT_DSL_KEYED_OUTPUT_DEDUP_RULE                                  \
 	"Input<t0>|Proj*<a0 s0>(Input<t1>)|"                                   \
-	"KeyedOutput(a0,t0);SchemaFromAttrs(s0,a0);TableEq(t1,t0)"
+	"OutputAttrs(a0,t0);Unique(t0,a0);SchemaFromAttrs(s0,a0);TableEq(t1,t0)"
 
 #define GPOPT_DSL_AGG_FILTER_COMMUTE_RULE                                  \
 	"Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|"                   \
@@ -96,7 +96,7 @@ using namespace gpopt;
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);"                  \
 	"PredicateDomainSplit(p0,p2,p3,p4,a9,a10,a11,a12,t0,t1);"           \
 	"CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);"                   \
-	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);KeyedOutput(a13,t0);"        \
+	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);OutputAttrs(a13,t0);Unique(t0,a13);"        \
 	"AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14)"
 
 #define GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE                              \
@@ -252,7 +252,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(
-			CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping),
+			CDSLAggTest::EresUnittest_InstantiateOutputAttrsGrouping),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs),
 		GPOS_UNITTEST_FUNC(
@@ -403,7 +403,7 @@ CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
 	CDSLRule *prule = PdslruleParseLocal(
 		mp,
 		"Input<t0>|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
-		"KeyedOutput(a9,t0);AttrsEmpty(a8);AttrsUnion(a0,a9,a8);"
+		"OutputAttrs(a9,t0);Unique(t0,a9);AttrsEmpty(a8);AttrsUnion(a0,a9,a8);"
 		"SchemaFromAttrs(s0,a0)");
 	if (nullptr == prule)
 	{
@@ -1034,7 +1034,7 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 }
 
 GPOS_RESULT
-CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping()
+CDSLAggTest::EresUnittest_InstantiateOutputAttrsGrouping()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();

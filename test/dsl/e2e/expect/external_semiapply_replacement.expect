@@ -7,7 +7,7 @@
     "scope": "Base-input SemiApply whose inner Filter has one current-domain equality and one enclosing-domain equality",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1e4d3313e9d2ed00"
+      "8d64da9279b1bfa9"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1e4d3313e9d2ed00\""
+        "\"status\":\"applied\",\"rule_hash\":\"8d64da9279b1bfa9\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -48,7 +48,7 @@
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1e4d3313e9d2ed00\""
+        "\"status\":\"applied\",\"rule_hash\":\"8d64da9279b1bfa9\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"

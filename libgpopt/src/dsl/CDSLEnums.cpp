@@ -156,7 +156,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconWindowCorrelationPartition, "WindowCorrelationPartition", 6},
 	{EdslconWindowFrameCorrelationPartition,
 	 "WindowFrameCorrelationPartition", 7},
-	{EdslconKeyedOutput, "KeyedOutput", 2},
+	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 10},
 };
@@ -565,7 +565,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
 		case EdslconAttrsEmpty:
-		case EdslconKeyedOutput:
+		case EdslconOutputAttrs:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconSchemaFromAttrs:
 			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
@@ -653,7 +653,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconFrameEq:
 		case EdslconWindowCorrelationPartition:
 		case EdslconWindowFrameCorrelationPartition:
-		case EdslconKeyedOutput:
+		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:
 			return true;
