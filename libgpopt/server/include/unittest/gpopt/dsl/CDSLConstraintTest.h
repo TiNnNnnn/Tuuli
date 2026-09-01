@@ -49,7 +49,8 @@ public:
 	static GPOS_RESULT EresUnittest_UniqueReject();
 
 	// KeyedOutput(a,t): target-only a is admitted for a keyed relation and the
-	// same relation without a key is rejected before instantiation.
+	// same relation without a key is rejected before instantiation. Implicit
+	// ORCA system columns are outside the DSL's logical output domain.
 	static GPOS_RESULT EresUnittest_KeyedOutputAdmit();
 	static GPOS_RESULT EresUnittest_KeyedOutputReject();
 

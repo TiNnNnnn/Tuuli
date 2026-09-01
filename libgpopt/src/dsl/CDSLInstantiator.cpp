@@ -1286,16 +1286,19 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
-		CColRefSet *pcrsOutput = pexprTable->DeriveOutputColumns();
-		CColRefSetIter iter(*pcrsOutput);
+		// Keep the derived value aligned with the checker. System columns are
+		// implicit ORCA storage artifacts, not attributes in the DSL relation.
+		CColRefSet *pcrsLogicalOutput = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		CColRefSetIter iter(*pexprTable->DeriveOutputColumns());
 		while (iter.Advance())
 		{
-			if (iter.Pcr()->IsSystemCol())
+			if (!iter.Pcr()->IsSystemCol())
 			{
-				return nullptr;
+				pcrsLogicalOutput->Include(iter.Pcr());
 			}
 		}
-		CColRefArray *pdrgpcrResult = pcrsOutput->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrResult = pcrsLogicalOutput->Pdrgpcr(m_mp);
+		pcrsLogicalOutput->Release();
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
 									 pdrgpcrResult))
 		{

@@ -961,7 +961,10 @@ CDSLConstraintChecker::FCheckAttrsEmpty(const CDSLConstraint *pcon,
 //		CDSLConstraintChecker::FCheckKeyedOutput
 //
 //	@doc:
-//		KeyedOutput(a,t): t has a derived key and a is exactly t's output set.
+//		KeyedOutput(a,t): t has a derived key and a is exactly t's logical output
+//		set. ORCA Get also derives implicit system columns (ctid/xmin/etc.); those
+//		are storage artifacts rather than DSL table attributes and cannot safely
+//		become grouping columns.
 //		The attrs symbol is normally target-only, so matching validates the
 //		relation now and leaves materialization to CDSLInstantiator.
 //---------------------------------------------------------------------------
@@ -984,24 +987,25 @@ CDSLConstraintChecker::FCheckKeyedOutput(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	CColRefSet *pcrsOutput = pexprTable->DeriveOutputColumns();
-	CColRefSetIter iter(*pcrsOutput);
-	while (iter.Advance())
-	{
-		if (iter.Pcr()->IsSystemCol())
-		{
-			return false;
-		}
-	}
-
 	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
 	if (nullptr == pdrgpcrAttrs)
 	{
 		return EdslsideTarget == psymAttrs->Eside();
 	}
+
+	CColRefSet *pcrsLogicalOutput = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	CColRefSetIter iter(*pexprTable->DeriveOutputColumns());
+	while (iter.Advance())
+	{
+		if (!iter.Pcr()->IsSystemCol())
+		{
+			pcrsLogicalOutput->Include(iter.Pcr());
+		}
+	}
 	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
 	pcrsAttrs->Include(pdrgpcrAttrs);
-	const BOOL fEqual = pcrsOutput->Equals(pcrsAttrs);
+	const BOOL fEqual = pcrsLogicalOutput->Equals(pcrsAttrs);
+	pcrsLogicalOutput->Release();
 	pcrsAttrs->Release();
 	return fEqual;
 }
