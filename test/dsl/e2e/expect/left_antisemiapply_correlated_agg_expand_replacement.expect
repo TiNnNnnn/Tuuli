@@ -7,7 +7,7 @@
     "scope": "LeftAntiSemiApply whose grouped inner correlation key is not already a grouping key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "ab62b940bd5b19d2"
+      "e7f71e74e676960d"
     ]
   },
   "plans": [
@@ -35,7 +35,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ab62b940bd5b19d2\""
+        "\"status\":\"applied\",\"rule_hash\":\"e7f71e74e676960d\""
       ]
     }
   ],

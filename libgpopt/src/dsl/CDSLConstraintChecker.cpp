@@ -1333,62 +1333,6 @@ CDSLConstraintChecker::FCheckAggFilterCommute(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckAggCorrelationPullup(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	const EDslSymbolKind rgExpected[] = {
-		EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
-		EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
-		EdslsymSchema, EdslsymPred, EdslsymAttrs, EdslsymAttrs};
-	if (GPOS_ARRAY_SIZE(rgExpected) != pdrgpsym->Size())
-	{
-		return false;
-	}
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
-	{
-		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
-		{
-			return false;
-		}
-	}
-
-	// Target-only derived symbols are checked by PredicateAnd/AttrsUnion/
-	// SchemaUnion and materialized by the instantiator. Every source artifact in
-	// this semantic contract must already have an exact matcher binding.
-	const ULONG rgulSource[] = {0, 1, 3, 5, 6, 7, 9, 10, 11};
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgulSource); ul++)
-	{
-		if (nullptr == pmodel->PvalLookup((*pdrgpsym)[rgulSource[ul]]))
-		{
-			return false;
-		}
-	}
-
-	CExpression *pexprCorrelation =
-		pmodel->PexprPred((*pdrgpsym)[1]);
-	CColRefArray *pdrgpcrSourceGroup =
-		pmodel->PdrgpcrAttrs((*pdrgpsym)[3]);
-	CColRefArray *pdrgpcrLocal =
-		pmodel->PdrgpcrAttrs((*pdrgpsym)[10]);
-	CColRefArray *pdrgpcrOuter =
-		pmodel->PdrgpcrAttrs((*pdrgpsym)[11]);
-	if (nullptr == pexprCorrelation || nullptr == pdrgpcrSourceGroup ||
-		nullptr == pdrgpcrLocal || nullptr == pdrgpcrOuter ||
-		0 == pdrgpcrLocal->Size() || 0 == pdrgpcrOuter->Size())
-	{
-		return false;
-	}
-
-	// The semantic contract is equally valid when the correlation key already
-	// belongs to the grouping set. AttrsUnion/SchemaUnion then become stable
-	// identities; requiring physical expansion would unnecessarily block the
-	// same atomic decorrelation and leave a correlated Apply behind.
-	return FCorrelationEqualityHolds(
-		m_mp, pexprCorrelation, pdrgpcrLocal, pdrgpcrOuter);
-}
-
-BOOL
 CDSLConstraintChecker::FCheckCorrelationEquality(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
@@ -2643,8 +2587,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconAggFilterCommute:
 			return FCheckAggFilterCommute(pcon, pmodel);
-		case EdslconAggCorrelationPullup:
-			return FCheckAggCorrelationPullup(pcon, pmodel);
 		case EdslconCorrelationEquality:
 			return FCheckCorrelationEquality(pcon, pmodel);
 		case EdslconAggCorrelationGrouping:

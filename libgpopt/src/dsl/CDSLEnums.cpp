@@ -144,7 +144,6 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconAttrsUnion, "AttrsUnion", 3},
 	{EdslconAggFilterCommute, "AggFilterCommute", 7},
 	{EdslconSchemaUnion, "SchemaUnion", 3},
-	{EdslconAggCorrelationPullup, "AggCorrelationPullup", 12},
 	{EdslconMinimalGrouping, "MinimalGrouping", 2},
 	{EdslconCorrelationEquality, "CorrelationEquality", 3},
 	{EdslconAggCorrelationGrouping, "AggCorrelationGrouping", 10},
@@ -641,7 +640,6 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconAttrsUnion:
 		case EdslconAggFilterCommute:
 		case EdslconSchemaUnion:
-		case EdslconAggCorrelationPullup:
 		case EdslconMinimalGrouping:
 		case EdslconCorrelationEquality:
 		case EdslconAggCorrelationGrouping:

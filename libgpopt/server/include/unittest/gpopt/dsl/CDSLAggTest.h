@@ -117,7 +117,7 @@ public:
 
 	// Equality-only correlation keys not already grouped are pulled into both
 	// target grouping and schema; non-equality correlations are rejected.
-	static GPOS_RESULT EresUnittest_AggCorrelationPullup();
+	static GPOS_RESULT EresUnittest_AggCorrelationComposition();
 
 	// Function-specific templates do not match a different aggregate kind.
 	static GPOS_RESULT EresUnittest_RejectsWrongAggFunction();

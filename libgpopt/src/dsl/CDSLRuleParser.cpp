@@ -459,25 +459,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 				return nullptr;
 			}
 		}
-		if (EdslconAggCorrelationPullup == edslcon)
-		{
-			const EDslSymbolKind rgExpected[] = {
-				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
-				EdslsymAttrs, EdslsymAttrs, EdslsymFunc, EdslsymSchema,
-				EdslsymSchema, EdslsymPred, EdslsymAttrs, EdslsymAttrs};
-			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
-			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
-			{
-				fTyped = rgExpected[ul] == (*pdrgpsym)[ul]->Esymkind();
-			}
-			if (!fTyped)
-			{
-				bctx.Fail("AggCorrelationPullup expects its aggregate decorrelation symbols");
-				pdrgpsym->Release();
-				pdrgpcon->Release();
-				return nullptr;
-			}
-		}
 		if (EdslconMinimalGrouping == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind()))

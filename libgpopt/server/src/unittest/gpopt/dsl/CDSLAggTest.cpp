@@ -100,27 +100,27 @@ using namespace gpopt;
 	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);OutputAttrs(a13,t0);Unique(t0,a13);"        \
 	"AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14)"
 
-#define GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE                              \
+#define GPOPT_DSL_AGG_CORRELATION_COMPOSITION_RULE                         \
 	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
 	"a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
 	"p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"                        \
 	"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"           \
 	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
 	"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"               \
-	"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"           \
 	"CorrelationEquality(p2,a5,a6);"                                       \
 	"AggCorrelationGrouping(p2,a3,a9,a4,f0,s0,s1,p1,a5,a6);"              \
 	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
 	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
 
-#define GPOPT_DSL_AGG_ANTI_CORRELATION_PULLUP_RULE                         \
+#define GPOPT_DSL_AGG_ANTI_CORRELATION_COMPOSITION_RULE                    \
 	"AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
 	"a6>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
 	"p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"                        \
 	"PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);"           \
 	"AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);"            \
 	"FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);"               \
-	"AggCorrelationPullup(p0,p2,p3,a3,a9,a4,f0,s0,s1,p1,a5,a6);"           \
+	"CorrelationEquality(p2,a5,a6);"                                      \
+	"AggCorrelationGrouping(p2,a3,a9,a4,f0,s0,s1,p1,a5,a6);"             \
 	"AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);"       \
 	"AttrsSub(a5,t1);AttrsSub(a6,t0)"
 
@@ -266,7 +266,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip),
 		GPOS_UNITTEST_FUNC(
-			CDSLAggTest::EresUnittest_AggCorrelationPullup),
+			CDSLAggTest::EresUnittest_AggCorrelationComposition),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
@@ -580,13 +580,13 @@ CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard()
 }
 
 GPOS_RESULT
-CDSLAggTest::EresUnittest_AggCorrelationPullup()
+CDSLAggTest::EresUnittest_AggCorrelationComposition()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE);
+		PdslruleParseLocal(mp, GPOPT_DSL_AGG_CORRELATION_COMPOSITION_RULE);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -675,7 +675,8 @@ CDSLAggTest::EresUnittest_AggCorrelationPullup()
 	// The same grouping contract is polarity-independent: ordinary NOT EXISTS
 	// builds an anti semi join with the identical expanded aggregate schema.
 	CDSLRule *pruleAnti =
-		PdslruleParseLocal(mp, GPOPT_DSL_AGG_ANTI_CORRELATION_PULLUP_RULE);
+		PdslruleParseLocal(mp,
+						GPOPT_DSL_AGG_ANTI_CORRELATION_COMPOSITION_RULE);
 	CExpression *pexprAntiTarget = nullptr;
 	CDSLModel *pmodelAnti = GPOS_NEW(mp) CDSLModel(mp);
 	if (nullptr == pruleAnti)

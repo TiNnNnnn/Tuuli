@@ -111,11 +111,6 @@ private:
 	BOOL FCheckAggFilterCommute(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
-	// AggCorrelationPullup(...): validate the equality-only correlation domain
-	// used when decorrelation must extend aggregate grouping and schema.
-	BOOL FCheckAggCorrelationPullup(const CDSLConstraint *pcon,
-								 const CDSLModel *pmodel) const;
-
 	// CorrelationEquality(p,l,o): p is a non-empty conjunction of equality
 	// edges crossing the disjoint local/outer domains, with no hidden or missing
 	// dependencies in either vector.
