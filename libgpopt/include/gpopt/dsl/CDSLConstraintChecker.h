@@ -114,9 +114,6 @@ private:
 	BOOL FCheckCorrelationEquality(const CDSLConstraint *pcon,
 								   const CDSLModel *pmodel) const;
 
-	BOOL FCheckWindowAggregate(const CDSLConstraint *pcon,
-								 const CDSLModel *pmodel) const;
-
 	// MinimalGrouping(group,schema): the matched global aggregate has no
 	// minimal-group annotation yet, and its functional dependencies cover the
 	// complete grouping set with a derivable determinant.

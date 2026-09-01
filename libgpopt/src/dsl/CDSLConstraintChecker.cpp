@@ -1327,20 +1327,6 @@ CDSLConstraintChecker::FCheckCorrelationEquality(
 		pmodel->PdrgpcrAttrs((*pdrgpsym)[2]));
 }
 
-BOOL
-CDSLConstraintChecker::FCheckWindowAggregate(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (1 != pdrgpsym->Size() ||
-		EdslsymWindow != (*pdrgpsym)[0]->Esymkind())
-	{
-		return false;
-	}
-	CExpression *pexprWindow = pmodel->PexprWindow((*pdrgpsym)[0]);
-	return nullptr != pexprWindow && CUtils::FHasAggWindowFunc(pexprWindow);
-}
-
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckUnique
@@ -2532,8 +2518,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconCorrelationEquality:
 			return FCheckCorrelationEquality(pcon, pmodel);
-		case EdslconWindowAggregate:
-			return FCheckWindowAggregate(pcon, pmodel);
 		case EdslconMinimalGrouping:
 			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:

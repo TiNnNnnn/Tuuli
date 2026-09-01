@@ -149,7 +149,6 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconOrderEq, "OrderEq", 2},
 	{EdslconWindowEq, "WindowEq", 2},
 	{EdslconFrameEq, "FrameEq", 2},
-	{EdslconWindowAggregate, "WindowAggregate", 1},
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
@@ -642,7 +641,6 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconOrderEq:
 		case EdslconWindowEq:
 		case EdslconFrameEq:
-		case EdslconWindowAggregate:
 		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:

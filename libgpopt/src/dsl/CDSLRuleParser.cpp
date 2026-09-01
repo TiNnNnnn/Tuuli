@@ -481,14 +481,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconWindowAggregate == edslcon &&
-			EdslsymWindow != (*pdrgpsym)[0]->Esymkind())
-		{
-			bctx.Fail("WindowAggregate expects a window-items symbol");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

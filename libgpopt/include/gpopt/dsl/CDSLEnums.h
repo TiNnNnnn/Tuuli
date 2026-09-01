@@ -185,9 +185,6 @@ enum EDslConstraintKind
 	EdslconOrderEq,
 	EdslconWindowEq,
 	EdslconFrameEq,
-	// WindowAggregate(items): the window projection contains at least one
-	// aggregate window function, matching ORCA's decorrelation capability gate.
-	EdslconWindowAggregate,
 	// OutputAttrs(out,relation): out is the complete ordered logical output
 	// vector of relation. Target-only out symbols are materialized lazily.
 	// Uniqueness is deliberately expressed by the independent Unique constraint.
