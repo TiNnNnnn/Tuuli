@@ -238,6 +238,8 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_ConstraintLocalValueChain),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
@@ -354,6 +356,59 @@ CDSLAggTest::EresUnittest_MinimalGroupingMetadata()
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprAgg->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp,
+		"Input<t0>|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
+		"KeyedOutput(a9,t0);AttrsEmpty(a8);AttrsUnion(a0,a9,a8);"
+		"SchemaFromAttrs(s0,a0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOutput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"constraint_local", 3, &pdrgpcrOutput, 0 /*key*/);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGet, pmodel) ||
+		!checker.FCheck(prule, pmodel) || !checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CLogicalGbAgg *popTarget =
+			nullptr != pexprTarget &&
+				COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid()
+			? CLogicalGbAgg::PopConvert(pexprTarget->Pop())
+			: nullptr;
+		if (nullptr == popTarget || 3 != popTarget->Pdrgpcr()->Size() ||
+			!pexprTarget->DeriveOutputColumns()->Equals(
+				pexprGet->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
 	pexprGet->Release();
 	prule->Release();
 	return eres;

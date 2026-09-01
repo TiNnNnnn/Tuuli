@@ -91,6 +91,9 @@ public:
 	// same derived keyed-output vector.
 	static GPOS_RESULT EresUnittest_InstantiateSchemaFromAttrs();
 
+	// Constraint-local values compose through the shared checker/materializer.
+	static GPOS_RESULT EresUnittest_ConstraintLocalValueChain();
+
 	// MinimalGrouping derives the same FD-backed metadata as
 	// CXformSimplifyGbAgg without changing the full semantic grouping, and does
 	// not rematch an already annotated aggregate.

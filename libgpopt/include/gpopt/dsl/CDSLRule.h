@@ -162,8 +162,8 @@ public:
 //
 //	@doc:
 //		One side of a rule (WeTune Fragment): a root operator plus the flat list
-//		of symbols declared within it (in declaration order, for round-trip and
-//		for the engine to enumerate).
+//		of symbols declared within it. The target list may additionally own
+//		restricted LET symbols introduced by constructive constraint outputs.
 //---------------------------------------------------------------------------
 class CDSLFragment : public CRefCount
 {

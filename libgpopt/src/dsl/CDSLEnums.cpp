@@ -158,7 +158,7 @@ const SDslConDesc rg_con_desc[] = {
 	 "WindowFrameCorrelationPartition", 7},
 	{EdslconKeyedOutput, "KeyedOutput", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
-	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
+	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 10},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -545,6 +545,40 @@ CDSLConstraintKindTable::UlArity(EDslConstraintKind edslcon)
 {
 	GPOS_ASSERT(EdslconSentinel != edslcon);
 	return rg_con_desc[edslcon].ul_arity;
+}
+
+EDslSymbolKind
+CDSLConstraintKindTable::EsymkindDerivedOutput(
+	EDslConstraintKind edslcon, ULONG ulPosition)
+{
+	switch (edslcon)
+	{
+		case EdslconPredicateAnd:
+			return 0 == ulPosition ? EdslsymPred : EdslsymSentinel;
+		case EdslconAttrsUnion:
+			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
+		case EdslconSchemaUnion:
+			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
+		case EdslconExprConcat:
+			return 0 == ulPosition ? EdslsymExpr : EdslsymSentinel;
+		case EdslconScalarOne:
+		case EdslconScalarZero:
+			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
+		case EdslconAttrsEmpty:
+		case EdslconKeyedOutput:
+			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
+		case EdslconSchemaFromAttrs:
+			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
+		case EdslconPredicateDomainSplit:
+			if (2 == ulPosition || 3 == ulPosition)
+			{
+				return EdslsymPred;
+			}
+			return 4 <= ulPosition && ulPosition <= 7 ? EdslsymAttrs
+														 : EdslsymSentinel;
+		default:
+			return EdslsymSentinel;
+	}
 }
 
 EDslConstraintKind

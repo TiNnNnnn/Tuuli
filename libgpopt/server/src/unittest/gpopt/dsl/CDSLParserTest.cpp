@@ -534,6 +534,28 @@ CDSLParserTest::EresUnittest_Constraints()
 		bad->Release();
 		return GPOS_FAILED;
 	}
+	// A constructive output may introduce a target-local value, and subsequent
+	// constraints may consume it in declaration order.
+	const CHAR *szLocal =
+		"Input<t0>|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
+		"KeyedOutput(a9,t0);AttrsUnion(a0,a9,a9);SchemaFromAttrs(s0,a0)";
+	CDSLRule *local = Parse(mp, szLocal);
+	if (nullptr == local || !FRoundTrips(mp, szLocal))
+	{
+		CRefCount::SafeRelease(local);
+		return GPOS_FAILED;
+	}
+	local->Release();
+
+	// An undeclared input is never inferred merely because the same constraint
+	// has a constructive output.
+	bad = Parse(mp, "Input<t0>|Input<t1>|AttrsUnion(a9,a8,a7)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+
 	// well-formed Reference(4) + Unique(2) -> OK.
 	CDSLRule *ok = Parse(
 		mp,

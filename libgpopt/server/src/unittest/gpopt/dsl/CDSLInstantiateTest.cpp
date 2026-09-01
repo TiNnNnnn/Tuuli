@@ -101,11 +101,12 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 
 	CDSLRule *prule = PdslruleParseLocal(
 		mp,
-		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
-		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
 		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1);"
-		"ErrorFree(p0);Deterministic(p0)");
+		"PredicateDomainSplit(p0,p1,p2,p3,a4,a5,a6,a7,t0,t1);"
+		"ErrorFree(p0);Deterministic(p0);"
+		"ErrorFree(p1);Deterministic(p1)");
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -120,16 +121,20 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 		fix.PexprLogicalGet("split_inner", 2, &pdrgpcrInner);
 	CExpression *pexprExternal =
 		fix.PexprLogicalGet("split_external", 1, &pdrgpcrExternal);
-	CExpression *pexprResidual =
-		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprOuterAtom =
+		fix.PexprPredAtom((*pdrgpcrOuter)[0]);
+	CExpression *pexprInnerAtom =
+		fix.PexprPredAtom((*pdrgpcrInner)[0]);
+	CExpression *pexprResidual = CPredicateUtils::PexprDisjunction(
+		mp, pexprOuterAtom, pexprInnerAtom);
+	pexprOuterAtom->Release();
+	pexprInnerAtom->Release();
 	CExpression *pexprJoin =
 		fix.PexprLogicalInnerJoin(pexprOuter, pexprInner, pexprResidual);
 	CExpression *pexprExternalPred =
 		fix.PexprEqPred((*pdrgpcrInner)[1], (*pdrgpcrExternal)[0]);
-	CExpression *pexprCombined = CPredicateUtils::PexprConjunction(
-		mp, pexprResidual, pexprExternalPred);
 	CExpression *pexprSource =
-		fix.PexprLogicalSelect(pexprJoin, pexprCombined);
+		fix.PexprLogicalSelect(pexprJoin, pexprExternalPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
@@ -168,10 +173,10 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 	}
 	CDSLRule *pruleUnsafe = PdslruleParseLocal(
 		mp,
-		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
-		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
 		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1)");
+		"PredicateDomainSplit(p0,p1,p2,p3,a4,a5,a6,a7,t0,t1)");
 	CDSLModel *pmodelUnsafe = GPOS_NEW(mp) CDSLModel(mp);
 	if (nullptr == pruleUnsafe ||
 		!CDSLMatcher(mp, pruleUnsafe)
@@ -187,7 +192,6 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 	CRefCount::SafeRelease(pruleUnsafe);
 	pmodel->Release();
 	pexprSource->Release();
-	pexprCombined->Release();
 	pexprExternalPred->Release();
 	pexprJoin->Release();
 	pexprResidual->Release();
@@ -210,11 +214,12 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom()
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(
 		mp,
-		"Filter<p0 a2 a3>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
-		"Filter<p2 a6 a7>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|"
+		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
 		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateDomainSplit(p0,p1,p2,a4,a5,a6,a7,t0,t1);"
-		"ErrorFree(p0);Deterministic(p0)");
+		"PredicateDomainSplit(p0,p1,p2,p3,a4,a5,a6,a7,t0,t1);"
+		"ErrorFree(p0);Deterministic(p0);"
+		"ErrorFree(p1);Deterministic(p1)");
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -229,8 +234,14 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom()
 		fix.PexprLogicalGet("mixed_inner", 2, &pdrgpcrInner);
 	CExpression *pexprExternal =
 		fix.PexprLogicalGet("mixed_external", 1, &pdrgpcrExternal);
-	CExpression *pexprResidual =
-		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
+	CExpression *pexprOuterAtom =
+		fix.PexprPredAtom((*pdrgpcrOuter)[0]);
+	CExpression *pexprInnerAtom =
+		fix.PexprPredAtom((*pdrgpcrInner)[0]);
+	CExpression *pexprResidual = CPredicateUtils::PexprDisjunction(
+		mp, pexprOuterAtom, pexprInnerAtom);
+	pexprOuterAtom->Release();
+	pexprInnerAtom->Release();
 	CExpression *pexprJoin =
 		fix.PexprLogicalInnerJoin(pexprOuter, pexprInner, pexprResidual);
 	CExpression *pexprCurrentDomains =
@@ -251,18 +262,9 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom()
 	const BOOL fMatched =
 		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
 	const BOOL fChecked = fMatched && checker.FCheck(prule, pmodel);
-	if (!fMatched || !fChecked)
+	if (!fMatched || fChecked)
 	{
 		eres = GPOS_FAILED;
-	}
-	else
-	{
-		CDSLInstantiator instantiator(mp);
-		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
-		if (nullptr != pexprTarget)
-		{
-			eres = GPOS_FAILED;
-		}
 	}
 
 	CRefCount::SafeRelease(pexprTarget);

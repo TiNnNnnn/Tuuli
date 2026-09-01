@@ -76,6 +76,10 @@ class CDSLModel : public CRefCount
 private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
+	// Symbols synthesized by constructive constraints during checking. Keeping
+	// provenance makes repeated checks idempotent without treating arbitrary
+	// target bindings as trusted matcher evidence.
+	CDSLSymbolArray *m_pdrgpsymDerived;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
 	CDSLSymbolToExpressionMap *m_phmInSubCarrier;
 	CDSLSymbolToExpressionMap *m_phmFilterCarrier;
@@ -154,6 +158,11 @@ public:
 	// (WeTune's incompatible-reassignment failure); rebinding to the SAME value
 	// is a no-op success.
 	BOOL FBind(const CDSLSymbol *psym, CRefCount *pval);
+
+	// Bind a value produced by a constructive constraint and record its
+	// provenance. The value ownership contract is identical to FBind().
+	BOOL FBindDerived(const CDSLSymbol *psym, CRefCount *pval);
+	BOOL FDerivedBinding(const CDSLSymbol *psym) const;
 
 	// look up a bound artifact (NULL if unbound). Does NOT AddRef.
 	CRefCount *PvalLookup(const CDSLSymbol *psym) const;

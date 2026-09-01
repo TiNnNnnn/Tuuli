@@ -187,7 +187,7 @@ public:
 				CDSLModel *pmodel) const;
 
 	// ②: check the rule's constraints against the bound model / live metadata.
-	BOOL FCheckConstraints(const CDSLRule *prule, const CDSLModel *pmodel,
+	BOOL FCheckConstraints(const CDSLRule *prule, CDSLModel *pmodel,
 						   CExpression *pexpr,
 						   const CDSLConstraint **ppconFailed = nullptr,
 						   ULONG *pulFailed = nullptr) const;

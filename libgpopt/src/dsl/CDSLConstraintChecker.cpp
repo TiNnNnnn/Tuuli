@@ -10,6 +10,8 @@
 //		structural constraints (AttrsSub / Unique / NotNull / Reference).
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+
+#include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 
 #include "gpos/base.h"
@@ -1036,14 +1038,14 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 	const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (9 != pdrgpsym->Size())
+	if (10 != pdrgpsym->Size())
 	{
 		return false;
 	}
 	const EDslSymbolKind rgExpected[] = {
-		EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
-		EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymTable,
-		EdslsymTable};
+		EdslsymPred, EdslsymPred, EdslsymPred, EdslsymPred,
+		EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
+		EdslsymTable, EdslsymTable};
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
 	{
 		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
@@ -1052,17 +1054,18 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 		}
 	}
 
-	// Positions 1..6 are an atomic target-side decomposition. Accepting a
+	// Positions 2..7 are an atomic target-side decomposition. Accepting a
 	// partially bound mixture would let independently matched artifacts disagree
 	// with the partition recomputed by the instantiator.
-	for (ULONG ul = 1; ul <= 6; ul++)
+	for (ULONG ul = 2; ul <= 7; ul++)
 	{
 		if (EdslsideTarget != (*pdrgpsym)[ul]->Eside() ||
-			nullptr != pmodel->PvalLookup((*pdrgpsym)[ul]))
+			(nullptr != pmodel->PvalLookup((*pdrgpsym)[ul]) &&
+			 !pmodel->FDerivedBinding((*pdrgpsym)[ul])))
 		{
 			return false;
 		}
-		for (ULONG ulOther = ul + 1; ulOther <= 6; ulOther++)
+		for (ULONG ulOther = ul + 1; ulOther <= 7; ulOther++)
 		{
 			if ((*pdrgpsym)[ul] == (*pdrgpsym)[ulOther])
 			{
@@ -1070,10 +1073,13 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 			}
 		}
 	}
-	if (nullptr == pmodel->PexprPred((*pdrgpsym)[0]) &&
-		EdslsideTarget != (*pdrgpsym)[0]->Eside())
+	for (ULONG ulSource = 0; ulSource <= 1; ulSource++)
 	{
-		return false;
+		if (nullptr == pmodel->PexprPred((*pdrgpsym)[ulSource]) &&
+			EdslsideTarget != (*pdrgpsym)[ulSource]->Eside())
+		{
+			return false;
+		}
 	}
 
 	// Partitioning changes conjunction evaluation order. Admit it only when the
@@ -1083,6 +1089,8 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 	// rewrite that moves scalar evaluation.
 	BOOL fErrorFree = false;
 	BOOL fDeterministic = false;
+	BOOL fSecondErrorFree = false;
+	BOOL fSecondDeterministic = false;
 	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
 	{
@@ -1093,7 +1101,7 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 			for (ULONG ulArg = 0; ulArg < pconProperty->Pdrgpsym()->Size();
 				 ulArg++)
 			{
-				for (ULONG ulOutput = 1; ulOutput <= 6; ulOutput++)
+				for (ULONG ulOutput = 2; ulOutput <= 7; ulOutput++)
 				{
 					if ((*pconProperty->Pdrgpsym())[ulArg] ==
 						(*pdrgpsym)[ulOutput])
@@ -1103,23 +1111,34 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 				}
 			}
 		}
-		if (1 != pconProperty->Pdrgpsym()->Size() ||
-			(*pconProperty->Pdrgpsym())[0] != (*pdrgpsym)[0])
+		if (1 != pconProperty->Pdrgpsym()->Size())
 		{
 			continue;
 		}
-		fErrorFree = fErrorFree ||
-			EdslconErrorFree == pconProperty->Edslcon();
-		fDeterministic = fDeterministic ||
-			EdslconDeterministic == pconProperty->Edslcon();
+		const CDSLSymbol *psymProperty = (*pconProperty->Pdrgpsym())[0];
+		if (psymProperty == (*pdrgpsym)[0])
+		{
+			fErrorFree = fErrorFree ||
+				EdslconErrorFree == pconProperty->Edslcon();
+			fDeterministic = fDeterministic ||
+				EdslconDeterministic == pconProperty->Edslcon();
+		}
+		else if (psymProperty == (*pdrgpsym)[1])
+		{
+			fSecondErrorFree = fSecondErrorFree ||
+				EdslconErrorFree == pconProperty->Edslcon();
+			fSecondDeterministic = fSecondDeterministic ||
+				EdslconDeterministic == pconProperty->Edslcon();
+		}
 	}
-	if (!fErrorFree || !fDeterministic)
+	if (!fErrorFree || !fDeterministic || !fSecondErrorFree ||
+		!fSecondDeterministic)
 	{
 		return false;
 	}
 
-	CExpression *pexprOuter = pmodel->PexprTable((*pdrgpsym)[7]);
-	CExpression *pexprInner = pmodel->PexprTable((*pdrgpsym)[8]);
+	CExpression *pexprOuter = pmodel->PexprTable((*pdrgpsym)[8]);
+	CExpression *pexprInner = pmodel->PexprTable((*pdrgpsym)[9]);
 	return nullptr != pexprOuter && nullptr != pexprInner &&
 		pexprOuter->DeriveOutputColumns()->IsDisjoint(
 			pexprInner->DeriveOutputColumns());
@@ -2724,7 +2743,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheck(const CDSLRule *prule,
-							  const CDSLModel *pmodel,
+								  CDSLModel *pmodel,
 							  const CDSLConstraint **ppconFailed,
 							  ULONG *pulFailed) const
 {
@@ -2746,9 +2765,12 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 	}
 
 	const ULONG ulCon = pdrgpcon->Size();
+	CDSLInstantiator materializer(m_mp);
 	for (ULONG ul = 0; ul < ulCon; ul++)
 	{
-		if (!FCheckOne(prule, (*pdrgpcon)[ul], pmodel))
+		if (!FCheckOne(prule, (*pdrgpcon)[ul], pmodel) ||
+			!materializer.FMaterializeConstraintOutputs(
+				prule, (*pdrgpcon)[ul], pmodel))
 		{
 			if (nullptr != ppconFailed)
 			{

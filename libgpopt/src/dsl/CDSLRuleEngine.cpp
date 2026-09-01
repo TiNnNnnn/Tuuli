@@ -1023,7 +1023,7 @@ CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
 
 BOOL
 CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
-								  const CDSLModel *pmodel,
+								  CDSLModel *pmodel,
 								  CExpression *,  // pexpr unused: constraints are
 												  // checked against bound model
 								  const CDSLConstraint **ppconFailed,

@@ -288,6 +288,13 @@ public:
 
 	~CDSLInstantiator();
 
+	// Evaluate every constructive output of one already-validated constraint and
+	// bind it into the match model. This gives constraint checking and target
+	// construction one implementation of restricted LET chains.
+	BOOL FMaterializeConstraintOutputs(const CDSLRule *prule,
+									 const CDSLConstraint *pcon,
+									 CDSLModel *pmodel);
+
 	// build the rule's target expression; NULL if instantiation is not possible
 	// (missing binding, unsupported operator). Caller owns the returned ref.
 	CExpression *PexprInstantiate(const CDSLRule *prule,

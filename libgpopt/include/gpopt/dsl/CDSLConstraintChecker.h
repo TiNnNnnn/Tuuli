@@ -204,7 +204,7 @@ public:
 	// Check every constraint of prule against pmodel; true iff all hold. When
 	// requested, report (without transferring ownership) the first failed
 	// constraint and its zero-based position for verbose differential traces.
-	BOOL FCheck(const CDSLRule *prule, const CDSLModel *pmodel,
+	BOOL FCheck(const CDSLRule *prule, CDSLModel *pmodel,
 				const CDSLConstraint **ppconFailed = nullptr,
 				ULONG *pulFailed = nullptr) const;
 };

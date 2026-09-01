@@ -25,6 +25,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
+	m_pdrgpsymDerived = GPOS_NEW(mp) CDSLSymbolArray(mp);
 	m_phmInSubPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmInSubCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmFilterCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
@@ -51,6 +52,7 @@ CDSLModel::~CDSLModel()
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
+	m_pdrgpsymDerived->Release();
 	m_phmInSubPred->Release();
 	m_phmInSubCarrier->Release();
 	m_phmFilterCarrier->Release();
@@ -524,6 +526,35 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 		m_phmSymToRef->Insert(const_cast<CDSLSymbol *>(psym), pval);
 	GPOS_ASSERT(fInserted);
 	return fInserted;
+}
+
+BOOL
+CDSLModel::FBindDerived(const CDSLSymbol *psym, CRefCount *pval)
+{
+	if (!FBind(psym, pval))
+	{
+		return false;
+	}
+	if (FDerivedBinding(psym))
+	{
+		return true;
+	}
+	const_cast<CDSLSymbol *>(psym)->AddRef();
+	m_pdrgpsymDerived->Append(const_cast<CDSLSymbol *>(psym));
+	return true;
+}
+
+BOOL
+CDSLModel::FDerivedBinding(const CDSLSymbol *psym) const
+{
+	for (ULONG ul = 0; ul < m_pdrgpsymDerived->Size(); ul++)
+	{
+		if ((*m_pdrgpsymDerived)[ul] == psym)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 //---------------------------------------------------------------------------

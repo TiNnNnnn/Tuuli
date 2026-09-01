@@ -217,10 +217,11 @@ enum EDslConstraintKind
 	// SchemaFromAttrs(schema,attrs): schema is the same ordered concrete column
 	// vector as attrs, crossing the DSL's distinct symbol namespaces explicitly.
 	EdslconSchemaFromAttrs,
-	// PredicateDomainSplit(source,residual,external,residual_outer,
-	// residual_inner,external_local,external_outer,outer,inner): partition
-	// source conjuncts by the two current relational domains. A conjunct that
-	// mixes both current domains with an external domain is rejected.
+	// PredicateDomainSplit(source_first,source_second,residual,external,
+	// residual_outer,residual_inner,external_local,external_outer,outer,inner):
+	// conjoin two source predicates, then partition by the two current relational
+	// domains. A conjunct mixing both current domains with an external domain is
+	// rejected.
 	EdslconPredicateDomainSplit,
 	EdslconSentinel
 };
@@ -303,6 +304,11 @@ public:
 
 	// number of symbol arguments (TableEq..NotNull = 2, Reference = 4)
 	static ULONG UlArity(EDslConstraintKind edslcon);
+
+	// Fixed type of a constructively defined output position. Sentinel means
+	// the position is an input/premise and cannot introduce a local symbol.
+	static EDslSymbolKind EsymkindDerivedOutput(EDslConstraintKind edslcon,
+											 ULONG ulPosition);
 
 	// resolve a constraint name to its kind; also accepts the legacy "Pick*"
 	// spelling WeTune rewrites to "Attrs*". Returns EdslconSentinel if unknown.

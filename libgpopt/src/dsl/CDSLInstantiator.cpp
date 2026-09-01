@@ -685,6 +685,81 @@ CDSLInstantiator::~CDSLInstantiator()
 	m_phmAlias->Release();
 }
 
+BOOL
+CDSLInstantiator::FMaterializeConstraintOutputs(
+	const CDSLRule *prule, const CDSLConstraint *pcon, CDSLModel *pmodel)
+{
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pcon);
+	GPOS_ASSERT(nullptr != pmodel);
+	if (nullptr == m_prule)
+	{
+		m_prule = prule;
+		BuildAliasMap(prule);
+	}
+	else if (m_prule != prule)
+	{
+		return false;
+	}
+
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+	{
+		const EDslSymbolKind esymkind =
+			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
+		if (EdslsymSentinel == esymkind)
+		{
+			continue;
+		}
+
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		if (esymkind != psym->Esymkind())
+		{
+			return false;
+		}
+		if (nullptr != pmodel->PvalLookup(psym))
+		{
+			continue;
+		}
+
+		CRefCount *pval = nullptr;
+		BOOL fOwned = false;
+		switch (esymkind)
+		{
+			case EdslsymPred:
+				pval = PexprResolvePredicate(psym, pmodel);
+				fOwned = true;
+				break;
+			case EdslsymAttrs:
+			case EdslsymSchema:
+				pval = PdrgpcrResolveCols(psym, pmodel);
+				break;
+			case EdslsymScalar:
+				pval = PexprResolveScalar(psym, pmodel);
+				fOwned = true;
+				break;
+			case EdslsymExpr:
+				pval = PexprResolveExpr(psym, pmodel);
+				fOwned = true;
+				break;
+			default:
+				return false;
+		}
+
+		const BOOL fBound =
+			nullptr != pval && pmodel->FBindDerived(psym, pval);
+		if (fOwned)
+		{
+			CRefCount::SafeRelease(pval);
+		}
+		if (!fBound)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiator::BuildAliasMap
@@ -812,18 +887,18 @@ BOOL
 CDSLInstantiator::FMaterializePredicateDomainSplit(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, ULONG ulDepth) const
 {
-	if (nullptr == pcon || 9 != pcon->Pdrgpsym()->Size() ||
+	if (nullptr == pcon || 10 != pcon->Pdrgpsym()->Size() ||
 		nullptr == m_prule || ulDepth > m_prule->Pdrgpcon()->Size())
 	{
 		return false;
 	}
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	const CDSLSymbol *psymResidual = PsymResolve((*pdrgpsym)[1]);
-	const CDSLSymbol *psymExternal = PsymResolve((*pdrgpsym)[2]);
-	const CDSLSymbol *psymResidualOuter = PsymResolve((*pdrgpsym)[3]);
-	const CDSLSymbol *psymResidualInner = PsymResolve((*pdrgpsym)[4]);
-	const CDSLSymbol *psymExternalLocal = PsymResolve((*pdrgpsym)[5]);
-	const CDSLSymbol *psymExternalOuter = PsymResolve((*pdrgpsym)[6]);
+	const CDSLSymbol *psymResidual = PsymResolve((*pdrgpsym)[2]);
+	const CDSLSymbol *psymExternal = PsymResolve((*pdrgpsym)[3]);
+	const CDSLSymbol *psymResidualOuter = PsymResolve((*pdrgpsym)[4]);
+	const CDSLSymbol *psymResidualInner = PsymResolve((*pdrgpsym)[5]);
+	const CDSLSymbol *psymExternalLocal = PsymResolve((*pdrgpsym)[6]);
+	const CDSLSymbol *psymExternalOuter = PsymResolve((*pdrgpsym)[7]);
 	const BOOL fAllCached =
 		nullptr != m_phmDerivedPreds->Find(psymResidual) &&
 		nullptr != m_phmDerivedPreds->Find(psymExternal) &&
@@ -845,18 +920,25 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 		return false;
 	}
 
-	CExpression *pexprSource = PexprResolvePredicate(
+	CExpression *pexprSourceFirst = PexprResolvePredicate(
 		(*pdrgpsym)[0], pmodel, ulDepth + 1);
+	CExpression *pexprSourceSecond = PexprResolvePredicate(
+		(*pdrgpsym)[1], pmodel, ulDepth + 1);
 	CExpression *pexprOuter =
-		pmodel->PexprTable(PsymResolve((*pdrgpsym)[7]));
-	CExpression *pexprInner =
 		pmodel->PexprTable(PsymResolve((*pdrgpsym)[8]));
-	if (nullptr == pexprSource || nullptr == pexprOuter ||
-		nullptr == pexprInner)
+	CExpression *pexprInner =
+		pmodel->PexprTable(PsymResolve((*pdrgpsym)[9]));
+	if (nullptr == pexprSourceFirst || nullptr == pexprSourceSecond ||
+		nullptr == pexprOuter || nullptr == pexprInner)
 	{
-		CRefCount::SafeRelease(pexprSource);
+		CRefCount::SafeRelease(pexprSourceFirst);
+		CRefCount::SafeRelease(pexprSourceSecond);
 		return false;
 	}
+	CExpression *pexprSource = CPredicateUtils::PexprConjunction(
+		m_mp, pexprSourceFirst, pexprSourceSecond);
+	pexprSourceFirst->Release();
+	pexprSourceSecond->Release();
 
 	CColRefSet *pcrsOuter = pexprOuter->DeriveOutputColumns();
 	CColRefSet *pcrsInner = pexprInner->DeriveOutputColumns();
@@ -1011,9 +1093,9 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 	{
 		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
 		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
-			9 == pcon->Pdrgpsym()->Size() &&
-			((*pcon->Pdrgpsym())[1] == psym ||
-			 (*pcon->Pdrgpsym())[2] == psym))
+			10 == pcon->Pdrgpsym()->Size() &&
+			((*pcon->Pdrgpsym())[2] == psym ||
+			 (*pcon->Pdrgpsym())[3] == psym))
 		{
 			if (nullptr != pconSplit)
 			{
@@ -1149,10 +1231,10 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			pconDef = pcon;
 		}
 		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
-			9 == pcon->Pdrgpsym()->Size())
+			10 == pcon->Pdrgpsym()->Size())
 		{
 			BOOL fDefines = false;
-			for (ULONG ulOutput = 3; ulOutput <= 6; ulOutput++)
+			for (ULONG ulOutput = 4; ulOutput <= 7; ulOutput++)
 			{
 				fDefines = fDefines || (*pcon->Pdrgpsym())[ulOutput] == psym;
 			}
@@ -1696,7 +1778,7 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 
 	const CDSLSymbol *psymSourcePred = PsymResolve((*pdrgpsymTarget)[0]);
 	CExpression *pexprBound = pmodel->PexprPred(psymSourcePred);
-	if (nullptr == pexprBound)
+	if (nullptr == pexprBound || pmodel->FDerivedBinding(psymSourcePred))
 	{
 		// PredicateAnd defines a target-only predicate rather than aliasing one
 		// source Filter. Join and Exists already resolve this form through the

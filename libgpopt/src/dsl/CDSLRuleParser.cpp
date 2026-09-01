@@ -313,10 +313,13 @@ PfragBuild(SBuildCtx &bctx, dsl::DSLRuleParser::FragContext *frag_ctx,
 	return GPOS_NEW(mp) CDSLFragment(mp, pop_root, pdrgpsym_frag);
 }
 
-// Build the constraint list. Constraints only REFERENCE declared symbols.
+// Build the constraint list. Inputs reference symbols declared by the two
+// operator fragments or by an earlier restricted LET output. A constructive
+// output may introduce a target-local symbol into pdrgpsymTarget.
 CDSLConstraintArray *
 PdrgpconBuild(SBuildCtx &bctx,
-			  dsl::DSLRuleParser::ConstraintsContext *cons_ctx)
+			  dsl::DSLRuleParser::ConstraintsContext *cons_ctx,
+			  CDSLSymbolArray *pdrgpsymTarget)
 {
 	CMemoryPool *mp = bctx.mp;
 	CDSLConstraintArray *pdrgpcon = GPOS_NEW(mp) CDSLConstraintArray(mp);
@@ -349,16 +352,28 @@ PdrgpconBuild(SBuildCtx &bctx,
 
 		CDSLSymbolArray *pdrgpsym = GPOS_NEW(mp) CDSLSymbolArray(mp);
 		bool ok = true;
-		for (auto *sym_node : syms)
+		for (ULONG ulSym = 0; ulSym < syms.size(); ulSym++)
 		{
+			auto *sym_node = syms[ulSym];
 			std::string name = sym_node->getText();
 			auto it = bctx.symtab.find(name);
 			if (it == bctx.symtab.end())
 			{
-				bctx.Fail("constraint references undeclared symbol '" + name +
-						  "'");
-				ok = false;
-				break;
+				const EDslSymbolKind esymkind =
+					CDSLConstraintKindTable::EsymkindDerivedOutput(edslcon,
+																	 ulSym);
+				if (EdslsymSentinel == esymkind)
+				{
+					bctx.Fail("constraint references undeclared symbol '" + name +
+							  "'");
+					ok = false;
+					break;
+				}
+				CDSLSymbol *psym = GPOS_NEW(mp) CDSLSymbol(
+					mp, esymkind, name.c_str(), bctx.next_id++, EdslsideTarget);
+				pdrgpsymTarget->Append(psym);
+				bctx.symtab[name] = psym;
+				it = bctx.symtab.find(name);
 			}
 			it->second->AddRef();  // extra owner: this constraint's sym list
 			pdrgpsym->Append(it->second);
@@ -592,9 +607,9 @@ PdrgpconBuild(SBuildCtx &bctx,
 		if (EdslconPredicateDomainSplit == edslcon)
 		{
 			const EDslSymbolKind rgExpected[] = {
-				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymAttrs,
-				EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymTable,
-				EdslsymTable};
+				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymPred,
+				EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
+				EdslsymTable, EdslsymTable};
 			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
 			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
 			{
@@ -602,7 +617,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			}
 			if (!fTyped)
 			{
-				bctx.Fail("PredicateDomainSplit expects three predicates, four attrs, and two tables");
+				bctx.Fail("PredicateDomainSplit expects four predicates, four attrs, and two tables");
 				pdrgpsym->Release();
 				pdrgpcon->Release();
 				return nullptr;
@@ -664,7 +679,8 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 			}
 			if (nullptr != pfrag_tgt)
 			{
-				pdrgpcon = PdrgpconBuild(bctx, tree->constraints());
+				pdrgpcon = PdrgpconBuild(
+					bctx, tree->constraints(), pfrag_tgt->Pdrgpsym());
 			}
 
 			if (nullptr != pdrgpcon)
