@@ -72,8 +72,9 @@ CDSLMatchTest::EresUnittest()
 //
 //	@doc:
 //		WeTune: Match.matchOne INPUT branch — an Input placeholder binds to ANY
-//		plan node with no type check. Here Input<t0> is matched against a bare
-//		Get; t0 must bind to exactly that subtree.
+//		plan node with no type check. Here Input<t0> is matched directly against
+//		a Select(Get) tree; t0 must bind to the whole non-leaf subtree rather than
+//		being narrowed to the Get leaf.
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLMatchTest::EresUnittest_InputBindsAnySubtree()
@@ -94,28 +95,33 @@ CDSLMatchTest::EresUnittest_InputBindsAnySubtree()
 
 	CColRefArray *pdrgpcrOut = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet("t0", 2, &pdrgpcrOut);
+	CColRef *rgpcr[1] = {(*pdrgpcrOut)[0]};
+	CExpression *pexprPred = fix.PexprConjunctionOfAtoms(rgpcr, 1);
+	CExpression *pexprSubtree = fix.PexprLogicalSelect(pexprGet, pexprPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 
 	GPOS_RESULT eres = GPOS_OK;
 	if (nullptr == popInput || EdslopInput != popInput->Edslop() ||
-		!matcher.FMatch(popInput, pexprGet, pmodel) || 1 != pmodel->Size())
+		!matcher.FMatch(popInput, pexprSubtree, pmodel) || 1 != pmodel->Size())
 	{
 		eres = GPOS_FAILED;
 	}
 	else
 	{
-		// t0 must be bound to the very Get subtree we matched
+		// t0 must be bound to the complete Select(Get) subtree we matched.
 		const CDSLSymbol *psymT0 = (*popInput->Pdrgpsym())[0];
-		if (pexprGet != pmodel->PexprTable(psymT0))
+		if (pexprSubtree != pmodel->PexprTable(psymT0))
 		{
 			eres = GPOS_FAILED;
 		}
 	}
 
 	pmodel->Release();
+	pexprPred->Release();
 	pexprGet->Release();
+	pexprSubtree->Release();
 	prule->Release();
 	return eres;
 }
