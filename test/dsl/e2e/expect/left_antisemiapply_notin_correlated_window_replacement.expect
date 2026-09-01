@@ -7,7 +7,7 @@
     "scope": "Correlated integer MAX window with equality keys covered by the cumulative window partition",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "dacdbebc189822f0"
+      "512a6a9d956dff3f"
     ]
   },
   "plans": [
@@ -21,7 +21,7 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"dacdbebc189822f0\""
+        "\"status\":\"applied\",\"rule_hash\":\"512a6a9d956dff3f\""
       ],
       "alternative": [
         "CXformDSLRule_All"
@@ -46,7 +46,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"dacdbebc189822f0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"512a6a9d956dff3f\"",
         "CLogicalLeftAntiSemiJoinNotIn"
       ],
       "not_contains": [

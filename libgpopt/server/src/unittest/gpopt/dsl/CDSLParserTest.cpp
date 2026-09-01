@@ -650,7 +650,7 @@ CDSLParserTest::EresUnittest_Errors()
 	bad = CDSLRuleParser::PdslruleParse(
 		mp,
 		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
-		"TableEq(t1,t0);DepsDisjoint(a0,s0)",
+		"TableEq(t1,t0);DepsDisjoint(t0,s0)",
 		nullptr, &strTypeErr);
 	if (nullptr != bad || 0 == strTypeErr.Length())
 	{

@@ -8,11 +8,11 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"dacdbebc189822f0\"",
-        "\"failed_constraint\":\"WindowFrameCorrelationPartition\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"512a6a9d956dff3f\"",
+        "\"failed_constraint\":\"AttrsSub\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"dacdbebc189822f0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"512a6a9d956dff3f\"",
         "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ]
     }

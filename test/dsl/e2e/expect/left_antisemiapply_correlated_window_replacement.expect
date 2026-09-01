@@ -7,7 +7,7 @@
     "scope": "LeftAntiSemiApply whose inner correlated Filter is below a partition-compatible aggregate Window",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "cca9b9fe61c75e60",
+      "c0d365d56d42b37c",
       "5004b2a4db64e478"
     ]
   },
@@ -26,7 +26,7 @@
       "trace": true,
       "contains": [
         "Xform: CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c0d365d56d42b37c\"",
         "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
       ]
     },
@@ -49,7 +49,7 @@
       ],
       "contains": [
         "Xform: CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"cca9b9fe61c75e60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c0d365d56d42b37c\"",
         "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
       ]
     }

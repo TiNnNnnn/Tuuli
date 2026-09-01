@@ -430,11 +430,17 @@ PdrgpconBuild(SBuildCtx &bctx,
 		}
 		if (EdslconDepsDisjoint == edslcon &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
-			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind()))
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymSchema != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymOrder != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymWindow != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymFrame != (*pdrgpsym)[0]->Esymkind()) ||
+			 (EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() &&
+			  EdslsymSchema != (*pdrgpsym)[1]->Esymkind())))
 		{
 			bctx.Fail(
-				"DepsDisjoint expects an expression-list or predicate and a schema symbol");
+				"DepsDisjoint expects dependency-bearing metadata and an attrs/schema domain");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
@@ -475,31 +481,13 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconWindowCorrelationPartition == edslcon ||
-			EdslconWindowFrameCorrelationPartition == edslcon)
+		if (EdslconWindowAggregate == edslcon &&
+			EdslsymWindow != (*pdrgpsym)[0]->Esymkind())
 		{
-			const BOOL fFrame =
-				EdslconWindowFrameCorrelationPartition == edslcon;
-			const EDslSymbolKind rgRows[] = {
-				EdslsymPred, EdslsymAttrs, EdslsymOrder,
-				EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
-			const EDslSymbolKind rgFrame[] = {
-				EdslsymPred, EdslsymAttrs, EdslsymOrder, EdslsymFrame,
-				EdslsymWindow, EdslsymAttrs, EdslsymAttrs};
-			BOOL fTyped = pdrgpsym->Size() == (fFrame ? 7 : 6);
-			for (ULONG ul = 0; fTyped && ul < pdrgpsym->Size(); ul++)
-			{
-				fTyped = (fFrame ? rgFrame[ul] : rgRows[ul]) ==
-					(*pdrgpsym)[ul]->Esymkind();
-			}
-			if (!fTyped)
-			{
-				bctx.Fail(
-					"window correlation constraint expects predicate, window metadata, and local/outer attrs");
-				pdrgpsym->Release();
-				pdrgpcon->Release();
-				return nullptr;
-			}
+			bctx.Fail("WindowAggregate expects a window-items symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
 		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())

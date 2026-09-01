@@ -198,28 +198,28 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p3,p0);AttrsEq(a7,a0);AttrsEq(a8,a1);PredicateEq(p4,p2);AttrsEq(a9,a6);AttrsEq(a10,a5);AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);AttrsEq(a12,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p5,p1);CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
 
 # Extends NULL-aware decorrelation across a cumulative Window.  The runtime
-# contract admits only a pure equality correlation whose local keys are covered
-# by PARTITION BY; order/items cannot reference outer columns and the window
-# item must be an error-free, total aggregate supported by the shared checker.
+# rule composes atomic facts: equality correlation, non-empty local keys covered
+# by PARTITION BY, outer-column independence for partition/order/items, and an
+# aggregate window item accepted by the shared checker.
 # The target keeps the exact Window metadata and moves the correlation into the
 # AntiJoinNotIn qualifier.  FormalSQL/Rocq accepted this operator-local theorem
 # on 2026-08-31.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);WindowEq(w1,w0);WindowCorrelationPartition(p1,a3,o0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);WindowEq(w1,w0);WindowAggregate(w0);CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # The explicit-frame sibling covers ORCA's normalized representation of SQL
 # default frames as well as genuine ROWS/RANGE frames.  FrameEq preserves the
-# exact frame and the frame-aware contract additionally rejects outer-column
-# references in frame edges.  FormalSQL/Rocq accepted the generic frame theorem
+# exact frame and DepsDisjoint additionally rejects outer-column references in
+# frame edges.  FormalSQL/Rocq accepted the generic composed theorem
 # on 2026-08-31.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);WindowFrameCorrelationPartition(p1,a3,o0,m0,w0,a4,a5);CorrelationEquality(p1,a4,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a6,a0);AttrsEq(a7,a1);PredicateEq(p3,p1);AttrsEq(a8,a5);AttrsEq(a9,a4);AttrsEq(a2,a5);AttrsEq(a10,a3);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);WindowAggregate(w0);CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(m0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # Pull a correlated Filter above a Window when every local correlation key is
 # covered by the partition. These are operator-local rules: once the Filter is
 # exposed, every Apply family reuses its existing Filter decorrelation rule by
 # ordinary Cascade chaining. Both RuleIRs are accepted by FormalSQL/Rocq; no
 # Apply-specific lowering is hidden in this normalization.
-WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowCorrelationPartition(p0,a0,o0,w0,a1,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
-Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowFrameCorrelationPartition(p0,a0,o0,m0,w0,a1,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
+WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowAggregate(w0);CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
+Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);FrameEq(m1,m0);WindowEq(w1,w0);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);WindowAggregate(w0);CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's

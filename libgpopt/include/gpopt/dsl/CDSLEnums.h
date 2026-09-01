@@ -143,8 +143,9 @@ enum EDslConstraintKind
 	EdslconDeterministic,
 	EdslconExprListEq,
 	EdslconExprConcat,
-	// DepsDisjoint(symbol,schema): an expression list or predicate consumes no
-	// column defined by schema. This is the shared scope primitive for movement.
+	// DepsDisjoint(left,right): dependency-bearing scalar/window metadata and
+	// column vectors have disjoint column domains. This is the shared scope
+	// primitive for movement.
 	EdslconDepsDisjoint,
 	EdslconExprSplit,
 	// Ordered column-vector intersection. The first symbol is derived from the
@@ -184,11 +185,9 @@ enum EDslConstraintKind
 	EdslconOrderEq,
 	EdslconWindowEq,
 	EdslconFrameEq,
-	// WindowCorrelationPartition(corr,partition,order,items,local,outer) and
-	// its explicit-frame variant validate the operator-local preconditions for
-	// pulling a correlation equality above a partition-preserving window.
-	EdslconWindowCorrelationPartition,
-	EdslconWindowFrameCorrelationPartition,
+	// WindowAggregate(items): the window projection contains at least one
+	// aggregate window function, matching ORCA's decorrelation capability gate.
+	EdslconWindowAggregate,
 	// OutputAttrs(out,relation): out is the complete ordered logical output
 	// vector of relation. Target-only out symbols are materialized lazily.
 	// Uniqueness is deliberately expressed by the independent Unique constraint.

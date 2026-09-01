@@ -114,9 +114,8 @@ private:
 	BOOL FCheckCorrelationEquality(const CDSLConstraint *pcon,
 								   const CDSLModel *pmodel) const;
 
-	BOOL FCheckWindowCorrelationPartition(const CDSLConstraint *pcon,
-										 const CDSLModel *pmodel,
-										 BOOL fFrame) const;
+	BOOL FCheckWindowAggregate(const CDSLConstraint *pcon,
+								 const CDSLModel *pmodel) const;
 
 	// MinimalGrouping(group,schema): the matched global aggregate has no
 	// minimal-group annotation yet, and its functional dependencies cover the
@@ -160,8 +159,8 @@ private:
 
 	// Expression-list algebra used by Compute/LET rewrites. ExprConcat(out,l,r)
 	// checks that flattening l above r is SRF-safe; an unbound target out is
-	// materialized lazily by the instantiator. DepsDisjoint(x,s) ensures an
-	// expression list or predicate x does not reference columns defined by s.
+	// materialized lazily by the instantiator. DepsDisjoint(l,r) compares the
+	// used-column domains of scalar/window metadata or explicit column vectors.
 	BOOL FCheckExprConcat(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
 	BOOL FCheckDepsDisjoint(const CDSLConstraint *pcon,
