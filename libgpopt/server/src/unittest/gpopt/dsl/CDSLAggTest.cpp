@@ -94,7 +94,8 @@ using namespace gpopt;
 	"a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|"                   \
 	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);"       \
 	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);"                  \
-	"PredicateDomainSplit(p0,p2,p3,p4,a9,a10,a11,a12,t0,t1);"           \
+	"PredicateAnd(p6,p0,p2);"                                            \
+	"PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);"              \
 	"CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);"                   \
 	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);OutputAttrs(a13,t0);Unique(t0,a13);"        \
 	"AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14)"

@@ -176,10 +176,12 @@ CDSLFilterSplitTest::EresUnittest_CorrelatedFilterCollectsSelectChain()
 		"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
 		"Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,"
 		"Input<t3>)))|TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateDomainSplit(p0,p1,p2,p3,a5,a6,a7,a8,t0,t1);"
+		"PredicateAnd(p4,p0,p1);"
+		"PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);"
 		"CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);"
-		"AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p0);"
-		"Deterministic(p0);ErrorFree(p1);Deterministic(p1);"
+		"AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p4);"
+		"Deterministic(p4);ErrorFree(p0);Deterministic(p0);"
+		"ErrorFree(p1);Deterministic(p1);"
 		"ErrorFree(p2);Deterministic(p2);ErrorFree(p3);"
 		"Deterministic(p3);ErrorFree(a10)");
 	if (nullptr == prule)

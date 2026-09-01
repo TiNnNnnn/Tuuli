@@ -607,7 +607,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 		if (EdslconPredicateDomainSplit == edslcon)
 		{
 			const EDslSymbolKind rgExpected[] = {
-				EdslsymPred, EdslsymPred, EdslsymPred, EdslsymPred,
+				EdslsymPred, EdslsymPred, EdslsymPred,
 				EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
 				EdslsymTable, EdslsymTable};
 			BOOL fTyped = GPOS_ARRAY_SIZE(rgExpected) == pdrgpsym->Size();
@@ -617,7 +617,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			}
 			if (!fTyped)
 			{
-				bctx.Fail("PredicateDomainSplit expects four predicates, four attrs, and two tables");
+				bctx.Fail("PredicateDomainSplit expects three predicates, four attrs, and two tables");
 				pdrgpsym->Release();
 				pdrgpcon->Release();
 				return nullptr;

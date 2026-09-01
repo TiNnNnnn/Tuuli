@@ -21,8 +21,9 @@
 //		  1. MATCH  — peel the DSL Filter chain (root, following child[0], while
 //		     the op is a Filter) down to its non-Filter base op. Flatten the
 //		     predicates from only as many adjacent Select levels as the source
-//		     template declares. A PredicateDomainSplit input is the explicit
-//		     exception: it consumes the complete adjacent Select chain before
+//		     template declares. A PredicateAnd operand feeding a
+//		     PredicateDomainSplit is the explicit exception: it consumes the
+//		     complete adjacent Select chain before
 //		     flattening predicates to a conjunct SET via
 //		     CPredicateUtils::PdrgpexprConjuncts. Assign each DSL Filter's pred
 //		     symbol <p> to a DISTINCT conjunct and its attrs symbol <a> to that

@@ -211,11 +211,11 @@ FDirectEquality(const CDSLRule *prule, EDslConstraintKind edslcon,
 	return false;
 }
 
-// PredicateDomainSplit reasons about the conjunction of its two source
-// predicates as a whole. If one of those predicates is carried by a Filter,
-// adjacent physical Select wrappers are normalization artifacts rather than
-// independent DSL Filter boundaries. Other three-symbol Filters retain their
-// ordinary one-level behavior so operator-local rewrites can compose.
+// PredicateDomainSplit reasons about one complete source predicate. When that
+// predicate is defined by PredicateAnd, a Filter carrying either operand must
+// consume adjacent physical Select wrappers: those wrappers are normalization
+// artifacts of the same logical conjunction, not independent DSL boundaries.
+// This follows symbol definitions rather than a rule or operator identity.
 BOOL
 FRequiresCompleteSelectChain(const CDSLRule *prule, const CDSLOp *popFilter)
 {
@@ -236,11 +236,23 @@ FRequiresCompleteSelectChain(const CDSLRule *prule, const CDSLOp *popFilter)
 			continue;
 		}
 		CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-		if (10 == pdrgpsym->Size() &&
-			(psymPredicate == (*pdrgpsym)[0] ||
-			 psymPredicate == (*pdrgpsym)[1]))
+		if (9 != pdrgpsym->Size())
 		{
-			return true;
+			continue;
+		}
+		const CDSLSymbol *psymComplete = (*pdrgpsym)[0];
+		for (ULONG ulAnd = 0; ulAnd < pdrgpcon->Size(); ulAnd++)
+		{
+			const CDSLConstraint *pconAnd = (*pdrgpcon)[ulAnd];
+			CDSLSymbolArray *pdrgpsymAnd = pconAnd->Pdrgpsym();
+			if (EdslconPredicateAnd == pconAnd->Edslcon() &&
+				3 == pdrgpsymAnd->Size() &&
+				(*pdrgpsymAnd)[0] == psymComplete &&
+				(psymPredicate == (*pdrgpsymAnd)[1] ||
+				 psymPredicate == (*pdrgpsymAnd)[2]))
+			{
+				return true;
+			}
 		}
 	}
 	return false;

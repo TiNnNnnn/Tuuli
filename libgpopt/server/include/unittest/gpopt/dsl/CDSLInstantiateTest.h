@@ -51,7 +51,7 @@ public:
 	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();
 
 	// PredicateDomainSplit atomically derives residual/external predicates and
-	// their exact dependency partitions from two current relation domains.
+	// their exact dependency partitions from one complete source predicate.
 	static GPOS_RESULT EresUnittest_PredicateDomainSplit();
 
 	// A single conjunct spanning both current domains and an external domain is

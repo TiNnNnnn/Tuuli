@@ -7,7 +7,7 @@
     "scope": "Keyed outer SemiApply with residual and external predicates above an inner Join",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8d64da9279b1bfa9"
+      "611555770f814299"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8d64da9279b1bfa9\""
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -48,7 +48,7 @@
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8d64da9279b1bfa9\""
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"

@@ -157,7 +157,7 @@ const SDslConDesc rg_con_desc[] = {
 	 "WindowFrameCorrelationPartition", 7},
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
-	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 10},
+	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -569,12 +569,12 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconSchemaFromAttrs:
 			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
 		case EdslconPredicateDomainSplit:
-			if (2 == ulPosition || 3 == ulPosition)
+			if (1 == ulPosition || 2 == ulPosition)
 			{
 				return EdslsymPred;
 			}
-			return 4 <= ulPosition && ulPosition <= 7 ? EdslsymAttrs
-														 : EdslsymSentinel;
+			return 3 <= ulPosition && ulPosition <= 6 ? EdslsymAttrs
+													 : EdslsymSentinel;
 		default:
 			return EdslsymSentinel;
 	}

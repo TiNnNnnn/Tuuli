@@ -52,8 +52,8 @@ public:
 	// conjunction, so an absorbing target cannot lose sibling predicates.
 	static GPOS_RESULT EresUnittest_CorrelatedFilterBindsWholePredicate();
 
-	// A PredicateDomainSplit source Filter binds every predicate from adjacent
-	// physical Select nodes and exposes their common relational base.
+	// A Filter whose predicate feeds PredicateAnd/PredicateDomainSplit binds
+	// every predicate from adjacent Selects and exposes their relational base.
 	static GPOS_RESULT EresUnittest_CorrelatedFilterCollectsSelectChain();
 
 	// Without an explicit whole-chain constraint, a correlation-aware Filter
