@@ -95,6 +95,10 @@ private:
 	BOOL FCheckKeyedOutput(const CDSLConstraint *pcon,
 						   const CDSLModel *pmodel) const;
 
+	// SchemaFromAttrs(s,a): s and a denote the same ordered CColRef vector.
+	BOOL FCheckSchemaFromAttrs(const CDSLConstraint *pcon,
+							  const CDSLModel *pmodel) const;
+
 	// ExprFilterCommute(e,p,s): the predicate does not consume columns defined
 	// by the Compute list, whose evaluation is immutable and error-free.
 	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,

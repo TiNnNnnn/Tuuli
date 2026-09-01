@@ -1004,6 +1004,32 @@ CDSLConstraintChecker::FCheckKeyedOutput(const CDSLConstraint *pcon,
 	return fEqual;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckSchemaFromAttrs(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() ||
+		EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrAttrs =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
+	if (nullptr == pdrgpcrAttrs)
+	{
+		return EdslsideTarget == (*pdrgpsym)[1]->Eside();
+	}
+	CColRefArray *pdrgpcrSchema =
+		pmodel->PdrgpcrSchema((*pdrgpsym)[0]);
+	if (nullptr == pdrgpcrSchema)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	return CColRef::Equals(pdrgpcrSchema, pdrgpcrAttrs);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckAttrsIntersect
@@ -2525,6 +2551,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsEmpty(pcon, pmodel);
 		case EdslconKeyedOutput:
 			return FCheckKeyedOutput(pcon, pmodel);
+		case EdslconSchemaFromAttrs:
+			return FCheckSchemaFromAttrs(pcon, pmodel);
 		case EdslconAttrsIntersect:
 			return FCheckAttrsIntersect(pcon, pmodel);
 		case EdslconAttrsUnion:

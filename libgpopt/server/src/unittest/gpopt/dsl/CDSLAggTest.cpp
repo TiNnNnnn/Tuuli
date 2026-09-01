@@ -76,6 +76,10 @@ using namespace gpopt;
 	"TableEq(t1,t0);AttrsEq(a3,a1);FuncEq(f1,f0);"                          \
 	"SchemaEq(s1,s0);PredicateEq(p1,p0)"
 
+#define GPOPT_DSL_KEYED_OUTPUT_DEDUP_RULE                                  \
+	"Input<t0>|Proj*<a0 s0>(Input<t1>)|"                                   \
+	"KeyedOutput(a0,t0);SchemaFromAttrs(s0,a0);TableEq(t1,t0)"
+
 #define GPOPT_DSL_AGG_FILTER_COMMUTE_RULE                                  \
 	"Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|"                   \
 	"Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|"                  \
@@ -232,6 +236,8 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping),
+		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
@@ -1001,6 +1007,57 @@ CDSLAggTest::EresUnittest_InstantiateKeyedOutputGrouping()
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprSource->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_KEYED_OUTPUT_DEDUP_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrOutput = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet(
+		"keyed_dedup", 3, &pdrgpcrOutput, 0 /*key*/);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGet, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CLogicalGbAgg *popTarget =
+			nullptr != pexprTarget &&
+				COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid()
+			? CLogicalGbAgg::PopConvert(pexprTarget->Pop())
+			: nullptr;
+		if (nullptr == popTarget || 3 != popTarget->Pdrgpcr()->Size() ||
+			0 != (*pexprTarget)[1]->Arity() || (*pexprTarget)[0] != pexprGet ||
+			!pexprTarget->DeriveOutputColumns()->Equals(
+				pexprGet->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
 	pexprGet->Release();
 	prule->Release();
 	return eres;

@@ -87,6 +87,10 @@ public:
 	// corresponding target grouping from a keyed relational child.
 	static GPOS_RESULT EresUnittest_InstantiateKeyedOutputGrouping();
 
+	// SchemaFromAttrs supplies the schema half of a target-only Proj* from the
+	// same derived keyed-output vector.
+	static GPOS_RESULT EresUnittest_InstantiateSchemaFromAttrs();
+
 	// MinimalGrouping derives the same FD-backed metadata as
 	// CXformSimplifyGbAgg without changing the full semantic grouping, and does
 	// not rematch an already annotated aggregate.

@@ -930,6 +930,17 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
+		if (EdslconSchemaFromAttrs == pcon->Edslcon() &&
+			2 == pcon->Pdrgpsym()->Size() &&
+			(*pcon->Pdrgpsym())[0] == psym)
+		{
+			if (fEmptyDef || nullptr != pconDef ||
+				EdslsymSchema != psym->Esymkind())
+			{
+				return nullptr;
+			}
+			pconDef = pcon;
+		}
 	}
 	if (fEmptyDef)
 	{
@@ -977,6 +988,29 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			return nullptr;
 		}
 		return pdrgpcrResult;
+	}
+	if (EdslconSchemaFromAttrs == pconDef->Edslcon())
+	{
+		const CDSLSymbol *psymAttrs =
+			PsymResolve((*pconDef->Pdrgpsym())[1]);
+		if (EdslsymAttrs != psymAttrs->Esymkind())
+		{
+			return nullptr;
+		}
+		CColRefArray *pdrgpcrAttrs =
+			PdrgpcrResolveCols(psymAttrs, pmodel, ulDepth + 1);
+		if (nullptr == pdrgpcrAttrs)
+		{
+			return nullptr;
+		}
+		pdrgpcrAttrs->AddRef();
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
+									 pdrgpcrAttrs))
+		{
+			pdrgpcrAttrs->Release();
+			return nullptr;
+		}
+		return pdrgpcrAttrs;
 	}
 	if (EdslconAttrsUnion == pconDef->Edslcon() ||
 		EdslconSchemaUnion == pconDef->Edslcon())

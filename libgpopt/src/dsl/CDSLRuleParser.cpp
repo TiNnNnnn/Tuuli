@@ -580,6 +580,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconSchemaFromAttrs == edslcon &&
+			(EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("SchemaFromAttrs expects schema and attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
 	}
 	return pdrgpcon;

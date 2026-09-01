@@ -214,6 +214,9 @@ enum EDslConstraintKind
 	// materialized lazily. This is the generic relation-level building block for
 	// rewrites that must group without losing any output column.
 	EdslconKeyedOutput,
+	// SchemaFromAttrs(schema,attrs): schema is the same ordered concrete column
+	// vector as attrs, crossing the DSL's distinct symbol namespaces explicitly.
+	EdslconSchemaFromAttrs,
 	EdslconSentinel
 };
 
