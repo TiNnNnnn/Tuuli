@@ -111,6 +111,10 @@ public:
 	// vector is non-empty and contained in the existing grouping keys.
 	static GPOS_RESULT EresUnittest_AggFilterCommuteGroupingGuard();
 
+	// The proved grouped external-correlation rule composes aggregate and join
+	// constraints in one RuleIR and must remain parser/loader compatible.
+	static GPOS_RESULT EresUnittest_AggExternalSemiApplyRuleRoundTrip();
+
 	// Equality-only correlation keys not already grouped are pulled into both
 	// target grouping and schema; non-equality correlations are rejected.
 	static GPOS_RESULT EresUnittest_AggCorrelationPullup();

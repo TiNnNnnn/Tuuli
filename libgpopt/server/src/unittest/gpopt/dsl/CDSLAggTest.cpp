@@ -88,6 +88,17 @@ using namespace gpopt;
 	"AttrsEq(a6,a2);AttrsEq(a7,a3);AttrsSub(a2,a0);"                      \
 	"AggFilterCommute(a0,a1,f0,s0,p0,p1,a2)"
 
+#define GPOPT_DSL_AGG_EXTERNAL_SEMI_APPLY_RULE                            \
+	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
+	"a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 " \
+	"a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|"                   \
+	"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);"       \
+	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);"                  \
+	"PredicateDomainSplit(p0,p2,p3,p4,a9,a10,a11,a12,t0,t1);"           \
+	"CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);"                   \
+	"AggFilterCommute(a3,a4,f0,s0,p1,p2,a5);KeyedOutput(a13,t0);"        \
+	"AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14)"
+
 #define GPOPT_DSL_AGG_CORRELATION_PULLUP_RULE                              \
 	"SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 " \
 	"a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 "      \
@@ -129,7 +140,13 @@ static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
 	CWStringDynamic strErr(mp);
-	return CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	CDSLRule *prule =
+		CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	if (nullptr == prule)
+	{
+		GPOS_TRACE(strErr.GetBuffer());
+	}
+	return prule;
 }
 
 //---------------------------------------------------------------------------
@@ -246,12 +263,28 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterCommuteGroupingGuard),
 		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip),
+		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggCorrelationPullup),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_RejectsWrongAggFunction),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CDSLRule *prule =
+		PdslruleParseLocal(amp.Pmp(), GPOPT_DSL_AGG_EXTERNAL_SEMI_APPLY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+	prule->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT

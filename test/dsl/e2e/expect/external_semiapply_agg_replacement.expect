@@ -1,0 +1,74 @@
+{
+  "description": "The external SemiApply expansion composes with filter commute through a grouped Agg",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "Equality correlations below a grouped aggregate whose grouping covers every local correlation key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "d68592c2926cec06",
+      "90c021146686e547"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
+        "\"status\":\"applied\",\"rule_hash\":\"90c021146686e547\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"d68592c2926cec06\"",
+        "\"status\":\"applied\",\"rule_hash\":\"90c021146686e547\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}
