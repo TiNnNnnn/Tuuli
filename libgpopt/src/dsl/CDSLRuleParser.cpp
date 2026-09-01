@@ -428,13 +428,13 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconExprFilterCommute == edslcon &&
-			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
-			 EdslsymSchema != (*pdrgpsym)[2]->Esymkind()))
+		if (EdslconDepsDisjoint == edslcon &&
+			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind()))
 		{
 			bctx.Fail(
-				"ExprFilterCommute expects expression-list, predicate, and schema symbols");
+				"DepsDisjoint expects an expression-list or predicate and a schema symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

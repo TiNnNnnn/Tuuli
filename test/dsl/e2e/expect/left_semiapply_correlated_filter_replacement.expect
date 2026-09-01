@@ -7,7 +7,7 @@
     "scope": "LeftSemiApply over a correlated Filter, directly or below an error-free deterministic Compute/LET",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "59b32af5adab80da",
+      "c7d161295e62caa0",
       "977b505669323220"
     ]
   },
@@ -24,7 +24,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ],
       "alternative": [
@@ -51,7 +51,7 @@
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ],
       "alternative": [

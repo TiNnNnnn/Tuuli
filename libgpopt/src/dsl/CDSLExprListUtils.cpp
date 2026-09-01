@@ -153,7 +153,7 @@ CDSLExprListUtils::FSplit(CMemoryPool *mp, CExpression *pexprUpper,
 
 	// A split is meaningful only when it changes the lower layer and leaves a
 	// real residual upper layer. The all-movable case is represented by the
-	// simpler ExprDepsDisjoint + ExprConcat rule.
+	// simpler DepsDisjoint + ExprConcat rule.
 	if (0 == pdrgpexprMoved->Size() || 0 == pdrgpexprResidual->Size())
 	{
 		pdrgpexprMoved->Release();

@@ -7,7 +7,7 @@
     "scope": "upper SRF cohort is independent and the lower layer has no SRF",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "4cbfd2030f34a4cf"
+      "8dcdd8a3308b3054"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -48,7 +48,7 @@
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\""
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

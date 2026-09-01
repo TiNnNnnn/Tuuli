@@ -143,7 +143,9 @@ enum EDslConstraintKind
 	EdslconDeterministic,
 	EdslconExprListEq,
 	EdslconExprConcat,
-	EdslconExprDepsDisjoint,
+	// DepsDisjoint(symbol,schema): an expression list or predicate consumes no
+	// column defined by schema. This is the shared scope primitive for movement.
+	EdslconDepsDisjoint,
 	EdslconExprSplit,
 	// Ordered column-vector intersection. The first symbol is derived from the
 	// second by retaining only columns exposed by the third symbol (a relational
@@ -165,10 +167,6 @@ enum EDslConstraintKind
 	// AttrsUnion(out,left,right): stable, duplicate-free union of two attribute
 	// vectors. Target-only outputs are materialized lazily.
 	EdslconAttrsUnion,
-	// ExprFilterCommute(expr,pred,schema): a Compute/LET expression list can be
-	// evaluated before the predicate without changing outcomes. Schema names the
-	// columns defined by the Compute layer.
-	EdslconExprFilterCommute,
 	// AggFilterCommute(group,agg_inputs,func,schema,having,pred,local): a
 	// correlated predicate whose non-outer dependencies are non-empty grouping
 	// keys can move above the aggregate under the accompanying scalar-safety

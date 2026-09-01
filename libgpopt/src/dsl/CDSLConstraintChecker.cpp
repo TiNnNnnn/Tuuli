@@ -1308,42 +1308,6 @@ CDSLConstraintChecker::FCheckAttrsUnion(const CDSLConstraint *pcon,
 }
 
 BOOL
-CDSLConstraintChecker::FCheckExprFilterCommute(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (3 != pdrgpsym->Size() ||
-		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
-		EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
-		EdslsymSchema != (*pdrgpsym)[2]->Esymkind())
-	{
-		return false;
-	}
-
-	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
-	CExpression *pexprPred = pmodel->PexprPred((*pdrgpsym)[1]);
-	CColRefArray *pdrgpcrDefined =
-		pmodel->PdrgpcrSchema((*pdrgpsym)[2]);
-	if (nullptr == pexprList || nullptr == pexprPred ||
-		nullptr == pdrgpcrDefined ||
-		COperator::EopScalarProjectList != pexprList->Pop()->Eopid() ||
-		!FScalarTreeProvablyErrorFree(pexprList) ||
-		pexprList->DeriveHasNonScalarFunction() ||
-		IMDFunction::EfsImmutable !=
-			pexprList->DeriveScalarFunctionProperties()->Efs())
-	{
-		return false;
-	}
-
-	CColRefSet *pcrsDefined = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsDefined->Include(pdrgpcrDefined);
-	const BOOL fDisjoint =
-		!pexprPred->DeriveUsedColumns()->FIntersects(pcrsDefined);
-	pcrsDefined->Release();
-	return fDisjoint;
-}
-
-BOOL
 CDSLConstraintChecker::FCheckAggFilterCommute(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
@@ -2315,25 +2279,37 @@ CDSLConstraintChecker::FCheckExprConcat(const CDSLConstraint *pcon,
 }
 
 BOOL
-CDSLConstraintChecker::FCheckExprDepsDisjoint(
+CDSLConstraintChecker::FCheckDepsDisjoint(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (2 != pdrgpsym->Size() ||
-		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 		EdslsymSchema != (*pdrgpsym)[1]->Esymkind())
 	{
 		return false;
 	}
-	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CExpression *pexprScalar = EdslsymExpr == (*pdrgpsym)[0]->Esymkind()
+		? pmodel->PexprExpr((*pdrgpsym)[0])
+		: pmodel->PexprPred((*pdrgpsym)[0]);
 	CColRefArray *pdrgpcrSchema =
 		pmodel->PdrgpcrSchema((*pdrgpsym)[1]);
-	if (nullptr == pexprList || nullptr == pdrgpcrSchema)
+	if (nullptr == pexprScalar || nullptr == pdrgpcrSchema)
 	{
 		return false;
 	}
-	return CDSLExprListUtils::FDepsDisjoint(
-		m_mp, pexprList, pdrgpcrSchema);
+	if (EdslsymExpr == (*pdrgpsym)[0]->Esymkind())
+	{
+		return CDSLExprListUtils::FDepsDisjoint(
+			m_mp, pexprScalar, pdrgpcrSchema);
+	}
+	CColRefSet *pcrsDefined = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsDefined->Include(pdrgpcrSchema);
+	const BOOL fDisjoint =
+		!pexprScalar->DeriveUsedColumns()->FIntersects(pcrsDefined);
+	pcrsDefined->Release();
+	return fDisjoint;
 }
 
 BOOL
@@ -2678,8 +2654,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconAttrsUnion:
 		case EdslconSchemaUnion:
 			return FCheckAttrsUnion(pcon, pmodel);
-		case EdslconExprFilterCommute:
-			return FCheckExprFilterCommute(pcon, pmodel);
 		case EdslconAggFilterCommute:
 			return FCheckAggFilterCommute(pcon, pmodel);
 		case EdslconAggCorrelationPullup:
@@ -2713,8 +2687,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckScalarProperty(prule, pcon, pmodel);
 		case EdslconExprConcat:
 			return FCheckExprConcat(pcon, pmodel);
-		case EdslconExprDepsDisjoint:
-			return FCheckExprDepsDisjoint(pcon, pmodel);
+		case EdslconDepsDisjoint:
+			return FCheckDepsDisjoint(pcon, pmodel);
 		case EdslconExprSplit:
 			return FCheckExprSplit(pcon, pmodel);
 

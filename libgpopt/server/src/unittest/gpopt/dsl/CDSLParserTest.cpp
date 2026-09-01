@@ -209,7 +209,7 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"ErrorFree(e0);Deterministic(e0)",
 		// Generic expression-list composition for independent LET layers.
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 "
-		"s2>(Input<t1>)|TableEq(t1,t0);ExprDepsDisjoint(e0,s1);"
+		"s2>(Input<t1>)|TableEq(t1,t0);DepsDisjoint(e0,s1);"
 		"ExprConcat(e2,e0,e1)",
 		// Partial layer normalization keeps dependent expressions as a residual.
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 "
@@ -646,6 +646,17 @@ CDSLParserTest::EresUnittest_Errors()
 	}
 	if (0 == strErr.Length())
 	{
+		return GPOS_FAILED;
+	}
+	CWStringDynamic strTypeErr(mp);
+	bad = CDSLRuleParser::PdslruleParse(
+		mp,
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"TableEq(t1,t0);DepsDisjoint(a0,s0)",
+		nullptr, &strTypeErr);
+	if (nullptr != bad || 0 == strTypeErr.Length())
+	{
+		CRefCount::SafeRelease(bad);
 		return GPOS_FAILED;
 	}
 	return GPOS_OK;

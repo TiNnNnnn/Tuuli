@@ -133,7 +133,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconDeterministic, "Deterministic", 1},
 	{EdslconExprListEq, "ExprListEq", 2},
 	{EdslconExprConcat, "ExprConcat", 3},
-	{EdslconExprDepsDisjoint, "ExprDepsDisjoint", 2},
+	{EdslconDepsDisjoint, "DepsDisjoint", 2},
 	{EdslconExprSplit, "ExprSplit", 4},
 	{EdslconAttrsIntersect, "AttrsIntersect", 3},
 	{EdslconPredicateFalse, "PredicateFalse", 1},
@@ -142,7 +142,6 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconAttrsEmpty, "AttrsEmpty", 1},
 	{EdslconPredicateAnd, "PredicateAnd", 3},
 	{EdslconAttrsUnion, "AttrsUnion", 3},
-	{EdslconExprFilterCommute, "ExprFilterCommute", 3},
 	{EdslconAggFilterCommute, "AggFilterCommute", 7},
 	{EdslconSchemaUnion, "SchemaUnion", 3},
 	{EdslconAggCorrelationPullup, "AggCorrelationPullup", 12},
@@ -631,7 +630,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconDeterministic:
 		case EdslconExprListEq:
 		case EdslconExprConcat:
-		case EdslconExprDepsDisjoint:
+		case EdslconDepsDisjoint:
 		case EdslconExprSplit:
 		case EdslconAttrsIntersect:
 		case EdslconPredicateFalse:
@@ -640,7 +639,6 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconAttrsEmpty:
 		case EdslconPredicateAnd:
 		case EdslconAttrsUnion:
-		case EdslconExprFilterCommute:
 		case EdslconAggFilterCommute:
 		case EdslconSchemaUnion:
 		case EdslconAggCorrelationPullup:

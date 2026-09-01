@@ -8,7 +8,7 @@
         "CXformCollapseProject"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4cbfd2030f34a4cf\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
         "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
       ]
     }

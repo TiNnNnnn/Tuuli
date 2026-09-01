@@ -8,7 +8,7 @@ LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoi
 
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
 
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|TableEq(t1,t0);ExprDepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|TableEq(t1,t0);DepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
 
 # DIRECT(expression-rewrite): the operator skeleton stays unchanged, but
 # ExprSplit moves the maximal safe expression subset into the lower Compute.
@@ -240,8 +240,9 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>
 
 # Moves a correlated Filter above a safe Compute/LET layer, exposing the
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule
-# above. ExprFilterCommute is proved as a generic expression-algebra obligation.
-Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a5,a0);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);ExprFilterCommute(e0,p0,s0);ErrorFree(e0);Deterministic(e0)
+# above. The generic dependency, error-freedom, and determinism facts imply the
+# Compute/Filter movement; no rewrite-shaped constraint is needed.
+Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a5,a0);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add

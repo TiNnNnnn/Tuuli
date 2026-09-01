@@ -7,7 +7,7 @@
     "scope": "Correlated NOT IN over an error-free computed comparison expression",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "59b32af5adab80da",
+      "c7d161295e62caa0",
       "59a6d12ce1dd7d88"
     ]
   },
@@ -21,7 +21,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\"",
         "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
       ],
       "alternative": [
@@ -47,7 +47,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59b32af5adab80da\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\"",
         "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
       ],
       "alternative": [

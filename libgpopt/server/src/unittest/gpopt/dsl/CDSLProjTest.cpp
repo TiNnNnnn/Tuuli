@@ -79,7 +79,7 @@ using namespace gpopt;
 #define GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE                       \
 	"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"                    \
 	"Compute<e2 a2 s2>(Input<t1>)|TableEq(t1,t0);"                        \
-	"ExprDepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)"
+	"DepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)"
 
 #define GPOPT_DSL_SPLIT_COMPUTE_RULE                                      \
 	"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"                    \
@@ -91,7 +91,7 @@ using namespace gpopt;
 	"Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|"                      \
 	"TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a5,a0);SchemaEq(s1,s0);"     \
 	"PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);"                    \
-	"ExprFilterCommute(e0,p0,s0);ErrorFree(e0);Deterministic(e0)"
+	"DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)"
 
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)

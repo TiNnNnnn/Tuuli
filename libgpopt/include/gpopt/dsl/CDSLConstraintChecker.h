@@ -105,11 +105,6 @@ private:
 								  const CDSLConstraint *pcon,
 								  const CDSLModel *pmodel) const;
 
-	// ExprFilterCommute(e,p,s): the predicate does not consume columns defined
-	// by the Compute list, whose evaluation is immutable and error-free.
-	BOOL FCheckExprFilterCommute(const CDSLConstraint *pcon,
-								 const CDSLModel *pmodel) const;
-
 	// AggFilterCommute(g,a,f,s,h,p,l): l is a non-empty subset of grouping
 	// columns. The remaining arguments must be exact bound aggregate artifacts;
 	// ErrorFree/Deterministic constraints independently validate scalar safety.
@@ -179,12 +174,12 @@ private:
 
 	// Expression-list algebra used by Compute/LET rewrites. ExprConcat(out,l,r)
 	// checks that flattening l above r is SRF-safe; an unbound target out is
-	// materialized lazily by the instantiator. ExprDepsDisjoint(e,s) ensures e
-	// does not reference any column defined by schema s.
+	// materialized lazily by the instantiator. DepsDisjoint(x,s) ensures an
+	// expression list or predicate x does not reference columns defined by s.
 	BOOL FCheckExprConcat(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
-	BOOL FCheckExprDepsDisjoint(const CDSLConstraint *pcon,
-							  const CDSLModel *pmodel) const;
+	BOOL FCheckDepsDisjoint(const CDSLConstraint *pcon,
+						 const CDSLModel *pmodel) const;
 	BOOL FCheckExprSplit(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;
 
