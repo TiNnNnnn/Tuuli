@@ -1,0 +1,71 @@
+{
+  "description": "The external SemiApply expansion adds ungrouped correlation keys to the compensated Agg",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "Equality correlations below an aggregate whose grouping must be expanded with local correlation keys",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "2352c195478c6d0e"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2352c195478c6d0e\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2352c195478c6d0e\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}
