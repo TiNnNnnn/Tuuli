@@ -1,5 +1,5 @@
 {
-  "description": "The Proj(LeftApply) identity also lowers an uncorrelated scalar aggregate",
+  "description": "The expression-defined rule also lowers an uncorrelated scalar aggregate",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
@@ -7,7 +7,7 @@
     "scope": "Uncorrelated scalar aggregate in a Project list",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750"
+      "3d199b6136ef0659"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterApply",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -64,7 +64,7 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,30",
       "2,30",

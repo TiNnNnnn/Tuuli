@@ -2391,6 +2391,17 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				0 < popSourceRoot->Pdrgpsym()->Size()
 			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
 			: nullptr;
+	const CDSLOp *popTargetRoot = m_prule->PfragTgt()->PopRoot();
+	const CDSLExpressionDefinitions::CDefinition *pdefExprListScalarSubquery =
+		fLeftOuterApply && nullptr != popSourceRoot &&
+				EdslopCompute == popSourceRoot->Edslop() &&
+				nullptr != popSourceRoot->Pdrgpsym() &&
+				0 < popSourceRoot->Pdrgpsym()->Size() &&
+				nullptr != popTargetRoot &&
+				EdslopCompute == popTargetRoot->Edslop() &&
+				1 == popTargetRoot->UlChildren() && (*popTargetRoot)[0] == pop
+			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
+			: nullptr;
 	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
 		? (3 == ulSymbols || fQualifiedAntiJoinNotIn)
@@ -2413,6 +2424,23 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		nullptr != (*pop)[1]->Pdrgpsym() &&
 		1 == (*pop)[1]->Pdrgpsym()->Size() &&
 		pdefScalarSubquery->PsymOperand(4) ==
+			(*(*pop)[1]->Pdrgpsym())[0];
+	const BOOL fExprListScalarSubquery =
+		nullptr != pdefExprListScalarSubquery &&
+		EdslexprExprListScalarSubquery ==
+			pdefExprListScalarSubquery->Edslexpr() &&
+		7 == pdefExprListScalarSubquery->Arity() && 4 == ulSymbols &&
+		nullptr != popTargetRoot->Pdrgpsym() &&
+		3 == popTargetRoot->Pdrgpsym()->Size() &&
+		pdefExprListScalarSubquery->PsymOperand(0) ==
+			(*popTargetRoot->Pdrgpsym())[0] &&
+		pdefExprListScalarSubquery->PsymOperand(1) == (*pdrgpsym)[0] &&
+		pdefExprListScalarSubquery->PsymOperand(2) == (*pdrgpsym)[1] &&
+		pdefExprListScalarSubquery->PsymOperand(3) == (*pdrgpsym)[2] &&
+		pdefExprListScalarSubquery->PsymOperand(4) == (*pdrgpsym)[3] &&
+		nullptr != (*pop)[1]->Pdrgpsym() &&
+		1 == (*pop)[1]->Pdrgpsym()->Size() &&
+		pdefExprListScalarSubquery->PsymOperand(6) ==
 			(*(*pop)[1]->Pdrgpsym())[0];
 	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
 		(fPredicateApply && 4 == ulSymbols);
@@ -2631,10 +2659,13 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 							  popCarrier->EopidOriginSubq()));
 			}
 		}
-		else if (fScalarSubquery)
+		else if (fScalarSubquery || fExprListScalarSubquery)
 		{
+			const CDSLSymbol *psymInner = fScalarSubquery
+				? (*pdrgpsym)[2]
+				: pdefExprListScalarSubquery->PsymOperand(5);
 			CColRefArray *pdrgpcrInner =
-				PdrgpcrResolveCols((*pdrgpsym)[2], pmodel);
+				PdrgpcrResolveCols(psymInner, pmodel);
 			if (nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
 			{
 				pexprTargetPred->Release();
@@ -2645,15 +2676,33 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			pdrgpcrInner->AddRef();
 			if (0 == pexprRight->DeriveOuterReferences()->Size())
 			{
-				pexprRight = GPOS_NEW(m_mp) CExpression(
-					m_mp, GPOS_NEW(m_mp) CLogicalMaxOneRow(m_mp), pexprRight);
-				popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(
-					m_mp, pdrgpcrInner, COperator::EopScalarSubquery);
+				if (fScalarSubquery)
+				{
+					pexprRight = GPOS_NEW(m_mp) CExpression(
+						m_mp, GPOS_NEW(m_mp) CLogicalMaxOneRow(m_mp),
+						pexprRight);
+				}
+				popJoin = fLeftOuterApply
+					? static_cast<COperator *>(GPOS_NEW(m_mp)
+						  CLogicalLeftOuterApply(
+							  m_mp, pdrgpcrInner,
+							  COperator::EopScalarSubquery))
+					: static_cast<COperator *>(GPOS_NEW(m_mp)
+						  CLogicalInnerApply(
+							  m_mp, pdrgpcrInner,
+							  COperator::EopScalarSubquery));
 			}
 			else
 			{
-				popJoin = GPOS_NEW(m_mp) CLogicalInnerCorrelatedApply(
-					m_mp, pdrgpcrInner, COperator::EopScalarSubquery);
+				popJoin = fLeftOuterApply
+					? static_cast<COperator *>(GPOS_NEW(m_mp)
+						  CLogicalLeftOuterCorrelatedApply(
+							  m_mp, pdrgpcrInner,
+							  COperator::EopScalarSubquery))
+					: static_cast<COperator *>(GPOS_NEW(m_mp)
+						  CLogicalInnerCorrelatedApply(
+							  m_mp, pdrgpcrInner,
+							  COperator::EopScalarSubquery));
 			}
 		}
 	}

@@ -1,5 +1,5 @@
 {
-  "description": "A proved Proj(LeftApply) DSL identity lowers a scalar SELECT-list value",
+  "description": "An expression-defined DSL rule lowers a scalar SELECT-list value",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
@@ -7,7 +7,7 @@
     "scope": "Correlated scalar value in a Project list with NULL extension and single-row enforcement",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750"
+      "3d199b6136ef0659"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -64,7 +64,7 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,10",
       "2,30",

@@ -1733,6 +1733,74 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckExprListScalarSubquery(
+	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 8 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[5]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[7]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
+	ULONG ulSubqueries = 0;
+	CExpression *pexprSubquery = nullptr == pexprList
+		? nullptr
+		: PexprOnlyScalarSubquery(pexprList, &ulSubqueries);
+	if (1 != ulSubqueries || nullptr == pexprSubquery ||
+		1 != pexprSubquery->Arity())
+	{
+		return false;
+	}
+
+	CScalarSubquery *popSubquery =
+		CScalarSubquery::PopConvert(pexprSubquery->Pop());
+	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
+	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
+	CExpression *pexprLowered = PexprReplaceNode(
+		m_mp, pexprList, pexprSubquery, pexprIdent);
+	pexprIdent->Release();
+	if (pexprLowered->DeriveHasSubquery())
+	{
+		pexprLowered->Release();
+		return false;
+	}
+
+	CExpression *pexprTrue = CUtils::PexprScalarConstBool(m_mp, true);
+	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrInner->Append(pcrInner);
+	CExpression *pexprInner = (*pexprSubquery)[0];
+	CColRefArray *pdrgpcrCorrelation =
+		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
+
+	const BOOL fMatches =
+		pmodel->FBind((*pdrgpsym)[1], pexprLowered) &&
+		pmodel->FBind((*pdrgpsym)[2], pexprTrue) &&
+		pmodel->FBind((*pdrgpsym)[3], pdrgpcrLeft) &&
+		pmodel->FBind((*pdrgpsym)[4], pdrgpcrRight) &&
+		pmodel->FBind((*pdrgpsym)[5], pdrgpcrCorrelation) &&
+		pmodel->FBind((*pdrgpsym)[6], pdrgpcrInner) &&
+		pmodel->FBind((*pdrgpsym)[7], pexprInner);
+	pexprLowered->Release();
+	pexprTrue->Release();
+	pdrgpcrLeft->Release();
+	pdrgpcrRight->Release();
+	pdrgpcrCorrelation->Release();
+	pdrgpcrInner->Release();
+	return fMatches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -2718,6 +2786,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateQuantified(pcon, pmodel, true);
 		case EdslconPredicateScalarSubquery:
 			return FCheckPredicateScalarSubquery(pcon, pmodel);
+		case EdslconExprListScalarSubquery:
+			return FCheckExprListScalarSubquery(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

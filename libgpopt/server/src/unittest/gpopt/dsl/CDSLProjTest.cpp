@@ -26,11 +26,13 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -75,6 +77,12 @@ using namespace gpopt;
 	"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"          \
 	"TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a1,a0);SchemaEq(s1,s0);"    \
 	"ErrorFree(e0);Deterministic(e0)"
+
+#define GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_SUBQUERY_RULE                 \
+	"Compute<e0 a0 s0>(Input<t0>)|"                                       \
+	"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|"     \
+	"TableEq(t1,t0);SchemaEq(s1,s0);"                                      \
+	"ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)"
 
 #define GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE                       \
 	"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"                    \
@@ -167,6 +175,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeExactRoundTrip),
 		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery),
+		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
@@ -176,6 +186,70 @@ CDSLProjTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_SUBQUERY_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("project_scalar_outer", 1, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("project_scalar_inner", 1, &pdrgpcrInner);
+	CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubquery(
+			mp, (*pdrgpcrInner)[0], false, false),
+		pexprInner);
+	CColRef *pcrOutput = fix.PcrCreateInt4("project_scalar_value");
+	CExpression *pexprSource = PexprProjectWithScalar(
+		mp, pexprOuter, pcrOutput, pexprSubquery);
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	const BOOL fMatched = matcher.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+	const BOOL fChecked = fMatched && checker.FCheck(prule, pmodel);
+	if (!fChecked)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprApply = nullptr == pexprTarget
+			? nullptr
+			: (*pexprTarget)[0];
+		if (nullptr == pexprApply ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalLeftOuterApply != pexprApply->Pop()->Eopid() ||
+			COperator::EopScalarSubquery !=
+				CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq() ||
+			(*pexprTarget)[1]->DeriveHasSubquery() ||
+			!pexprTarget->DeriveOutputColumns()->ContainsAll(
+				pexprSource->DeriveOutputColumns()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprOuter->Release();
+	prule->Release();
+	return eres;
 }
 
 GPOS_RESULT

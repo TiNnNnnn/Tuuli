@@ -45,6 +45,10 @@ Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);Predicat
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
 Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
 
+# DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
+# FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)
+
 # BRIDGE(view-materialization): the C++ Select view performs the lowering;
 # FormalSQL proves only the visible InnerApply identity.
 # Representation-lowering identity for a scalar single-row subquery in a

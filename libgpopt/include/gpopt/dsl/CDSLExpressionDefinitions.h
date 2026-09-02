@@ -20,6 +20,7 @@ enum EDslExpressionKind
 	EdslexprAny,
 	EdslexprAll,
 	EdslexprScalarSubquery,
+	EdslexprExprListScalarSubquery,
 	EdslexprSentinel
 };
 

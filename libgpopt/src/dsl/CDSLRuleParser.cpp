@@ -441,6 +441,21 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconExprListScalarSubquery == edslcon &&
+			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[5]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[7]->Esymkind()))
+		{
+			bctx.Fail("ExprListScalarSubquery expects two expression lists, a predicate, four attrs, and a table symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconAttrsUnion == edslcon)
 		{
 			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
