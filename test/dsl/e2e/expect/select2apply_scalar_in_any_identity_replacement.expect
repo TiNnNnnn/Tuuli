@@ -1,0 +1,74 @@
+{
+  "description": "Nested scalar and quantified subqueries are lowered in dependency order",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "A scalar subquery used as the comparison value of correlated ANY",
+    "status": "verified_full_scope_replacement",
+    "dsl_rule_hashes": [
+      "45d8bbe1139bc71c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_predicate_any_filter_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"rule_hash\":\"45d8bbe1139bc71c\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "isolate_select2apply_predicate_any_filter_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"status\":\"applied\",\"rule_hash\":\"45d8bbe1139bc71c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "isolate_select2apply_predicate_any_filter_direct.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

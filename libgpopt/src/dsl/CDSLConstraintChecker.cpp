@@ -1639,7 +1639,8 @@ CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 		fAll ? COperator::EopScalarSubqueryAll
 			 : COperator::EopScalarSubqueryAny;
 	if (nullptr == pexprQuantified || 2 != pexprQuantified->Arity() ||
-		eopid != pexprQuantified->Pop()->Eopid())
+		eopid != pexprQuantified->Pop()->Eopid() ||
+		(*pexprQuantified)[1]->DeriveHasSubquery())
 	{
 		return false;
 	}
@@ -1842,7 +1843,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 8 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -1890,8 +1892,11 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CColRefArray *pdrgpcrCorrelation =
 		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
 
+	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
+		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
+		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
 	const BOOL fMatches =
-		pmodel->FBind((*pdrgpsym)[1], pvalLowered) &&
+		fLowered &&
 		pmodel->FBind((*pdrgpsym)[2], pexprTrue) &&
 		pmodel->FBind((*pdrgpsym)[3], pdrgpcrLeft) &&
 		pmodel->FBind((*pdrgpsym)[4], pdrgpcrRight) &&

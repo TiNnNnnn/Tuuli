@@ -453,7 +453,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 		}
 		if (EdslconExprListScalarSubquery == edslcon &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -462,7 +463,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[7]->Esymkind()))
 		{
-			bctx.Fail("ExprListScalarSubquery expects two equal-kind expression/function lists, a predicate, four attrs, and a table symbol");
+			bctx.Fail("ExprListScalarSubquery expects two equal-kind scalar sequences, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

@@ -111,6 +111,12 @@ Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
 Filter<p0 a0 a1>(Input<t0>)|Filter<p2 a2>(LeftApply<p4 a9 a10 a11>(LeftApply<p3 a4 a5 a6>(Input<t1>,Compute<e0 a3 s0>(Input<t2>)),Compute<e1 a8 s1>(Input<t3>)))|TableEq(t1,t0);AttrsEmpty(a1);ExprListAny(p0,p1,e0,a3,s0,p3,a4,a5,a6,a7,t2);ExprListAny(p1,p2,e1,a8,s1,p4,a9,a10,a11,a12,t3)
 
+# DIRECT(composed expression-rewrite): recursively lower a scalar comparison
+# value before the enclosing quantified predicate. Both definitions operate on
+# the same PRED sequence, so the target exposes the exact dependency order.
+# FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+Filter<p0 a0>(Input<t0>)|Filter<p2 a13>(LeftApply<p4 a9 a10 a11>(LeftApply<p3 a2 a3 a4>(Input<t1>,Input<t2>),Compute<e0 a8 s0>(Input<t3>)))|TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p3,a2,a3,a4,a5,t2);ExprListAny(p1,p2,e0,a8,s0,p4,a9,a10,a11,a12,t3)
+
 # DIRECT(expression-rewrite): the existing typed sequence definition also
 # lowers a scalar subquery inside an aggregate function list. The target Agg
 # consumes the generated inner value directly; no aggregate production view is
