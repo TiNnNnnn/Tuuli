@@ -101,6 +101,8 @@ private:
 	// SchemaFromAttrs(s,a): s and a denote the same ordered CColRef vector.
 	BOOL FCheckSchemaFromAttrs(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
+	BOOL FCheckFuncAttrs(const CDSLConstraint *pcon,
+					 const CDSLModel *pmodel) const;
 
 	// PredicateDomainSplit(...): validate typed input/output domains. Concrete
 	// partitioning is performed atomically by the target instantiator.

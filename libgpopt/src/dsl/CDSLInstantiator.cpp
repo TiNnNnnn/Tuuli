@@ -788,7 +788,12 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 	{
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
-		if (EdslconExprListScalarSubquery == pcon->Edslcon() && 1 == ul &&
+		if ((EdslconExprListScalarSubquery == pcon->Edslcon() ||
+			 EdslconExprListExists == pcon->Edslcon() ||
+			 EdslconExprListNotExists == pcon->Edslcon() ||
+			 EdslconExprListAny == pcon->Edslcon() ||
+			 EdslconExprListAll == pcon->Edslcon()) &&
+			1 == ul &&
 			0 < pdrgpsym->Size())
 		{
 			esymkind = (*pdrgpsym)[0]->Esymkind();
@@ -1300,6 +1305,17 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
+		if (EdslconFuncAttrs == pcon->Edslcon() &&
+			2 == pcon->Pdrgpsym()->Size() &&
+			(*pcon->Pdrgpsym())[0] == psym)
+		{
+			if (fEmptyDef || nullptr != pconDef ||
+				EdslsymAttrs != psym->Esymkind())
+			{
+				return nullptr;
+			}
+			pconDef = pcon;
+		}
 		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
 			9 == pcon->Pdrgpsym()->Size())
 		{
@@ -1393,6 +1409,30 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		pdrgpcrAttrs->AddRef();
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
 									 pdrgpcrAttrs))
+		{
+			pdrgpcrAttrs->Release();
+			return nullptr;
+		}
+		return pdrgpcrAttrs;
+	}
+	if (EdslconFuncAttrs == pconDef->Edslcon())
+	{
+		const CDSLSymbol *psymFuncs =
+			PsymResolve((*pconDef->Pdrgpsym())[1]);
+		CExpressionArray *pdrgpexprFuncs = pmodel->PdrgpexprFunc(psymFuncs);
+		if (nullptr == pdrgpexprFuncs)
+		{
+			return nullptr;
+		}
+		CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		for (ULONG ul = 0; ul < pdrgpexprFuncs->Size(); ul++)
+		{
+			pcrsAttrs->Include((*pdrgpexprFuncs)[ul]->DeriveUsedColumns());
+		}
+		CColRefArray *pdrgpcrAttrs = pcrsAttrs->Pdrgpcr(m_mp);
+		pcrsAttrs->Release();
+		if (!m_phmDerivedCols->Insert(
+				const_cast<CDSLSymbol *>(psym), pdrgpcrAttrs))
 		{
 			pdrgpcrAttrs->Release();
 			return nullptr;

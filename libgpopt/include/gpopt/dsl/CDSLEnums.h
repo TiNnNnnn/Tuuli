@@ -218,6 +218,8 @@ enum EDslConstraintKind
 	// quantified comparison as the Apply predicate.
 	EdslconExprListAny,
 	EdslconExprListAll,
+	// FuncAttrs(output,funcs): output is the exact dependency set of funcs.
+	EdslconFuncAttrs,
 	EdslconSentinel
 };
 

@@ -1,14 +1,13 @@
 {
-  "description": "The aggregate subquery view preserves a quantified value expression",
+  "description": "A typed function definition directly lowers a quantified value nested in an aggregate expression",
   "replacement": {
     "xforms": [
       "CXformGbAgg2Apply"
     ],
     "scope": "A correlated ANY expression used inside an outer aggregate argument",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "e9466bad62353c09",
-      "989025ee4b7691f2"
+      "b62548ed876d3728"
     ]
   },
   "plans": [
@@ -24,12 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_gbagg2apply_identity.policy",
+      "policy": "isolate_gbagg2apply_any_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"e9466bad62353c09\"",
-        "\"status\":\"applied\",\"rule_hash\":\"989025ee4b7691f2\""
+        "\"status\":\"applied\",\"rule_hash\":\"b62548ed876d3728\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -51,12 +49,11 @@
       "disable_xforms": [
         "CXformGbAgg2Apply"
       ],
-      "policy": "isolate_gbagg2apply_identity.policy",
+      "policy": "isolate_gbagg2apply_any_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"e9466bad62353c09\"",
-        "\"status\":\"applied\",\"rule_hash\":\"989025ee4b7691f2\""
+        "\"status\":\"applied\",\"rule_hash\":\"b62548ed876d3728\""
       ]
     }
   ],
@@ -64,7 +61,7 @@
     "disable_xforms": [
       "CXformGbAgg2Apply"
     ],
-    "policy": "isolate_gbagg2apply_identity.policy",
+    "policy": "isolate_gbagg2apply_any_direct.policy",
     "output": [
       "1"
     ],

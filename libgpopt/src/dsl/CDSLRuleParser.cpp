@@ -363,7 +363,12 @@ PdrgpconBuild(SBuildCtx &bctx,
 				EDslSymbolKind esymkind =
 					CDSLConstraintKindTable::EsymkindDerivedOutput(edslcon,
 															 ulSym);
-				if (EdslconExprListScalarSubquery == edslcon && 1 == ulSym &&
+				if ((EdslconExprListScalarSubquery == edslcon ||
+					 EdslconExprListExists == edslcon ||
+					 EdslconExprListNotExists == edslcon ||
+					 EdslconExprListAny == edslcon ||
+					 EdslconExprListAll == edslcon) &&
+					1 == ulSym &&
 					0 < pdrgpsym->Size())
 				{
 					esymkind = (*pdrgpsym)[0]->Esymkind();
@@ -466,8 +471,9 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslconExprListNotExists == edslcon ||
 			 EdslconExprListAny == edslcon ||
 			 EdslconExprListAll == edslcon) &&
-			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
 			 EdslsymSchema != (*pdrgpsym)[4]->Esymkind() ||
@@ -478,7 +484,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[10]->Esymkind()))
 		{
-			bctx.Fail("ExprListExists/NotExists/Any/All expects three expression lists, attrs/schema metadata, a predicate, four attrs, and a table symbol");
+			bctx.Fail("ExprListExists/NotExists/Any/All expects two equal-kind expression/function lists, a marker expression list, attrs/schema metadata, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
@@ -591,6 +597,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[1]->Esymkind()))
 		{
 			bctx.Fail("SchemaFromAttrs expects schema and attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
+		if (EdslconFuncAttrs == edslcon &&
+			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymFunc != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("FuncAttrs expects attrs and function symbols");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
