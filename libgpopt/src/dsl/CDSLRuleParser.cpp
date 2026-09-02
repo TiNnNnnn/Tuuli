@@ -360,9 +360,14 @@ PdrgpconBuild(SBuildCtx &bctx,
 			auto it = bctx.symtab.find(name);
 			if (it == bctx.symtab.end())
 			{
-				const EDslSymbolKind esymkind =
+				EDslSymbolKind esymkind =
 					CDSLConstraintKindTable::EsymkindDerivedOutput(edslcon,
-																	 ulSym);
+															 ulSym);
+				if (EdslconExprListScalarSubquery == edslcon && 1 == ulSym &&
+					0 < pdrgpsym->Size())
+				{
+					esymkind = (*pdrgpsym)[0]->Esymkind();
+				}
 				if (EdslsymSentinel == esymkind)
 				{
 					bctx.Fail("constraint references undeclared symbol '" + name +
@@ -442,8 +447,9 @@ PdrgpconBuild(SBuildCtx &bctx,
 			return nullptr;
 		}
 		if (EdslconExprListScalarSubquery == edslcon &&
-			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
@@ -451,7 +457,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[7]->Esymkind()))
 		{
-			bctx.Fail("ExprListScalarSubquery expects two expression lists, a predicate, four attrs, and a table symbol");
+			bctx.Fail("ExprListScalarSubquery expects two equal-kind expression/function lists, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

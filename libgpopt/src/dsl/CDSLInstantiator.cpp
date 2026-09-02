@@ -786,8 +786,13 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
 	{
-		const EDslSymbolKind esymkind =
+		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
+		if (EdslconExprListScalarSubquery == pcon->Edslcon() && 1 == ul &&
+			0 < pdrgpsym->Size())
+		{
+			esymkind = (*pdrgpsym)[0]->Esymkind();
+		}
 		if (EdslsymSentinel == esymkind)
 		{
 			continue;
