@@ -1,7 +1,15 @@
-# Keep direct Project scalar-subquery tests causal.
-- rule: f94c37fc9c3e1750
+# Keep the Project2Apply family causal: only proved direct rules may run.
+- rule: '*'
   enabled: false
-- rule: ef0858d9db6d38c3
-  enabled: false
-- rule: b6a44bf6528e2cb3
-  enabled: false
+- rule: 3d199b6136ef0659
+  enabled: true
+- rule: 8fe1f68152476d38
+  enabled: true
+- rule: ebf30af7fc2bd7d7
+  enabled: true
+- rule: b6ba26e7f855bd26
+  enabled: true
+- rule: 6b937e5233311b8b
+  enabled: true
+- rule: ff170273c3de5cae
+  enabled: true
