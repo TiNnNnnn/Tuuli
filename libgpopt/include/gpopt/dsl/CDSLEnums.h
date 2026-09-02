@@ -205,6 +205,8 @@ enum EDslConstraintKind
 	EdslconPredicateAny,
 	// PredicateAll(out,comparison,outer_attrs,input): out is comparison ALL(input).
 	EdslconPredicateAll,
+	// PredicateScalarSubquery(out,lowered,left,right,correlation,input).
+	EdslconPredicateScalarSubquery,
 	EdslconSentinel
 };
 

@@ -1,0 +1,5 @@
+# Keep direct scalar-subquery tests causal.
+- rule: 9cab8c80b6430c16
+  enabled: false
+- rule: 3fa670693d6ae8f7
+  enabled: false

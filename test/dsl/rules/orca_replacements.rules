@@ -41,6 +41,10 @@ Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);Predicat
 # decomposition with ANY while preserving NULL-aware ALL semantics.
 Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)
 
+# DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
+# FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
+Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
+
 # BRIDGE(view-materialization): the C++ Select view performs the lowering;
 # FormalSQL proves only the visible InnerApply identity.
 # Representation-lowering identity for a scalar single-row subquery in a

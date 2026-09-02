@@ -428,6 +428,19 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconPredicateScalarSubquery == edslcon &&
+			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[5]->Esymkind()))
+		{
+			bctx.Fail("PredicateScalarSubquery expects two predicates, three attrs, and a table symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconAttrsUnion == edslcon)
 		{
 			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)

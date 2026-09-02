@@ -144,6 +144,8 @@ private:
 							   BOOL fNegated) const;
 	BOOL FCheckPredicateQuantified(const CDSLConstraint *pcon,
 							   CDSLModel *pmodel, BOOL fAll) const;
+	BOOL FCheckPredicateScalarSubquery(const CDSLConstraint *pcon,
+								   CDSLModel *pmodel) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

@@ -17,8 +17,10 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -44,6 +46,11 @@ using namespace gpopt;
 #define GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE                            \
 	"Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|"        \
 	"TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)"
+
+#define GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE                         \
+	"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,"      \
+	"Input<t2>)|TableEq(t1,t0);"                                        \
+	"PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)"
 
 namespace
 {
@@ -156,7 +163,9 @@ CDSLQuantifiedTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies),
 		GPOS_UNITTEST_FUNC(
-			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified)};
+			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified),
+		GPOS_UNITTEST_FUNC(
+			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
 
@@ -416,6 +425,55 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		pexprSource->Release();
 		pexprInnerGet->Release();
 	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("scalar_outer", 1, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("scalar_inner", 1, &pdrgpcrInner);
+	CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubquery(
+			mp, (*pdrgpcrInner)[0], false, false),
+		pexprInner);
+	CExpression *pexprPredicate = CUtils::PexprScalarCmp(
+		mp, (*pdrgpcrOuter)[0], pexprSubquery, IMDType::EcmptEq);
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprPredicate);
+	CDSLRule *prule =
+		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+								 pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalInnerApply ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopScalarSubquery ==
+		CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
+	GPOS_ASSERT(COperator::EopLogicalMaxOneRow ==
+				(*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[2]->Pop()->Eopid());
+	GPOS_ASSERT(!(*pexprTarget)[2]->DeriveHasSubquery());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
 	return GPOS_OK;
 }
 

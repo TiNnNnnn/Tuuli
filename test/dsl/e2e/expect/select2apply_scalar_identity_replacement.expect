@@ -1,5 +1,5 @@
 {
-  "description": "A Rocq-proved InnerApply identity lowers a scalar subquery predicate without native Select2Apply",
+  "description": "A Rocq-proved expression definition lowers a scalar subquery predicate without native Select2Apply",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,7 +7,7 @@
     "scope": "Correlated scalar aggregate subquery with an arbitrary outer comparison predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "3fa670693d6ae8f7"
+      "f5888185fd97f5a8"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"3fa670693d6ae8f7\""
+        "\"rule_hash\":\"f5888185fd97f5a8\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -49,10 +49,10 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"3fa670693d6ae8f7\""
+        "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -63,7 +63,7 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_select2apply_scalar_direct.policy",
     "output": [
       "1"
     ],

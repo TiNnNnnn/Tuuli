@@ -21,6 +21,7 @@ public:
 	static GPOS_RESULT EresUnittest_PolarityIsolation();
 	static GPOS_RESULT EresUnittest_ConstantOuterDependencies();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedQuantified();
+	static GPOS_RESULT EresUnittest_ExpressionDefinedScalarSubquery();
 };
 }  // namespace gpopt
 

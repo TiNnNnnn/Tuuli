@@ -44,6 +44,7 @@
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSetOp.h"
@@ -2382,6 +2383,14 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
+	const CDSLOp *popSourceRoot = m_prule->PfragSrc()->PopRoot();
+	const CDSLExpressionDefinitions::CDefinition *pdefScalarSubquery =
+		fInnerApply && nullptr != popSourceRoot &&
+				EdslopFilter == popSourceRoot->Edslop() &&
+				nullptr != popSourceRoot->Pdrgpsym() &&
+				0 < popSourceRoot->Pdrgpsym()->Size()
+			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
+			: nullptr;
 	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
 		? (3 == ulSymbols || fQualifiedAntiJoinNotIn)
@@ -2393,6 +2402,18 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
+	const BOOL fScalarSubquery =
+		nullptr != pdefScalarSubquery &&
+		EdslexprScalarSubquery == pdefScalarSubquery->Edslexpr() &&
+		5 == pdefScalarSubquery->Arity() && 4 == ulSymbols &&
+		pdefScalarSubquery->PsymOperand(0) == (*pdrgpsym)[0] &&
+		pdefScalarSubquery->PsymOperand(1) == (*pdrgpsym)[1] &&
+		pdefScalarSubquery->PsymOperand(2) == (*pdrgpsym)[2] &&
+		pdefScalarSubquery->PsymOperand(3) == (*pdrgpsym)[3] &&
+		nullptr != (*pop)[1]->Pdrgpsym() &&
+		1 == (*pop)[1]->Pdrgpsym()->Size() &&
+		pdefScalarSubquery->PsymOperand(4) ==
+			(*(*pop)[1]->Pdrgpsym())[0];
 	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
 		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
@@ -2610,6 +2631,31 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 							  popCarrier->EopidOriginSubq()));
 			}
 		}
+		else if (fScalarSubquery)
+		{
+			CColRefArray *pdrgpcrInner =
+				PdrgpcrResolveCols((*pdrgpsym)[2], pmodel);
+			if (nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
+			{
+				pexprTargetPred->Release();
+				pexprLeft->Release();
+				pexprRight->Release();
+				return nullptr;
+			}
+			pdrgpcrInner->AddRef();
+			if (0 == pexprRight->DeriveOuterReferences()->Size())
+			{
+				pexprRight = GPOS_NEW(m_mp) CExpression(
+					m_mp, GPOS_NEW(m_mp) CLogicalMaxOneRow(m_mp), pexprRight);
+				popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(
+					m_mp, pdrgpcrInner, COperator::EopScalarSubquery);
+			}
+			else
+			{
+				popJoin = GPOS_NEW(m_mp) CLogicalInnerCorrelatedApply(
+					m_mp, pdrgpcrInner, COperator::EopScalarSubquery);
+			}
+		}
 	}
 	switch (pop->Edslop())
 	{
@@ -2704,6 +2750,26 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		{
 			pexprResult->Release();
 			return nullptr;
+		}
+	}
+	if (fScalarSubquery)
+	{
+		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
+		if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
+		{
+			CExpressionArray *pdrgpexprCopy =
+				GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
+			{
+				CExpression *pexprConj = (*pdrgpexprResidual)[ul];
+				pexprConj->AddRef();
+				pdrgpexprCopy->Append(pexprConj);
+			}
+			CExpression *pexprResidual =
+				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy);
+			pexprResult = GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
+				pexprResidual);
 		}
 	}
 	return pexprResult;
