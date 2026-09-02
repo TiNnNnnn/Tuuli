@@ -1,0 +1,72 @@
+{
+  "description": "A typed function definition directly lowers NOT EXISTS nested in an aggregate expression",
+  "replacement": {
+    "xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "scope": "A correlated NOT EXISTS nested in CASE inside an aggregate argument",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "8ec5f7fe33820adf"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_gbagg2apply_notexists_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"8ec5f7fe33820adf\""
+      ],
+      "alternative": [
+        "CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "policy": "isolate_gbagg2apply_notexists_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"8ec5f7fe33820adf\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "policy": "isolate_gbagg2apply_notexists_direct.policy",
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}
