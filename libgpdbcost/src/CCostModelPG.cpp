@@ -4163,13 +4163,15 @@ CCostModelPG::Cost(CExpressionHandle &exprhdl, const SCostingInfo *pci) const
 			local = CostPartitionSelector(m_mp, exprhdl, pci);
 			break;
 
+		case COperator::EopPhysicalAssert:
+			local = CCost(pci->NumRebinds() * cpu_operator_cost *
+						  pci->PdRows()[0]);
+			break;
+
 		// Operators pg_orca never emits in single-node SELECT planning:
 		//   - Motion×5, Split    : MPP-only (distribution / split-update)
 		//   - DML                : pg_orca planner hook is SELECT-only;
 		//                          INSERT/UPDATE/DELETE go through PG's planner
-		//   - Assert             : cardinality-check operator that ORCA
-		//                          rewrites away before plan finalization in
-		//                          pg_orca configuration
 		case COperator::EopPhysicalMotionGather:
 		case COperator::EopPhysicalMotionBroadcast:
 		case COperator::EopPhysicalMotionHashDistribute:
@@ -4177,7 +4179,6 @@ CCostModelPG::Cost(CExpressionHandle &exprhdl, const SCostingInfo *pci) const
 		case COperator::EopPhysicalMotionRandom:
 		case COperator::EopPhysicalSplit:
 		case COperator::EopPhysicalDML:
-		case COperator::EopPhysicalAssert:
 			__builtin_unreachable();
 
 		default:
