@@ -2458,9 +2458,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		1 == (*pop)[1]->Pdrgpsym()->Size() &&
 		pdefExprListSubquery->PsymOperand(6) ==
 			(*(*pop)[1]->Pdrgpsym())[0];
-	const BOOL fExprListExists =
+	const BOOL fExprListExistential =
 		nullptr != pdefExprListSubquery &&
-		EdslexprExprListExists == pdefExprListSubquery->Edslexpr() &&
+		(EdslexprExprListExists == pdefExprListSubquery->Edslexpr() ||
+		 EdslexprExprListNotExists == pdefExprListSubquery->Edslexpr()) &&
 		10 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
 		nullptr != popTargetRoot->Pdrgpsym() &&
 		3 == popTargetRoot->Pdrgpsym()->Size() &&
@@ -2702,16 +2703,16 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 		}
 		else if (fScalarSubquery || fExprListScalarSubquery ||
-				 fExprListExists)
+				 fExprListExistential)
 		{
 			const CDSLSymbol *psymInner = fScalarSubquery
 				? (*pdrgpsym)[2]
 				: pdefExprListSubquery->PsymOperand(
-					  fExprListExists ? 8 : 5);
+					  fExprListExistential ? 8 : 5);
 			CColRefArray *pdrgpcrInner =
 				PdrgpcrResolveCols(psymInner, pmodel);
 			if (nullptr == pdrgpcrInner ||
-				(fExprListExists ? 2 : 1) != pdrgpcrInner->Size())
+				(fExprListExistential ? 2 : 1) != pdrgpcrInner->Size())
 			{
 				pexprTargetPred->Release();
 				pexprLeft->Release();

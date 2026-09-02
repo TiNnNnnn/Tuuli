@@ -213,6 +213,7 @@ enum EDslConstraintKind
 	// ExprListExists(source,lowered,marker_expr,marker_attrs,marker_schema,
 	// predicate,left,right,correlation,required_inner,input).
 	EdslconExprListExists,
+	EdslconExprListNotExists,
 	EdslconSentinel
 };
 

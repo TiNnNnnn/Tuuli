@@ -55,6 +55,11 @@ Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,
 # 2026-09-02.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
 
+# DIRECT(expression-rewrite): the opposite existential polarity shares the
+# same explicit marker carrier; only the expression-list definition negates
+# the false-on-empty result. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListNotExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+
 # BRIDGE(view-materialization): the C++ Select view performs the lowering;
 # FormalSQL proves only the visible InnerApply identity.
 # Representation-lowering identity for a scalar single-row subquery in a

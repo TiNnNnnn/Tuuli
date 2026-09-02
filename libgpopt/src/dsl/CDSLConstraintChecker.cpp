@@ -1806,8 +1806,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckExprListExists(
-	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+CDSLConstraintChecker::FCheckExprListExistential(
+	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fNegated) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
@@ -1830,8 +1830,11 @@ CDSLConstraintChecker::FCheckExprListExists(
 	ULONG ulSubqueries = 0;
 	CExpression *pexprSubquery = nullptr == pexprList
 		? nullptr
-		: PexprOnlySubquery(pexprList,
-						COperator::EopScalarSubqueryExists, &ulSubqueries);
+		: PexprOnlySubquery(
+			pexprList,
+			fNegated ? COperator::EopScalarSubqueryNotExists
+						 : COperator::EopScalarSubqueryExists,
+			&ulSubqueries);
 	if (1 != ulSubqueries || nullptr == pexprSubquery ||
 		1 != pexprSubquery->Arity())
 	{
@@ -1861,8 +1864,8 @@ CDSLConstraintChecker::FCheckExprListExists(
 		m_mp, GPOS_NEW(m_mp) CScalarIf(m_mp, pmdidBool),
 		CUtils::PexprIsNotNull(
 			m_mp, CUtils::PexprScalarIdent(m_mp, pcrMarker)),
-		CUtils::PexprScalarConstBool(m_mp, true),
-		CUtils::PexprScalarConstBool(m_mp, false));
+		CUtils::PexprScalarConstBool(m_mp, !fNegated),
+		CUtils::PexprScalarConstBool(m_mp, fNegated));
 	CExpression *pexprLowered = PexprReplaceNode(
 		m_mp, pexprList, pexprSubquery, pexprExistsValue);
 	pexprExistsValue->Release();
@@ -2898,7 +2901,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconExprListScalarSubquery:
 			return FCheckExprListScalarSubquery(pcon, pmodel);
 		case EdslconExprListExists:
-			return FCheckExprListExists(pcon, pmodel);
+			return FCheckExprListExistential(pcon, pmodel, false);
+		case EdslconExprListNotExists:
+			return FCheckExprListExistential(pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

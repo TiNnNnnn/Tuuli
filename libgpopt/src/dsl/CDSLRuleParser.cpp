@@ -456,7 +456,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconExprListExists == edslcon &&
+		if ((EdslconExprListExists == edslcon ||
+			 EdslconExprListNotExists == edslcon) &&
 			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
@@ -469,7 +470,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[10]->Esymkind()))
 		{
-			bctx.Fail("ExprListExists expects three expression lists, attrs/schema metadata, a predicate, four attrs, and a table symbol");
+			bctx.Fail("ExprListExists/NotExists expects three expression lists, attrs/schema metadata, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

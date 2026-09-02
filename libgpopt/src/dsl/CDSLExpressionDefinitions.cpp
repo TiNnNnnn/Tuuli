@@ -36,6 +36,8 @@ EdslexprKind(const CDSLConstraint *pcon)
 			return EdslexprExprListScalarSubquery;
 		case EdslconExprListExists:
 			return EdslexprExprListExists;
+		case EdslconExprListNotExists:
+			return EdslexprExprListNotExists;
 		default:
 			return EdslexprSentinel;
 	}
@@ -55,7 +57,8 @@ PsymOutput(const CDSLConstraint *pcon)
 		 6 != pcon->Pdrgpsym()->Size()) ||
 		(EdslexprExprListScalarSubquery == edslexpr &&
 		 8 != pcon->Pdrgpsym()->Size()) ||
-		(EdslexprExprListExists == edslexpr &&
+		((EdslexprExprListExists == edslexpr ||
+		  EdslexprExprListNotExists == edslexpr) &&
 		 11 != pcon->Pdrgpsym()->Size()))
 	{
 		return nullptr;
