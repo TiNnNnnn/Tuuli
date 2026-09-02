@@ -1,13 +1,13 @@
 {
-  "description": "A proved Filter(LeftApply) identity preserves EXISTS under a general boolean expression",
+  "description": "A proved predicate definition lowers EXISTS under a general boolean expression",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
     "scope": "Correlated EXISTS used as one arm of a disjunction",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "59c08d845aff822c"
+      "907450491e456d45"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"59c08d845aff822c\""
+        "\"rule_hash\":\"907450491e456d45\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"59c08d845aff822c\""
+        "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\""
       ]
     }
   ],
@@ -61,7 +61,7 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_select2apply_predicate_exists_direct.policy",
     "output": [
       "2",
       "3"

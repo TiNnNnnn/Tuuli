@@ -1945,9 +1945,20 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 				PsymResolve((*pdrgpsymTarget)[ulPart]), pmodel);
 			if (nullptr == pdrgpcrPart)
 			{
-				pcrsDeclared->Release();
-				pexprDerived->Release();
-				return nullptr;
+				const CDSLSymbol *psymPart =
+					PsymResolve((*pdrgpsymTarget)[ulPart]);
+				if (2 != pdrgpsymTarget->Size() ||
+					EdslsideTarget != psymPart->Eside())
+				{
+					pcrsDeclared->Release();
+					pexprDerived->Release();
+					return nullptr;
+				}
+				// A target-only two-symbol Filter dependency vector is metadata:
+				// derive it from the predicate just constructed. If the symbol is
+				// consumed elsewhere it still has to be defined and resolved there.
+				pcrsDeclared->Include(pexprDerived->DeriveUsedColumns());
+				continue;
 			}
 			pcrsDeclared->Include(pdrgpcrPart);
 		}

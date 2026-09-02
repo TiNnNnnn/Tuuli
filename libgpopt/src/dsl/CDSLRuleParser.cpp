@@ -472,7 +472,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslconExprListAny == edslcon ||
 			 EdslconExprListAll == edslcon) &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -484,7 +485,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[10]->Esymkind()))
 		{
-			bctx.Fail("ExprListExists/NotExists/Any/All expects two equal-kind expression/function lists, a marker expression list, attrs/schema metadata, a predicate, four attrs, and a table symbol");
+			bctx.Fail("ExprListExists/NotExists/Any/All expects two equal-kind scalar sequences, a marker expression list, attrs/schema metadata, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

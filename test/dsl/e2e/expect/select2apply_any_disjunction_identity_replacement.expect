@@ -1,13 +1,13 @@
 {
-  "description": "The proved Filter(LeftApply) identity also preserves ANY under a general boolean expression",
+  "description": "A proved predicate definition lowers ANY under a general boolean expression",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
     "scope": "Correlated single-column ANY used as one arm of a disjunction",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "59c08d845aff822c"
+      "ac0317d6092101d7"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_predicate_any_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"59c08d845aff822c\""
+        "\"rule_hash\":\"ac0317d6092101d7\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_select2apply_predicate_any_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"59c08d845aff822c\""
+        "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
       ]
     }
   ],
@@ -61,7 +61,7 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_select2apply_predicate_any_direct.policy",
     "output": [
       "1",
       "2"

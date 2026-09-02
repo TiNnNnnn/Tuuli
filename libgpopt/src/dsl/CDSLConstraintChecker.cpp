@@ -1708,9 +1708,12 @@ PexprOnlySubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
 								 COperator::EOperatorId eopid,
 								 ULONG *pulCount)
 {
-	if (EdslsymExpr == psym->Esymkind())
+	if (EdslsymExpr == psym->Esymkind() ||
+		EdslsymPred == psym->Esymkind())
 	{
-		CExpression *pexpr = pmodel->PexprExpr(psym);
+		CExpression *pexpr = EdslsymExpr == psym->Esymkind()
+			? pmodel->PexprExpr(psym)
+			: pmodel->PexprPred(psym);
 		return nullptr == pexpr
 			? nullptr
 			: PexprOnlySubquery(pexpr, eopid, pulCount);
@@ -1736,10 +1739,14 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 						  BOOL *pfHasResidualSubquery)
 {
 	*pfHasResidualSubquery = false;
-	if (EdslsymExpr == psym->Esymkind())
+	if (EdslsymExpr == psym->Esymkind() ||
+		EdslsymPred == psym->Esymkind())
 	{
+		CExpression *pexprSource = EdslsymExpr == psym->Esymkind()
+			? pmodel->PexprExpr(psym)
+			: pmodel->PexprPred(psym);
 		CExpression *pexprLowered = PexprReplaceNode(
-			mp, pmodel->PexprExpr(psym), pexprNeedle, pexprReplacement);
+			mp, pexprSource, pexprNeedle, pexprReplacement);
 		*pfHasResidualSubquery = pexprLowered->DeriveHasSubquery();
 		return pexprLowered;
 	}
@@ -1908,7 +1915,8 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -1929,7 +1937,10 @@ CDSLConstraintChecker::FCheckExprListExistential(
 		fNegated ? COperator::EopScalarSubqueryNotExists
 				 : COperator::EopScalarSubqueryExists,
 		&ulSubqueries);
-	if (1 != ulSubqueries || nullptr == pexprSubquery ||
+	const BOOL fHasSuccessor =
+		nullptr != prule->Pexprdefs()->Pdef((*pdrgpsym)[1]);
+	if (0 == ulSubqueries || (!fHasSuccessor && 1 != ulSubqueries) ||
+		nullptr == pexprSubquery ||
 		1 != pexprSubquery->Arity())
 	{
 		return false;
@@ -1986,8 +1997,11 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	pdrgpcrRequiredInner->Append(pcrMarker);
 	pdrgpcrRequiredInner->Append(pcrsInnerOutput->PcrFirst());
 
+	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
+		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
+		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
 	const BOOL fMatches =
-		pmodel->FBind((*pdrgpsym)[1], pvalLowered) &&
+		fLowered &&
 		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
 		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
 		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
@@ -2017,7 +2031,8 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -2038,7 +2053,10 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 		fAll ? COperator::EopScalarSubqueryAll
 			 : COperator::EopScalarSubqueryAny,
 		&ulSubqueries);
-	if (1 != ulSubqueries || nullptr == pexprSubquery ||
+	const BOOL fHasSuccessor =
+		nullptr != prule->Pexprdefs()->Pdef((*pdrgpsym)[1]);
+	if (0 == ulSubqueries || (!fHasSuccessor && 1 != ulSubqueries) ||
+		nullptr == pexprSubquery ||
 		2 != pexprSubquery->Arity())
 	{
 		return false;
@@ -2092,8 +2110,11 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	CColRefArray *pdrgpcrMarkerSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	pdrgpcrMarkerSchema->Append(pcrMarker);
 
+	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
+		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
+		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
 	const BOOL fMatches =
-		pmodel->FBind((*pdrgpsym)[1], pvalLowered) &&
+		fLowered &&
 		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
 		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
 		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
