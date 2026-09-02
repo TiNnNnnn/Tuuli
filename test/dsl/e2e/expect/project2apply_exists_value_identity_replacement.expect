@@ -1,13 +1,13 @@
 {
-  "description": "The Proj(LeftApply) identity lowers one EXISTS value through the shared Project view",
+  "description": "The expression-defined Project rule lowers one EXISTS value without the production Project2Apply bridge",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
     ],
     "scope": "One correlated EXISTS in a Project value context",
-    "status": "verified_partial_replacement",
+    "status": "verified_direct_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750"
+      "8fe1f68152476d38"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"8fe1f68152476d38\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"8fe1f68152476d38\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -64,7 +64,7 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,t",
       "2,t",

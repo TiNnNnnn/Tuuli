@@ -456,6 +456,24 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconExprListExists == edslcon &&
+			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+			 EdslsymSchema != (*pdrgpsym)[4]->Esymkind() ||
+			 EdslsymPred != (*pdrgpsym)[5]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[7]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[8]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[10]->Esymkind()))
+		{
+			bctx.Fail("ExprListExists expects three expression lists, attrs/schema metadata, a predicate, four attrs, and a table symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconAttrsUnion == edslcon)
 		{
 			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)

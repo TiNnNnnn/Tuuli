@@ -210,6 +210,9 @@ enum EDslConstraintKind
 	// ExprListScalarSubquery(source,lowered,predicate,left,right,correlation,
 	// output,input): replace the sole scalar subquery in an expression list.
 	EdslconExprListScalarSubquery,
+	// ExprListExists(source,lowered,marker_expr,marker_attrs,marker_schema,
+	// predicate,left,right,correlation,required_inner,input).
+	EdslconExprListExists,
 	EdslconSentinel
 };
 

@@ -42,6 +42,7 @@
 #include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -54,6 +55,7 @@
 #include "naucrates/dxl/gpdb_types.h"
 #include "naucrates/md/IMDFunction.h"
 #include "naucrates/md/IMDRelation.h"
+#include "naucrates/md/IMDTypeBool.h"
 #include "naucrates/base/IDatumInt2.h"
 #include "naucrates/base/IDatumInt4.h"
 #include "naucrates/base/IDatumInt8.h"
@@ -1620,9 +1622,10 @@ CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 namespace
 {
 CExpression *
-PexprOnlyScalarSubquery(CExpression *pexpr, ULONG *pulCount)
+PexprOnlySubquery(CExpression *pexpr, COperator::EOperatorId eopid,
+				  ULONG *pulCount)
 {
-	if (COperator::EopScalarSubquery == pexpr->Pop()->Eopid())
+	if (eopid == pexpr->Pop()->Eopid())
 	{
 		(*pulCount)++;
 		return pexpr;
@@ -1635,7 +1638,7 @@ PexprOnlyScalarSubquery(CExpression *pexpr, ULONG *pulCount)
 	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
 	{
 		CExpression *pexprChild =
-			PexprOnlyScalarSubquery((*pexpr)[ul], pulCount);
+			PexprOnlySubquery((*pexpr)[ul], eopid, pulCount);
 		if (nullptr != pexprChild && nullptr == pexprFound)
 		{
 			pexprFound = pexprChild;
@@ -1693,7 +1696,8 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 	ULONG ulSubqueries = 0;
 	CExpression *pexprSubquery = nullptr == pexprPredicate
 		? nullptr
-		: PexprOnlyScalarSubquery(pexprPredicate, &ulSubqueries);
+		: PexprOnlySubquery(pexprPredicate,
+						COperator::EopScalarSubquery, &ulSubqueries);
 	if (1 != ulSubqueries || nullptr == pexprSubquery ||
 		1 != pexprSubquery->Arity())
 	{
@@ -1754,7 +1758,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	ULONG ulSubqueries = 0;
 	CExpression *pexprSubquery = nullptr == pexprList
 		? nullptr
-		: PexprOnlyScalarSubquery(pexprList, &ulSubqueries);
+		: PexprOnlySubquery(pexprList, COperator::EopScalarSubquery,
+						&ulSubqueries);
 	if (1 != ulSubqueries || nullptr == pexprSubquery ||
 		1 != pexprSubquery->Arity())
 	{
@@ -1797,6 +1802,110 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	pdrgpcrRight->Release();
 	pdrgpcrCorrelation->Release();
 	pdrgpcrInner->Release();
+	return fMatches;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckExprListExists(
+	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+		EdslsymSchema != (*pdrgpsym)[4]->Esymkind() ||
+		EdslsymPred != (*pdrgpsym)[5]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[7]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[8]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[10]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
+	ULONG ulSubqueries = 0;
+	CExpression *pexprSubquery = nullptr == pexprList
+		? nullptr
+		: PexprOnlySubquery(pexprList,
+						COperator::EopScalarSubqueryExists, &ulSubqueries);
+	if (1 != ulSubqueries || nullptr == pexprSubquery ||
+		1 != pexprSubquery->Arity())
+	{
+		return false;
+	}
+
+	CExpression *pexprInner = (*pexprSubquery)[0];
+	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();
+	if (0 == pcrsInnerOutput->Size())
+	{
+		return false;
+	}
+
+	const IMDTypeBool *pmdtypebool =
+		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
+	CColRef *pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		pmdtypebool, default_type_modifier);
+	CExpressionArray *pdrgpexprMarker = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	pdrgpexprMarker->Append(CUtils::PexprScalarProjectElement(
+		m_mp, pcrMarker, CUtils::PexprScalarConstBool(m_mp, true)));
+	CExpression *pexprMarkerList = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprMarker);
+
+	IMDId *pmdidBool = pmdtypebool->MDId();
+	pmdidBool->AddRef();
+	CExpression *pexprExistsValue = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarIf(m_mp, pmdidBool),
+		CUtils::PexprIsNotNull(
+			m_mp, CUtils::PexprScalarIdent(m_mp, pcrMarker)),
+		CUtils::PexprScalarConstBool(m_mp, true),
+		CUtils::PexprScalarConstBool(m_mp, false));
+	CExpression *pexprLowered = PexprReplaceNode(
+		m_mp, pexprList, pexprSubquery, pexprExistsValue);
+	pexprExistsValue->Release();
+	if (pexprLowered->DeriveHasSubquery())
+	{
+		pexprLowered->Release();
+		pexprMarkerList->Release();
+		return false;
+	}
+
+	CColRefArray *pdrgpcrMarkerAttrs =
+		pexprMarkerList->DeriveUsedColumns()->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrMarkerSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrMarkerSchema->Append(pcrMarker);
+	CExpression *pexprTrue = CUtils::PexprScalarConstBool(m_mp, true);
+	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CColRefArray *pdrgpcrCorrelation =
+		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrRequiredInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrRequiredInner->Append(pcrMarker);
+	pdrgpcrRequiredInner->Append(pcrsInnerOutput->PcrFirst());
+
+	const BOOL fMatches =
+		pmodel->FBind((*pdrgpsym)[1], pexprLowered) &&
+		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
+		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
+		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
+		pmodel->FBind((*pdrgpsym)[5], pexprTrue) &&
+		pmodel->FBind((*pdrgpsym)[6], pdrgpcrLeft) &&
+		pmodel->FBind((*pdrgpsym)[7], pdrgpcrRight) &&
+		pmodel->FBind((*pdrgpsym)[8], pdrgpcrCorrelation) &&
+		pmodel->FBind((*pdrgpsym)[9], pdrgpcrRequiredInner) &&
+		pmodel->FBind((*pdrgpsym)[10], pexprInner);
+	pexprLowered->Release();
+	pexprMarkerList->Release();
+	pdrgpcrMarkerAttrs->Release();
+	pdrgpcrMarkerSchema->Release();
+	pexprTrue->Release();
+	pdrgpcrLeft->Release();
+	pdrgpcrRight->Release();
+	pdrgpcrCorrelation->Release();
+	pdrgpcrRequiredInner->Release();
 	return fMatches;
 }
 
@@ -2788,6 +2897,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateScalarSubquery(pcon, pmodel);
 		case EdslconExprListScalarSubquery:
 			return FCheckExprListScalarSubquery(pcon, pmodel);
+		case EdslconExprListExists:
+			return FCheckExprListExists(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

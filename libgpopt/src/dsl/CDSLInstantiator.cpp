@@ -2392,7 +2392,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
 			: nullptr;
 	const CDSLOp *popTargetRoot = m_prule->PfragTgt()->PopRoot();
-	const CDSLExpressionDefinitions::CDefinition *pdefExprListScalarSubquery =
+	const CDSLExpressionDefinitions::CDefinition *pdefExprListSubquery =
 		fLeftOuterApply && nullptr != popSourceRoot &&
 				EdslopCompute == popSourceRoot->Edslop() &&
 				nullptr != popSourceRoot->Pdrgpsym() &&
@@ -2401,6 +2401,22 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				EdslopCompute == popTargetRoot->Edslop() &&
 				1 == popTargetRoot->UlChildren() && (*popTargetRoot)[0] == pop
 			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
+			: nullptr;
+	const CDSLOp *popExistsLimit =
+		fLeftOuterApply && EdslopLimit == (*pop)[1]->Edslop() &&
+				1 == (*pop)[1]->UlChildren()
+			? (*pop)[1]
+			: nullptr;
+	const CDSLOp *popExistsMarker =
+		nullptr != popExistsLimit &&
+				EdslopCompute == (*popExistsLimit)[0]->Edslop() &&
+				1 == (*popExistsLimit)[0]->UlChildren()
+			? (*popExistsLimit)[0]
+			: nullptr;
+	const CDSLOp *popExistsInput =
+		nullptr != popExistsMarker &&
+				EdslopInput == (*popExistsMarker)[0]->Edslop()
+			? (*popExistsMarker)[0]
 			: nullptr;
 	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
@@ -2426,22 +2442,48 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pdefScalarSubquery->PsymOperand(4) ==
 			(*(*pop)[1]->Pdrgpsym())[0];
 	const BOOL fExprListScalarSubquery =
-		nullptr != pdefExprListScalarSubquery &&
+		nullptr != pdefExprListSubquery &&
 		EdslexprExprListScalarSubquery ==
-			pdefExprListScalarSubquery->Edslexpr() &&
-		7 == pdefExprListScalarSubquery->Arity() && 4 == ulSymbols &&
+			pdefExprListSubquery->Edslexpr() &&
+		7 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
 		nullptr != popTargetRoot->Pdrgpsym() &&
 		3 == popTargetRoot->Pdrgpsym()->Size() &&
-		pdefExprListScalarSubquery->PsymOperand(0) ==
+		pdefExprListSubquery->PsymOperand(0) ==
 			(*popTargetRoot->Pdrgpsym())[0] &&
-		pdefExprListScalarSubquery->PsymOperand(1) == (*pdrgpsym)[0] &&
-		pdefExprListScalarSubquery->PsymOperand(2) == (*pdrgpsym)[1] &&
-		pdefExprListScalarSubquery->PsymOperand(3) == (*pdrgpsym)[2] &&
-		pdefExprListScalarSubquery->PsymOperand(4) == (*pdrgpsym)[3] &&
+		pdefExprListSubquery->PsymOperand(1) == (*pdrgpsym)[0] &&
+		pdefExprListSubquery->PsymOperand(2) == (*pdrgpsym)[1] &&
+		pdefExprListSubquery->PsymOperand(3) == (*pdrgpsym)[2] &&
+		pdefExprListSubquery->PsymOperand(4) == (*pdrgpsym)[3] &&
 		nullptr != (*pop)[1]->Pdrgpsym() &&
 		1 == (*pop)[1]->Pdrgpsym()->Size() &&
-		pdefExprListScalarSubquery->PsymOperand(6) ==
+		pdefExprListSubquery->PsymOperand(6) ==
 			(*(*pop)[1]->Pdrgpsym())[0];
+	const BOOL fExprListExists =
+		nullptr != pdefExprListSubquery &&
+		EdslexprExprListExists == pdefExprListSubquery->Edslexpr() &&
+		10 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
+		nullptr != popTargetRoot->Pdrgpsym() &&
+		3 == popTargetRoot->Pdrgpsym()->Size() &&
+		nullptr != popExistsLimit && nullptr != popExistsMarker &&
+		nullptr != popExistsInput &&
+		nullptr != popExistsMarker->Pdrgpsym() &&
+		3 == popExistsMarker->Pdrgpsym()->Size() &&
+		nullptr != popExistsInput->Pdrgpsym() &&
+		1 == popExistsInput->Pdrgpsym()->Size() &&
+		pdefExprListSubquery->PsymOperand(0) ==
+			(*popTargetRoot->Pdrgpsym())[0] &&
+		pdefExprListSubquery->PsymOperand(1) ==
+			(*popExistsMarker->Pdrgpsym())[0] &&
+		pdefExprListSubquery->PsymOperand(2) ==
+			(*popExistsMarker->Pdrgpsym())[1] &&
+		pdefExprListSubquery->PsymOperand(3) ==
+			(*popExistsMarker->Pdrgpsym())[2] &&
+		pdefExprListSubquery->PsymOperand(4) == (*pdrgpsym)[0] &&
+		pdefExprListSubquery->PsymOperand(5) == (*pdrgpsym)[1] &&
+		pdefExprListSubquery->PsymOperand(6) == (*pdrgpsym)[2] &&
+		pdefExprListSubquery->PsymOperand(7) == (*pdrgpsym)[3] &&
+		pdefExprListSubquery->PsymOperand(9) ==
+			(*popExistsInput->Pdrgpsym())[0];
 	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
 		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
@@ -2659,14 +2701,17 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 							  popCarrier->EopidOriginSubq()));
 			}
 		}
-		else if (fScalarSubquery || fExprListScalarSubquery)
+		else if (fScalarSubquery || fExprListScalarSubquery ||
+				 fExprListExists)
 		{
 			const CDSLSymbol *psymInner = fScalarSubquery
 				? (*pdrgpsym)[2]
-				: pdefExprListScalarSubquery->PsymOperand(5);
+				: pdefExprListSubquery->PsymOperand(
+					  fExprListExists ? 8 : 5);
 			CColRefArray *pdrgpcrInner =
 				PdrgpcrResolveCols(psymInner, pmodel);
-			if (nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
+			if (nullptr == pdrgpcrInner ||
+				(fExprListExists ? 2 : 1) != pdrgpcrInner->Size())
 			{
 				pexprTargetPred->Release();
 				pexprLeft->Release();
@@ -2674,6 +2719,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				return nullptr;
 			}
 			pdrgpcrInner->AddRef();
+			// The expression-defined EXISTS value is already materialized as an
+			// IF over the TRUE marker.  Keep the Apply carrier scalar so DXL does
+			// not reinterpret that marker as a second boolean EXISTS subplan.
+			const COperator::EOperatorId eopidOrigin =
+				COperator::EopScalarSubquery;
 			if (0 == pexprRight->DeriveOuterReferences()->Size())
 			{
 				if (fScalarSubquery)
@@ -2686,11 +2736,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 					? static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalLeftOuterApply(
 							  m_mp, pdrgpcrInner,
-							  COperator::EopScalarSubquery))
+							  eopidOrigin))
 					: static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalInnerApply(
 							  m_mp, pdrgpcrInner,
-							  COperator::EopScalarSubquery));
+							  eopidOrigin));
 			}
 			else
 			{
@@ -2698,11 +2748,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 					? static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalLeftOuterCorrelatedApply(
 							  m_mp, pdrgpcrInner,
-							  COperator::EopScalarSubquery))
+							  eopidOrigin))
 					: static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalInnerCorrelatedApply(
 							  m_mp, pdrgpcrInner,
-							  COperator::EopScalarSubquery));
+							  eopidOrigin));
 			}
 		}
 	}
