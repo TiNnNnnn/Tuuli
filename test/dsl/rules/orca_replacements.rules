@@ -117,6 +117,12 @@ Filter<p0 a0 a1>(Input<t0>)|Filter<p2 a2>(LeftApply<p4 a9 a10 a11>(LeftApply<p3 
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
 Filter<p0 a0>(Input<t0>)|Filter<p2 a13>(LeftApply<p4 a9 a10 a11>(LeftApply<p3 a2 a3 a4>(Input<t1>,Input<t2>),Compute<e0 a8 s0>(Input<t3>)))|TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p3,a2,a3,a4,a5,t2);ExprListAny(p1,p2,e0,a8,s0,p4,a9,a10,a11,a12,t3)
 
+# DIRECT(composed expression-rewrite): recursively lower a scalar comparison
+# value before NULL-aware ALL. Native ALL lowering owns this shape while
+# CXformSelect2Apply is enabled; DSL takes it over when that xform is disabled.
+# FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+Filter<p0 a0>(Input<t0>)|Filter<p2 a13>(LeftApply<p4 a9 a10 a11>(LeftApply<p3 a2 a3 a4>(Input<t1>,Input<t2>),Compute<e0 a8 s0>(Input<t3>)))|TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p3,a2,a3,a4,a5,t2);ExprListAll(p1,p2,e0,a8,s0,p4,a9,a10,a11,a12,t3)
+
 # DIRECT(composed expression-rewrite): recursively lower an existential
 # comparison value before the enclosing quantified predicate. This reuses the
 # same typed sequence program as scalar-to-ANY. FormalSQL/Rocq accepted this

@@ -11,6 +11,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPatternTree.h"
@@ -98,6 +99,16 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	{
 		const CDSLRule *prule = (*pdrgprule)[ul];
 		const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
+		const CDSLExpressionDefinitions *pexprdefs = prule->Pexprdefs();
+		BOOL fNestedAll = false;
+		if (1 < pexprdefs->UlDefinitions())
+		{
+			for (ULONG ulDef = 0; ulDef < pexprdefs->UlDefinitions(); ulDef++)
+			{
+				fNestedAll = fNestedAll ||
+					EdslexprExprListAll == pexprdefs->PdefAt(ulDef)->Edslexpr();
+			}
+		}
 
 		// Subquery-filter operators can match both the translated Select/scalar-
 		// subquery form and the canonical Apply form. Running the same rule in both
@@ -105,10 +116,13 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		// unnesting is available, defer every such operator to its Apply shell;
 		// when it is disabled, retain the Select path so DSL can replace unnesting.
 		// Representation adapters that cross EXISTS/IN forms are also registered in
-		// the corresponding Apply bucket by CDSLRuleEngine::BucketByRoot.
+		// the corresponding Apply bucket by CDSLRuleEngine::BucketByRoot. Native ALL
+		// lowering also owns nested definition chains because its intermediate
+		// projection columns cannot share a memo group with the atomic DSL chain.
 		if (GPOPT_FENABLED_XFORM(CXform::ExfSelect2Apply) &&
-			CDSLOpKindTable::FHasPreUnnestRepresentation(
-				popSrcRoot->Edslop()))
+			(CDSLOpKindTable::FHasPreUnnestRepresentation(
+				 popSrcRoot->Edslop()) ||
+			 fNestedAll))
 		{
 			continue;
 		}

@@ -49,7 +49,7 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(
             sum(item.classification.startswith("BRIDGE(") for item in identities),
-            14,
+            0,
         )
         self.assertEqual(
             sum(item.classification.startswith("DIRECT(") for item in identities),

@@ -1,0 +1,74 @@
+{
+  "description": "Nested scalar and NULL-aware ALL subqueries are lowered in dependency order",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "A scalar subquery used as the comparison value of correlated ALL",
+    "status": "verified_full_scope_replacement",
+    "dsl_rule_hashes": [
+      "fc94030b098b97cb"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_scalar_in_all_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "\"rule_hash\":\"fc94030b098b97cb\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "isolate_select2apply_scalar_in_all_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Select",
+        "\"status\":\"applied\",\"rule_hash\":\"fc94030b098b97cb\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "isolate_select2apply_scalar_in_all_direct.policy",
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ]
+  }
+}
