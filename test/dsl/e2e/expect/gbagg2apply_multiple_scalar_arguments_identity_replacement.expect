@@ -1,13 +1,13 @@
 {
-  "description": "The aggregate subquery view lowers multiple scalar values into one Apply chain",
+  "description": "Two typed function definitions directly lower multiple scalar values into one Apply chain",
   "replacement": {
     "xforms": [
       "CXformGbAgg2Apply"
     ],
     "scope": "Two correlated scalar subqueries used in one outer aggregate expression",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "e9466bad62353c09"
+      "e1f0b98cf5d18771"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_gbagg2apply_identity.policy",
+      "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"rule_hash\":\"e9466bad62353c09\""
+        "\"rule_hash\":\"e1f0b98cf5d18771\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformGbAgg2Apply"
       ],
-      "policy": "isolate_gbagg2apply_identity.policy",
+      "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"e9466bad62353c09\""
+        "\"status\":\"applied\",\"rule_hash\":\"e1f0b98cf5d18771\""
       ]
     }
   ],
@@ -61,7 +61,7 @@
     "disable_xforms": [
       "CXformGbAgg2Apply"
     ],
-    "policy": "isolate_gbagg2apply_identity.policy",
+    "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
     "output": [
       "42"
     ],

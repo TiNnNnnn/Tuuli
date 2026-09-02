@@ -1785,8 +1785,10 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 		pexprSubquery = PexprOnlySubquery(
 			pexprList, COperator::EopScalarSubquery, &ulSubqueries);
 	}
-	if (1 != ulSubqueries || nullptr == pexprSubquery ||
-		1 != pexprSubquery->Arity())
+	const BOOL fHasSuccessor =
+		nullptr != prule->Pexprdefs()->Pdef((*pdrgpsym)[1]);
+	if (0 == ulSubqueries || (!fHasSuccessor && 1 != ulSubqueries) ||
+		nullptr == pexprSubquery || 1 != pexprSubquery->Arity())
 	{
 		return false;
 	}
@@ -1819,8 +1821,7 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 		pvalLowered = pexprLowered;
 	}
 	pexprIdent->Release();
-	if (fHasResidualSubquery &&
-		nullptr == prule->Pexprdefs()->Pdef((*pdrgpsym)[1]))
+	if (fHasResidualSubquery && !fHasSuccessor)
 	{
 		pvalLowered->Release();
 		return false;
