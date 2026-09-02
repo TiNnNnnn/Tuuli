@@ -1549,7 +1549,7 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 
 BOOL
 CDSLConstraintChecker::FCheckPredicateExists(
-	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fNegated) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
@@ -1564,8 +1564,11 @@ CDSLConstraintChecker::FCheckPredicateExists(
 	{
 		return false;
 	}
+	const COperator::EOperatorId eopid =
+		fNegated ? COperator::EopScalarSubqueryNotExists
+				 : COperator::EopScalarSubqueryExists;
 	if (1 != pexprPredicate->Arity() ||
-		COperator::EopScalarSubqueryExists != pexprPredicate->Pop()->Eopid())
+		eopid != pexprPredicate->Pop()->Eopid())
 	{
 		return false;
 	}
@@ -2552,7 +2555,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateAnd:
 			return FCheckPredicateAnd(pcon, pmodel);
 		case EdslconPredicateExists:
-			return FCheckPredicateExists(pcon, pmodel);
+			return FCheckPredicateExists(pcon, pmodel, false);
+		case EdslconPredicateNotExists:
+			return FCheckPredicateExists(pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

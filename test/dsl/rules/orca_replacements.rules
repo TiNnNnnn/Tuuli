@@ -29,8 +29,9 @@ All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(I
 # Exists builder. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
 Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
 
-# BRIDGE(view-materialization): same lowering boundary as the Exists sibling.
-NotExists(Input<t0>,Input<t1>)|NotExists(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1)
+# DIRECT(expression-rewrite): typed NOT EXISTS sibling of PredicateExists;
+# FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
 
 # BRIDGE(view-materialization): same lowering boundary as the Exists sibling.
 Any<p0 a0>(Input<t0>,Input<t1>)|Any<p1 a1>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)

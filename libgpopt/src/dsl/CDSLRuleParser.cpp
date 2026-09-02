@@ -406,11 +406,12 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
-		if (EdslconPredicateExists == edslcon &&
+		if ((EdslconPredicateExists == edslcon ||
+			 EdslconPredicateNotExists == edslcon) &&
 			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
 		{
-			bctx.Fail("PredicateExists expects predicate and table symbols");
+			bctx.Fail("existence predicate expects predicate and table symbols");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

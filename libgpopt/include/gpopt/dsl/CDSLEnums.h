@@ -199,6 +199,8 @@ enum EDslConstraintKind
 	EdslconPredicateDomainSplit,
 	// PredicateExists(out,input): out is EXISTS(input).
 	EdslconPredicateExists,
+	// PredicateNotExists(out,input): out is NOT EXISTS(input).
+	EdslconPredicateNotExists,
 	EdslconSentinel
 };
 

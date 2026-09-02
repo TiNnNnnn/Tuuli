@@ -140,8 +140,8 @@ private:
 
 	// PredicateExists(out,input): destructure a bound EXISTS predicate and bind
 	// its relational operand for use by the target template.
-	BOOL FCheckPredicateExists(const CDSLConstraint *pcon,
-							   CDSLModel *pmodel) const;
+	BOOL FCheckPredicateExists(const CDSLConstraint *pcon, CDSLModel *pmodel,
+							   BOOL fNegated) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

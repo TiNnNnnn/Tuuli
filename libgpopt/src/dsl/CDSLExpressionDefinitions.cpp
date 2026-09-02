@@ -24,6 +24,8 @@ EdslexprKind(const CDSLConstraint *pcon)
 			return EdslexprAnd;
 		case EdslconPredicateExists:
 			return EdslexprExists;
+		case EdslconPredicateNotExists:
+			return EdslexprNotExists;
 		default:
 			return EdslexprSentinel;
 	}
@@ -35,7 +37,8 @@ PsymOutput(const CDSLConstraint *pcon)
 	const EDslExpressionKind edslexpr = EdslexprKind(pcon);
 	if (EdslexprSentinel == edslexpr || nullptr == pcon->Pdrgpsym() ||
 		(EdslexprAnd == edslexpr && 3 != pcon->Pdrgpsym()->Size()) ||
-		(EdslexprExists == edslexpr && 2 != pcon->Pdrgpsym()->Size()))
+		((EdslexprExists == edslexpr || EdslexprNotExists == edslexpr) &&
+		 2 != pcon->Pdrgpsym()->Size()))
 	{
 		return nullptr;
 	}

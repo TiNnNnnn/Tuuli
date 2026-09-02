@@ -16,6 +16,7 @@ enum EDslExpressionKind
 {
 	EdslexprAnd = 0,
 	EdslexprExists,
+	EdslexprNotExists,
 	EdslexprSentinel
 };
 
