@@ -1,5 +1,5 @@
 {
-  "description": "The Proj(LeftApply) identity preserves correlated count empty-set semantics",
+  "description": "The expression-defined rule preserves correlated count empty-set semantics",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
@@ -7,8 +7,7 @@
     "scope": "Correlated scalar count in a Project list, including empty input",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750",
-      "ef0858d9db6d38c3"
+      "3d199b6136ef0659"
     ]
   },
   "plans": [
@@ -24,12 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ef0858d9db6d38c3\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -51,13 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "CScalarCoalesce",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ef0858d9db6d38c3\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -68,7 +64,7 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,1",
       "2,1",

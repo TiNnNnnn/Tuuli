@@ -1,3 +1,5 @@
 # Keep direct Project scalar-subquery tests causal.
 - rule: f94c37fc9c3e1750
   enabled: false
+- rule: ef0858d9db6d38c3
+  enabled: false
