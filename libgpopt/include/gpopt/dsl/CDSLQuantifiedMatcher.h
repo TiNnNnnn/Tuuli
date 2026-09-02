@@ -29,8 +29,6 @@ private:
 	BOOL FMatchInner(const CDSLOp *popInner, CExpression *pexprInner,
 					 CColRefArray *pdrgpcrProjected,
 					 CDSLModel *pmodel) const;
-	CExpression *PexprComparison(CExpression *pexprSubquery) const;
-
 public:
 	CDSLQuantifiedMatcher(const CDSLQuantifiedMatcher &) = delete;
 
@@ -43,6 +41,10 @@ public:
 
 	BOOL FMatch(const CDSLOp *pop, CExpression *pexpr,
 				CDSLModel *pmodel) const;
+
+	// Reify the binary comparison carried by a scalar ANY/ALL node.
+	static CExpression *PexprComparison(CMemoryPool *mp,
+									CExpression *pexprSubquery);
 };
 }  // namespace gpopt
 

@@ -37,6 +37,10 @@ using namespace gpopt;
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"    \
 	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)"
 
+#define GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE                            \
+	"Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|"        \
+	"TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)"
+
 namespace
 {
 CDSLRule *
@@ -146,7 +150,9 @@ CDSLQuantifiedTest::EresUnittest()
 			EresUnittest_PostUnnestCorrelatedPreservesCarrier),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_PolarityIsolation),
 		GPOS_UNITTEST_FUNC(
-			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies)};
+			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies),
+		GPOS_UNITTEST_FUNC(
+			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedAny)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
 
@@ -358,6 +364,41 @@ CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies()
 	GPOS_ASSERT(nullptr != pexprTarget);
 	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
 				pexprTarget->Pop()->Eopid());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprInnerGet->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLQuantifiedTest::EresUnittest_ExpressionDefinedAny()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *pexprInnerGet = nullptr;
+	CExpression *pexprSource =
+		PexprPreUnnest(mp, fix, false, &pexprInnerGet);
+	CDSLRule *prule =
+		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget =
+		instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopScalarSubqueryAny ==
+				CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
 
 	pexprTarget->Release();
 	pmodel->Release();

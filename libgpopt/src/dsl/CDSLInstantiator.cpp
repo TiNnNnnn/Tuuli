@@ -4173,6 +4173,22 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 		nullptr == popSource
 			? nullptr
 			: PdrgpcrResolveCols((*popSource->Pdrgpsym())[1], pmodel);
+	if (nullptr == popSource)
+	{
+		const CDSLOp *popRoot = m_prule->PfragSrc()->PopRoot();
+		const CDSLExpressionDefinitions::CDefinition *pdef =
+			nullptr != popRoot && EdslopFilter == popRoot->Edslop() &&
+					nullptr != popRoot->Pdrgpsym() &&
+					0 < popRoot->Pdrgpsym()->Size()
+				? m_prule->Pexprdefs()->Pdef((*popRoot->Pdrgpsym())[0])
+				: nullptr;
+		if (nullptr != pdef && EdslexprAny == pdef->Edslexpr() &&
+			3 == pdef->Arity() && pdef->PsymOperand(0) == psymPred &&
+			pdef->PsymOperand(1) == psymTargetAttrs)
+		{
+			pdrgpcrSourceAttrs = pdrgpcrTargetAttrs;
+		}
+	}
 	if (nullptr == pexprPredBound || nullptr == pdrgpcrSourceAttrs ||
 		nullptr == pdrgpcrTargetAttrs)
 	{
@@ -4210,7 +4226,9 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 
 	CExpression *pexprResult = nullptr;
 	CExpression *pexprCarrier =
-		pmodel->PexprInSubCarrier((*popSource->Pdrgpsym())[1]);
+		nullptr == popSource
+			? nullptr
+			: pmodel->PexprInSubCarrier((*popSource->Pdrgpsym())[1]);
 	const BOOL fCorrelated =
 		(nullptr != pexprCarrier &&
 		 CLogicalApply::PopConvert(pexprCarrier->Pop())->FCorrelated()) ||
@@ -4260,6 +4278,10 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 
 	CExpressionArray *pdrgpexprResidual =
 		pmodel->PdrgpexprInSubResidual();
+	if (nullptr == pdrgpexprResidual)
+	{
+		pdrgpexprResidual = pmodel->PdrgpexprResidual();
+	}
 	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
 	{
 		CExpressionArray *pdrgpexprCopy =

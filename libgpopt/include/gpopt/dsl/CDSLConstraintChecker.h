@@ -142,6 +142,8 @@ private:
 	// its relational operand for use by the target template.
 	BOOL FCheckPredicateExists(const CDSLConstraint *pcon, CDSLModel *pmodel,
 							   BOOL fNegated) const;
+	BOOL FCheckPredicateAny(const CDSLConstraint *pcon,
+						 CDSLModel *pmodel) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

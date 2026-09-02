@@ -416,6 +416,17 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconPredicateAny == edslcon &&
+			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[3]->Esymkind()))
+		{
+			bctx.Fail("PredicateAny expects two predicates, attrs, and table symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconAttrsUnion == edslcon)
 		{
 			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)

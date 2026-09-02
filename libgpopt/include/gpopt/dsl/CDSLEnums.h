@@ -201,6 +201,8 @@ enum EDslConstraintKind
 	EdslconPredicateExists,
 	// PredicateNotExists(out,input): out is NOT EXISTS(input).
 	EdslconPredicateNotExists,
+	// PredicateAny(out,comparison,outer_attrs,input): out is comparison ANY(input).
+	EdslconPredicateAny,
 	EdslconSentinel
 };
 

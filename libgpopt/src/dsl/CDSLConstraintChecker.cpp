@@ -14,6 +14,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 
 #include "gpos/base.h"
 #include "gpos/error/CException.h"
@@ -1579,6 +1580,38 @@ CDSLConstraintChecker::FCheckPredicateExists(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckPredicateAny(const CDSLConstraint *pcon,
+										 CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 4 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[3]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexprAny = pmodel->PexprPred((*pdrgpsym)[0]);
+	if (nullptr == pexprAny || 2 != pexprAny->Arity() ||
+		COperator::EopScalarSubqueryAny != pexprAny->Pop()->Eopid())
+	{
+		return false;
+	}
+
+	CExpression *pexprComparison =
+		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprAny);
+	CColRefArray *pdrgpcrOuter = (*pexprAny)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
+	const BOOL fMatches = pmodel->FBind((*pdrgpsym)[1], pexprComparison) &&
+		pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter) &&
+		pmodel->FBind((*pdrgpsym)[3], (*pexprAny)[0]);
+	pexprComparison->Release();
+	pdrgpcrOuter->Release();
+	return fMatches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -2558,6 +2591,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateExists(pcon, pmodel, false);
 		case EdslconPredicateNotExists:
 			return FCheckPredicateExists(pcon, pmodel, true);
+		case EdslconPredicateAny:
+			return FCheckPredicateAny(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

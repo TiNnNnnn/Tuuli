@@ -55,7 +55,8 @@ CDSLQuantifiedMatcher::FMatchInner(const CDSLOp *popInner,
 }
 
 CExpression *
-CDSLQuantifiedMatcher::PexprComparison(CExpression *pexprSubquery) const
+CDSLQuantifiedMatcher::PexprComparison(CMemoryPool *mp,
+									  CExpression *pexprSubquery)
 {
 	CScalarSubqueryQuantified *popQuantified =
 		CScalarSubqueryQuantified::PopConvert(pexprSubquery->Pop());
@@ -63,7 +64,7 @@ CDSLQuantifiedMatcher::PexprComparison(CExpression *pexprSubquery) const
 	pexprOuterScalar->AddRef();
 	IMDId *pmdidOp = popQuantified->MdIdOp();
 	pmdidOp->AddRef();
-	return CUtils::PexprScalarCmp(m_mp, pexprOuterScalar,
+	return CUtils::PexprScalarCmp(mp, pexprOuterScalar,
 								 popQuantified->Pcr(),
 								 *popQuantified->PstrOp(), pmdidOp);
 }
@@ -113,7 +114,7 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			const_cast<CColRef *>(popQuantified->Pcr()));
 		CColRefArray *pdrgpcrOuter =
 			(*pexprQuantified)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
-		CExpression *pexprCmp = PexprComparison(pexprQuantified);
+		CExpression *pexprCmp = PexprComparison(m_mp, pexprQuantified);
 		BOOL fMatched = pmodel->FBind((*pop->Pdrgpsym())[0], pexprCmp) &&
 			pmodel->FBind((*pop->Pdrgpsym())[1], pdrgpcrOuter) &&
 			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
