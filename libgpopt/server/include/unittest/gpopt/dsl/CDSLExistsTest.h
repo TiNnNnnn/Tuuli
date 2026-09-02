@@ -24,6 +24,7 @@ public:
 	static GPOS_RESULT EresUnittest_PostApplyNotExistsDistinctDrop();
 	static GPOS_RESULT EresUnittest_ExistsPolarityIsolation();
 	static GPOS_RESULT EresUnittest_PredicateSemiJoinRoundTrip();
+	static GPOS_RESULT EresUnittest_ExpressionDefinedExists();
 };
 }  // namespace gpopt
 

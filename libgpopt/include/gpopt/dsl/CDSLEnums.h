@@ -197,6 +197,8 @@ enum EDslConstraintKind
 	// domains. Predicate composition is expressed independently by PredicateAnd.
 	// A conjunct mixing both current domains with an external domain is rejected.
 	EdslconPredicateDomainSplit,
+	// PredicateExists(out,input): out is EXISTS(input).
+	EdslconPredicateExists,
 	EdslconSentinel
 };
 

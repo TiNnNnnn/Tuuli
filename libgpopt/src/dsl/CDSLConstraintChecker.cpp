@@ -1548,6 +1548,34 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckPredicateExists(
+	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexprPredicate = pmodel->PexprPred((*pdrgpsym)[0]);
+	if (nullptr == pexprPredicate)
+	{
+		return false;
+	}
+	if (1 != pexprPredicate->Arity() ||
+		COperator::EopScalarSubqueryExists != pexprPredicate->Pop()->Eopid())
+	{
+		return false;
+	}
+	CExpression *pexprInput = (*pexprPredicate)[0];
+	CExpression *pexprBound = pmodel->PexprTable((*pdrgpsym)[1]);
+	return nullptr == pexprBound ? pmodel->FBind((*pdrgpsym)[1], pexprInput)
+							 : pexprBound->Matches(pexprInput);
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -2490,7 +2518,7 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 BOOL
 CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 							 const CDSLConstraint *pcon,
-								 const CDSLModel *pmodel) const
+								 CDSLModel *pmodel) const
 {
 	switch (pcon->Edslcon())
 	{
@@ -2523,6 +2551,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateFalse(pcon, pmodel);
 		case EdslconPredicateAnd:
 			return FCheckPredicateAnd(pcon, pmodel);
+		case EdslconPredicateExists:
+			return FCheckPredicateExists(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

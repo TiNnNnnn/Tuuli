@@ -3832,6 +3832,10 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 
 	CExpressionArray *pdrgpexprResidual =
 		pmodel->PdrgpexprExistsResidual();
+	if (nullptr == pdrgpexprResidual)
+	{
+		pdrgpexprResidual = pmodel->PdrgpexprResidual();
+	}
 	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
 	{
 		CExpressionArray *pdrgpexprCopy =

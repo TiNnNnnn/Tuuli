@@ -63,7 +63,7 @@ private:
 	// dispatch one constraint; returns true if it holds (or is a no-op class
 	// constraint handled elsewhere).
 	BOOL FCheckOne(const CDSLRule *prule, const CDSLConstraint *pcon,
-				   const CDSLModel *pmodel) const;
+				   CDSLModel *pmodel) const;
 
 	// *Eq: check two source-side bindings when both are present; an unbound
 	// target-side symbol is deferred to instantiation alias resolution.
@@ -137,6 +137,11 @@ private:
 	// defer a target-only output after checking both operands are available.
 	BOOL FCheckPredicateAnd(const CDSLConstraint *pcon,
 							const CDSLModel *pmodel) const;
+
+	// PredicateExists(out,input): destructure a bound EXISTS predicate and bind
+	// its relational operand for use by the target template.
+	BOOL FCheckPredicateExists(const CDSLConstraint *pcon,
+							   CDSLModel *pmodel) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

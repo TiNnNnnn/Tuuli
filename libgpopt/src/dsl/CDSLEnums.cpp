@@ -151,6 +151,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
+	{EdslconPredicateExists, "PredicateExists", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -541,6 +542,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 	switch (edslcon)
 	{
 		case EdslconPredicateAnd:
+		case EdslconPredicateExists:
 			return 0 == ulPosition ? EdslsymPred : EdslsymSentinel;
 		case EdslconAttrsUnion:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
@@ -638,6 +640,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:
+		case EdslconPredicateExists:
 			return true;
 		case EdslconSentinel:
 			return false;

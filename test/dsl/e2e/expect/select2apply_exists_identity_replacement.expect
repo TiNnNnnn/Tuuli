@@ -1,5 +1,5 @@
 {
-  "description": "A proved Exists identity lowers a correlated scalar predicate to Apply without native Select2Apply",
+  "description": "A proved PredicateExists rule lowers a correlated scalar predicate to Apply without native Select2Apply",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,7 +7,7 @@
     "scope": "Correlated EXISTS with one outer key and an inner-only residual predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "820ba716dc954542"
+      "dec0eb1e99571556"
     ]
   },
   "plans": [
@@ -26,8 +26,7 @@
       "policy": "isolate_select2apply_identity.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "Xform: CXformDSLRule_Select",
-        "\"status\":\"duplicate\",\"rule_hash\":\"820ba716dc954542\""
+        "Xform: CXformDSLRule_Select"
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -52,7 +51,7 @@
       "policy": "isolate_select2apply_identity.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"820ba716dc954542\""
+        "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\""
       ],
       "alternative": [
         "CXformDSLRule_Select"

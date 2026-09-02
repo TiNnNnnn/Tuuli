@@ -14,16 +14,28 @@ namespace
 EDslExpressionKind
 EdslexprKind(const CDSLConstraint *pcon)
 {
-	return nullptr != pcon && EdslconPredicateAnd == pcon->Edslcon()
-		? EdslexprAnd
-		: EdslexprSentinel;
+	if (nullptr == pcon)
+	{
+		return EdslexprSentinel;
+	}
+	switch (pcon->Edslcon())
+	{
+		case EdslconPredicateAnd:
+			return EdslexprAnd;
+		case EdslconPredicateExists:
+			return EdslexprExists;
+		default:
+			return EdslexprSentinel;
+	}
 }
 
 const CDSLSymbol *
 PsymOutput(const CDSLConstraint *pcon)
 {
-	if (EdslexprSentinel == EdslexprKind(pcon) ||
-		nullptr == pcon->Pdrgpsym() || 3 != pcon->Pdrgpsym()->Size())
+	const EDslExpressionKind edslexpr = EdslexprKind(pcon);
+	if (EdslexprSentinel == edslexpr || nullptr == pcon->Pdrgpsym() ||
+		(EdslexprAnd == edslexpr && 3 != pcon->Pdrgpsym()->Size()) ||
+		(EdslexprExists == edslexpr && 2 != pcon->Pdrgpsym()->Size()))
 	{
 		return nullptr;
 	}

@@ -24,17 +24,10 @@ Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(I
 
 All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)
 
-# BRIDGE(view-materialization): source and target are logically identical.
-# The C++ pre-unnest view performs the scalar-subquery lowering; these rules
-# only materialize that virtual view and are not final independent replacements.
-# Representation-lowering identities for the four relationally valued
-# subquery predicates handled by CXformSelect2Apply. The DSL operators denote
-# the same logic before and after unnesting; when the source is a scalar
-# Select predicate, their existing target builders materialize the appropriate
-# Apply and preserve every residual conjunct. These rules change no logical
-# operator order and all four exact RuleIR strings returned EQ from SQLSolver
-# on 2026-08-30. Scalar single-row subqueries remain a separate operator gap.
-Exists(Input<t0>,Input<t1>)|Exists(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1)
+# DIRECT(expression-rewrite): PredicateExists destructures a scalar EXISTS
+# predicate into its relational operand; the target then uses the ordinary
+# Exists builder. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
 
 # BRIDGE(view-materialization): same lowering boundary as the Exists sibling.
 NotExists(Input<t0>,Input<t1>)|NotExists(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1)

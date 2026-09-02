@@ -53,6 +53,10 @@ using namespace gpopt;
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"   \
 	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)"
 
+#define GPOPT_DSL_EXPRESSION_DEFINED_EXISTS_RULE                         \
+	"Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|"             \
+	"TableEq(t1,t0);PredicateExists(p0,t2)"
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
@@ -70,8 +74,57 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_ExistsPolarityIsolation),
 		GPOS_UNITTEST_FUNC(
-			CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip)};
+			CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip),
+		GPOS_UNITTEST_FUNC(
+			CDSLExistsTest::EresUnittest_ExpressionDefinedExists)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLExistsTest::EresUnittest_ExpressionDefinedExists()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CColRefArray *pdrgpcrInner = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("expression_exists_outer", 2, &pdrgpcrOuter);
+	CExpression *pexprInner =
+		fix.PexprLogicalGet("expression_exists_inner", 2, &pdrgpcrInner);
+	CExpression *pexprExists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprInner);
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprExists);
+
+	CWStringDynamic strErr(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
+		mp, GPOPT_DSL_EXPRESSION_DEFINED_EXISTS_RULE, "EQ", &strErr);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+							   pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalLeftSemiApply ==
+				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopScalarSubqueryExists ==
+				dynamic_cast<CLogicalApply *>(pexprTarget->Pop())
+					->EopidOriginSubq());
+	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
+		pexprTarget->DeriveOutputColumns()));
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT
