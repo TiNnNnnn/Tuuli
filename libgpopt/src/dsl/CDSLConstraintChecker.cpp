@@ -13,6 +13,7 @@
 
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include "gpos/base.h"
 #include "gpos/error/CException.h"
@@ -2242,20 +2243,14 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		// an assumption about an arbitrary unbound target symbol.
 		if (EdslsymPred == psym->Esymkind())
 		{
-			CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
-			for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+			const CDSLExpressionDefinitions::CDefinition *pdef =
+				prule->Pexprdefs()->Pdef(psym);
+			if (nullptr != pdef && EdslexprAnd == pdef->Edslexpr())
 			{
-				const CDSLConstraint *pconAnd = (*pdrgpcon)[ul];
-				if (EdslconPredicateAnd != pconAnd->Edslcon() ||
-					3 != pconAnd->Pdrgpsym()->Size() ||
-					(*pconAnd->Pdrgpsym())[0] != psym)
-				{
-					continue;
-				}
 				CExpression *pexprLeft =
-					pmodel->PexprPred((*pconAnd->Pdrgpsym())[1]);
+					pmodel->PexprPred(pdef->PsymOperand(0));
 				CExpression *pexprRight =
-					pmodel->PexprPred((*pconAnd->Pdrgpsym())[2]);
+					pmodel->PexprPred(pdef->PsymOperand(1));
 				if (nullptr == pexprLeft || nullptr == pexprRight)
 				{
 					return false;

@@ -21,6 +21,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
@@ -1079,7 +1080,8 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		return pexprDerived;
 	}
 
-	const CDSLConstraint *pconDefinition = nullptr;
+	const CDSLExpressionDefinitions::CDefinition *pdef =
+		m_prule->Pexprdefs()->Pdef(psym);
 	const CDSLConstraint *pconSplit = nullptr;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
@@ -1097,20 +1099,10 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 			pconSplit = pcon;
 			continue;
 		}
-		if (EdslconPredicateAnd != pcon->Edslcon() ||
-			3 != pcon->Pdrgpsym()->Size() || (*pcon->Pdrgpsym())[0] != psym)
-		{
-			continue;
-		}
-		if (nullptr != pconDefinition)
-		{
-			return nullptr;
-		}
-		pconDefinition = pcon;
 	}
 	if (nullptr != pconSplit)
 	{
-		if (nullptr != pconDefinition ||
+		if (nullptr != pdef ||
 			!FMaterializePredicateDomainSplit(pconSplit, pmodel, ulDepth + 1))
 		{
 			return nullptr;
@@ -1122,15 +1114,15 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		}
 		return pexprSplit;
 	}
-	if (nullptr == pconDefinition)
+	if (nullptr == pdef || EdslexprAnd != pdef->Edslexpr())
 	{
 		return nullptr;
 	}
 
 	CExpression *pexprLeft = PexprResolvePredicate(
-		(*pconDefinition->Pdrgpsym())[1], pmodel, ulDepth + 1);
+		pdef->PsymOperand(0), pmodel, ulDepth + 1);
 	CExpression *pexprRight = PexprResolvePredicate(
-		(*pconDefinition->Pdrgpsym())[2], pmodel, ulDepth + 1);
+		pdef->PsymOperand(1), pmodel, ulDepth + 1);
 	if (nullptr == pexprLeft || nullptr == pexprRight)
 	{
 		CRefCount::SafeRelease(pexprLeft);

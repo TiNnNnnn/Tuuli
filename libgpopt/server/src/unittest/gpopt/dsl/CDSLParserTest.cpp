@@ -19,6 +19,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/dsl/CDSLRule.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 
@@ -546,6 +547,47 @@ CDSLParserTest::EresUnittest_Constraints()
 	// An undeclared input is never inferred merely because the same constraint
 	// has a constructive output.
 	bad = Parse(mp, "Input<t0>|Input<t1>|AttrsUnion(a9,a8,a7)");
+	if (nullptr != bad)
+	{
+		bad->Release();
+		return GPOS_FAILED;
+	}
+
+	// Constructive predicate constraints compile into one typed, transitive
+	// expression-definition graph. Duplicate definitions are rejected.
+	CDSLRule *definitions = Parse(
+		mp,
+		"InnerApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p3,p0,p1);"
+		"PredicateAnd(p2,p3,p1);AttrsUnion(a5,a0,a4);"
+		"AttrsUnion(a6,a1,a3)");
+	if (nullptr == definitions)
+	{
+		return GPOS_FAILED;
+	}
+	const CDSLSymbol *psymP0 =
+		(*definitions->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+	const CDSLSymbol *psymP1 =
+		(*(*definitions->PfragSrc()->PopRoot())[1]->Pdrgpsym())[0];
+	const CDSLSymbol *psymP2 =
+		(*definitions->PfragTgt()->PopRoot()->Pdrgpsym())[0];
+	const CDSLSymbol *psymP3 = definitions->Pexprdefs()->PsymBinaryResult(
+		EdslexprAnd, psymP0, psymP1);
+	const BOOL fDefinitionGraph = nullptr != psymP3 &&
+		psymP2 == definitions->Pexprdefs()->PsymBinaryResult(
+					 EdslexprAnd, psymP3, psymP1) &&
+		definitions->Pexprdefs()->FUses(psymP2, psymP0);
+	definitions->Release();
+	if (!fDefinitionGraph)
+	{
+		return GPOS_FAILED;
+	}
+	bad = Parse(
+		mp,
+		"InnerApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"PredicateAnd(p2,p0,p1);PredicateAnd(p2,p1,p0)");
 	if (nullptr != bad)
 	{
 		bad->Release();

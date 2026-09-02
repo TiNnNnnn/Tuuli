@@ -40,6 +40,7 @@
 
 #include "DSLRuleLexer.h"
 #include "DSLRuleParser.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 using namespace gpopt;
 
@@ -537,6 +538,12 @@ PdrgpconBuild(SBuildCtx &bctx,
 			}
 		}
 		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
+	}
+	if (!CDSLExpressionDefinitions::FValidate(pdrgpcon))
+	{
+		bctx.Fail("invalid or cyclic expression definition graph");
+		pdrgpcon->Release();
+		return nullptr;
 	}
 	return pdrgpcon;
 }

@@ -10,6 +10,7 @@
 //		FilterChain / FilterAssignments: subset match + reorder + residual.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLFilterMatcher.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include "gpos/base.h"
 
@@ -241,18 +242,9 @@ FRequiresCompleteSelectChain(const CDSLRule *prule, const CDSLOp *popFilter)
 			continue;
 		}
 		const CDSLSymbol *psymComplete = (*pdrgpsym)[0];
-		for (ULONG ulAnd = 0; ulAnd < pdrgpcon->Size(); ulAnd++)
+		if (prule->Pexprdefs()->FUses(psymComplete, psymPredicate))
 		{
-			const CDSLConstraint *pconAnd = (*pdrgpcon)[ulAnd];
-			CDSLSymbolArray *pdrgpsymAnd = pconAnd->Pdrgpsym();
-			if (EdslconPredicateAnd == pconAnd->Edslcon() &&
-				3 == pdrgpsymAnd->Size() &&
-				(*pdrgpsymAnd)[0] == psymComplete &&
-				(psymPredicate == (*pdrgpsymAnd)[1] ||
-				 psymPredicate == (*pdrgpsymAnd)[2]))
-			{
-				return true;
-			}
+			return true;
 		}
 	}
 	return false;

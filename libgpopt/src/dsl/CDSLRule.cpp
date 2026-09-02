@@ -10,6 +10,7 @@
 //		Substitution.toString so that parse -> IR -> print -> parse is stable.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRule.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -220,6 +221,7 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	: m_pfrag_src(pfrag_src),
 	  m_pfrag_tgt(pfrag_tgt),
 	  m_pdrgpcon(pdrgpcon),
+	  m_pexprdefs(nullptr),
 	  m_pstr_verdict(nullptr),
 	  m_ul_source_line(0),
 	  m_sz_identity{0}
@@ -227,6 +229,7 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	GPOS_ASSERT(nullptr != pfrag_src);
 	GPOS_ASSERT(nullptr != pfrag_tgt);
 	GPOS_ASSERT(nullptr != pdrgpcon);
+	m_pexprdefs = GPOS_NEW(mp) CDSLExpressionDefinitions(mp, pdrgpcon);
 	if (nullptr != sz_verdict)
 	{
 		m_pstr_verdict = GPOS_NEW(mp) CWStringConst(mp, sz_verdict);
@@ -252,6 +255,7 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 
 CDSLRule::~CDSLRule()
 {
+	GPOS_DELETE(m_pexprdefs);
 	m_pfrag_src->Release();
 	m_pfrag_tgt->Release();
 	m_pdrgpcon->Release();

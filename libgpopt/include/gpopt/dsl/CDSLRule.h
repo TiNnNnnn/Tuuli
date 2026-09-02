@@ -43,6 +43,7 @@ class CDSLOp;
 class CDSLConstraint;
 class CDSLFragment;
 class CDSLRule;
+class CDSLExpressionDefinitions;
 
 using CDSLSymbolArray = CDynamicPtrArray<CDSLSymbol, CleanupRelease>;
 using CDSLOpArray = CDynamicPtrArray<CDSLOp, CleanupRelease>;
@@ -200,6 +201,7 @@ private:
 	CDSLFragment *m_pfrag_src;			 // owned
 	CDSLFragment *m_pfrag_tgt;			 // owned
 	CDSLConstraintArray *m_pdrgpcon;	 // owned
+	CDSLExpressionDefinitions *m_pexprdefs;  // owned typed definition index
 	CWStringConst *m_pstr_verdict;		 // owned; may be NULL (e.g. "EQ")
 	ULONG m_ul_source_line;				 // physical one-based line in source file
 	CHAR m_sz_identity[17];				 // 64-bit FNV-1a of canonical rule text
@@ -215,6 +217,7 @@ public:
 	CDSLFragment *PfragSrc() const { return m_pfrag_src; }
 	CDSLFragment *PfragTgt() const { return m_pfrag_tgt; }
 	CDSLConstraintArray *Pdrgpcon() const { return m_pdrgpcon; }
+	const CDSLExpressionDefinitions *Pexprdefs() const { return m_pexprdefs; }
 	const CWStringConst *PstrVerdict() const { return m_pstr_verdict; }
 	ULONG UlSourceLine() const { return m_ul_source_line; }
 	void SetSourceLine(ULONG ul_source_line) { m_ul_source_line = ul_source_line; }
