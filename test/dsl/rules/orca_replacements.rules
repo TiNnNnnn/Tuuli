@@ -156,6 +156,10 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input
 # empty-set and three-valued semantics.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListAll(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
 
+# DIRECT(composed expression-rewrite): typed scalar and existential definitions
+# form one complete aggregate Apply chain; FuncAttrs derives the final inputs.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f2 s1 p3>(LeftApply<p2 a7 a8 a9>(LeftApply<p1 a3 a4 a5>(Input<t1>,Input<t2>),Limit<n0 n1>(Compute<e0 a12 s2>(Input<t3>))))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListScalarSubquery(f0,f1,p1,a3,a4,a5,a6,t2);ExprListExists(f1,f2,e0,a12,s2,p2,a7,a8,a9,a10,t3);FuncAttrs(a11,f2);ScalarOne(n0);ScalarZero(n1)
+
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)

@@ -1,0 +1,72 @@
+{
+  "description": "Typed scalar and existential definitions directly form one aggregate Apply chain",
+  "replacement": {
+    "xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "scope": "A scalar subquery and correlated EXISTS in one aggregate argument",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "2cf4f8ec1e40a587"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_gbagg2apply_mixed_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"2cf4f8ec1e40a587\""
+      ],
+      "alternative": [
+        "CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "policy": "isolate_gbagg2apply_mixed_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"2cf4f8ec1e40a587\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "policy": "isolate_gbagg2apply_mixed_direct.policy",
+    "output": [
+      "40"
+    ],
+    "postgres_output": [
+      "40"
+    ]
+  }
+}
