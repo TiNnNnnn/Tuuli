@@ -45,6 +45,10 @@ Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);Predicat
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
 Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
 
+# DIRECT(composed expression-rewrite): two Filter conjuncts become one explicit
+# InnerApply chain through two ordinary scalar-subquery definitions.
+Filter<p0 a0>(Filter<p1 a1>(Input<t0>))|InnerApply<p2 a2 a3 a4>(InnerApply<p3 a6 a7 a8>(Input<t1>,Input<t3>),Input<t2>)|TableEq(t1,t0);PredicateScalarSubquery(p0,p2,a2,a3,a4,t2);PredicateScalarSubquery(p1,p3,a6,a7,a8,t3)
+
 # DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)
@@ -74,16 +78,6 @@ Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,
 # complete Apply chain; no multiple-subquery operator or production view is
 # required. FormalSQL/Rocq accepted the composed contract on 2026-09-02.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e2 a1 s1>(LeftApply<p1 a6 a7 a8>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>),Limit<n0 n1>(Compute<e3 a9 s2>(Input<t3>))))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2);ExprListExists(e1,e2,e3,a9,s2,p1,a6,a7,a8,a10,t3);ScalarOne(n0);ScalarZero(n1)
-
-# BRIDGE(view-materialization): the C++ Select view performs the lowering;
-# FormalSQL proves only the visible InnerApply identity.
-# Representation-lowering identity for a scalar single-row subquery in a
-# filter expression. InnerApply names the post-unnest relational carrier while
-# the matcher also exposes the pre-unnest Select as that same view. Predicate
-# and dependency vectors are exact, including correlation attrs; required
-# inner-column and origin-subquery metadata remain optimizer-owned. This exact
-# RuleIR is accepted by the FormalSQL/Rocq structural proof kernel.
-InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerApply<p1 a3 a4 a5>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2)
 
 # BRIDGE(view-materialization): the C++ Filter view performs subquery lowering;
 # FormalSQL proves only the already-lowered Filter/Apply carrier identity.

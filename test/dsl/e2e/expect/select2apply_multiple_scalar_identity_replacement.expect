@@ -1,13 +1,13 @@
 {
-  "description": "A Rocq-proved InnerApply identity preserves a chain of scalar subquery predicates",
+  "description": "Two typed scalar definitions directly construct an InnerApply chain",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
     "scope": "Multiple scalar subqueries in one Select predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "3fa670693d6ae8f7"
+      "1cae9cbc77bce461"
     ]
   },
   "plans": [
@@ -23,11 +23,10 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"3fa670693d6ae8f7\""
+        "\"rule_hash\":\"1cae9cbc77bce461\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -49,10 +48,9 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"3fa670693d6ae8f7\""
+        "\"status\":\"applied\",\"rule_hash\":\"1cae9cbc77bce461\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -63,7 +61,6 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
     "output": [
       "3"
     ],

@@ -151,6 +151,42 @@ FColSetContainsArray(const CColRefSet *pcrs,
 }
 
 const CDSLExpressionDefinitions::CDefinition *
+PdefScalarApply(const CDSLExpressionDefinitions *pexprdefs,
+				const CDSLOp *popApply)
+{
+	if (nullptr == pexprdefs || nullptr == popApply ||
+		EdslopInnerApply != popApply->Edslop() ||
+		2 != popApply->UlChildren() || nullptr == popApply->Pdrgpsym() ||
+		4 != popApply->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+	const CDSLOp *popRight = (*popApply)[1];
+	if (EdslopInput != popRight->Edslop() ||
+		nullptr == popRight->Pdrgpsym() || 1 != popRight->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+	const CDSLSymbolArray *pdrgpsymApply = popApply->Pdrgpsym();
+	for (ULONG ul = 0; ul < pexprdefs->UlDefinitions(); ul++)
+	{
+		const CDSLExpressionDefinitions::CDefinition *pdef =
+			pexprdefs->PdefAt(ul);
+		if (EdslexprScalarSubquery == pdef->Edslexpr() &&
+			5 == pdef->Arity() &&
+			pdef->PsymOperand(0) == (*pdrgpsymApply)[0] &&
+			pdef->PsymOperand(1) == (*pdrgpsymApply)[1] &&
+			pdef->PsymOperand(2) == (*pdrgpsymApply)[2] &&
+			pdef->PsymOperand(3) == (*pdrgpsymApply)[3] &&
+			pdef->PsymOperand(4) == (*popRight->Pdrgpsym())[0])
+		{
+			return pdef;
+		}
+	}
+	return nullptr;
+}
+
+const CDSLExpressionDefinitions::CDefinition *
 PdefExprListApply(const CDSLExpressionDefinitions *pexprdefs,
 				   const CDSLOp *popApply)
 {
@@ -2507,14 +2543,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
-	const CDSLOp *popSourceRoot = m_prule->PfragSrc()->PopRoot();
 	const CDSLExpressionDefinitions::CDefinition *pdefScalarSubquery =
-		fInnerApply && nullptr != popSourceRoot &&
-				EdslopFilter == popSourceRoot->Edslop() &&
-				nullptr != popSourceRoot->Pdrgpsym() &&
-				0 < popSourceRoot->Pdrgpsym()->Size()
-			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
-			: nullptr;
+		fInnerApply ? PdefScalarApply(m_prule->Pexprdefs(), pop) : nullptr;
 	const CDSLExpressionDefinitions::CDefinition *pdefExprListSubquery =
 		fLeftOuterApply
 			? PdefExprListApply(m_prule->Pexprdefs(), pop)

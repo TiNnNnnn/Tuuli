@@ -23,7 +23,6 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
@@ -49,7 +48,6 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
-      "policy": "isolate_select2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
@@ -63,7 +61,6 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
-    "policy": "isolate_select2apply_scalar_direct.policy",
     "output": [
       "1"
     ],
