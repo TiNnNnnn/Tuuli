@@ -33,6 +33,10 @@ Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExi
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
 Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
 
+# DIRECT(composed expression-rewrite): two typed existential definitions form
+# the complete semi-Apply chain without a residual production view.
+Filter<p0 a0>(Filter<p1 a1>(Input<t0>))|Exists(Exists(Input<t1>,Input<t3>),Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2);PredicateExists(p1,t3)
+
 # DIRECT(expression-rewrite): PredicateAny binds the comparison, exact outer
 # dependencies, and quantified relation from the scalar ANY predicate.
 Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)

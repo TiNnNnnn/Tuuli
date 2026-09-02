@@ -1,0 +1,5 @@
+# Keep the repeated EXISTS test causal: one proved rule builds the full chain.
+- rule: '*'
+  enabled: false
+- rule: 183680c3f85ebcc1
+  enabled: true
