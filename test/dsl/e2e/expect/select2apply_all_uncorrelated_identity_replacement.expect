@@ -1,5 +1,5 @@
 {
-  "description": "A proved All identity preserves inverse-predicate polarity in a regular NotIn Apply",
+  "description": "A proved PredicateAll rule preserves inverse-predicate polarity in a regular NotIn Apply",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,7 +7,7 @@
     "scope": "Uncorrelated single-column ALL with an arbitrary comparison predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "787af5dd30d23bd6"
+      "a08e24d9155e2f5c"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"status\":\"duplicate\",\"rule_hash\":\"787af5dd30d23bd6\""
+        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -53,7 +53,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftAntiSemiApplyNotIn",
-        "\"status\":\"applied\",\"rule_hash\":\"787af5dd30d23bd6\""
+        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
       ],
       "alternative": [
         "CXformDSLRule_Select"

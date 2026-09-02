@@ -20,7 +20,7 @@ public:
 	static GPOS_RESULT EresUnittest_PostUnnestCorrelatedPreservesCarrier();
 	static GPOS_RESULT EresUnittest_PolarityIsolation();
 	static GPOS_RESULT EresUnittest_ConstantOuterDependencies();
-	static GPOS_RESULT EresUnittest_ExpressionDefinedAny();
+	static GPOS_RESULT EresUnittest_ExpressionDefinedQuantified();
 };
 }  // namespace gpopt
 

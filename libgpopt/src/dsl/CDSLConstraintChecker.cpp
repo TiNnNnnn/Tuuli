@@ -1580,8 +1580,9 @@ CDSLConstraintChecker::FCheckPredicateExists(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckPredicateAny(const CDSLConstraint *pcon,
-										 CDSLModel *pmodel) const
+CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
+											 CDSLModel *pmodel,
+											 BOOL fAll) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 4 != pdrgpsym->Size() ||
@@ -1593,19 +1594,23 @@ CDSLConstraintChecker::FCheckPredicateAny(const CDSLConstraint *pcon,
 		return false;
 	}
 
-	CExpression *pexprAny = pmodel->PexprPred((*pdrgpsym)[0]);
-	if (nullptr == pexprAny || 2 != pexprAny->Arity() ||
-		COperator::EopScalarSubqueryAny != pexprAny->Pop()->Eopid())
+	CExpression *pexprQuantified = pmodel->PexprPred((*pdrgpsym)[0]);
+	const COperator::EOperatorId eopid =
+		fAll ? COperator::EopScalarSubqueryAll
+			 : COperator::EopScalarSubqueryAny;
+	if (nullptr == pexprQuantified || 2 != pexprQuantified->Arity() ||
+		eopid != pexprQuantified->Pop()->Eopid())
 	{
 		return false;
 	}
 
 	CExpression *pexprComparison =
-		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprAny);
-	CColRefArray *pdrgpcrOuter = (*pexprAny)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
+		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprQuantified);
+	CColRefArray *pdrgpcrOuter =
+		(*pexprQuantified)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
 	const BOOL fMatches = pmodel->FBind((*pdrgpsym)[1], pexprComparison) &&
 		pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter) &&
-		pmodel->FBind((*pdrgpsym)[3], (*pexprAny)[0]);
+		pmodel->FBind((*pdrgpsym)[3], (*pexprQuantified)[0]);
 	pexprComparison->Release();
 	pdrgpcrOuter->Release();
 	return fMatches;
@@ -2592,7 +2597,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateNotExists:
 			return FCheckPredicateExists(pcon, pmodel, true);
 		case EdslconPredicateAny:
-			return FCheckPredicateAny(pcon, pmodel);
+			return FCheckPredicateQuantified(pcon, pmodel, false);
+		case EdslconPredicateAll:
+			return FCheckPredicateQuantified(pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

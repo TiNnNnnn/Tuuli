@@ -4182,7 +4182,13 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 					0 < popRoot->Pdrgpsym()->Size()
 				? m_prule->Pexprdefs()->Pdef((*popRoot->Pdrgpsym())[0])
 				: nullptr;
-		if (nullptr != pdef && EdslexprAny == pdef->Edslexpr() &&
+		const BOOL fMatchingDefinition =
+			nullptr != pdef &&
+			((EdslopAny == pop->Edslop() &&
+			  EdslexprAny == pdef->Edslexpr()) ||
+			 (EdslopAll == pop->Edslop() &&
+			  EdslexprAll == pdef->Edslexpr()));
+		if (fMatchingDefinition &&
 			3 == pdef->Arity() && pdef->PsymOperand(0) == psymPred &&
 			pdef->PsymOperand(1) == psymTargetAttrs)
 		{

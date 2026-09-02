@@ -37,8 +37,9 @@ Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);Predicate
 # dependencies, and quantified relation from the scalar ANY predicate.
 Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)
 
-# BRIDGE(view-materialization): same lowering boundary as the Exists sibling.
-All<p0 a0>(Input<t0>,Input<t1>)|All<p1 a1>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)
+# DIRECT(expression-rewrite): PredicateAll shares quantified comparison
+# decomposition with ANY while preserving NULL-aware ALL semantics.
+Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)
 
 # BRIDGE(view-materialization): the C++ Select view performs the lowering;
 # FormalSQL proves only the visible InnerApply identity.

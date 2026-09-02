@@ -41,6 +41,10 @@ using namespace gpopt;
 	"Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|"        \
 	"TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)"
 
+#define GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE                            \
+	"Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|"        \
+	"TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)"
+
 namespace
 {
 CDSLRule *
@@ -152,7 +156,7 @@ CDSLQuantifiedTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies),
 		GPOS_UNITTEST_FUNC(
-			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedAny)};
+			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
 
@@ -374,37 +378,44 @@ CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies()
 }
 
 GPOS_RESULT
-CDSLQuantifiedTest::EresUnittest_ExpressionDefinedAny()
+CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CExpression *pexprInnerGet = nullptr;
-	CExpression *pexprSource =
-		PexprPreUnnest(mp, fix, false, &pexprInnerGet);
-	CDSLRule *prule =
-		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE);
-	GPOS_ASSERT(nullptr != prule);
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
-	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
-							   pmodel));
-	CDSLConstraintChecker checker(mp);
-	GPOS_ASSERT(checker.FCheck(prule, pmodel));
-	CDSLInstantiator instantiator(mp);
-	CExpression *pexprTarget =
-		instantiator.PexprInstantiate(prule, pmodel);
-	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
-				pexprTarget->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopScalarSubqueryAny ==
-				CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		const BOOL fAll = 0 < ul;
+		CExpression *pexprInnerGet = nullptr;
+		CExpression *pexprSource =
+			PexprPreUnnest(mp, fix, fAll, &pexprInnerGet);
+		CDSLRule *prule = PruleParse(
+			mp, fAll ? GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE
+					 : GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE);
+		GPOS_ASSERT(nullptr != prule);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp);
+		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+								   pmodel));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(prule, pmodel));
+		CDSLInstantiator instantiator(mp);
+		CExpression *pexprTarget =
+			instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_ASSERT(nullptr != pexprTarget);
+		GPOS_ASSERT((fAll ? COperator::EopLogicalLeftAntiSemiApplyNotIn
+						   : COperator::EopLogicalLeftSemiApplyIn) ==
+					pexprTarget->Pop()->Eopid());
+		GPOS_ASSERT((fAll ? COperator::EopScalarSubqueryAll
+						   : COperator::EopScalarSubqueryAny) ==
+					CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
 
-	pexprTarget->Release();
-	pmodel->Release();
-	prule->Release();
-	pexprSource->Release();
-	pexprInnerGet->Release();
+		pexprTarget->Release();
+		pmodel->Release();
+		prule->Release();
+		pexprSource->Release();
+		pexprInnerGet->Release();
+	}
 	return GPOS_OK;
 }
 

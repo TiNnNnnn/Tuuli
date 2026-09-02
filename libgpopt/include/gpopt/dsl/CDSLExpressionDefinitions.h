@@ -18,6 +18,7 @@ enum EDslExpressionKind
 	EdslexprExists,
 	EdslexprNotExists,
 	EdslexprAny,
+	EdslexprAll,
 	EdslexprSentinel
 };
 

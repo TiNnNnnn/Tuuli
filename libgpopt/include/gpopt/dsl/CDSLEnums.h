@@ -203,6 +203,8 @@ enum EDslConstraintKind
 	EdslconPredicateNotExists,
 	// PredicateAny(out,comparison,outer_attrs,input): out is comparison ANY(input).
 	EdslconPredicateAny,
+	// PredicateAll(out,comparison,outer_attrs,input): out is comparison ALL(input).
+	EdslconPredicateAll,
 	EdslconSentinel
 };
 
