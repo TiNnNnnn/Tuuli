@@ -214,6 +214,10 @@ enum EDslConstraintKind
 	// predicate,left,right,correlation,required_inner,input).
 	EdslconExprListExists,
 	EdslconExprListNotExists,
+	// ExprListAny/All share the existential marker carrier but preserve the
+	// quantified comparison as the Apply predicate.
+	EdslconExprListAny,
+	EdslconExprListAll,
 	EdslconSentinel
 };
 

@@ -159,6 +159,8 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconExprListScalarSubquery, "ExprListScalarSubquery", 8},
 	{EdslconExprListExists, "ExprListExists", 11},
 	{EdslconExprListNotExists, "ExprListNotExists", 11},
+	{EdslconExprListAny, "ExprListAny", 11},
+	{EdslconExprListAll, "ExprListAll", 11},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -559,6 +561,8 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 			return 6 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconExprListExists:
 		case EdslconExprListNotExists:
+		case EdslconExprListAny:
+		case EdslconExprListAll:
 			return 9 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconAttrsUnion:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
@@ -664,6 +668,8 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprListScalarSubquery:
 		case EdslconExprListExists:
 		case EdslconExprListNotExists:
+		case EdslconExprListAny:
+		case EdslconExprListAll:
 			return true;
 		case EdslconSentinel:
 			return false;

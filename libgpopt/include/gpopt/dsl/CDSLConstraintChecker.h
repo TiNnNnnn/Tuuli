@@ -150,6 +150,8 @@ private:
 								  CDSLModel *pmodel) const;
 	BOOL FCheckExprListExistential(const CDSLConstraint *pcon,
 							   CDSLModel *pmodel, BOOL fNegated) const;
+	BOOL FCheckExprListQuantified(const CDSLConstraint *pcon,
+							  CDSLModel *pmodel, BOOL fAll) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

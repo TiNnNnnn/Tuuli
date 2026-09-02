@@ -1,13 +1,13 @@
 {
-  "description": "The Proj(LeftApply) identity lowers one ANY value through the shared Project view",
+  "description": "The typed expression definition lowers one ANY value without the Project bridge",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
     ],
     "scope": "One correlated quantified ANY in a Project value context",
-    "status": "verified_partial_replacement",
+    "status": "verified_direct_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750"
+      "b6ba26e7f855bd26"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"b6ba26e7f855bd26\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"b6ba26e7f855bd26\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -64,16 +64,22 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,f",
-      "2,t",
-      "3,f"
+      "2,f",
+      "3,t",
+      "4,",
+      "5,f",
+      "6,"
     ],
     "postgres_output": [
       "1,f",
-      "2,t",
-      "3,f"
+      "2,f",
+      "3,t",
+      "4,",
+      "5,f",
+      "6,"
     ]
   }
 }

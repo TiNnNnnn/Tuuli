@@ -46,6 +46,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -1913,6 +1914,110 @@ CDSLConstraintChecker::FCheckExprListExistential(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckExprListQuantified(
+	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fAll) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
+		EdslsymSchema != (*pdrgpsym)[4]->Esymkind() ||
+		EdslsymPred != (*pdrgpsym)[5]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[7]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[8]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[10]->Esymkind())
+	{
+		return false;
+	}
+
+	CExpression *pexprList = pmodel->PexprExpr((*pdrgpsym)[0]);
+	ULONG ulSubqueries = 0;
+	CExpression *pexprSubquery = nullptr == pexprList
+		? nullptr
+		: PexprOnlySubquery(
+			  pexprList,
+			  fAll ? COperator::EopScalarSubqueryAll
+				   : COperator::EopScalarSubqueryAny,
+			  &ulSubqueries);
+	if (1 != ulSubqueries || nullptr == pexprSubquery ||
+		2 != pexprSubquery->Arity())
+	{
+		return false;
+	}
+
+	CScalarSubqueryQuantified *popQuantified =
+		CScalarSubqueryQuantified::PopConvert(pexprSubquery->Pop());
+	CColRef *pcrInner = const_cast<CColRef *>(popQuantified->Pcr());
+	CExpression *pexprInner = (*pexprSubquery)[0];
+
+	const IMDTypeBool *pmdtypebool =
+		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
+	CColRef *pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		pmdtypebool, default_type_modifier);
+	CExpressionArray *pdrgpexprMarker = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	pdrgpexprMarker->Append(CUtils::PexprScalarProjectElement(
+		m_mp, pcrMarker, CUtils::PexprScalarConstBool(m_mp, true)));
+	CExpression *pexprMarkerList = GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), pdrgpexprMarker);
+
+	CExpression *pexprMarker = CUtils::PexprScalarIdent(m_mp, pcrMarker);
+	CExpression *pexprLowered = PexprReplaceNode(
+		m_mp, pexprList, pexprSubquery, pexprMarker);
+	pexprMarker->Release();
+	if (pexprLowered->DeriveHasSubquery())
+	{
+		pexprLowered->Release();
+		pexprMarkerList->Release();
+		return false;
+	}
+
+	CExpression *pexprComparison =
+		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprSubquery);
+	CColRefSet *pcrsLeft = GPOS_NEW(m_mp)
+		CColRefSet(m_mp, *pexprComparison->DeriveUsedColumns());
+	pcrsLeft->Exclude(pcrInner);
+	CColRefArray *pdrgpcrLeft = pcrsLeft->Pdrgpcr(m_mp);
+	pcrsLeft->Release();
+	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrRight->Append(pcrInner);
+	CColRefArray *pdrgpcrCorrelation =
+		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrRequiredInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrRequiredInner->Append(pcrMarker);
+	pdrgpcrRequiredInner->Append(pcrInner);
+	CColRefArray *pdrgpcrMarkerAttrs =
+		pexprMarkerList->DeriveUsedColumns()->Pdrgpcr(m_mp);
+	CColRefArray *pdrgpcrMarkerSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrMarkerSchema->Append(pcrMarker);
+
+	const BOOL fMatches =
+		pmodel->FBind((*pdrgpsym)[1], pexprLowered) &&
+		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
+		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
+		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
+		pmodel->FBind((*pdrgpsym)[5], pexprComparison) &&
+		pmodel->FBind((*pdrgpsym)[6], pdrgpcrLeft) &&
+		pmodel->FBind((*pdrgpsym)[7], pdrgpcrRight) &&
+		pmodel->FBind((*pdrgpsym)[8], pdrgpcrCorrelation) &&
+		pmodel->FBind((*pdrgpsym)[9], pdrgpcrRequiredInner) &&
+		pmodel->FBind((*pdrgpsym)[10], pexprInner);
+	pexprLowered->Release();
+	pexprMarkerList->Release();
+	pdrgpcrMarkerAttrs->Release();
+	pdrgpcrMarkerSchema->Release();
+	pexprComparison->Release();
+	pdrgpcrLeft->Release();
+	pdrgpcrRight->Release();
+	pdrgpcrCorrelation->Release();
+	pdrgpcrRequiredInner->Release();
+	return fMatches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -2904,6 +3009,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckExprListExistential(pcon, pmodel, false);
 		case EdslconExprListNotExists:
 			return FCheckExprListExistential(pcon, pmodel, true);
+		case EdslconExprListAny:
+			return FCheckExprListQuantified(pcon, pmodel, false);
+		case EdslconExprListAll:
+			return FCheckExprListQuantified(pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

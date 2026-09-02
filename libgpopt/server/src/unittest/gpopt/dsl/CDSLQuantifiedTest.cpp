@@ -8,6 +8,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -18,11 +19,14 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "naucrates/md/IMDTypeBool.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -46,6 +50,18 @@ using namespace gpopt;
 #define GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE                            \
 	"Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|"        \
 	"TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)"
+
+#define GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ANY_RULE                       \
+	"Compute<e0 a0 s0>(Input<t0>)|"                                         \
+	"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,"                   \
+	"Compute<e2 a5 s2>(Input<t2>)))|TableEq(t1,t0);SchemaEq(s1,s0);"         \
+	"ExprListAny(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)"
+
+#define GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ALL_RULE                       \
+	"Compute<e0 a0 s0>(Input<t0>)|"                                         \
+	"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,"                   \
+	"Compute<e2 a5 s2>(Input<t2>)))|TableEq(t1,t0);SchemaEq(s1,s0);"         \
+	"ExprListAll(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)"
 
 #define GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE                         \
 	"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,"      \
@@ -107,6 +123,20 @@ PexprPreUnnest(CMemoryPool *mp, CDSLTestFixture &fix, BOOL fAll,
 		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprSubquery);
 }
 
+CExpression *
+PexprProjectScalar(CMemoryPool *mp, CExpression *pexprChild,
+				   CColRef *pcrOutput, CExpression *pexprScalar)
+{
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprElems->Append(CUtils::PexprScalarProjectElement(
+		mp, pcrOutput, pexprScalar));
+	CExpression *pexprList = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+	pexprChild->AddRef();
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprChild, pexprList);
+}
+
 GPOS_RESULT
 EresPreUnnest(BOOL fAll)
 {
@@ -164,6 +194,8 @@ CDSLQuantifiedTest::EresUnittest()
 			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies),
 		GPOS_UNITTEST_FUNC(
 			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified),
+		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::
+			EresUnittest_ExpressionDefinedProjectQuantified),
 		GPOS_UNITTEST_FUNC(
 			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -424,6 +456,66 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		prule->Release();
 		pexprSource->Release();
 		pexprInnerGet->Release();
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
+{
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		const BOOL fAll = 0 < ul;
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		CColRefArray *pdrgpcrOuter = nullptr;
+		CExpression *pexprOuter = fix.PexprLogicalGet(
+			fAll ? "project_all_outer" : "project_any_outer", 1,
+			&pdrgpcrOuter);
+		CColRefArray *pdrgpcrInner = nullptr;
+		CExpression *pexprInner = fix.PexprLogicalGet(
+			fAll ? "project_all_inner" : "project_any_inner", 1,
+			&pdrgpcrInner);
+		CExpression *pexprSubquery = PexprQuantified(
+			mp, fix, fAll, pexprInner, (*pdrgpcrOuter)[0],
+			(*pdrgpcrInner)[0]);
+		const IMDTypeBool *pmdtypebool =
+			COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
+		CColRef *pcrOutput = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			pmdtypebool, default_type_modifier);
+		CExpression *pexprSource = PexprProjectScalar(
+			mp, pexprOuter, pcrOutput, pexprSubquery);
+		CDSLRule *prule = PruleParse(
+			mp, fAll ? GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ALL_RULE
+					 : GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ANY_RULE);
+		GPOS_ASSERT(nullptr != prule);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp);
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(matcher.FMatch(
+			prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
+		GPOS_ASSERT(checker.FCheck(prule, pmodel));
+		CDSLInstantiator instantiator(mp);
+		CExpression *pexprTarget =
+			instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_ASSERT(nullptr != pexprTarget);
+		CExpression *pexprApply = (*pexprTarget)[0];
+		GPOS_ASSERT(COperator::EopLogicalProject ==
+					pexprTarget->Pop()->Eopid());
+		GPOS_ASSERT(COperator::EopLogicalLeftOuterCorrelatedApply ==
+					pexprApply->Pop()->Eopid());
+		GPOS_ASSERT((fAll ? COperator::EopScalarSubqueryAll
+						   : COperator::EopScalarSubqueryAny) ==
+			CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq());
+		GPOS_ASSERT(COperator::EopScalarCmp == (*pexprApply)[2]->Pop()->Eopid());
+		GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
+
+		pexprTarget->Release();
+		pmodel->Release();
+		prule->Release();
+		pexprSource->Release();
+		pexprOuter->Release();
 	}
 	return GPOS_OK;
 }
