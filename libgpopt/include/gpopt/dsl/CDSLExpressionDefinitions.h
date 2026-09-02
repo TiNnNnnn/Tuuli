@@ -75,6 +75,11 @@ public:
 	// Return the unique typed expression definition for output, or NULL.
 	const CDefinition *Pdef(
 		const CDSLSymbol *psymOutput) const;
+	ULONG UlDefinitions() const { return m_pdrgpdefDefinitions->Size(); }
+	const CDefinition *PdefAt(ULONG ul) const
+	{
+		return (*m_pdrgpdefDefinitions)[ul];
+	}
 
 	// Find the output of a typed binary expression definition.
 	const CDSLSymbol *PsymBinaryResult(

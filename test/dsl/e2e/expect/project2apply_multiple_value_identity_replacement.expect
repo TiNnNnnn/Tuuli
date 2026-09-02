@@ -1,13 +1,13 @@
 {
-  "description": "Production lowering exposes a mixed scalar/EXISTS Project as a preserved Apply chain",
+  "description": "Typed expression definitions lower a mixed scalar/EXISTS Project as one Apply chain",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
     ],
     "scope": "Multiple mixed subqueries in one Project value list",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f94c37fc9c3e1750"
+      "ff170273c3de5cae"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"ff170273c3de5cae\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -49,11 +49,11 @@
       "disable_xforms": [
         "CXformProject2Apply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"f94c37fc9c3e1750\""
+        "\"status\":\"applied\",\"rule_hash\":\"ff170273c3de5cae\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -64,7 +64,7 @@
     "disable_xforms": [
       "CXformProject2Apply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
       "1,30,t",
       "2,30,t",

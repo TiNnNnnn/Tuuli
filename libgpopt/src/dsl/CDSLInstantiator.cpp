@@ -150,6 +150,85 @@ FColSetContainsArray(const CColRefSet *pcrs,
 	return true;
 }
 
+const CDSLExpressionDefinitions::CDefinition *
+PdefExprListApply(const CDSLExpressionDefinitions *pexprdefs,
+				   const CDSLOp *popApply)
+{
+	if (nullptr == pexprdefs || nullptr == popApply ||
+		EdslopLeftOuterApply != popApply->Edslop() ||
+		2 != popApply->UlChildren() || nullptr == popApply->Pdrgpsym() ||
+		4 != popApply->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+
+	const CDSLSymbolArray *pdrgpsymApply = popApply->Pdrgpsym();
+	const CDSLOp *popRight = (*popApply)[1];
+	const CDSLExpressionDefinitions::CDefinition *pdefMatch = nullptr;
+	for (ULONG ul = 0; ul < pexprdefs->UlDefinitions(); ul++)
+	{
+		const CDSLExpressionDefinitions::CDefinition *pdef =
+			pexprdefs->PdefAt(ul);
+		BOOL fMatches = false;
+		if (EdslexprExprListScalarSubquery == pdef->Edslexpr() &&
+			7 == pdef->Arity() && EdslopInput == popRight->Edslop() &&
+			nullptr != popRight->Pdrgpsym() &&
+			1 == popRight->Pdrgpsym()->Size())
+		{
+			fMatches = pdef->PsymOperand(1) == (*pdrgpsymApply)[0] &&
+				pdef->PsymOperand(2) == (*pdrgpsymApply)[1] &&
+				pdef->PsymOperand(3) == (*pdrgpsymApply)[2] &&
+				pdef->PsymOperand(4) == (*pdrgpsymApply)[3] &&
+				pdef->PsymOperand(6) == (*popRight->Pdrgpsym())[0];
+		}
+		else
+		{
+			const BOOL fExistential =
+				EdslexprExprListExists == pdef->Edslexpr() ||
+				EdslexprExprListNotExists == pdef->Edslexpr();
+			const BOOL fQuantified =
+				EdslexprExprListAny == pdef->Edslexpr() ||
+				EdslexprExprListAll == pdef->Edslexpr();
+			const CDSLOp *popMarker = fExistential &&
+					EdslopLimit == popRight->Edslop() &&
+					1 == popRight->UlChildren()
+				? (*popRight)[0]
+				: (fQuantified ? popRight : nullptr);
+			const CDSLOp *popInput = nullptr != popMarker &&
+					EdslopCompute == popMarker->Edslop() &&
+					1 == popMarker->UlChildren()
+				? (*popMarker)[0]
+				: nullptr;
+			if ((fExistential || fQuantified) && 10 == pdef->Arity() &&
+				nullptr != popMarker && nullptr != popMarker->Pdrgpsym() &&
+				3 == popMarker->Pdrgpsym()->Size() && nullptr != popInput &&
+				EdslopInput == popInput->Edslop() &&
+				nullptr != popInput->Pdrgpsym() &&
+				1 == popInput->Pdrgpsym()->Size())
+			{
+				fMatches =
+					pdef->PsymOperand(1) == (*popMarker->Pdrgpsym())[0] &&
+					pdef->PsymOperand(2) == (*popMarker->Pdrgpsym())[1] &&
+					pdef->PsymOperand(3) == (*popMarker->Pdrgpsym())[2] &&
+					pdef->PsymOperand(4) == (*pdrgpsymApply)[0] &&
+					pdef->PsymOperand(5) == (*pdrgpsymApply)[1] &&
+					pdef->PsymOperand(6) == (*pdrgpsymApply)[2] &&
+					pdef->PsymOperand(7) == (*pdrgpsymApply)[3] &&
+					pdef->PsymOperand(9) == (*popInput->Pdrgpsym())[0];
+			}
+		}
+		if (fMatches)
+		{
+			if (nullptr != pdefMatch)
+			{
+				return nullptr;
+			}
+			pdefMatch = pdef;
+		}
+	}
+	return pdefMatch;
+}
+
 BOOL
 FContainsGbAgg(const CExpression *pexpr)
 {
@@ -2391,42 +2470,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				0 < popSourceRoot->Pdrgpsym()->Size()
 			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
 			: nullptr;
-	const CDSLOp *popTargetRoot = m_prule->PfragTgt()->PopRoot();
 	const CDSLExpressionDefinitions::CDefinition *pdefExprListSubquery =
-		fLeftOuterApply && nullptr != popSourceRoot &&
-				EdslopCompute == popSourceRoot->Edslop() &&
-				nullptr != popSourceRoot->Pdrgpsym() &&
-				0 < popSourceRoot->Pdrgpsym()->Size() &&
-				nullptr != popTargetRoot &&
-				EdslopCompute == popTargetRoot->Edslop() &&
-				1 == popTargetRoot->UlChildren() && (*popTargetRoot)[0] == pop
-			? m_prule->Pexprdefs()->Pdef((*popSourceRoot->Pdrgpsym())[0])
-			: nullptr;
-	const CDSLOp *popExistsLimit =
-		fLeftOuterApply && EdslopLimit == (*pop)[1]->Edslop() &&
-				1 == (*pop)[1]->UlChildren()
-			? (*pop)[1]
-			: nullptr;
-	const CDSLOp *popExistsMarker =
-		nullptr != popExistsLimit &&
-				EdslopCompute == (*popExistsLimit)[0]->Edslop() &&
-				1 == (*popExistsLimit)[0]->UlChildren()
-			? (*popExistsLimit)[0]
-			: nullptr;
-	const CDSLOp *popExistsInput =
-		nullptr != popExistsMarker &&
-				EdslopInput == (*popExistsMarker)[0]->Edslop()
-			? (*popExistsMarker)[0]
-			: nullptr;
-	const CDSLOp *popQuantifiedMarker =
-		fLeftOuterApply && EdslopCompute == (*pop)[1]->Edslop() &&
-				1 == (*pop)[1]->UlChildren()
-			? (*pop)[1]
-			: nullptr;
-	const CDSLOp *popQuantifiedInput =
-		nullptr != popQuantifiedMarker &&
-				EdslopInput == (*popQuantifiedMarker)[0]->Edslop()
-			? (*popQuantifiedMarker)[0]
+		fLeftOuterApply
+			? PdefExprListApply(m_prule->Pexprdefs(), pop)
 			: nullptr;
 	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
@@ -2454,73 +2500,15 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fExprListScalarSubquery =
 		nullptr != pdefExprListSubquery &&
 		EdslexprExprListScalarSubquery ==
-			pdefExprListSubquery->Edslexpr() &&
-		7 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
-		nullptr != popTargetRoot->Pdrgpsym() &&
-		3 == popTargetRoot->Pdrgpsym()->Size() &&
-		pdefExprListSubquery->PsymOperand(0) ==
-			(*popTargetRoot->Pdrgpsym())[0] &&
-		pdefExprListSubquery->PsymOperand(1) == (*pdrgpsym)[0] &&
-		pdefExprListSubquery->PsymOperand(2) == (*pdrgpsym)[1] &&
-		pdefExprListSubquery->PsymOperand(3) == (*pdrgpsym)[2] &&
-		pdefExprListSubquery->PsymOperand(4) == (*pdrgpsym)[3] &&
-		nullptr != (*pop)[1]->Pdrgpsym() &&
-		1 == (*pop)[1]->Pdrgpsym()->Size() &&
-		pdefExprListSubquery->PsymOperand(6) ==
-			(*(*pop)[1]->Pdrgpsym())[0];
+			pdefExprListSubquery->Edslexpr();
 	const BOOL fExprListExistential =
 		nullptr != pdefExprListSubquery &&
 		(EdslexprExprListExists == pdefExprListSubquery->Edslexpr() ||
-		 EdslexprExprListNotExists == pdefExprListSubquery->Edslexpr()) &&
-		10 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
-		nullptr != popTargetRoot->Pdrgpsym() &&
-		3 == popTargetRoot->Pdrgpsym()->Size() &&
-		nullptr != popExistsLimit && nullptr != popExistsMarker &&
-		nullptr != popExistsInput &&
-		nullptr != popExistsMarker->Pdrgpsym() &&
-		3 == popExistsMarker->Pdrgpsym()->Size() &&
-		nullptr != popExistsInput->Pdrgpsym() &&
-		1 == popExistsInput->Pdrgpsym()->Size() &&
-		pdefExprListSubquery->PsymOperand(0) ==
-			(*popTargetRoot->Pdrgpsym())[0] &&
-		pdefExprListSubquery->PsymOperand(1) ==
-			(*popExistsMarker->Pdrgpsym())[0] &&
-		pdefExprListSubquery->PsymOperand(2) ==
-			(*popExistsMarker->Pdrgpsym())[1] &&
-		pdefExprListSubquery->PsymOperand(3) ==
-			(*popExistsMarker->Pdrgpsym())[2] &&
-		pdefExprListSubquery->PsymOperand(4) == (*pdrgpsym)[0] &&
-		pdefExprListSubquery->PsymOperand(5) == (*pdrgpsym)[1] &&
-		pdefExprListSubquery->PsymOperand(6) == (*pdrgpsym)[2] &&
-		pdefExprListSubquery->PsymOperand(7) == (*pdrgpsym)[3] &&
-		pdefExprListSubquery->PsymOperand(9) ==
-			(*popExistsInput->Pdrgpsym())[0];
+		 EdslexprExprListNotExists == pdefExprListSubquery->Edslexpr());
 	const BOOL fExprListQuantified =
 		nullptr != pdefExprListSubquery &&
 		(EdslexprExprListAny == pdefExprListSubquery->Edslexpr() ||
-		 EdslexprExprListAll == pdefExprListSubquery->Edslexpr()) &&
-		10 == pdefExprListSubquery->Arity() && 4 == ulSymbols &&
-		nullptr != popTargetRoot->Pdrgpsym() &&
-		3 == popTargetRoot->Pdrgpsym()->Size() &&
-		nullptr != popQuantifiedMarker && nullptr != popQuantifiedInput &&
-		nullptr != popQuantifiedMarker->Pdrgpsym() &&
-		3 == popQuantifiedMarker->Pdrgpsym()->Size() &&
-		nullptr != popQuantifiedInput->Pdrgpsym() &&
-		1 == popQuantifiedInput->Pdrgpsym()->Size() &&
-		pdefExprListSubquery->PsymOperand(0) ==
-			(*popTargetRoot->Pdrgpsym())[0] &&
-		pdefExprListSubquery->PsymOperand(1) ==
-			(*popQuantifiedMarker->Pdrgpsym())[0] &&
-		pdefExprListSubquery->PsymOperand(2) ==
-			(*popQuantifiedMarker->Pdrgpsym())[1] &&
-		pdefExprListSubquery->PsymOperand(3) ==
-			(*popQuantifiedMarker->Pdrgpsym())[2] &&
-		pdefExprListSubquery->PsymOperand(4) == (*pdrgpsym)[0] &&
-		pdefExprListSubquery->PsymOperand(5) == (*pdrgpsym)[1] &&
-		pdefExprListSubquery->PsymOperand(6) == (*pdrgpsym)[2] &&
-		pdefExprListSubquery->PsymOperand(7) == (*pdrgpsym)[3] &&
-		pdefExprListSubquery->PsymOperand(9) ==
-			(*popQuantifiedInput->Pdrgpsym())[0];
+		 EdslexprExprListAll == pdefExprListSubquery->Edslexpr());
 	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
 		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =

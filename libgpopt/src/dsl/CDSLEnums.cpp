@@ -558,12 +558,16 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconPredicateScalarSubquery:
 			return 0 == ulPosition ? EdslsymPred : EdslsymSentinel;
 		case EdslconExprListScalarSubquery:
-			return 6 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
+			return 1 == ulPosition
+				? EdslsymExpr
+				: (6 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
 		case EdslconExprListExists:
 		case EdslconExprListNotExists:
 		case EdslconExprListAny:
 		case EdslconExprListAll:
-			return 9 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
+			return 1 == ulPosition
+				? EdslsymExpr
+				: (9 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
 		case EdslconAttrsUnion:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconSchemaUnion:

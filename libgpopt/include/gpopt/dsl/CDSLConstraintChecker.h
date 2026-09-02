@@ -146,11 +146,14 @@ private:
 							   CDSLModel *pmodel, BOOL fAll) const;
 	BOOL FCheckPredicateScalarSubquery(const CDSLConstraint *pcon,
 								   CDSLModel *pmodel) const;
-	BOOL FCheckExprListScalarSubquery(const CDSLConstraint *pcon,
+	BOOL FCheckExprListScalarSubquery(const CDSLRule *prule,
+								  const CDSLConstraint *pcon,
 								  CDSLModel *pmodel) const;
-	BOOL FCheckExprListExistential(const CDSLConstraint *pcon,
+	BOOL FCheckExprListExistential(const CDSLRule *prule,
+							   const CDSLConstraint *pcon,
 							   CDSLModel *pmodel, BOOL fNegated) const;
-	BOOL FCheckExprListQuantified(const CDSLConstraint *pcon,
+	BOOL FCheckExprListQuantified(const CDSLRule *prule,
+							  const CDSLConstraint *pcon,
 							  CDSLModel *pmodel, BOOL fAll) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target

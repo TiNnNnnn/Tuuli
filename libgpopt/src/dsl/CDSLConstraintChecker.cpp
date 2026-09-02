@@ -1739,7 +1739,8 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 
 BOOL
 CDSLConstraintChecker::FCheckExprListScalarSubquery(
-	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+	const CDSLRule *prule, const CDSLConstraint *pcon,
+	CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 8 != pdrgpsym->Size() ||
@@ -1774,7 +1775,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CExpression *pexprLowered = PexprReplaceNode(
 		m_mp, pexprList, pexprSubquery, pexprIdent);
 	pexprIdent->Release();
-	if (pexprLowered->DeriveHasSubquery())
+	if (pexprLowered->DeriveHasSubquery() &&
+		nullptr == prule->Pexprdefs()->Pdef((*pdrgpsym)[1]))
 	{
 		pexprLowered->Release();
 		return false;
@@ -1808,7 +1810,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 
 BOOL
 CDSLConstraintChecker::FCheckExprListExistential(
-	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fNegated) const
+	const CDSLRule *prule, const CDSLConstraint *pcon,
+	CDSLModel *pmodel, BOOL fNegated) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
@@ -1870,7 +1873,8 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	CExpression *pexprLowered = PexprReplaceNode(
 		m_mp, pexprList, pexprSubquery, pexprExistsValue);
 	pexprExistsValue->Release();
-	if (pexprLowered->DeriveHasSubquery())
+	if (pexprLowered->DeriveHasSubquery() &&
+		nullptr == prule->Pexprdefs()->Pdef((*pdrgpsym)[1]))
 	{
 		pexprLowered->Release();
 		pexprMarkerList->Release();
@@ -1915,7 +1919,8 @@ CDSLConstraintChecker::FCheckExprListExistential(
 
 BOOL
 CDSLConstraintChecker::FCheckExprListQuantified(
-	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fAll) const
+	const CDSLRule *prule, const CDSLConstraint *pcon,
+	CDSLModel *pmodel, BOOL fAll) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
@@ -1968,7 +1973,8 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	CExpression *pexprLowered = PexprReplaceNode(
 		m_mp, pexprList, pexprSubquery, pexprMarker);
 	pexprMarker->Release();
-	if (pexprLowered->DeriveHasSubquery())
+	if (pexprLowered->DeriveHasSubquery() &&
+		nullptr == prule->Pexprdefs()->Pdef((*pdrgpsym)[1]))
 	{
 		pexprLowered->Release();
 		pexprMarkerList->Release();
@@ -3004,15 +3010,15 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateScalarSubquery:
 			return FCheckPredicateScalarSubquery(pcon, pmodel);
 		case EdslconExprListScalarSubquery:
-			return FCheckExprListScalarSubquery(pcon, pmodel);
+			return FCheckExprListScalarSubquery(prule, pcon, pmodel);
 		case EdslconExprListExists:
-			return FCheckExprListExistential(pcon, pmodel, false);
+			return FCheckExprListExistential(prule, pcon, pmodel, false);
 		case EdslconExprListNotExists:
-			return FCheckExprListExistential(pcon, pmodel, true);
+			return FCheckExprListExistential(prule, pcon, pmodel, true);
 		case EdslconExprListAny:
-			return FCheckExprListQuantified(pcon, pmodel, false);
+			return FCheckExprListQuantified(prule, pcon, pmodel, false);
 		case EdslconExprListAll:
-			return FCheckExprListQuantified(pcon, pmodel, true);
+			return FCheckExprListQuantified(prule, pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

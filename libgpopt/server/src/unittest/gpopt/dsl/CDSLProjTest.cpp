@@ -33,6 +33,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -83,6 +84,16 @@ using namespace gpopt;
 	"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|"     \
 	"TableEq(t1,t0);SchemaEq(s1,s0);"                                      \
 	"ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)"
+
+#define GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_SUBQUERY_CHAIN_RULE                 \
+	"Compute<e0 a0 s0>(Input<t0>)|"                                               \
+	"Compute<e2 a1 s1>(LeftApply<p1 a6 a7 a8>("                                  \
+	"LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>),"                               \
+	"Limit<n0 n1>(Compute<e3 a9 s2>(Input<t3>))))|"                               \
+	"TableEq(t1,t0);SchemaEq(s1,s0);"                                              \
+	"ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2);"                            \
+	"ExprListExists(e1,e2,e3,a9,s2,p1,a6,a7,a8,a10,t3);"                         \
+	"ScalarOne(n0);ScalarZero(n1)"
 
 #define GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE                       \
 	"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"                    \
@@ -177,6 +188,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery),
 		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain),
+		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
@@ -248,6 +261,75 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	pmodel->Release();
 	pexprSource->Release();
 	pexprOuter->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_SUBQUERY_CHAIN_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CExpression *pexprOuter = fix.PexprLogicalGet("project_chain_outer", 1);
+	CColRefArray *pdrgpcrScalar = nullptr;
+	CExpression *pexprScalarInner =
+		fix.PexprLogicalGet("project_chain_scalar", 1, &pdrgpcrScalar);
+	CExpression *pexprExistsInner =
+		fix.PexprLogicalGet("project_chain_exists", 1);
+	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectElement(
+			mp, fix.PcrCreateInt4("project_chain_scalar_value")),
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSubquery(
+				mp, (*pdrgpcrScalar)[0], false, false),
+			pexprScalarInner)));
+	pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarProjectElement(
+			mp, fix.PcrCreateInt4("project_chain_exists_value")),
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprExistsInner)));
+	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprOuter,
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems));
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprOuterApply = nullptr == pexprTarget
+			? nullptr
+			: (*pexprTarget)[0];
+		if (nullptr == pexprOuterApply ||
+			COperator::EopLogicalLeftOuterApply !=
+				pexprOuterApply->Pop()->Eopid() ||
+			COperator::EopLogicalLeftOuterApply !=
+				(*pexprOuterApply)[0]->Pop()->Eopid() ||
+			(*pexprTarget)[1]->DeriveHasSubquery())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
 	prule->Release();
 	return eres;
 }
