@@ -1,0 +1,73 @@
+{
+  "description": "The residual aggregate join rule also preserves HAVING below the join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbWithHavingBelowJoin"
+    ],
+    "scope": "Residual outer dependencies survive in the grouping and HAVING remains attached to the aggregate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "9b80c3dcd4ae3304"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbWithHavingBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9b80c3dcd4ae3304\""
+      ],
+      "alternative": [
+        "CXformPushGbWithHavingBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbWithHavingBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbWithHavingBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbWithHavingBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9b80c3dcd4ae3304\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbWithHavingBelowJoin"
+    ],
+    "output": [
+      "10,1,1",
+      "10,2,1",
+      "20,3,1"
+    ],
+    "postgres_output": [
+      "10,1,1",
+      "10,2,1",
+      "20,3,1"
+    ]
+  }
+}
