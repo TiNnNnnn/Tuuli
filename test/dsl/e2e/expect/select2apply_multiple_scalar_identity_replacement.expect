@@ -1,5 +1,5 @@
 {
-  "description": "Two typed scalar definitions directly construct an InnerApply chain",
+  "description": "The atomic scalar definition applies twice to construct an InnerApply chain",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,7 +7,7 @@
     "scope": "Multiple scalar subqueries in one Select predicate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "1cae9cbc77bce461"
+      "6fcbf4135eeb31ce"
     ]
   },
   "plans": [
@@ -23,10 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"1cae9cbc77bce461\""
+        "\"rule_hash\":\"6fcbf4135eeb31ce\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -48,9 +49,10 @@
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
+      "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"1cae9cbc77bce461\""
+        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -61,6 +63,7 @@
     "disable_xforms": [
       "CXformSelect2Apply"
     ],
+    "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
     "output": [
       "3"
     ],

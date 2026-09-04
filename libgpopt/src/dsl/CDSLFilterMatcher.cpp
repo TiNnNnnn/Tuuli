@@ -662,8 +662,35 @@ CDSLFilterMatcher::FAssign(const CDSLOp **rgpopFilters, ULONG ulFilters,
 {
 	if (ulFilter == ulFilters)
 	{
-		// all DSL Filters placed
-		return true;
+		// When more conjuncts than Filter nodes are available, structural
+		// compatibility alone cannot identify which conjunct a typed expression
+		// constraint intends to consume. Validate the complete tentative
+		// assignment in a disposable model so failure backtracks to the next
+		// conjunct without polluting the caller's bindings.
+		if (nullptr == m_prule || pdrgpexprConj->Size() <= ulFilters)
+		{
+			return true;
+		}
+		CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
+		BOOL fCompatible = true;
+		for (ULONG ul = 0; fCompatible && ul < ulFilters; ul++)
+		{
+			fCompatible = FBindFilterSymbols(
+				rgpopFilters[ul], (*pdrgpexprConj)[rgulAssigned[ul]],
+				pexprBase, pmodelProbe);
+		}
+		if (fCompatible)
+		{
+			fCompatible = m_pmatcher->FMatch(popBase, pexprBase, pmodelProbe);
+		}
+		if (fCompatible)
+		{
+			RecordResidual(pdrgpexprConj, rgfUsed, pmodelProbe);
+			CDSLConstraintChecker checker(m_mp);
+			fCompatible = checker.FCheck(m_prule, pmodelProbe);
+		}
+		pmodelProbe->Release();
+		return fCompatible;
 	}
 
 	const ULONG ulConj = pdrgpexprConj->Size();

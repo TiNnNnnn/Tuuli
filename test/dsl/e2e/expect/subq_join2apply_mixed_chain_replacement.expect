@@ -1,5 +1,5 @@
 {
-  "description": "Scalar and EXISTS join subqueries compose through two existing DSL rules",
+  "description": "Atomic scalar and EXISTS rules compose through ordinary Cascade chaining",
   "replacement": {
     "xforms": [
       "CXformSubqJoin2Apply",
@@ -9,7 +9,8 @@
     "scope": "One scalar and one EXISTS subquery in an inner-join predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "13122e115169448b"
+      "6fcbf4135eeb31ce",
+      "907450491e456d45"
     ]
   },
   "plans": [
@@ -28,7 +29,8 @@
       "policy": "isolate_subq_join2apply_mixed_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"13122e115169448b\""
+        "\"rule_hash\":\"6fcbf4135eeb31ce\"",
+        "\"rule_hash\":\"907450491e456d45\""
       ],
       "alternative": []
     },
@@ -53,7 +55,8 @@
       "policy": "isolate_subq_join2apply_mixed_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"13122e115169448b\""
+        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
+        "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\""
       ],
       "alternative": [],
       "provenance": {

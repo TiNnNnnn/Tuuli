@@ -7,7 +7,7 @@
     "scope": "Two correlated scalar aggregates in an inner-join predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1cae9cbc77bce461"
+      "6fcbf4135eeb31ce"
     ]
   },
   "plans": [
@@ -26,7 +26,7 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"1cae9cbc77bce461\""
+        "\"rule_hash\":\"6fcbf4135eeb31ce\""
       ],
       "alternative": []
     },
@@ -47,7 +47,7 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"1cae9cbc77bce461\""
+        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\""
       ],
       "alternative": [],
       "provenance": {

@@ -93,6 +93,8 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 
 	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
 		mp, COperator::EopLogicalSelect, pexpr);
+	const BOOL fNativeSelect2Apply =
+		GPOPT_FENABLED_XFORM(CXform::ExfSelect2Apply);
 
 	const ULONG ulRules = pdrgprule->Size();
 	for (ULONG ul = 0; ul < ulRules; ul++)
@@ -100,14 +102,12 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		const CDSLRule *prule = (*pdrgprule)[ul];
 		const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
 		const CDSLExpressionDefinitions *pexprdefs = prule->Pexprdefs();
-		BOOL fNestedAll = false;
-		if (1 < pexprdefs->UlDefinitions())
+		BOOL fExprListScalar = false;
+		for (ULONG ulDef = 0; ulDef < pexprdefs->UlDefinitions(); ulDef++)
 		{
-			for (ULONG ulDef = 0; ulDef < pexprdefs->UlDefinitions(); ulDef++)
-			{
-				fNestedAll = fNestedAll ||
-					EdslexprExprListAll == pexprdefs->PdefAt(ulDef)->Edslexpr();
-			}
+			fExprListScalar = fExprListScalar ||
+				EdslexprExprListScalarSubquery ==
+					pexprdefs->PdefAt(ulDef)->Edslexpr();
 		}
 
 		// Subquery-filter operators can match both the translated Select/scalar-
@@ -117,12 +117,13 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		// when it is disabled, retain the Select path so DSL can replace unnesting.
 		// Representation adapters that cross EXISTS/IN forms are also registered in
 		// the corresponding Apply bucket by CDSLRuleEngine::BucketByRoot. Native ALL
-		// lowering also owns nested definition chains because its intermediate
-		// projection columns cannot share a memo group with the atomic DSL chain.
-		if (GPOPT_FENABLED_XFORM(CXform::ExfSelect2Apply) &&
-			(CDSLOpKindTable::FHasPreUnnestRepresentation(
-				 popSrcRoot->Edslop()) ||
-			 fNestedAll))
+		// lowering owns scalar expressions in this shell while enabled: its
+		// compensation projections cannot share a memo group with a DSL chain
+		// assembled from separate atomic rules.
+		if (fNativeSelect2Apply &&
+			(fExprListScalar ||
+			 CDSLOpKindTable::FHasPreUnnestRepresentation(
+				 popSrcRoot->Edslop())))
 		{
 			continue;
 		}

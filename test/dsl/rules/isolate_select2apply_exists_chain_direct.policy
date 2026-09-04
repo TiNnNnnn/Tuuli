@@ -1,5 +1,5 @@
-# Keep the repeated EXISTS test causal: one proved rule builds the full chain.
+# Keep the repeated EXISTS test causal: the atomic rule must apply twice.
 - rule: '*'
   enabled: false
-- rule: 183680c3f85ebcc1
+- rule: dec0eb1e99571556
   enabled: true

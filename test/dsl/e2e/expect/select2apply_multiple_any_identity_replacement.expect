@@ -1,5 +1,5 @@
 {
-  "description": "Two proved predicate definitions compose to lower multiple quantified conjuncts",
+  "description": "The atomic ANY expression definition applies twice to lower multiple quantified conjuncts",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,7 +7,7 @@
     "scope": "Two correlated ANY conjuncts with distinct comparison predicates",
     "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "03f5273d41530f6b"
+      "ac0317d6092101d7"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"03f5273d41530f6b\""
+        "\"rule_hash\":\"ac0317d6092101d7\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -53,7 +53,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"03f5273d41530f6b\""
+        "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
       ]
     }
   ],

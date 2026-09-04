@@ -1,5 +1,5 @@
 {
-  "description": "Nested existential and quantified subqueries are lowered in dependency order",
+  "description": "Atomic existential and ANY rules lower nested subqueries in dependency order",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply",
@@ -8,7 +8,8 @@
     "scope": "An uncorrelated EXISTS value used as the comparison value of correlated ANY",
     "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "bec030944adc29ed"
+      "907450491e456d45",
+      "ac0317d6092101d7"
     ]
   },
   "plans": [
@@ -28,7 +29,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"bec030944adc29ed\""
+        "\"rule_hash\":\"907450491e456d45\"",
+        "\"rule_hash\":\"ac0317d6092101d7\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -56,7 +58,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"bec030944adc29ed\""
+        "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
       ]
     }
   ],
