@@ -274,17 +274,21 @@ CDSLRuleEngine::BucketByRoot()
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
-			const EDslOpKind edslopTarget =
-				prule->PfragTgt()->PopRoot()->Edslop();
-			if (EdslopInput == popBase->Edslop() &&
-				(EdslopInnerApply == edslopTarget ||
-				 EdslopLeftOuterApply == edslopTarget ||
-				 CDSLOpKindTable::FHasPreUnnestRepresentation(edslopTarget)))
+			const CDSLOp *popTargetBase = prule->PfragTgt()->PopRoot();
+			while (EdslopFilter == popTargetBase->Edslop() &&
+				   1 == popTargetBase->UlChildren())
 			{
-				// A scalar subquery may remain inside an InnerJoin ON predicate when
-				// it depends on both inputs. The Filter matcher exposes the exact
-				// Filter(predicate, InnerJoin(TRUE)) view before applying the same
-				// generic Filter-to-Apply rule used outside joins.
+				popTargetBase = (*popTargetBase)[0];
+			}
+			const EDslOpKind edslopTargetBase = popTargetBase->Edslop();
+			if (EdslopInput == popBase->Edslop() &&
+				(EdslopInnerApply == edslopTargetBase ||
+				 EdslopLeftOuterApply == edslopTargetBase ||
+				 CDSLOpKindTable::FHasPreUnnestRepresentation(edslopTargetBase)))
+			{
+				// A subquery may remain inside an InnerJoin ON predicate. The Filter
+				// matcher exposes the exact predicate view before applying the same
+				// generic subquery rule used outside joins.
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalInnerJoin;
 			}
