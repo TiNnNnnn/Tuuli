@@ -2,12 +2,14 @@
   "description": "Nested scalar and NULL-aware ALL subqueries are lowered in dependency order",
   "replacement": {
     "xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
     ],
-    "scope": "A scalar subquery used as the comparison value of correlated ALL",
+    "scope": "Scalar subquery used by correlated ALL followed by uncorrelated LeftApply lowering",
     "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "fc94030b098b97cb"
+      "fc94030b098b97cb",
+      "4fbf993ef8bfe114"
     ]
   },
   "plans": [
@@ -39,7 +41,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -49,13 +52,17 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+        "CXformLeftJoin2RightJoin"
       ],
-      "policy": "isolate_select2apply_scalar_in_all_direct.policy",
+      "policy": "isolate_select2apply_scalar_in_all_pipeline.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"fc94030b098b97cb\""
+        "\"status\":\"applied\",\"rule_hash\":\"fc94030b098b97cb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
       ],
       "provenance": {
         "required_sources": [
@@ -63,16 +70,22 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformSelect2Apply"
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+          "CXformLeftJoin2RightJoin"
         ]
       }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+      "CXformLeftJoin2RightJoin"
     ],
-    "policy": "isolate_select2apply_scalar_in_all_direct.policy",
+    "policy": "isolate_select2apply_scalar_in_all_pipeline.policy",
     "output": [
       "3"
     ],
