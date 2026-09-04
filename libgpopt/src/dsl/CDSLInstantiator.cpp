@@ -2857,7 +2857,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 			else if (0 == pexprRight->DeriveOuterReferences()->Size())
 			{
-				if (fScalarSubquery)
+				if (fScalarSubquery ||
+					(fExprListScalarSubquery &&
+					 1 < pexprRight->DeriveMaxCard().Ull()))
 				{
 					pexprRight = GPOS_NEW(m_mp) CExpression(
 						m_mp, GPOS_NEW(m_mp) CLogicalMaxOneRow(m_mp),

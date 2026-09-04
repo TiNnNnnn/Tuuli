@@ -247,6 +247,7 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		if (nullptr == pexprApply ||
 			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
 			COperator::EopLogicalLeftOuterApply != pexprApply->Pop()->Eopid() ||
+			COperator::EopLogicalMaxOneRow != (*pexprApply)[1]->Pop()->Eopid() ||
 			COperator::EopScalarSubquery !=
 				CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq() ||
 			(*pexprTarget)[1]->DeriveHasSubquery() ||
@@ -261,6 +262,26 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	pmodel->Release();
 	pexprSource->Release();
 	pexprOuter->Release();
+
+	CColRefArray *pdrgpcrGenerated = nullptr;
+	CExpression *pexprGeneratedOuter =
+		fix.PexprLogicalGet("project_generated_outer", 1);
+	CExpression *pexprGeneratedInner = fix.PexprLogicalGet(
+		"project_generated_inner", 1, &pdrgpcrGenerated);
+	CExpression *pexprGeneratedSource = PexprProjectWithScalar(
+		mp, pexprGeneratedOuter, fix.PcrCreateInt4("generated_value"),
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSubquery(
+				mp, (*pdrgpcrGenerated)[0], false, true),
+			pexprGeneratedInner));
+	CDSLModel *pmodelGenerated = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherGenerated(mp, prule);
+	GPOS_ASSERT(matcherGenerated.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprGeneratedSource, pmodelGenerated));
+	GPOS_ASSERT(!checker.FCheck(prule, pmodelGenerated));
+	pmodelGenerated->Release();
+	pexprGeneratedSource->Release();
+	pexprGeneratedOuter->Release();
 	prule->Release();
 	return eres;
 }

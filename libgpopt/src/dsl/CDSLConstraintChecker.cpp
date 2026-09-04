@@ -1704,10 +1704,61 @@ PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
 	return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pdrgpexpr);
 }
 
-CExpression *
-PexprSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
-						COperator::EOperatorId eopid)
+ULONG
+UlSubqueryPriority(COperator::EOperatorId eopid)
 {
+	switch (eopid)
+	{
+		case COperator::EopScalarSubquery:
+			return 0;
+		case COperator::EopScalarSubqueryExists:
+			return 1;
+		case COperator::EopScalarSubqueryNotExists:
+			return 2;
+		case COperator::EopScalarSubqueryAny:
+			return 3;
+		case COperator::EopScalarSubqueryAll:
+			return 4;
+		default:
+			return gpos::ulong_max;
+	}
+}
+
+void
+FindNextSubquery(CExpression *pexpr, ULONG ulDepth,
+				 CExpression **ppexprBest, ULONG *pulBestDepth,
+				 ULONG *pulBestPriority)
+{
+	if (!pexpr->Pop()->FScalar())
+	{
+		return;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		FindNextSubquery((*pexpr)[ul], ulDepth + 1, ppexprBest,
+						 pulBestDepth, pulBestPriority);
+	}
+
+	const ULONG ulPriority = UlSubqueryPriority(pexpr->Pop()->Eopid());
+	if (gpos::ulong_max == ulPriority)
+	{
+		return;
+	}
+	if (nullptr == *ppexprBest || ulDepth > *pulBestDepth ||
+		(ulDepth == *pulBestDepth && ulPriority < *pulBestPriority))
+	{
+		*ppexprBest = pexpr;
+		*pulBestDepth = ulDepth;
+		*pulBestPriority = ulPriority;
+	}
+}
+
+CExpression *
+PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym)
+{
+	CExpression *pexprBest = nullptr;
+	ULONG ulBestDepth = 0;
+	ULONG ulBestPriority = gpos::ulong_max;
 	if (EdslsymExpr == psym->Esymkind() ||
 		EdslsymPred == psym->Esymkind() ||
 		EdslsymWindow == psym->Esymkind())
@@ -1717,47 +1768,16 @@ PexprSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
 			: (EdslsymPred == psym->Esymkind()
 				   ? pmodel->PexprPred(psym)
 				   : pmodel->PexprWindow(psym));
-		ULONG ulCount = 0;
-		return nullptr == pexpr
-			? nullptr
-			: PexprOnlySubquery(pexpr, eopid, &ulCount);
+		if (nullptr != pexpr)
+			FindNextSubquery(pexpr, 0, &pexprBest, &ulBestDepth,
+							 &ulBestPriority);
+		return pexprBest;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
 	for (ULONG ul = 0; nullptr != pdrgpexpr && ul < pdrgpexpr->Size(); ul++)
-	{
-		ULONG ulCount = 0;
-		CExpression *pexprCandidate =
-			PexprOnlySubquery((*pdrgpexpr)[ul], eopid, &ulCount);
-		if (nullptr != pexprCandidate)
-		{
-			return pexprCandidate;
-		}
-	}
-	return nullptr;
-}
-
-CExpression *
-PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym)
-{
-	// Fixed semantic priority makes a mixed list a linear rewrite chain rather
-	// than one alternative for every possible lowering order.
-	const COperator::EOperatorId rgeopid[] = {
-		COperator::EopScalarSubquery,
-		COperator::EopScalarSubqueryExists,
-		COperator::EopScalarSubqueryNotExists,
-		COperator::EopScalarSubqueryAny,
-		COperator::EopScalarSubqueryAll,
-	};
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgeopid); ul++)
-	{
-		CExpression *pexpr =
-			PexprSubqueryInSequence(pmodel, psym, rgeopid[ul]);
-		if (nullptr != pexpr)
-		{
-			return pexpr;
-		}
-	}
-	return nullptr;
+		FindNextSubquery((*pdrgpexpr)[ul], 0, &pexprBest, &ulBestDepth,
+						 &ulBestPriority);
+	return pexprBest;
 }
 
 CRefCount *
@@ -1830,6 +1850,10 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 
 	CScalarSubquery *popSubquery =
 		CScalarSubquery::PopConvert(pexprSubquery->Pop());
+	if (popSubquery->FGeneratedByQuantified())
+	{
+		return false;
+	}
 	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
 	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
 	CExpression *pexprLowered = PexprReplaceNode(
@@ -1892,6 +1916,10 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 
 	CScalarSubquery *popSubquery =
 		CScalarSubquery::PopConvert(pexprSubquery->Pop());
+	if (popSubquery->FGeneratedByQuantified())
+	{
+		return false;
+	}
 	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
 	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(

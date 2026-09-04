@@ -517,6 +517,65 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 		pexprSource->Release();
 		pexprOuter->Release();
 	}
+
+	// A quantified comparison may itself contain a quantified subquery. Lower
+	// the deepest node first so the generated Apply predicate is subquery-free.
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *pdrgpcrOuter = nullptr;
+	CExpression *pexprOuter =
+		fix.PexprLogicalGet("nested_quant_outer", 1, &pdrgpcrOuter);
+	CColRefArray *pdrgpcrInnerAll = nullptr;
+	CExpression *pexprInnerAllRel =
+		fix.PexprLogicalGet("nested_all_inner", 1, &pdrgpcrInnerAll);
+	CExpression *pexprInnerAll = PexprQuantified(
+		mp, fix, true, pexprInnerAllRel, (*pdrgpcrOuter)[0],
+		(*pdrgpcrInnerAll)[0]);
+	CColRefArray *pdrgpcrOuterAny = nullptr;
+	CExpression *pexprOuterAnyRel =
+		fix.PexprLogicalGet("nested_any_inner", 1, &pdrgpcrOuterAny);
+	CExpression *pexprEq =
+		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrOuterAny)[0]);
+	CScalarCmp *popEq = CScalarCmp::PopConvert(pexprEq->Pop());
+	IMDId *pmdidEq = popEq->MdIdOp();
+	pmdidEq->AddRef();
+	CWStringConst *pstrEq =
+		GPOS_NEW(mp) CWStringConst(mp, popEq->Pstr()->GetBuffer());
+	pexprEq->Release();
+	CExpression *pexprOuterAny = GPOS_NEW(mp) CExpression(
+		mp,
+		GPOS_NEW(mp) CScalarSubqueryAny(
+			mp, pmdidEq, pstrEq, (*pdrgpcrOuterAny)[0]),
+		pexprOuterAnyRel, pexprInnerAll);
+	const IMDTypeBool *pmdtypebool =
+		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
+	CColRef *pcrOutput = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		pmdtypebool, default_type_modifier);
+	CExpression *pexprSource =
+		PexprProjectScalar(mp, pexprOuter, pcrOutput, pexprOuterAny);
+	CDSLRule *prule =
+		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ALL_RULE);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+								 pmodel));
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	CExpression *pexprApply = (*pexprTarget)[0];
+	GPOS_ASSERT(COperator::EopScalarSubqueryAll ==
+		CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq());
+	GPOS_ASSERT(!(*pexprApply)[2]->DeriveHasSubquery());
+	GPOS_ASSERT((*pexprTarget)[1]->DeriveHasSubquery());
+
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	pexprOuter->Release();
 	return GPOS_OK;
 }
 
