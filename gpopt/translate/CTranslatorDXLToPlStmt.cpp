@@ -5825,10 +5825,11 @@ CTranslatorDXLToPlStmt::TranslateDXLAssert(
 	const CDXLNode *assert_dxlnode, CDXLTranslateContext *output_context,
 	CDXLTranslationContextArray *ctxt_translation_prev_siblings)
 {
-	// create assert plan node
-	AssertOp *assert_node = MakeNode(AssertOp);
-
-	Plan *plan = &(assert_node->plan);
+	// PostgreSQL has no native Assert plan node; use the registered executor.
+	CustomScan *assert_node = makeNode(CustomScan);
+	assert_node->methods = &AssertCS_methods;
+	assert_node->scan.scanrelid = 0;
+	Plan *plan = &(assert_node->scan.plan);
 	plan->plan_node_id = m_dxl_to_plstmt_context->GetNextPlanId();
 
 	CDXLPhysicalAssert *assert_dxlop =
@@ -5838,14 +5839,16 @@ CTranslatorDXLToPlStmt::TranslateDXLAssert(
 	const CHAR *error_code = assert_dxlop->GetSQLState();
 	GPOS_ASSERT(GPOS_SQLSTATE_LENGTH == clib::Strlen(error_code));
 
-	assert_node->errcode =
+	int assert_errcode =
 		MAKE_SQLSTATE(error_code[0], error_code[1], error_code[2],
 					  error_code[3], error_code[4]);
 	CDXLNode *filter_dxlnode =
 		(*assert_dxlnode)[CDXLPhysicalAssert::EdxlassertIndexFilter];
 
-	assert_node->errmessage =
-		CTranslatorUtils::GetAssertErrorMsgs(filter_dxlnode);
+	List *error_messages = CTranslatorUtils::GetAssertErrorMsgs(filter_dxlnode);
+	GPOS_ASSERT(1 <= gpdb::ListLength(error_messages));
+	assert_node->custom_private = list_make2(
+		makeInteger(assert_errcode), gpdb::ListNth(error_messages, 0));
 
 	// translate operator costs
 	TranslatePlanCosts(assert_dxlnode, plan);
@@ -5861,7 +5864,7 @@ CTranslatorDXLToPlStmt::TranslateDXLAssert(
 
 	GPOS_ASSERT(nullptr != child_plan && "child plan cannot be NULL");
 
-	assert_node->plan.lefttree = child_plan;
+	plan->lefttree = child_plan;
 
 	CDXLNode *project_list_dxlnode =
 		(*assert_dxlnode)[CDXLPhysicalAssert::EdxlassertIndexProjList];
@@ -5877,17 +5880,17 @@ CTranslatorDXLToPlStmt::TranslateDXLAssert(
 							 child_contexts, output_context);
 
 	// translate assert constraints
-	plan->qual = TranslateDXLAssertConstraints(filter_dxlnode, output_context,
-											   child_contexts);
+	assert_node->custom_exprs = TranslateDXLAssertConstraints(
+		filter_dxlnode, output_context, child_contexts);
 
-	GPOS_ASSERT(gpdb::ListLength(plan->qual) ==
-				gpdb::ListLength(assert_node->errmessage));
+	GPOS_ASSERT(gpdb::ListLength(assert_node->custom_exprs) ==
+				gpdb::ListLength(error_messages));
 	SetParamIds(plan);
 
 	// cleanup
 	child_contexts->Release();
 
-	return (Plan *) assert_node;
+	return plan;
 }
 
 //---------------------------------------------------------------------------

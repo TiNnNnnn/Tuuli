@@ -52,7 +52,16 @@
       ],
       "not_contains": [
         "Xform: CXformMaxOneRow2Assert"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformMaxOneRow2Assert"
+        ]
+      }
     }
   ],
   "rows": {

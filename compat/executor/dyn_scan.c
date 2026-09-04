@@ -53,6 +53,8 @@
  *   custom_plans   = NIL
  * ---------------------------------------------------------------- */
 
+/* AssertCS: custom_private = [errcode, message], custom_exprs = constraints. */
+
 /* ----------------------------------------------------------------
  * Private state structs
  * ---------------------------------------------------------------- */
@@ -101,6 +103,14 @@ typedef struct DTSState
 	Bitmapset  *static_parts;
 } DTSState;
 
+typedef struct AssertCSState
+{
+	CustomScanState css;
+	ExprState  *check_state;
+	int			errcode;
+	char	   *errmessage;
+} AssertCSState;
+
 /* Forward declarations of all callbacks */
 static Node *ps_create_scan_state(CustomScan *cscan);
 static void ps_begin(CustomScanState *node, EState *estate, int eflags);
@@ -115,6 +125,12 @@ static TupleTableSlot *dts_exec(CustomScanState *node);
 static void dts_end(CustomScanState *node);
 static void dts_rescan(CustomScanState *node);
 static void dts_explain(CustomScanState *node, List *ancestors, ExplainState *es);
+
+static Node *assert_create_scan_state(CustomScan *cscan);
+static void assert_begin(CustomScanState *node, EState *estate, int eflags);
+static TupleTableSlot *assert_exec(CustomScanState *node);
+static void assert_end(CustomScanState *node);
+static void assert_rescan(CustomScanState *node);
 
 /* ================================================================
  * CustomExecMethods and CustomScanMethods (must precede create_state)
@@ -138,6 +154,14 @@ static const CustomExecMethods ps_exec_methods = {
 	.ExplainCustomScan = ps_explain,
 };
 
+static const CustomExecMethods assert_exec_methods = {
+	.CustomName = "Assert",
+	.BeginCustomScan = assert_begin,
+	.ExecCustomScan = assert_exec,
+	.EndCustomScan = assert_end,
+	.ReScanCustomScan = assert_rescan,
+};
+
 const CustomScanMethods DynamicTableScanCS_methods = {
 	.CustomName = "DynamicTableScan",
 	.CreateCustomScanState = dts_create_scan_state,
@@ -147,6 +171,77 @@ const CustomScanMethods PartitionSelectorCS_methods = {
 	.CustomName = "PartitionSelector",
 	.CreateCustomScanState = ps_create_scan_state,
 };
+
+const CustomScanMethods AssertCS_methods = {
+	.CustomName = "Assert",
+	.CreateCustomScanState = assert_create_scan_state,
+};
+
+
+/* ================================================================
+ * AssertCS implementation
+ * ================================================================ */
+
+static Node *
+assert_create_scan_state(CustomScan *cscan)
+{
+	AssertCSState *state = (AssertCSState *) palloc0(sizeof(AssertCSState));
+
+	state->css.ss.ps.type = T_CustomScanState;
+	state->css.methods = &assert_exec_methods;
+	return (Node *) state;
+}
+
+static void
+assert_begin(CustomScanState *node, EState *estate, int eflags)
+{
+	AssertCSState *state = (AssertCSState *) node;
+	CustomScan *cscan = (CustomScan *) node->ss.ps.plan;
+
+	Assert(!(eflags & (EXEC_FLAG_BACKWARD | EXEC_FLAG_MARK)));
+	Assert(outerPlan(cscan) != NULL);
+	state->errcode = intVal(linitial(cscan->custom_private));
+	state->errmessage = strVal(lsecond(cscan->custom_private));
+	state->check_state = ExecInitCheck(cscan->custom_exprs, (PlanState *) node);
+	outerPlanState(node) = ExecInitNode(outerPlan(cscan), estate, eflags);
+	ExecAssignProjectionInfo(&node->ss.ps, NULL);
+}
+
+static TupleTableSlot *
+assert_exec(CustomScanState *node)
+{
+	AssertCSState *state = (AssertCSState *) node;
+	TupleTableSlot *slot = ExecProcNode(outerPlanState(node));
+	ExprContext *econtext;
+
+	if (TupIsNull(slot))
+		return NULL;
+
+	econtext = node->ss.ps.ps_ExprContext;
+	ResetExprContext(econtext);
+	econtext->ecxt_outertuple = slot;
+
+	if (!ExecCheck(state->check_state, econtext))
+		ereport(ERROR,
+				(errcode(state->errcode),
+				 errmsg("one or more assertions failed"),
+				 errdetail("%s", state->errmessage)));
+
+	return ExecProject(node->ss.ps.ps_ProjInfo);
+}
+
+static void
+assert_end(CustomScanState *node)
+{
+	ExecEndNode(outerPlanState(node));
+}
+
+static void
+assert_rescan(CustomScanState *node)
+{
+	if (outerPlanState(node)->chgParam == NULL)
+		ExecReScan(outerPlanState(node));
+}
 
 
 /* ================================================================
@@ -822,4 +917,5 @@ RegisterDynScanCustomScanMethods(void)
 {
 	RegisterCustomScanMethods(&DynamicTableScanCS_methods);
 	RegisterCustomScanMethods(&PartitionSelectorCS_methods);
+	RegisterCustomScanMethods(&AssertCS_methods);
 }

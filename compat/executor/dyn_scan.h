@@ -27,11 +27,12 @@ typedef struct DynScanSharedState
 	bool		finalized;				/* true after hash build completes */
 } DynScanSharedState;
 
-/* Register both CustomScan providers — call from _PG_init */
+/* Register the PG18 compatibility CustomScan providers — call from _PG_init */
 extern void RegisterDynScanCustomScanMethods(void);
 
 /* CustomScanMethods pointers (needed by translation layer) */
 extern const CustomScanMethods DynamicTableScanCS_methods;
 extern const CustomScanMethods PartitionSelectorCS_methods;
+extern const CustomScanMethods AssertCS_methods;
 
 #endif /* COMPAT_DYN_SCAN_H */
