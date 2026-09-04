@@ -1,0 +1,99 @@
+{
+  "description": "Typed expression-list rules lower boolean and quantified Window arguments",
+  "replacement": {
+    "xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "scope": "Correlated EXISTS, NOT EXISTS, ANY, and ALL values in independent Window lists",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "3760470f3035c4a6",
+      "1efce2d83a7f5bdf",
+      "f4263a2b85103b6e",
+      "3dcb2f25141a9d4b"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_sequence_project2apply_boolean.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window"
+      ],
+      "alternative": [
+        "CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "policy": "isolate_sequence_project2apply_boolean.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"3760470f3035c4a6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"1efce2d83a7f5bdf\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f4263a2b85103b6e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3dcb2f25141a9d4b\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "isolate_sequence_project2apply_boolean.policy",
+    "output": [
+      "all,1,f",
+      "all,2,f",
+      "all,3,f",
+      "any,1,t",
+      "any,2,t",
+      "any,3,t",
+      "exists,1,t",
+      "exists,2,t",
+      "exists,3,t",
+      "not_exists,1,f",
+      "not_exists,2,f",
+      "not_exists,3,f"
+    ],
+    "postgres_output": [
+      "all,1,f",
+      "all,2,f",
+      "all,3,f",
+      "any,1,t",
+      "any,2,t",
+      "any,3,t",
+      "exists,1,t",
+      "exists,2,t",
+      "exists,3,t",
+      "not_exists,1,f",
+      "not_exists,2,f",
+      "not_exists,3,f"
+    ]
+  }
+}
