@@ -1,0 +1,76 @@
+{
+  "description": "A proved expression-list rule lowers a scalar subquery inside a bounded Window frame",
+  "replacement": {
+    "xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "scope": "One correlated scalar aggregate used with a bounded ROWS Window frame",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "642f3c9b674040c5"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_sequence_project2apply_bounded.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"rule_hash\":\"642f3c9b674040c5\""
+      ],
+      "alternative": [
+        "CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "policy": "isolate_sequence_project2apply_bounded.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"642f3c9b674040c5\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "isolate_sequence_project2apply_bounded.policy",
+    "output": [
+      "1,40",
+      "2,40",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,40",
+      "2,40",
+      "3,30"
+    ]
+  }
+}

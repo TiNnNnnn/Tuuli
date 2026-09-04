@@ -150,6 +150,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconFrameEq, "FrameEq", 2},
 	{EdslconCumulativeFrame, "CumulativeFrame", 1},
 	{EdslconFullPartitionFrame, "FullPartitionFrame", 1},
+	{EdslconBoundedRowsFrame, "BoundedRowsFrame", 3},
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
@@ -574,6 +575,9 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconScalarOne:
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
+		case EdslconBoundedRowsFrame:
+			return 1 == ulPosition || 2 == ulPosition ? EdslsymScalar
+													  : EdslsymSentinel;
 		case EdslconAttrsEmpty:
 		case EdslconAttrsNonEmpty:
 		case EdslconOutputAttrs:
@@ -660,6 +664,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconFrameEq:
 		case EdslconCumulativeFrame:
 		case EdslconFullPartitionFrame:
+		case EdslconBoundedRowsFrame:
 		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:

@@ -578,6 +578,16 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconBoundedRowsFrame == edslcon &&
+			(EdslsymFrame != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymScalar != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymScalar != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail("BoundedRowsFrame expects frame and scalar symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

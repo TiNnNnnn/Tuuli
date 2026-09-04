@@ -2164,6 +2164,46 @@ CDSLConstraintChecker::FCheckWindowFrame(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckBoundedRowsFrame(
+	const CDSLConstraint *pcon, CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size() ||
+		EdslsymFrame != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymScalar != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymScalar != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+	CWindowFrameArray *pdrgpwf = pmodel->PdrgpwfFrame((*pdrgpsym)[0]);
+	CExpression *pexprLeading = nullptr;
+	CExpression *pexprTrailing = nullptr;
+	for (ULONG ul = 0; nullptr != pdrgpwf && ul < pdrgpwf->Size(); ul++)
+	{
+		CWindowFrame *pwf = (*pdrgpwf)[ul];
+		if (CWindowFrame::IsEmpty(pwf) ||
+			CWindowFrame::EfsRows != pwf->Efs() ||
+			CWindowFrame::EfbBoundedPreceding != pwf->EfbLeading() ||
+			CWindowFrame::EfbBoundedFollowing != pwf->EfbTrailing() ||
+			nullptr == pwf->PexprLeading() || nullptr == pwf->PexprTrailing() ||
+			(CWindowFrame::EfesNone != pwf->Efes() &&
+			 CWindowFrame::EfesNulls != pwf->Efes()) ||
+			(nullptr != pexprLeading &&
+			 !pexprLeading->Matches(pwf->PexprLeading())) ||
+			(nullptr != pexprTrailing &&
+			 !pexprTrailing->Matches(pwf->PexprTrailing())))
+		{
+			return false;
+		}
+		pexprLeading = pwf->PexprLeading();
+		pexprTrailing = pwf->PexprTrailing();
+	}
+	return nullptr != pexprLeading && nullptr != pexprTrailing &&
+		   pmodel->FBind((*pdrgpsym)[1], pexprLeading) &&
+		   pmodel->FBind((*pdrgpsym)[2], pexprTrailing);
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -3165,6 +3205,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckWindowFrame(pcon, pmodel, false);
 		case EdslconFullPartitionFrame:
 			return FCheckWindowFrame(pcon, pmodel, true);
+		case EdslconBoundedRowsFrame:
+			return FCheckBoundedRowsFrame(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:
