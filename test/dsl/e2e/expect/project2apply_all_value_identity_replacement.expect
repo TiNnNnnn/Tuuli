@@ -2,7 +2,8 @@
   "description": "The typed expression definition lowers one ALL value without the Project bridge",
   "replacement": {
     "xforms": [
-      "CXformProject2Apply"
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "One correlated quantified ALL in a Project value context",
     "status": "verified_direct_replacement",
@@ -37,7 +38,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformProject2Apply"
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -47,7 +49,8 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformProject2Apply"
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery"
       ],
       "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
@@ -62,7 +65,8 @@
   ],
   "rows": {
     "disable_xforms": [
-      "CXformProject2Apply"
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery"
     ],
     "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
