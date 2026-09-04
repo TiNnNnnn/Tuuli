@@ -1,0 +1,71 @@
+{
+  "description": "A proved DSL rule pushes a real aggregate below an FK inner join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Aggregate grouping contains the outer FK and aggregate inputs use only the outer child",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "b49684561d84da6c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10,2",
+      "20,1"
+    ],
+    "postgres_output": [
+      "10,2",
+      "20,1"
+    ]
+  }
+}

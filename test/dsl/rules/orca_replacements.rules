@@ -154,6 +154,14 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a7,a3);AttrsEq(a8,a4);AttrsIntersect(a9,a2,t0);AttrsIntersect(s1,s0,t0);AttrsEq(a10,a2);SchemaEq(s2,s0)
 
+# Push a complete real aggregate through the referencing side of an equality
+# join. The aggregate key contains the FK and every aggregate expression uses
+# only that outer input; the unique referred key preserves group multiplicity.
+# The target may retain inner implementation columns, so FormalSQL proves
+# equality under the source aggregate's projected observation.
+# FormalSQL/Rocq: EQ, verified 2026-09-05.
+Agg<a0 a1 f0 s0 p0>(InnerJoin<a2 a3>(Input<t0>,Input<t1>))|InnerJoin<a4 a5>(Agg<a6 a7 f1 s1 p1>(Input<t2>),Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a2);AttrsEq(a5,a3);AttrsEq(a6,a0);AttrsEq(a7,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,a0);AttrsSub(a2,t0);AttrsSub(a3,t1);Reference(t0,a2,t1,a3);Unique(t1,a3);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a7);ErrorFree(f1);ErrorFree(p1)
+
 LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)
 
 LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a3,a0);AttrsEq(a4,a1)

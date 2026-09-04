@@ -1,0 +1,69 @@
+{
+  "description": "The aggregate FK pushdown DSL rule preserves HAVING below the join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbWithHavingBelowJoin"
+    ],
+    "scope": "HAVING aggregate whose grouping contains the outer FK and whose aggregate inputs use only the outer child",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "b49684561d84da6c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbWithHavingBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+      ],
+      "alternative": [
+        "CXformPushGbWithHavingBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbWithHavingBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbWithHavingBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbWithHavingBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbWithHavingBelowJoin"
+    ],
+    "output": [
+      "10,2"
+    ],
+    "postgres_output": [
+      "10,2"
+    ]
+  }
+}
