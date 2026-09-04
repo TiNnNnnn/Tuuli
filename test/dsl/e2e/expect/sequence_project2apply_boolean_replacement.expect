@@ -61,7 +61,16 @@
         "\"status\":\"applied\",\"rule_hash\":\"dfff717b90ec9b44\"",
         "\"status\":\"applied\",\"rule_hash\":\"4ba0126c0a78bc91\"",
         "\"status\":\"applied\",\"rule_hash\":\"1f6707057417dec8\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSequenceProject2Apply"
+        ]
+      }
     }
   ],
   "rows": {
