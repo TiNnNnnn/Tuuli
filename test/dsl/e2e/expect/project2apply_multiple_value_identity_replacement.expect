@@ -6,7 +6,7 @@
       "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "Scalar, EXISTS, NOT EXISTS, ANY, and ALL in one Project value list",
-    "status": "verified_full_scope_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "3d199b6136ef0659",
       "8fe1f68152476d38",
@@ -72,7 +72,17 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery"
+        ]
+      }
     }
   ],
   "rows": {

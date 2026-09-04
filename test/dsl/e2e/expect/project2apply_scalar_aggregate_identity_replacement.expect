@@ -5,7 +5,7 @@
       "CXformProject2Apply"
     ],
     "scope": "Uncorrelated scalar aggregate in a Project list",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "3d199b6136ef0659"
     ]
@@ -57,7 +57,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply"
+        ]
+      }
     }
   ],
   "rows": {

@@ -6,7 +6,7 @@
       "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "One correlated quantified ANY in a Project value context",
-    "status": "verified_direct_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "b6ba26e7f855bd26"
     ]

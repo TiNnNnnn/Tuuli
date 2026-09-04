@@ -5,7 +5,7 @@
       "CXformProject2Apply"
     ],
     "scope": "One correlated NOT EXISTS in a Project value context",
-    "status": "verified_direct_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "ebf30af7fc2bd7d7"
     ]
@@ -57,7 +57,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply"
+        ]
+      }
     }
   ],
   "rows": {
