@@ -21,8 +21,10 @@ from import_wetune_workloads import postgres_schema, schema_catalog
 from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
+    actual_plan,
     bool_guc_setting,
     disabled_xform_settings,
+    memo_provenance,
     produced_alternative,
     validate_replacement_matrix,
 )
@@ -166,6 +168,24 @@ class TraceFrameworkTest(unittest.TestCase):
         )
         self.assertFalse(
             produced_alternative(output, "CXformPushGbBelowUnion")
+        )
+
+    def test_e2e_audits_transitive_memo_provenance(self) -> None:
+        output = (
+            'TRACE,"DSL_TRACE {"kind":"memo_alternative","source":"input",'
+            '"origin":"input"}\n'
+            'TRACE,"DSL_TRACE {"kind":"memo_alternative","source":"dsl",'
+            '"origin":"CXformSelect2Filter"}\n'
+        )
+        contract = {
+            "required_sources": ["dsl"],
+            "required_origins": ["CXformSelect2Filter"],
+            "forbidden_origins": ["CXformSelect2Apply"],
+        }
+
+        self.assertEqual(len(memo_provenance(output)), 2)
+        self.assertEqual(
+            actual_plan({"provenance": contract}, output)["provenance"], contract
         )
 
     def test_dphyper_stability_preserves_imported_statement_ids(self) -> None:

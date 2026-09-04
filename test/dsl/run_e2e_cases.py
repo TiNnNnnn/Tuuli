@@ -21,6 +21,7 @@ JOIN_RE = re.compile(
 )
 XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
 REPLACEMENT_STATES = ("native", "shadow", "negative", "replacement")
+PROVENANCE_SOURCES = {"input", "dsl", "dphyper", "dsl+dphyper", "native"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -138,6 +139,29 @@ def validate_replacement_matrix(expectation: dict[str, object]) -> None:
             raise ValueError(
                 f"replacement state {state} must {action} every target xform"
             )
+        provenance = plan.get("provenance")
+        if provenance is not None:
+            if not isinstance(provenance, dict):
+                raise ValueError("plan provenance must be an object")
+            required_sources = provenance.get("required_sources", [])
+            required_origins = provenance.get("required_origins", [])
+            forbidden_origins = provenance.get("forbidden_origins", [])
+            if (
+                not isinstance(required_sources, list)
+                or any(
+                    not isinstance(source, str)
+                    or source not in PROVENANCE_SOURCES
+                    for source in required_sources
+                )
+                or not isinstance(required_origins, list)
+                or not isinstance(forbidden_origins, list)
+                or any(
+                    not isinstance(name, str) or not XFORM_RE.fullmatch(name)
+                    for name in [*required_origins, *forbidden_origins]
+                )
+                or not (required_sources or required_origins)
+            ):
+                raise ValueError("invalid or empty plan provenance contract")
 
     rows = expectation.get("rows")
     if not isinstance(rows, dict) or not target.issubset(
@@ -211,6 +235,18 @@ def produced_alternative(output: str, xform: str) -> bool:
     return False
 
 
+def memo_provenance(output: str) -> list[dict[str, object]]:
+    records = []
+    for line in output.splitlines():
+        marker = 'DSL_TRACE {"kind":"memo_alternative"'
+        if marker not in line:
+            continue
+        record = json.loads(line.split("DSL_TRACE ", 1)[1])
+        if record.get("kind") == "memo_alternative":
+            records.append(record)
+    return records
+
+
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
@@ -235,6 +271,28 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         ]
     if "joins" in expected:
         actual["joins"] = len(JOIN_RE.findall(output))
+    if "provenance" in expected:
+        records = memo_provenance(output)
+        sources = {record.get("source") for record in records}
+        origins = {record.get("origin") for record in records}
+        contract = expected["provenance"]
+        actual["provenance"] = {
+            "required_sources": [
+                source
+                for source in contract.get("required_sources", [])
+                if source in sources
+            ],
+            "required_origins": [
+                origin
+                for origin in contract.get("required_origins", [])
+                if origin in origins
+            ],
+            "forbidden_origins": [
+                origin
+                for origin in contract.get("forbidden_origins", [])
+                if origin not in origins
+            ],
+        }
     return actual
 
 

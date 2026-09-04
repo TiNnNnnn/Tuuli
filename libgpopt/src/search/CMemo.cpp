@@ -29,6 +29,7 @@
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CLogicalCTEProducer.h"
 #include "gpopt/search/CGroupProxy.h"
+#include "gpopt/xforms/CXformFactory.h"
 
 using namespace gpopt;
 
@@ -831,4 +832,86 @@ CMemo::UlGrpExprs()
 	}
 
 	return ulGExprs;
+}
+
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CMemo::TraceLogicalProvenance
+//
+//	@doc:
+//		Emit one machine-readable source record per logical alternative
+//---------------------------------------------------------------------------
+void
+CMemo::TraceLogicalProvenance(ULONG search_stage)
+{
+	ULONG initial = 0;
+	ULONG dsl = 0;
+	ULONG dphyper = 0;
+	ULONG dsl_dphyper = 0;
+	ULONG native = 0;
+
+	for (CGroup *pgroup = m_listGroups.PtFirst(); nullptr != pgroup;
+		 pgroup = m_listGroups.Next(pgroup))
+	{
+		if (pgroup->FScalar() || pgroup->FDuplicateGroup())
+		{
+			continue;
+		}
+
+		CGroupProxy gp(pgroup);
+		for (CGroupExpression *pgexpr = gp.PgexprNextLogical(nullptr);
+			 nullptr != pgexpr; pgexpr = gp.PgexprNextLogical(pgexpr))
+		{
+			const BOOL has_dsl = pgexpr->FHasDSLProvenance();
+			const BOOL has_dphyper = pgexpr->FHasDPHyperProvenance();
+			const CXform::EXformId origin = pgexpr->ExfidOrigin();
+			const CHAR *source = "native";
+			const CHAR *origin_name = "input";
+			if (CXform::ExfInvalid == origin)
+			{
+				source = "input";
+				initial++;
+			}
+			else
+			{
+				origin_name = CXformFactory::Pxff()->Pxf(origin)->SzId();
+				if (has_dsl && has_dphyper)
+				{
+					source = "dsl+dphyper";
+					dsl_dphyper++;
+				}
+				else if (has_dsl)
+				{
+					source = "dsl";
+					dsl++;
+				}
+				else if (has_dphyper)
+				{
+					source = "dphyper";
+					dphyper++;
+				}
+				else
+				{
+					native++;
+				}
+			}
+
+			CAutoTrace at(m_mp);
+			at.Os() << "DSL_TRACE {\"kind\":\"memo_alternative\","
+						 "\"engine\":\"pgorca\",\"stage\":"
+					<< search_stage << ",\"group\":" << pgroup->Id()
+					<< ",\"group_expression\":" << pgexpr->Id()
+					<< ",\"operator\":\"" << pgexpr->Pop()->SzId()
+					<< "\",\"source\":\"" << source << "\",\"origin\":\""
+					<< origin_name << "\"}" << std::endl;
+		}
+	}
+
+	CAutoTrace at(m_mp);
+	at.Os() << "DSL_TRACE {\"kind\":\"memo_provenance_summary\","
+				 "\"engine\":\"pgorca\",\"stage\":"
+			<< search_stage << ",\"input\":" << initial << ",\"dsl\":" << dsl
+			<< ",\"dphyper\":" << dphyper << ",\"dsl_dphyper\":"
+			<< dsl_dphyper << ",\"native\":" << native << "}" << std::endl;
 }

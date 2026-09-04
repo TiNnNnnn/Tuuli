@@ -167,6 +167,9 @@ public:
 	// print memo to output logger
 	void Trace();
 
+	// trace the provenance of every logical memo alternative
+	void TraceLogicalProvenance(ULONG search_stage);
+
 	// get group by id
 	CGroup *Pgroup(ULONG id);
 

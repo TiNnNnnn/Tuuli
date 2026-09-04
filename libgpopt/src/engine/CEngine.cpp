@@ -2297,6 +2297,7 @@ CEngine::ProcessTraceFlags()
 	if (GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+		m_pmemo->TraceLogicalProvenance(m_ulCurrSearchStage);
 		{
 			CAutoTrace at(m_mp);
 			at.Os() << "DSL_TRACE {\"kind\":\"memo_summary\","
