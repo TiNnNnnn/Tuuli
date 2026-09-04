@@ -1,0 +1,91 @@
+{
+  "description": "EXISTS below NOT in a join predicate preserves its surrounding boolean expression",
+  "replacement": {
+    "xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "scope": "One correlated EXISTS value below NOT and OR in an inner-join predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "1955d85fbb20ac80"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_select2apply_predicate_notexists_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_hash\":\"1955d85fbb20ac80\""
+      ],
+      "alternative": []
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "not_contains": []
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_select2apply_predicate_notexists_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"1955d85fbb20ac80\""
+      ],
+      "alternative": [],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSubqJoin2Apply",
+          "CXformSelect2Apply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "policy": "isolate_select2apply_predicate_notexists_direct.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ]
+  }
+}
