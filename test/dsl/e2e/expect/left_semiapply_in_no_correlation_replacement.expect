@@ -52,7 +52,16 @@
       ],
       "alternative": [
         "CXformDSLRule_InSub"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+        ]
+      }
     }
   ],
   "rows": {
