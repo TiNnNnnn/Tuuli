@@ -7,7 +7,7 @@
     "scope": "Two correlated scalar subqueries used in one outer aggregate expression",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "e1f0b98cf5d18771"
+      "2e87323d09311142"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"rule_hash\":\"e1f0b98cf5d18771\""
+        "\"rule_hash\":\"2e87323d09311142\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -53,7 +53,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"e1f0b98cf5d18771\""
+        "\"status\":\"applied\",\"rule_hash\":\"2e87323d09311142\""
       ]
     }
   ],

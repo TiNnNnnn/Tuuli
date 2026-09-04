@@ -7,7 +7,8 @@
     "scope": "A scalar subquery and correlated EXISTS in one aggregate argument",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "2cf4f8ec1e40a587"
+      "2e87323d09311142",
+      "687f76b4e107b0ec"
     ]
   },
   "plans": [
@@ -27,7 +28,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"2cf4f8ec1e40a587\""
+        "\"status\":\"applied\",\"rule_hash\":\"2e87323d09311142\"",
+        "\"status\":\"applied\",\"rule_hash\":\"687f76b4e107b0ec\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -53,7 +55,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"2cf4f8ec1e40a587\""
+        "\"status\":\"applied\",\"rule_hash\":\"2e87323d09311142\"",
+        "\"status\":\"applied\",\"rule_hash\":\"687f76b4e107b0ec\""
       ]
     }
   ],

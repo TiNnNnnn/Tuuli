@@ -1,4 +1,6 @@
 - rule: '*'
   enabled: false
-- rule: 2cf4f8ec1e40a587
+- rule: 2e87323d09311142
+  enabled: true
+- rule: 687f76b4e107b0ec
   enabled: true

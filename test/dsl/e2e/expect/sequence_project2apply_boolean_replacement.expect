@@ -1,12 +1,13 @@
 {
-  "description": "Typed expression-list rules lower boolean and quantified Window arguments",
+  "description": "Typed expression-list rules lower every supported Window subquery kind in one chain",
   "replacement": {
     "xforms": [
       "CXformSequenceProject2Apply"
     ],
-    "scope": "Correlated EXISTS, NOT EXISTS, ANY, and ALL values in one Window list",
+    "scope": "Correlated scalar, EXISTS, NOT EXISTS, ANY, and ALL values in one Window list",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
+      "66c6bfb7c8dd6a77",
       "3760470f3035c4a6",
       "1efce2d83a7f5bdf",
       "f4263a2b85103b6e",
@@ -55,6 +56,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"66c6bfb7c8dd6a77\"",
         "\"status\":\"applied\",\"rule_hash\":\"3760470f3035c4a6\"",
         "\"status\":\"applied\",\"rule_hash\":\"1efce2d83a7f5bdf\"",
         "\"status\":\"applied\",\"rule_hash\":\"f4263a2b85103b6e\"",
@@ -68,14 +70,14 @@
     ],
     "policy": "isolate_sequence_project2apply_boolean.policy",
     "output": [
-      "1,t,f,t,f",
-      "2,t,f,t,f",
-      "3,t,f,t,f"
+      "1,40,t,f,t,f",
+      "2,40,t,f,t,f",
+      "3,40,t,f,t,f"
     ],
     "postgres_output": [
-      "1,t,f,t,f",
-      "2,t,f,t,f",
-      "3,t,f,t,f"
+      "1,40,t,f,t,f",
+      "2,40,t,f,t,f",
+      "3,40,t,f,t,f"
     ]
   }
 }

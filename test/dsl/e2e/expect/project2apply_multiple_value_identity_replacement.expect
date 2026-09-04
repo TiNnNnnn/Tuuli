@@ -1,14 +1,18 @@
 {
-  "description": "Typed expression definitions lower a mixed scalar/EXISTS Project as one Apply chain",
+  "description": "Five typed expression definitions lower a mixed Project as one Apply chain",
   "replacement": {
     "xforms": [
       "CXformProject2Apply",
       "CXformSimplifyProjectWithSubquery"
     ],
-    "scope": "Multiple mixed subqueries in one Project value list",
+    "scope": "Scalar, EXISTS, NOT EXISTS, ANY, and ALL in one Project value list",
     "status": "verified_full_scope_replacement",
     "dsl_rule_hashes": [
-      "ff170273c3de5cae"
+      "3d199b6136ef0659",
+      "8fe1f68152476d38",
+      "ebf30af7fc2bd7d7",
+      "b6ba26e7f855bd26",
+      "6b937e5233311b8b"
     ]
   },
   "plans": [
@@ -28,7 +32,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"ff170273c3de5cae\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8fe1f68152476d38\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ebf30af7fc2bd7d7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b6ba26e7f855bd26\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -56,7 +63,11 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"ff170273c3de5cae\""
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8fe1f68152476d38\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ebf30af7fc2bd7d7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b6ba26e7f855bd26\"",
+        "\"status\":\"applied\",\"rule_hash\":\"6b937e5233311b8b\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -70,14 +81,14 @@
     ],
     "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
-      "1,30,t",
-      "2,30,t",
-      "3,30,f"
+      "1,30,t,f,f,f",
+      "2,30,t,f,t,t",
+      "3,30,f,t,f,t"
     ],
     "postgres_output": [
-      "1,30,t",
-      "2,30,t",
-      "3,30,f"
+      "1,30,t,f,f,f",
+      "2,30,t,f,t,t",
+      "3,30,f,t,f,t"
     ]
   }
 }

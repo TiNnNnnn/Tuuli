@@ -1,4 +1,7 @@
 SELECT o.id,
+       sum((SELECT max(i.payload)
+            FROM dsl_correlated_exists AS i
+            WHERE i.k = o.id)) OVER () AS scalar_total,
        bool_or(EXISTS (
            SELECT 1 FROM dsl_correlated_exists AS i WHERE i.k = o.id)) OVER () AS has_match,
        bool_and(NOT EXISTS (
