@@ -27,6 +27,7 @@
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/xforms/CSubqueryHandler.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/IMDScalarOp.h"
 #include "naucrates/md/IMDType.h"
 
@@ -613,6 +614,10 @@ CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
 		3 != pexprJoin->Arity())
 	{
 		return nullptr;
+	}
+	if ((*pexprJoin)[2]->DeriveHasSubquery())
+	{
+		return CXformUtils::PexprSeparateSubqueryPreds(mp, pexprJoin);
 	}
 
 	CColRefSet *pcrsInputs = GPOS_NEW(mp) CColRefSet(

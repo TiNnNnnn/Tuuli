@@ -140,10 +140,10 @@ public:
 	static CExpression *PexprNullRejectedInnerJoin(CMemoryPool *mp,
 										 CExpression *pexprSelect);
 
-	// Expose an InnerJoin whose ON predicate references columns outside both
-	// inputs as Filter(predicate, InnerJoin(TRUE)).  This is an exact relational
-	// identity and gives the DSL one canonical place to bind local versus outer
-	// predicate dependencies.  The caller owns the transient expression.
+	// Expose correlated or subquery InnerJoin ON conjuncts as a Filter, retaining
+	// ordinary local conjuncts in the InnerJoin. This exact relational identity
+	// gives the DSL one canonical predicate view.
+	// The caller owns the transient expression.
 	static CExpression *PexprCorrelatedInnerJoinFilter(
 		CMemoryPool *mp, CExpression *pexprJoin);
 

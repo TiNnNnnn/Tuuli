@@ -274,6 +274,19 @@ CDSLRuleEngine::BucketByRoot()
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
+			const EDslOpKind edslopTarget =
+				prule->PfragTgt()->PopRoot()->Edslop();
+			if (EdslopInput == popBase->Edslop() &&
+				(EdslopInnerApply == edslopTarget ||
+				 EdslopLeftOuterApply == edslopTarget))
+			{
+				// A scalar subquery may remain inside an InnerJoin ON predicate when
+				// it depends on both inputs. The Filter matcher exposes the exact
+				// Filter(predicate, InnerJoin(TRUE)) view before applying the same
+				// generic Filter-to-Apply rule used outside joins.
+				rgulOpid[ulBuckets++] =
+					(ULONG) COperator::EopLogicalInnerJoin;
+			}
 		}
 		// A null-rejecting Select over FullJoin is semantically a Select over a
 		// LeftJoin that preserves the rejected side. Keep this representation

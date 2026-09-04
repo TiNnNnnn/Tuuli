@@ -756,12 +756,13 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	if (COperator::EopLogicalInnerJoin == pexprSelect->Pop()->Eopid())
 	{
 		// The explicit three-symbol Filter is the correlation-aware form.  A
-		// correlated InnerJoin ON predicate is relationally identical to a Filter
-		// over the same join with TRUE as its local predicate.  Keeping this in the
-		// shared view layer lets operator-local DSL rules compose without teaching
-		// them ORCA's decorrelator recursion.
+		// correlated or subquery InnerJoin ON predicate has an exact Filter view.
+		// Keeping it shared lets operator-local DSL rules compose without learning
+		// ORCA's decorrelator recursion.
 		CDSLSymbolArray *pdrgpsym = popFilterRoot->Pdrgpsym();
-		if (nullptr != pdrgpsym && 3 == pdrgpsym->Size())
+		if (3 == pexprSelect->Arity() &&
+			((*pexprSelect)[2]->DeriveHasSubquery() ||
+			 (nullptr != pdrgpsym && 3 == pdrgpsym->Size())))
 		{
 			CExpression *pexprView =
 				CDSLMatchView::PexprCorrelatedInnerJoinFilter(m_mp, pexprSelect);
