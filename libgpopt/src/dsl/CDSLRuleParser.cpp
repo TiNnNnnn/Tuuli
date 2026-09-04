@@ -569,10 +569,11 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconCumulativeFrame == edslcon &&
+		if ((EdslconCumulativeFrame == edslcon ||
+			 EdslconFullPartitionFrame == edslcon) &&
 			EdslsymFrame != (*pdrgpsym)[0]->Esymkind())
 		{
-			bctx.Fail("CumulativeFrame expects a frame symbol");
+			bctx.Fail("window frame constraint expects a frame symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

@@ -2131,8 +2131,9 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckCumulativeFrame(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+CDSLConstraintChecker::FCheckWindowFrame(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel,
+	BOOL fFullPartition) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (1 != pdrgpsym->Size() ||
@@ -2150,7 +2151,8 @@ CDSLConstraintChecker::FCheckCumulativeFrame(
 		CWindowFrame *pwf = (*pdrgpwf)[ul];
 		if (CWindowFrame::IsEmpty(pwf) ||
 			CWindowFrame::EfbUnboundedPreceding != pwf->EfbLeading() ||
-			CWindowFrame::EfbCurrentRow != pwf->EfbTrailing() ||
+			(fFullPartition ? CWindowFrame::EfbUnboundedFollowing
+							: CWindowFrame::EfbCurrentRow) != pwf->EfbTrailing() ||
 			nullptr != pwf->PexprLeading() || nullptr != pwf->PexprTrailing() ||
 			(CWindowFrame::EfesNone != pwf->Efes() &&
 			 CWindowFrame::EfesNulls != pwf->Efes()))
@@ -3160,7 +3162,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconExprListAll:
 			return FCheckExprListQuantified(pcon, pmodel, true);
 		case EdslconCumulativeFrame:
-			return FCheckCumulativeFrame(pcon, pmodel);
+			return FCheckWindowFrame(pcon, pmodel, false);
+		case EdslconFullPartitionFrame:
+			return FCheckWindowFrame(pcon, pmodel, true);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

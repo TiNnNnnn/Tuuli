@@ -187,6 +187,8 @@ enum EDslConstraintKind
 	// CumulativeFrame(frame): every frame is unbounded-preceding through the
 	// current row with no row exclusion.
 	EdslconCumulativeFrame,
+	// FullPartitionFrame(frame): every frame spans the complete partition.
+	EdslconFullPartitionFrame,
 	// OutputAttrs(out,relation): out is the complete ordered logical output
 	// vector of relation. Target-only out symbols are materialized lazily.
 	// Uniqueness is deliberately expressed by the independent Unique constraint.

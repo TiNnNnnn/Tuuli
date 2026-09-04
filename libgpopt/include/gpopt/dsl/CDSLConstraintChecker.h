@@ -154,8 +154,9 @@ private:
 								 CDSLModel *pmodel, BOOL fNegated) const;
 	BOOL FCheckExprListQuantified(const CDSLConstraint *pcon,
 							  CDSLModel *pmodel, BOOL fAll) const;
-	BOOL FCheckCumulativeFrame(const CDSLConstraint *pcon,
-							 const CDSLModel *pmodel) const;
+	BOOL FCheckWindowFrame(const CDSLConstraint *pcon,
+						   const CDSLModel *pmodel,
+						   BOOL fFullPartition) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

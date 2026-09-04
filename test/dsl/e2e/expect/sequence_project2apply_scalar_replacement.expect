@@ -4,11 +4,12 @@
     "xforms": [
       "CXformSequenceProject2Apply"
     ],
-    "scope": "One correlated scalar aggregate used as a cumulative Window argument",
+    "scope": "One correlated scalar aggregate used with a full-partition Window frame",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "f03b85207ada9a33",
-      "66c6bfb7c8dd6a77"
+      "66c6bfb7c8dd6a77",
+      "a25f7caab8dbf097"
     ]
   },
   "plans": [
@@ -28,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"66c6bfb7c8dd6a77\""
+        "\"rule_hash\":\"a25f7caab8dbf097\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -54,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"66c6bfb7c8dd6a77\""
+        "\"status\":\"applied\",\"rule_hash\":\"a25f7caab8dbf097\""
       ]
     }
   ],
