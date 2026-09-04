@@ -5,7 +5,7 @@
       "CXformSubqJoin2Apply"
     ],
     "scope": "One correlated ANY in an inner-join predicate with references to both inputs",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "b1d9ece967912f1c"
     ]

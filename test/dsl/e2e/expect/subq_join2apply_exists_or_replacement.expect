@@ -7,7 +7,7 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "One correlated EXISTS value inside an inner-join OR predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "907450491e456d45"
     ]

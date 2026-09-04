@@ -5,7 +5,7 @@
       "CXformSubqJoin2Apply"
     ],
     "scope": "Two correlated scalar aggregates in an inner-join predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "6fcbf4135eeb31ce"
     ]
