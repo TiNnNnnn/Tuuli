@@ -2,7 +2,8 @@
   "description": "A proved PredicateAll rule lowers a correlated scalar predicate to NULL-aware Apply without native Select2Apply",
   "replacement": {
     "xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
     ],
     "scope": "Correlated single-column ALL with an arbitrary comparison predicate",
     "status": "verified_partial_replacement",
@@ -37,7 +38,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -47,7 +49,8 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
       ],
       "policy": "isolate_select2apply_identity.policy",
       "contains": [
@@ -61,7 +64,8 @@
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
     ],
     "policy": "isolate_select2apply_identity.policy",
     "output": [

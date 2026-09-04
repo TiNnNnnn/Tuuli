@@ -2,7 +2,8 @@
   "description": "Nested existential and quantified subqueries are lowered in dependency order",
   "replacement": {
     "xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
     ],
     "scope": "An uncorrelated EXISTS value used as the comparison value of correlated ANY",
     "status": "verified_full_scope_replacement",
@@ -37,7 +38,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -47,7 +49,8 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
       ],
       "policy": "isolate_select2apply_exists_in_any_direct.policy",
       "contains": [
@@ -59,7 +62,8 @@
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
     ],
     "policy": "isolate_select2apply_exists_in_any_direct.policy",
     "output": [
