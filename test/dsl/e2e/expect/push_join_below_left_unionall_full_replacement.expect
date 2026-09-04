@@ -57,7 +57,16 @@
       "alternative": [
         "CXformDSLRule_InnerJoin",
         "CXformDSLRule_LeftJoin"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushJoinBelowLeftUnionAll"
+        ]
+      }
     }
   ],
   "rows": {

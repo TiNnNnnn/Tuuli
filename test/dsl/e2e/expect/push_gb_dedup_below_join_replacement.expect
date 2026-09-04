@@ -54,7 +54,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Agg"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushGbDedupBelowJoin"
+        ]
+      }
     }
   ],
   "rows": {
