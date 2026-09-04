@@ -4,20 +4,81 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import re
 from pathlib import Path
 from typing import Any
 
+from compare_rule_traces import read_records
 from run_e2e_cases import validate_replacement_matrix
 
 
 STATUS_RANK = {
     "unassessed": 0,
     "expressible": 1,
+    "verified_direct_replacement": 2,
+    "verified_full_scope_replacement": 2,
     "verified_partial_replacement": 2,
     "verified_full_replacement": 3,
 }
+CANONICAL_STATUS = {
+    0: "unassessed",
+    1: "expressible",
+    2: "verified_partial_replacement",
+    3: "verified_full_replacement",
+}
+
+
+def audit_memo_provenance(
+    runtime: dict[str, Any],
+    records: list[dict[str, Any]],
+    allowed_native_origins: set[str] | None = None,
+) -> dict[str, Any]:
+    allowed = allowed_native_origins or set()
+    xforms = {
+        entry["name"]: entry
+        for entry in runtime.get("xforms", [])
+        if isinstance(entry, dict) and isinstance(entry.get("name"), str)
+    }
+    alternatives = [
+        record for record in records if record.get("kind") == "memo_alternative"
+    ]
+    sources = Counter(record.get("source", "unknown") for record in alternatives)
+    origin_categories: Counter[str] = Counter()
+    native_origins: Counter[str] = Counter()
+
+    for record in alternatives:
+        source = record.get("source")
+        origin = record.get("origin")
+        if origin == "input":
+            origin_categories["input"] += 1
+            continue
+        entry = xforms.get(origin)
+        if entry is None:
+            category = (
+                source
+                if source in {"dsl", "dphyper", "dsl+dphyper"}
+                else "unknown"
+            )
+        elif entry.get("category") == "implementation_property":
+            category = "retained_cascades"
+        else:
+            category = entry.get("category", "unknown")
+        origin_categories[category] += 1
+        if category in {"semantic_rewrite", "join_enumeration", "unknown"}:
+            native_origins[str(origin)] += 1
+
+    unexpected = native_origins - Counter(
+        {origin: native_origins[origin] for origin in allowed}
+    )
+    return {
+        "logical_alternatives": len(alternatives),
+        "sources": dict(sorted(sources.items())),
+        "origin_categories": dict(sorted(origin_categories.items())),
+        "native_logical_origins": dict(sorted(native_origins.items())),
+        "unexpected_native_origins": dict(sorted(unexpected.items())),
+    }
 
 
 def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
@@ -48,10 +109,6 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
         ):
             raise ValueError(
                 f"{path}: replacement.dsl_rule_hashes must be 16-digit lowercase hex"
-            )
-        if not rules and not rule_hashes:
-            raise ValueError(
-                f"{path}: replacement must identify at least one DSL rule"
             )
         scope = replacement.get("scope")
         if not isinstance(scope, str) or not scope.strip():
@@ -105,7 +162,7 @@ def merge_inventory(
                     f"exploration xform: {name}"
                 )
             entry = result_by_name[name]
-            if entry["category"] != "semantic_rewrite":
+            if entry["category"] == "implementation_property":
                 raise ValueError(
                     f"{matrix['case']}: cannot attach DSL replacement evidence "
                     f"to {entry['category']} xform {name}"
@@ -117,10 +174,14 @@ def merge_inventory(
                 )
             }
             entry["evidence"].append(evidence)
+            if entry["category"] == "join_enumeration":
+                continue
             if STATUS_RANK[matrix["status"]] > STATUS_RANK[
                 entry["replacement_status"]
             ]:
-                entry["replacement_status"] = matrix["status"]
+                entry["replacement_status"] = CANONICAL_STATUS[
+                    STATUS_RANK[matrix["status"]]
+                ]
 
     summary = {
         "native_exploration_xforms": len(result_xforms),
@@ -157,6 +218,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("runtime_audit", type=Path)
     parser.add_argument("expect_dir", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--trace", type=Path)
+    parser.add_argument("--allow-native-origin", action="append", default=[])
+    parser.add_argument("--strict-provenance", action="store_true")
     return parser.parse_args()
 
 
@@ -164,12 +228,21 @@ def main() -> int:
     args = parse_args()
     runtime = json.loads(args.runtime_audit.read_text(encoding="utf-8"))
     inventory = merge_inventory(runtime, read_matrices(args.expect_dir))
+    if args.trace is not None:
+        inventory["memo_provenance"] = audit_memo_provenance(
+            runtime, read_records(args.trace), set(args.allow_native_origin)
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(inventory, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     print(json.dumps(inventory["summary"], ensure_ascii=False))
+    if (
+        args.strict_provenance
+        and inventory.get("memo_provenance", {}).get("unexpected_native_origins")
+    ):
+        return 1
     return 0
 
 

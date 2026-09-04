@@ -15,7 +15,10 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from build_reference_manifest import build_manifest
-from build_xform_replacement_inventory import merge_inventory
+from build_xform_replacement_inventory import (
+    audit_memo_provenance,
+    merge_inventory,
+)
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
 from replacement_rule_classification import audit_rule_file, audit_rule_text
@@ -109,6 +112,37 @@ class TraceFrameworkTest(unittest.TestCase):
             inventory["xforms"][2]["replacement_status"],
             "retained_in_cascades",
         )
+
+    def test_provenance_audit_separates_retained_and_native_logic(self) -> None:
+        runtime = {
+            "xforms": [
+                {"name": "CXformRewrite", "category": "semantic_rewrite"},
+                {"name": "CXformSplit", "category": "implementation_property"},
+            ]
+        }
+        records = [
+            {"kind": "memo_alternative", "source": "input", "origin": "input"},
+            {
+                "kind": "memo_alternative",
+                "source": "dsl",
+                "origin": "CXformDSLRule_Select",
+            },
+            {
+                "kind": "memo_alternative",
+                "source": "native",
+                "origin": "CXformSplit",
+            },
+            {
+                "kind": "memo_alternative",
+                "source": "native",
+                "origin": "CXformRewrite",
+            },
+        ]
+
+        audit = audit_memo_provenance(runtime, records)
+
+        self.assertEqual(audit["origin_categories"]["retained_cascades"], 1)
+        self.assertEqual(audit["unexpected_native_origins"], {"CXformRewrite": 1})
 
     def test_replacement_matrix_requires_causal_four_states(self) -> None:
         matrix = {
