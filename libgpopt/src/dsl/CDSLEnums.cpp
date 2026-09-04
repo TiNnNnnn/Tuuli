@@ -566,6 +566,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 			return 1 == ulPosition
 				? EdslsymExpr
 				: (9 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
+		case EdslconAttrsIntersect:
 		case EdslconAttrsUnion:
 		case EdslconFuncAttrs:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;

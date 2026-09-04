@@ -7,7 +7,7 @@
     "scope": "HAVING aggregate whose grouping contains the outer FK and whose aggregate inputs use only the outer child",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b49684561d84da6c"
+      "78c046d1ea440878"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
       ],
       "alternative": [
         "CXformPushGbWithHavingBelowJoin",
@@ -48,7 +48,7 @@
         "CXformPushGbWithHavingBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b49684561d84da6c\""
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

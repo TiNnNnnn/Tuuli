@@ -7,7 +7,7 @@
     "scope": "Residual outer dependencies survive in the grouping and residual inner dependencies remain on the referred child",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "9b80c3dcd4ae3304"
+      "c6147dd109512ce4"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9b80c3dcd4ae3304\""
+        "\"status\":\"applied\",\"rule_hash\":\"c6147dd109512ce4\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -48,7 +48,7 @@
         "CXformPushGbBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9b80c3dcd4ae3304\""
+        "\"status\":\"applied\",\"rule_hash\":\"c6147dd109512ce4\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

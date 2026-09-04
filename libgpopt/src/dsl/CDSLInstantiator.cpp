@@ -824,6 +824,18 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 	{
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
+		if (EdslconAttrsIntersect == pcon->Edslcon() && 0 == ul)
+		{
+			esymkind = (*pdrgpsym)[0]->Esymkind();
+		}
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		if (EdslsymSentinel == esymkind && EdslsideTarget == psym->Eside() &&
+			(EdslsymAttrs == psym->Esymkind() ||
+			 EdslsymSchema == psym->Esymkind()) &&
+			PsymResolve(psym) != psym)
+		{
+			esymkind = psym->Esymkind();
+		}
 		if ((EdslconExprListScalarSubquery == pcon->Edslcon() ||
 			 EdslconExprListExists == pcon->Edslcon() ||
 			 EdslconExprListNotExists == pcon->Edslcon() ||
@@ -839,7 +851,6 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 			continue;
 		}
 
-		const CDSLSymbol *psym = (*pdrgpsym)[ul];
 		if (esymkind != psym->Esymkind())
 		{
 			return false;

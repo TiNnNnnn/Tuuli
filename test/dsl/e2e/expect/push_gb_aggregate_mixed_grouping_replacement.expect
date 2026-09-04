@@ -1,0 +1,71 @@
+{
+  "description": "One aggregate pushdown rule drops referred-side grouping columns and restores them through the unique join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Real aggregate with FK grouping on the outer child and additional grouping columns from the unique referred child",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "78c046d1ea440878"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10,100,2",
+      "20,200,1"
+    ],
+    "postgres_output": [
+      "10,100,2",
+      "20,200,1"
+    ]
+  }
+}

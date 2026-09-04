@@ -401,9 +401,10 @@ CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(
 		mp,
-		"Input<t0>|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
-		"OutputAttrs(a9,t0);Unique(t0,a9);AttrsEmpty(a8);AttrsUnion(a0,a9,a8);"
-		"SchemaFromAttrs(s0,a0)");
+		"Proj<a9 s9>(Input<t0>)|Proj*<a0 s0>(Input<t1>)|TableEq(t1,t0);"
+			"OutputAttrs(a9,t0);Unique(t0,a9);AttrsIntersect(a7,a9,t0);"
+			"AttrsEq(a0,a9);AttrsUnion(a8,a7,a0);"
+			"SchemaFromAttrs(s0,a8)");
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -412,12 +413,14 @@ CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
 	CColRefArray *pdrgpcrOutput = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet(
 		"constraint_local", 3, &pdrgpcrOutput, 0 /*key*/);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprGet, pdrgpcrOutput);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGet, pmodel) ||
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
 		!checker.FCheck(prule, pmodel) || !checker.FCheck(prule, pmodel))
 	{
 		eres = GPOS_FAILED;
@@ -441,6 +444,7 @@ CDSLAggTest::EresUnittest_ConstraintLocalValueChain()
 
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
+	pexprProject->Release();
 	pexprGet->Release();
 	prule->Release();
 	return eres;
