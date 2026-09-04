@@ -45,20 +45,60 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformRemoveSubqDistinct"
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformPushGbBelowJoin",
+        "CXformReduceAggInputViaCTE",
+        "CXformCTEAnchor2Sequence",
+        "CXformInnerJoinCommutativity",
+        "CXformJoinAssociativity"
       ],
+      "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\""
+        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformLeftSemiApplyIn2LeftSemiJoin",
+          "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+          "CXformLeftSemiJoin2InnerJoin",
+          "CXformPushGbBelowJoin",
+          "CXformReduceAggInputViaCTE",
+          "CXformCTEAnchor2Sequence",
+          "CXformInnerJoinCommutativity",
+          "CXformJoinAssociativity"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformRemoveSubqDistinct"
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformLeftSemiApplyIn2LeftSemiJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformPushGbBelowJoin",
+      "CXformReduceAggInputViaCTE",
+      "CXformCTEAnchor2Sequence",
+      "CXformInnerJoinCommutativity",
+      "CXformJoinAssociativity"
     ],
+    "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
     "output": [
       "1",
       "1",

@@ -45,20 +45,42 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformRemoveSubqDistinct"
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
       ],
+      "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\""
+        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a586c9b617a6d998\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
       ],
       "alternative": [
         "CXformDSLRule_NotExists"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformRemoveSubqDistinct"
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
     ],
+    "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
     "output": [
       "3"
     ],

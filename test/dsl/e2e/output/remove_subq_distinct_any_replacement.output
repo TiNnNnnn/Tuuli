@@ -45,20 +45,48 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformRemoveSubqDistinct"
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformInnerJoinCommutativity"
       ],
+      "policy": "isolate_remove_subq_distinct_any_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"2849a93909743846\""
+        "\"status\":\"applied\",\"rule_hash\":\"2849a93909743846\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformLeftSemiApplyIn2LeftSemiJoin",
+          "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+          "CXformLeftSemiJoin2InnerJoinUnderGb",
+          "CXformInnerJoinCommutativity"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformRemoveSubqDistinct"
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformLeftSemiApplyIn2LeftSemiJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiJoin2InnerJoinUnderGb",
+      "CXformInnerJoinCommutativity"
     ],
+    "policy": "isolate_remove_subq_distinct_any_pipeline.policy",
     "output": [
       "1",
       "1",
