@@ -1,0 +1,91 @@
+{
+  "description": "Scalar and EXISTS join subqueries compose through two existing DSL rules",
+  "replacement": {
+    "xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "scope": "One scalar and one EXISTS subquery in an inner-join predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "13122e115169448b"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_subq_join2apply_mixed_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_hash\":\"13122e115169448b\""
+      ],
+      "alternative": []
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "not_contains": []
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_subq_join2apply_mixed_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"13122e115169448b\""
+      ],
+      "alternative": [],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSubqJoin2Apply",
+          "CXformSelect2Apply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "policy": "isolate_subq_join2apply_mixed_direct.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ]
+  }
+}
