@@ -5,7 +5,7 @@
       "CXformSelect2Apply"
     ],
     "scope": "Correlated EXISTS used as one arm of a disjunction",
-    "status": "verified_full_scope_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "907450491e456d45"
     ]
@@ -54,7 +54,16 @@
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
         "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

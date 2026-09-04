@@ -5,7 +5,7 @@
       "CXformSelect2Apply"
     ],
     "scope": "A scalar subquery used as the comparison value of correlated ANY",
-    "status": "verified_full_scope_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "6fcbf4135eeb31ce",
       "ac0317d6092101d7"
@@ -57,7 +57,16 @@
         "CXformDSLRule_Select",
         "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
         "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

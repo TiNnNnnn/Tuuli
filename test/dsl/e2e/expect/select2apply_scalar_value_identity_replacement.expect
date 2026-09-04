@@ -5,7 +5,7 @@
       "CXformSelect2Apply"
     ],
     "scope": "Correlated scalar value subquery requiring runtime single-row enforcement",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "f5888185fd97f5a8"
     ]
@@ -55,7 +55,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

@@ -5,7 +5,7 @@
       "CXformSelect2Apply"
     ],
     "scope": "Correlated NOT EXISTS with one outer key and an inner-only residual predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "a586c9b617a6d998"
     ]
@@ -56,7 +56,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

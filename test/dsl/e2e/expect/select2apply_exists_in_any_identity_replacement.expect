@@ -6,7 +6,7 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "An uncorrelated EXISTS value used as the comparison value of correlated ANY",
-    "status": "verified_full_scope_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "907450491e456d45",
       "ac0317d6092101d7"
@@ -61,7 +61,17 @@
         "CXformDSLRule_Select",
         "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\"",
         "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery"
+        ]
+      }
     }
   ],
   "rows": {

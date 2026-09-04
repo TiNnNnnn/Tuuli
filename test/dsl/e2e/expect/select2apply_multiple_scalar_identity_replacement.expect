@@ -56,7 +56,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

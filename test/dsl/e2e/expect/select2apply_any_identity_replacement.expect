@@ -6,7 +6,7 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "Correlated single-column ANY with an arbitrary comparison predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "b1d9ece967912f1c"
     ]

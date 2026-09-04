@@ -5,7 +5,7 @@
       "CXformSelect2Apply"
     ],
     "scope": "Correlated single-column NOT IN across match, empty-set, inner-NULL, outer-NULL and duplicate branches",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "a08e24d9155e2f5c"
     ]
@@ -56,7 +56,16 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     }
   ],
   "rows": {

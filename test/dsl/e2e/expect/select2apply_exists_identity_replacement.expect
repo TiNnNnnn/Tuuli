@@ -6,7 +6,7 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "Correlated EXISTS with one outer key and an inner-only residual predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "dec0eb1e99571556"
     ]
@@ -59,7 +59,17 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery"
+        ]
+      }
     }
   ],
   "rows": {

@@ -6,7 +6,7 @@
       "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
     ],
     "scope": "Scalar subquery used by correlated ALL followed by uncorrelated LeftApply lowering",
-    "status": "verified_full_scope_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "6fcbf4135eeb31ce",
       "4c1e72d5f2139d6e",
