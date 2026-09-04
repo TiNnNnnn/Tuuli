@@ -23,6 +23,7 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
@@ -46,13 +47,23 @@
       "disable_xforms": [
         "CXformSubqJoin2Apply"
       ],
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSubqJoin2Apply"
+        ]
+      }
     }
   ],
   "rows": {
