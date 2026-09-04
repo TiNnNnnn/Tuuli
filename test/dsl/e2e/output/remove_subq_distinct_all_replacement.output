@@ -2,12 +2,14 @@
   "description": "A generic quantified ALL DSL rule removes pure DISTINCT and preserves correlated NULL/empty-set semantics",
   "replacement": {
     "xforms": [
-      "CXformRemoveSubqDistinct"
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply"
     ],
     "scope": "arbitrary single-column ALL comparison over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "6c2c9e08ef81ce6a"
+      "6c2c9e08ef81ce6a",
+      "a08e24d9155e2f5c"
     ]
   },
   "plans": [
@@ -35,7 +37,8 @@
       "dsl": false,
       "trace": true,
       "disable_xforms": [
-        "CXformRemoveSubqDistinct"
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply"
       ],
       "not_contains": [
         "Xform: CXformRemoveSubqDistinct"
@@ -45,20 +48,38 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformRemoveSubqDistinct"
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
       ],
+      "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"6c2c9e08ef81ce6a\""
+        "\"status\":\"applied\",\"rule_hash\":\"6c2c9e08ef81ce6a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
       ],
       "alternative": [
         "CXformDSLRule_All"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformRemoveSubqDistinct"
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
     ],
+    "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
     "output": [
       "1",
       "2",
