@@ -1,0 +1,80 @@
+{
+  "description": "The typed scalar definition lowers an uncorrelated aggregate-argument subquery",
+  "replacement": {
+    "xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "scope": "An uncorrelated scalar value in an aggregate argument",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "2e87323d09311142"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_gbagg2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg"
+      ],
+      "alternative": [
+        "CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply"
+      ],
+      "policy": "isolate_gbagg2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"2e87323d09311142\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformGbAgg2Apply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "policy": "isolate_gbagg2apply_scalar_direct.policy",
+    "output": [
+      "90"
+    ],
+    "postgres_output": [
+      "90"
+    ]
+  }
+}

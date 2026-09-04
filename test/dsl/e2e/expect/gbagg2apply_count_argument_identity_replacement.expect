@@ -54,7 +54,16 @@
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
         "\"status\":\"applied\",\"rule_hash\":\"2e87323d09311142\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformGbAgg2Apply"
+        ]
+      }
     }
   ],
   "rows": {
