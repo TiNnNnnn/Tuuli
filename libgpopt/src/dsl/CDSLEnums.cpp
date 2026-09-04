@@ -151,6 +151,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconCumulativeFrame, "CumulativeFrame", 1},
 	{EdslconFullPartitionFrame, "FullPartitionFrame", 1},
 	{EdslconBoundedRowsFrame, "BoundedRowsFrame", 3},
+	{EdslconRowsFrame, "RowsFrame", 3},
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
@@ -170,7 +171,7 @@ const SDslConDesc rg_con_desc[] = {
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
 
 // symbol-prefix letters, indexed by EDslSymbolKind
-const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm'};
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm', 'b'};
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -578,6 +579,9 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconBoundedRowsFrame:
 			return 1 == ulPosition || 2 == ulPosition ? EdslsymScalar
 													  : EdslsymSentinel;
+		case EdslconRowsFrame:
+			return 1 == ulPosition || 2 == ulPosition ? EdslsymFrameBound
+													  : EdslsymSentinel;
 		case EdslconAttrsEmpty:
 		case EdslconAttrsNonEmpty:
 		case EdslconOutputAttrs:
@@ -665,6 +669,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconCumulativeFrame:
 		case EdslconFullPartitionFrame:
 		case EdslconBoundedRowsFrame:
+		case EdslconRowsFrame:
 		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:

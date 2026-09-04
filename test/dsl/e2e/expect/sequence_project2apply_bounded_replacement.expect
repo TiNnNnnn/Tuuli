@@ -7,7 +7,7 @@
     "scope": "One correlated scalar aggregate used with a bounded ROWS Window frame",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "642f3c9b674040c5"
+      "e3082a6f6d19d180"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"642f3c9b674040c5\""
+        "\"rule_hash\":\"e3082a6f6d19d180\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -53,7 +53,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"642f3c9b674040c5\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3082a6f6d19d180\""
       ]
     }
   ],

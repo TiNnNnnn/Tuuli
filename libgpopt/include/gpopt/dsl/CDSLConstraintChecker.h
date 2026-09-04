@@ -159,6 +159,7 @@ private:
 						   BOOL fFullPartition) const;
 	BOOL FCheckBoundedRowsFrame(const CDSLConstraint *pcon,
 							 CDSLModel *pmodel) const;
+	BOOL FCheckRowsFrame(const CDSLConstraint *pcon, CDSLModel *pmodel) const;
 
 	// ScalarOne/ScalarZero: validate an already-bound scalar constant. A target
 	// symbol is intentionally unbound here and is materialized by instantiation.

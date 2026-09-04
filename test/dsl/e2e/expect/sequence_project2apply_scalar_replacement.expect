@@ -8,8 +8,7 @@
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "f03b85207ada9a33",
-      "66c6bfb7c8dd6a77",
-      "a25f7caab8dbf097"
+      "e3082a6f6d19d180"
     ]
   },
   "plans": [
@@ -29,7 +28,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"a25f7caab8dbf097\""
+        "\"rule_hash\":\"e3082a6f6d19d180\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -55,7 +54,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"a25f7caab8dbf097\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3082a6f6d19d180\""
       ]
     }
   ],

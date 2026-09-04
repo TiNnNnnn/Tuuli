@@ -45,6 +45,18 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CDSLFrameBound : public CRefCount
+{
+private:
+	CWindowFrame::EFrameBoundary m_efb;
+	CExpression *m_pexprOffset;
+
+public:
+	CDSLFrameBound(CWindowFrame::EFrameBoundary efb, CExpression *pexprOffset);
+	~CDSLFrameBound() override;
+	BOOL Matches(const CDSLFrameBound *other) const;
+};
+
 // symbol identity -> bound artifact. Key hashed/compared by POINTER identity
 // (gpos::HashPtr / gpos::Equals), matching how WeTune compares symbols by
 // reference. Keys unowned (CleanupNULL), values own one ref (CleanupRelease).

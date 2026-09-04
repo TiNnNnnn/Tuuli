@@ -11,6 +11,30 @@
 
 using namespace gpopt;
 
+CDSLFrameBound::CDSLFrameBound(CWindowFrame::EFrameBoundary efb,
+							   CExpression *pexprOffset)
+	: m_efb(efb), m_pexprOffset(pexprOffset)
+{
+	if (nullptr != m_pexprOffset)
+	{
+		m_pexprOffset->AddRef();
+	}
+}
+
+CDSLFrameBound::~CDSLFrameBound()
+{
+	CRefCount::SafeRelease(m_pexprOffset);
+}
+
+BOOL
+CDSLFrameBound::Matches(const CDSLFrameBound *other) const
+{
+	return nullptr != other && m_efb == other->m_efb &&
+		   (m_pexprOffset == other->m_pexprOffset ||
+			(nullptr != m_pexprOffset && nullptr != other->m_pexprOffset &&
+			 m_pexprOffset->Matches(other->m_pexprOffset)));
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLModel::CDSLModel
@@ -484,6 +508,11 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 	CRefCount *pvalExisting = m_phmSymToRef->Find(psym);
 	if (nullptr != pvalExisting)
 	{
+		if (EdslsymFrameBound == psym->Esymkind())
+		{
+			return static_cast<CDSLFrameBound *>(pvalExisting)->Matches(
+				static_cast<CDSLFrameBound *>(pval));
+		}
 		// already bound: only compatible if it is the SAME artifact
 		return pvalExisting == pval;
 	}

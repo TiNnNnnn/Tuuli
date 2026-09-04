@@ -588,6 +588,16 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconRowsFrame == edslcon &&
+			(EdslsymFrame != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymFrameBound != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymFrameBound != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail("RowsFrame expects frame-bound symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{

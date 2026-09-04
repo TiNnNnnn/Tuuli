@@ -52,6 +52,7 @@ enum EDslSymbolKind
 	EdslsymOrder,		 // o (complete window order-spec array)
 	EdslsymWindow,		 // w (exact window project list)
 	EdslsymFrame,		 // m (complete window-frame array)
+	EdslsymFrameBound,	 // b (one ROWS frame boundary and optional offset)
 	EdslsymSentinel
 };
 
@@ -192,6 +193,8 @@ enum EDslConstraintKind
 	// BoundedRowsFrame(frame,preceding,following): a ROWS frame with two
 	// explicit offsets.
 	EdslconBoundedRowsFrame,
+	// RowsFrame(frame,start,end): an arbitrary well-formed ROWS frame.
+	EdslconRowsFrame,
 	// OutputAttrs(out,relation): out is the complete ordered logical output
 	// vector of relation. Target-only out symbols are materialized lazily.
 	// Uniqueness is deliberately expressed by the independent Unique constraint.

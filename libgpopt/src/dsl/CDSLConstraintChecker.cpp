@@ -2204,6 +2204,53 @@ CDSLConstraintChecker::FCheckBoundedRowsFrame(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckRowsFrame(const CDSLConstraint *pcon,
+								CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size() ||
+		EdslsymFrame != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymFrameBound != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymFrameBound != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+	CWindowFrameArray *pdrgpwf = pmodel->PdrgpwfFrame((*pdrgpsym)[0]);
+	if (nullptr == pdrgpwf || 0 == pdrgpwf->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpwf->Size(); ul++)
+	{
+		CWindowFrame *pwf = (*pdrgpwf)[ul];
+		if (CWindowFrame::IsEmpty(pwf) ||
+			CWindowFrame::EfsRows != pwf->Efs() ||
+			CWindowFrame::EfbDelayedBoundedPreceding == pwf->EfbLeading() ||
+			CWindowFrame::EfbDelayedBoundedFollowing == pwf->EfbLeading() ||
+			CWindowFrame::EfbDelayedBoundedPreceding == pwf->EfbTrailing() ||
+			CWindowFrame::EfbDelayedBoundedFollowing == pwf->EfbTrailing() ||
+			(CWindowFrame::EfesNone != pwf->Efes() &&
+			 CWindowFrame::EfesNulls != pwf->Efes()))
+		{
+			return false;
+		}
+		CDSLFrameBound *leading = GPOS_NEW(m_mp)
+			CDSLFrameBound(pwf->EfbLeading(), pwf->PexprLeading());
+		CDSLFrameBound *trailing = GPOS_NEW(m_mp)
+			CDSLFrameBound(pwf->EfbTrailing(), pwf->PexprTrailing());
+		const BOOL matches = pmodel->FBind((*pdrgpsym)[1], leading) &&
+			pmodel->FBind((*pdrgpsym)[2], trailing);
+		leading->Release();
+		trailing->Release();
+		if (!matches)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckScalarConstant(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel, LINT value) const
 {
@@ -3207,6 +3254,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckWindowFrame(pcon, pmodel, true);
 		case EdslconBoundedRowsFrame:
 			return FCheckBoundedRowsFrame(pcon, pmodel);
+		case EdslconRowsFrame:
+			return FCheckRowsFrame(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

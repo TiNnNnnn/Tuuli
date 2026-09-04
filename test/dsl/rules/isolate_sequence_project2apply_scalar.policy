@@ -2,7 +2,5 @@
   enabled: false
 - rule: f03b85207ada9a33
   enabled: true
-- rule: 66c6bfb7c8dd6a77
-  enabled: true
-- rule: a25f7caab8dbf097
+- rule: e3082a6f6d19d180
   enabled: true
