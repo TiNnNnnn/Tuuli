@@ -7,11 +7,11 @@
     "scope": "Correlated scalar, EXISTS, NOT EXISTS, ANY, and ALL values in one Window list",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "66c6bfb7c8dd6a77",
-      "3760470f3035c4a6",
-      "1efce2d83a7f5bdf",
-      "f4263a2b85103b6e",
-      "3dcb2f25141a9d4b"
+      "f23d59b80126349c",
+      "7c686f5f82593aa9",
+      "dfff717b90ec9b44",
+      "4ba0126c0a78bc91",
+      "1f6707057417dec8"
     ]
   },
   "plans": [
@@ -56,11 +56,11 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"66c6bfb7c8dd6a77\"",
-        "\"status\":\"applied\",\"rule_hash\":\"3760470f3035c4a6\"",
-        "\"status\":\"applied\",\"rule_hash\":\"1efce2d83a7f5bdf\"",
-        "\"status\":\"applied\",\"rule_hash\":\"f4263a2b85103b6e\"",
-        "\"status\":\"applied\",\"rule_hash\":\"3dcb2f25141a9d4b\""
+        "\"status\":\"applied\",\"rule_hash\":\"f23d59b80126349c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"7c686f5f82593aa9\"",
+        "\"status\":\"applied\",\"rule_hash\":\"dfff717b90ec9b44\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4ba0126c0a78bc91\"",
+        "\"status\":\"applied\",\"rule_hash\":\"1f6707057417dec8\""
       ]
     }
   ],

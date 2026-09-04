@@ -1,0 +1,76 @@
+{
+  "description": "One generic proved rule preserves GROUPS/RANGE frames and exclusion while lowering Window scalar subqueries",
+  "replacement": {
+    "xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "scope": "Correlated scalar aggregates in arbitrary preserved Window frames",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "f23d59b80126349c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_sequence_project2apply_bounded.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"rule_hash\":\"f23d59b80126349c\""
+      ],
+      "alternative": [
+        "CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply"
+      ],
+      "policy": "isolate_sequence_project2apply_bounded.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"f23d59b80126349c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "isolate_sequence_project2apply_bounded.policy",
+    "output": [
+      "1,30,40",
+      "2,10,40",
+      "3,30,30"
+    ],
+    "postgres_output": [
+      "1,30,40",
+      "2,10,40",
+      "3,30,30"
+    ]
+  }
+}
