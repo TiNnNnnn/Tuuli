@@ -61,6 +61,13 @@ Filter<p0 a0>(Filter<p1 a1>(Input<t0>))|InnerApply<p2 a2 a3 a4>(Exists(Input<t1>
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)
 
+# DIRECT(expression-rewrite): Window items are an expression sequence just
+# like Compute and aggregate function lists. Lower one scalar subquery while
+# preserving the exact partition/order metadata and Window shell.
+# FormalSQL/Rocq accepted this RuleIR on 2026-09-04.
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2);CumulativeFrame(m0)
+
 # DIRECT(expression-rewrite): lower one EXISTS value in a Compute list.  The
 # explicit TRUE marker and LIMIT preserve false-on-empty semantics without a
 # production Project2Apply bridge. FormalSQL/Rocq accepted this RuleIR on

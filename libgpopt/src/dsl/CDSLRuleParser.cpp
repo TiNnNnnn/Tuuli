@@ -454,7 +454,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 		if (EdslconExprListScalarSubquery == edslcon &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
 			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -474,7 +475,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslconExprListAll == edslcon) &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
 			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -563,6 +565,14 @@ PdrgpconBuild(SBuildCtx &bctx,
 		{
 			bctx.Fail(std::string(CDSLConstraintKindTable::SzName(edslcon)) +
 					  " expects two matching window-metadata symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
+		if (EdslconCumulativeFrame == edslcon &&
+			EdslsymFrame != (*pdrgpsym)[0]->Esymkind())
+		{
+			bctx.Fail("CumulativeFrame expects a frame symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

@@ -184,6 +184,9 @@ enum EDslConstraintKind
 	EdslconOrderEq,
 	EdslconWindowEq,
 	EdslconFrameEq,
+	// CumulativeFrame(frame): every frame is unbounded-preceding through the
+	// current row with no row exclusion.
+	EdslconCumulativeFrame,
 	// OutputAttrs(out,relation): out is the complete ordered logical output
 	// vector of relation. Target-only out symbols are materialized lazily.
 	// Uniqueness is deliberately expressed by the independent Unique constraint.

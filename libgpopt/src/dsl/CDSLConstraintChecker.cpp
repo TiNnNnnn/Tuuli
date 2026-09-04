@@ -1710,11 +1710,14 @@ PexprOnlySubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
 								 ULONG *pulCount)
 {
 	if (EdslsymExpr == psym->Esymkind() ||
-		EdslsymPred == psym->Esymkind())
+		EdslsymPred == psym->Esymkind() ||
+		EdslsymWindow == psym->Esymkind())
 	{
 		CExpression *pexpr = EdslsymExpr == psym->Esymkind()
 			? pmodel->PexprExpr(psym)
-			: pmodel->PexprPred(psym);
+			: (EdslsymPred == psym->Esymkind()
+				   ? pmodel->PexprPred(psym)
+				   : pmodel->PexprWindow(psym));
 		return nullptr == pexpr
 			? nullptr
 			: PexprOnlySubquery(pexpr, eopid, pulCount);
@@ -1741,11 +1744,14 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 {
 	*pfHasResidualSubquery = false;
 	if (EdslsymExpr == psym->Esymkind() ||
-		EdslsymPred == psym->Esymkind())
+		EdslsymPred == psym->Esymkind() ||
+		EdslsymWindow == psym->Esymkind())
 	{
 		CExpression *pexprSource = EdslsymExpr == psym->Esymkind()
 			? pmodel->PexprExpr(psym)
-			: pmodel->PexprPred(psym);
+			: (EdslsymPred == psym->Esymkind()
+				   ? pmodel->PexprPred(psym)
+				   : pmodel->PexprWindow(psym));
 		CExpression *pexprLowered = PexprReplaceNode(
 			mp, pexprSource, pexprNeedle, pexprReplacement);
 		*pfHasResidualSubquery = pexprLowered->DeriveHasSubquery();
@@ -1844,7 +1850,8 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	if (nullptr == pdrgpsym || 8 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -1921,7 +1928,8 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -2037,7 +2045,8 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	if (nullptr == pdrgpsym || 11 != pdrgpsym->Size() ||
 		(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 		 EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-		 EdslsymPred != (*pdrgpsym)[0]->Esymkind()) ||
+		 EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
+		 EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
 		(*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
 		EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
 		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
@@ -2139,6 +2148,37 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	pdrgpcrCorrelation->Release();
 	pdrgpcrRequiredInner->Release();
 	return fMatches;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckCumulativeFrame(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size() ||
+		EdslsymFrame != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	CWindowFrameArray *pdrgpwf = pmodel->PdrgpwfFrame((*pdrgpsym)[0]);
+	if (nullptr == pdrgpwf || 0 == pdrgpwf->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpwf->Size(); ul++)
+	{
+		CWindowFrame *pwf = (*pdrgpwf)[ul];
+		if (CWindowFrame::IsEmpty(pwf) ||
+			CWindowFrame::EfbUnboundedPreceding != pwf->EfbLeading() ||
+			CWindowFrame::EfbCurrentRow != pwf->EfbTrailing() ||
+			nullptr != pwf->PexprLeading() || nullptr != pwf->PexprTrailing() ||
+			(CWindowFrame::EfesNone != pwf->Efes() &&
+			 CWindowFrame::EfesNulls != pwf->Efes()))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 BOOL
@@ -3139,6 +3179,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckExprListQuantified(prule, pcon, pmodel, false);
 		case EdslconExprListAll:
 			return FCheckExprListQuantified(prule, pcon, pmodel, true);
+		case EdslconCumulativeFrame:
+			return FCheckCumulativeFrame(pcon, pmodel);
 		case EdslconScalarOne:
 			return FCheckScalarConstant(pcon, pmodel, 1);
 		case EdslconScalarZero:

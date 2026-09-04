@@ -148,6 +148,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconOrderEq, "OrderEq", 2},
 	{EdslconWindowEq, "WindowEq", 2},
 	{EdslconFrameEq, "FrameEq", 2},
+	{EdslconCumulativeFrame, "CumulativeFrame", 1},
 	{EdslconOutputAttrs, "OutputAttrs", 2},
 	{EdslconSchemaFromAttrs, "SchemaFromAttrs", 2},
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
@@ -367,13 +368,6 @@ BOOL
 CDSLOpKindTable::FSourceRootDispatchSupported(EDslOpKind edslop,
 										   BOOL fDistinct)
 {
-	// SequenceProject is currently supported as a nested template node.  A
-	// standalone Window-root rule needs its own Cascade shell before the audit
-	// may advertise it as dispatchable.
-	if (EdslopWindowRows == edslop || EdslopWindowFrame == edslop)
-	{
-		return false;
-	}
 	return EdslopInput != edslop && FMatcherSupported(edslop) &&
 		   COperator::EopSentinel != Eopid(edslop, fDistinct);
 }
@@ -663,6 +657,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconOrderEq:
 		case EdslconWindowEq:
 		case EdslconFrameEq:
+		case EdslconCumulativeFrame:
 		case EdslconOutputAttrs:
 		case EdslconSchemaFromAttrs:
 		case EdslconPredicateDomainSplit:

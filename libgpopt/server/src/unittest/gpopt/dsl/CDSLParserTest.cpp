@@ -237,7 +237,12 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"ErrorFree(w0)",
 		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);"
-		"WindowEq(w1,w0);ErrorFree(w0)",
+		"WindowEq(w1,w0);CumulativeFrame(m0);ErrorFree(w0)",
+		// Window items are scalar-expression sequences and therefore share the
+		// same subquery-lowering constraint as Compute and aggregate functions.
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 "
+		"a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);"
+		"OrderEq(o1,o0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)",
 		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)",
 	};
 

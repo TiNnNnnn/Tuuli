@@ -572,8 +572,8 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopProj, true) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopSort, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopLimit, false) ||
-		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowRows, false) ||
-		CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowRows, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopMaxOneRow, false) ||
 		CDSLOpKindTable::FSourceRootDispatchSupported(
 			EdslopAssertMaxOneRow, false))

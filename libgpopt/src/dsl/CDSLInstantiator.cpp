@@ -4772,8 +4772,34 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	const ULONG ulWindow = fFrame ? 3 : 2;
 	const CDSLSymbol *psymWindow =
 		PsymResolve((*pop->Pdrgpsym())[ulWindow]);
+	CExpression *pexprProjectList = pmodel->PexprWindow(psymWindow);
 	CExpression *pexprCarrier = pmodel->PexprWindowCarrier(psymWindow);
+	const CDSLSymbol *psymCarrier = psymWindow;
+	for (ULONG ulDepth = 0;
+		 nullptr == pexprCarrier && nullptr != m_prule &&
+		 ulDepth < m_prule->Pexprdefs()->UlDefinitions(); ulDepth++)
+	{
+		const CDSLSymbol *psymPredecessor = nullptr;
+		for (ULONG ul = 0; ul < m_prule->Pexprdefs()->UlDefinitions(); ul++)
+		{
+			const CDSLExpressionDefinitions::CDefinition *pdef =
+				m_prule->Pexprdefs()->PdefAt(ul);
+			if (0 < pdef->Arity() && pdef->PsymOperand(0) == psymCarrier)
+			{
+				psymPredecessor = pdef->PsymOutput();
+				break;
+			}
+		}
+		if (nullptr == psymPredecessor ||
+			EdslsymWindow != psymPredecessor->Esymkind())
+		{
+			break;
+		}
+		psymCarrier = psymPredecessor;
+		pexprCarrier = pmodel->PexprWindowCarrier(psymCarrier);
+	}
 	if (nullptr == pexprCarrier ||
+		nullptr == pexprProjectList ||
 		COperator::EopLogicalSequenceProject !=
 			pexprCarrier->Pop()->Eopid() ||
 		2 != pexprCarrier->Arity())
@@ -4798,7 +4824,7 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	// provide an explicit remapping contract instead of silently producing a
 	// dangling SequenceProject.
 	CColRefSet *pcrsOutput = pexprChild->DeriveOutputColumns();
-	CColRefSet *pcrsProject = (*pexprCarrier)[1]->DeriveUsedColumns();
+	CColRefSet *pcrsProject = pexprProjectList->DeriveUsedColumns();
 	if (!pcrsOutput->ContainsAll(popSource->PcrsLocalUsed()) ||
 		!pcrsOutput->ContainsAll(pcrsProject))
 	{
@@ -4809,10 +4835,10 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	popSource->Pds()->AddRef();
 	popSource->Pdrgpos()->AddRef();
 	popSource->Pdrgpwf()->AddRef();
-	(*pexprCarrier)[1]->AddRef();
+	pexprProjectList->AddRef();
 	return CUtils::PexprLogicalSequenceProject(
 		m_mp, popSource->Pspt(), popSource->Pds(), popSource->Pdrgpos(),
-		popSource->Pdrgpwf(), pexprChild, (*pexprCarrier)[1]);
+		popSource->Pdrgpwf(), pexprChild, pexprProjectList);
 }
 
 CExpression *
