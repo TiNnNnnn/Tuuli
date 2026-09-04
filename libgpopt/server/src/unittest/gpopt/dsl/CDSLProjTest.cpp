@@ -282,6 +282,26 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	pmodelGenerated->Release();
 	pexprGeneratedSource->Release();
 	pexprGeneratedOuter->Release();
+
+	CColRefArray *pdrgpcrReturnedOuter = nullptr;
+	CExpression *pexprReturnedOuter = fix.PexprLogicalGet(
+		"project_returned_outer", 1, &pdrgpcrReturnedOuter);
+	CExpression *pexprReturnedInner =
+		fix.PexprLogicalGet("project_returned_inner", 1);
+	CExpression *pexprReturnedSource = PexprProjectWithScalar(
+		mp, pexprReturnedOuter, fix.PcrCreateInt4("returned_value"),
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSubquery(
+					mp, (*pdrgpcrReturnedOuter)[0], false, false),
+			pexprReturnedInner));
+	CDSLModel *pmodelReturned = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherReturned(mp, prule);
+	GPOS_ASSERT(matcherReturned.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprReturnedSource, pmodelReturned));
+	GPOS_ASSERT(!checker.FCheck(prule, pmodelReturned));
+	pmodelReturned->Release();
+	pexprReturnedSource->Release();
+	pexprReturnedOuter->Release();
 	prule->Release();
 	return eres;
 }

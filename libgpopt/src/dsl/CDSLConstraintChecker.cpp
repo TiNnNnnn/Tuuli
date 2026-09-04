@@ -1854,6 +1854,11 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 	{
 		return false;
 	}
+	if (!(*pexprSubquery)[0]->DeriveOutputColumns()->FMember(
+			popSubquery->Pcr()))
+	{
+		return false;
+	}
 	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
 	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
 	CExpression *pexprLowered = PexprReplaceNode(
@@ -1917,6 +1922,11 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CScalarSubquery *popSubquery =
 		CScalarSubquery::PopConvert(pexprSubquery->Pop());
 	if (popSubquery->FGeneratedByQuantified())
+	{
+		return false;
+	}
+	if (!(*pexprSubquery)[0]->DeriveOutputColumns()->FMember(
+			popSubquery->Pcr()))
 	{
 		return false;
 	}
