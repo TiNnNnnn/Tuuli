@@ -22,6 +22,7 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_union2unionall.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
       ],
@@ -35,7 +36,8 @@
       "dsl": false,
       "trace": true,
       "disable_xforms": [
-        "CXformUnion2UnionAll"
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
       ],
       "not_contains": [
         "Xform: CXformUnion2UnionAll"
@@ -45,20 +47,34 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformUnion2UnionAll"
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
       ],
+      "policy": "isolate_union2unionall.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
       ],
       "alternative": [
         "CXformDSLRule_Union"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformUnion2UnionAll",
+          "CXformPushGbBelowUnionAll"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformUnion2UnionAll"
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnionAll"
     ],
+    "policy": "isolate_union2unionall.policy",
     "output": [
       "1",
       "2",
