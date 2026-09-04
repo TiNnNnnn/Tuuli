@@ -18,7 +18,8 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "Xform: CXformSelect2Apply"
+        "Xform: CXformSelect2Apply",
+        "Xform: CXformSimplifySelectWithSubquery"
       ]
     },
     {

@@ -18,7 +18,8 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "Xform: CXformProject2Apply"
+        "Xform: CXformProject2Apply",
+        "Xform: CXformSimplifyProjectWithSubquery"
       ]
     },
     {
