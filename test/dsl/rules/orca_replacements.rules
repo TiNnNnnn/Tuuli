@@ -162,6 +162,11 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJ
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
 Agg<a0 a1 f0 s0 p0>(InnerJoin<a2 a3>(Input<t0>,Input<t1>))|InnerJoin<a4 a5>(Agg<a6 a7 f1 s1 p1>(Input<t2>),Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a2);AttrsEq(a5,a3);AttrsEq(a6,a0);AttrsEq(a7,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,a0);AttrsSub(a2,t0);AttrsSub(a3,t1);Reference(t0,a2,t1,a3);Unique(t1,a3);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a7);ErrorFree(f1);ErrorFree(p1)
 
+# Residual-predicate sibling. The complete predicate and its exact dependency
+# split are preserved; every outer dependency must survive in the grouping.
+# FormalSQL/Rocq: EQ, verified 2026-09-05.
+Agg<a0 a1 f0 s0 p0>(InnerJoin<a2 a3 p1 a4 a5>(Input<t0>,Input<t1>))|InnerJoin<a6 a7 p2 a8 a9>(Agg<a10 a11 f1 s1 p3>(Input<t2>),Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a6,a2);AttrsEq(a7,a3);PredicateEq(p2,p1);AttrsEq(a8,a4);AttrsEq(a9,a5);AttrsEq(a10,a0);AttrsEq(a11,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p3,p0);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,a0);AttrsSub(a2,t0);AttrsSub(a3,t1);AttrsSub(a4,a0);AttrsSub(a4,t0);AttrsSub(a5,t1);Reference(t0,a2,t1,a3);Unique(t1,a3);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a11);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
+
 LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)
 
 LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);AttrsEq(a3,a0);AttrsEq(a4,a1)
