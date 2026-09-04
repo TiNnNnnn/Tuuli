@@ -278,7 +278,8 @@ CDSLRuleEngine::BucketByRoot()
 				prule->PfragTgt()->PopRoot()->Edslop();
 			if (EdslopInput == popBase->Edslop() &&
 				(EdslopInnerApply == edslopTarget ||
-				 EdslopLeftOuterApply == edslopTarget))
+				 EdslopLeftOuterApply == edslopTarget ||
+				 CDSLOpKindTable::FHasPreUnnestRepresentation(edslopTarget)))
 			{
 				// A scalar subquery may remain inside an InnerJoin ON predicate when
 				// it depends on both inputs. The Filter matcher exposes the exact

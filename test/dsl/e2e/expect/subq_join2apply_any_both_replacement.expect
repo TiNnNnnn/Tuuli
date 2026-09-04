@@ -1,0 +1,81 @@
+{
+  "description": "An ANY predicate depending on both join inputs is lowered without native SubqJoin2Apply",
+  "replacement": {
+    "xforms": [
+      "CXformSubqJoin2Apply"
+    ],
+    "scope": "One correlated ANY in an inner-join predicate with references to both inputs",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "b1d9ece967912f1c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_hash\":\"b1d9ece967912f1c\""
+      ],
+      "alternative": []
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply"
+      ],
+      "not_contains": []
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply"
+      ],
+      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\""
+      ],
+      "alternative": [],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSubqJoin2Apply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSubqJoin2Apply"
+    ],
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

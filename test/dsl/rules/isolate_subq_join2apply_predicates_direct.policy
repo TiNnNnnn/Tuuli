@@ -1,0 +1,10 @@
+- rule: '*'
+  enabled: false
+- rule: dec0eb1e99571556
+  enabled: true
+- rule: a586c9b617a6d998
+  enabled: true
+- rule: b1d9ece967912f1c
+  enabled: true
+- rule: a08e24d9155e2f5c
+  enabled: true
