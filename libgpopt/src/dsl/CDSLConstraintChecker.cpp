@@ -125,6 +125,20 @@ FAggFuncProvablyErrorFree(CScalarAggFunc *popAgg)
 }
 
 BOOL
+FAggFuncProvablyNullOnEmpty(CScalarAggFunc *popAgg)
+{
+	if (popAgg->FCountStar() || popAgg->FCountAny() ||
+		IMDId::EmdidGeneral != popAgg->MDId()->MdidType())
+	{
+		return false;
+	}
+	const OID oid = CMDIdGPDB::CastMdid(popAgg->MDId())->Oid();
+	return GPDB_INT2_AGG_MIN == oid || GPDB_INT2_AGG_MAX == oid ||
+		GPDB_INT4_AGG_MIN == oid || GPDB_INT4_AGG_MAX == oid ||
+		GPDB_INT8_AGG_MIN == oid || GPDB_INT8_AGG_MAX == oid;
+}
+
+BOOL
 FWindowFuncProvablyErrorFree(CScalarWindowFunc *popWindow)
 {
 	if (!popWindow->FAgg() ||
@@ -3123,6 +3137,35 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			pexpr->DeriveScalarFunctionProperties()->Efs();
 }
 
+BOOL
+CDSLConstraintChecker::FCheckNullOnEmpty(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size() ||
+		EdslsymFunc != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	CExpressionArray *pdrgpexpr =
+		pmodel->PdrgpexprFunc((*pdrgpsym)[0]);
+	if (nullptr == pdrgpexpr || 0 == pdrgpexpr->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+	{
+		CExpression *pexpr = (*pdrgpexpr)[ul];
+		if (COperator::EopScalarAggFunc != pexpr->Pop()->Eopid() ||
+			!FAggFuncProvablyNullOnEmpty(
+				CScalarAggFunc::PopConvert(pexpr->Pop())))
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckEquality
@@ -3300,6 +3343,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckScalarConstant(pcon, pmodel, 0);
 		case EdslconReference:
 			return FCheckReference(pcon, pmodel);
+		case EdslconNullOnEmpty:
+			return FCheckNullOnEmpty(pcon, pmodel);
 		case EdslconErrorFree:
 		case EdslconDeterministic:
 			return FCheckScalarProperty(prule, pcon, pmodel);

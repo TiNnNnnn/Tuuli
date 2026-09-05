@@ -377,6 +377,12 @@ InnerApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|InnerJoin<p2 a5 a
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-31.
 LeftApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|LeftJoin<p2 a5 a6>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p2,p0,p1);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
+# Decorrelates LeftApply across a grouped aggregate only when every aggregate
+# is NULL-on-empty. This excludes COUNT's zero identity, whose native rewrite
+# requires an outer compensation expression. FormalSQL/Rocq accepted this
+# parameterized RuleIR on 2026-09-05.
+LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|LeftJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p3,p0,p2);AttrsEq(a2,a6);AttrsNonEmpty(a2);AttrsUnion(a7,a0,a6);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);AttrsEq(a10,a4);FuncEq(f1,f0);SchemaUnion(s1,s0,a5);PredicateEq(p4,p1);CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);NullOnEmpty(f0);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
+
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

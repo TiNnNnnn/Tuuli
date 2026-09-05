@@ -166,6 +166,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconExprListAny, "ExprListAny", 11},
 	{EdslconExprListAll, "ExprListAll", 11},
 	{EdslconFuncAttrs, "FuncAttrs", 2},
+	{EdslconNullOnEmpty, "NullOnEmpty", 1},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -685,6 +686,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprListAny:
 		case EdslconExprListAll:
 		case EdslconFuncAttrs:
+		case EdslconNullOnEmpty:
 			return true;
 		case EdslconSentinel:
 			return false;

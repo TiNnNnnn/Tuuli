@@ -231,6 +231,10 @@ enum EDslConstraintKind
 	EdslconExprListAll,
 	// FuncAttrs(output,funcs): output is the exact dependency set of funcs.
 	EdslconFuncAttrs,
+	// NullOnEmpty(funcs): every aggregate in the function list returns SQL
+	// NULL, rather than an identity value such as COUNT's zero, on an empty
+	// input. This is the generic guard for NULL-extending decorrelation.
+	EdslconNullOnEmpty,
 	EdslconSentinel
 };
 

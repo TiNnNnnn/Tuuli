@@ -1,0 +1,72 @@
+{
+  "description": "A proved NULL-on-empty aggregate rule decorrelates LeftApply without the native xform",
+  "replacement": {
+    "xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "scope": "Correlated scalar MIN/MAX aggregate whose equality key can be retained in grouping",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "b8a54fa637de5d89"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "CLogicalLeftOuterJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "40"
+    ],
+    "postgres_output": [
+      "40"
+    ]
+  }
+}

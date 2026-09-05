@@ -1,0 +1,35 @@
+{
+  "description": "NULL-on-empty aggregate decorrelation rejects COUNT because empty input must produce zero",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "\"failed_constraint\":\"NullOnEmpty\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,1",
+      "2,1",
+      "3,0"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,1",
+      "3,0"
+    ]
+  }
+}
