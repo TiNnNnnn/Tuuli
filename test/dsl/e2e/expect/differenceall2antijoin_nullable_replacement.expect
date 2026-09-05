@@ -1,0 +1,83 @@
+{
+  "description": "The Except All DSL replacement preserves nullable duplicate subtraction with occurrence tags",
+  "replacement": {
+    "xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "scope": "Except All over equally typed ordered input rows, including nullable duplicates",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "2ee9916a64de7345"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_differenceall2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ee9916a64de7345\""
+      ],
+      "alternative": [
+        "CXformDifferenceAll2LeftAntiSemiJoin",
+        "CXformDSLRule_DifferenceAll"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformDifferenceAll2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_differenceall2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ee9916a64de7345\""
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_differenceall2antijoin.policy",
+    "output": [
+      "1,1",
+      "1,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,2"
+    ]
+  }
+}

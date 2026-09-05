@@ -1,0 +1,91 @@
+{
+  "description": "The Intersect All DSL replacement preserves nullable duplicate multiplicities with occurrence tags",
+  "replacement": {
+    "xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "scope": "Intersect All over equally typed ordered input rows, including nullable duplicates",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "3a8b2c1fac82f1f9"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_intersectall2semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"3a8b2c1fac82f1f9\""
+      ],
+      "alternative": [
+        "CXformIntersectAll2LeftSemiJoin",
+        "CXformDSLRule_IntersectAll"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformIntersectAll2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "policy": "isolate_intersectall2semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"3a8b2c1fac82f1f9\""
+      ],
+      "alternative": [
+        "CXformDSLRule_IntersectAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersectAll2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "policy": "isolate_intersectall2semijoin.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2",
+      "2,",
+      ",3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2",
+      "2,",
+      ",3"
+    ]
+  }
+}

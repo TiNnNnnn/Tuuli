@@ -55,6 +55,13 @@ INSERT INTO dsl_eq_pair_left VALUES
 INSERT INTO dsl_eq_pair_right VALUES
     (1,1),(1,1),(2,2),(2,NULL),(NULL,3);
 
+CREATE TABLE dsl_bag_pair_left(a int, b int);
+CREATE TABLE dsl_bag_pair_right(a int, b int);
+INSERT INTO dsl_bag_pair_left VALUES
+    (1,1),(1,1),(1,1),(1,2),(2,2),(2,2),(2,NULL),(NULL,3);
+INSERT INTO dsl_bag_pair_right VALUES
+    (1,1),(1,1),(2,2),(2,2),(2,2),(2,NULL),(NULL,3);
+
 CREATE TABLE dsl_notin_outer(case_id int PRIMARY KEY, set_id int, x int);
 CREATE TABLE dsl_notin_inner(set_id int, y int);
 INSERT INTO dsl_notin_outer VALUES

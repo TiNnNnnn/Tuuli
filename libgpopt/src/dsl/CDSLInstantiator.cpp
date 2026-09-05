@@ -961,64 +961,56 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 {
 	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
 	const ULONG ulCon = pdrgpcon->Size();
-	for (ULONG ul = 0; ul < ulCon; ul++)
+	BOOL fChanged = true;
+	while (fChanged)
 	{
-		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
-		switch (pcon->Edslcon())
+		fChanged = false;
+		for (ULONG ul = 0; ul < ulCon; ul++)
 		{
-			case EdslconTableEq:
-			case EdslconAttrsEq:
-			case EdslconPredicateEq:
-			case EdslconSchemaEq:
-			case EdslconFuncEq:
-			case EdslconScalarEq:
-			case EdslconExprListEq:
-			case EdslconOrderEq:
-			case EdslconWindowEq:
-			case EdslconFrameEq:
-			case EdslconRankEq:
-				break;	// an aliasing equality
-			default:
-				continue;  // structural constraint: not an alias
-		}
+			const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+			switch (pcon->Edslcon())
+			{
+				case EdslconTableEq:
+				case EdslconAttrsEq:
+				case EdslconPredicateEq:
+				case EdslconSchemaEq:
+				case EdslconFuncEq:
+				case EdslconScalarEq:
+				case EdslconExprListEq:
+				case EdslconOrderEq:
+				case EdslconWindowEq:
+				case EdslconFrameEq:
+				case EdslconRankEq:
+					break;
+				default:
+					continue;
+			}
 
-		CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-		if (2 != pdrgpsym->Size())
-		{
-			continue;
-		}
-		CDSLSymbol *psym0 = (*pdrgpsym)[0];
-		CDSLSymbol *psym1 = (*pdrgpsym)[1];
-
-		// orient: target-side symbol aliases the source-side symbol.
-		CDSLSymbol *psymTgt = nullptr;
-		CDSLSymbol *psymSrc = nullptr;
-		if (EdslsideTarget == psym0->Eside() &&
-			EdslsideSource == psym1->Eside())
-		{
-			psymTgt = psym0;
-			psymSrc = psym1;
-		}
-		else if (EdslsideSource == psym0->Eside() &&
-				 EdslsideTarget == psym1->Eside())
-		{
-			psymTgt = psym1;
-			psymSrc = psym0;
-		}
-		else
-		{
-			// both same side (e.g. two source symbols in one class): no target
-			// alias to record here.
-			continue;
-		}
-
-		// first alias wins (a target symbol may appear in several *Eq; any source
-		// representative of its class is fine since they are all co-bound).
-		if (nullptr == m_phmAlias->Find(psymTgt))
-		{
-			BOOL fOk = m_phmAlias->Insert(psymTgt, psymSrc);
-			GPOS_ASSERT(fOk);
-			(void) fOk;
+			CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+			if (2 != pdrgpsym->Size())
+			{
+				continue;
+			}
+			for (ULONG side = 0; side < 2; side++)
+			{
+				CDSLSymbol *psymTgt = (*pdrgpsym)[side];
+				CDSLSymbol *psymPeer = (*pdrgpsym)[1 - side];
+				if (EdslsideTarget != psymTgt->Eside() ||
+					nullptr != m_phmAlias->Find(psymTgt))
+				{
+					continue;
+				}
+				CDSLSymbol *psymSrc = EdslsideSource == psymPeer->Eside()
+					? psymPeer
+					: m_phmAlias->Find(psymPeer);
+				if (nullptr != psymSrc && EdslsideSource == psymSrc->Eside())
+				{
+					BOOL fOk = m_phmAlias->Insert(psymTgt, psymSrc);
+					GPOS_ASSERT(fOk);
+					(void) fOk;
+					fChanged = true;
+				}
+			}
 		}
 	}
 }
@@ -3587,18 +3579,16 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	CExpression *pexprProjList = pmodel->PexprProjList(psymSchema);
 	if (nullptr == pexprProjList)
 	{
-		// A Proj* source is represented by GbAgg and therefore has no matched
-		// CScalarProjectList to reuse.  In the common corpus rule
-		// Proj*(Input) -> Proj(Input), the target Proj is a pass-through view of
-		// the same bound attrs/schema. ORCA has no column-pruning logical Project,
-		// so return the child here; PexprInstantiate will apply the memo-safe
-		// Select(child, TRUE) dedup-drop shell.
+		// ORCA has no column-pruning logical Project. A target Proj without a
+		// matched scalar list is therefore a pass-through view whenever its exact
+		// attrs/schema are already produced by the child. This covers both a
+		// Proj* -> Proj dedup drop and projections that hide generated columns.
 		CColRefArray *pdrgpcrAttrs =
 			PdrgpcrResolveCols(psymAttrs, pmodel);
 		CColRefArray *pdrgpcrSchema =
 			PdrgpcrResolveCols(psymSchema, pmodel);
-		if (!pmodel->FDedupDrop() || nullptr == pdrgpcrAttrs ||
-			nullptr == pdrgpcrSchema || 0 == pdrgpcrSchema->Size() ||
+		if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema ||
+			0 == pdrgpcrSchema->Size() ||
 			!FColArraysSameSet(m_mp, pdrgpcrAttrs, pdrgpcrSchema))
 		{
 			pexprChild->Release();

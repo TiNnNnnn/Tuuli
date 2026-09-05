@@ -267,6 +267,15 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0);"
 		"OrderEmpty(o0);RankAttrs(a2,r0);ErrorFree(r0);Deterministic(r1)",
+		// Operators remain freely composable: bag set rewrites can construct an
+		// occurrence-tagged semi join from two arbitrary inputs.
+		"Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 "
+		"a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|"
+		"AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);"
+		"AttrsEq(a5,a1);AttrsEq(a6,a2);OrderEmpty(o0);OrderEmpty(o1);"
+		"RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);"
+		"AttrsUnion(a4,a6,a8);PredicateNullSafeEq(p0,a3,a4);AttrsEq(a9,a5);"
+		"SchemaEq(s1,s0);ErrorFree(r0);ErrorFree(r1)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)

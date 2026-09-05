@@ -14,6 +14,16 @@ Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(InnerJoin<p0 a3 a4>(In
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-05.
 Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);AttrsEq(a5,a1);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)
 
+# Replace CXformIntersectAll2LeftSemiJoin. ROW_NUMBER gives each duplicate an
+# occurrence tag, so the null-safe semi join retains min(left_count,right_count).
+# FormalSQL/Rocq: EQ, verified 2026-09-05.
+Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a2);OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);PredicateNullSafeEq(p0,a3,a4);AttrsEq(a9,a5);SchemaEq(s1,s0);ErrorFree(r0);ErrorFree(r1)
+
+# The anti-join sibling retains max(left_count-right_count,0), replacing
+# CXformDifferenceAll2LeftAntiSemiJoin with the same occurrence-tag encoding.
+# FormalSQL/Rocq: EQ, verified 2026-09-05.
+Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a2);OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);PredicateNullSafeEq(p0,a3,a4);AttrsEq(a9,a5);SchemaEq(s1,s0);ErrorFree(r0);ErrorFree(r1)
+
 InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)

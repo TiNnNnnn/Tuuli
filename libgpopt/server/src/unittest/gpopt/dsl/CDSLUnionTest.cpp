@@ -391,7 +391,7 @@ CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin()
 		"Proj*<a5 s1>(InnerJoin<p0 a3 a4>(Input<t2>,Input<t3>))|"
 		"AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);"
 		"TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);"
-		"AttrsEq(a5,a1);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)";
+		"AttrsEq(a5,a3);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)";
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
