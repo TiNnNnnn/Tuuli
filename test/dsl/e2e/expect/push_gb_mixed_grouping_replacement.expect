@@ -44,6 +44,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin"
@@ -52,9 +53,15 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"6f1d9b45630f2aa2\""
       ],
-      "alternative": [
-        "CXformDSLRule_Agg"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushGbBelowJoin"
+        ]
+      }
     }
   ],
   "rows": {
