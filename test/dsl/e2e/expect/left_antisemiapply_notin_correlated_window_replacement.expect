@@ -40,6 +40,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
@@ -49,12 +50,15 @@
         "\"status\":\"applied\",\"rule_hash\":\"db7bcea9ff9c611d\"",
         "CLogicalLeftAntiSemiJoinNotIn"
       ],
-      "not_contains": [
-        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
-      ],
-      "alternative": [
-        "CXformDSLRule_All"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+        ]
+      }
     }
   ],
   "rows": {
