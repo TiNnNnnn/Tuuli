@@ -253,6 +253,9 @@ enum EDslConstraintKind
 	// ExprNulls(expressions,template_attrs,output_attrs): construct an ordered
 	// project list of typed SQL NULLs and its fresh output columns.
 	EdslconExprNulls,
+	// TableShared(left,right): the two target Input occurrences are evaluated
+	// once and exposed through separate column identities.
+	EdslconTableShared,
 	EdslconSentinel
 };
 

@@ -197,6 +197,8 @@ private:
 						const CDSLModel *pmodel) const;
 	BOOL FCheckExprNulls(const CDSLConstraint *pcon,
 					  const CDSLModel *pmodel) const;
+	BOOL FCheckTableShared(const CDSLRule *prule,
+					   const CDSLConstraint *pcon) const;
 	BOOL FCheckDepsDisjoint(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;
 	BOOL FCheckExprSplit(const CDSLConstraint *pcon,

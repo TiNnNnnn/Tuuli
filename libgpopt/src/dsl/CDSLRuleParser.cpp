@@ -657,6 +657,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconTableShared == edslcon &&
+			(EdslsymTable != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("TableShared expects two table symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconOutputAttrs == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))

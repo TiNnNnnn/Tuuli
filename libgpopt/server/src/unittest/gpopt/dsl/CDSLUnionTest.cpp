@@ -7,11 +7,14 @@
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CLogicalCTEAnchor.h"
+#include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSetOp.h"
@@ -30,6 +33,11 @@ using namespace gpopt;
 #define GPOPT_DSL_UNION_IDENTITY_RULE                                  \
 	"Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|"            \
 	"TableEq(t2,t0);TableEq(t3,t1)"
+
+#define GPOPT_DSL_SHARED_UNION_RULE                                    \
+	"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"                     \
+	"TableEq(t1,t0);TableEq(t2,t0);OutputAttrs(a0,t0);"                \
+	"SchemaFromAttrs(s0,a0);TableShared(t1,t2)"
 
 #define GPOPT_DSL_UNION_SWAP_RULE                                      \
 	"Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|"            \
@@ -314,6 +322,7 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_LeftJoinDistributionBuildsFreshBranches),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SharedBranchesUseCTE),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
 }
@@ -1104,4 +1113,52 @@ GPOS_RESULT
 CDSLUnionTest::EresUnittest_CorpusNestedDistinctProjects()
 {
 	return EresCorpusProjectRule(true);
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_SHARED_UNION_RULE);
+	CExpression *pexprSource = CUtils::PexprLogicalCTGDummy(mp);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_FAILED;
+	if (nullptr != prule &&
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel) &&
+		checker.FCheck(prule, pmodel))
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprUnion = nullptr == pexprTarget
+			? nullptr
+			: (*pexprTarget)[0];
+		if (nullptr != pexprUnion &&
+			COperator::EopLogicalCTEAnchor == pexprTarget->Pop()->Eopid() &&
+			COperator::EopLogicalUnionAll == pexprUnion->Pop()->Eopid() &&
+			COperator::EopLogicalCTEConsumer == (*pexprUnion)[0]->Pop()->Eopid() &&
+			COperator::EopLogicalCTEConsumer == (*pexprUnion)[1]->Pop()->Eopid())
+		{
+			const ULONG id =
+				CLogicalCTEAnchor::PopConvert(pexprTarget->Pop())->Id();
+			eres = id == CLogicalCTEConsumer::PopConvert(
+					(*pexprUnion)[0]->Pop())->UlCTEId() &&
+				id == CLogicalCTEConsumer::PopConvert(
+					(*pexprUnion)[1]->Pop())->UlCTEId() &&
+				!(*pexprUnion)[0]->DeriveOutputColumns()->Equals(
+					(*pexprUnion)[1]->DeriveOutputColumns())
+				? GPOS_OK
+				: GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	CRefCount::SafeRelease(prule);
+	return eres;
 }

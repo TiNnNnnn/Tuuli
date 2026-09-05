@@ -232,6 +232,9 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Proj<a0 s0>(Input<t0>)|Compute<e0 a1 s1>(Input<t1>)|"
 		"TableEq(t1,t0);ExprNulls(e0,a0,a2);AttrsEmpty(a1);"
 		"SchemaFromAttrs(s1,a2)",
+		"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"
+		"TableEq(t1,t0);TableEq(t2,t0);OutputAttrs(a0,t0);"
+		"SchemaFromAttrs(s0,a0);TableShared(t1,t2)",
 		// Partial layer normalization keeps dependent expressions as a residual.
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 "
 		"s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);"

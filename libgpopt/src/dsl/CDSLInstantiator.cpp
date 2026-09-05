@@ -16,6 +16,7 @@
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
+#include "gpopt/base/CCTEInfo.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
@@ -25,6 +26,8 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalCTEAnchor.h"
+#include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -71,6 +74,24 @@ using namespace gpopt;
 
 namespace
 {
+BOOL
+FContainsInputSymbol(const CDSLOp *pop, const CDSLSymbol *psym)
+{
+	if (EdslopInput == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
+		1 == pop->Pdrgpsym()->Size() && (*pop->Pdrgpsym())[0] == psym)
+	{
+		return true;
+	}
+	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
+	{
+		if (FContainsInputSymbol((*pop)[ul], psym))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 BOOL
 FAggNameEquals(CMemoryPool *mp, const CWStringConst *pstrActual,
 			   const CHAR *szExpected)
@@ -1015,6 +1036,81 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 			}
 		}
 	}
+}
+
+BOOL
+CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
+									   const CDSLModel *pmodel)
+{
+	std::unordered_map<const CDSLSymbol *, ULONG> cteBySource;
+	for (ULONG ul = 0; ul < prule->Pdrgpcon()->Size(); ul++)
+	{
+		const CDSLConstraint *pcon = (*prule->Pdrgpcon())[ul];
+		if (EdslconTableShared != pcon->Edslcon())
+		{
+			continue;
+		}
+		const CDSLSymbol *targets[] = {
+			(*pcon->Pdrgpsym())[0], (*pcon->Pdrgpsym())[1]};
+		const CDSLSymbol *source = PsymResolve(targets[0]);
+		if (source != PsymResolve(targets[1]) ||
+			EdslsideSource != source->Eside() ||
+			nullptr == pmodel->PexprTable(source))
+		{
+			return false;
+		}
+		for (const CDSLSymbol *target : targets)
+		{
+			if (!FContainsInputSymbol(prule->PfragTgt()->PopRoot(), target))
+			{
+				return false;
+			}
+		}
+
+		auto sourceIt = cteBySource.find(source);
+		if (sourceIt == cteBySource.end())
+		{
+			const ULONG id = COptCtxt::PoctxtFromTLS()->Pcteinfo()->next_id();
+			sourceIt = cteBySource.emplace(source, id).first;
+			m_shared_sources.push_back(source);
+			m_shared_cte_ids.push_back(id);
+		}
+		for (const CDSLSymbol *target : targets)
+		{
+			auto inserted =
+				m_shared_cte_by_target.emplace(target, sourceIt->second);
+			if (!inserted.second && inserted.first->second != sourceIt->second)
+			{
+				return false;
+			}
+		}
+	}
+	for (ULONG ul = 0; ul < m_shared_sources.size(); ul++)
+	{
+		CExpression *pexprSource = pmodel->PexprTable(m_shared_sources[ul]);
+		CColRefArray *pdrgpcrOutput =
+			pexprSource->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		(void) CXformUtils::PexprAddCTEProducer(
+			m_mp, m_shared_cte_ids[ul], pdrgpcrOutput, pexprSource);
+		pdrgpcrOutput->Release();
+	}
+	return true;
+}
+
+CExpression *
+CDSLInstantiator::PexprFinalizeSharedInputs(CExpression *pexpr) const
+{
+	if (nullptr == pexpr)
+	{
+		return nullptr;
+	}
+	for (ULONG ul = m_shared_cte_ids.size(); 0 < ul; ul--)
+	{
+		pexpr = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalCTEAnchor(
+				m_mp, m_shared_cte_ids[ul - 1]), pexpr);
+	}
+	return pexpr;
 }
 
 //---------------------------------------------------------------------------
@@ -2245,7 +2341,8 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	const CDSLSymbol *psymTable = PsymResolve((*pdrgpsym)[0]);
+	const CDSLSymbol *psymTarget = (*pdrgpsym)[0];
+	const CDSLSymbol *psymTable = PsymResolve(psymTarget);
 	CExpression *pexpr = pmodel->PexprTable(psymTable);
 	if (nullptr == pexpr)
 	{
@@ -2265,6 +2362,23 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 		const_cast<CDSLSymbol *>(psymTable)->AddRef();
 		m_pdrgpsymBuiltInputs->Append(
 			const_cast<CDSLSymbol *>(psymTable));
+	}
+	auto shared = m_shared_cte_by_target.find(psymTarget);
+	if (shared != m_shared_cte_by_target.end())
+	{
+		CColRefArray *pdrgpcrFrom =
+			pexpr->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrConsumer = pdrgpcrFrom;
+		if (fAlreadyBuilt)
+		{
+			pdrgpcrConsumer = CUtils::PdrgpcrCopy(m_mp, pdrgpcrFrom);
+			pdrgpcrFrom->Release();
+		}
+		return CXformUtils::PexprCTEConsumer(m_mp, shared->second,
+										 pdrgpcrConsumer);
+	}
+	if (!fAlreadyBuilt)
+	{
 		pexpr->AddRef();
 		return pexpr;
 	}
@@ -5204,6 +5318,10 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 
 	m_prule = prule;
 	BuildAliasMap(prule);
+	if (!FPrepareSharedInputs(prule, pmodel))
+	{
+		return nullptr;
+	}
 	const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
 	const CDSLOp *popTgtRoot = prule->PfragTgt()->PopRoot();
 	const BOOL fVirtualDqaSource =
@@ -5291,7 +5409,7 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
 			CPredicateUtils::PexprConjunction(m_mp, nullptr));
 	}
-	return PexprFreshRoot(pexprTgt);
+	return PexprFreshRoot(PexprFinalizeSharedInputs(pexprTgt));
 }
 
 // EOF

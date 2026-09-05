@@ -30,6 +30,7 @@ public:
 	static GPOS_RESULT EresUnittest_JoinDistributionBuildsFreshBranches();
 	static GPOS_RESULT EresUnittest_LeftJoinDistributionBuildsFreshBranches();
 	static GPOS_RESULT EresUnittest_JoinDistributionRejectsDistinctUnion();
+	static GPOS_RESULT EresUnittest_SharedBranchesUseCTE();
 };
 }  // namespace gpopt
 

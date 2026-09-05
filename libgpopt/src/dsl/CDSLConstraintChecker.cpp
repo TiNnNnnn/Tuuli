@@ -11,6 +11,8 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 
+#include <unordered_set>
+
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -2985,6 +2987,47 @@ CDSLConstraintChecker::FCheckExprNulls(const CDSLConstraint *pcon,
 }
 
 BOOL
+CDSLConstraintChecker::FCheckTableShared(const CDSLRule *prule,
+									 const CDSLConstraint *pcon) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() || (*pdrgpsym)[0] == (*pdrgpsym)[1] ||
+		EdslsymTable != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymTable != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsideTarget != (*pdrgpsym)[0]->Eside() ||
+		EdslsideTarget != (*pdrgpsym)[1]->Eside())
+	{
+		return false;
+	}
+
+	std::unordered_set<const CDSLSymbol *> reachable{(*pdrgpsym)[0]};
+	BOOL fChanged = true;
+	while (fChanged)
+	{
+		fChanged = false;
+		for (ULONG ul = 0; ul < prule->Pdrgpcon()->Size(); ul++)
+		{
+			const CDSLConstraint *peq = (*prule->Pdrgpcon())[ul];
+			if (EdslconTableEq != peq->Edslcon())
+			{
+				continue;
+			}
+			const CDSLSymbol *left = (*peq->Pdrgpsym())[0];
+			const CDSLSymbol *right = (*peq->Pdrgpsym())[1];
+			if (reachable.count(left))
+			{
+				fChanged = reachable.insert(right).second || fChanged;
+			}
+			if (reachable.count(right))
+			{
+				fChanged = reachable.insert(left).second || fChanged;
+			}
+		}
+	}
+	return 0 < reachable.count((*pdrgpsym)[1]);
+}
+
+BOOL
 CDSLConstraintChecker::FCheckDepsDisjoint(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
@@ -3618,6 +3661,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckExprConcat(pcon, pmodel);
 		case EdslconExprNulls:
 			return FCheckExprNulls(pcon, pmodel);
+		case EdslconTableShared:
+			return FCheckTableShared(prule, pcon);
 		case EdslconDepsDisjoint:
 			return FCheckDepsDisjoint(pcon, pmodel);
 		case EdslconExprSplit:

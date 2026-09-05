@@ -47,6 +47,9 @@
 #include "gpos/base.h"
 #include "gpos/common/CHashMap.h"
 
+#include <unordered_map>
+#include <vector>
+
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/operators/CExpression.h"
@@ -98,9 +101,18 @@ private:
 	// needs independent CColRefs, even when TableEq points at the same source.
 	CDSLSymbolArray *m_pdrgpsymBuiltInputs;
 
+	// Explicit TableShared groups are lowered to one CTE producer and separate
+	// consumer column identities. Keys are target Input symbols owned by RuleIR.
+	std::unordered_map<const CDSLSymbol *, ULONG> m_shared_cte_by_target;
+	std::vector<const CDSLSymbol *> m_shared_sources;
+	std::vector<ULONG> m_shared_cte_ids;
+
 	// populate m_phmAlias from the rule's equality constraints. An *Eq(x,y) links
 	// x and y; whichever side was declared on the target aliases the other.
 	void BuildAliasMap(const CDSLRule *prule);
+	BOOL FPrepareSharedInputs(const CDSLRule *prule,
+						  const CDSLModel *pmodel);
+	CExpression *PexprFinalizeSharedInputs(CExpression *pexpr) const;
 
 	// resolve a (possibly target-side) symbol to the source symbol whose binding
 	// it should reuse; returns psym itself if it has no alias (already source).
