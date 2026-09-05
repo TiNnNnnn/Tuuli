@@ -36,6 +36,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyIn2LeftSemiJoin"
@@ -43,9 +44,15 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\""
       ],
-      "not_contains": [
-        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoin"
+        ]
+      }
     }
   ],
   "rows": {

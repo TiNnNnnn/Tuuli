@@ -30,13 +30,23 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
     }
   ],
   "rows": {
