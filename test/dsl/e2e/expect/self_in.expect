@@ -48,24 +48,28 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformSelect2Apply"
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "stage=applied bindings=",
-        "Rule: InSubFilter",
-        "Generated:",
         "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\"",
         "\"rule_id\":8,\"status\":\"applied\"",
         "\"rule_hash\":\"",
         "\"placement\":\"cbo\",\"phase\":\"explore\",\"priority\":0"
       ],
-      "alternative": [
-        "CXformDSLRule_Select"
-      ],
-      "joins": 0
+      "joins": 0,
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply"
+        ]
+      }
     },
     {
       "name": "all-rules-bottom-up-rbo",

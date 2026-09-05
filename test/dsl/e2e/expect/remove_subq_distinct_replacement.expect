@@ -43,6 +43,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformRemoveSubqDistinct"
@@ -50,9 +51,15 @@
       "contains": [
         "\"rule_id\":8,\"status\":\"applied\""
       ],
-      "alternative": [
-        "CXformDSLRule_InSub"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct"
+        ]
+      }
     }
   ],
   "rows": {
