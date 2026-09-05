@@ -5453,6 +5453,16 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
 			CPredicateUtils::PexprConjunction(m_mp, nullptr));
 	}
+	// A memo group cannot be replaced directly by one of its child groups.
+	// Preserve the relational identity with the same trivial Select shell used
+	// by CXformCTEAnchor2TrivialSelect.
+	if (nullptr != pexprTgt && EdslopCTEAnchor == edslopSrc &&
+		EdslopInput == edslopTgt)
+	{
+		pexprTgt = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
+			CPredicateUtils::PexprConjunction(m_mp, nullptr));
+	}
 	return PexprFreshRoot(PexprFinalizeSharedInputs(pexprTgt));
 }
 

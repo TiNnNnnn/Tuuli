@@ -111,6 +111,7 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema,
 	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopCTEConsumer, "CTEConsumer", 0, 1, {EdslsymTable}},
+	{EdslopCTEAnchor, "CTEAnchor", 1, 0, {}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -302,6 +303,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalConstTableGet;
 		case EdslopCTEConsumer:
 			return COperator::EopLogicalCTEConsumer;
+		case EdslopCTEAnchor:
+			return COperator::EopLogicalCTEAnchor;
 		case EdslopInput:
 			// base-relation placeholder; no logical op — matched as a subtree.
 			return COperator::EopSentinel;
@@ -355,6 +358,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopRowNumber:
 		case EdslopMaxOneRow:
 		case EdslopCTEConsumer:
+		case EdslopCTEAnchor:
 			return true;
 		case EdslopAssertMaxOneRow:
 		case EdslopSentinel:
@@ -402,6 +406,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 			return true;
 		case EdslopMaxOneRow:
 		case EdslopCTEConsumer:
+		case EdslopCTEAnchor:
 		case EdslopSentinel:
 			return false;
 	}
@@ -447,6 +452,7 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 	static const SAlias rg_alias[] = {
 		{"Input", EdslopInput, EdslsortNone},
 		{"CTEConsumer", EdslopCTEConsumer, EdslsortNone},
+		{"CTEAnchor", EdslopCTEAnchor, EdslsortNone},
 		{"Empty", EdslopEmpty, EdslsortNone},
 		{"InnerJoin", EdslopInnerJoin, EdslsortNone},
 		{"LeftJoin", EdslopLeftJoin, EdslsortNone},

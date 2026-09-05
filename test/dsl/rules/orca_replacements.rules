@@ -217,6 +217,12 @@ AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1
 # FormalSQL/Rocq: BAG_EQ, verified 2026-09-05.
 CTEConsumer<t0>|Input<t1>|TableEq(t1,t0)
 
+# Replace CXformCTEAnchor2TrivialSelect after every consumer is eligible for
+# inlining. The source-only anchor has the same relational result as its child;
+# the matcher retains ORCA's consumer-count, outer-reference and safety gates.
+# FormalSQL/Rocq: BAG_EQ, verified 2026-09-06.
+CTEAnchor(Input<t0>)|Input<t1>|TableEq(t1,t0)
+
 # Replaces CXformLeftSemiApply2LeftSemiJoinNoCorrelations. SemiApply exposes
 # immediate outer/inner correlation separately from the top predicate's local
 # dependencies; AttrsEmpty therefore states the native xform's applicability

@@ -268,6 +268,7 @@ public:
 		ExfDSLRuleDifferenceAll,
 		ExfDSLRuleFullJoin,
 		ExfDSLRuleCTEConsumer,
+		ExfDSLRuleCTEAnchor,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};
@@ -279,7 +280,7 @@ public:
 			ExfDSLRuleJoinApply == exfid || ExfDSLRuleMaxOneRow == exfid ||
 			ExfDSLRuleWindow == exfid ||
 			(ExfDSLRuleIntersect <= exfid &&
-			 exfid <= ExfDSLRuleCTEConsumer);
+			 exfid <= ExfDSLRuleCTEAnchor);
 	}
 
 	static BOOL

@@ -95,6 +95,7 @@ enum EDslOpKind
 	EdslopRowNumber,		   // ROW_NUMBER with explicit partition/order/output
 	EdslopFullJoin,		   // full outer join
 	EdslopCTEConsumer,	   // source-only reference bound to its inline definition
+	EdslopCTEAnchor,		   // source-only inlinable CTE scope
 	EdslopSentinel
 };
 

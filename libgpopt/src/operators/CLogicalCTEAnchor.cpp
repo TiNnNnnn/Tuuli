@@ -164,6 +164,7 @@ CLogicalCTEAnchor::PxfsCandidates(CMemoryPool *mp) const
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfCTEAnchor2Sequence);
 	(void) xform_set->ExchangeSet(CXform::ExfCTEAnchor2TrivialSelect);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleCTEAnchor);
 	return xform_set;
 }
 

@@ -27,6 +27,7 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalCTEAnchor.h"
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -34,6 +35,7 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/IMDType.h"
+#include "naucrates/traceflags/traceflags.h"
 #include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
@@ -442,6 +444,29 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			CLogicalCTEConsumer::PopConvert(pexpr->Pop());
 		return CXformUtils::FInlinableCTE(popConsumer->UlCTEId()) &&
 			pmodel->FBind((*pdrgpsym)[0], popConsumer->PexprInlined());
+	}
+	if (EdslopCTEAnchor == pop->Edslop())
+	{
+		if (COperator::EopLogicalCTEAnchor != pexpr->Pop()->Eopid() ||
+			1 != pexpr->Arity())
+		{
+			return false;
+		}
+		CLogicalCTEAnchor *popAnchor =
+			CLogicalCTEAnchor::PopConvert(pexpr->Pop());
+		CCTEInfo *pcteinfo = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+		const ULONG ulConsumers = pcteinfo->UlConsumers(popAnchor->Id());
+		CGroupExpression *pgexprOrigin = pexpr->Pgexpr();
+		if (0 == ulConsumers ||
+			(!pcteinfo->FEnableInlining() && 1 != ulConsumers &&
+			 0 == pexpr->DeriveOuterReferences()->Size()) ||
+			!CXformUtils::FInlinableCTE(popAnchor->Id()) ||
+			(!GPOS_FTRACE(EopttraceExpandFullJoin) &&
+			 nullptr != pgexprOrigin &&
+			 CXform::ExfExpandFullOuterJoin == pgexprOrigin->ExfidOrigin()))
+		{
+			return false;
+		}
 	}
 
 	// Filter chain: a DSL single-predicate Filter (chain) matches ONE ORCA

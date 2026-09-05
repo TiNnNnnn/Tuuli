@@ -1,0 +1,85 @@
+{
+  "description": "A proved DSL rule removes an eligible trivial CTE anchor",
+  "replacement": {
+    "xforms": [
+      "CXformCTEAnchor2TrivialSelect"
+    ],
+    "scope": "Any FInlinableCTE anchor after its consumers have an inline alternative",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "e3e3886bcb546d48"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCTEAnchor2TrivialSelect"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_cte_anchor_trivial.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3e3886bcb546d48\""
+      ],
+      "alternative": [
+        "CXformCTEAnchor2TrivialSelect",
+        "CXformDSLRule_CTEAnchor"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCTEAnchor2TrivialSelect"
+      ],
+      "not_contains": [
+        "Xform: CXformCTEAnchor2TrivialSelect\n"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCTEAnchor2TrivialSelect"
+      ],
+      "policy": "isolate_cte_anchor_trivial.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3e3886bcb546d48\""
+      ],
+      "alternative": [
+        "CXformDSLRule_CTEAnchor"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCTEAnchor2TrivialSelect"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCTEAnchor2TrivialSelect"
+    ],
+    "policy": "isolate_cte_anchor_trivial.policy",
+    "output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ]
+  }
+}
