@@ -193,6 +193,7 @@ def policy_setting(args: argparse.Namespace, expected: dict[str, object]) -> str
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
+    xform_trace = "on" if plan.get("xform_trace", plan.get("trace", False)) else "off"
     edge_budget = int(plan.get("dphyper_edge_budget", 100000))
     pair_budget = int(plan.get("dphyper_pair_budget", 100))
     return run_sql(
@@ -209,8 +210,8 @@ SET pg_orca.dphyper_edge_budget={edge_budget};
 SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}
 {disabled_xform_settings(plan)}
-SET optimizer_print_xform={trace};
-SET optimizer_print_xform_results={trace};
+SET optimizer_print_xform={xform_trace};
+SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule={trace};
 SET client_min_messages=log;
 EXPLAIN (COSTS OFF) {query}
@@ -251,7 +252,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
         for key in (
-            "name", "dsl", "dphyper", "dphyper_edge_budget",
+            "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
             "disable_xforms", "policy", "assert_maxonerow"
         )
