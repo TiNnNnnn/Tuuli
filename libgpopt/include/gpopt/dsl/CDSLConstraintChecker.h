@@ -143,6 +143,8 @@ private:
 	// defer a target-only output after checking both operands are available.
 	BOOL FCheckPredicateAnd(const CDSLConstraint *pcon,
 							const CDSLModel *pmodel) const;
+	BOOL FCheckPredicateNotTrue(const CDSLConstraint *pcon,
+								const CDSLModel *pmodel) const;
 	BOOL FCheckPredicateNullSafeEq(const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const;
 

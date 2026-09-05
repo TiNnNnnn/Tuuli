@@ -46,6 +46,9 @@ public:
 	// just as it is for Join/Exists, with exact declared dependencies.
 	static GPOS_RESULT EresUnittest_DerivedFilterConjunction();
 
+	// PredicateNotTrue builds SQL's two-valued IS NOT TRUE predicate.
+	static GPOS_RESULT EresUnittest_DerivedPredicateNotTrue();
+
 	// A Filter pushed through a nested InnerJoin input is exposed as the
 	// equivalent source view; target attrs remap it to the opposite root key.
 	static GPOS_RESULT EresUnittest_PushedFilterPredicateRemapped();

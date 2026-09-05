@@ -39,6 +39,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarCast.h"
@@ -1677,6 +1678,38 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 	}
 	CExpression *pexprExpected =
 		CPredicateUtils::PexprConjunction(m_mp, pexprLeft, pexprRight);
+	const BOOL fMatches = pexprResult->Matches(pexprExpected);
+	pexprExpected->Release();
+	return fMatches;
+}
+
+BOOL
+CDSLConstraintChecker::FCheckPredicateNotTrue(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymPred != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprInput = pmodel->PexprPred((*pdrgpsym)[1]);
+	if (nullptr == pexprInput)
+	{
+		return false;
+	}
+	CExpression *pexprResult = pmodel->PexprPred((*pdrgpsym)[0]);
+	if (nullptr == pexprResult)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	pexprInput->AddRef();
+	CExpression *pexprExpected = GPOS_NEW(m_mp) CExpression(
+		m_mp,
+		GPOS_NEW(m_mp) CScalarBooleanTest(
+			m_mp, CScalarBooleanTest::EbtIsNotTrue),
+		pexprInput);
 	const BOOL fMatches = pexprResult->Matches(pexprExpected);
 	pexprExpected->Release();
 	return fMatches;
@@ -3614,6 +3647,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateFalse(pcon, pmodel);
 		case EdslconPredicateAnd:
 			return FCheckPredicateAnd(pcon, pmodel);
+		case EdslconPredicateNotTrue:
+			return FCheckPredicateNotTrue(pcon, pmodel);
 		case EdslconPredicateNullSafeEq:
 			return FCheckPredicateNullSafeEq(pcon, pmodel);
 		case EdslconPredicateExists:

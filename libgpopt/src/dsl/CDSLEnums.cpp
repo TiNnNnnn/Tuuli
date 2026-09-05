@@ -184,6 +184,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconRankAttrs, "RankAttrs", 2},
 	{EdslconExprNulls, "ExprNulls", 3},
 	{EdslconTableShared, "TableShared", 2},
+	{EdslconPredicateNotTrue, "PredicateNotTrue", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -591,6 +592,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 	switch (edslcon)
 	{
 		case EdslconPredicateAnd:
+		case EdslconPredicateNotTrue:
 		case EdslconPredicateNullSafeEq:
 		case EdslconPredicateExists:
 		case EdslconPredicateNotExists:
@@ -703,6 +705,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprConcat:
 		case EdslconExprNulls:
 		case EdslconTableShared:
+		case EdslconPredicateNotTrue:
 		case EdslconDepsDisjoint:
 		case EdslconExprSplit:
 		case EdslconAttrsIntersect:

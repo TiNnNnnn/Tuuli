@@ -256,6 +256,8 @@ enum EDslConstraintKind
 	// TableShared(left,right): the two target Input occurrences are evaluated
 	// once and exposed through separate column identities.
 	EdslconTableShared,
+	// PredicateNotTrue(out,input): out is SQL's two-valued (input IS NOT TRUE).
+	EdslconPredicateNotTrue,
 	EdslconSentinel
 };
 

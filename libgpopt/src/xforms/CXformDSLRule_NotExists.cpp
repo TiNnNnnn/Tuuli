@@ -4,7 +4,8 @@
 #include "gpopt/xforms/CXformDSLRule_NotExists.h"
 
 #include "gpopt/dsl/CDSLRuleEngine.h"
-#include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
+#include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CPatternNode.h"
 #include "gpopt/operators/CPatternTree.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -12,7 +13,8 @@ using namespace gpopt;
 
 CXformDSLRule_NotExists::CXformDSLRule_NotExists(CMemoryPool *mp)
 	: CXformExploration(GPOS_NEW(mp) CExpression(
-		  mp, GPOS_NEW(mp) CLogicalLeftAntiSemiApply(mp),
+		  mp, GPOS_NEW(mp) CPatternNode(
+				  mp, CPatternNode::EmtMatchNotExistsApplyOrAntiSemiJoin),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp)),
 		  GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternTree(mp))))
@@ -20,7 +22,7 @@ CXformDSLRule_NotExists::CXformDSLRule_NotExists(CMemoryPool *mp)
 }
 
 CXform::EXformPromise
-CXformDSLRule_NotExists::Exfp(CExpressionHandle &) const
+CXformDSLRule_NotExists::Exfp(CExpressionHandle &exprhdl) const
 {
 	if (!GPOS_FTRACE(EopttracePreserveOpsForDSL))
 	{
@@ -29,8 +31,7 @@ CXformDSLRule_NotExists::Exfp(CExpressionHandle &) const
 
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	if (nullptr == peng ||
-		0 == peng->PdrgpruleForRoot(
-					 COperator::EopLogicalLeftAntiSemiApply)->Size())
+		0 == peng->PdrgpruleForRoot(exprhdl.Pop()->Eopid())->Size())
 	{
 		return CXform::ExfpNone;
 	}
@@ -50,8 +51,8 @@ CXformDSLRule_NotExists::Transform(CXformContext *pxfctxt,
 	CDSLRuleEngine *peng = CDSLRuleEngine::Instance();
 	GPOS_ASSERT(nullptr != peng);
 
-	CDSLRuleArray *pdrgprule = peng->PdrgpruleCandidates(
-		mp, COperator::EopLogicalLeftAntiSemiApply, pexpr);
+	CDSLRuleArray *pdrgprule =
+		peng->PdrgpruleCandidates(mp, pexpr->Pop()->Eopid(), pexpr);
 	for (ULONG ul = 0; ul < pdrgprule->Size(); ul++)
 	{
 		CExpression *pexprTgt =

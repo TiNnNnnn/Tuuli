@@ -419,6 +419,19 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
+		if (EdslconPredicateNotTrue == edslcon)
+		{
+			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+			{
+				if (EdslsymPred != (*pdrgpsym)[ul]->Esymkind())
+				{
+					bctx.Fail("PredicateNotTrue expects predicate symbols");
+					pdrgpsym->Release();
+					pdrgpcon->Release();
+					return nullptr;
+				}
+			}
+		}
 		if ((EdslconPredicateExists == edslcon ||
 			 EdslconPredicateNotExists == edslcon) &&
 			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||

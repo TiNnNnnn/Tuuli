@@ -27,6 +27,7 @@ enum EDslExpressionKind
 	EdslexprExprListAny,
 	EdslexprExprListAll,
 	EdslexprNulls,
+	EdslexprNotTrue,
 	EdslexprSentinel
 };
 

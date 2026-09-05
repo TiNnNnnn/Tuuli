@@ -61,6 +61,7 @@
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -1404,6 +1405,20 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		}
 		return CPredicateUtils::PexprINDFConjunction(
 			m_mp, pdrgpcrLeft, pdrgpcrRight);
+	}
+	if (nullptr != pdef && EdslexprNotTrue == pdef->Edslexpr())
+	{
+		CExpression *pexprInput = PexprResolvePredicate(
+			pdef->PsymOperand(0), pmodel, ulDepth + 1);
+		if (nullptr == pexprInput)
+		{
+			return nullptr;
+		}
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp,
+			GPOS_NEW(m_mp) CScalarBooleanTest(
+				m_mp, CScalarBooleanTest::EbtIsNotTrue),
+			pexprInput);
 	}
 	if (nullptr == pdef || EdslexprAnd != pdef->Edslexpr())
 	{

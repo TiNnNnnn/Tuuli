@@ -1,0 +1,92 @@
+{
+  "description": "A Rocq-proved DSL rule safely expands an inner-independent AntiJoin",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "4ace459761869246"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiJoin2CrossProduct"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,1,1",
+      "nonempty,1,1",
+      "nonempty,1,2",
+      "nonempty,,3"
+    ],
+    "postgres_output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,1,1",
+      "nonempty,1,1",
+      "nonempty,1,2",
+      "nonempty,,3"
+    ]
+  }
+}

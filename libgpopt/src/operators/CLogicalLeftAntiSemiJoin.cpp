@@ -84,6 +84,8 @@ CLogicalLeftAntiSemiJoin::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(
 		CXform::ExfLeftAntiSemiJoin2HashJoinBuildOuter);
 	(void) xform_set->ExchangeSet(CXform::ExfSemiJoin2IndexGetApply);
+	// The NotExists DSL shell also owns explicit post-unnest AntiJoin rules.
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleNotExists);
 	if (FDPHyperRegionRoot())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);

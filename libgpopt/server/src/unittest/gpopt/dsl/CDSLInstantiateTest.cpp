@@ -25,6 +25,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -77,6 +78,8 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_DerivedFilterConjunction),
 		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue),
+		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PredicateDomainSplit),
@@ -86,6 +89,53 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+//---------------------------------------------------------------------------
+//	@function:
+//		CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue
+//---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"TableEq(t1,t0);PredicateNotTrue(p1,p0);AttrsEq(a1,a0)");
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprSelect = nullptr;
+	CColRefArray *pdrgpcrOut = nullptr;
+	BuildSelectOverAtoms(fix, 1, 1, &pexprGet, &pexprSelect, &pdrgpcrOut);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!CDSLMatcher(mp, prule)
+			 .FMatch(prule->PfragSrc()->PopRoot(), pexprSelect, pmodel) ||
+		!checker.FCheck(prule, pmodel) ||
+		nullptr == (pexprTarget = instantiator.PexprInstantiate(prule, pmodel)) ||
+		COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
+		COperator::EopScalarBooleanTest != (*pexprTarget)[1]->Pop()->Eopid() ||
+		CScalarBooleanTest::EbtIsNotTrue !=
+			CScalarBooleanTest::PopConvert((*pexprTarget)[1]->Pop())->Ebt())
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSelect->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
 }
 
 //---------------------------------------------------------------------------
