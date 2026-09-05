@@ -1,0 +1,91 @@
+{
+  "description": "A proved DSL rule replaces LeftJoin expansion with shared CTE inputs",
+  "replacement": {
+    "xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+    ],
+    "scope": "Deterministic binary LeftJoin predicates over arbitrary relational inputs",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "92983d6d3650ab0c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
+      ],
+      "alternative": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
+        "CXformDSLRule_LeftJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
+        "CXformLeftOuterJoin2HashJoin",
+        "CXformLeftOuterJoin2NLJoin",
+        "CXformLeftJoin2RightJoin",
+        "CXformRightOuterJoin2HashJoin"
+      ],
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
+      "CXformLeftOuterJoin2HashJoin",
+      "CXformLeftOuterJoin2NLJoin",
+      "CXformLeftJoin2RightJoin",
+      "CXformRightOuterJoin2HashJoin"
+    ],
+    "policy": "isolate_expand_leftjoin.policy",
+    "output": [
+      "1,1",
+      "3000,"
+    ],
+    "postgres_output": [
+      "1,1",
+      "3000,"
+    ]
+  }
+}

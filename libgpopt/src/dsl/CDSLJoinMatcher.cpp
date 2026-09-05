@@ -713,62 +713,29 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		return fMatched;
 	}
 
-	// InnerJoin/LeftJoin<p a a> binds a complete predicate that has no
-	// extractable equality keys. This is deliberately disjoint from the keyed
-	// two/five/seven-symbol forms. The predicate dependencies give the generic
-	// remapper all information needed to rebuild the same scalar expression over
-	// target children.
-	if ((fPredicateJoin && 3 == ulSymbols) ||
-		(fPredicateApply && 4 == ulSymbols) ||
-		(!fPredicateJoin && !fPredicateApply && 3 == ulSymbols))
+	// The three-symbol Join form binds the complete predicate, including any
+	// equality conjuncts. Keyed forms remain available when a rule needs keys
+	// and residuals separately.
+	if (3 == ulSymbols || (fPredicateApply && 4 == ulSymbols))
 	{
 		CExpression *pexprPred = nullptr;
-		if (fPredicateJoin || fPredicateApply)
+		// NOT IN stores the user comparison in the inverse ORCA form.
+		const BOOL fCorrelatedAntiApplyNotIn = fAntiApplyNotIn &&
+			COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopid;
+		if (fAntiJoinNotIn ||
+			(fAntiApplyNotIn && !fCorrelatedAntiApplyNotIn))
 		{
-			// SemiJoin<p a a> always names the complete predicate. Unlike the
-			// legacy three-symbol Join form, equality conjuncts are not split out.
-			const BOOL fCorrelatedAntiApplyNotIn = fAntiApplyNotIn &&
-				COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopid;
-			if (fAntiJoinNotIn ||
-				(fAntiApplyNotIn && !fCorrelatedAntiApplyNotIn))
+			pexprPred = CDSLMatchView::PexprInverseComparison(
+				m_mp, (*pexprJoin)[2]);
+			if (nullptr == pexprPred)
 			{
-				pexprPred = CDSLMatchView::PexprInverseComparison(
-					m_mp, (*pexprJoin)[2]);
-				if (nullptr == pexprPred)
-				{
-					return false;
-				}
-			}
-			else
-			{
-				pexprPred = (*pexprJoin)[2];
-				pexprPred->AddRef();
+				return false;
 			}
 		}
 		else
 		{
-			CColRefArray *pdrgpcrLeftKeys =
-				GPOS_NEW(m_mp) CColRefArray(m_mp);
-			CColRefArray *pdrgpcrRightKeys =
-				GPOS_NEW(m_mp) CColRefArray(m_mp);
-			CExpressionArray *pdrgpexprPred =
-				GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			FSplitPredicate((*pexprJoin)[2], (*pexprJoin)[0],
-							pdrgpcrLeftKeys, pdrgpcrRightKeys,
-							pdrgpexprPred);
-			const BOOL fPredicateOnly = 0 == pdrgpcrLeftKeys->Size() &&
-				0 == pdrgpcrRightKeys->Size() &&
-				0 < pdrgpexprPred->Size();
-			pdrgpcrLeftKeys->Release();
-			pdrgpcrRightKeys->Release();
-			if (!fPredicateOnly)
-			{
-				pdrgpexprPred->Release();
-				return false;
-			}
-
-			pexprPred =
-				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
+			pexprPred = (*pexprJoin)[2];
+			pexprPred->AddRef();
 		}
 		CColRefArray *pdrgpcrLeftDeps = nullptr;
 		CColRefArray *pdrgpcrRightDeps = nullptr;

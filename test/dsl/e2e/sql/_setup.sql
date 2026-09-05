@@ -48,6 +48,11 @@ CREATE TABLE dsl_eq_right(k int NOT NULL);
 INSERT INTO dsl_eq_left VALUES (1),(1),(2),(3);
 INSERT INTO dsl_eq_right VALUES (1),(2),(2),(4);
 
+CREATE TABLE dsl_loj_outer(k int NOT NULL);
+CREATE TABLE dsl_loj_inner(k int NOT NULL);
+INSERT INTO dsl_loj_outer VALUES (1),(3000);
+INSERT INTO dsl_loj_inner SELECT generate_series(1, 2000);
+
 CREATE TABLE dsl_eq_pair_left(a int, b int);
 CREATE TABLE dsl_eq_pair_right(a int, b int);
 INSERT INTO dsl_eq_pair_left VALUES

@@ -2788,9 +2788,8 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		InnerJoin/LeftJoin/SemiJoin/SemiApply rebuild both relational children and
 //		graft the
 //		SOURCE-matched predicate, building the join operator the TARGET op names.
-	//		For Inner/LeftJoin/FullJoin, <p a a> carries a complete predicate without extracted
-//		equality keys; SemiJoin always carries the complete predicate, including
-//		equality. Keyed forms bind the join predicate directly or obtain it from a
+	//		For every Join, <p a a> carries the complete predicate, including
+	//		equality. Keyed forms bind the join predicate directly or obtain it from a
 //		unique InSub source when a proved rule turns a semi-join view into an inner
 //		join.
 //		Reusing the exact predicate subtree preserves comparison semantics, while

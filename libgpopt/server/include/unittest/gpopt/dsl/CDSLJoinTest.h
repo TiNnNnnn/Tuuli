@@ -41,6 +41,7 @@ public:
 	static GPOS_RESULT EresUnittest_InstantiatePreservesJoin();
 	static GPOS_RESULT EresUnittest_FullJoinRoundTrip();
 	static GPOS_RESULT EresUnittest_FullJoinExpansion();
+	static GPOS_RESULT EresUnittest_LeftJoinExpansion();
 	static GPOS_RESULT EresUnittest_ExtendedOutputPreservesCommutedJoin();
 	static GPOS_RESULT EresUnittest_NestedJoinPredicatesStayLocal();
 

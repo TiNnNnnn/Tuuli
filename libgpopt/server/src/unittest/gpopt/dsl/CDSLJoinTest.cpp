@@ -105,6 +105,20 @@ using namespace gpopt;
 	"ExprNulls(e0,a10,a12);AttrsUnion(a4,a12,a11);"                   \
 	"AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)"
 
+#define GPOPT_DSL_LEFT_JOIN_EXPANSION_RULE                             \
+	"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
+	"Union<a2 s0 a3 a4>("                                              \
+	"InnerJoin<p1 a5 a6>(Input<t2>,Input<t3>),"                        \
+	"Compute<e0 a7 s1>(AntiJoin<p2 a8 a9>(Input<t4>,Input<t5>)))|"     \
+	"TableEq(t2,t0);TableEq(t4,t0);TableShared(t2,t4);"                \
+	"TableEq(t3,t1);TableEq(t5,t1);TableShared(t3,t5);"                \
+	"PredicateEq(p1,p0);PredicateEq(p2,p0);"                           \
+	"AttrsEq(a5,a0);AttrsEq(a6,a1);AttrsEq(a8,a0);AttrsEq(a9,a1);"    \
+	"OutputAttrs(a10,t0);OutputAttrs(a11,t1);"                         \
+	"AttrsUnion(a2,a10,a11);SchemaFromAttrs(s0,a2);AttrsEq(a3,a2);"   \
+	"ExprNulls(e0,a11,a12);AttrsUnion(a4,a10,a12);"                   \
+	"AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)"
+
 #define GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE                           \
 	"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
 	"LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|"                         \
@@ -232,6 +246,7 @@ CDSLJoinTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_FullJoinRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_FullJoinExpansion),
+		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_LeftJoinExpansion),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin),
 		GPOS_UNITTEST_FUNC(
@@ -1260,16 +1275,17 @@ CDSLJoinTest::EresUnittest_PredicateOnlyJoin()
 		}
 	}
 
-	// The same three-symbol template must not absorb an equality join; keyed
-	// conditions belong to the existing two/five/seven-symbol forms.
+	// The same three-symbol template binds an equality as part of the complete
+	// predicate; its own AttrsEmpty guard still rejects the right dependency.
 	CExpression *pexprEq =
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprEquiJoin =
 		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprEq);
 	pexprEq->Release();
 	CDSLModel *pmodelEqui = GPOS_NEW(mp) CDSLModel(mp);
-	if (matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprEquiJoin,
-						   pmodelEqui))
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprEquiJoin,
+							pmodelEqui) ||
+		checker.FCheck(prule, pmodelEqui))
 	{
 		 eres = GPOS_FAILED;
 	}
@@ -1540,6 +1556,88 @@ CDSLJoinTest::EresUnittest_FullJoinExpansion()
 				idB == CLogicalCTEConsumer::PopConvert(
 						   (*pexprAntiJoin)[0]->Pop())->UlCTEId() &&
 				idA == CLogicalCTEConsumer::PopConvert(
+						   (*pexprAntiJoin)[1]->Pop())->UlCTEId() &&
+				pdrgpcrOutput->Size() ==
+					pdrgpcrLeft->Size() + pdrgpcrRight->Size() &&
+				(*pdrgpcrOutput)[0] == (*pdrgpcrLeft)[0] &&
+				(*pdrgpcrOutput)[pdrgpcrLeft->Size()] == (*pdrgpcrRight)[0]
+				? GPOS_OK
+				: GPOS_FAILED;
+			pdrgpcrLeft->Release();
+			pdrgpcrRight->Release();
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprJoin->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	CRefCount::SafeRelease(prule);
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_LeftJoinExpansion()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_LEFT_JOIN_EXPANSION_RULE);
+	CExpression *pexprLeft = CUtils::PexprLogicalCTGDummy(mp);
+	CExpression *pexprRight = CUtils::PexprLogicalCTGDummy(mp);
+	CExpression *pexprPred = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *pexprJoin =
+		fix.PexprLogicalLeftOuterJoin(pexprLeft, pexprRight, pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_FAILED;
+	if (nullptr != prule &&
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) &&
+		checker.FCheck(prule, pmodel))
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprAnchorB = nullptr == pexprTarget
+			? nullptr
+			: (*pexprTarget)[0];
+		CExpression *pexprUnion = nullptr == pexprAnchorB
+			? nullptr
+			: (*pexprAnchorB)[0];
+		if (nullptr != pexprUnion &&
+			COperator::EopLogicalCTEAnchor == pexprTarget->Pop()->Eopid() &&
+			COperator::EopLogicalCTEAnchor == pexprAnchorB->Pop()->Eopid() &&
+			COperator::EopLogicalUnionAll == pexprUnion->Pop()->Eopid() &&
+			COperator::EopLogicalInnerJoin == (*pexprUnion)[0]->Pop()->Eopid() &&
+			COperator::EopLogicalProject == (*pexprUnion)[1]->Pop()->Eopid())
+		{
+			CExpression *pexprInnerJoin = (*pexprUnion)[0];
+			CExpression *pexprAntiJoin = (*(*pexprUnion)[1])[0];
+			const ULONG idA =
+				CLogicalCTEAnchor::PopConvert(pexprTarget->Pop())->Id();
+			const ULONG idB =
+				CLogicalCTEAnchor::PopConvert(pexprAnchorB->Pop())->Id();
+			CLogicalSetOp *popUnion =
+				CLogicalSetOp::PopConvert(pexprUnion->Pop());
+			CColRefArray *pdrgpcrOutput = popUnion->PdrgpcrOutput();
+			CColRefArray *pdrgpcrLeft =
+				pexprLeft->DeriveOutputColumns()->Pdrgpcr(mp);
+			CColRefArray *pdrgpcrRight =
+				pexprRight->DeriveOutputColumns()->Pdrgpcr(mp);
+			eres = COperator::EopLogicalLeftAntiSemiJoin ==
+						pexprAntiJoin->Pop()->Eopid() &&
+				idA == CLogicalCTEConsumer::PopConvert(
+						   (*pexprInnerJoin)[0]->Pop())->UlCTEId() &&
+				idB == CLogicalCTEConsumer::PopConvert(
+						   (*pexprInnerJoin)[1]->Pop())->UlCTEId() &&
+				idA == CLogicalCTEConsumer::PopConvert(
+						   (*pexprAntiJoin)[0]->Pop())->UlCTEId() &&
+				idB == CLogicalCTEConsumer::PopConvert(
 						   (*pexprAntiJoin)[1]->Pop())->UlCTEId() &&
 				pdrgpcrOutput->Size() ==
 					pdrgpcrLeft->Size() + pdrgpcrRight->Size() &&

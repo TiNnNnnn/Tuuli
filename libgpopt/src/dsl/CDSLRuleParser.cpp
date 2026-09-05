@@ -114,7 +114,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// Accept both wire formats; the matcher/instantiator infer legacy aggregate
 	// output columns from schema - groupByAttrs.
 	const BOOL fLegacyAgg = EdslopAgg == edslop && 5 == ul_given;
-	// A Join may bind only a complete non-equality predicate (<p a a>), or
+	// A Join may bind a complete predicate (<p a a>), or
 	// equality keys followed by optional output and/or residual bindings. Keep
 	// every historical form wire-compatible.
 	const BOOL fJoin =
