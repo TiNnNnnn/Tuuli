@@ -1,0 +1,93 @@
+{
+  "description": "A proved DSL relation boundary inlines an eligible CTE consumer",
+  "replacement": {
+    "xforms": [
+      "CXformInlineCTEConsumer",
+      "CXformInlineCTEConsumerUnderSelect"
+    ],
+    "scope": "Any FInlinableCTE consumer through its existing column-remapped inline definition",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "f2116d97cabfa066"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_cte_consumer_inline.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\""
+      ],
+      "alternative": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect",
+        "CXformDSLRule_CTEConsumer"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ],
+      "not_contains": [
+        "Xform: CXformInlineCTEConsumer\n",
+        "Xform: CXformInlineCTEConsumerUnderSelect\n"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ],
+      "policy": "isolate_cte_consumer_inline.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\""
+      ],
+      "alternative": [
+        "CXformDSLRule_CTEConsumer"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformInlineCTEConsumer",
+          "CXformInlineCTEConsumerUnderSelect"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInlineCTEConsumer",
+      "CXformInlineCTEConsumerUnderSelect"
+    ],
+    "policy": "isolate_cte_consumer_inline.policy",
+    "output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,20",
+      "3,30"
+    ]
+  }
+}

@@ -39,6 +39,9 @@ using namespace gpopt;
 	"TableEq(t1,t0);TableEq(t2,t0);OutputAttrs(a0,t0);"                \
 	"SchemaFromAttrs(s0,a0);TableShared(t1,t2)"
 
+#define GPOPT_DSL_INLINE_CTE_CONSUMER_RULE \
+	"CTEConsumer<t0>|Input<t1>|TableEq(t1,t0)"
+
 #define GPOPT_DSL_UNION_SWAP_RULE                                      \
 	"Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|"            \
 	"TableEq(t2,t1);TableEq(t3,t0)"
@@ -1122,6 +1125,8 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_SHARED_UNION_RULE);
+	CDSLRule *pruleInline =
+		PdslruleParseLocal(mp, GPOPT_DSL_INLINE_CTE_CONSUMER_RULE);
 	CExpression *pexprSource = CUtils::PexprLogicalCTGDummy(mp);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
@@ -1154,11 +1159,38 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 				? GPOS_OK
 				: GPOS_FAILED;
 		}
+		if (GPOS_OK == eres && nullptr != pruleInline)
+		{
+			CExpression *pexprConsumer = (*pexprUnion)[0];
+			CDSLModel *pmodelInline = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcherInline(mp, pruleInline);
+			CDSLConstraintChecker checkerInline(mp);
+			CExpression *pexprInlined = nullptr;
+			CXformSet *pxfs = CLogicalCTEConsumer::PopConvert(
+				pexprConsumer->Pop())->PxfsCandidates(mp);
+			if (pxfs->Get(CXform::ExfDSLRuleCTEConsumer) &&
+				matcherInline.FMatch(pruleInline->PfragSrc()->PopRoot(),
+								 pexprConsumer, pmodelInline) &&
+				checkerInline.FCheck(pruleInline, pmodelInline))
+			{
+				CDSLInstantiator instantiator(mp);
+				pexprInlined =
+					instantiator.PexprInstantiate(pruleInline, pmodelInline);
+			}
+			eres = nullptr != pexprInlined &&
+			COperator::EopLogicalCTEConsumer != pexprInlined->Pop()->Eopid()
+				? GPOS_OK
+				: GPOS_FAILED;
+			pxfs->Release();
+			CRefCount::SafeRelease(pexprInlined);
+			pmodelInline->Release();
+		}
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprSource->Release();
 	CRefCount::SafeRelease(prule);
+	CRefCount::SafeRelease(pruleInline);
 	return eres;
 }

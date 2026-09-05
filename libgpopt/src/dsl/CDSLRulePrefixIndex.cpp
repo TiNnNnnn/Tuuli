@@ -134,6 +134,7 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 		case EdslopRowNumber:
 		case EdslopMaxOneRow:
 		case EdslopAssertMaxOneRow:
+		case EdslopCTEConsumer:
 			return true;
 
 		// These matchers expose one or more virtual/normalized views whose live

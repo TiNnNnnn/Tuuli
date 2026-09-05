@@ -94,6 +94,7 @@ enum EDslOpKind
 	EdslopExcept,			   // EXCEPT ALL / DISTINCT set operation
 	EdslopRowNumber,		   // ROW_NUMBER with explicit partition/order/output
 	EdslopFullJoin,		   // full outer join
+	EdslopCTEConsumer,	   // source-only reference bound to its inline definition
 	EdslopSentinel
 };
 

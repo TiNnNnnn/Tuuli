@@ -27,12 +27,14 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/IMDType.h"
+#include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
 
@@ -426,6 +428,20 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	if (EdslopEmpty == pop->Edslop())
 	{
 		return FMatchEmpty(pop, pexpr, pmodel);
+	}
+	if (EdslopCTEConsumer == pop->Edslop())
+	{
+		CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+		if (nullptr == pdrgpsym || 1 != pdrgpsym->Size() ||
+			COperator::EopLogicalCTEConsumer != pexpr->Pop()->Eopid() ||
+			0 != pexpr->Arity())
+		{
+			return false;
+		}
+		CLogicalCTEConsumer *popConsumer =
+			CLogicalCTEConsumer::PopConvert(pexpr->Pop());
+		return CXformUtils::FInlinableCTE(popConsumer->UlCTEId()) &&
+			pmodel->FBind((*pdrgpsym)[0], popConsumer->PexprInlined());
 	}
 
 	// Filter chain: a DSL single-predicate Filter (chain) matches ONE ORCA

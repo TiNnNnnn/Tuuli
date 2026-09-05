@@ -559,7 +559,8 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 	{
 		const EDslOpKind edslop = static_cast<EDslOpKind>(ul);
 		const BOOL fMatcherExpected = EdslopAssertMaxOneRow != edslop;
-		const BOOL fInstantiatorExpected = EdslopMaxOneRow != edslop;
+		const BOOL fInstantiatorExpected = EdslopMaxOneRow != edslop &&
+			EdslopCTEConsumer != edslop;
 		if (fMatcherExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
 			fInstantiatorExpected !=
 				CDSLOpKindTable::FInstantiatorSupported(edslop))
@@ -576,6 +577,8 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowRows, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopWindowFrame, false) ||
 		!CDSLOpKindTable::FSourceRootDispatchSupported(EdslopMaxOneRow, false) ||
+		!CDSLOpKindTable::FSourceRootDispatchSupported(
+			EdslopCTEConsumer, false) ||
 		CDSLOpKindTable::FSourceRootDispatchSupported(
 			EdslopAssertMaxOneRow, false))
 	{

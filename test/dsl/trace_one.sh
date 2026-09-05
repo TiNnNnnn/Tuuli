@@ -6,7 +6,7 @@ if [[ $# -ne 4 ]]; then
     exit 2
 fi
 
-RULES_FILE=$1
+RULES_FILE=$(cd "$(dirname "$1")" && pwd)/$(basename "$1")
 SCHEMA_FILE=$2
 QUERY_FILE=$3
 OUTPUT_LOG=$4
