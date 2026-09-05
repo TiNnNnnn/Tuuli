@@ -40,6 +40,7 @@
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarCast.h"
+#include "gpopt/operators/CScalarCoalesce.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarIf.h"
@@ -136,6 +137,44 @@ FAggFuncProvablyNullOnEmpty(CScalarAggFunc *popAgg)
 	return GPDB_INT2_AGG_MIN == oid || GPDB_INT2_AGG_MAX == oid ||
 		GPDB_INT4_AGG_MIN == oid || GPDB_INT4_AGG_MAX == oid ||
 		GPDB_INT8_AGG_MIN == oid || GPDB_INT8_AGG_MAX == oid;
+}
+
+BOOL
+FScalarInt8Zero(CExpression *pexpr)
+{
+	if (COperator::EopScalarConst != pexpr->Pop()->Eopid())
+	{
+		return false;
+	}
+	IDatum *pdatum = CScalarConst::PopConvert(pexpr->Pop())->GetDatum();
+	return !pdatum->IsNull() && IMDType::EtiInt8 == pdatum->GetDatumType() &&
+		0 == dynamic_cast<IDatumInt8 *>(pdatum)->Value();
+}
+
+BOOL
+FAllUsesCoalescedToZero(CExpression *pexpr, CColRef *pcr, BOOL *pfFound)
+{
+	if (COperator::EopScalarIdent == pexpr->Pop()->Eopid())
+	{
+		return CScalarIdent::PopConvert(pexpr->Pop())->Pcr() != pcr;
+	}
+	if (COperator::EopScalarCoalesce == pexpr->Pop()->Eopid() &&
+		2 == pexpr->Arity() &&
+		COperator::EopScalarIdent == (*pexpr)[0]->Pop()->Eopid() &&
+		CScalarIdent::PopConvert((*pexpr)[0]->Pop())->Pcr() == pcr &&
+		FScalarInt8Zero((*pexpr)[1]))
+	{
+		*pfFound = true;
+		return true;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		if (!FAllUsesCoalescedToZero((*pexpr)[ul], pcr, pfFound))
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 BOOL
@@ -316,6 +355,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 			break;
 		case COperator::EopScalarNullTest:
 		case COperator::EopScalarBoolOp:
+		case COperator::EopScalarCoalesce:
 		case COperator::EopScalarValuesList:
 		case COperator::EopScalarProjectElement:
 		case COperator::EopScalarProjectList:
@@ -3166,6 +3206,95 @@ CDSLConstraintChecker::FCheckNullOnEmpty(
 	return true;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckEmptyInputCompensation(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (4 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymExpr != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
+		EdslsymFunc != (*pdrgpsym)[3]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprUpper = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CExpression *pexprLower = pmodel->PexprExpr((*pdrgpsym)[1]);
+	CColRefArray *pdrgpcrOutputs =
+		pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
+	CExpressionArray *pdrgpexprFuncs =
+		pmodel->PdrgpexprFunc((*pdrgpsym)[3]);
+	if (nullptr == pexprUpper || nullptr == pexprLower ||
+		nullptr == pdrgpcrOutputs || nullptr == pdrgpexprFuncs ||
+		COperator::EopScalarProjectList != pexprUpper->Pop()->Eopid() ||
+		COperator::EopScalarProjectList != pexprLower->Pop()->Eopid() ||
+		0 == pdrgpexprFuncs->Size() ||
+		pdrgpcrOutputs->Size() != pdrgpexprFuncs->Size())
+	{
+		return false;
+	}
+
+	BOOL fHasZeroOnEmpty = false;
+	for (ULONG ulFunc = 0; ulFunc < pdrgpexprFuncs->Size(); ulFunc++)
+	{
+		CExpression *pexprFunc = (*pdrgpexprFuncs)[ulFunc];
+		if (COperator::EopScalarAggFunc != pexprFunc->Pop()->Eopid())
+		{
+			return false;
+		}
+		CScalarAggFunc *popAgg = CScalarAggFunc::PopConvert(pexprFunc->Pop());
+		if (!popAgg->FCountStar() && !popAgg->FCountAny())
+		{
+			if (!FAggFuncProvablyNullOnEmpty(popAgg))
+			{
+				return false;
+			}
+			continue;
+		}
+
+		fHasZeroOnEmpty = true;
+		CColRef *pcrOutput = (*pdrgpcrOutputs)[ulFunc];
+		BOOL fMapped = false;
+		for (ULONG ulExpr = 0; ulExpr < pexprLower->Arity(); ulExpr++)
+		{
+			CExpression *pexprElem = (*pexprLower)[ulExpr];
+			if (COperator::EopScalarProjectElement !=
+					pexprElem->Pop()->Eopid() ||
+				1 != pexprElem->Arity())
+			{
+				return false;
+			}
+			CExpression *pexprValue = (*pexprElem)[0];
+			if (!pexprValue->DeriveUsedColumns()->FMember(pcrOutput))
+			{
+				continue;
+			}
+			if (COperator::EopScalarIdent != pexprValue->Pop()->Eopid() ||
+				CScalarIdent::PopConvert(pexprValue->Pop())->Pcr() != pcrOutput)
+			{
+				return false;
+			}
+			CColRef *pcrIntermediate =
+				CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr();
+			BOOL fFound = false;
+			if (pcrIntermediate == pcrOutput ||
+				!FAllUsesCoalescedToZero(pexprUpper, pcrIntermediate,
+									&fFound) ||
+				!fFound)
+			{
+				return false;
+			}
+			fMapped = true;
+		}
+		if (!fMapped || pexprUpper->DeriveUsedColumns()->FMember(pcrOutput))
+		{
+			return false;
+		}
+	}
+	return fHasZeroOnEmpty;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckEquality
@@ -3345,6 +3474,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckReference(pcon, pmodel);
 		case EdslconNullOnEmpty:
 			return FCheckNullOnEmpty(pcon, pmodel);
+		case EdslconEmptyInputCompensation:
+			return FCheckEmptyInputCompensation(pcon, pmodel);
 		case EdslconErrorFree:
 		case EdslconDeterministic:
 			return FCheckScalarProperty(prule, pcon, pmodel);

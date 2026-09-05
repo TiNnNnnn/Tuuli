@@ -235,6 +235,10 @@ enum EDslConstraintKind
 	// NULL, rather than an identity value such as COUNT's zero, on an empty
 	// input. This is the generic guard for NULL-extending decorrelation.
 	EdslconNullOnEmpty,
+	// EmptyInputCompensation(upper,lower,outputs,funcs): lower maps aggregate
+	// outputs to intermediate columns and upper replaces every zero-on-empty
+	// aggregate use with its SQL empty-input default.
+	EdslconEmptyInputCompensation,
 	EdslconSentinel
 };
 

@@ -180,6 +180,8 @@ private:
 	// NullOnEmpty(f): all bound aggregate functions produce NULL on empty input.
 	BOOL FCheckNullOnEmpty(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;
+	BOOL FCheckEmptyInputCompensation(const CDSLConstraint *pcon,
+								 const CDSLModel *pmodel) const;
 
 	// Expression-list algebra used by Compute/LET rewrites. ExprConcat(out,l,r)
 	// checks that flattening l above r is SRF-safe; an unbound target out is

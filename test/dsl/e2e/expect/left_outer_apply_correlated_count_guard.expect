@@ -1,5 +1,5 @@
 {
-  "description": "NULL-on-empty aggregate decorrelation rejects COUNT because empty input must produce zero",
+  "description": "COUNT decorrelation preserves zero-on-empty through generic Compute compensation",
   "plans": [
     {
       "name": "guard",
@@ -9,7 +9,9 @@
       ],
       "contains": [
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"b8a54fa637de5d89\"",
-        "\"failed_constraint\":\"NullOnEmpty\""
+        "\"failed_constraint\":\"NullOnEmpty\"",
+        "\"status\":\"applied\",\"rule_hash\":\"80727e91f96e399d\"",
+        "\"operator\":\"CLogicalLeftOuterJoin\",\"source\":\"dsl\",\"origin\":\"CXformDSLRule_Project\""
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
