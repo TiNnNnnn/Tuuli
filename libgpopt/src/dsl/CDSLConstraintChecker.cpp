@@ -2934,6 +2934,57 @@ CDSLConstraintChecker::FCheckExprConcat(const CDSLConstraint *pcon,
 }
 
 BOOL
+CDSLConstraintChecker::FCheckExprNulls(const CDSLConstraint *pcon,
+								   const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (3 != pdrgpsym->Size() ||
+		EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrTemplate = pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
+	CExpression *pexpr = pmodel->PexprExpr((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrOutput = pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
+	if (nullptr == pdrgpcrTemplate)
+	{
+		return false;
+	}
+	if (nullptr == pexpr && nullptr == pdrgpcrOutput)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside() &&
+			EdslsideTarget == (*pdrgpsym)[2]->Eside();
+	}
+	if (nullptr == pexpr || nullptr == pdrgpcrOutput ||
+		COperator::EopScalarProjectList != pexpr->Pop()->Eopid() ||
+		pexpr->Arity() != pdrgpcrTemplate->Size() ||
+		pexpr->Arity() != pdrgpcrOutput->Size())
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CExpression *pexprElem = (*pexpr)[ul];
+		CColRef *pcrTemplate = (*pdrgpcrTemplate)[ul];
+		CColRef *pcrOutput = (*pdrgpcrOutput)[ul];
+		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
+			1 != pexprElem->Arity() ||
+			CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr() != pcrOutput ||
+			COperator::EopScalarConst != (*pexprElem)[0]->Pop()->Eopid() ||
+			!CScalarConst::PopConvert((*pexprElem)[0]->Pop())->GetDatum()->IsNull() ||
+			!pcrTemplate->RetrieveType()->MDId()->Equals(
+				pcrOutput->RetrieveType()->MDId()) ||
+			pcrTemplate->TypeModifier() != pcrOutput->TypeModifier())
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckDepsDisjoint(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
@@ -3565,6 +3616,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckScalarProperty(prule, pcon, pmodel);
 		case EdslconExprConcat:
 			return FCheckExprConcat(pcon, pmodel);
+		case EdslconExprNulls:
+			return FCheckExprNulls(pcon, pmodel);
 		case EdslconDepsDisjoint:
 			return FCheckDepsDisjoint(pcon, pmodel);
 		case EdslconExprSplit:

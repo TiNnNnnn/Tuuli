@@ -71,6 +71,7 @@ public:
 	static GPOS_RESULT EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate();
 	static GPOS_RESULT EresUnittest_CollapseIndependentCompute();
 	static GPOS_RESULT EresUnittest_SplitPartiallyIndependentCompute();
+	static GPOS_RESULT EresUnittest_ConstructTypedNullExpressions();
 
 	// a non-trivial Select does NOT fire a Proj-rooted rule.
 	static GPOS_RESULT EresUnittest_NoFireOnWrongRoot();

@@ -182,6 +182,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconRankEq, "RankEq", 2},
 	{EdslconOrderEmpty, "OrderEmpty", 1},
 	{EdslconRankAttrs, "RankAttrs", 2},
+	{EdslconExprNulls, "ExprNulls", 3},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -616,6 +617,10 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
 		case EdslconExprConcat:
 			return 0 == ulPosition ? EdslsymExpr : EdslsymSentinel;
+		case EdslconExprNulls:
+			return 0 == ulPosition
+				? EdslsymExpr
+				: (2 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
 		case EdslconScalarOne:
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
@@ -695,6 +700,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconDeterministic:
 		case EdslconExprListEq:
 		case EdslconExprConcat:
+		case EdslconExprNulls:
 		case EdslconDepsDisjoint:
 		case EdslconExprSplit:
 		case EdslconAttrsIntersect:

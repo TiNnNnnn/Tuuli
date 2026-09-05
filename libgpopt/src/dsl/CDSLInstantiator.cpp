@@ -64,6 +64,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
+#include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
@@ -1420,6 +1421,17 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			}
 			pconDef = pcon;
 		}
+		if (EdslconExprNulls == pcon->Edslcon() &&
+			3 == pcon->Pdrgpsym()->Size() &&
+			(*pcon->Pdrgpsym())[2] == psym)
+		{
+			if (fEmptyDef || nullptr != pconDef ||
+				EdslsymAttrs != psym->Esymkind())
+			{
+				return nullptr;
+			}
+			pconDef = pcon;
+		}
 		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
 			9 == pcon->Pdrgpsym()->Size())
 		{
@@ -1453,6 +1465,13 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	if (nullptr == pconDef)
 	{
 		return nullptr;
+	}
+	if (EdslconExprNulls == pconDef->Edslcon())
+	{
+		CExpression *pexprNulls = PexprResolveExpr(
+			(*pconDef->Pdrgpsym())[0], pmodel, ulDepth + 1);
+		CRefCount::SafeRelease(pexprNulls);
+		return dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
 	}
 	if (EdslconPredicateDomainSplit == pconDef->Edslcon())
 	{
@@ -1767,6 +1786,12 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 		{
 			ulOutput = 0;
 		}
+		else if (EdslconExprNulls == pcon->Edslcon() &&
+				 3 == pcon->Pdrgpsym()->Size() &&
+				 (*pcon->Pdrgpsym())[0] == psym)
+		{
+			ulOutput = 0;
+		}
 		else if (EdslconExprSplit == pcon->Edslcon() &&
 				 4 == pcon->Pdrgpsym()->Size())
 		{
@@ -1793,6 +1818,36 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 	if (nullptr == pconDef)
 	{
 		return nullptr;
+	}
+	if (EdslconExprNulls == pconDef->Edslcon())
+	{
+		CColRefArray *pdrgpcrTemplate = PdrgpcrResolveCols(
+			(*pconDef->Pdrgpsym())[1], pmodel, ulDepth + 1);
+		if (nullptr == pdrgpcrTemplate)
+		{
+			return nullptr;
+		}
+		IDatumArray *pdrgpdatum =
+			CTranslatorExprToDXLUtils::PdrgpdatumNulls(m_mp, pdrgpcrTemplate);
+		CExpression *pexprResult = CUtils::PexprScalarProjListConst(
+			m_mp, pdrgpcrTemplate, pdrgpdatum, nullptr);
+		pdrgpdatum->Release();
+
+		CColRefArray *pdrgpcrOutput = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		for (ULONG ul = 0; ul < pexprResult->Arity(); ul++)
+		{
+			pdrgpcrOutput->Append(
+				CScalarProjectElement::PopConvert((*pexprResult)[ul]->Pop())->Pcr());
+		}
+		const CDSLSymbol *psymOutputAttrs = (*pconDef->Pdrgpsym())[2];
+		if (!m_phmDerivedCols->Insert(
+				const_cast<CDSLSymbol *>(psymOutputAttrs), pdrgpcrOutput))
+		{
+			pdrgpcrOutput->Release();
+			pexprResult->Release();
+			return nullptr;
+		}
+		return pexprResult;
 	}
 
 	if (EdslconExprSplit == pconDef->Edslcon())

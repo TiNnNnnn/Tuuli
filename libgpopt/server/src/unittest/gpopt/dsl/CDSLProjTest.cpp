@@ -112,6 +112,11 @@ using namespace gpopt;
 	"PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);"                    \
 	"DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)"
 
+#define GPOPT_DSL_TYPED_NULL_COMPUTE_RULE                                  \
+	"Proj<a0 s0>(Input<t0>)|Compute<e0 a1 s1>(Input<t1>)|"                 \
+	"TableEq(t1,t0);ExprNulls(e0,a0,a2);AttrsEmpty(a1);"                  \
+	"SchemaFromAttrs(s1,a2)"
+
 static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
@@ -195,6 +200,8 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ConstructTypedNullExpressions),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_NoFireOnWrongRoot),
 	};
 
@@ -553,7 +560,7 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
 	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
-		!checker.FCheck(prule, pmodel))
+		!checker.FCheck(prule, pmodel) || !checker.FCheck(prule, pmodel))
 	{
 		eres = GPOS_FAILED;
 	}
@@ -758,6 +765,60 @@ CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute()
 	pmodel->Release();
 	pexprOuter->Release();
 	pexprInner->Release();
+	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_TYPED_NULL_COMPUTE_RULE);
+	GPOS_ASSERT(nullptr != prule);
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprProject = nullptr;
+	CColRefArray *pdrgpcrInput = nullptr;
+	BuildProjectOverGet(
+		fix, 2, 1, &pexprGet, &pexprProject, &pdrgpcrInput);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprList = nullptr == pexprTarget ? nullptr : (*pexprTarget)[1];
+		CExpression *pexprElem = nullptr == pexprList || 1 != pexprList->Arity()
+			? nullptr
+			: (*pexprList)[0];
+		if (nullptr == pexprElem ||
+			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
+			COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
+			COperator::EopScalarConst != (*pexprElem)[0]->Pop()->Eopid() ||
+			!CScalarConst::PopConvert((*pexprElem)[0]->Pop())->GetDatum()->IsNull() ||
+			!(*pdrgpcrInput)[0]->RetrieveType()->MDId()->Equals(
+				CScalarProjectElement::PopConvert(pexprElem->Pop())
+					->Pcr()->RetrieveType()->MDId()))
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprProject->Release();
 	pexprGet->Release();
 	prule->Release();
 	return eres;

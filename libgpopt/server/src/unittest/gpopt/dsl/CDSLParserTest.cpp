@@ -228,6 +228,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 "
 		"s2>(Input<t1>)|TableEq(t1,t0);DepsDisjoint(e0,s1);"
 		"ExprConcat(e2,e0,e1)",
+		// Typed NULL expressions define both the scalar list and fresh output attrs.
+		"Proj<a0 s0>(Input<t0>)|Compute<e0 a1 s1>(Input<t1>)|"
+		"TableEq(t1,t0);ExprNulls(e0,a0,a2);AttrsEmpty(a1);"
+		"SchemaFromAttrs(s1,a2)",
 		// Partial layer normalization keeps dependent expressions as a residual.
 		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 "
 		"s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);"

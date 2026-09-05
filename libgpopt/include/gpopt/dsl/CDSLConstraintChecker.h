@@ -195,6 +195,8 @@ private:
 	// used-column domains of scalar/window metadata or explicit column vectors.
 	BOOL FCheckExprConcat(const CDSLConstraint *pcon,
 						const CDSLModel *pmodel) const;
+	BOOL FCheckExprNulls(const CDSLConstraint *pcon,
+					  const CDSLModel *pmodel) const;
 	BOOL FCheckDepsDisjoint(const CDSLConstraint *pcon,
 						 const CDSLModel *pmodel) const;
 	BOOL FCheckExprSplit(const CDSLConstraint *pcon,

@@ -250,6 +250,9 @@ enum EDslConstraintKind
 	EdslconRankEq,
 	EdslconOrderEmpty,
 	EdslconRankAttrs,
+	// ExprNulls(expressions,template_attrs,output_attrs): construct an ordered
+	// project list of typed SQL NULLs and its fresh output columns.
+	EdslconExprNulls,
 	EdslconSentinel
 };
 

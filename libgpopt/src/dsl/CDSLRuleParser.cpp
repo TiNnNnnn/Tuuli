@@ -647,6 +647,16 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconExprNulls == edslcon &&
+			(EdslsymExpr != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind()))
+		{
+			bctx.Fail("ExprNulls expects an expression list and two attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconOutputAttrs == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
