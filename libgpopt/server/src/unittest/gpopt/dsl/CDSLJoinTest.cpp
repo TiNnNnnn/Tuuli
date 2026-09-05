@@ -1420,6 +1420,9 @@ CDSLJoinTest::EresUnittest_FullJoinRoundTrip()
 	CExpression *pexprRight = fix.PexprLogicalGet("t1", 2, &pdrgpcrRight);
 	CExpression *pexprPred =
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	pexprLeft->AddRef();
+	pexprRight->AddRef();
+	pexprPred->AddRef();
 	CExpression *pexprJoin = GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalFullOuterJoin(mp), pexprLeft, pexprRight,
 		pexprPred);
