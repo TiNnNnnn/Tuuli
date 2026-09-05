@@ -173,6 +173,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconFuncAttrs, "FuncAttrs", 2},
 	{EdslconNullOnEmpty, "NullOnEmpty", 1},
 	{EdslconEmptyInputCompensation, "EmptyInputCompensation", 4},
+	{EdslconPredicateNullSafeEq, "PredicateNullSafeEq", 3},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -570,6 +571,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 	switch (edslcon)
 	{
 		case EdslconPredicateAnd:
+		case EdslconPredicateNullSafeEq:
 		case EdslconPredicateExists:
 		case EdslconPredicateNotExists:
 		case EdslconPredicateAny:
@@ -708,6 +710,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconFuncAttrs:
 		case EdslconNullOnEmpty:
 		case EdslconEmptyInputCompensation:
+		case EdslconPredicateNullSafeEq:
 			return true;
 		case EdslconSentinel:
 			return false;

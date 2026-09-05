@@ -1643,6 +1643,38 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckPredicateNullSafeEq(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 3 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[1]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrLeft = pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
+	CColRefArray *pdrgpcrRight = pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
+	if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight ||
+		0 == pdrgpcrLeft->Size() ||
+		pdrgpcrLeft->Size() != pdrgpcrRight->Size())
+	{
+		return false;
+	}
+	CExpression *pexprBound = pmodel->PexprPred((*pdrgpsym)[0]);
+	if (nullptr == pexprBound)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
+	}
+	CExpression *pexprExpected =
+		CPredicateUtils::PexprINDFConjunction(m_mp, pdrgpcrLeft, pdrgpcrRight);
+	const BOOL fMatches = pexprBound->Matches(pexprExpected);
+	pexprExpected->Release();
+	return fMatches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckPredicateExists(
 	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fNegated) const
 {
@@ -3438,6 +3470,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateFalse(pcon, pmodel);
 		case EdslconPredicateAnd:
 			return FCheckPredicateAnd(pcon, pmodel);
+		case EdslconPredicateNullSafeEq:
+			return FCheckPredicateNullSafeEq(pcon, pmodel);
 		case EdslconPredicateExists:
 			return FCheckPredicateExists(pcon, pmodel, false);
 		case EdslconPredicateNotExists:

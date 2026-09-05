@@ -1255,6 +1255,21 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		}
 		return pexprSplit;
 	}
+	if (nullptr != pdef && EdslexprNullSafeEq == pdef->Edslexpr())
+	{
+		CColRefArray *pdrgpcrLeft =
+			PdrgpcrResolveCols(pdef->PsymOperand(0), pmodel);
+		CColRefArray *pdrgpcrRight =
+			PdrgpcrResolveCols(pdef->PsymOperand(1), pmodel);
+		if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight ||
+			0 == pdrgpcrLeft->Size() ||
+			pdrgpcrLeft->Size() != pdrgpcrRight->Size())
+		{
+			return nullptr;
+		}
+		return CPredicateUtils::PexprINDFConjunction(
+			m_mp, pdrgpcrLeft, pdrgpcrRight);
+	}
 	if (nullptr == pdef || EdslexprAnd != pdef->Edslexpr())
 	{
 		return nullptr;

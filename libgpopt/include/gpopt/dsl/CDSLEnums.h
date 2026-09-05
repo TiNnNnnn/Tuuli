@@ -241,6 +241,9 @@ enum EDslConstraintKind
 	// outputs to intermediate columns and upper replaces every zero-on-empty
 	// aggregate use with its SQL empty-input default.
 	EdslconEmptyInputCompensation,
+	// PredicateNullSafeEq(out,left,right): out is the conjunction of positional
+	// IS NOT DISTINCT FROM comparisons between two ordered attribute vectors.
+	EdslconPredicateNullSafeEq,
 	EdslconSentinel
 };
 

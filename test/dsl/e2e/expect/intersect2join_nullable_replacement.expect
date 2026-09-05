@@ -1,0 +1,87 @@
+{
+  "description": "The Intersect DSL replacement uses positional null-safe equality for nullable composite rows",
+  "replacement": {
+    "xforms": [
+      "CXformIntersect2Join"
+    ],
+    "scope": "Intersect distinct over equally typed ordered input rows, including nullable composite rows",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "7c3febf0a7602119"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformIntersect2Join"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_intersect2join.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
+      ],
+      "alternative": [
+        "CXformIntersect2Join",
+        "CXformDSLRule_Intersect"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join"
+      ],
+      "not_contains": [
+        "Xform: CXformIntersect2Join"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join"
+      ],
+      "policy": "isolate_intersect2join.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Intersect"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersect2Join"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersect2Join"
+    ],
+    "policy": "isolate_intersect2join.policy",
+    "output": [
+      "1,1",
+      "2,2",
+      "2,",
+      ",3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,2",
+      "2,",
+      ",3"
+    ]
+  }
+}

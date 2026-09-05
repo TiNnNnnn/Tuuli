@@ -22,6 +22,8 @@ EdslexprKind(const CDSLConstraint *pcon)
 	{
 		case EdslconPredicateAnd:
 			return EdslexprAnd;
+		case EdslconPredicateNullSafeEq:
+			return EdslexprNullSafeEq;
 		case EdslconPredicateExists:
 			return EdslexprExists;
 		case EdslconPredicateNotExists:
@@ -52,7 +54,8 @@ PsymOutput(const CDSLConstraint *pcon)
 {
 	const EDslExpressionKind edslexpr = EdslexprKind(pcon);
 	if (EdslexprSentinel == edslexpr || nullptr == pcon->Pdrgpsym() ||
-		(EdslexprAnd == edslexpr && 3 != pcon->Pdrgpsym()->Size()) ||
+		((EdslexprAnd == edslexpr || EdslexprNullSafeEq == edslexpr) &&
+		 3 != pcon->Pdrgpsym()->Size()) ||
 		((EdslexprExists == edslexpr || EdslexprNotExists == edslexpr) &&
 		 2 != pcon->Pdrgpsym()->Size()) ||
 		((EdslexprAny == edslexpr || EdslexprAll == edslexpr) &&

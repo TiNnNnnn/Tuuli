@@ -4,10 +4,10 @@
     "xforms": [
       "CXformIntersect2Join"
     ],
-    "scope": "Intersect over equally typed ordered input rows whose columns are all NOT NULL",
-    "status": "verified_partial_replacement",
+    "scope": "Intersect distinct over equally typed ordered input rows, including nullable composite rows",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "885b5e6be7f3d43d"
+      "7c3febf0a7602119"
     ]
   },
   "plans": [
@@ -22,9 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_intersect2join_notnull.policy",
+      "policy": "isolate_intersect2join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"885b5e6be7f3d43d\""
+        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
       ],
       "alternative": [
         "CXformIntersect2Join",
@@ -48,9 +48,9 @@
       "disable_xforms": [
         "CXformIntersect2Join"
       ],
-      "policy": "isolate_intersect2join_notnull.policy",
+      "policy": "isolate_intersect2join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"885b5e6be7f3d43d\""
+        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
       ],
       "alternative": [
         "CXformDSLRule_Intersect"
@@ -70,7 +70,7 @@
     "disable_xforms": [
       "CXformIntersect2Join"
     ],
-    "policy": "isolate_intersect2join_notnull.policy",
+    "policy": "isolate_intersect2join.policy",
     "output": [
       "1",
       "2"

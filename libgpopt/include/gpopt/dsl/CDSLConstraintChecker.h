@@ -139,6 +139,8 @@ private:
 	// defer a target-only output after checking both operands are available.
 	BOOL FCheckPredicateAnd(const CDSLConstraint *pcon,
 							const CDSLModel *pmodel) const;
+	BOOL FCheckPredicateNullSafeEq(const CDSLConstraint *pcon,
+								 const CDSLModel *pmodel) const;
 
 	// PredicateExists(out,input): destructure a bound EXISTS predicate and bind
 	// its relational operand for use by the target template.

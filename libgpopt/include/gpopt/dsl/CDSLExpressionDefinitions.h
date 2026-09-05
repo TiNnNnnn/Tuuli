@@ -15,6 +15,7 @@ using namespace gpos;
 enum EDslExpressionKind
 {
 	EdslexprAnd = 0,
+	EdslexprNullSafeEq,
 	EdslexprExists,
 	EdslexprNotExists,
 	EdslexprAny,

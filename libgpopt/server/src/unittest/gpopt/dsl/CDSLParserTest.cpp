@@ -206,9 +206,9 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
 		"SchemaEq(s1,s0)",
 		"Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|"
-		"Intersect*<a3 s1 a4 a5>(Input<t2>,Input<t3>)|"
+		"InnerJoin<p0 a4 a5>(Input<t2>,Input<t3>)|"
 		"AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);"
-		"AttrsEq(a3,a0);SchemaEq(s1,s0);AttrsEq(a4,a1);AttrsEq(a5,a2)",
+		"AttrsEq(a4,a1);AttrsEq(a5,a2);PredicateNullSafeEq(p0,a4,a5)",
 		"Except<a0 s0>(Input<t0>,Input<t1>)|Except<a1 s1>(Input<t2>,"
 		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
 		"SchemaEq(s1,s0)",
