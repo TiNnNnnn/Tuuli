@@ -263,6 +263,8 @@ private:
 								 const CDSLModel *pmodel) const;
 	CExpression *PexprBuildWindow(const CDSLOp *pop,
 								   const CDSLModel *pmodel) const;
+	CExpression *PexprBuildRowNumber(const CDSLOp *pop,
+								  const CDSLModel *pmodel) const;
 
 	// AssertMaxOneRow(child): ORCA's canonical executable implementation of
 	// the scalar-subquery cardinality contract.

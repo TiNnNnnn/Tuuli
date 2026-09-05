@@ -23,10 +23,15 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLUnionMatcher.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/COptCtxt.h"
+#include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
@@ -194,6 +199,77 @@ CDSLMatcher::FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 	return FMatch((*pop)[0], (*pexpr)[0], pmodel);
+}
+
+BOOL
+CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
+							  CDSLModel *pmodel) const
+{
+	if (EdslopRowNumber != pop->Edslop() || 1 != pop->UlChildren() ||
+		nullptr == pop->Pdrgpsym() || 3 != pop->Pdrgpsym()->Size() ||
+		COperator::EopLogicalSequenceProject != pexpr->Pop()->Eopid() ||
+		2 != pexpr->Arity())
+	{
+		return false;
+	}
+	CLogicalSequenceProject *popWindow =
+		CLogicalSequenceProject::PopConvert(pexpr->Pop());
+	CExpression *pexprList = (*pexpr)[1];
+	if (popWindow->FHasFrameSpecs() ||
+		COperator::EopScalarProjectList != pexprList->Pop()->Eopid() ||
+		1 != pexprList->Arity() ||
+		COperator::EopScalarProjectElement != (*pexprList)[0]->Pop()->Eopid() ||
+		1 != (*pexprList)[0]->Arity() ||
+		COperator::EopScalarWindowFunc != (*(*pexprList)[0])[0]->Pop()->Eopid() ||
+		0 != (*(*pexprList)[0])[0]->Arity())
+	{
+		return false;
+	}
+	CScalarWindowFunc *popFunc = CScalarWindowFunc::PopConvert(
+		(*(*pexprList)[0])[0]->Pop());
+	if (!IMDId::MDIdCompare(
+			popFunc->FuncMdId(), COptCtxt::PoctxtFromTLS()
+									->GetOptimizerConfig()
+									->GetWindowOids()
+									->MDIdRowNumber()))
+	{
+		return false;
+	}
+
+	CColRefArray *pdrgpcrPartition = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	CDistributionSpec *pds = popWindow->Pds();
+	if (CDistributionSpec::EdtHashed == pds->Edt())
+	{
+		CExpressionArray *pdrgpexpr =
+			CDistributionSpecHashed::PdsConvert(pds)->Pdrgpexpr();
+		for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
+		{
+			CExpression *pexprPart = (*pdrgpexpr)[ul];
+			if (COperator::EopScalarIdent != pexprPart->Pop()->Eopid())
+			{
+				pdrgpcrPartition->Release();
+				return false;
+			}
+			pdrgpcrPartition->Append(const_cast<CColRef *>(
+				CScalarIdent::PopConvert(pexprPart->Pop())->Pcr()));
+		}
+	}
+	else if (CDistributionSpec::EdtSingleton != pds->Edt())
+	{
+		pdrgpcrPartition->Release();
+		return false;
+	}
+
+	CColRefArray *pdrgpcrRank = GPOS_NEW(m_mp) CColRefArray(m_mp);
+	pdrgpcrRank->Append(
+		CScalarProjectElement::PopConvert((*pexprList)[0]->Pop())->Pcr());
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	const BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrPartition) &&
+		pmodel->FBind((*pdrgpsym)[1], popWindow->Pdrgpos()) &&
+		pmodel->FBind((*pdrgpsym)[2], pdrgpcrRank);
+	pdrgpcrPartition->Release();
+	pdrgpcrRank->Release();
+	return fBound && FMatch((*pop)[0], (*pexpr)[0], pmodel);
 }
 
 //---------------------------------------------------------------------------
@@ -438,6 +514,10 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		EdslopWindowFrame == pop->Edslop())
 	{
 		return FMatchWindow(pop, pexpr, pmodel);
+	}
+	if (EdslopRowNumber == pop->Edslop())
+	{
+		return FMatchRowNumber(pop, pexpr, pmodel);
 	}
 
 	// AssertMaxOneRow is a target-only semantic macro. Its live ORCA shape is

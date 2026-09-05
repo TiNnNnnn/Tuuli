@@ -646,6 +646,13 @@ CDSLModel::PexprWindow(const CDSLSymbol *psym) const
 	return dynamic_cast<CExpression *>(PvalLookup(psym));
 }
 
+CColRefArray *
+CDSLModel::PdrgpcrRank(const CDSLSymbol *psym) const
+{
+	GPOS_ASSERT(EdslsymRank == psym->Esymkind());
+	return static_cast<CColRefArray *>(PvalLookup(psym));
+}
+
 CWindowFrameArray *
 CDSLModel::PdrgpwfFrame(const CDSLSymbol *psym) const
 {

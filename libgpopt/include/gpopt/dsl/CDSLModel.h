@@ -188,6 +188,7 @@ public:
 	CExpressionArray *PdrgpexprFunc(const CDSLSymbol *psym) const;
 	COrderSpecArray *PdrgposOrder(const CDSLSymbol *psym) const;
 	CExpression *PexprWindow(const CDSLSymbol *psym) const;
+	CColRefArray *PdrgpcrRank(const CDSLSymbol *psym) const;
 	CWindowFrameArray *PdrgpwfFrame(const CDSLSymbol *psym) const;
 
 	ULONG Size() const { return m_phmSymToRef->Size(); }

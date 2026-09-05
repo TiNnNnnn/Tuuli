@@ -412,11 +412,14 @@ public:
 
 	// create an expression with "row_number" window function
 	static CExpression *PexprRowNumber(CMemoryPool *mp);
+	static CColRef *PcrCreateRowNumber(CMemoryPool *mp);
 
 	// create a logical sequence project with a "row_number" window function
 	static CExpression *PexprWindowWithRowNumber(CMemoryPool *mp,
-												 CExpression *pexprWindowChild,
-												 CColRefArray *pdrgpcrInput);
+											 CExpression *pexprWindowChild,
+											 CColRefArray *pdrgpcrInput,
+											 CColRef *pcrRowNumber = nullptr,
+											 COrderSpecArray *pdrgposInput = nullptr);
 
 	// generate a logical Assert expression that errors out when more than one row is generated
 	static CExpression *PexprAssertOneRow(CMemoryPool *mp,

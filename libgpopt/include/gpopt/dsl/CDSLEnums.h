@@ -53,6 +53,7 @@ enum EDslSymbolKind
 	EdslsymWindow,		 // w (exact window project list)
 	EdslsymFrame,		 // m (complete window-frame array)
 	EdslsymFrameBound,	 // b (one ROWS frame boundary and optional offset)
+	EdslsymRank,			 // r (rank output attribute and value embedding)
 	EdslsymSentinel
 };
 
@@ -91,6 +92,7 @@ enum EDslOpKind
 	EdslopAssertMaxOneRow,  // executable assertion for the same contract
 	EdslopIntersect,		   // INTERSECT ALL / DISTINCT set operation
 	EdslopExcept,			   // EXCEPT ALL / DISTINCT set operation
+	EdslopRowNumber,		   // ROW_NUMBER with explicit partition/order/output
 	EdslopSentinel
 };
 
@@ -244,6 +246,9 @@ enum EDslConstraintKind
 	// PredicateNullSafeEq(out,left,right): out is the conjunction of positional
 	// IS NOT DISTINCT FROM comparisons between two ordered attribute vectors.
 	EdslconPredicateNullSafeEq,
+	EdslconRankEq,
+	EdslconOrderEmpty,
+	EdslconRankAttrs,
 	EdslconSentinel
 };
 

@@ -130,6 +130,7 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 		case EdslopLeftOuterApply:
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopRowNumber:
 		case EdslopMaxOneRow:
 		case EdslopAssertMaxOneRow:
 			return true;

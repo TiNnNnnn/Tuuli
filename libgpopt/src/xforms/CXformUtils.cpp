@@ -1913,6 +1913,24 @@ CXformUtils::PexprRowNumber(CMemoryPool *mp)
 	return pexprScRowNumber;
 }
 
+CColRef *
+CXformUtils::PcrCreateRowNumber(CMemoryPool *mp)
+{
+	CExpression *pexprRowNumber = PexprRowNumber(mp);
+	CScalarWindowFunc *popRowNumber =
+		CScalarWindowFunc::PopConvert(pexprRowNumber->Pop());
+	const IMDType *pmdtype = COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+		popRowNumber->MdidType());
+	CColRef *pcr = nullptr;
+	{
+		CName name(popRowNumber->PstrFunc());
+		pcr = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			pmdtype, popRowNumber->TypeModifier(), name);
+	}
+	pexprRowNumber->Release();
+	return pcr;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CXformUtils::PexprWindowWithRowNumber
@@ -1924,7 +1942,9 @@ CXformUtils::PexprRowNumber(CMemoryPool *mp)
 CExpression *
 CXformUtils::PexprWindowWithRowNumber(CMemoryPool *mp,
 									  CExpression *pexprWindowChild,
-									  CColRefArray *pdrgpcrInput)
+									  CColRefArray *pdrgpcrInput,
+									  CColRef *pcrRowNumber,
+									  COrderSpecArray *pdrgposInput)
 {
 	// partitioning information
 	CDistributionSpec *pds = nullptr;
@@ -1945,19 +1965,25 @@ CXformUtils::PexprWindowWithRowNumber(CMemoryPool *mp,
 	CWindowFrameArray *pdrgpwf = GPOS_NEW(mp) CWindowFrameArray(mp);
 
 	// ordering information
-	COrderSpecArray *pdrgpos = GPOS_NEW(mp) COrderSpecArray(mp);
+	COrderSpecArray *pdrgpos = pdrgposInput;
+	if (nullptr == pdrgpos)
+	{
+		pdrgpos = GPOS_NEW(mp) COrderSpecArray(mp);
+	}
+	else
+	{
+		pdrgpos->AddRef();
+	}
 
 	// row_number window function project list
 	CExpression *pexprScWindowFunc = PexprRowNumber(mp);
 
 	// generate a new column reference
-	CScalarWindowFunc *popScWindowFunc =
-		CScalarWindowFunc::PopConvert(pexprScWindowFunc->Pop());
-	const IMDType *pmdtype = COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
-		popScWindowFunc->MdidType());
-	CName name(popScWindowFunc->PstrFunc());
-	CColRef *colref = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
-		pmdtype, popScWindowFunc->TypeModifier(), name);
+	CColRef *colref = pcrRowNumber;
+	if (nullptr == colref)
+	{
+		colref = PcrCreateRowNumber(mp);
+	}
 
 	// new project element
 	CScalarProjectElement *popScPrEl =

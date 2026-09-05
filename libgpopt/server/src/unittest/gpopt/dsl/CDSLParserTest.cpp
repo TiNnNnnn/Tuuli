@@ -264,6 +264,9 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);"
 		"OrderEq(o1,o0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)",
 		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)",
+		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0);"
+		"OrderEmpty(o0);RankAttrs(a2,r0);ErrorFree(r0);Deterministic(r1)",
 	};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgsz); ul++)

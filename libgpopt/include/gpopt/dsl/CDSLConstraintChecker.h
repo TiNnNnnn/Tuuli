@@ -81,6 +81,10 @@ private:
 	// AttrsNonEmpty(a): the bound vector contains at least one column.
 	BOOL FCheckAttrsNonEmpty(const CDSLConstraint *pcon,
 							 const CDSLModel *pmodel) const;
+	BOOL FCheckOrderEmpty(const CDSLConstraint *pcon,
+					  const CDSLModel *pmodel) const;
+	BOOL FCheckRankAttrs(const CDSLConstraint *pcon,
+					 const CDSLModel *pmodel) const;
 
 	// AttrsIntersect(out,in,domain): out is the ordered subsequence of in whose
 	// columns are exposed by a table/subtree, attrs, or schema domain. During

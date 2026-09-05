@@ -822,8 +822,52 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 	{
 		return false;
 	}
-
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (EdslconOrderEmpty == pcon->Edslcon())
+	{
+		const CDSLSymbol *psymOrder = (*pdrgpsym)[0];
+		COrderSpecArray *pdrgpos = pmodel->PdrgposOrder(psymOrder);
+		if (nullptr != pdrgpos)
+		{
+			return 0 == pdrgpos->Size();
+		}
+		pdrgpos = GPOS_NEW(m_mp) COrderSpecArray(m_mp);
+		const BOOL fBound = pmodel->FBindDerived(psymOrder, pdrgpos);
+		pdrgpos->Release();
+		return fBound;
+	}
+	if (EdslconRankAttrs == pcon->Edslcon())
+	{
+		const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+		const CDSLSymbol *psymRank = (*pdrgpsym)[1];
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		CColRefArray *pdrgpcrRank = pmodel->PdrgpcrRank(psymRank);
+		if (nullptr == pdrgpcrAttrs && nullptr == pdrgpcrRank)
+		{
+			pdrgpcrRank = GPOS_NEW(m_mp) CColRefArray(m_mp);
+			pdrgpcrRank->Append(CXformUtils::PcrCreateRowNumber(m_mp));
+			const BOOL fRank = pmodel->FBindDerived(psymRank, pdrgpcrRank);
+			const BOOL fAttrs = fRank &&
+				pmodel->FBindDerived(psymAttrs, pdrgpcrRank);
+			pdrgpcrRank->Release();
+			return fAttrs;
+		}
+		CColRefArray *pdrgpcr = nullptr == pdrgpcrAttrs
+			? pdrgpcrRank
+			: pdrgpcrAttrs;
+		if (nullptr == pdrgpcr || 1 != pdrgpcr->Size() ||
+			(nullptr != pdrgpcrAttrs && nullptr != pdrgpcrRank &&
+			 !CColRef::Equals(pdrgpcrAttrs, pdrgpcrRank)))
+		{
+			return false;
+		}
+		return nullptr == pdrgpcrAttrs
+			? pmodel->FBindDerived(psymAttrs, pdrgpcr)
+			: (nullptr == pdrgpcrRank
+				   ? pmodel->FBindDerived(psymRank, pdrgpcr)
+				   : true);
+	}
+
 	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
 	{
 		EDslSymbolKind esymkind =
@@ -932,6 +976,7 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 			case EdslconOrderEq:
 			case EdslconWindowEq:
 			case EdslconFrameEq:
+			case EdslconRankEq:
 				break;	// an aliasing equality
 			default:
 				continue;  // structural constraint: not an alias
@@ -4931,6 +4976,38 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 }
 
 CExpression *
+CDSLInstantiator::PexprBuildRowNumber(const CDSLOp *pop,
+									  const CDSLModel *pmodel) const
+{
+	if (EdslopRowNumber != pop->Edslop() || 1 != pop->UlChildren() ||
+		nullptr == pop->Pdrgpsym() || 3 != pop->Pdrgpsym()->Size())
+	{
+		return nullptr;
+	}
+	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
+	CColRefArray *pdrgpcrPartition =
+		PdrgpcrResolveCols((*pdrgpsym)[0], pmodel);
+	COrderSpecArray *pdrgpos =
+		pmodel->PdrgposOrder(PsymResolve((*pdrgpsym)[1]));
+	CColRefArray *pdrgpcrRank =
+		pmodel->PdrgpcrRank(PsymResolve((*pdrgpsym)[2]));
+	if (nullptr == pdrgpcrPartition || nullptr == pdrgpos ||
+		nullptr == pdrgpcrRank || 1 != pdrgpcrRank->Size())
+	{
+		return nullptr;
+	}
+	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
+	if (nullptr == pexprChild)
+	{
+		return nullptr;
+	}
+	CExpression *pexpr = CXformUtils::PexprWindowWithRowNumber(
+		m_mp, pexprChild, pdrgpcrPartition, (*pdrgpcrRank)[0], pdrgpos);
+	pexprChild->Release();
+	return pexpr;
+}
+
+CExpression *
 CDSLInstantiator::PexprBuildAssertMaxOneRow(const CDSLOp *pop,
 										const CDSLModel *pmodel) const
 {
@@ -4993,6 +5070,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
 			return PexprBuildWindow(pop, pmodel);
+		case EdslopRowNumber:
+			return PexprBuildRowNumber(pop, pmodel);
 		case EdslopAssertMaxOneRow:
 			return PexprBuildAssertMaxOneRow(pop, pmodel);
 		case EdslopMaxOneRow:

@@ -558,9 +558,10 @@ PdrgpconBuild(SBuildCtx &bctx,
 		const EDslSymbolKind esymEq =
 			EdslconOrderEq == edslcon ? EdslsymOrder
 			: (EdslconWindowEq == edslcon ? EdslsymWindow
+				 : (EdslconRankEq == edslcon ? EdslsymRank
 											 : (EdslconFrameEq == edslcon
 													? EdslsymFrame
-													: EdslsymSentinel));
+													: EdslsymSentinel)));
 		if (EdslsymSentinel != esymEq &&
 			(esymEq != (*pdrgpsym)[0]->Esymkind() ||
 			 esymEq != (*pdrgpsym)[1]->Esymkind()))
@@ -624,6 +625,23 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind()))
 		{
 			bctx.Fail("PredicateNullSafeEq expects a predicate and two attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
+		if (EdslconOrderEmpty == edslcon &&
+			EdslsymOrder != (*pdrgpsym)[0]->Esymkind())
+		{
+			bctx.Fail("OrderEmpty expects an order symbol");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
+		if (EdslconRankAttrs == edslcon &&
+			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymRank != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("RankAttrs expects attrs and rank symbols");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;

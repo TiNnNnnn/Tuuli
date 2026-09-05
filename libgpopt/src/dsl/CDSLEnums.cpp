@@ -105,6 +105,8 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopExcept, "Except", 2, 4,
 	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopRowNumber, "RowNumber", 1, 3,
+	 {EdslsymAttrs, EdslsymOrder, EdslsymRank}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -174,12 +176,15 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconNullOnEmpty, "NullOnEmpty", 1},
 	{EdslconEmptyInputCompensation, "EmptyInputCompensation", 4},
 	{EdslconPredicateNullSafeEq, "PredicateNullSafeEq", 3},
+	{EdslconRankEq, "RankEq", 2},
+	{EdslconOrderEmpty, "OrderEmpty", 1},
+	{EdslconRankAttrs, "RankAttrs", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
 
 // symbol-prefix letters, indexed by EDslSymbolKind
-const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm', 'b'};
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm', 'b', 'r'};
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -276,6 +281,7 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalLimit;
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopRowNumber:
 			return COperator::EopLogicalSequenceProject;
 		case EdslopMaxOneRow:
 			return COperator::EopLogicalMaxOneRow;
@@ -334,6 +340,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopLeftOuterApply:
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopRowNumber:
 		case EdslopMaxOneRow:
 			return true;
 		case EdslopAssertMaxOneRow:
@@ -376,6 +383,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopLeftOuterApply:
 		case EdslopWindowRows:
 		case EdslopWindowFrame:
+		case EdslopRowNumber:
 		case EdslopAssertMaxOneRow:
 			return true;
 		case EdslopMaxOneRow:
@@ -472,6 +480,7 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"SortDesc", EdslopSort, EdslsortDesc},
 		{"WindowRows", EdslopWindowRows, EdslsortNone},
 		{"Window", EdslopWindowFrame, EdslsortNone},
+		{"RowNumber", EdslopRowNumber, EdslsortNone},
 		{"MaxOneRow", EdslopMaxOneRow, EdslsortNone},
 		{"AssertMaxOneRow", EdslopAssertMaxOneRow, EdslsortNone},
 	};
@@ -592,6 +601,7 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconAttrsIntersect:
 		case EdslconAttrsUnion:
 		case EdslconFuncAttrs:
+		case EdslconRankAttrs:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconSchemaUnion:
 			return 0 == ulPosition ? EdslsymSchema : EdslsymSentinel;
@@ -600,6 +610,8 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconScalarOne:
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
+		case EdslconOrderEmpty:
+			return 0 == ulPosition ? EdslsymOrder : EdslsymSentinel;
 		case EdslconBoundedRowsFrame:
 			return 1 == ulPosition || 2 == ulPosition ? EdslsymScalar
 													  : EdslsymSentinel;
@@ -711,6 +723,9 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconNullOnEmpty:
 		case EdslconEmptyInputCompensation:
 		case EdslconPredicateNullSafeEq:
+		case EdslconRankEq:
+		case EdslconOrderEmpty:
+		case EdslconRankAttrs:
 			return true;
 		case EdslconSentinel:
 			return false;

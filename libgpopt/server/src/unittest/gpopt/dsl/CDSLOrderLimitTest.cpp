@@ -18,6 +18,7 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/CMDAggregateGPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
@@ -112,9 +113,71 @@ CDSLOrderLimitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
 		GPOS_UNITTEST_FUNC(
+			CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget),
+		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *pdrgpcr = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("ranked", 1, &pdrgpcr);
+	CDSLRule *prule = Prule(mp,
+		"Input<t0>|RowNumber<a0 o0 r0>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEmpty(a0);OrderEmpty(o0);RankAttrs(a1,r0)");
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (nullptr == prule ||
+		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprGet, pmodel) ||
+		!checker.FCheck(prule, pmodel) ||
+		nullptr == (pexprTarget = instantiator.PexprInstantiate(prule, pmodel)) ||
+		COperator::EopLogicalSequenceProject != pexprTarget->Pop()->Eopid() ||
+		2 != pexprTarget->Arity() || 1 != (*pexprTarget)[1]->Arity())
+	{
+		eres = GPOS_FAILED;
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	CExpression *pexprLive = CXformUtils::PexprWindowWithRowNumber(
+		mp, pexprGet, pdrgpcr);
+	CDSLRule *pruleIdentity = Prule(mp,
+		"RowNumber<a0 o0 r0>(Input<t0>)|"
+		"RowNumber<a1 o1 r1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0);"
+		"ErrorFree(r0);Deterministic(r0)");
+	CDSLModel *pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherIdentity(mp, pruleIdentity);
+	CDSLInstantiator instantiatorIdentity(mp);
+	CExpression *pexprIdentity = nullptr;
+	if (GPOS_OK == eres &&
+		(nullptr == pruleIdentity ||
+		 !matcherIdentity.FMatch(pruleIdentity->PfragSrc()->PopRoot(),
+								 pexprLive, pmodelIdentity) ||
+		 !checker.FCheck(pruleIdentity, pmodelIdentity) ||
+		 nullptr == (pexprIdentity =
+			 instantiatorIdentity.PexprInstantiate(pruleIdentity, pmodelIdentity)) ||
+		 !pexprIdentity->Matches(pexprLive)))
+	{
+		eres = GPOS_FAILED;
+	}
+	CRefCount::SafeRelease(pexprIdentity);
+	pmodelIdentity->Release();
+	CRefCount::SafeRelease(pruleIdentity);
+	pexprLive->Release();
+	pmodel->Release();
+	CRefCount::SafeRelease(prule);
+	pexprGet->Release();
+	return eres;
 }
 
 GPOS_RESULT

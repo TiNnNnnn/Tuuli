@@ -1030,6 +1030,44 @@ CDSLConstraintChecker::FCheckAttrsNonEmpty(const CDSLConstraint *pcon,
 	return nullptr != pdrgpcr && 0 < pdrgpcr->Size();
 }
 
+BOOL
+CDSLConstraintChecker::FCheckOrderEmpty(const CDSLConstraint *pcon,
+										 const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (1 != pdrgpsym->Size() ||
+		EdslsymOrder != (*pdrgpsym)[0]->Esymkind())
+	{
+		return false;
+	}
+	COrderSpecArray *pdrgpos = pmodel->PdrgposOrder((*pdrgpsym)[0]);
+	return nullptr == pdrgpos
+		? EdslsideTarget == (*pdrgpsym)[0]->Eside()
+		: 0 == pdrgpos->Size();
+}
+
+BOOL
+CDSLConstraintChecker::FCheckRankAttrs(const CDSLConstraint *pcon,
+										const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (2 != pdrgpsym->Size() ||
+		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymRank != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrRank = pmodel->PdrgpcrRank((*pdrgpsym)[1]);
+	if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrRank)
+	{
+		return EdslsideTarget == (*pdrgpsym)[0]->Eside() ||
+			EdslsideTarget == (*pdrgpsym)[1]->Eside();
+	}
+	return 1 == pdrgpcrRank->Size() &&
+		CColRef::Equals(pdrgpcrAttrs, pdrgpcrRank);
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckOutputAttrs
@@ -3191,6 +3229,11 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		case EdslsymWindow:
 			pexpr = pmodel->PexprWindow(psymBound);
 			break;
+		case EdslsymRank:
+		{
+			CColRefArray *pdrgpcr = pmodel->PdrgpcrRank(psymBound);
+			return nullptr != pdrgpcr && 1 == pdrgpcr->Size();
+		}
 		default:
 			break;
 	}
@@ -3423,6 +3466,9 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 		case EdslconFrameEq:
 			return CWindowFrame::Equals(pmodel->PdrgpwfFrame(psymFirst),
 									   pmodel->PdrgpwfFrame(psymSecond));
+		case EdslconRankEq:
+			return CColRef::Equals(pmodel->PdrgpcrRank(psymFirst),
+								 pmodel->PdrgpcrRank(psymSecond));
 		default:
 			return false;
 	}
@@ -3445,6 +3491,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				return FCheckAttrsEmpty(pcon, pmodel);
 		case EdslconAttrsNonEmpty:
 			return FCheckAttrsNonEmpty(pcon, pmodel);
+		case EdslconOrderEmpty:
+			return FCheckOrderEmpty(pcon, pmodel);
+		case EdslconRankAttrs:
+			return FCheckRankAttrs(pcon, pmodel);
 		case EdslconOutputAttrs:
 			return FCheckOutputAttrs(pcon, pmodel);
 		case EdslconSchemaFromAttrs:
@@ -3530,6 +3580,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconOrderEq:
 		case EdslconWindowEq:
 		case EdslconFrameEq:
+		case EdslconRankEq:
 			return FCheckEquality(prule, pcon, pmodel);
 
 		default:

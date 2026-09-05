@@ -99,6 +99,8 @@ private:
 	// preserved as opaque, equality-comparable artifacts.
 	BOOL FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
 					 CDSLModel *pmodel) const;
+	BOOL FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
+						CDSLModel *pmodel) const;
 
 public:
 	CDSLMatcher(const CDSLMatcher &) = delete;
