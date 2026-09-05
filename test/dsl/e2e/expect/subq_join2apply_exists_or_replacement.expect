@@ -63,7 +63,8 @@
         "required_origins": [],
         "forbidden_origins": [
           "CXformSubqJoin2Apply",
-          "CXformSelect2Apply"
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery"
         ]
       }
     }

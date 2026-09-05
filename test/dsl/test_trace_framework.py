@@ -158,12 +158,19 @@ class TraceFrameworkTest(unittest.TestCase):
                 {
                     "name": "replacement",
                     "disable_xforms": ["CXformSimplifyGbAgg"],
+                    "provenance": {
+                        "required_sources": ["dsl"],
+                        "forbidden_origins": ["CXformSimplifyGbAgg"],
+                    },
                 },
             ],
             "rows": {"disable_xforms": ["CXformSimplifyGbAgg"]},
         }
 
         self.assertIsNone(validate_replacement_matrix(matrix))
+        del matrix["plans"][3]["provenance"]
+        with self.assertRaisesRegex(ValueError, "must require memo provenance"):
+            validate_replacement_matrix(matrix)
 
     def test_replacement_matrix_rejects_noncausal_controls(self) -> None:
         matrix = {

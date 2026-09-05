@@ -140,6 +140,8 @@ def validate_replacement_matrix(expectation: dict[str, object]) -> None:
                 f"replacement state {state} must {action} every target xform"
             )
         provenance = plan.get("provenance")
+        if state == "replacement" and provenance is None:
+            raise ValueError("replacement state must require memo provenance")
         if provenance is not None:
             if not isinstance(provenance, dict):
                 raise ValueError("plan provenance must be an object")
@@ -162,6 +164,13 @@ def validate_replacement_matrix(expectation: dict[str, object]) -> None:
                 or not (required_sources or required_origins)
             ):
                 raise ValueError("invalid or empty plan provenance contract")
+            if state == "replacement" and (
+                "dsl" not in required_sources
+                or not target.issubset(set(forbidden_origins))
+            ):
+                raise ValueError(
+                    "replacement provenance must require DSL and forbid every target xform"
+                )
 
     rows = expectation.get("rows")
     if not isinstance(rows, dict) or not target.issubset(
