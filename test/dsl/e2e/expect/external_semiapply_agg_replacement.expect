@@ -45,6 +45,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
@@ -53,9 +54,15 @@
         "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
         "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ],
-      "alternative": [
-        "CXformDSLRule_Exists"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+        ]
+      }
     }
   ],
   "rows": {

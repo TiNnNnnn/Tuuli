@@ -43,6 +43,7 @@
     },
     {
       "name": "replacement",
+      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
@@ -50,9 +51,15 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
       ],
-      "alternative": [
-        "CXformDSLRule_InSub"
-      ]
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
     }
   ],
   "rows": {
