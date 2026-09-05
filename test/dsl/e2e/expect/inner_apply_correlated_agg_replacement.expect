@@ -1,0 +1,76 @@
+{
+  "description": "The generic correlated-Filter DSL rule decorrelates InnerApply over an aggregate subtree",
+  "replacement": {
+    "xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "scope": "InnerApply whose top correlated Filter has an arbitrary grouped relational child",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "22de86cebf7ac288"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\"",
+        "CLogicalInnerJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformInnerApply2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "output": [
+      "1,1,2",
+      "2,2,1",
+      "3,3,1"
+    ],
+    "postgres_output": [
+      "1,1,2",
+      "2,2,1",
+      "3,3,1"
+    ]
+  }
+}
