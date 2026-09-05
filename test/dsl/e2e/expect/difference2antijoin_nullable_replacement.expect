@@ -1,0 +1,81 @@
+{
+  "description": "A proved DSL rule replaces Except with null-safe anti join and full-row dedup",
+  "replacement": {
+    "xforms": [
+      "CXformDifference2LeftAntiSemiJoin"
+    ],
+    "scope": "Binary Except distinct over equally typed ordered rows, including nullable composite rows",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "9d417e03361c377f"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformDifference2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_difference2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9d417e03361c377f\""
+      ],
+      "alternative": [
+        "CXformDifference2LeftAntiSemiJoin",
+        "CXformDSLRule_Difference"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifference2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformDifference2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifference2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_difference2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9d417e03361c377f\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Difference"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifference2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifference2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_difference2antijoin.policy",
+    "output": [
+      "1,2"
+    ],
+    "postgres_output": [
+      "1,2"
+    ]
+  }
+}

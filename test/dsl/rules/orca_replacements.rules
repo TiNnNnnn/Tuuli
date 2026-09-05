@@ -8,6 +8,12 @@ Union*<a0 s0>(Input<t0>,Input<t1>)|Proj*<a1 s1>(Union<a2 s2>(Input<t2>,Input<t3>
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-05.
 Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(InnerJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);AttrsEq(a5,a1);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)
 
+# Replace CXformDifference2LeftAntiSemiJoin with the anti-existence sibling of
+# the Intersect rule. The same ordered null-safe equality definition handles
+# duplicate and nullable composite rows without an operator-specific matcher.
+# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-05.
+Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);AttrsEq(a5,a1);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)
+
 InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
