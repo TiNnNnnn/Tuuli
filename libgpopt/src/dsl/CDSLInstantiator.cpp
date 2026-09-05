@@ -1560,6 +1560,34 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	}
 	if (nullptr == pconDef)
 	{
+		// An equality may name another target-side value that is itself derived
+		// (for example, a Union input row equal to its derived output row).
+		// Source aliases are handled by BuildAliasMap; follow only the remaining
+		// target equality here, with the existing depth bound preventing cycles.
+		const EDslConstraintKind edslconEq =
+			EdslsymAttrs == psym->Esymkind() ? EdslconAttrsEq
+											  : EdslconSchemaEq;
+		for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
+		{
+			const CDSLConstraint *pcon = (*pdrgpcon)[ul];
+			if (edslconEq != pcon->Edslcon() ||
+				2 != pcon->Pdrgpsym()->Size())
+			{
+				continue;
+			}
+			for (ULONG side = 0; side < 2; side++)
+			{
+				if ((*pcon->Pdrgpsym())[side] == psym)
+				{
+					CColRefArray *pdrgpcrPeer = PdrgpcrResolveCols(
+						(*pcon->Pdrgpsym())[1 - side], pmodel, ulDepth + 1);
+					if (nullptr != pdrgpcrPeer)
+					{
+						return pdrgpcrPeer;
+					}
+				}
+			}
+		}
 		return nullptr;
 	}
 	if (EdslconExprNulls == pconDef->Edslcon())
@@ -2760,7 +2788,7 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 //		InnerJoin/LeftJoin/SemiJoin/SemiApply rebuild both relational children and
 //		graft the
 //		SOURCE-matched predicate, building the join operator the TARGET op names.
-//		For Inner/LeftJoin, <p a a> carries a complete predicate without extracted
+	//		For Inner/LeftJoin/FullJoin, <p a a> carries a complete predicate without extracted
 //		equality keys; SemiJoin always carries the complete predicate, including
 //		equality. Keyed forms bind the join predicate directly or obtain it from a
 //		unique InSub source when a proved rule turns a semi-join view into an inner
@@ -2787,7 +2815,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == pop->Edslop();
 	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
 	const BOOL fLeftOuterApply = EdslopLeftOuterApply == pop->Edslop();
-	const BOOL fPredicateJoin = fSemiJoin || fAntiJoin || fAntiJoinNotIn;
+	const BOOL fFullJoin = EdslopFullJoin == pop->Edslop();
+	const BOOL fPredicateJoin =
+		fFullJoin || fSemiJoin || fAntiJoin || fAntiJoinNotIn;
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;

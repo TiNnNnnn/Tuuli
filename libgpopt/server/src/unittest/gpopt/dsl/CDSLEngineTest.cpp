@@ -498,6 +498,7 @@ CDSLEngineTest::EresUnittest_DSLProvenance()
 		!CGroupExpression::FDSLRuleXform(CXform::ExfSelect2Filter) &&
 		CGroupExpression::FDSLRuleXform(CXform::ExfDSLRuleSelect) &&
 		CGroupExpression::FDSLRuleXform(CXform::ExfDSLRuleLimit) &&
+		CGroupExpression::FDSLRuleXform(CXform::ExfDSLRuleFullJoin) &&
 		!pgexprBase->FHasDSLProvenance() &&
 		!pgexprNative->FHasDSLProvenance() &&
 		pgexprDSL->FHasDSLProvenance() &&

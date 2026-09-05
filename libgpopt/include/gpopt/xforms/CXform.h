@@ -277,7 +277,7 @@ public:
 		return (ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit) ||
 			ExfDSLRuleJoinApply == exfid || ExfDSLRuleMaxOneRow == exfid ||
 			ExfDSLRuleWindow == exfid ||
-			(ExfDSLRuleIntersect <= exfid && exfid <= ExfDSLRuleDifferenceAll);
+			(ExfDSLRuleIntersect <= exfid && exfid <= ExfDSLRuleFullJoin);
 	}
 
 	static BOOL

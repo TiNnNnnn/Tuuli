@@ -1,0 +1,95 @@
+{
+  "description": "A proved DSL rule replaces FullJoin expansion with shared CTE inputs",
+  "replacement": {
+    "xforms": [
+      "CXformExpandFullOuterJoin"
+    ],
+    "scope": "Deterministic binary FullJoin predicates over arbitrary relational inputs",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "ce7a7b473a32e273"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformExpandFullOuterJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_expand_fulljoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ce7a7b473a32e273\""
+      ],
+      "alternative": [
+        "CXformExpandFullOuterJoin",
+        "CXformDSLRule_FullJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformExpandFullOuterJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandFullOuterJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformExpandFullOuterJoin",
+        "CXformFullOuterJoin2HashJoin",
+        "CXformImplementFullOuterMergeJoin"
+      ],
+      "policy": "isolate_expand_fulljoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ce7a7b473a32e273\""
+      ],
+      "alternative": [
+        "CXformDSLRule_FullJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformExpandFullOuterJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformExpandFullOuterJoin",
+      "CXformFullOuterJoin2HashJoin",
+      "CXformImplementFullOuterMergeJoin"
+    ],
+    "policy": "isolate_expand_fulljoin.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2",
+      "3,",
+      ",4"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2",
+      "3,",
+      ",4"
+    ]
+  }
+}

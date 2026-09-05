@@ -533,7 +533,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fInnerApply = (EdslopInnerApply == popJoin->Edslop());
 	const BOOL fLeftOuterApply =
 		(EdslopLeftOuterApply == popJoin->Edslop());
-	const BOOL fPredicateJoin = fSemi || fAnti || fAntiJoinNotIn;
+	const BOOL fPredicateJoin = fFull || fSemi || fAnti || fAntiJoinNotIn;
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
