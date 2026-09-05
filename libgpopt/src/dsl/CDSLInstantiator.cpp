@@ -2706,6 +2706,31 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				pexprJoinPred = pmodel->PexprInSubPred(psymInSubAttrs);
 			}
 		}
+		// A keyed target Join is itself a complete equality specification. If
+		// no source Join/InSub predicate exists, construct that equality from
+		// the two ordered key vectors instead of requiring an unrelated source
+		// scalar artifact.
+		if (nullptr == pexprJoinPred && nullptr != psymLeft &&
+			nullptr != psymRight)
+		{
+			CColRefArray *pdrgpcrLeft = PdrgpcrResolveCols(psymLeft, pmodel);
+			CColRefArray *pdrgpcrRight = PdrgpcrResolveCols(psymRight, pmodel);
+			if (nullptr != pdrgpcrLeft && nullptr != pdrgpcrRight &&
+				0 < pdrgpcrLeft->Size() &&
+				pdrgpcrLeft->Size() == pdrgpcrRight->Size())
+			{
+				CExpressionArray *pdrgpexpr =
+					GPOS_NEW(m_mp) CExpressionArray(m_mp);
+				for (ULONG ul = 0; ul < pdrgpcrLeft->Size(); ul++)
+				{
+					pdrgpexpr->Append(CUtils::PexprScalarEqCmp(
+						m_mp, (*pdrgpcrLeft)[ul], (*pdrgpcrRight)[ul]));
+				}
+				pexprOwnedJoinPred =
+					CPredicateUtils::PexprConjunction(m_mp, pdrgpexpr);
+				pexprJoinPred = pexprOwnedJoinPred;
+			}
+		}
 		if (nullptr == pexprJoinPred)
 		{
 			return nullptr;
@@ -3563,7 +3588,8 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 								  const CDSLModel *pmodel) const
 {
 	if (2 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		(0 != pop->Pdrgpsym()->Size() && 2 != pop->Pdrgpsym()->Size()))
+		(0 != pop->Pdrgpsym()->Size() && 2 != pop->Pdrgpsym()->Size() &&
+		 4 != pop->Pdrgpsym()->Size()))
 	{
 		return nullptr;
 	}
@@ -3603,7 +3629,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		{
 			continue;
 		}
-		if (2 == pop->Pdrgpsym()->Size())
+		if (2 <= pop->Pdrgpsym()->Size())
 		{
 			CColRefArray *pdrgpcrDeclared = PdrgpcrResolveCols(
 				PsymResolve((*pop->Pdrgpsym())[0]), pmodel);
@@ -3658,7 +3684,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 	// Its explicit full-row output binding supplies the stable output order;
 	// derive each input array by following Input-copy and source-SetOp positional
 	// correspondences through the already-built target branch.
-	if (nullptr == pdrgpcrOutput && 2 == pop->Pdrgpsym()->Size())
+	if (nullptr == pdrgpcrOutput && 2 <= pop->Pdrgpsym()->Size())
 	{
 		const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 		const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
@@ -3669,10 +3695,20 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		if (nullptr != pdrgpcrAttrs && nullptr != pdrgpcrSchema &&
 			CColRef::Equals(pdrgpcrAttrs, pdrgpcrSchema))
 		{
-			rgpdrgpcrInput[0] = PdrgpcrMapToTarget(
-				(*pop)[0], pexprLeft, pdrgpcrAttrs, pmodel);
-			rgpdrgpcrInput[1] = PdrgpcrMapToTarget(
-				(*pop)[1], pexprRight, pdrgpcrAttrs, pmodel);
+			CColRefArray *pdrgpcrLeftAttrs = 4 == pop->Pdrgpsym()->Size()
+				? PdrgpcrResolveCols(PsymResolve((*pop->Pdrgpsym())[2]), pmodel)
+				: pdrgpcrAttrs;
+			CColRefArray *pdrgpcrRightAttrs = 4 == pop->Pdrgpsym()->Size()
+				? PdrgpcrResolveCols(PsymResolve((*pop->Pdrgpsym())[3]), pmodel)
+				: pdrgpcrAttrs;
+			rgpdrgpcrInput[0] = nullptr == pdrgpcrLeftAttrs
+				? nullptr
+				: PdrgpcrMapToTarget((*pop)[0], pexprLeft,
+								 pdrgpcrLeftAttrs, pmodel);
+			rgpdrgpcrInput[1] = nullptr == pdrgpcrRightAttrs
+				? nullptr
+				: PdrgpcrMapToTarget((*pop)[1], pexprRight,
+								 pdrgpcrRightAttrs, pmodel);
 			if (nullptr != rgpdrgpcrInput[0] &&
 				nullptr != rgpdrgpcrInput[1])
 			{
@@ -3698,7 +3734,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 	// row.  Do not silently accept a target declaration that resolves to some
 	// other columns: that would make the textual rule stronger than the
 	// instantiated expression.  Legacy Union(...) rules have no such contract.
-	if (2 == pop->Pdrgpsym()->Size())
+	if (2 <= pop->Pdrgpsym()->Size())
 	{
 		const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 		const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);

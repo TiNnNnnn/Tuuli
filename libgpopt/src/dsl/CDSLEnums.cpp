@@ -71,7 +71,8 @@ const SDslOpDesc rg_op_desc[] = {
 	  EdslsymPred}},
 	{EdslopSort, "Sort", 1, 1, {EdslsymAttrs}},
 	{EdslopLimit, "Limit", 1, 2, {EdslsymScalar, EdslsymScalar}},
-	{EdslopUnion, "Union", 2, 2, {EdslsymAttrs, EdslsymSchema}},
+	{EdslopUnion, "Union", 2, 4,
+	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopCompute, "Compute", 1, 3,
 	 {EdslsymExpr, EdslsymAttrs, EdslsymSchema}},
 	{EdslopAny, "Any", 2, 2, {EdslsymPred, EdslsymAttrs}},
@@ -100,8 +101,10 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymOrder, EdslsymFrame, EdslsymWindow}},
 	{EdslopMaxOneRow, "MaxOneRow", 1, 0, {}},
 	{EdslopAssertMaxOneRow, "AssertMaxOneRow", 1, 0, {}},
-	{EdslopIntersect, "Intersect", 2, 2, {EdslsymAttrs, EdslsymSchema}},
-	{EdslopExcept, "Except", 2, 2, {EdslsymAttrs, EdslsymSchema}},
+	{EdslopIntersect, "Intersect", 2, 4,
+	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
+	{EdslopExcept, "Except", 2, 4,
+	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);

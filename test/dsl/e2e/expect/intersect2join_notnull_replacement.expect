@@ -1,0 +1,83 @@
+{
+  "description": "A proved DSL rule replaces Intersect with an equality join and full-row dedup for non-null inputs",
+  "replacement": {
+    "xforms": [
+      "CXformIntersect2Join"
+    ],
+    "scope": "Intersect over equally typed ordered input rows whose columns are all NOT NULL",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "885b5e6be7f3d43d"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformIntersect2Join"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_intersect2join_notnull.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"885b5e6be7f3d43d\""
+      ],
+      "alternative": [
+        "CXformIntersect2Join",
+        "CXformDSLRule_Intersect"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join"
+      ],
+      "not_contains": [
+        "Xform: CXformIntersect2Join"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join"
+      ],
+      "policy": "isolate_intersect2join_notnull.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"885b5e6be7f3d43d\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Intersect"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersect2Join"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersect2Join"
+    ],
+    "policy": "isolate_intersect2join_notnull.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

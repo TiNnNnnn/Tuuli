@@ -23,7 +23,8 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 	CDSLSymbolArray *pdrgpsym = popUnion->Pdrgpsym();
 	if (2 != popUnion->UlChildren() ||
 		nullptr == pdrgpsym ||
-		(0 != pdrgpsym->Size() && 2 != pdrgpsym->Size()))
+		(0 != pdrgpsym->Size() && 2 != pdrgpsym->Size() &&
+		 4 != pdrgpsym->Size()))
 	{
 		return false;
 	}
@@ -70,7 +71,7 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 		return false;
 	}
 
-	if (2 == pdrgpsym->Size())
+	if (2 <= pdrgpsym->Size())
 	{
 		CColRefArray *pdrgpcrOutput = popSet->PdrgpcrOutput();
 		if (!pmodel->FBind((*pdrgpsym)[0], pdrgpcrOutput) ||
@@ -80,6 +81,14 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 			CRefCount::SafeRelease(pexprDistinctView);
 			return false;
 		}
+	}
+	if (4 == pdrgpsym->Size() &&
+		(!pmodel->FBind((*pdrgpsym)[2], (*popSet->PdrgpdrgpcrInput())[0]) ||
+		 !pmodel->FBind((*pdrgpsym)[3], (*popSet->PdrgpdrgpcrInput())[1])))
+	{
+		CRefCount::SafeRelease(pexprView);
+		CRefCount::SafeRelease(pexprDistinctView);
+		return false;
 	}
 
 	// Preserve the exact ordered output/input mappings. They are semantic state,

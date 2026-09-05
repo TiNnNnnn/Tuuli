@@ -144,9 +144,9 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// reference it (for example, full-row dedup above UnionAll).
 	const BOOL fSetOp = EdslopUnion == edslop || EdslopIntersect == edslop ||
 		EdslopExcept == edslop;
-	const BOOL fLegacyUnion = fSetOp && 0 == ul_given;
+	const BOOL fCompatibleSetOp = fSetOp && (0 == ul_given || 2 == ul_given);
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
-		!fPredicateExists && !fLegacyInSub && !fLegacyUnion && !fLegacyFilter &&
+		!fPredicateExists && !fLegacyInSub && !fCompatibleSetOp && !fLegacyFilter &&
 		!fLegacyAntiJoinNotIn)
 	{
 		std::ostringstream os;
@@ -160,7 +160,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 		else if (EdslopInSubFilter == edslop)
 			os << "1 or 5";
 		else if (fSetOp)
-			os << "0 or 2";
+			os << "0, 2, or 4";
 		else if (EdslopFilter == edslop)
 			os << "2 or 3";
 		else if (fAntiJoinNotIn)

@@ -288,6 +288,8 @@ CDSLUnionTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate),
 		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin),
+		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_InstantiatePreservesColumnMaps),
@@ -378,6 +380,56 @@ CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
 			return GPOS_FAILED;
 	}
 	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin()
+{
+	const CHAR *rule =
+		"Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|"
+		"Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|"
+		"AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);"
+		"TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);"
+		"AttrsEq(a5,a1);SchemaEq(s1,s0)";
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
+	CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft =
+		fix.PexprLogicalGet("intersect_left", 2, &pdrgpcrLeft);
+	CExpression *pexprRight =
+		fix.PexprLogicalGet("intersect_right", 2, &pdrgpcrRight);
+	CExpression *pexprSource = PexprSetOpById(
+		mp, COperator::EopLogicalIntersect, pexprLeft, pdrgpcrLeft,
+		pexprRight, pdrgpcrRight);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_UNITTEST_ASSERT(nullptr != prule);
+	const BOOL matched =
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+	GPOS_UNITTEST_ASSERT(matched);
+	const BOOL checked = checker.FCheck(prule, pmodel);
+	GPOS_UNITTEST_ASSERT(checked);
+	if (checked)
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	}
+	const BOOL ok = nullptr != pexprTarget &&
+		COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid() &&
+		COperator::EopLogicalInnerJoin == (*pexprTarget)[0]->Pop()->Eopid() &&
+		pdrgpcrLeft->Size() + pdrgpcrRight->Size() ==
+			(*(*pexprTarget)[0])[2]->DeriveUsedColumns()->Size();
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprSource->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	CRefCount::SafeRelease(prule);
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
