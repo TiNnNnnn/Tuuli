@@ -599,6 +599,19 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	{
 		return false;
 	}
+	if (fSemiApply &&
+		COperator::EopLogicalLeftSemiApplyIn == eopid &&
+		CUtils::FScalarConstTrue((*pexprJoin)[2]))
+	{
+		CExpression *pexprView =
+			CDSLMatchView::PexprApplyInPredicate(m_mp, pexprJoin);
+		if (nullptr != pexprView)
+		{
+			const BOOL fMatched = FMatch(popJoin, pexprView, pmodel);
+			pexprView->Release();
+			return fMatched;
+		}
+	}
 
 	// Join symbols are equality keys followed by optional output/schema and/or
 	// residual predicate plus its left/right dependency vectors.

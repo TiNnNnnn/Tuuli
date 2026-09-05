@@ -15,6 +15,7 @@
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -558,6 +559,97 @@ CDSLMatchView::PexprRebaseInSubCarrier(CMemoryPool *mp,
 	}
 
 	return nullptr;
+}
+
+CExpression *
+CDSLMatchView::PexprApplyInPredicate(CMemoryPool *mp,
+									CExpression *pexprApply)
+{
+	if (COperator::EopLogicalLeftSemiApplyIn !=
+			pexprApply->Pop()->Eopid() ||
+		3 != pexprApply->Arity() ||
+		!CUtils::FScalarConstTrue((*pexprApply)[2]))
+	{
+		return nullptr;
+	}
+
+	CExpression *pexprSelect = (*pexprApply)[1];
+	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
+		2 != pexprSelect->Arity())
+	{
+		return nullptr;
+	}
+
+	CColRefArray *pdrgpcrInner =
+		CLogicalLeftSemiApplyIn::PopConvert(pexprApply->Pop())->PdrgPcrInner();
+	if (nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
+	{
+		return nullptr;
+	}
+
+	CExpressionArray *pdrgpexprConjuncts =
+		CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprSelect)[1]);
+	CExpression *pexprComparison = nullptr;
+	ULONG ulComparison = 0;
+	for (ULONG ul = 0; ul < pdrgpexprConjuncts->Size(); ul++)
+	{
+		CExpression *pexprConjunct = (*pdrgpexprConjuncts)[ul];
+		CColRefSet *pcrsUsed = pexprConjunct->DeriveUsedColumns();
+		if (COperator::EopScalarCmp == pexprConjunct->Pop()->Eopid() &&
+			pcrsUsed->FMember((*pdrgpcrInner)[0]) &&
+			!pcrsUsed->IsDisjoint(
+				(*pexprApply)[0]->DeriveOutputColumns()))
+		{
+			if (nullptr != pexprComparison &&
+				!CUtils::Equals(pexprComparison, pexprConjunct))
+			{
+				pdrgpexprConjuncts->Release();
+				return nullptr;
+			}
+			pexprComparison = pexprConjunct;
+			ulComparison = ul;
+		}
+	}
+	if (nullptr == pexprComparison)
+	{
+		pdrgpexprConjuncts->Release();
+		return nullptr;
+	}
+
+	CExpressionArray *pdrgpexprResidual =
+		GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < pdrgpexprConjuncts->Size(); ul++)
+	{
+		if (ul != ulComparison)
+		{
+			(*pdrgpexprConjuncts)[ul]->AddRef();
+			pdrgpexprResidual->Append((*pdrgpexprConjuncts)[ul]);
+		}
+	}
+
+	CExpression *pexprInner = nullptr;
+	if (0 == pdrgpexprResidual->Size())
+	{
+		pdrgpexprResidual->Release();
+		pexprInner = (*pexprSelect)[0];
+		pexprInner->AddRef();
+	}
+	else
+	{
+		(*pexprSelect)[0]->AddRef();
+		pexprInner = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalSelect(mp), (*pexprSelect)[0],
+			CPredicateUtils::PexprConjunction(mp, pdrgpexprResidual));
+	}
+
+	pexprApply->Pop()->AddRef();
+	(*pexprApply)[0]->AddRef();
+	pexprComparison->AddRef();
+	CExpression *pexprResult = GPOS_NEW(mp) CExpression(
+		mp, pexprApply->Pop(), (*pexprApply)[0], pexprInner,
+		pexprComparison);
+	pdrgpexprConjuncts->Release();
+	return pexprResult;
 }
 
 CExpression *

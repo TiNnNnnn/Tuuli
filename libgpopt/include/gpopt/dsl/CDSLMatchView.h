@@ -133,6 +133,12 @@ public:
 										  CExpression *pexprCarrier,
 										  CExpression *pexprRel);
 
+	// LeftSemiApplyIn may store its membership comparison in the top inner
+	// Select while its scalar child is TRUE. Expose the equivalent ordinary
+	// Apply shape without changing the memo. The caller owns the result.
+	static CExpression *PexprApplyInPredicate(CMemoryPool *mp,
+									 CExpression *pexprApply);
+
 	// Expose Select(OuterJoin, predicate) as Select(InnerJoin, predicate) only
 	// when the predicate rejects every null-supplying side (the right side of a
 	// LeftJoin, or both sides of a FullJoin). The caller owns the returned

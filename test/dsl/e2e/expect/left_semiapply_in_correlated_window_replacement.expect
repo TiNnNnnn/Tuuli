@@ -1,0 +1,76 @@
+{
+  "description": "The proved Window movement composes with correlated IN Apply conversion",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApplyIn whose correlated Filter is below a partition-compatible Window",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "9a5153fdbf92bd49"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CLogicalSequenceProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9a5153fdbf92bd49\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9a5153fdbf92bd49\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "output": [
+      "10",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "30"
+    ]
+  }
+}
