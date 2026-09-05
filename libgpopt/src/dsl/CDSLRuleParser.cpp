@@ -142,7 +142,9 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// Existing WeTune corpora declare no Union symbols. The extended
 	// Union<a s> form exposes the ordered full-row output so a later operator can
 	// reference it (for example, full-row dedup above UnionAll).
-	const BOOL fLegacyUnion = EdslopUnion == edslop && 0 == ul_given;
+	const BOOL fSetOp = EdslopUnion == edslop || EdslopIntersect == edslop ||
+		EdslopExcept == edslop;
+	const BOOL fLegacyUnion = fSetOp && 0 == ul_given;
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
 		!fPredicateExists && !fLegacyInSub && !fLegacyUnion && !fLegacyFilter &&
 		!fLegacyAntiJoinNotIn)
@@ -157,7 +159,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			os << "0 or 3";
 		else if (EdslopInSubFilter == edslop)
 			os << "1 or 5";
-		else if (EdslopUnion == edslop)
+		else if (fSetOp)
 			os << "0 or 2";
 		else if (EdslopFilter == edslop)
 			os << "2 or 3";

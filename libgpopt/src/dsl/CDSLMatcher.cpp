@@ -422,7 +422,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return qm.FMatch(pop, pexpr, pmodel);
 	}
 
-	if (EdslopUnion == pop->Edslop())
+	if (EdslopUnion == pop->Edslop() || EdslopIntersect == pop->Edslop() ||
+		EdslopExcept == pop->Edslop())
 	{
 		CDSLUnionMatcher um(m_mp, this);
 		return um.FMatch(pop, pexpr, pmodel);

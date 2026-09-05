@@ -292,10 +292,10 @@ public:
 	CExpression *PexprAggBinding(const CDSLSymbol *psymSchema) const;
 
 	//------------------------------------------------------------------
-	// set-op mappings (Union match produces, instantiator consumes)
+	// set-op mappings (set-op match produces, instantiator consumes)
 	//------------------------------------------------------------------
 
-	// Add one matched CLogicalUnion/CLogicalUnionAll expression. AddRefs it.
+	// Add one matched logical set-op expression. AddRefs it.
 	void AddUnionBinding(CExpression *pexprUnion);
 	void AddNaryUnionTail(CExpression *pexprUnionAll);
 	BOOL FIsNaryUnionTail(CExpression *pexpr) const;

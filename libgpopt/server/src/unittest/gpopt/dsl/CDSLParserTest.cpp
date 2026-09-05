@@ -201,6 +201,13 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"Union*<a0 s0>(Input<t0>,Input<t1>)|Union<a1 s1>(Input<t2>,"
 		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
 		"SchemaEq(s1,s0)",
+		// Remaining SQL set operators share the same ordered row binding.
+		"Intersect*<a0 s0>(Input<t0>,Input<t1>)|Intersect*<a1 s1>(Input<t2>,"
+		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
+		"SchemaEq(s1,s0)",
+		"Except<a0 s0>(Input<t0>,Input<t1>)|Except<a1 s1>(Input<t2>,"
+		"Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);"
+		"SchemaEq(s1,s0)",
 		// Expression-safety constraints used by proved scalar substitutions.
 		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|TableEq(t1,t0);"
 		"AttrsEq(a1,a0);SchemaEq(s1,s0);ErrorFree(a0);Deterministic(a0)",

@@ -89,6 +89,8 @@ enum EDslOpKind
 	EdslopWindowFrame,	   // window with explicit frame metadata
 	EdslopMaxOneRow,		   // scalar-subquery cardinality contract
 	EdslopAssertMaxOneRow,  // executable assertion for the same contract
+	EdslopIntersect,		   // INTERSECT ALL / DISTINCT set operation
+	EdslopExcept,			   // EXCEPT ALL / DISTINCT set operation
 	EdslopSentinel
 };
 

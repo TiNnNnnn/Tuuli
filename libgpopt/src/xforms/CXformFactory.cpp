@@ -323,6 +323,18 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDSLRule_JoinApply(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_MaxOneRow(m_mp));
 	Add(GPOS_NEW(m_mp) CXformDSLRule_Window(m_mp));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_SetOp(
+		m_mp, COperator::EopLogicalIntersect, CXform::ExfDSLRuleIntersect,
+		"CXformDSLRule_Intersect"));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_SetOp(
+		m_mp, COperator::EopLogicalIntersectAll,
+		CXform::ExfDSLRuleIntersectAll, "CXformDSLRule_IntersectAll"));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_SetOp(
+		m_mp, COperator::EopLogicalDifference, CXform::ExfDSLRuleDifference,
+		"CXformDSLRule_Difference"));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_SetOp(
+		m_mp, COperator::EopLogicalDifferenceAll,
+		CXform::ExfDSLRuleDifferenceAll, "CXformDSLRule_DifferenceAll"));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&
 				"Not all xforms have been instantiated");

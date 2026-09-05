@@ -14,7 +14,9 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 						 CDSLModel *pmodel) const
 {
 	GPOS_ASSERT(nullptr != popUnion);
-	GPOS_ASSERT(EdslopUnion == popUnion->Edslop());
+	GPOS_ASSERT(EdslopUnion == popUnion->Edslop() ||
+				EdslopIntersect == popUnion->Edslop() ||
+				EdslopExcept == popUnion->Edslop());
 	GPOS_ASSERT(nullptr != pexprUnion);
 	GPOS_ASSERT(nullptr != pmodel);
 
@@ -30,7 +32,8 @@ CDSLUnionMatcher::FMatch(const CDSLOp *popUnion, CExpression *pexprUnion,
 	// whereas the proved rule IR exposes the equivalent Union* directly.
 	// Keep that representation bridge centralized and semantic: the view
 	// accepts only pure full-row deduplication.
-	CExpression *pexprDistinctView = popUnion->FDistinct()
+	CExpression *pexprDistinctView =
+		EdslopUnion == popUnion->Edslop() && popUnion->FDistinct()
 		? CDSLMatchView::PexprDistinctUnion(m_mp, pexprUnion)
 		: nullptr;
 	CExpression *pexprSetOp = nullptr == pexprDistinctView

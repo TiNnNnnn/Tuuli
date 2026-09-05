@@ -123,6 +123,7 @@ CLogicalIntersect::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfIntersect2Join);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleIntersect);
 	return xform_set;
 }
 

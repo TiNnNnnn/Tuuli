@@ -39,6 +39,7 @@
 #include "gpopt/xforms/CXformDSLRule_Select.h"
 #include "gpopt/xforms/CXformDSLRule_Union.h"
 #include "gpopt/xforms/CXformDSLRule_UnionAll.h"
+#include "gpopt/xforms/CXformDSLRule_SetOp.h"
 #include "gpopt/xforms/CXformDSLRule_Window.h"
 #include "gpopt/xforms/CXformDelete2DML.h"
 #include "gpopt/xforms/CXformDifference2LeftAntiSemiJoin.h"

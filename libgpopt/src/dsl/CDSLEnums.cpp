@@ -100,6 +100,8 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymOrder, EdslsymFrame, EdslsymWindow}},
 	{EdslopMaxOneRow, "MaxOneRow", 1, 0, {}},
 	{EdslopAssertMaxOneRow, "AssertMaxOneRow", 1, 0, {}},
+	{EdslopIntersect, "Intersect", 2, 2, {EdslsymAttrs, EdslsymSchema}},
+	{EdslopExcept, "Except", 2, 2, {EdslsymAttrs, EdslsymSchema}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -256,6 +258,12 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			// Union* (dedup) => UNION => set semantics; Union => UNION ALL.
 			return fDistinct ? COperator::EopLogicalUnion
 							 : COperator::EopLogicalUnionAll;
+		case EdslopIntersect:
+			return fDistinct ? COperator::EopLogicalIntersect
+							 : COperator::EopLogicalIntersectAll;
+		case EdslopExcept:
+			return fDistinct ? COperator::EopLogicalDifference
+							 : COperator::EopLogicalDifferenceAll;
 		case EdslopSort:
 		case EdslopLimit:
 			// ORCA fuses ORDER BY and LIMIT/OFFSET in CLogicalLimit. The DSL
@@ -306,6 +314,8 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
+		case EdslopIntersect:
+		case EdslopExcept:
 		case EdslopSort:
 		case EdslopLimit:
 		case EdslopCompute:
@@ -346,6 +356,8 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopProj:
 		case EdslopAgg:
 		case EdslopUnion:
+		case EdslopIntersect:
+		case EdslopExcept:
 		case EdslopSort:
 		case EdslopLimit:
 		case EdslopCompute:
@@ -448,6 +460,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"Agg_max", EdslopAgg, EdslsortNone},
 		{"Agg_min", EdslopAgg, EdslsortNone},
 		{"Union", EdslopUnion, EdslsortNone},
+		{"Intersect", EdslopIntersect, EdslsortNone},
+		{"Except", EdslopExcept, EdslsortNone},
 		{"Limit", EdslopLimit, EdslsortNone},
 		{"Sort", EdslopSort, EdslsortNone},
 		{"SortAsc", EdslopSort, EdslsortAsc},
@@ -482,9 +496,11 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 				*pedslaggfunc = EdslaggfuncMin;
 			}
 
-			// '*' is meaningful only for Proj, Union, and COUNT(DISTINCT ...).
+			// '*' marks DISTINCT for projections, set operations, and COUNT.
 			if (*pfStar && EdslopProj != rg_alias[ul].edslop &&
 				EdslopUnion != rg_alias[ul].edslop &&
+				EdslopIntersect != rg_alias[ul].edslop &&
+				EdslopExcept != rg_alias[ul].edslop &&
 				!(EdslopAgg == rg_alias[ul].edslop &&
 				  EdslaggfuncCount == *pedslaggfunc))
 			{

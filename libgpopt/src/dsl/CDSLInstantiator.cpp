@@ -50,6 +50,10 @@
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CLogicalIntersect.h"
+#include "gpopt/operators/CLogicalIntersectAll.h"
+#include "gpopt/operators/CLogicalDifference.h"
+#include "gpopt/operators/CLogicalDifferenceAll.h"
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
@@ -3782,11 +3786,32 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		pdrgpexprChildren->Append(pexprChild);
 	}
 
-	COperator *popSet = pop->FDistinct()
-		? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnion(
-			  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput))
-		: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnionAll(
-			  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	COperator *popSet = nullptr;
+	if (EdslopUnion == pop->Edslop())
+		popSet = pop->FDistinct()
+			? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnion(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput))
+			: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalUnionAll(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	else if (EdslopIntersect == pop->Edslop())
+		popSet = pop->FDistinct()
+			? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalIntersect(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput))
+			: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalIntersectAll(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	else if (EdslopExcept == pop->Edslop())
+		popSet = pop->FDistinct()
+			? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalDifference(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput))
+			: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalDifferenceAll(
+				  m_mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	else
+	{
+		pdrgpcrOutput->Release();
+		pdrgpdrgpcrInput->Release();
+		pdrgpexprChildren->Release();
+		return nullptr;
+	}
 	return GPOS_NEW(m_mp) CExpression(m_mp, popSet, pdrgpexprChildren);
 }
 
@@ -4907,6 +4932,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 		case EdslopAll:
 			return PexprBuildQuantified(pop, pmodel);
 		case EdslopUnion:
+		case EdslopIntersect:
+		case EdslopExcept:
 			return PexprBuildUnion(pop, pmodel);
 		case EdslopSort:
 			return PexprBuildSort(pop, pmodel);

@@ -262,6 +262,10 @@ public:
 		ExfDSLRuleJoinApply,
 		ExfDSLRuleMaxOneRow,
 		ExfDSLRuleWindow,
+		ExfDSLRuleIntersect,
+		ExfDSLRuleIntersectAll,
+		ExfDSLRuleDifference,
+		ExfDSLRuleDifferenceAll,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};
@@ -271,7 +275,8 @@ public:
 	{
 		return (ExfDSLRuleSelect <= exfid && exfid <= ExfDSLRuleLimit) ||
 			ExfDSLRuleJoinApply == exfid || ExfDSLRuleMaxOneRow == exfid ||
-			ExfDSLRuleWindow == exfid;
+			ExfDSLRuleWindow == exfid ||
+			(ExfDSLRuleIntersect <= exfid && exfid <= ExfDSLRuleDifferenceAll);
 	}
 
 	static BOOL

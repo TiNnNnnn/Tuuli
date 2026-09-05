@@ -184,6 +184,7 @@ CLogicalDifferenceAll::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfDifferenceAll2LeftAntiSemiJoin);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleDifferenceAll);
 	return xform_set;
 }
 

@@ -17,6 +17,10 @@
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CLogicalIntersect.h"
+#include "gpopt/operators/CLogicalIntersectAll.h"
+#include "gpopt/operators/CLogicalDifference.h"
+#include "gpopt/operators/CLogicalDifferenceAll.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
@@ -126,7 +130,8 @@ FOutputContains(CExpression *pexpr, CColRefArray *pdrgpcr)
 }
 
 static CExpression *
-PexprSetOp(CMemoryPool *mp, BOOL fDistinct, CExpression *pexprLeft,
+PexprSetOpById(CMemoryPool *mp, COperator::EOperatorId eopid,
+			   CExpression *pexprLeft,
 			   CColRefArray *pdrgpcrLeft, CExpression *pexprRight,
 			   CColRefArray *pdrgpcrRight)
 {
@@ -140,12 +145,48 @@ PexprSetOp(CMemoryPool *mp, BOOL fDistinct, CExpression *pexprLeft,
 	pexprRight->AddRef();
 	pdrgpexpr->Append(pexprLeft);
 	pdrgpexpr->Append(pexprRight);
-	COperator *pop = fDistinct
-		? static_cast<COperator *>(GPOS_NEW(mp) CLogicalUnion(
-			  mp, pdrgpcrOutput, pdrgpdrgpcrInput))
-		: static_cast<COperator *>(GPOS_NEW(mp) CLogicalUnionAll(
-			  mp, pdrgpcrOutput, pdrgpdrgpcrInput));
+	COperator *pop = nullptr;
+	switch (eopid)
+	{
+		case COperator::EopLogicalUnion:
+			pop = GPOS_NEW(mp)
+				CLogicalUnion(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		case COperator::EopLogicalUnionAll:
+			pop = GPOS_NEW(mp)
+				CLogicalUnionAll(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		case COperator::EopLogicalIntersect:
+			pop = GPOS_NEW(mp)
+				CLogicalIntersect(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		case COperator::EopLogicalIntersectAll:
+			pop = GPOS_NEW(mp)
+				CLogicalIntersectAll(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		case COperator::EopLogicalDifference:
+			pop = GPOS_NEW(mp)
+				CLogicalDifference(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		case COperator::EopLogicalDifferenceAll:
+			pop = GPOS_NEW(mp)
+				CLogicalDifferenceAll(mp, pdrgpcrOutput, pdrgpdrgpcrInput);
+			break;
+		default:
+			GPOS_ASSERT(!"unsupported test set operation");
+	}
 	return GPOS_NEW(mp) CExpression(mp, pop, pdrgpexpr);
+}
+
+static CExpression *
+PexprSetOp(CMemoryPool *mp, BOOL fDistinct, CExpression *pexprLeft,
+			   CColRefArray *pdrgpcrLeft, CExpression *pexprRight,
+			   CColRefArray *pdrgpcrRight)
+{
+	return PexprSetOpById(
+		mp, fDistinct ? COperator::EopLogicalUnion
+						  : COperator::EopLogicalUnionAll,
+		pexprLeft, pdrgpcrLeft, pexprRight, pdrgpcrRight);
 }
 
 static void
@@ -245,6 +286,8 @@ CDSLUnionTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),
 		GPOS_UNITTEST_FUNC(
+			CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate),
+		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_InstantiatePreservesColumnMaps),
@@ -270,6 +313,71 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
+{
+	struct SCase
+	{
+		const CHAR *rule;
+		COperator::EOperatorId eopid;
+	};
+	const SCase cases[] = {
+		{"Intersect*<a0 s0>(Input<t0>,Input<t1>)|Intersect*<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalIntersect},
+		{"Intersect<a0 s0>(Input<t0>,Input<t1>)|Intersect<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalIntersectAll},
+		{"Except*<a0 s0>(Input<t0>,Input<t1>)|Except*<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalDifference},
+		{"Except<a0 s0>(Input<t0>,Input<t1>)|Except<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalDifferenceAll}};
+
+	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(cases); ul++)
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		CDSLRule *prule = PdslruleParseLocal(mp, cases[ul].rule);
+		CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
+		CExpression *pexprLeft =
+			fix.PexprLogicalGet("set_left", 2, &pdrgpcrLeft);
+		CExpression *pexprRight =
+			fix.PexprLogicalGet("set_right", 2, &pdrgpcrRight);
+		CExpression *pexprSource = PexprSetOpById(
+			mp, cases[ul].eopid, pexprLeft, pdrgpcrLeft, pexprRight,
+			pdrgpcrRight);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		CDSLConstraintChecker checker(mp);
+		CExpression *pexprTarget = nullptr;
+		if (nullptr != prule &&
+			matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel) &&
+			checker.FCheck(prule, pmodel))
+		{
+			CDSLInstantiator instantiator(mp);
+			pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		}
+		const BOOL ok = nullptr != pexprTarget &&
+			pexprTarget->Pop()->Eopid() == cases[ul].eopid;
+		CRefCount::SafeRelease(pexprTarget);
+		pmodel->Release();
+		pexprSource->Release();
+		pexprLeft->Release();
+		pexprRight->Release();
+		CRefCount::SafeRelease(prule);
+		if (!ok)
+			return GPOS_FAILED;
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

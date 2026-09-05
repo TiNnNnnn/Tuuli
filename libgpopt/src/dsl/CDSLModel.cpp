@@ -395,8 +395,13 @@ void
 CDSLModel::AddUnionBinding(CExpression *pexprUnion)
 {
 	GPOS_ASSERT(nullptr != pexprUnion);
-	GPOS_ASSERT(COperator::EopLogicalUnion == pexprUnion->Pop()->Eopid() ||
-				COperator::EopLogicalUnionAll == pexprUnion->Pop()->Eopid());
+	const COperator::EOperatorId eopid = pexprUnion->Pop()->Eopid();
+	GPOS_ASSERT(COperator::EopLogicalUnion == eopid ||
+				COperator::EopLogicalUnionAll == eopid ||
+				COperator::EopLogicalIntersect == eopid ||
+				COperator::EopLogicalIntersectAll == eopid ||
+				COperator::EopLogicalDifference == eopid ||
+				COperator::EopLogicalDifferenceAll == eopid);
 	pexprUnion->AddRef();
 	m_pdrgpexprUnionBindings->Append(pexprUnion);
 }
