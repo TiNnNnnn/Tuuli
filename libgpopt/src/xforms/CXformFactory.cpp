@@ -335,6 +335,7 @@ CXformFactory::Instantiate()
 	Add(GPOS_NEW(m_mp) CXformDSLRule_SetOp(
 		m_mp, COperator::EopLogicalDifferenceAll,
 		CXform::ExfDSLRuleDifferenceAll, "CXformDSLRule_DifferenceAll"));
+	Add(GPOS_NEW(m_mp) CXformDSLRule_FullJoin(m_mp));
 
 	GPOS_ASSERT(nullptr != m_rgpxf[CXform::ExfSentinel - 1] &&
 				"Not all xforms have been instantiated");

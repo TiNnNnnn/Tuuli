@@ -28,6 +28,7 @@
 #include "gpopt/xforms/CXformDSLRule_Agg.h"
 #include "gpopt/xforms/CXformDSLRule_All.h"
 #include "gpopt/xforms/CXformDSLRule_Exists.h"
+#include "gpopt/xforms/CXformDSLRule_FullJoin.h"
 #include "gpopt/xforms/CXformDSLRule_NotExists.h"
 #include "gpopt/xforms/CXformDSLRule_InSub.h"
 #include "gpopt/xforms/CXformDSLRule_JoinApply.h"

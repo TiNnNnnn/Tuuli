@@ -88,6 +88,7 @@ CLogicalFullOuterJoin::PxfsCandidates(CMemoryPool *mp) const
 		(void) xform_set->ExchangeSet(CXform::ExfFullJoinCommutativity);
 	}
 	(void) xform_set->ExchangeSet(CXform::ExfFullOuterJoin2HashJoin);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleFullJoin);
 	if (FDPHyperRegionRoot())
 	{
 		(void) xform_set->ExchangeSet(CXform::ExfDPHyperJoinRegion);

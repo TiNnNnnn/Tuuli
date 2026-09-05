@@ -93,6 +93,7 @@ enum EDslOpKind
 	EdslopIntersect,		   // INTERSECT ALL / DISTINCT set operation
 	EdslopExcept,			   // EXCEPT ALL / DISTINCT set operation
 	EdslopRowNumber,		   // ROW_NUMBER with explicit partition/order/output
+	EdslopFullJoin,		   // full outer join
 	EdslopSentinel
 };
 

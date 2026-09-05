@@ -171,6 +171,11 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);"
 		"AttrsEq(a7,a2);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a8,a3);"
 		"AttrsEq(a9,a4)",
+		"FullJoin<a0 a1 a2 s0 p0 a3 a4>(Input<t0>,Input<t1>)|"
+		"FullJoin<a5 a6 a7 s1 p1 a8 a9>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);"
+		"AttrsEq(a7,a2);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a8,a3);"
+		"AttrsEq(a9,a4)",
 		// Explicit SemiJoin binds its complete predicate and exact dependencies.
 		"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|SemiJoin<p1 a2 a3>"
 		"(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"

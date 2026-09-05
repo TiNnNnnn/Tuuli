@@ -39,6 +39,7 @@ public:
 	// identity join rule instantiates a CLogicalInnerJoin whose output columns
 	// equal the source's, reusing the two child subtrees and the join predicate.
 	static GPOS_RESULT EresUnittest_InstantiatePreservesJoin();
+	static GPOS_RESULT EresUnittest_FullJoinRoundTrip();
 	static GPOS_RESULT EresUnittest_ExtendedOutputPreservesCommutedJoin();
 	static GPOS_RESULT EresUnittest_NestedJoinPredicatesStayLocal();
 

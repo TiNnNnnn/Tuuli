@@ -266,6 +266,7 @@ public:
 		ExfDSLRuleIntersectAll,
 		ExfDSLRuleDifference,
 		ExfDSLRuleDifferenceAll,
+		ExfDSLRuleFullJoin,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

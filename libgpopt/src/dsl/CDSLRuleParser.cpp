@@ -118,7 +118,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// equality keys followed by optional output and/or residual bindings. Keep
 	// every historical form wire-compatible.
 	const BOOL fJoin =
-		EdslopInnerJoin == edslop || EdslopLeftJoin == edslop;
+		EdslopInnerJoin == edslop || EdslopLeftJoin == edslop ||
+		EdslopFullJoin == edslop;
 	const BOOL fCompatibleJoin = fJoin &&
 		(2 == ul_given || 3 == ul_given || 4 == ul_given ||
 		 5 == ul_given || 7 == ul_given);

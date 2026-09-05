@@ -115,6 +115,7 @@ CDSLRulePrefixIndex::FStructurallyExact(const CDSLOp *pop)
 		case EdslopInput:
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
+		case EdslopFullJoin:
 		case EdslopUnion:
 		case EdslopIntersect:
 		case EdslopExcept:

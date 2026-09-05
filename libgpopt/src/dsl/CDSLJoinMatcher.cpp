@@ -25,6 +25,7 @@
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
@@ -505,6 +506,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	GPOS_ASSERT(nullptr != popJoin);
 	GPOS_ASSERT(EdslopInnerJoin == popJoin->Edslop() ||
 				EdslopLeftJoin == popJoin->Edslop() ||
+				EdslopFullJoin == popJoin->Edslop() ||
 				EdslopSemiJoin == popJoin->Edslop() ||
 				EdslopSemiApply == popJoin->Edslop() ||
 				EdslopAntiJoin == popJoin->Edslop() ||
@@ -519,6 +521,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	// (left rel, right rel, scalar predicate).
 	const COperator::EOperatorId eopid = pexprJoin->Pop()->Eopid();
 	const BOOL fInner = (EdslopInnerJoin == popJoin->Edslop());
+	const BOOL fFull = (EdslopFullJoin == popJoin->Edslop());
 	const BOOL fSemi = (EdslopSemiJoin == popJoin->Edslop());
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
@@ -543,6 +546,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	if (fInner)
 	{
 		eopidExpected = COperator::EopLogicalInnerJoin;
+	}
+	else if (fFull)
+	{
+		eopidExpected = COperator::EopLogicalFullOuterJoin;
 	}
 	else if (fSemi)
 	{

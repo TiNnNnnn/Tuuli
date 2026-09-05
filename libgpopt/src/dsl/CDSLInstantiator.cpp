@@ -30,6 +30,7 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
@@ -2978,6 +2979,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		case EdslopLeftJoin:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterJoin(m_mp);
 			break;
+		case EdslopFullJoin:
+			popJoin = GPOS_NEW(m_mp) CLogicalFullOuterJoin(m_mp);
+			break;
 		case EdslopSemiJoin:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp);
 			break;
@@ -5070,6 +5074,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return nullptr;
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
+		case EdslopFullJoin:
 		case EdslopSemiJoin:
 		case EdslopSemiApply:
 		case EdslopAntiJoin:

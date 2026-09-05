@@ -27,6 +27,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
@@ -80,6 +81,12 @@ using namespace gpopt;
 		"InnerJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"                        \
 		"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"  \
 		"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEmpty(a1);AttrsEmpty(a3)"
+
+#define GPOPT_DSL_FULL_JOIN_IDENTITY_RULE                              \
+	"FullJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
+	"FullJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"                         \
+	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"                \
+	"AttrsEq(a2,a0);AttrsEq(a3,a1)"
 
 #define GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE                           \
 	"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                         \
@@ -206,6 +213,7 @@ CDSLJoinTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
+		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_FullJoinRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin),
 		GPOS_UNITTEST_FUNC(
@@ -1380,6 +1388,60 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 		else if ((*pexprTgt)[0] != pexprLeft || (*pexprTgt)[1] != pexprRight)
 		{
 			// both relational children are the grafted subtrees (pointer identity)
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTgt);
+	pmodel->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprJoin->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_FullJoinRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule =
+		PdslruleParseLocal(mp, GPOPT_DSL_FULL_JOIN_IDENTITY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft = fix.PexprLogicalGet("t0", 2, &pdrgpcrLeft);
+	CExpression *pexprRight = fix.PexprLogicalGet("t1", 2, &pdrgpcrRight);
+	CExpression *pexprPred =
+		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
+	CExpression *pexprJoin = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalFullOuterJoin(mp), pexprLeft, pexprRight,
+		pexprPred);
+	pexprPred->Release();
+
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CExpression *pexprTgt = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator inst(mp);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTgt ||
+			COperator::EopLogicalFullOuterJoin != pexprTgt->Pop()->Eopid() ||
+			!pexprJoin->DeriveOutputColumns()->Equals(
+				pexprTgt->DeriveOutputColumns()))
+		{
 			eres = GPOS_FAILED;
 		}
 	}

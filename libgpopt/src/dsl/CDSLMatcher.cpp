@@ -534,6 +534,7 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// only operator-specific code reads, so join does not go through generic child
 	// recursion (see CDSLJoinMatcher, doc M2).
 	if (EdslopInnerJoin == pop->Edslop() || EdslopLeftJoin == pop->Edslop() ||
+		EdslopFullJoin == pop->Edslop() ||
 		EdslopSemiJoin == pop->Edslop() ||
 		EdslopSemiApply == pop->Edslop() ||
 		EdslopAntiJoin == pop->Edslop() ||

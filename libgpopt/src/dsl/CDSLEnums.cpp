@@ -107,6 +107,9 @@ const SDslOpDesc rg_op_desc[] = {
 	 {EdslsymAttrs, EdslsymSchema, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopRowNumber, "RowNumber", 1, 3,
 	 {EdslsymAttrs, EdslsymOrder, EdslsymRank}},
+	{EdslopFullJoin, "FullJoin", 2, 7,
+	 {EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymSchema,
+	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -235,6 +238,8 @@ CDSLOpKindTable::Eopid(EDslOpKind edslop, BOOL fDistinct)
 			return COperator::EopLogicalInnerJoin;
 		case EdslopLeftJoin:
 			return COperator::EopLogicalLeftOuterJoin;
+		case EdslopFullJoin:
+			return COperator::EopLogicalFullOuterJoin;
 		case EdslopSemiJoin:
 			return COperator::EopLogicalLeftSemiJoin;
 		case EdslopSemiApply:
@@ -315,6 +320,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 		case EdslopInput:
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
+		case EdslopFullJoin:
 		case EdslopFilter:
 		case EdslopInSubFilter:
 		case EdslopExists:
@@ -358,6 +364,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopInput:
 		case EdslopInnerJoin:
 		case EdslopLeftJoin:
+		case EdslopFullJoin:
 		case EdslopFilter:
 		case EdslopInSubFilter:
 		case EdslopExists:
@@ -434,6 +441,8 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"Empty", EdslopEmpty, EdslsortNone},
 		{"InnerJoin", EdslopInnerJoin, EdslsortNone},
 		{"LeftJoin", EdslopLeftJoin, EdslsortNone},
+		{"FullJoin", EdslopFullJoin, EdslsortNone},
+		{"FullOuterJoin", EdslopFullJoin, EdslsortNone},
 		{"SemiJoin", EdslopSemiJoin, EdslsortNone},
 		{"LeftSemiJoin", EdslopSemiJoin, EdslsortNone},
 		{"SemiApply", EdslopSemiApply, EdslsortNone},
