@@ -117,7 +117,8 @@ public:
 			case EmtMatchAllApply:
 				return COperator::EopLogicalLeftAntiSemiApplyNotIn == opid ||
 					   COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn ==
-						   opid;
+						   opid ||
+					   COperator::EopLogicalLeftAntiSemiJoinNotIn == opid;
 
 			case EmtMatchJoinApply:
 				return COperator::EopLogicalInnerApply == opid ||
