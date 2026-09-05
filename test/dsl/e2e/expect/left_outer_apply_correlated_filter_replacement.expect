@@ -45,7 +45,16 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"283d176f5bcef54e\""
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
     }
   ],
   "rows": {

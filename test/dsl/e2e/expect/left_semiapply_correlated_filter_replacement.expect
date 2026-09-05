@@ -57,7 +57,16 @@
       "alternative": [
         "CXformDSLRule_Project",
         "CXformDSLRule_Exists"
-      ]
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
     }
   ],
   "rows": {
