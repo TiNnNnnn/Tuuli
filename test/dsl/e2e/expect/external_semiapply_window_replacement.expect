@@ -1,0 +1,84 @@
+{
+  "description": "A composed Compute/Window normalization exposes external SemiApply correlation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "External equality correlations below a safe Compute and partition-compatible Window",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "07ca3e211ce6bcf5",
+      "611555770f814299"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_external_semiapply_window.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"07ca3e211ce6bcf5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_window.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"07ca3e211ce6bcf5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "policy": "isolate_external_semiapply_window.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}
