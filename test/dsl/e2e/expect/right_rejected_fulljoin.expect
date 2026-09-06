@@ -22,7 +22,7 @@
     {
       "name": "all-rules-bottom-up-rbo",
       "trace": true,
-      "policy": "wetune_bottom_up_rbo.policy",
+      "policy": "join_match_views_bottom_up_rbo.policy",
       "contains": [
         "\"rule_id\":48,\"status\":\"applied_rbo\"",
         "\"placement\":\"rbo\""
@@ -30,7 +30,7 @@
     }
   ],
   "rows": {
-    "policy": "wetune_bottom_up_rbo.policy",
+    "policy": "join_match_views_bottom_up_rbo.policy",
     "output": [
       "1,10",
       "2,10",
