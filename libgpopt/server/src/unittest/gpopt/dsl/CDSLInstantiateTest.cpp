@@ -175,10 +175,15 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 		fix.PexprPredAtom((*pdrgpcrOuter)[0]);
 	CExpression *pexprInnerAtom =
 		fix.PexprPredAtom((*pdrgpcrInner)[0]);
-	CExpression *pexprResidual = CPredicateUtils::PexprDisjunction(
+	CExpression *pexprCrossDomain = CPredicateUtils::PexprDisjunction(
 		mp, pexprOuterAtom, pexprInnerAtom);
 	pexprOuterAtom->Release();
 	pexprInnerAtom->Release();
+	CExpression *pexprInnerOnly =
+		fix.PexprPredAtom((*pdrgpcrInner)[1]);
+	CExpression *pexprResidual = CPredicateUtils::PexprConjunction(
+		mp, pexprCrossDomain, pexprInnerOnly);
+	pexprCrossDomain->Release();
 	CExpression *pexprJoin =
 		fix.PexprLogicalInnerJoin(pexprOuter, pexprInner, pexprResidual);
 	CExpression *pexprExternalPred =
@@ -202,9 +207,34 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 	else
 	{
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		BOOL fInnerOnlyResidual = false;
+		BOOL fInnerOnlyExternal = false;
+		if (nullptr != pexprTarget && 2 == pexprTarget->Arity() &&
+			COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid() &&
+			COperator::EopLogicalInnerJoin == (*pexprTarget)[0]->Pop()->Eopid() &&
+			3 == (*pexprTarget)[0]->Arity())
+		{
+			CExpressionArray *pdrgpexprJoin =
+				CPredicateUtils::PdrgpexprConjuncts(mp, (*(*pexprTarget)[0])[2]);
+			for (ULONG ul = 0; ul < pdrgpexprJoin->Size(); ul++)
+			{
+				fInnerOnlyResidual = fInnerOnlyResidual ||
+					CUtils::Equals((*pdrgpexprJoin)[ul], pexprInnerOnly);
+			}
+			pdrgpexprJoin->Release();
+			CExpressionArray *pdrgpexprFilter =
+				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[1]);
+			for (ULONG ul = 0; ul < pdrgpexprFilter->Size(); ul++)
+			{
+				fInnerOnlyExternal = fInnerOnlyExternal ||
+					CUtils::Equals((*pdrgpexprFilter)[ul], pexprInnerOnly);
+			}
+			pdrgpexprFilter->Release();
+		}
 		if (nullptr == pexprTarget ||
 			COperator::EopLogicalSelect != pexprTarget->Pop()->Eopid() ||
 			COperator::EopLogicalInnerJoin != (*pexprTarget)[0]->Pop()->Eopid() ||
+			!fInnerOnlyResidual || fInnerOnlyExternal ||
 			!(*pexprTarget)[1]->DeriveUsedColumns()->FMember(
 				(*pdrgpcrInner)[1]) ||
 			!(*pexprTarget)[1]->DeriveUsedColumns()->FMember(
@@ -246,6 +276,7 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 	pexprExternalPred->Release();
 	pexprJoin->Release();
 	pexprResidual->Release();
+	pexprInnerOnly->Release();
 	pexprExternal->Release();
 	pexprInner->Release();
 	pexprOuter->Release();

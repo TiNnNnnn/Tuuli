@@ -1,0 +1,87 @@
+{
+  "description": "Window and Filter normalization expose external IN correlation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "External IN equality correlation exposed by composable Filter and Window rewrites",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "878a42451564c19e",
+      "592029aaa72e88fb",
+      "611555770f814299"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_external_semiapply_in_window.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"592029aaa72e88fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_in_window.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"592029aaa72e88fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "policy": "isolate_external_semiapply_in_window.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

@@ -133,6 +133,7 @@ private:
 	ULONG m_ulNodes;
 	ULONG m_ulRules;
 	ULONG m_ulFallbackRules;
+	BOOL m_fFollowDSLSelectAlternatives;
 
 	SNode *PnodeNew();
 	SNode *PnodeInput(SNode *pnode);
@@ -177,6 +178,15 @@ private:
 	static CExpression *PexprRepresentative(CMemoryPool *mp,
 										 CGroupExpression *pgexpr,
 										 ULONG ulDepth = 0);
+
+	// Adapter matchers inspect normalized Filter chains. Enumerate DSL-produced
+	// Select alternatives only along that path; all other descendants remain
+	// stable representatives.
+	static CExpressionArray *PdrgpexprAdapterBindings(CMemoryPool *mp,
+											 CGroup *pgroup,
+											 ULONG ulDepth = 0);
+	static CExpressionArray *PdrgpexprAdapterBindings(
+		CMemoryPool *mp, CGroupExpression *pgexpr, ULONG ulDepth = 0);
 
 	// Consume one relational memo group (or one fixed root group expression)
 	// while advancing through the serialized source-template trie.

@@ -68,6 +68,7 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
+#include "naucrates/traceflags/traceflags.h"
 #include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/xforms/CXformUtils.h"
 
@@ -75,6 +76,22 @@ using namespace gpopt;
 
 namespace
 {
+void
+TracePredicateDomainSplitFailure(const CHAR *szReason, ULONG ulConjuncts = 0,
+								 ULONG ulResidual = 0,
+								 ULONG ulExternal = 0,
+								 ULONG ulExternalOuter = 0)
+{
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		GPOS_TRACE_FORMAT(
+			"DSL_CONSTRAINT_TRACE kind=PredicateDomainSplit stage=instantiate "
+			"status=rejected reason=%s conjuncts=%d residual=%d external=%d "
+			"external_outer=%d",
+			szReason, ulConjuncts, ulResidual, ulExternal, ulExternalOuter);
+	}
+}
+
 BOOL
 FContainsInputSymbol(const CDSLOp *pop, const CDSLSymbol *psym)
 {
@@ -1172,6 +1189,7 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 	if (nullptr == pcon || 9 != pcon->Pdrgpsym()->Size() ||
 		nullptr == m_prule || ulDepth > m_prule->Pdrgpcon()->Size())
 	{
+		TracePredicateDomainSplitFailure("invalid_arguments");
 		return false;
 	}
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
@@ -1199,6 +1217,7 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 		nullptr != m_phmDerivedCols->Find(psymExternalLocal) ||
 		nullptr != m_phmDerivedCols->Find(psymExternalOuter))
 	{
+		TracePredicateDomainSplitFailure("partial_cached_outputs");
 		return false;
 	}
 
@@ -1211,6 +1230,7 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 	if (nullptr == pexprSource ||
 		nullptr == pexprOuter || nullptr == pexprInner)
 	{
+		TracePredicateDomainSplitFailure("unbound_input");
 		CRefCount::SafeRelease(pexprSource);
 		return false;
 	}
@@ -1219,6 +1239,7 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 	CColRefSet *pcrsInner = pexprInner->DeriveOutputColumns();
 	if (!pcrsOuter->IsDisjoint(pcrsInner))
 	{
+		TracePredicateDomainSplitFailure("overlapping_table_domains");
 		pexprSource->Release();
 		return false;
 	}
@@ -1232,26 +1253,18 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 	CExpressionArray *pdrgpexprExternal = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	CExpressionArray *pdrgpexprConjuncts =
 		CPredicateUtils::PdrgpexprConjuncts(m_mp, pexprSource);
+	const ULONG ulConjuncts = pdrgpexprConjuncts->Size();
 	BOOL fValid = true;
 	for (ULONG ul = 0; fValid && ul < pdrgpexprConjuncts->Size(); ul++)
 	{
 		CExpression *pexprConjunct = (*pdrgpexprConjuncts)[ul];
 		CColRefSet *pcrsUsed = GPOS_NEW(m_mp)
 			CColRefSet(m_mp, *pexprConjunct->DeriveUsedColumns());
-		if (pcrsUsed->IsDisjoint(pcrsOuter) ||
-			pcrsUsed->IsDisjoint(pcrsInner))
-		{
-			pexprConjunct->AddRef();
-			pdrgpexprExternal->Append(pexprConjunct);
-			CColRefSet *pcrsLocal =
-				GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
-			pcrsLocal->Intersection(pcrsChildren);
-			pcrsExternalLocal->Union(pcrsLocal);
-			pcrsLocal->Release();
-			pcrsUsed->Difference(pcrsChildren);
-			pcrsExternalOuter->Union(pcrsUsed);
-		}
-		else if (pcrsChildren->ContainsAll(pcrsUsed))
+		// Anything wholly owned by the two current inputs remains a residual,
+		// including a predicate local to only one side. Check this before the
+		// external-domain case: a one-sided local predicate is necessarily
+		// disjoint from the other side, but it is not a correlation.
+		if (pcrsChildren->ContainsAll(pcrsUsed))
 		{
 			pexprConjunct->AddRef();
 			pdrgpexprResidual->Append(pexprConjunct);
@@ -1265,6 +1278,19 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 			pcrsResidualInner->Union(pcrsCurrent);
 			pcrsCurrent->Release();
 		}
+		else if (pcrsUsed->IsDisjoint(pcrsOuter) ||
+				 pcrsUsed->IsDisjoint(pcrsInner))
+		{
+			pexprConjunct->AddRef();
+			pdrgpexprExternal->Append(pexprConjunct);
+			CColRefSet *pcrsLocal =
+				GPOS_NEW(m_mp) CColRefSet(m_mp, *pcrsUsed);
+			pcrsLocal->Intersection(pcrsChildren);
+			pcrsExternalLocal->Union(pcrsLocal);
+			pcrsLocal->Release();
+			pcrsUsed->Difference(pcrsChildren);
+			pcrsExternalOuter->Union(pcrsUsed);
+		}
 		else
 		{
 			fValid = false;
@@ -1277,6 +1303,14 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 		0 < pcrsExternalOuter->Size();
 	if (!fValid)
 	{
+		TracePredicateDomainSplitFailure(
+			0 == pdrgpexprExternal->Size()
+				? "missing_external_conjunct"
+				: (0 == pcrsExternalOuter->Size()
+					   ? "missing_external_reference"
+					   : "mixed_domain_conjunct"),
+			ulConjuncts, pdrgpexprResidual->Size(),
+			pdrgpexprExternal->Size(), pcrsExternalOuter->Size());
 		pdrgpexprResidual->Release();
 		pdrgpexprExternal->Release();
 		pcrsResidualOuter->Release();

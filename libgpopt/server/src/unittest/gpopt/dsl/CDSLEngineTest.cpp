@@ -23,6 +23,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -473,6 +474,32 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pxfsDedup->Release();
 	popDedup->Release();
 	pruleDistinct->Release();
+
+	// A routed LeftSemiApplyIn must retain SemiApply's exact trie prefix. A
+	// fallback would hide DSL-produced alternatives in its right child group.
+	CDSLRule *pruleSemiApplyIn = PrulePrefix(
+		mp,
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3>(Input<t1>))|"
+		"Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleSemiApplyIn)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleSemiApplyIn, 0,
+				   COperator::EopLogicalLeftSemiApplyIn);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftSemiApplyIn(mp), PexprPrefixLeaf(mp),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+								 PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+			  1 == pdrgprule->Size() && pruleSemiApplyIn == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleSemiApplyIn->Release();
 
 	// A prefix ending at an adapter boundary must see every top-level memo
 	// alternative in that group, while keeping their descendants opaque.

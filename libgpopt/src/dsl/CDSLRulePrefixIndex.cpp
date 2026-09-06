@@ -53,7 +53,8 @@ CDSLRulePrefixIndex::CDSLRulePrefixIndex(CMemoryPool *mp)
 	  m_pnodeRoot(nullptr),
 	  m_ulNodes(0),
 	  m_ulRules(0),
-	  m_ulFallbackRules(0)
+	  m_ulFallbackRules(0),
+	  m_fFollowDSLSelectAlternatives(false)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_pnodeRoot = PnodeNew();
@@ -177,8 +178,13 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	const BOOL fCorrelatedNotInApplyView =
 		COperator::EopLogicalLeftAntiSemiApplyNotIn == pedge->m_eopid &&
 		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == pop->Eopid();
+	// LeftSemiApplyIn is the tagged live form of DSL SemiApply. Mirror the
+	// shared Join matcher so the trie can keep inspecting its child groups.
+	const BOOL fSemiApplyInView =
+		COperator::EopLogicalLeftSemiApply == pedge->m_eopid &&
+		COperator::EopLogicalLeftSemiApplyIn == pop->Eopid();
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
-		!fDedupAggView && !fCorrelatedNotInApplyView)
+		!fDedupAggView && !fCorrelatedNotInApplyView && !fSemiApplyInView)
 	{
 		return false;
 	}
@@ -380,8 +386,15 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 	const BOOL fCorrelatedNotInApplyView =
 		EdslopAntiApplyNotIn == popRoot->Edslop() &&
 		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopidBucket;
+	const BOOL fSemiApplyInView =
+		EdslopSemiApply == popRoot->Edslop() &&
+		2 == popRoot->UlChildren() &&
+		EdslopFilter == (*popRoot)[1]->Edslop() &&
+		COperator::EopLogicalLeftSemiApplyIn == eopidBucket;
+	m_fFollowDSLSelectAlternatives =
+		m_fFollowDSLSelectAlternatives || fSemiApplyInView;
 	if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
-		fCorrelatedNotInApplyView)
+		fCorrelatedNotInApplyView || fSemiApplyInView)
 	{
 		pnodeTerminal =
 			PnodeInsertOp(m_pnodeRoot, popRoot, true, &fComplete);
@@ -682,6 +695,105 @@ CDSLRulePrefixIndex::PexprRepresentative(CMemoryPool *mp,
 								  nullptr /*prpp*/, nullptr /*input_stats*/);
 }
 
+CExpressionArray *
+CDSLRulePrefixIndex::PdrgpexprAdapterBindings(CMemoryPool *mp,
+										  CGroup *pgroup, ULONG ulDepth)
+{
+	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+	CGroupProxy gp(pgroup);
+	if (pgroup->FScalar())
+	{
+		pdrgpexpr->Append(PexprRepresentative(mp, gp.PgexprFirst(), ulDepth));
+		return pdrgpexpr;
+	}
+	// At the adapter boundary retain the established top-level behavior. Below
+	// it, vary only DSL-produced Select alternatives plus one stable
+	// representative. This is the normalized Filter chain inspected by adapter
+	// matchers; native alternatives such as local/global Agg stages are optimizer
+	// search state and must not be recombined into a new parent binding.
+	if (0 < ulDepth)
+	{
+		pdrgpexpr->Append(PexprRepresentative(mp, pgroup, ulDepth));
+	}
+
+	for (CGroupExpression *pgexpr = gp.PgexprNextLogical(nullptr);
+		 nullptr != pgexpr; pgexpr = gp.PgexprNextLogical(pgexpr))
+	{
+		if (0 < ulDepth &&
+			(!pgexpr->FHasDSLProvenance() ||
+			 COperator::EopLogicalSelect != pgexpr->Pop()->Eopid()))
+		{
+			continue;
+		}
+		CExpressionArray *pdrgpexprCurrent =
+			PdrgpexprAdapterBindings(mp, pgexpr, ulDepth);
+		for (ULONG ul = 0; ul < pdrgpexprCurrent->Size(); ul++)
+		{
+			CExpression *pexpr = (*pdrgpexprCurrent)[ul];
+			if (!FContainsEquivalentBinding(pdrgpexpr, pexpr))
+			{
+				pexpr->AddRef();
+				pdrgpexpr->Append(pexpr);
+			}
+		}
+		pdrgpexprCurrent->Release();
+	}
+	return pdrgpexpr;
+}
+
+CExpressionArray *
+CDSLRulePrefixIndex::PdrgpexprAdapterBindings(CMemoryPool *mp,
+										  CGroupExpression *pgexpr,
+										  ULONG ulDepth)
+{
+	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+	ULONG ulRelationalChildren = 0;
+	ULONG ulRelationalChild = 0;
+	for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
+	{
+		if (!(*pgexpr)[ul]->FScalar())
+		{
+			ulRelationalChild = ul;
+			ulRelationalChildren++;
+		}
+	}
+
+	if (COperator::EopLogicalSelect != pgexpr->Pop()->Eopid() ||
+		1 != ulRelationalChildren || 128 <= ulDepth)
+	{
+		pdrgpexpr->Append(PexprRepresentative(mp, pgexpr, ulDepth));
+		return pdrgpexpr;
+	}
+
+	CExpressionArray *pdrgpexprChildren = PdrgpexprAdapterBindings(
+		mp, (*pgexpr)[ulRelationalChild], ulDepth + 1);
+	for (ULONG ulBinding = 0; ulBinding < pdrgpexprChildren->Size();
+		 ulBinding++)
+	{
+		CExpressionArray *pdrgpexprWrapper =
+			GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG ulChild = 0; ulChild < pgexpr->Arity(); ulChild++)
+		{
+			if (ulChild == ulRelationalChild)
+			{
+				(*pdrgpexprChildren)[ulBinding]->AddRef();
+				pdrgpexprWrapper->Append((*pdrgpexprChildren)[ulBinding]);
+			}
+			else
+			{
+				pdrgpexprWrapper->Append(
+					PexprRepresentative(mp, (*pgexpr)[ulChild], ulDepth + 1));
+			}
+		}
+		pgexpr->Pop()->AddRef();
+		pdrgpexpr->Append(GPOS_NEW(mp) CExpression(
+			mp, pgexpr->Pop(), pgexpr, pdrgpexprWrapper,
+			nullptr /*prpp*/, nullptr /*input_stats*/));
+	}
+	pdrgpexprChildren->Release();
+	return pdrgpexpr;
+}
+
 CDSLRulePrefixIndex::SBindingStateArray *
 CDSLRulePrefixIndex::PdrgpstateConsumeGroup(CMemoryPool *mp,
 										const SNode *pnode,
@@ -698,26 +810,43 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGroup(CMemoryPool *mp,
 	}
 
 	// A terminal at a representation-adapter boundary consumes this complete
-	// group. Keep every top-level alternative visible so a preceding DSL rewrite
-	// can feed an enclosing rule; descendants remain stable representatives.
+	// group. The routed SemiApplyIn view also follows DSL Select alternatives so
+	// preceding Filter rewrites can compose; every other bucket retains only the
+	// established top-level alternatives.
 	if (FNodeHasAvailableTerminal(pnode))
 	{
-		CGroupProxy gpTerminal(pgroup);
-		if (pgroup->FScalar())
+		if (m_fFollowDSLSelectAlternatives)
 		{
-			pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
-				pnode, PexprRepresentative(mp, gpTerminal.PgexprFirst())));
+			CExpressionArray *pdrgpexprAdapter =
+				PdrgpexprAdapterBindings(mp, pgroup);
+			for (ULONG ul = 0; ul < pdrgpexprAdapter->Size(); ul++)
+			{
+				CExpression *pexpr = (*pdrgpexprAdapter)[ul];
+				pexpr->AddRef();
+				pdrgpstate->Append(
+					GPOS_NEW(mp) SBindingState(pnode, pexpr));
+			}
+			pdrgpexprAdapter->Release();
 		}
 		else
 		{
-			for (CGroupExpression *pgexprTerminal =
-					 gpTerminal.PgexprNextLogical(nullptr);
-				 nullptr != pgexprTerminal;
-				 pgexprTerminal =
-					 gpTerminal.PgexprNextLogical(pgexprTerminal))
+			CGroupProxy gpTerminal(pgroup);
+			if (pgroup->FScalar())
 			{
 				pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
-					pnode, PexprRepresentative(mp, pgexprTerminal)));
+					pnode,
+					PexprRepresentative(mp, gpTerminal.PgexprFirst())));
+			}
+			else
+			{
+				for (CGroupExpression *pgexpr =
+						 gpTerminal.PgexprNextLogical(nullptr);
+					 nullptr != pgexpr;
+					 pgexpr = gpTerminal.PgexprNextLogical(pgexpr))
+				{
+					pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
+						pnode, PexprRepresentative(mp, pgexpr)));
+				}
 			}
 		}
 	}

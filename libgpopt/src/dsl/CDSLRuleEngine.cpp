@@ -644,6 +644,20 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 		poctxt->RecordDSLRuleTiming(ulRuleId, ulMatchUs, ulConstraintUs,
 								 ulInstantiateUs);
 	}
+	// Full xform tracing is explicitly diagnostic. Unlike the cardinality-limited
+	// application record below, retain every rejected binding so a later valid
+	// alternative is not hidden behind the first failure.
+	if (fVerbose && EdsltraceConstraintRejected == edsltrace &&
+		nullptr != pconFailed)
+	{
+		CAutoTrace detail(mp);
+		detail.Os()
+			<< "DSL_CONSTRAINT_TRACE rule_hash=" << prule->SzIdentity()
+			<< " status=rejected constraint="
+			<< CDSLConstraintKindTable::SzName(pconFailed->Edslcon())
+			<< " constraint_index=" << ulFailed << " bindings="
+			<< (nullptr == pmodel ? 0 : pmodel->Size()) << std::endl;
+	}
 	// Keep machine trace cardinality identical in compact and verbose modes.
 	// Reprinting every Cascades attempt can fill the task's fixed trace buffer
 	// before ProcessTraceFlags() emits the authoritative rule summaries. Verbose
