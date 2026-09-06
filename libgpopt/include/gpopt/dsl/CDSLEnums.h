@@ -260,6 +260,9 @@ enum EDslConstraintKind
 	EdslconTableShared,
 	// PredicateNotTrue(out,input): out is SQL's two-valued (input IS NOT TRUE).
 	EdslconPredicateNotTrue,
+	// PredicateNullRejecting(predicate,attrs): predicate cannot be TRUE when
+	// every referenced column in attrs is NULL.
+	EdslconPredicateNullRejecting,
 	EdslconSentinel
 };
 

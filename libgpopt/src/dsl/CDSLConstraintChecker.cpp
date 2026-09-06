@@ -1716,6 +1716,32 @@ CDSLConstraintChecker::FCheckPredicateNotTrue(
 }
 
 BOOL
+CDSLConstraintChecker::FCheckPredicateNullRejecting(
+	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+{
+	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
+		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+		EdslsymAttrs != (*pdrgpsym)[1]->Esymkind())
+	{
+		return false;
+	}
+	CExpression *pexprPredicate = pmodel->PexprPred((*pdrgpsym)[0]);
+	CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
+	if (nullptr == pexprPredicate || nullptr == pdrgpcrAttrs ||
+		0 == pdrgpcrAttrs->Size())
+	{
+		return false;
+	}
+	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	pcrsAttrs->Include(pdrgpcrAttrs);
+	const BOOL fRejecting =
+		CPredicateUtils::FNullRejecting(m_mp, pexprPredicate, pcrsAttrs);
+	pcrsAttrs->Release();
+	return fRejecting;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckPredicateNullSafeEq(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
@@ -3649,6 +3675,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateAnd(pcon, pmodel);
 		case EdslconPredicateNotTrue:
 			return FCheckPredicateNotTrue(pcon, pmodel);
+		case EdslconPredicateNullRejecting:
+			return FCheckPredicateNullRejecting(pcon, pmodel);
 		case EdslconPredicateNullSafeEq:
 			return FCheckPredicateNullSafeEq(pcon, pmodel);
 		case EdslconPredicateExists:

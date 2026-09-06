@@ -1,0 +1,80 @@
+{
+  "description": "Three generic NULL-aware DSL rules replace the safe outer-key aggregate Apply path",
+  "replacement": {
+    "xforms": [
+      "CXformInnerApplyWithOuterKey2InnerJoin"
+    ],
+    "scope": "Correlated NULL-on-empty aggregate with a NULL-rejecting Apply predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "f169b79b650c81ee",
+      "b8a54fa637de5d89",
+      "e7ded0e32f745546"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformInnerApplyWithOuterKey2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_inner_apply_outer_key.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f169b79b650c81ee\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e7ded0e32f745546\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApplyWithOuterKey2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformInnerApplyWithOuterKey2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApplyWithOuterKey2InnerJoin"
+      ],
+      "policy": "isolate_inner_apply_outer_key.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f169b79b650c81ee\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e7ded0e32f745546\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformInnerApplyWithOuterKey2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApplyWithOuterKey2InnerJoin"
+    ],
+    "policy": "isolate_inner_apply_outer_key.policy",
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}

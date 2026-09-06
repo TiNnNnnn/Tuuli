@@ -432,6 +432,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
+		if (EdslconPredicateNullRejecting == edslcon &&
+			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymAttrs != (*pdrgpsym)[1]->Esymkind()))
+		{
+			bctx.Fail("PredicateNullRejecting expects predicate and attrs symbols");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if ((EdslconPredicateExists == edslcon ||
 			 EdslconPredicateNotExists == edslcon) &&
 			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||

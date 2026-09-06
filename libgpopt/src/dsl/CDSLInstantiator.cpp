@@ -2240,7 +2240,30 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 		nullptr == popSourceFilter->Pdrgpsym() ||
 		popSourceFilter->Pdrgpsym()->Size() != pdrgpsymTarget->Size())
 	{
-		return nullptr;
+		// A target Filter may reuse a complete predicate bound by another source
+		// operator (for example Apply). No remap is needed when its declared
+		// dependency vector is already the predicate's exact column set.
+		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		for (ULONG ulPart = 1; ulPart < pdrgpsymTarget->Size(); ulPart++)
+		{
+			CColRefArray *pdrgpcrPart = PdrgpcrResolveCols(
+				PsymResolve((*pdrgpsymTarget)[ulPart]), pmodel);
+			if (nullptr == pdrgpcrPart)
+			{
+				pcrsDeclared->Release();
+				return nullptr;
+			}
+			pcrsDeclared->Include(pdrgpcrPart);
+		}
+		const BOOL fDependenciesExact =
+			pcrsDeclared->Equals(pexprBound->DeriveUsedColumns());
+		pcrsDeclared->Release();
+		if (!fDependenciesExact)
+		{
+			return nullptr;
+		}
+		pexprBound->AddRef();
+		return pexprBound;
 	}
 
 	UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);

@@ -187,6 +187,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconExprNulls, "ExprNulls", 3},
 	{EdslconTableShared, "TableShared", 2},
 	{EdslconPredicateNotTrue, "PredicateNotTrue", 2},
+	{EdslconPredicateNullRejecting, "PredicateNullRejecting", 2},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -718,6 +719,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconExprNulls:
 		case EdslconTableShared:
 		case EdslconPredicateNotTrue:
+		case EdslconPredicateNullRejecting:
 		case EdslconDepsDisjoint:
 		case EdslconExprSplit:
 		case EdslconAttrsIntersect:
