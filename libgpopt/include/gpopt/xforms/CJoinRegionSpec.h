@@ -64,13 +64,14 @@ public:
 		CBitSet *m_ses;
 		CBitSet *m_tes;
 		CExpression *m_predicate;
+		CExpression *m_notin_comparison;
 		std::vector<CConflictRule *> m_conflict_rules;
 
 	public:
 		CEdge(const CEdge &) = delete;
 		CEdge(CMemoryPool *mp, COperator::EOperatorId join_type,
 			  const CBitSet *left, const CBitSet *right,
-			  CExpression *predicate);
+			  CExpression *predicate, CExpression *notin_comparison = nullptr);
 		~CEdge();
 
 		COperator::EOperatorId
@@ -119,6 +120,12 @@ public:
 		Predicate() const
 		{
 			return m_predicate;
+		}
+
+		CExpression *
+		NotInComparison() const
+		{
+			return m_notin_comparison;
 		}
 
 		// Test whether this original join edge may connect the candidate inputs.

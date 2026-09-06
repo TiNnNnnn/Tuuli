@@ -105,7 +105,7 @@ CDSLEngineTest::EresUnittest_DPHyperNativeOwnership()
 		owned += CJobJoinEnumeration::FReplacesNativeXform(exfid) ? 1 : 0;
 	}
 
-	return 19 == join_enumeration && 15 == owned &&
+	return 19 == join_enumeration && 19 == owned &&
 			!CJobJoinEnumeration::FReplacesNativeXform(
 				CXform::ExfSimplifyGbAgg) &&
 			!CJobJoinEnumeration::FReplacesNativeXform(

@@ -891,6 +891,7 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 	request->m_join_type = COperator::EopLogicalInnerJoin;
 	request->m_swapped = false;
 	request->m_dependency_directional = false;
+	request->m_notin_comparison = nullptr;
 	request->m_edge_ids.clear();
 	BOOL dependency_swapped = false;
 	if (!FDependencyApplicable(left, right, &dependency_swapped,
@@ -921,6 +922,8 @@ CDPHyperJoinRegion::FBuildJoinRequest(const CBitSet *left,
 			++non_inner_count;
 			request->m_join_type = join_type;
 			non_inner_swapped = candidate.m_swapped;
+			request->m_notin_comparison =
+				m_spec->Edge(candidate.m_edge_id)->NotInComparison();
 		}
 	}
 	// Combining an Inner predicate into the ON clause of a non-inner join can

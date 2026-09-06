@@ -18,6 +18,7 @@
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CExpressionHandle.h"
@@ -60,6 +61,10 @@ CJobJoinEnumeration::FReplacesNativeXform(CXform::EXformId exfid)
 		case CXform::ExfAntiSemiJoinAntiSemiJoinNotInSwap:
 		case CXform::ExfAntiSemiJoinSemiJoinSwap:
 		case CXform::ExfAntiSemiJoinInnerJoinSwap:
+		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinNotInSwap:
+		case CXform::ExfAntiSemiJoinNotInSemiJoinSwap:
+		case CXform::ExfAntiSemiJoinNotInInnerJoinSwap:
 		case CXform::ExfFullJoinCommutativity:
 			return true;
 		default:
@@ -74,16 +79,7 @@ CJobJoinEnumeration::FNativeJoinEnumerationXform(CXform::EXformId exfid)
 	{
 		return true;
 	}
-	switch (exfid)
-	{
-		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinSwap:
-		case CXform::ExfAntiSemiJoinNotInAntiSemiJoinNotInSwap:
-		case CXform::ExfAntiSemiJoinNotInSemiJoinSwap:
-		case CXform::ExfAntiSemiJoinNotInInnerJoinSwap:
-			return true;
-		default:
-			return false;
-	}
+	return false;
 }
 
 namespace
@@ -252,73 +248,67 @@ PgroupMaterializeBinaryTree(CMemoryPool *mp, CEngine *engine,
 	return group;
 }
 
-CExpression *
-PexprJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
-		  CGroup *left, CGroup *right, CExpression *predicate)
+COperator *
+PopDPHyperJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
+			   CExpression *notin_comparison)
 {
 	switch (join_type)
 	{
 		case COperator::EopLogicalInnerJoin:
-			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
-				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfDPHyperJoinRegion);
+			return GPOS_NEW(mp)
+				CLogicalInnerJoin(mp, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftOuterJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
-				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfDPHyperJoinRegion);
+			return GPOS_NEW(mp)
+				CLogicalLeftOuterJoin(mp, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftSemiJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
-				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfDPHyperJoinRegion);
+			return GPOS_NEW(mp)
+				CLogicalLeftSemiJoin(mp, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalLeftAntiSemiJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
-				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfDPHyperJoinRegion);
+			return GPOS_NEW(mp)
+				CLogicalLeftAntiSemiJoin(mp, CXform::ExfDPHyperJoinRegion);
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
+			if (nullptr == notin_comparison)
+			{
+				return GPOS_NEW(mp) CLogicalLeftAntiSemiJoinNotIn(
+					mp, CXform::ExfDPHyperJoinRegion);
+			}
+			notin_comparison->AddRef();
+			return GPOS_NEW(mp) CLogicalLeftAntiSemiJoinNotIn(
+				mp, notin_comparison, CXform::ExfDPHyperJoinRegion);
 		case COperator::EopLogicalFullOuterJoin:
-			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
-				mp, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right),
-				predicate, CXform::ExfDPHyperJoinRegion);
+			return GPOS_NEW(mp)
+				CLogicalFullOuterJoin(mp, CXform::ExfDPHyperJoinRegion);
 		default:
-			GPOS_ASSERT(!"Unsupported DPHyper join type");
 			return nullptr;
 	}
 }
 
 CExpression *
+PexprJoin(CMemoryPool *mp, COperator::EOperatorId join_type,
+		  CGroup *left, CGroup *right, CExpression *predicate,
+		  CExpression *notin_comparison = nullptr)
+{
+	COperator *op = PopDPHyperJoin(mp, join_type, notin_comparison);
+	GPOS_ASSERT(nullptr != op);
+	return GPOS_NEW(mp) CExpression(
+		mp, op, PexprGroupLeaf(mp, left), PexprGroupLeaf(mp, right), predicate);
+}
+
+CExpression *
 PexprJoinForCost(CMemoryPool *mp, COperator::EOperatorId join_type,
 				 CExpression *left, CExpression *right,
-				 CExpression *predicate)
+				 CExpression *predicate,
+				 CExpression *notin_comparison = nullptr)
 {
+	COperator *op = PopDPHyperJoin(mp, join_type, notin_comparison);
+	if (nullptr == op)
+	{
+		predicate->Release();
+		return nullptr;
+	}
 	left->AddRef();
 	right->AddRef();
-	switch (join_type)
-	{
-		case COperator::EopLogicalInnerJoin:
-			return CUtils::PexprLogicalJoin<CLogicalInnerJoin>(
-				mp, left, right, predicate,
-				CXform::ExfDPHyperJoinRegion);
-		case COperator::EopLogicalLeftOuterJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftOuterJoin>(
-				mp, left, right, predicate,
-				CXform::ExfDPHyperJoinRegion);
-		case COperator::EopLogicalLeftSemiJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
-				mp, left, right, predicate,
-				CXform::ExfDPHyperJoinRegion);
-		case COperator::EopLogicalLeftAntiSemiJoin:
-			return CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(
-				mp, left, right, predicate,
-				CXform::ExfDPHyperJoinRegion);
-		case COperator::EopLogicalFullOuterJoin:
-			return CUtils::PexprLogicalJoin<CLogicalFullOuterJoin>(
-				mp, left, right, predicate,
-				CXform::ExfDPHyperJoinRegion);
-		default:
-			left->Release();
-			right->Release();
-			predicate->Release();
-			return nullptr;
-	}
+	return GPOS_NEW(mp) CExpression(mp, op, left, right, predicate);
 }
 
 class CDPHyperJoinCostCache
@@ -468,7 +458,8 @@ public:
 			}
 			build_clock.Restart();
 			CExpression *join = PexprJoinForCost(
-				m_mp, request.m_join_type, left_expr, right_expr, predicate);
+				m_mp, request.m_join_type, left_expr, right_expr, predicate,
+				request.m_notin_comparison);
 			m_join_build_us += build_clock.ElapsedUS();
 			if (nullptr == join)
 			{
@@ -534,6 +525,7 @@ FSupportedDPHyperJoin(COperator::EOperatorId op_id)
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalLeftSemiJoin:
 		case COperator::EopLogicalLeftAntiSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
 		case COperator::EopLogicalFullOuterJoin:
 			return true;
 		default:
@@ -1158,7 +1150,8 @@ CJobJoinEnumeration::FEnumerateRegion(
 			std::swap(left_group, right_group);
 		}
 		CExpression *join =
-			PexprJoin(mp, join_type, left_group, right_group, predicate);
+			PexprJoin(mp, join_type, left_group, right_group, predicate,
+					  request.m_notin_comparison);
 		target = engine->PgroupInsert(
 			target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 			!full /*intermediate*/);
@@ -1176,7 +1169,7 @@ CJobJoinEnumeration::FEnumerateRegion(
 		if (add_reverse)
 		{
 			join = PexprJoin(mp, join_type, right_group, left_group,
-							 reverse_predicate);
+							 reverse_predicate, request.m_notin_comparison);
 			CGroup *reverse_target = engine->PgroupInsert(
 				target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 				!full /*intermediate*/);

@@ -98,6 +98,20 @@ ClearDPHyperJoinEnumeration(CXformSet *xform_set,
 				xform_set,
 				CXform::ExfAntiSemiJoinInnerJoinSwap);
 			break;
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
+			ClearNativeJoinEnumerationXform(
+				xform_set,
+				CXform::ExfAntiSemiJoinNotInAntiSemiJoinSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set,
+				CXform::ExfAntiSemiJoinNotInAntiSemiJoinNotInSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set,
+				CXform::ExfAntiSemiJoinNotInSemiJoinSwap);
+			ClearNativeJoinEnumerationXform(
+				xform_set,
+				CXform::ExfAntiSemiJoinNotInInnerJoinSwap);
+			break;
 		case COperator::EopLogicalFullOuterJoin:
 			ClearNativeJoinEnumerationXform(
 				xform_set,

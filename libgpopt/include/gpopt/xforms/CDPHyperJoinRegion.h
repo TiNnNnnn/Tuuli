@@ -80,6 +80,7 @@ public:
 		COperator::EOperatorId m_join_type;
 		BOOL m_swapped;
 		BOOL m_dependency_directional;
+		CExpression *m_notin_comparison;
 		std::vector<ULONG> m_edge_ids;
 	};
 

@@ -16,6 +16,7 @@
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/xforms/CXformExploration.h"
 #include "gpopt/xforms/CXformUtils.h"
+#include "naucrates/traceflags/traceflags.h"
 
 namespace gpopt
 {
@@ -64,9 +65,14 @@ public:
 
 	// compute xform promise for a given expression handle
 	EXformPromise
-	Exfp(CExpressionHandle &  // exprhdl
-	) const override
+	Exfp(CExpressionHandle &exprhdl) const override
 	{
+		if (!GPOS_FTRACE(EopttraceDPHyperShadow) &&
+			CXform::ExfDPHyperJoinRegion ==
+				CLogicalJoin::PopConvert(exprhdl.Pop())->OriginXform())
+		{
+			return CXform::ExfpNone;
+		}
 		return CXform::ExfpHigh;
 	}
 

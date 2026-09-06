@@ -1671,13 +1671,55 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 	GPOS_UNITTEST_ASSERT(
 		!anti_spec.Edge(0)->FApplicable(node1.Value(), node0.Value()));
 
-	// NOT IN is null-aware and cannot share ordinary anti-join algebra. Keep
-	// the descriptor intact but force the future enumerator to native fallback.
-	CExpression *notin01 = PexprJoin<CLogicalLeftAntiSemiJoinNotIn>(
-		mp, get0, get1, pred01);
+	// NULL-aware anti joins use the same CD-C conflict-rule machinery, while
+	// retaining their distinct operator kind during materialization.
+	get0->AddRef();
+	get1->AddRef();
+	pred01->AddRef();
+	pred01->AddRef();
+	CExpression *notin01 = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalLeftAntiSemiJoinNotIn(mp, pred01), get0,
+		get1, pred01);
 	CJoinRegionSpec notin_spec(mp);
 	GPOS_UNITTEST_ASSERT(notin_spec.Build(notin01));
-	GPOS_UNITTEST_ASSERT(!notin_spec.CDCSupported());
+	GPOS_UNITTEST_ASSERT(notin_spec.CDCSupported());
+	GPOS_UNITTEST_ASSERT(
+		notin_spec.Edge(0)->NotInComparison()->Matches(pred01));
+	CExpression *marked_notin = CJoinRegionSpec::PexprMarkDPHyperRegions(
+		mp, notin01, true /*include complex*/);
+	GPOS_UNITTEST_ASSERT(
+		CLogicalLeftAntiSemiJoinNotIn::PopConvert(marked_notin->Pop())
+			->PexprNotInComparison()
+			->Matches(pred01));
+	marked_notin->Release();
+
+	auto assert_notin_swap = [&](CExpression *bottom,
+							   COperator::EOperatorId bottom_type) {
+		CExpression *top = PexprJoin<CLogicalLeftAntiSemiJoinNotIn>(
+			mp, bottom, get2, pred02);
+		CJoinRegionSpec spec(mp);
+		GPOS_UNITTEST_ASSERT(spec.Build(top));
+		GPOS_UNITTEST_ASSERT(spec.CDCSupported());
+		CDPHyperJoinRegion region(mp, &spec, 100);
+		GPOS_UNITTEST_ASSERT(region.Build());
+		CDPHyperJoinRegion::SJoinRequest request;
+		GPOS_UNITTEST_ASSERT(region.FBuildJoinRequest(
+			node0.Value(), node2.Value(), &request));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftAntiSemiJoinNotIn ==
+							 request.m_join_type);
+		GPOS_UNITTEST_ASSERT(region.FBuildJoinRequest(
+			nodes02.Value(), node1.Value(), &request));
+		GPOS_UNITTEST_ASSERT(bottom_type == request.m_join_type);
+		GPOS_UNITTEST_ASSERT(
+			COperator::EopLogicalLeftAntiSemiJoinNotIn != bottom_type ||
+			request.m_notin_comparison->Matches(pred01));
+		top->Release();
+	};
+	assert_notin_swap(join01, COperator::EopLogicalInnerJoin);
+	assert_notin_swap(semi01, COperator::EopLogicalLeftSemiJoin);
+	assert_notin_swap(anti01, COperator::EopLogicalLeftAntiSemiJoin);
+	assert_notin_swap(notin01,
+					 COperator::EopLogicalLeftAntiSemiJoinNotIn);
 
 	notin01->Release();
 	anti_root->Release();

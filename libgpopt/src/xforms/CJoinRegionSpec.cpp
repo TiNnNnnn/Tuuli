@@ -11,6 +11,7 @@
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -34,7 +35,8 @@ CJoinRegionSpec::CConflictRule::~CConflictRule()
 CJoinRegionSpec::CEdge::CEdge(CMemoryPool *mp,
 								  COperator::EOperatorId join_type,
 								  const CBitSet *left, const CBitSet *right,
-								  CExpression *predicate)
+								  CExpression *predicate,
+								  CExpression *notin_comparison)
 	: m_mp(mp),
 	  m_join_type(join_type),
 	  m_left(GPOS_NEW(mp) CBitSet(mp, *left)),
@@ -42,11 +44,16 @@ CJoinRegionSpec::CEdge::CEdge(CMemoryPool *mp,
 	  m_all(GPOS_NEW(mp) CBitSet(mp, *left)),
 	  m_ses(nullptr),
 	  m_tes(nullptr),
-	  m_predicate(predicate)
+	  m_predicate(predicate),
+	  m_notin_comparison(notin_comparison)
 {
 	GPOS_ASSERT(nullptr != predicate);
 	m_all->Union(right);
 	m_predicate->AddRef();
+	if (nullptr != m_notin_comparison)
+	{
+		m_notin_comparison->AddRef();
+	}
 }
 
 CJoinRegionSpec::CEdge::~CEdge()
@@ -57,6 +64,7 @@ CJoinRegionSpec::CEdge::~CEdge()
 	CRefCount::SafeRelease(m_ses);
 	CRefCount::SafeRelease(m_tes);
 	m_predicate->Release();
+	CRefCount::SafeRelease(m_notin_comparison);
 	for (CConflictRule *rule : m_conflict_rules)
 	{
 		GPOS_DELETE(rule);
@@ -177,6 +185,24 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 				op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoin(
 					mp, join->OriginXform(), true, region_root);
 				break;
+			case COperator::EopLogicalLeftAntiSemiJoinNotIn:
+			{
+				CExpression *comparison =
+					CLogicalLeftAntiSemiJoinNotIn::PopConvert(expr->Pop())
+						->PexprNotInComparison();
+				if (nullptr == comparison)
+				{
+					op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoinNotIn(
+						mp, join->OriginXform(), true, region_root);
+				}
+				else
+				{
+					comparison->AddRef();
+					op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoinNotIn(
+						mp, comparison, join->OriginXform(), true, region_root);
+				}
+				break;
+			}
 			case COperator::EopLogicalFullOuterJoin:
 				op = GPOS_NEW(mp) CLogicalFullOuterJoin(
 					mp, join->OriginXform(), true, region_root);
@@ -221,6 +247,7 @@ CJoinRegionSpec::FCDCSupportedJoin(COperator::EOperatorId op_id)
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalLeftSemiJoin:
 		case COperator::EopLogicalLeftAntiSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
 		case COperator::EopLogicalFullOuterJoin:
 			return true;
 
@@ -495,9 +522,14 @@ CJoinRegionSpec::PbsCollect(CExpression *expr)
 
 	CAutoRef<CBitSet> left(PbsCollect((*expr)[0]));
 	CAutoRef<CBitSet> right(PbsCollect((*expr)[1]));
+	CExpression *notin_comparison =
+		COperator::EopLogicalLeftAntiSemiJoinNotIn == op_id
+			? CLogicalLeftAntiSemiJoinNotIn::PopConvert(expr->Pop())
+				  ->PexprNotInComparison()
+			: nullptr;
 	m_edges.push_back(GPOS_NEW(m_mp)
 						  CEdge(m_mp, op_id, left.Value(), right.Value(),
-								(*expr)[2]));
+								(*expr)[2], notin_comparison));
 	if (COperator::EopLogicalInnerJoin != op_id)
 	{
 		m_pure_inner = false;
