@@ -2,7 +2,8 @@
   "description": "Three generic NULL-aware DSL rules replace the safe outer-key aggregate Apply path",
   "replacement": {
     "xforms": [
-      "CXformInnerApplyWithOuterKey2InnerJoin"
+      "CXformInnerApplyWithOuterKey2InnerJoin",
+      "CXformInnerApply2InnerJoin"
     ],
     "scope": "Correlated NULL-on-empty aggregate with a NULL-rejecting Apply predicate",
     "status": "verified_partial_replacement",
@@ -36,17 +37,20 @@
       "dsl": false,
       "trace": true,
       "disable_xforms": [
-        "CXformInnerApplyWithOuterKey2InnerJoin"
+        "CXformInnerApplyWithOuterKey2InnerJoin",
+        "CXformInnerApply2InnerJoin"
       ],
       "not_contains": [
-        "Xform: CXformInnerApplyWithOuterKey2InnerJoin"
+        "Xform: CXformInnerApplyWithOuterKey2InnerJoin",
+        "Xform: CXformInnerApply2InnerJoin"
       ]
     },
     {
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformInnerApplyWithOuterKey2InnerJoin"
+        "CXformInnerApplyWithOuterKey2InnerJoin",
+        "CXformInnerApply2InnerJoin"
       ],
       "policy": "isolate_inner_apply_outer_key.policy",
       "contains": [
@@ -60,14 +64,16 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformInnerApplyWithOuterKey2InnerJoin"
+          "CXformInnerApplyWithOuterKey2InnerJoin",
+          "CXformInnerApply2InnerJoin"
         ]
       }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformInnerApplyWithOuterKey2InnerJoin"
+      "CXformInnerApplyWithOuterKey2InnerJoin",
+      "CXformInnerApply2InnerJoin"
     ],
     "policy": "isolate_inner_apply_outer_key.policy",
     "output": [
