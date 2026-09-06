@@ -100,6 +100,20 @@ CXformPushJoinBelowUnionAll::Transform(CXformContext *pxfctxt,
 		isLeftChildUnion = false;
 	}
 
+	// If the UnionAll children carry outer references into the other join
+	// input (a LATERAL correlation, e.g. "g, LATERAL (a WHERE g = q1 UNION ALL
+	// b WHERE g = q2)"), we must not distribute the join.  Branches 2..n
+	// receive a fresh copy of the other side's columns, but only the join
+	// predicate and the other expression are remapped -- the UnionAll children
+	// themselves are not.  Any correlation from a child to the other side would
+	// then dangle against the original (uncopied) columns, producing an
+	// untranslatable plan ("Attribute number 0 not found in project list").
+	CColRefSet *pcrsUnionOuterRefs = pexprUnionAll->DeriveOuterReferences();
+	if (pcrsUnionOuterRefs->FIntersects(pexprOther->DeriveOutputColumns()))
+	{
+		return;
+	}
+
 	CLogicalUnionAll *popUnionAll =
 		CLogicalUnionAll::PopConvert(pexprUnionAll->Pop());
 	CColRef2dArray *union_input_columns = popUnionAll->PdrgpdrgpcrInput();
