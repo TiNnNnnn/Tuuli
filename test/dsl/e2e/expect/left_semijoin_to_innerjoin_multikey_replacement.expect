@@ -4,8 +4,8 @@
     "xforms": [
       "CXformLeftSemiJoin2InnerJoin"
     ],
-    "scope": "Projected multi-key equality semi-join, including nullable keys",
-    "status": "verified_partial_replacement",
+    "scope": "Full native promise, together with computed-key, Project-free and safety-guard companion cases",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "9dc5c70cd1245677"
     ]

@@ -4,8 +4,8 @@
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "a nonempty independent subset moves below a nonempty dependent residual",
-    "status": "verified_partial_replacement",
+    "scope": "Full native promise, together with independent, SRF and rejection companion cases",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "984eec66d5bc3f5d"
     ]

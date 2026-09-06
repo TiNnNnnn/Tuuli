@@ -4,8 +4,8 @@
     "xforms": [
       "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
     ],
-    "scope": "Deterministic binary LeftJoin predicates over arbitrary relational inputs",
-    "status": "verified_partial_replacement",
+    "scope": "Full logical promise for deterministic binary LeftJoin predicates over arbitrary relational inputs",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "92983d6d3650ab0c"
     ]

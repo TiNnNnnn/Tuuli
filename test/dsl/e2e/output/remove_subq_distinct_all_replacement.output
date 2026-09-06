@@ -5,8 +5,8 @@
       "CXformRemoveSubqDistinct",
       "CXformSelect2Apply"
     ],
-    "scope": "arbitrary single-column ALL comparison over a pure global DISTINCT subquery",
-    "status": "verified_partial_replacement",
+    "scope": "Full native promise, together with EXISTS, NOT EXISTS and ANY companion cases",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "6c2c9e08ef81ce6a",
       "a08e24d9155e2f5c"

@@ -4,8 +4,8 @@
     "xforms": [
       "CXformSimplifyGbAgg"
     ],
-    "scope": "real aggregate with key-determined grouping columns",
-    "status": "verified_partial_replacement"
+    "scope": "Full native promise, together with the key-backed pure-dedup companion case",
+    "status": "verified_full_replacement"
   },
   "plans": [
     {
