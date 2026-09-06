@@ -1692,6 +1692,21 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 			->PexprNotInComparison()
 			->Matches(pred01));
 	marked_notin->Release();
+	CDPHyperJoinRegion marked_region(mp, &notin_spec, 100);
+	GPOS_UNITTEST_ASSERT(marked_region.Build());
+	CExpression *unmarked_notin =
+		PexprJoin<CLogicalLeftAntiSemiJoinNotIn>(mp, get0, get1, pred01);
+	CJoinRegionSpec unmarked_spec(mp);
+	GPOS_UNITTEST_ASSERT(unmarked_spec.Build(unmarked_notin));
+	CDPHyperJoinRegion unmarked_region(mp, &unmarked_spec, 100);
+	GPOS_UNITTEST_ASSERT(unmarked_region.Build());
+	CDPHyperGraphFingerprint *marked_fingerprint = marked_region.Pfp();
+	CDPHyperGraphFingerprint *unmarked_fingerprint = unmarked_region.Pfp();
+	GPOS_UNITTEST_ASSERT(
+		!marked_fingerprint->Matches(unmarked_fingerprint));
+	GPOS_DELETE(unmarked_fingerprint);
+	GPOS_DELETE(marked_fingerprint);
+	unmarked_notin->Release();
 
 	auto assert_notin_swap = [&](CExpression *bottom,
 							   COperator::EOperatorId bottom_type) {

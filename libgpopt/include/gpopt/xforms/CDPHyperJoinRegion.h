@@ -39,6 +39,7 @@ private:
 		COperator::EOperatorId m_join_type;
 		CBitSet *m_left;
 		CBitSet *m_right;
+		CExpression *m_notin_comparison;
 		std::vector<SConflictRule> m_conflict_rules;
 	};
 

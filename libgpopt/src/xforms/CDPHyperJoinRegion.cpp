@@ -10,6 +10,7 @@
 #include "gpos/common/CBitSetIter.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -143,7 +144,14 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 						   : spec_edge->JoinType(),
 					   GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_left),
 					   GPOS_NEW(mp) CBitSet(mp, *graph_edge->m_right),
+					   nullptr == spec_edge
+						   ? nullptr
+						   : spec_edge->NotInComparison(),
 					   {}};
+		if (nullptr != snapshot.m_notin_comparison)
+		{
+			snapshot.m_notin_comparison->AddRef();
+		}
 		if (nullptr != spec_edge)
 		{
 			for (const CJoinRegionSpec::CConflictRule *rule :
@@ -164,6 +172,12 @@ CDPHyperGraphFingerprint::CDPHyperGraphFingerprint(
 		}
 		const ULONG join_type = snapshot.m_join_type;
 		ULONG edge_hash = gpos::HashValue<ULONG>(&join_type);
+		if (nullptr != snapshot.m_notin_comparison)
+		{
+			edge_hash = CombineHashes(
+				edge_hash,
+				CExpression::UlHashDedup(snapshot.m_notin_comparison));
+		}
 		edge_hash = CombineHashes(
 			edge_hash, gpos::HashValue<ULONG>(&left_size));
 		edge_hash = CombineHashes(
@@ -228,6 +242,7 @@ CDPHyperGraphFingerprint::~CDPHyperGraphFingerprint()
 	{
 		edge.m_left->Release();
 		edge.m_right->Release();
+		CRefCount::SafeRelease(edge.m_notin_comparison);
 		for (const SConflictRule &rule : edge.m_conflict_rules)
 		{
 			rule.m_activate->Release();
@@ -290,6 +305,8 @@ CDPHyperGraphFingerprint::Matches(
 					}
 					const SEdge &candidate = other->m_edges[other_edge];
 					if (edge.m_join_type != candidate.m_join_type ||
+						!CUtils::Equals(edge.m_notin_comparison,
+									 candidate.m_notin_comparison) ||
 						edge.m_conflict_rules.size() !=
 							candidate.m_conflict_rules.size())
 					{
