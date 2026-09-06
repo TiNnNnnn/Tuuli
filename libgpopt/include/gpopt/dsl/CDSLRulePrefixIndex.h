@@ -218,8 +218,9 @@ public:
 
 	// Build memo bindings by walking the source trie before invoking a DSL
 	// shell. Exact prefixes enumerate only matching memo alternatives; Input
-	// wildcards retain each top-level alternative but use one representative
-	// below it, avoiding recursive Cartesian expansion. Caller owns the array.
+	// wildcards and adapter-boundary terminals retain each top-level alternative
+	// but use one representative below it, avoiding recursive Cartesian
+	// expansion. Caller owns the array.
 	CExpressionArray *PdrgpexprBindings(CMemoryPool *mp,
 									 CGroupExpression *pgexprRoot) const;
 

@@ -697,6 +697,31 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGroup(CMemoryPool *mp,
 		return pdrgpstate;
 	}
 
+	// A terminal at a representation-adapter boundary consumes this complete
+	// group. Keep every top-level alternative visible so a preceding DSL rewrite
+	// can feed an enclosing rule; descendants remain stable representatives.
+	if (FNodeHasAvailableTerminal(pnode))
+	{
+		CGroupProxy gpTerminal(pgroup);
+		if (pgroup->FScalar())
+		{
+			pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
+				pnode, PexprRepresentative(mp, gpTerminal.PgexprFirst())));
+		}
+		else
+		{
+			for (CGroupExpression *pgexprTerminal =
+					 gpTerminal.PgexprNextLogical(nullptr);
+				 nullptr != pgexprTerminal;
+				 pgexprTerminal =
+					 gpTerminal.PgexprNextLogical(pgexprTerminal))
+			{
+				pdrgpstate->Append(GPOS_NEW(mp) SBindingState(
+					pnode, PexprRepresentative(mp, pgexprTerminal)));
+			}
+		}
+	}
+
 	// Input consumes the entire equivalence group. Preserve each top-level memo
 	// alternative because its group-expression identity affects safe duplicate-
 	// group merging and therefore final plan selection. Descendants still use one

@@ -13,6 +13,8 @@
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/test/CUnittest.h"
 
+#include "gpopt/base/CDrvdPropRelational.h"
+#include "gpopt/base/CDrvdPropScalar.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
@@ -471,6 +473,85 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pxfsDedup->Release();
 	popDedup->Release();
 	pruleDistinct->Release();
+
+	// A prefix ending at an adapter boundary must see every top-level memo
+	// alternative in that group, while keeping their descendants opaque.
+	CDSLRule *pruleAdapter = PrulePrefix(
+		mp,
+		"InnerJoin<a0 a1>(Input<t0>,Filter<p0 a2>(Input<t1>))|Input<t2>|"
+		"TableEq(t2,t0)");
+	if (nullptr == pruleAdapter)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleAdapter, 0, COperator::EopLogicalInnerJoin);
+
+	CGroup *pgroupLeft = GPOS_NEW(mp) CGroup(mp);
+	CGroup *pgroupRight = GPOS_NEW(mp) CGroup(mp);
+	CGroup *pgroupScalar = GPOS_NEW(mp) CGroup(mp, true);
+	CGroup *pgroupRoot = GPOS_NEW(mp) CGroup(mp);
+	{
+		CGroupProxy gp(pgroupLeft);
+		gp.InitProperties(GPOS_NEW(mp) CDrvdPropRelational(mp));
+		gp.Insert(GPOS_NEW(mp) CGroupExpression(
+			mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr,
+			false /*fIntermediate*/));
+	}
+	{
+		CGroupProxy gp(pgroupRight);
+		gp.InitProperties(GPOS_NEW(mp) CDrvdPropRelational(mp));
+		gp.Insert(GPOS_NEW(mp) CGroupExpression(
+			mp, GPOS_NEW(mp) CLogicalProject(mp),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr,
+			false /*fIntermediate*/));
+		gp.Insert(GPOS_NEW(mp) CGroupExpression(
+			mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr,
+			false /*fIntermediate*/));
+	}
+	{
+		CGroupProxy gp(pgroupScalar);
+		gp.InitProperties(GPOS_NEW(mp) CDrvdPropScalar(mp));
+		gp.Insert(GPOS_NEW(mp) CGroupExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr,
+			false /*fIntermediate*/));
+	}
+	CGroupExpression *pgexprRoot = nullptr;
+	{
+		CGroupArray *pdrgpgroup = GPOS_NEW(mp) CGroupArray(mp);
+		pdrgpgroup->Append(pgroupLeft);
+		pdrgpgroup->Append(pgroupRight);
+		pdrgpgroup->Append(pgroupScalar);
+		pgexprRoot = GPOS_NEW(mp) CGroupExpression(
+			mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), pdrgpgroup,
+			CXform::ExfInvalid, nullptr, false /*fIntermediate*/);
+		CGroupProxy gp(pgroupRoot);
+		gp.InitProperties(GPOS_NEW(mp) CDrvdPropRelational(mp));
+		gp.Insert(pgexprRoot);
+	}
+	CExpressionArray *pdrgpexprBindings =
+		pindex->PdrgpexprBindings(mp, pgexprRoot);
+	BOOL fProject = false;
+	BOOL fSelect = false;
+	for (ULONG ul = 0; ul < pdrgpexprBindings->Size(); ul++)
+	{
+		CExpression *pexprBinding = (*pdrgpexprBindings)[ul];
+		fProject = fProject || COperator::EopLogicalProject ==
+								 (*pexprBinding)[1]->Pop()->Eopid();
+		fSelect = fSelect || COperator::EopLogicalSelect ==
+							   (*pexprBinding)[1]->Pop()->Eopid();
+	}
+	fValid = fValid && 2 == pdrgpexprBindings->Size() && fProject && fSelect;
+	pdrgpexprBindings->Release();
+	GPOS_DELETE(pindex);
+	pruleAdapter->Release();
+	pgroupRoot->Release();
+	pgroupScalar->Release();
+	pgroupRight->Release();
+	pgroupLeft->Release();
 
 	return fValid ? GPOS_OK : GPOS_FAILED;
 }
