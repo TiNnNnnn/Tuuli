@@ -3090,6 +3090,21 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pexprLeft->Release();
 		return nullptr;
 	}
+	if (!pexprLeft->DeriveOutputColumns()->IsDisjoint(
+			pexprRight->DeriveOutputColumns()))
+	{
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+		{
+			GPOS_TRACE_FORMAT(
+				"DSL_INSTANTIATE_TRACE operator=%s status=rejected "
+				"reason=overlapping_child_outputs",
+				CDSLOpKindTable::SzName(pop->Edslop()));
+		}
+		CRefCount::SafeRelease(pexprOwnedJoinPred);
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
+	}
 
 	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,

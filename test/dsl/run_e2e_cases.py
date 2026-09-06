@@ -65,6 +65,7 @@ def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False) -> st
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        timeout=60,
     )
     if process.returncode != 0:
         raise RuntimeError(process.stdout.rstrip())

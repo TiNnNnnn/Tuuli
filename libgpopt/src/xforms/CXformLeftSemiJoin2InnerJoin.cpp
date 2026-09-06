@@ -107,6 +107,11 @@ CXformLeftSemiJoin2InnerJoin::Transform(CXformContext *pxfctxt,
 	CExpression *pexprOuter = (*pexpr)[0];
 	CExpression *pexprInner = (*pexpr)[1];
 	CExpression *pexprScalar = (*pexpr)[2];
+	if (!pexprOuter->DeriveOutputColumns()->IsDisjoint(
+			pexprInner->DeriveOutputColumns()))
+	{
+		return;
+	}
 	CColRefSet *pcrsJoinOutput = GPOS_NEW(mp) CColRefSet(
 		mp, *pexprOuter->DeriveOutputColumns());
 	pcrsJoinOutput->Union(pexprInner->DeriveOutputColumns());

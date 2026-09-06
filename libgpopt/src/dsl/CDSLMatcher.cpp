@@ -442,7 +442,12 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		}
 		CLogicalCTEConsumer *popConsumer =
 			CLogicalCTEConsumer::PopConvert(pexpr->Pop());
-		return CXformUtils::FInlinableCTE(popConsumer->UlCTEId()) &&
+		const ULONG ulCTEId = popConsumer->UlCTEId();
+		CCTEInfo *pcteinfo = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+		return (pcteinfo->FEnableInlining() ||
+				1 == pcteinfo->UlConsumers(ulCTEId) ||
+				pcteinfo->HasOuterReferences(ulCTEId)) &&
+			CXformUtils::FInlinableCTE(ulCTEId) &&
 			pmodel->FBind((*pdrgpsym)[0], popConsumer->PexprInlined());
 	}
 	if (EdslopCTEAnchor == pop->Edslop())
