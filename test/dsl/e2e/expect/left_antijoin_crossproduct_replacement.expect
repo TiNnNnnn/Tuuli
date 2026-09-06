@@ -5,7 +5,7 @@
       "CXformLeftAntiSemiJoin2CrossProduct"
     ],
     "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "4ace459761869246"
     ]
