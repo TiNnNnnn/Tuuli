@@ -98,6 +98,12 @@ FImplementationPropertyExploration(CXform::EXformId id)
 		case CXform::ExfGbAggWithMDQA2Join:
 		case CXform::ExfImplementFullOuterMergeJoin:
 		case CXform::ExfSplitWindowFunc:
+		// Logical preparation and execution strategies that must remain in
+		// Cascades; they are not standalone relational rewrite obligations.
+		case CXform::ExfUnnestTVF:
+		case CXform::ExfCTEAnchor2Sequence:
+		case CXform::ExfEagerAgg:
+		case CXform::ExfReduceAggInputViaCTE:
 			return true;
 		default:
 			return false;
