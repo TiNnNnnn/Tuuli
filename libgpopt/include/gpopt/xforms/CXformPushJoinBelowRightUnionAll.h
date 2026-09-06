@@ -13,6 +13,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/operators/CPatternMultiLeaf.h"
@@ -44,7 +45,7 @@ public:
 		: CXformPushJoinBelowUnionAll(
 
 			  GPOS_NEW(mp) CExpression(
-				  mp, GPOS_NEW(mp) CLogicalLeftOuterJoin(mp),
+				  mp, GPOS_NEW(mp) CLogicalInnerJoin(mp),
 				  GPOS_NEW(mp) CExpression(
 					  mp, GPOS_NEW(mp) CPatternTree(mp)),  // outer child
 				  GPOS_NEW(mp)

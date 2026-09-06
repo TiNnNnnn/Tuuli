@@ -1,0 +1,84 @@
+{
+  "description": "A proved DSL rule distributes InnerJoin over its right UnionAll input",
+  "replacement": {
+    "xforms": [
+      "CXformPushJoinBelowRightUnionAll"
+    ],
+    "scope": "InnerJoin with exactly one right UnionAll input and no outer references or scalar subqueries",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "71aee9b8ad124cf9"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowRightUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"71aee9b8ad124cf9\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowRightUnionAll",
+        "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowRightUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowRightUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowRightUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"71aee9b8ad124cf9\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushJoinBelowRightUnionAll"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowRightUnionAll"
+    ],
+    "output": [
+      "101",
+      "101",
+      "202",
+      "202",
+      "202"
+    ],
+    "postgres_output": [
+      "101",
+      "101",
+      "202",
+      "202",
+      "202"
+    ]
+  }
+}

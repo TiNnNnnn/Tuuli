@@ -132,11 +132,17 @@ CXformPushJoinBelowUnionAll::Transform(CXformContext *pxfctxt,
 			pexprRemappedScalar->AddRef();
 			pexprRemappedOther->AddRef();
 
-			// We append the output columns from the 1st union all child,
-			// and from the other table, and use them as the source
-			// of column remapping
-			colref_array_from->AppendArray(child_colref_array);
-			colref_array_from->AppendArray(other_colref_array);
+			// Preserve the join output order in the positional UnionAll map.
+			if (isLeftChildUnion)
+			{
+				colref_array_from->AppendArray(child_colref_array);
+				colref_array_from->AppendArray(other_colref_array);
+			}
+			else
+			{
+				colref_array_from->AppendArray(other_colref_array);
+				colref_array_from->AppendArray(child_colref_array);
+			}
 			input_columns->Append(colref_array_from);
 		}
 		else
@@ -144,12 +150,16 @@ CXformPushJoinBelowUnionAll::Transform(CXformContext *pxfctxt,
 			CColRefArray *colref_array_to = GPOS_NEW(mp) CColRefArray(mp);
 			CColRefArray *other_colref_array_copy =
 				CUtils::PdrgpcrCopy(mp, other_colref_array);
-			// We append the output columns from the 2nd (and onward)
-			// union all child, and a copy of the other table's output
-			// columns, and use them as the destination of column
-			// remapping
-			colref_array_to->AppendArray(child_colref_array);
-			colref_array_to->AppendArray(other_colref_array_copy);
+			if (isLeftChildUnion)
+			{
+				colref_array_to->AppendArray(child_colref_array);
+				colref_array_to->AppendArray(other_colref_array_copy);
+			}
+			else
+			{
+				colref_array_to->AppendArray(other_colref_array_copy);
+				colref_array_to->AppendArray(child_colref_array);
+			}
 			input_columns->Append(colref_array_to);
 
 			UlongToColRefMap *colref_mapping =
@@ -197,7 +207,7 @@ CXformPushJoinBelowUnionAll::Transform(CXformContext *pxfctxt,
 	other_colref_array->Release();
 
 	// output_columns must be in the same positional order as input_columns[0]
-	// (which is child_colref_array[0] + other_colref_array).
+	// (which follows the original join's left-to-right output order).
 	// Using pexpr->DeriveOutputColumns()->Pdrgpcr() returns a set-ordered
 	// array that may differ from the input order, causing the new UnionAll to
 	// map output column i to the wrong input column i in each child, producing

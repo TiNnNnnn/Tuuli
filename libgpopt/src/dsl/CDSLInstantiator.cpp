@@ -824,6 +824,10 @@ CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
 //---------------------------------------------------------------------------
 CDSLInstantiator::~CDSLInstantiator()
 {
+	for (auto &entry : m_input_col_maps)
+	{
+		entry.second->Release();
+	}
 	m_pdrgpsymBuiltInputs->Release();
 	m_phmDerivedPreds->Release();
 	m_phmDerivedCols->Release();
@@ -2437,7 +2441,10 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 		CColRefArray *pdrgpcrConsumer = pdrgpcrFrom;
 		if (fAlreadyBuilt)
 		{
-			pdrgpcrConsumer = CUtils::PdrgpcrCopy(m_mp, pdrgpcrFrom);
+			UlongToColRefMap *phm = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+			pdrgpcrConsumer = CUtils::PdrgpcrCopy(
+				m_mp, pdrgpcrFrom, false /* fAllComputed */, phm);
+			m_input_col_maps.emplace(pop, phm);
 			pdrgpcrFrom->Release();
 		}
 		return CXformUtils::PexprCTEConsumer(m_mp, shared->second,
@@ -2461,7 +2468,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	CExpression *pexprCopy = pexpr->PexprCopyWithRemappedColumns(
 		m_mp, phm, true /*must_exist*/);
 	pdrgpcrTo->Release();
-	phm->Release();
+	m_input_col_maps.emplace(pop, phm);
 	pdrgpcrFrom->Release();
 	return pexprCopy;
 }
@@ -2502,6 +2509,16 @@ CDSLInstantiator::PcrMapToTarget(const CDSLOp *popTarget,
 
 	if (EdslopInput == popTarget->Edslop())
 	{
+		auto input_map = m_input_col_maps.find(popTarget);
+		if (input_map != m_input_col_maps.end())
+		{
+			ULONG ulSourceId = pcrSource->Id();
+			CColRef *pcrMapped = input_map->second->Find(&ulSourceId);
+			if (nullptr != pcrMapped)
+			{
+				return pcrMapped;
+			}
+		}
 		const CDSLSymbol *psymTable =
 			PsymResolve((*popTarget->Pdrgpsym())[0]);
 		CExpression *pexprSource = pmodel->PexprTable(psymTable);

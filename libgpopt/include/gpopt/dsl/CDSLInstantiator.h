@@ -100,6 +100,9 @@ private:
 	// second target occurrence is a fresh relational occurrence and therefore
 	// needs independent CColRefs, even when TableEq points at the same source.
 	CDSLSymbolArray *m_pdrgpsymBuiltInputs;
+	// Exact old-to-new column maps for repeated target Input nodes (owned).
+	mutable std::unordered_map<const CDSLOp *, UlongToColRefMap *>
+		m_input_col_maps;
 
 	// Explicit TableShared groups are lowered to one CTE producer and separate
 	// consumer column identities. Keys are target Input symbols owned by RuleIR.
