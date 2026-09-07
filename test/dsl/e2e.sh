@@ -26,11 +26,14 @@ usage()
 Usage: $0 [-t CASE]...
 
   -t, --test CASE  Run one case name or pattern; may be repeated
+  -x, --disable-xform XFORM
+                   Disable one native xform in every state; may be repeated
   -h, --help       Show this help
 EOF
 }
 
 SELECTED_CASES="${DSL_E2E_CASES:-}"
+DISABLED_XFORMS=()
 while (( $# > 0 )); do
     case "$1" in
         -t|--test)
@@ -40,6 +43,11 @@ while (( $# > 0 )); do
             else
                 SELECTED_CASES="$2"
             fi
+            shift 2
+            ;;
+        -x|--disable-xform)
+            (( $# >= 2 )) || fail "$1 requires an xform name"
+            DISABLED_XFORMS+=("$2")
             shift 2
             ;;
         -h|--help)
@@ -125,6 +133,9 @@ CASE_ARGS=()
 if [[ -n "$SELECTED_CASES" ]]; then
     CASE_ARGS=(--cases "$SELECTED_CASES")
 fi
+for xform in "${DISABLED_XFORMS[@]}"; do
+    CASE_ARGS+=(--disable-xform "$xform")
+done
 
 python3 "$SCRIPT_DIR/run_e2e_cases.py" \
     --psql "$PG_BINDIR/psql" \

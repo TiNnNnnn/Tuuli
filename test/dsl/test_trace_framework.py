@@ -513,6 +513,13 @@ class TraceFrameworkTest(unittest.TestCase):
             "DO $dsl$ BEGIN PERFORM disable_xform("
             "'CXformImplementLeftAntiSemiJoin'); END $dsl$;",
         )
+        self.assertEqual(
+            disabled_xform_settings(
+                {"disable_xforms": ["CXformRewrite"]},
+                ["CXformRewrite", "CXformOther"],
+            ).count("disable_xform("),
+            2,
+        )
 
     def test_e2e_rejects_unsafe_xform_names(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid xform name"):

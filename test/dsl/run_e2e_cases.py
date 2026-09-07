@@ -36,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--diff-dir", type=pathlib.Path, required=True)
     parser.add_argument("--artifact-dir", type=pathlib.Path, required=True)
     parser.add_argument("--cases")
+    parser.add_argument("--disable-xform", action="append", default=[])
     return parser.parse_args()
 
 
@@ -77,9 +78,12 @@ def native_setting(enabled: bool) -> str:
     return f"SET pg_orca.dsl_only_xforms='{value}';"
 
 
-def disabled_xform_settings(expected: dict[str, object]) -> str:
+def disabled_xform_settings(
+    expected: dict[str, object], extra_xforms: list[str] | None = None
+) -> str:
     statements = []
-    for xform in expected.get("disable_xforms", []):
+    xforms = dict.fromkeys([*expected.get("disable_xforms", []), *(extra_xforms or [])])
+    for xform in xforms:
         if not isinstance(xform, str) or not re.fullmatch(r"[A-Za-z0-9_]+", xform):
             raise ValueError(f"invalid xform name: {xform!r}")
         # DO avoids adding the disable_xform() result row to COPY output while
@@ -229,7 +233,7 @@ SET pg_orca.enable_dsl_rule={enabled};
 SET pg_orca.dphyper_edge_budget={edge_budget};
 SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}
-{disabled_xform_settings(plan)}
+{disabled_xform_settings(plan, args.disable_xform)}
 SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule={trace};
@@ -336,7 +340,7 @@ SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'o
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
 SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {native_setting(bool(expected.get('native', True)))}
-{disabled_xform_settings(expected)}
+{disabled_xform_settings(expected, args.disable_xform)}
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
         tuples_only=True,
