@@ -55,7 +55,6 @@ private:
 			EafProjectPeelLimit = 1,
 			EafProjectPeelAgg = 2,
 			EafGbAggGlobal = 4,
-			EafGbAggNoMinimal = 8,
 			// A Filter(InnerJoin) matcher can expose a null-rejected
 			// Select(LeftJoin) as the same logical source shape. The index may
 			// admit that conservative candidate; the matcher proves null rejection.

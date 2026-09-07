@@ -1099,7 +1099,12 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 		PdslruleParseLocal(mp, GPOPT_DSL_PROJ_DEDUP_CHAIN_RULE);
 	CDSLRule *pruleRoot =
 		PdslruleParseLocal(mp, GPOPT_DSL_ROOT_DEDUP_DROP_RULE);
-	GPOS_ASSERT(nullptr != pruleNested && nullptr != pruleRoot);
+	CDSLRule *prulePreserve = PdslruleParseLocal(
+		mp,
+		"Proj*<a0 s0>(Input<t0>)|Proj*<a1 s1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)");
+	GPOS_ASSERT(nullptr != pruleNested && nullptr != pruleRoot &&
+				nullptr != prulePreserve);
 
 	CColRefArray *pdrgpcrInput = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet(
@@ -1155,8 +1160,16 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 	{
 		eres = GPOS_FAILED;
 	}
+	CDSLModel *pmodelPreserve = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcherPreserve(mp, prulePreserve);
+	if (!matcherPreserve.FMatch(prulePreserve->PfragSrc()->PopRoot(),
+								 pexprGeneratedDedup, pmodelPreserve))
+	{
+		eres = GPOS_FAILED;
+	}
 
 	CRefCount::SafeRelease(pexprTarget);
+	pmodelPreserve->Release();
 	pmodelRoot->Release();
 	pmodelNested->Release();
 	pexprProject->Release();
@@ -1164,6 +1177,7 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 	pexprGet->Release();
 	pdrgpcrGroup->Release();
 	pruleRoot->Release();
+	prulePreserve->Release();
 	pruleNested->Release();
 	return eres;
 }

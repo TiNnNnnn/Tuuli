@@ -8,6 +8,9 @@
     "status": "verified_partial_replacement",
     "dsl_rules": [
       101
+    ],
+    "dsl_rule_hashes": [
+      "a7d859279ffc7369"
     ]
   },
   "plans": [

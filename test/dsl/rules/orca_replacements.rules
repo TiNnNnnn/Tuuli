@@ -565,3 +565,7 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);PredicateEq(p2,p0);AttrsEq(a4,a0);AttrsEq(a5,a1);AttrsEq(a6,a2);AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p2,p0);PredicateEq(p3,p1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
+
+# Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
+# dedup branch. Appending preserves every existing replacement rule line id.
+Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0)

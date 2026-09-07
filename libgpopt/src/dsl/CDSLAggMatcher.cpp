@@ -208,10 +208,10 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 		return FMatchDistinctAggDedup(popAgg, pexprAgg, pmodel);
 	}
 
-	// A source-root Proj* is an operator-eliminating rule. Keep that case on the
-	// ORIGINAL user-level global dedup, exactly like native
-	// CXformSimplifyGbAgg::Exfp: a split/DSL-generated aggregate carries
-	// PdrgpcrMinimal and dropping it at its own memo group is invalid.
+	// A source-root Proj* may consume a generated aggregate only when the target
+	// preserves DISTINCT (for example Proj*(UnionAll) -> Union*(...)). Dropping
+	// that aggregate at its own memo group is invalid, exactly like native
+	// CXformSimplifyGbAgg::Exfp.
 	//
 	// A nested Proj*, however, is consumed as part of a larger source such as
 	// Proj(Proj*). The larger xform replaces the outer group and reconstructs the
@@ -223,8 +223,11 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 	const CDSLRule *prule = m_pmatcher->Prule();
 	const BOOL fSourceRoot =
 		nullptr == prule || popAgg == prule->PfragSrc()->PopRoot();
+	const BOOL fDropsDistinct = nullptr == prule ||
+		!prule->PfragTgt()->PopRoot()->FDistinct();
 	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
-		(fSourceRoot && nullptr != popGbAgg->PdrgpcrMinimal()) ||
+		(fSourceRoot && fDropsDistinct &&
+		 nullptr != popGbAgg->PdrgpcrMinimal()) ||
 		nullptr == popGbAgg->Pdrgpcr() || 0 == popGbAgg->Pdrgpcr()->Size())
 	{
 		return false;

@@ -196,7 +196,6 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	}
 	if (0 == (pedge->m_ulAdapterFlags &
 			  (SExactEdge::EafGbAggGlobal |
-			   SExactEdge::EafGbAggNoMinimal |
 			   SExactEdge::EafGbAggHasSubquery)))
 	{
 		return true;
@@ -205,10 +204,7 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pop);
 	return (0 == (pedge->m_ulAdapterFlags &
 				  SExactEdge::EafGbAggGlobal) ||
-			COperator::EgbaggtypeGlobal == popGbAgg->Egbaggtype()) &&
-		   (0 == (pedge->m_ulAdapterFlags &
-				  SExactEdge::EafGbAggNoMinimal) ||
-			nullptr == popGbAgg->PdrgpcrMinimal());
+			COperator::EgbaggtypeGlobal == popGbAgg->Egbaggtype());
 }
 
 CDSLRulePrefixIndex::SNode *
@@ -281,10 +277,10 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		ULONG ulAdapterFlags = SExactEdge::EafNone;
 		if (pop->FDistinct())
 		{
-			// A source-root Proj* is accepted only on the original, unsplit
-			// Global dedup. Encode that stable matcher gate in the trie token.
-			ulAdapterFlags |= SExactEdge::EafGbAggGlobal |
-							  SExactEdge::EafGbAggNoMinimal;
+			// Minimal grouping only blocks rules which eliminate the dedup root.
+			// The trie cannot decide that from the source prefix; let the full
+			// matcher inspect the target while retaining the stable Global gate.
+			ulAdapterFlags |= SExactEdge::EafGbAggGlobal;
 		}
 		else
 		{
