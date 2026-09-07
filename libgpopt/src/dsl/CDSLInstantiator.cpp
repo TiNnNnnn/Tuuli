@@ -76,6 +76,22 @@ using namespace gpopt;
 
 namespace
 {
+CColRefArray *
+PdrgpcrLiveOutput(CMemoryPool *mp, CExpression *pexpr)
+{
+	CColRefArray *pdrgpcr = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefSetIter iter(*pexpr->DeriveOutputColumns());
+	while (iter.Advance())
+	{
+		CColRef *pcr = iter.Pcr();
+		if (CColRef::EUsed == pcr->GetUsage(true, true))
+		{
+			pdrgpcr->Append(pcr);
+		}
+	}
+	return pdrgpcr;
+}
+
 void
 TracePredicateDomainSplitFailure(const CHAR *szReason, ULONG ulConjuncts = 0,
 								 ULONG ulResidual = 0,
@@ -1110,8 +1126,7 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 	for (ULONG ul = 0; ul < m_shared_sources.size(); ul++)
 	{
 		CExpression *pexprSource = pmodel->PexprTable(m_shared_sources[ul]);
-		CColRefArray *pdrgpcrOutput =
-			pexprSource->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrOutput = PdrgpcrLiveOutput(m_mp, pexprSource);
 		(void) CXformUtils::PexprAddCTEProducer(
 			m_mp, m_shared_cte_ids[ul], pdrgpcrOutput, pexprSource);
 		pdrgpcrOutput->Release();
@@ -1671,10 +1686,9 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
-		// The proof-facing checker excludes implicit system columns, but a
-		// Cascades alternative must retain the complete ORCA output contract.
-		CColRefArray *pdrgpcrResult =
-			pexprTable->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		// Proof sees the logical schema; executable alternatives carry only
+		// columns ORCA marked used, including explicitly used system columns.
+		CColRefArray *pdrgpcrResult = PdrgpcrLiveOutput(m_mp, pexprTable);
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
 									 pdrgpcrResult))
 		{
@@ -2461,8 +2475,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	auto shared = m_shared_cte_by_target.find(psymTarget);
 	if (shared != m_shared_cte_by_target.end())
 	{
-		CColRefArray *pdrgpcrFrom =
-			pexpr->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CColRefArray *pdrgpcrFrom = PdrgpcrLiveOutput(m_mp, pexpr);
 		CColRefArray *pdrgpcrConsumer = pdrgpcrFrom;
 		if (fAlreadyBuilt)
 		{

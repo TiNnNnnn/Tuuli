@@ -1053,6 +1053,10 @@ CDSLAggTest::EresUnittest_InstantiateOutputAttrsGrouping()
 	CColRefArray *pdrgpcrInput = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet(
 		"keyed_agg", 2, &pdrgpcrInput, 0 /*key*/);
+	for (ULONG ul = 0; ul < pdrgpcrInput->Size(); ul++)
+	{
+		(*pdrgpcrInput)[ul]->MarkAsUsed();
+	}
 	CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
 	pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
 	pdrgpcrGroup->Append((*pdrgpcrInput)[1]);
@@ -1120,6 +1124,10 @@ CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs()
 	CColRefArray *pdrgpcrOutput = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet(
 		"keyed_dedup", 3, &pdrgpcrOutput, 0 /*key*/);
+	for (ULONG ul = 0; ul < pdrgpcrOutput->Size(); ul++)
+	{
+		(*pdrgpcrOutput)[ul]->MarkAsUsed();
+	}
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 	CDSLConstraintChecker checker(mp);
