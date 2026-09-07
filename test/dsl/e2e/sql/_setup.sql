@@ -1,4 +1,4 @@
-CREATE EXTENSION pg_orca;
+CREATE EXTENSION IF NOT EXISTS pg_orca;
 
 CREATE TABLE dsl_insub_outer(id int PRIMARY KEY, v int NOT NULL);
 CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
