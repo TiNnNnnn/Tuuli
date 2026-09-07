@@ -97,12 +97,13 @@ SET pg_orca.trace_fallback=on;
 
 
 def trace_settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
+    native_xform_trace = "on" if mode == "native" else "off"
     return settings(mode, semantic_xforms, policy_file) + """
-SET optimizer_print_xform=on;
-SET optimizer_print_xform_results=on;
+SET optimizer_print_xform={xform_trace};
+SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule=on;
 SET client_min_messages=log;
-"""
+""".format(xform_trace=native_xform_trace)
 
 
 def trace_records(text: str) -> list[dict[str, Any]]:

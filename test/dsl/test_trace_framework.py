@@ -49,6 +49,7 @@ from run_workload_comparison import (
     optimizer_name,
     plan_difference,
     produced_xforms,
+    trace_settings,
 )
 
 
@@ -92,6 +93,7 @@ class TraceFrameworkTest(unittest.TestCase):
             "pg_orca",
         )
         self.assertEqual(optimizer_name('[{"Plan": {}}]'), "postgres")
+        self.assertIn("SET optimizer_print_xform=off;", trace_settings("replacement", [], None))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
