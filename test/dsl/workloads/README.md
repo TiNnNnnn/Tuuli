@@ -16,5 +16,12 @@ The fixtures intentionally contain no benchmark data. They validate planning,
 rule provenance and empty-input outcomes; populated result equivalence is a
 separate workload run against the same SQL assets.
 
+Run one checked-in query with:
+
+```sh
+python3 test/dsl/run_workload_comparison.py --pg-config /path/to/pg_config \
+  --audit-bin build-ninja/pgorca_rule_audit -t tpch/q01
+```
+
 Redistributed source licenses are preserved under `licenses/`. The JOB files
 are attributed to the Join Order Benchmark repository in its manifest.

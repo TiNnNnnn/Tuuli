@@ -44,9 +44,55 @@ from run_trace_corpus import (
     trace_metrics,
     validate_rule_ids,
 )
+from run_workload_comparison import (
+    error_summary,
+    optimizer_name,
+    plan_difference,
+    produced_xforms,
+)
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_workload_comparison_preserves_xform_order_and_plan_reason(self) -> None:
+        trace = (
+            'TRACE,"Xform: CXformFirst\nAlternatives:\n0:\n"\n'
+            'TRACE,"Xform: CXformSecond\nAlternatives:\n"\n'
+            'TRACE,"Xform: CXformThird\nAlternatives:\n0:\n"\n'
+        )
+        left = {
+            "Node Type": "Hash Join",
+            "Plans": [
+                {"Node Type": "Seq Scan", "Relation Name": "a"},
+                {"Node Type": "Seq Scan", "Relation Name": "b"},
+            ],
+        }
+        right = {
+            "Node Type": "Hash Join",
+            "Plans": [
+                {"Node Type": "Seq Scan", "Relation Name": "b"},
+                {"Node Type": "Seq Scan", "Relation Name": "a"},
+            ],
+        }
+
+        self.assertEqual(produced_xforms(trace), ["CXformFirst", "CXformThird"])
+        self.assertEqual(plan_difference(left, right), "join_order")
+        self.assertEqual(
+            error_summary('TRACE,"large trace"\nERROR: timed out\n'),
+            "ERROR: timed out",
+        )
+        self.assertIn(
+            "Failed assertion",
+            error_summary(
+                "INFO:  pg_orca: falling back to standard planner\n"
+                "DETAIL:  file.cpp:1: Failed assertion: value\n"
+            ),
+        )
+        self.assertEqual(
+            optimizer_name('[{"Plan": {}, "Optimizer": "pg_orca"}]'),
+            "pg_orca",
+        )
+        self.assertEqual(optimizer_name('[{"Plan": {}}]'), "postgres")
+
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
         identities, errors = audit_rule_file(rule_file)
