@@ -236,7 +236,7 @@ CREATE TABLE customer (
   c_birth_country VARCHAR(20),
   c_login CHAR(13),
   c_email_address CHAR(50),
-  c_last_review_date CHAR(10),
+  c_last_review_date_sk INT,
   PRIMARY KEY (c_customer_sk)
 );
 

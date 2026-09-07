@@ -54,7 +54,7 @@ SELECT
   fp.Tags,
   fp.Upvotes,
   fp.Downvotes,
-  ROUND(COALESCE(CAST(fp.Upvotes AS REAL) / NULLIF(fp.Upvotes + fp.Downvotes, 0), 0), 2) AS UpvoteRatio
+  ROUND(COALESCE(CAST(fp.Upvotes AS NUMERIC) / NULLIF(fp.Upvotes + fp.Downvotes, 0), 0), 2) AS UpvoteRatio
 FROM FilteredPosts AS fp
 WHERE
   fp.PostRank <= 10
