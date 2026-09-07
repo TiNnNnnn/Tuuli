@@ -157,7 +157,8 @@ using namespace gpopt;
 	"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"                  \
 	"Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>)," \
 	"NotExists(Input<t4>,Input<t5>))|"                                \
-	"TableEq(t2,t0);TableEq(t4,t0);TableEq(t3,t1);TableEq(t5,t1);"   \
+	"TableEq(t2,t0);TableEq(t4,t0);TableShared(t2,t4);"              \
+	"TableEq(t3,t1);TableEq(t5,t1);TableShared(t3,t5);"              \
 	"PredicateEq(p1,p0);AttrsEq(a5,a0);AttrsSub(a0,t0);AttrsEmpty(a1);" \
 	"OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);AttrsEq(a3,a2);"       \
 	"AttrsEq(a4,a2);Deterministic(p0);ErrorFree(p0)"
@@ -961,12 +962,18 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 	if (nullptr == prule)
 		return GPOS_FAILED;
 
-	CColRefArray *pdrgpcrOuter = nullptr;
-	CExpression *pexprOuter =
-		fix.PexprLogicalGet("not_in_outer", 2, &pdrgpcrOuter);
-	CExpression *pexprInner = fix.PexprLogicalGet("not_in_inner", 1);
+	CExpressionArray *pdrgpexprProjected = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprProjected->Append(CUtils::PexprScalarConstInt4(mp, 1));
+	pdrgpexprProjected->Append(CUtils::PexprScalarConstInt4(mp, 2));
+	CExpression *pexprOuter = CUtils::PexprAddProjection(
+		mp, CUtils::PexprLogicalCTGDummy(mp), pdrgpexprProjected);
+	pdrgpexprProjected->Release();
+	CExpression *pexprInner = CUtils::PexprLogicalCTGDummy(mp);
+	CColRefArray *pdrgpcrOuter =
+		pexprOuter->DeriveOutputColumns()->Pdrgpcr(mp);
 	CExpression *pexprViolation =
-		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrOuter)[1]);
+		fix.PexprEqPred((*pdrgpcrOuter)[1], (*pdrgpcrOuter)[2]);
+	pdrgpcrOuter->Release();
 	pexprOuter->AddRef();
 	pexprInner->AddRef();
 	CExpression *pexprJoin = GPOS_NEW(mp) CExpression(
@@ -978,13 +985,33 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 	CDSLConstraintChecker checker(mp);
 	CXformSet *pxfs = CLogicalLeftAntiSemiJoinNotIn::PopConvert(
 		pexprJoin->Pop())->PxfsCandidates(mp);
-	const GPOS_RESULT eres =
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres =
 		pxfs->Get(CXform::ExfDSLRuleAll) &&
 			matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) &&
 			checker.FCheck(prule, pmodel)
 		? GPOS_OK
 		: GPOS_FAILED;
+	if (GPOS_OK == eres)
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CExpression *pexprAnchorB = nullptr == pexprTarget
+			? nullptr
+			: (*pexprTarget)[0];
+		CExpression *pexprUnion = nullptr == pexprAnchorB
+			? nullptr
+			: (*pexprAnchorB)[0];
+		if (nullptr == pexprUnion ||
+			COperator::EopLogicalCTEAnchor != pexprTarget->Pop()->Eopid() ||
+			COperator::EopLogicalCTEAnchor != pexprAnchorB->Pop()->Eopid() ||
+			COperator::EopLogicalUnionAll != pexprUnion->Pop()->Eopid())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
 
+	CRefCount::SafeRelease(pexprTarget);
 	pxfs->Release();
 	pmodel->Release();
 	pexprJoin->Release();
