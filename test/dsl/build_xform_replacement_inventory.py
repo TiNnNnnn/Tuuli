@@ -113,6 +113,7 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
         scope = replacement.get("scope")
         if not isinstance(scope, str) or not scope.strip():
             raise ValueError(f"{path}: replacement.scope must be non-empty")
+        exclusions = replacement.get("excluded_native_domains", [])
         matrices.append(
             {
                 "case": path.stem,
@@ -121,6 +122,7 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
                 "status": status,
                 "dsl_rules": rules,
                 "dsl_rule_hashes": rule_hashes,
+                "excluded_native_domains": exclusions,
             }
         )
     return matrices
@@ -170,7 +172,12 @@ def merge_inventory(
             evidence = {
                 key: matrix.get(key, [] if key.startswith("dsl_rule") else None)
                 for key in (
-                    "case", "scope", "status", "dsl_rules", "dsl_rule_hashes"
+                    "case",
+                    "scope",
+                    "status",
+                    "dsl_rules",
+                    "dsl_rule_hashes",
+                    "excluded_native_domains",
                 )
             }
             entry["evidence"].append(evidence)

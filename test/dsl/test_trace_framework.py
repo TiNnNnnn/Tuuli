@@ -90,6 +90,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 "status": "verified_partial_replacement",
                 "dsl_rules": [101],
                 "dsl_rule_hashes": ["0123456789abcdef"],
+                "excluded_native_domains": ["unsafe error reordering"],
             }
         ]
 
@@ -103,6 +104,10 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(
             inventory["xforms"][0]["evidence"][0]["dsl_rule_hashes"],
             ["0123456789abcdef"],
+        )
+        self.assertEqual(
+            inventory["xforms"][0]["evidence"][0]["excluded_native_domains"],
+            ["unsafe error reordering"],
         )
         self.assertEqual(
             inventory["xforms"][1]["replacement_status"],
@@ -168,6 +173,10 @@ class TraceFrameworkTest(unittest.TestCase):
         }
 
         self.assertIsNone(validate_replacement_matrix(matrix))
+        matrix["replacement"]["excluded_native_domains"] = [""]
+        with self.assertRaisesRegex(ValueError, "unique descriptions"):
+            validate_replacement_matrix(matrix)
+        del matrix["replacement"]["excluded_native_domains"]
         del matrix["plans"][3]["provenance"]
         with self.assertRaisesRegex(ValueError, "must require memo provenance"):
             validate_replacement_matrix(matrix)

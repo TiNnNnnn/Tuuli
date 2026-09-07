@@ -5,7 +5,10 @@
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
     ],
     "scope": "External IN equality below an aggregate whose grouping must gain the local correlation key",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
     "dsl_rule_hashes": [
       "c865e55a4672d788"
     ]

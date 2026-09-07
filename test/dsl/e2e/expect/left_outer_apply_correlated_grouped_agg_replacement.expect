@@ -5,7 +5,10 @@
       "CXformLeftOuterApply2LeftOuterJoin"
     ],
     "scope": "Correlated LeftApply with a NULL-on-empty aggregate whose correlation key is already grouped",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
     "dsl_rule_hashes": [
       "283d176f5bcef54e"
     ]

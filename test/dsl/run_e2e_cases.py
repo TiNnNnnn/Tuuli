@@ -110,6 +110,16 @@ def validate_replacement_matrix(expectation: dict[str, object]) -> None:
     ):
         raise ValueError("replacement.xforms must contain unique native xform names")
 
+    exclusions = replacement.get("excluded_native_domains", [])
+    if (
+        not isinstance(exclusions, list)
+        or any(not isinstance(item, str) or not item.strip() for item in exclusions)
+        or len(set(exclusions)) != len(exclusions)
+    ):
+        raise ValueError(
+            "replacement.excluded_native_domains must contain unique descriptions"
+        )
+
     plans = expectation.get("plans")
     if not isinstance(plans, list):
         raise ValueError("replacement matrix requires plans")

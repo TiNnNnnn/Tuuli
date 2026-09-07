@@ -5,7 +5,10 @@
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
     ],
     "scope": "External equality correlations below a safe Compute and partition-compatible Window",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
     "dsl_rule_hashes": [
       "07ca3e211ce6bcf5",
       "611555770f814299"

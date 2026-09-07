@@ -5,7 +5,10 @@
       "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
     "scope": "LeftSemiApplyIn whose correlated Filter is below a partition-compatible Window",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
     "dsl_rule_hashes": [
       "9a5153fdbf92bd49"
     ]

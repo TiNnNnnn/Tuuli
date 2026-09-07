@@ -5,7 +5,10 @@
       "CXformPushGbBelowJoin"
     ],
     "scope": "Residual outer dependencies survive in the grouping and residual inner dependencies remain on the referred child",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Potentially throwing aggregate expressions moved below Join"
+    ],
     "dsl_rule_hashes": [
       "c6147dd109512ce4"
     ]
