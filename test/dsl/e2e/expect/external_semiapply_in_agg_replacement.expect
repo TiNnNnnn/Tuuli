@@ -1,0 +1,77 @@
+{
+  "description": "The grouped external SemiApply rules also expand the IN carrier",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "External IN equality below an aggregate whose grouping contains the local correlation key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "acc0381a6ee39104",
+      "783c620153b85545"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

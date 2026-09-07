@@ -1,0 +1,82 @@
+{
+  "description": "The external SemiApply rule accepts Compute and Join subtrees through the IN carrier",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "External IN correlation above an arbitrary safe Compute or joined inner subtree",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "611555770f814299"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "output": [
+      "compute,10",
+      "compute,20",
+      "join,10",
+      "join,20"
+    ],
+    "postgres_output": [
+      "compute,10",
+      "compute,20",
+      "join,10",
+      "join,20"
+    ]
+  }
+}
