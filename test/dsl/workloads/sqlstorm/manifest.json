@@ -1,0 +1,8 @@
+{
+  "name": "sqlstorm",
+  "query_count": 23,
+  "source_url": "https://github.com/SQL-Storm/SQLStorm",
+  "source_commit": "b3bb0b96794a6afe9bb8f3ff2b243562b779c40d",
+  "source_path": "v1.0/stackoverflow/semantic_queries.csv",
+  "selection": "upstream semantically validated PostgreSQL queries"
+}

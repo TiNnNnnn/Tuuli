@@ -1,0 +1,17 @@
+{
+  "name": "tpcds",
+  "query_count": 103,
+  "sources": [
+    {
+      "source_url": "https://github.com/SQL-Storm/SQLStorm",
+      "source_commit": "b3bb0b96794a6afe9bb8f3ff2b243562b779c40d",
+      "path": "v0.0/tpcds/queries/1.sql..103.sql"
+    },
+    {
+      "source_url": "https://github.com/avamingli/pg_tpcds",
+      "source_commit": "60ae26458496e8096084770684620d591d9e4c4b",
+      "path": "DSGen-software-code-4.0.0/tools/tpcds.sql"
+    }
+  ],
+  "selection": "99 templates produce 103 executable statements"
+}

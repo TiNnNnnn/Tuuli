@@ -1,0 +1,16 @@
+{
+  "name": "tpch",
+  "query_count": 22,
+  "sources": [
+    {
+      "source_url": "https://github.com/SQL-Storm/SQLStorm",
+      "source_commit": "b3bb0b96794a6afe9bb8f3ff2b243562b779c40d",
+      "path": "v0.0/tpch/queries/1.sql..22.sql"
+    },
+    {
+      "source_url": "https://github.com/tvondra/pg_tpch",
+      "source_commit": "1d80104b3fb4b5f8a82a647763138d81de46f429",
+      "path": "dss/tpch-{create,pkeys,alter}.sql"
+    }
+  ]
+}

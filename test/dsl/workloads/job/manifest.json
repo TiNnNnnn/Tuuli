@@ -1,0 +1,7 @@
+{
+  "name": "job",
+  "query_count": 113,
+  "source_url": "https://github.com/gregrahn/join-order-benchmark",
+  "source_commit": "a39603662e023e449cb2121997a5034df9e02ebf",
+  "source_path": "schema.sql and [0-9]*.sql"
+}
