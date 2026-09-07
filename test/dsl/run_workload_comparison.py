@@ -176,10 +176,23 @@ def plan_difference(left: dict[str, Any] | None, right: dict[str, Any] | None) -
         return "identical"
     left_nodes = [node.get("Node Type") for node in walk_plan(left)]
     right_nodes = [node.get("Node Type") for node in walk_plan(right)]
+    left_relations = [
+        (node.get("Relation Name"), node.get("Alias"))
+        for node in walk_plan(left)
+        if node.get("Relation Name")
+    ]
+    right_relations = [
+        (node.get("Relation Name"), node.get("Alias"))
+        for node in walk_plan(right)
+        if node.get("Relation Name")
+    ]
+    relation_key = lambda item: (item[0] or "", item[1] or "")
+    if left_relations != right_relations and sorted(
+        left_relations, key=relation_key
+    ) == sorted(right_relations, key=relation_key):
+        return "join_order"
     if left_nodes == right_nodes:
-        left_relations = [node.get("Relation Name") for node in walk_plan(left) if node.get("Relation Name")]
-        right_relations = [node.get("Relation Name") for node in walk_plan(right) if node.get("Relation Name")]
-        return "join_order" if left_relations != right_relations else "expression_or_property"
+        return "expression_or_property"
     return "physical_shape"
 
 

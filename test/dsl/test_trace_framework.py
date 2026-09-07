@@ -77,6 +77,8 @@ class TraceFrameworkTest(unittest.TestCase):
 
         self.assertEqual(produced_xforms(trace), ["CXformFirst", "CXformThird"])
         self.assertEqual(plan_difference(left, right), "join_order")
+        right["Node Type"] = "Merge Join"
+        self.assertEqual(plan_difference(left, right), "join_order")
         self.assertEqual(
             error_summary('TRACE,"large trace"\nERROR: timed out\n'),
             "ERROR: timed out",
