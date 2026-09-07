@@ -156,14 +156,19 @@ public:
 		{
 			if (existing != group)
 			{
+				// An identical expression in an ancestor or descendant cannot
+				// merge with this subset without creating a Memo cycle.
+				if (CGroup::FReachable(m_mp, existing, group) ||
+					CGroup::FReachable(m_mp, group, existing))
+				{
+					return existing;
+				}
 				// PgroupInsert may find an identical expression in another Memo
 				// group and return that container instead of the requested subset
 				// group.  This is the same deferred-equivalence state handled by
 				// CEngine::InsertXformResult: the groups denote the same DPHyper
 				// node set and must be joined in the Memo duplicate chain before
 				// later pairs use the subset as an input.
-				GPOS_ASSERT(!CGroup::FReachable(m_mp, existing, group));
-				GPOS_ASSERT(!CGroup::FReachable(m_mp, group, existing));
 				CMemo::MarkDuplicates(existing, group);
 				existing = CanonicalGroup(existing);
 			}

@@ -170,7 +170,7 @@ CDPHyperGraphSimplifier::ThreeLeftJoin(
 	const CBitSet *set3)
 {
 	CAutoRef<CBitSet> new_left(PbsUnion(m_mp, set1, set2));
-	if (!new_left->IsDisjoint(set3))
+	if (!set1->IsDisjoint(set2) || !new_left->IsDisjoint(set3))
 	{
 		return std::nullopt;
 	}
@@ -195,7 +195,8 @@ CDPHyperGraphSimplifier::ThreeRightJoin(
 	const CBitSet *set3)
 {
 	CAutoRef<CBitSet> new_right(PbsUnion(m_mp, set2, set3));
-	if (!set1->IsDisjoint(new_right.Value()))
+	if (!set2->IsDisjoint(set3) ||
+		!set1->IsDisjoint(new_right.Value()))
 	{
 		return std::nullopt;
 	}

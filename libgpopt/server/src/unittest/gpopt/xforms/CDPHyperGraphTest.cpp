@@ -1053,6 +1053,25 @@ CDPHyperGraphTest::EresUnittest_GraphSimplifier()
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(0)->m_right, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_left, {1}));
 	GPOS_UNITTEST_ASSERT(FSet(incomplete.Edge(2)->m_right, {2}));
+
+	// Sides from different hyperedges can overlap even when the expanded
+	// three-way result is disjoint. Such a candidate is not a legal cost input.
+	CDPHyperGraph overlapping_sides(mp, 5);
+	CAutoRef<CBitSet> edge0_left(Pbs(mp, {0}));
+	CAutoRef<CBitSet> edge0_right(Pbs(mp, {1, 4}));
+	CAutoRef<CBitSet> edge1_left(Pbs(mp, {0, 1}));
+	CAutoRef<CBitSet> edge1_right(Pbs(mp, {2, 3}));
+	overlapping_sides.AddEdge(edge0_left.Value(), edge0_right.Value(), 0);
+	overlapping_sides.AddEdge(edge1_left.Value(), edge1_right.Value(), 1);
+	CDPHyperGraphSimplifier overlapping_simplifier(
+		mp, &overlapping_sides, 100,
+		[](const CBitSet *, const CBitSet *, ULONG) { return true; },
+		[](ULONG) { return true; },
+		[](const CBitSet *left, const CBitSet *right, DOUBLE *cost) {
+			GPOS_UNITTEST_ASSERT(left->IsDisjoint(right));
+			*cost = left->Size() + right->Size();
+			return true;
+		});
 	return GPOS_OK;
 }
 
