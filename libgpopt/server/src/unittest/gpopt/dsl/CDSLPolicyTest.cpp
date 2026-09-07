@@ -82,8 +82,43 @@ CDSLPolicyTest::EresUnittest()
 			CDSLPolicyTest::EresUnittest_SnapshotDefaultsAndAuto),
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_WildcardDefaults),
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_RewriteProgram),
+		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_CascadesBudgets),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLPolicyTest::EresUnittest_CascadesBudgets()
+{
+	CAutoMemoryPool amp;
+	CDSLTestFixture fixture(amp.Pmp());
+	COptCtxt *context = COptCtxt::PoctxtFromTLS();
+	SDSLRulePolicy policy;
+
+	policy.m_ulBudgetPerQuery = 2;
+	if (!context->FReserveDSLAlternative(1, &policy, 10) ||
+		!context->FReserveDSLAlternative(2, &policy, 20) ||
+		context->FReserveDSLAlternative(3, &policy, 30))
+	{
+		return GPOS_FAILED;
+	}
+
+	policy.m_ulBudgetPerQuery = 0;
+	policy.m_ulBudgetPerRule = 2;
+	if (!context->FReserveDSLAlternative(4, &policy, 10) ||
+		!context->FReserveDSLAlternative(4, &policy, 20) ||
+		context->FReserveDSLAlternative(4, &policy, 30))
+	{
+		return GPOS_FAILED;
+	}
+
+	policy.m_ulBudgetPerRule = 0;
+	policy.m_ulBudgetPerNode = 1;
+	return context->FReserveDSLAlternative(5, &policy, 10) &&
+		!context->FReserveDSLAlternative(5, &policy, 10) &&
+		context->FReserveDSLAlternative(5, &policy, 20)
+		? GPOS_OK
+		: GPOS_FAILED;
 }
 
 GPOS_RESULT

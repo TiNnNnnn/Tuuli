@@ -32,6 +32,18 @@
       ]
     },
     {
+      "name": "budgeted-cbo",
+      "trace": true,
+      "policy": "bounded_expansive_cbo.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\"",
+        "\"status\":\"budget_skipped\",\"rule_hash\":\"92983d6d3650ab0c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    },
+    {
       "name": "negative",
       "dsl": false,
       "trace": true,

@@ -208,11 +208,15 @@ COptCtxt::RecordDSLRuleBudgetSkip(ULONG ulRuleId)
 }
 
 BOOL
-COptCtxt::FDSLAlternativeBudgetExhausted(ULONG ulRuleId)
+COptCtxt::FDSLAlternativeBudgetExhausted(ULONG ulRuleId,
+									 const SDSLRulePolicy *policy,
+									 ULONG ulNodeId)
 {
 	const ULONG ulMax =
 		m_optimizer_config->GetHint()->UlDSLRuleMaxAlternatives();
-	if (0 != ulMax && m_ulDSLGeneratedAlternatives >= ulMax)
+	if ((0 != ulMax && m_ulDSLGeneratedAlternatives >= ulMax) ||
+		(nullptr != policy && 0 != policy->m_ulBudgetPerQuery &&
+		 m_ulDSLGeneratedAlternatives >= policy->m_ulBudgetPerQuery))
 	{
 		return true;
 	}
@@ -221,18 +225,36 @@ COptCtxt::FDSLAlternativeBudgetExhausted(ULONG ulRuleId)
 		m_optimizer_config->GetHint()->UlDSLRuleMaxAlternativesPerRule();
 	ULONG *pulGenerated =
 		m_dsl_generated_alternatives_by_rule->Find(&ulRuleId);
-	if (0 != ulMaxPerRule && nullptr != pulGenerated &&
-		*pulGenerated >= ulMaxPerRule)
+	if (nullptr != pulGenerated &&
+		((0 != ulMaxPerRule && *pulGenerated >= ulMaxPerRule) ||
+		 (nullptr != policy && 0 != policy->m_ulBudgetPerRule &&
+		  *pulGenerated >= policy->m_ulBudgetPerRule)))
 	{
 		return true;
+	}
+	if (nullptr != policy && 0 != policy->m_ulBudgetPerNode &&
+		gpos::ulong_max != ulNodeId)
+	{
+		auto rule = m_dsl_generated_alternatives_by_node_rule.find(ulRuleId);
+		if (m_dsl_generated_alternatives_by_node_rule.end() != rule)
+		{
+			auto node = rule->second.find(ulNodeId);
+			if (rule->second.end() != node &&
+				node->second >= policy->m_ulBudgetPerNode)
+			{
+				return true;
+			}
+		}
 	}
 	return false;
 }
 
 BOOL
-COptCtxt::FReserveDSLAlternative(ULONG ulRuleId)
+COptCtxt::FReserveDSLAlternative(ULONG ulRuleId,
+							 const SDSLRulePolicy *policy,
+							 ULONG ulNodeId)
 {
-	if (FDSLAlternativeBudgetExhausted(ulRuleId))
+	if (FDSLAlternativeBudgetExhausted(ulRuleId, policy, ulNodeId))
 	{
 		return false;
 	}
@@ -249,6 +271,11 @@ COptCtxt::FReserveDSLAlternative(ULONG ulRuleId)
 		(*pulGenerated)++;
 	}
 	m_ulDSLGeneratedAlternatives++;
+	if (nullptr != policy && 0 != policy->m_ulBudgetPerNode &&
+		gpos::ulong_max != ulNodeId)
+	{
+		++m_dsl_generated_alternatives_by_node_rule[ulRuleId][ulNodeId];
+	}
 	return true;
 }
 

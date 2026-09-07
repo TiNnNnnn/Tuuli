@@ -33,6 +33,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-t", "--test", action="append", default=[])
     parser.add_argument("--workload-dir", type=Path, default=DEFAULT_WORKLOADS)
     parser.add_argument("--rule-file", type=Path, default=SCRIPT_DIR / "rules/orca_replacements.rules")
+    parser.add_argument("--policy-file", type=Path)
     parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "build/dsl-workloads")
     parser.add_argument("--port", type=int, default=60460)
     parser.add_argument("--timeout", type=int, default=60)
@@ -71,16 +72,21 @@ def psql(
         return stdout, stderr + "\nTIMEOUT", 124, 1000 * (time.perf_counter() - start)
 
 
-def settings(mode: str, semantic_xforms: list[str]) -> str:
+def settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
     replacement = mode == "replacement"
     disabled = "\n".join(
         f"DO $dsl$ BEGIN PERFORM disable_xform('{name}'); END $dsl$;"
         for name in semantic_xforms
     ) if replacement else ""
+    policy = "RESET pg_orca.dsl_rule_policy_path;"
+    if replacement and policy_file is not None:
+        path = str(policy_file.resolve()).replace("'", "''")
+        policy = f"SET pg_orca.dsl_rule_policy_path='{path}';"
     return f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={'on' if replacement else 'off'};
+{policy}
 SET pg_orca.enable_dphyper={'on' if replacement else 'off'};
 SET pg_orca.dphyper_shadow=off;
 SET pg_orca.enable_assert_maxonerow=off;
@@ -90,8 +96,8 @@ SET pg_orca.trace_fallback=on;
 """
 
 
-def trace_settings(mode: str, semantic_xforms: list[str]) -> str:
-    return settings(mode, semantic_xforms) + """
+def trace_settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
+    return settings(mode, semantic_xforms, policy_file) + """
 SET optimizer_print_xform=on;
 SET optimizer_print_xform_results=on;
 SET pg_orca.trace_dsl_rule=on;
@@ -225,10 +231,10 @@ def compare_query(
     artifact.mkdir(parents=True, exist_ok=True)
     modes: dict[str, dict[str, Any]] = {}
     for mode in ("native", "replacement"):
-        base = settings(mode, semantic_xforms)
+        base = settings(mode, semantic_xforms, args.policy_file)
         plan_out, plan_err, plan_rc, plan_ms = psql(
             psql_bin, socket, args.port, database,
-            trace_settings(mode, semantic_xforms)
+            trace_settings(mode, semantic_xforms, args.policy_file)
             + f"\nEXPLAIN (COSTS OFF, FORMAT JSON) {query};",
             args.timeout,
         )

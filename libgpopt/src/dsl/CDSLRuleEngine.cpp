@@ -758,7 +758,10 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	{
 		return nullptr;
 	}
-	if (poctxt->FDSLAlternativeBudgetExhausted(ulRuleId))
+	const ULONG ulNodeId = nullptr == pexpr->Pgexpr()
+		? gpos::ulong_max
+		: pexpr->Pgexpr()->Pgroup()->Id();
+	if (poctxt->FDSLAlternativeBudgetExhausted(ulRuleId, policy, ulNodeId))
 	{
 		// This binding was deliberately not inspected. Keep it distinct from
 		// budget_exhausted, which follows a complete source match and target build.
@@ -813,7 +816,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		return nullptr;
 	}
 	if (EdsldecisionReady == pdecision->Status() &&
-		!poctxt->FReserveDSLAlternative(ulRuleId))
+		!poctxt->FReserveDSLAlternative(ulRuleId, policy, ulNodeId))
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetExhausted, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,

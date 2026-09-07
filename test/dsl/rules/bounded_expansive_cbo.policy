@@ -1,0 +1,17 @@
+# These equivalences duplicate one or both inputs. Keep their Cascades search
+# breadth explicit while leaving every non-expansive rule unbounded.
+- rule: 92983d6d3650ab0c
+  budget:
+    per_node: 1
+    per_rule: 1
+    per_query: 128
+- rule: e99bceacc9aaf130
+  budget:
+    per_node: 1
+    per_rule: 1
+    per_query: 128
+- rule: 71aee9b8ad124cf9
+  budget:
+    per_node: 1
+    per_rule: 1
+    per_query: 128

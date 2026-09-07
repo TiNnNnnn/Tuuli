@@ -12,6 +12,8 @@
 #ifndef GPOPT_COptCtxt_H
 #define GPOPT_COptCtxt_H
 
+#include <unordered_map>
+
 #include "gpos/base.h"
 #include "gpos/common/CHashMapIter.h"
 #include "gpos/task/CTaskLocalStorageObject.h"
@@ -27,6 +29,7 @@ namespace gpopt
 using namespace gpos;
 
 class CDSLPolicySnapshot;
+struct SDSLRulePolicy;
 
 // hash maps ULONG -> array of ULONGs
 using UlongToBitSetMap =
@@ -198,6 +201,8 @@ private:
 	ULONG m_ulDSLGeneratedAlternatives;
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
+	std::unordered_map<ULONG, std::unordered_map<ULONG, ULONG>>
+		m_dsl_generated_alternatives_by_node_rule;
 
 	// Immutable scheduling metadata compiled at query start. It is deliberately
 	// query-local; the process-global rule engine remains read-only.
@@ -235,11 +240,15 @@ public:
 
 	// Reserve one query-level DSL alternative. A zero configured maximum means
 	// unlimited. The counter is query-local because COptCtxt lives in TLS.
-	BOOL FReserveDSLAlternative(ULONG ulRuleId);
+	BOOL FReserveDSLAlternative(ULONG ulRuleId,
+								const SDSLRulePolicy *policy = nullptr,
+								ULONG ulNodeId = gpos::ulong_max);
 
 	// Return true once either the query-wide or per-rule generation budget has
 	// already been consumed. This permits an early exit before matching work.
-	BOOL FDSLAlternativeBudgetExhausted(ULONG ulRuleId);
+	BOOL FDSLAlternativeBudgetExhausted(
+		ULONG ulRuleId, const SDSLRulePolicy *policy = nullptr,
+		ULONG ulNodeId = gpos::ulong_max);
 
 	UlongToDSLRuleTraceCountersMap *
 	PdrgDSLRuleTraceCounters() const

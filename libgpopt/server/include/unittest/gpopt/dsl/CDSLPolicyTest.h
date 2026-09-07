@@ -19,6 +19,7 @@ public:
 	static GPOS_RESULT EresUnittest_SnapshotDefaultsAndAuto();
 	static GPOS_RESULT EresUnittest_WildcardDefaults();
 	static GPOS_RESULT EresUnittest_RewriteProgram();
+	static GPOS_RESULT EresUnittest_CascadesBudgets();
 };
 }  // namespace gpopt
 
