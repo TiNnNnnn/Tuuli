@@ -1671,19 +1671,10 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
-		// Keep the derived value aligned with the checker. System columns are
-		// implicit ORCA storage artifacts, not attributes in the DSL relation.
-		CColRefSet *pcrsLogicalOutput = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		CColRefSetIter iter(*pexprTable->DeriveOutputColumns());
-		while (iter.Advance())
-		{
-			if (!iter.Pcr()->IsSystemCol())
-			{
-				pcrsLogicalOutput->Include(iter.Pcr());
-			}
-		}
-		CColRefArray *pdrgpcrResult = pcrsLogicalOutput->Pdrgpcr(m_mp);
-		pcrsLogicalOutput->Release();
+		// The proof-facing checker excludes implicit system columns, but a
+		// Cascades alternative must retain the complete ORCA output contract.
+		CColRefArray *pdrgpcrResult =
+			pexprTable->DeriveOutputColumns()->Pdrgpcr(m_mp);
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
 									 pdrgpcrResult))
 		{

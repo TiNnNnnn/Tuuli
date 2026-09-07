@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule replaces LeftJoin expansion with shared CTE inputs",
+  "description": "A proved DSL rule replaces nested LeftJoin expansion while preserving the complete memo output contract",
   "replacement": {
     "xforms": [
       "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
@@ -80,12 +80,12 @@
     ],
     "policy": "isolate_expand_leftjoin.policy",
     "output": [
-      "1,1",
-      "3000,"
+      "1,1,1",
+      "3000,,"
     ],
     "postgres_output": [
-      "1,1",
-      "3000,"
+      "1,1,1",
+      "3000,,"
     ]
   }
 }
