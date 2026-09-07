@@ -6,7 +6,10 @@
       "CXformInnerApply2InnerJoin"
     ],
     "scope": "Correlated NULL-on-empty aggregate with a NULL-rejecting Apply predicate",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Global aggregate decorrelation without NULL-on-empty and NULL-rejection guarantees"
+    ],
     "dsl_rule_hashes": [
       "f169b79b650c81ee",
       "b8a54fa637de5d89",

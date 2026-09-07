@@ -5,7 +5,10 @@
       "CXformInnerApply2InnerJoin"
     ],
     "scope": "InnerApply whose top correlated Filter has an arbitrary grouped relational child",
-    "status": "verified_partial_replacement",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
     "dsl_rule_hashes": [
       "22de86cebf7ac288"
     ]
