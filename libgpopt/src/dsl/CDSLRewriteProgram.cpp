@@ -6,6 +6,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRewriteProgram.h"
 
+#include "gpos/error/CAutoTrace.h"
 #include "gpopt/base/COptCtxt.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -222,6 +223,69 @@ CDSLRewriteProgram::RecordLineage(const Path &path, CExpression *pexpr)
 		return;
 	pexpr->AddRef();
 	m_lineages[StrPath(path)].push_back(pexpr);
+}
+
+void
+CDSLRewriteProgram::TraceObservedEdge(const Path &path,
+									  const CDSLRule *prule,
+									  CExpression *pexprSource) const
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	auto producer = m_node_producers.find(StrPath(path));
+	if (m_node_producers.end() == producer)
+		return;
+
+	const std::string bindingPath = StrPath(path);
+	CAutoTrace trace(m_mp);
+	IOstream &os = trace.Os();
+	os << "DSL_TRACE {\"kind\":\"rule_edge\",\"engine\":\"pgorca\","
+		   "\"scheduler\":\"rbo\",\"src_rule\":\""
+	   << producer->second.m_prule->SzIdentity() << "\",\"dst_rule\":\""
+	   << prule->SzIdentity() << "\",\"target_path\":\""
+	   << producer->second.m_target_path.c_str()
+	   << "\",\"path_kind\":\"instantiated_expression\","
+		  "\"binding_path\":\""
+	   << bindingPath.c_str() << "\",\"source_fingerprint\":"
+	   << CExpression::HashValue(pexprSource)
+	   << ",\"evidence\":\"runtime_observed\","
+		  "\"relation\":\"followed_by\"}"
+	   << std::endl;
+}
+
+void
+CDSLRewriteProgram::RecordTargetNodes(const Path &path,
+									 const CDSLRule *prule,
+									 CExpression *pexprTarget,
+									 const std::string &targetPath)
+{
+	if (pexprTarget->Pop()->FLogical())
+		m_node_producers[StrPath(path)] = {prule, targetPath};
+	for (ULONG child = 0; child < pexprTarget->Arity(); ++child)
+	{
+		Path childPath = path;
+		childPath.push_back(child);
+		RecordTargetNodes(childPath, prule, (*pexprTarget)[child],
+						  targetPath + "/" + std::to_string(child));
+	}
+}
+
+void
+CDSLRewriteProgram::DiscardTargetNodes(const Path &path)
+{
+	const std::string prefix = StrPath(path);
+	for (auto producer = m_node_producers.begin();
+		 producer != m_node_producers.end();)
+	{
+		const std::string &candidate = producer->first;
+		if (candidate == prefix ||
+			(candidate.size() > prefix.size() &&
+			 candidate.compare(0, prefix.size(), prefix) == 0 &&
+			 '/' == candidate[prefix.size()]))
+			producer = m_node_producers.erase(producer);
+		else
+			++producer;
+	}
 }
 
 BOOL
@@ -455,6 +519,12 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 
 		RecordLineage(path, pexprNewNode);
 		ReserveBudget(path, prule, policy, addedNodes);
+		TraceObservedEdge(path, prule, pexprSource);
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+		{
+			DiscardTargetNodes(path);
+			RecordTargetNodes(path, prule, pexprNewNode, "r");
+		}
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
 								 pexprNewNode, "applied_rbo",
 								 "source_alternative_replaced");

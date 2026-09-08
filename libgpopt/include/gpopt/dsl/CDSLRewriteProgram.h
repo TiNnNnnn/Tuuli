@@ -59,6 +59,12 @@ private:
 		}
 	};
 
+	struct SNodeProducer
+	{
+		const CDSLRule *m_prule = nullptr;
+		std::string m_target_path;
+	};
+
 	CMemoryPool *m_mp;
 	const CDSLRuleEngine *m_pengine;
 	const CDSLPolicySnapshot *m_psnapshot;
@@ -67,6 +73,8 @@ private:
 	const CColRefSet *m_pcrsRequired;
 	std::vector<SFiredEntry> m_fired;
 	std::unordered_map<std::string, std::vector<CExpression *> > m_lineages;
+	// Trace-only owner of each node in the current instantiated RBO tree.
+	std::unordered_map<std::string, SNodeProducer> m_node_producers;
 	std::unordered_map<const CDSLRule *, ULONG> m_ruleApplications;
 	std::unordered_map<std::string, ULONG> m_nodeRuleApplications;
 	std::unordered_set<std::string> m_nonFixpointApplications;
@@ -96,6 +104,12 @@ private:
 					 CExpression *pexprSource);
 	BOOL FLineageContains(const Path &path, CExpression *pexpr) const;
 	void RecordLineage(const Path &path, CExpression *pexpr);
+	void TraceObservedEdge(const Path &path, const CDSLRule *prule,
+						   CExpression *pexprSource) const;
+	void RecordTargetNodes(const Path &path, const CDSLRule *prule,
+						 CExpression *pexprTarget,
+						 const std::string &targetPath);
+	void DiscardTargetNodes(const Path &path);
 	BOOL FCandidate(const CDSLRuleArray *pdrgCandidates,
 					const CDSLRule *prule) const;
 	BOOL FBudgetAvailable(const Path &path, const CDSLRule *prule,

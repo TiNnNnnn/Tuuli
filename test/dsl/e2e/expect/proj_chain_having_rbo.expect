@@ -8,6 +8,7 @@
       "contains": [
         "\"rule_id\":43,\"status\":\"applied_rbo\"",
         "\"rule_id\":58,\"status\":\"applied_rbo\"",
+        "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"rbo\",\"src_rule\":\"6b97ac3107f4ab98\",\"dst_rule\":\"a6e921b11d78e153\",\"target_path\":\"r\"",
         "\"placement\":\"rbo\""
       ]
     }
