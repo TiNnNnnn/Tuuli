@@ -138,10 +138,7 @@ BOOL
 FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
 				const CScalarAggFunc *popFunc)
 {
-	if (popAgg->FDistinct() != popFunc->IsDistinct())
-	{
-		return false;
-	}
+	// WeTune's Agg does not encode DISTINCT; it is part of the bound function.
 	switch (popAgg->Edslaggfunc())
 	{
 		case EdslaggfuncUnknown:

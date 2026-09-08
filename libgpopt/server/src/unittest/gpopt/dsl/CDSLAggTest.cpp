@@ -251,6 +251,8 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsRealAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_InstantiateRealAgg),
 		GPOS_UNITTEST_FUNC(
+			CDSLAggTest::EresUnittest_RealAggPreservesDistinctFunction),
+		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateOutputAttrsGrouping),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateSchemaFromAttrs),
@@ -1033,6 +1035,51 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 	pmodel->Release();
 	pexprGet->Release();
 	pexprGbAgg->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_RealAggPreservesDistinctFunction()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_AGG_IDENTITY_RULE);
+	if (nullptr == prule)
+	{
+		return GPOS_FAILED;
+	}
+
+	CExpression *pexprGet = nullptr;
+	CExpression *pexprAgg = nullptr;
+	BuildDistinctGbAgg(fix, false /*fUniqueKey*/, &pexprGet, &pexprAgg);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp);
+	CDSLConstraintChecker checker(mp);
+	CExpression *pexprTarget = nullptr;
+	GPOS_RESULT eres = GPOS_OK;
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprAgg, pmodel) ||
+		!checker.FCheck(prule, pmodel))
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		if (nullptr == pexprTarget ||
+			!CScalarAggFunc::PopConvert(
+				(*(*(*pexprTarget)[1])[0])[0]->Pop())->IsDistinct())
+		{
+			eres = GPOS_FAILED;
+		}
+	}
+
+	CRefCount::SafeRelease(pexprTarget);
+	pmodel->Release();
+	pexprGet->Release();
+	pexprAgg->Release();
 	prule->Release();
 	return eres;
 }

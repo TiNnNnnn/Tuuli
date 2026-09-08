@@ -83,6 +83,10 @@ public:
 	// aggregate output columns from schema - groupByAttrs.
 	static GPOS_RESULT EresUnittest_InstantiateRealAgg();
 
+	// DISTINCT belongs to each bound aggregate expression, not the WeTune Agg
+	// operator; a generic Agg rule therefore preserves it through FuncEq.
+	static GPOS_RESULT EresUnittest_RealAggPreservesDistinctFunction();
+
 	// OutputAttrs validates a source full-row grouping and lazily derives the
 	// corresponding target grouping from a keyed relational child.
 	static GPOS_RESULT EresUnittest_InstantiateOutputAttrsGrouping();
