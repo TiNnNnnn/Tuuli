@@ -25,7 +25,7 @@ python3 test/dsl/run_workload_comparison.py --pg-config /path/to/pg_config \
 ```
 
 Run only the 1,000-query SQLStorm sample with `-t '*/s*'`.
-The comparison uses `bounded_expansive_cbo.policy` by default; pass
+The empty-schema comparison uses `empty_workload_cbo.policy` by default; pass
 `--unbounded` when diagnosing the complete DSL search space.
 
 Redistributed source licenses are preserved under `licenses/`. The JOB files

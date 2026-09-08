@@ -23,7 +23,7 @@ from run_dphyper_stability import parse_dphyper_events
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKLOADS = SCRIPT_DIR / "workloads"
-DEFAULT_POLICY = SCRIPT_DIR / "rules/bounded_expansive_cbo.policy"
+DEFAULT_POLICY = SCRIPT_DIR / "rules/empty_workload_cbo.policy"
 XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
 OPTIMIZATION_TIME_RE = re.compile(r"\[OPT\]: Total Optimization Time: (\d+)ms")
 SERVER_FAILURE_MARKERS = (

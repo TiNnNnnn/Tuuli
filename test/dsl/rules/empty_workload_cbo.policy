@@ -1,0 +1,18 @@
+# Checked-in workloads use empty schemas, so the native stats-gated LeftJoin
+# expansion never qualifies. Keep it available to dedicated replacement tests
+# without adding spurious alternatives to the workload comparison.
+- rule: 92983d6d3650ab0c
+  enabled: false
+
+# These equivalences duplicate one or both inputs. Bound their workload search
+# breadth while retaining the unbounded mode for explicit diagnostics.
+- rule: e99bceacc9aaf130
+  budget:
+    per_node: 1
+    per_rule: 1
+    per_query: 128
+- rule: 71aee9b8ad124cf9
+  budget:
+    per_node: 1
+    per_rule: 1
+    per_query: 128
