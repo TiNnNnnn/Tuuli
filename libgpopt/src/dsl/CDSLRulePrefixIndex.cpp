@@ -184,8 +184,14 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		COperator::EopLogicalLeftSemiApply == pedge->m_eopid &&
 		(COperator::EopLogicalLeftSemiApplyIn == pop->Eopid() ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == pop->Eopid());
+	const BOOL fCorrelatedJoinApplyView =
+		(COperator::EopLogicalInnerApply == pedge->m_eopid &&
+		 COperator::EopLogicalInnerCorrelatedApply == pop->Eopid()) ||
+		(COperator::EopLogicalLeftOuterApply == pedge->m_eopid &&
+		 COperator::EopLogicalLeftOuterCorrelatedApply == pop->Eopid());
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
-		!fDedupAggView && !fCorrelatedNotInApplyView && !fSemiApplyInView)
+		!fDedupAggView && !fCorrelatedNotInApplyView &&
+		!fSemiApplyInView && !fCorrelatedJoinApplyView)
 	{
 		return false;
 	}

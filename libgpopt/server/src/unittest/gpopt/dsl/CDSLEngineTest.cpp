@@ -23,8 +23,10 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
+#include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -33,6 +35,7 @@
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CPatternNode.h"
 #include "gpopt/operators/CPatternTree.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/search/CGroup.h"
@@ -360,6 +363,35 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	GPOS_DELETE(pindex);
 	pruleNestedProjApply->Release();
 	pruleProjApply->Release();
+
+	// Exact Apply prefixes accept their correlated runtime carrier.
+	CDSLRule *pruleComputeApply = PrulePrefix(
+		mp,
+		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>("
+		"Input<t0>,Input<t1>)))|Input<t2>|TableEq(t2,t0)");
+	if (nullptr == pruleComputeApply)
+	{
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(pruleComputeApply, 0, COperator::EopLogicalProject);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp),
+		GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalProject(mp),
+			GPOS_NEW(mp) CExpression(
+				mp, GPOS_NEW(mp) CLogicalLeftOuterCorrelatedApply(mp),
+				PexprPrefixLeaf(mp), PexprPrefixLeaf(mp),
+				PexprPrefixLeaf(mp)),
+			PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 1 == pdrgprule->Size() &&
+		pruleComputeApply == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	pruleComputeApply->Release();
 
 	// Agg(LeftApply) and its compensation-Project alternative have the same
 	// pre-unnest boundary: the subquery is in the aggregate project list, while
@@ -844,6 +876,15 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 	{
 		return GPOS_FAILED;
 	}
+	CPatternNode *popApplyPattern = CPatternNode::PopConvert(
+		pxformInnerApply->PexprPattern()->Pop());
+	if (!popApplyPattern->MatchesOperator(
+			COperator::EopLogicalInnerCorrelatedApply) ||
+		!popApplyPattern->MatchesOperator(
+			COperator::EopLogicalLeftOuterCorrelatedApply))
+	{
+		return GPOS_FAILED;
+	}
 	CLogicalInnerApply *popInnerApply =
 		GPOS_NEW(mp) CLogicalInnerApply(mp);
 	CXformSet *pxfs = popInnerApply->PxfsCandidates(mp);
@@ -857,6 +898,20 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 		fDispatched && pxfs->Get(CXform::ExfDSLRuleJoinApply);
 	pxfs->Release();
 	popLeftOuterApply->Release();
+	CLogicalInnerCorrelatedApply *popInnerCorrelated =
+		GPOS_NEW(mp) CLogicalInnerCorrelatedApply(mp);
+	pxfs = popInnerCorrelated->PxfsCandidates(mp);
+	fDispatched = fDispatched &&
+		pxfs->Get(CXform::ExfDSLRuleJoinApply);
+	pxfs->Release();
+	popInnerCorrelated->Release();
+	CLogicalLeftOuterCorrelatedApply *popLeftOuterCorrelated =
+		GPOS_NEW(mp) CLogicalLeftOuterCorrelatedApply(mp);
+	pxfs = popLeftOuterCorrelated->PxfsCandidates(mp);
+	fDispatched = fDispatched &&
+		pxfs->Get(CXform::ExfDSLRuleJoinApply);
+	pxfs->Release();
+	popLeftOuterCorrelated->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

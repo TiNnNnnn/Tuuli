@@ -122,7 +122,9 @@ public:
 
 			case EmtMatchJoinApply:
 				return COperator::EopLogicalInnerApply == opid ||
-					   COperator::EopLogicalLeftOuterApply == opid;
+					   COperator::EopLogicalInnerCorrelatedApply == opid ||
+					   COperator::EopLogicalLeftOuterApply == opid ||
+					   COperator::EopLogicalLeftOuterCorrelatedApply == opid;
 
 			default:
 				return false;

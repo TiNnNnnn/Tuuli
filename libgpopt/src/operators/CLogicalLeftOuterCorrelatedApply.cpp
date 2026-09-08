@@ -100,6 +100,7 @@ CLogicalLeftOuterCorrelatedApply::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementLeftOuterCorrelatedApply);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleJoinApply);
 
 	return xform_set;
 }

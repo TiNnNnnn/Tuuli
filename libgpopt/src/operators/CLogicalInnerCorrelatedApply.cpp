@@ -55,6 +55,7 @@ CLogicalInnerCorrelatedApply::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementInnerCorrelatedApply);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleJoinApply);
 
 	return xform_set;
 }
