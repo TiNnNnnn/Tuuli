@@ -382,21 +382,31 @@ BuildRuleGraph(const std::vector<SParsedRule> &rules, SAudit *audit)
 {
 	SRuleGraph &graph = audit->rule_graph;
 	graph.nodes.reserve(rules.size());
-	graph.outgoing.resize(rules.size());
-	std::vector<std::vector<size_t>> root_index(EdslopSentinel);
+	std::vector<SParsedRule> unique_rules;
+	std::set<std::string> identities;
 	for (const SParsedRule &parsed : rules)
 	{
 		const SRuleRecord &record = audit->rules[parsed.record];
+		if (!identities.insert(record.identity).second)
+		{
+			continue;
+		}
+		unique_rules.push_back(parsed);
 		graph.nodes.push_back(
 			{record.id, record.identity, record.source_root, record.target_root});
-		root_index[parsed.rule->PfragSrc()->PopRoot()->Edslop()].push_back(
-			graph.nodes.size() - 1);
 	}
-	for (size_t src = 0; src < rules.size(); ++src)
+	graph.outgoing.resize(unique_rules.size());
+	std::vector<std::vector<size_t>> root_index(EdslopSentinel);
+	for (size_t index = 0; index < unique_rules.size(); ++index)
 	{
-		AppendRuleGraphEdges(rules, src,
-						 rules[src].rule->PfragTgt()->PopRoot(), "r",
-						 root_index, &graph);
+		root_index[unique_rules[index].rule->PfragSrc()->PopRoot()->Edslop()]
+			.push_back(index);
+	}
+	for (size_t src = 0; src < unique_rules.size(); ++src)
+	{
+		AppendRuleGraphEdges(unique_rules, src,
+							unique_rules[src].rule->PfragTgt()->PopRoot(), "r",
+							root_index, &graph);
 	}
 }
 

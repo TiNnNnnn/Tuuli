@@ -1,6 +1,9 @@
 # One statically supported rule.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)
 
+# Duplicate identities are audited as input records but share one graph node.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)
+
 # Sort is supported through ORCA's fused CLogicalLimit representation.
 SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)
 
