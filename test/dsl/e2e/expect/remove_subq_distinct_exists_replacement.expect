@@ -57,7 +57,8 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"bc2d97446eab95bb\"",
         "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\"",
+        "\"scheduler\":\"cbo\",\"src_rule\":\"dec0eb1e99571556\",\"dst_rule\":\"bc2d97446eab95bb\",\"target_path\":\"r\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"

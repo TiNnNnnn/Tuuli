@@ -12,6 +12,7 @@
 #ifndef GPOPT_COptCtxt_H
 #define GPOPT_COptCtxt_H
 
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -35,9 +36,11 @@ namespace gpopt
 using namespace gpos;
 
 class CDSLPolicySnapshot;
+class CDSLRule;
 class CDSLStatsExperimentSnapshot;
 class CExpression;
 class CGroup;
+class CGroupExpression;
 class COperator;
 struct SDSLStatsExperimentTarget;
 struct SDSLRulePolicy;
@@ -74,6 +77,12 @@ struct SDSLRuleTraceCounters
 		}
 		return ulAttempts;
 	}
+};
+
+struct SDSLGroupExpressionOrigin
+{
+	const CDSLRule *m_prule;
+	std::string m_target_path;
 };
 
 using UlongToDSLRuleTraceCountersMap =
@@ -214,6 +223,10 @@ private:
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
 	std::unordered_map<ULONG, std::unordered_map<ULONG, ULONG>>
 		m_dsl_generated_alternatives_by_node_rule;
+	std::unordered_map<const CExpression *, const CDSLRule *>
+		m_dsl_pending_alternative_rules;
+	std::unordered_map<const CGroupExpression *, SDSLGroupExpressionOrigin>
+		m_dsl_group_expression_origins;
 
 	// Immutable scheduling metadata compiled at query start. It is deliberately
 	// query-local; the process-global rule engine remains read-only.
@@ -242,6 +255,14 @@ public:
 						 ULONG ulConstraintUs, ULONG ulInstantiateUs);
 	void RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings);
 	void RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates);
+	void RegisterDSLPendingAlternative(const CExpression *pexpr,
+									 const CDSLRule *prule);
+	const CDSLRule *PdslruleTakePendingAlternative(const CExpression *pexpr);
+	void RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
+									  const CDSLRule *prule,
+									  const CHAR *szTargetPath);
+	void TraceDSLCBOEdge(const CDSLRule *prule,
+						  const CExpression *pexprSource) const;
 
 	ULONG UlDSLBindingCalls() const { return m_ulDSLBindingCalls; }
 	ULONG UlDSLBindingBuildUs() const { return m_ulDSLBindingBuildUs; }

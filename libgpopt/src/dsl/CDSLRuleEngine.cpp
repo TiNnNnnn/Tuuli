@@ -826,6 +826,11 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
+	const BOOL fReady = EdsldecisionReady == pdecision->Status();
+	if (fReady)
+	{
+		poctxt->TraceDSLCBOEdge(prule, pexpr);
+	}
 	TraceDSLRule(mp, ulRuleId,
 				 EdsldecisionInstantiateRejected == pdecision->Status()
 					 ? EdsltraceInstantiateRejected
@@ -834,6 +839,10 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 				 pmodel, pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 				 ulConstraintUs, ulInstantiateUs);
 	CExpression *pexprResult = pdecision->PexprDetachTarget();
+	if (fReady && GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		poctxt->RegisterDSLPendingAlternative(pexprResult, prule);
+	}
 	GPOS_DELETE(pdecision);
 	return pexprResult;
 }

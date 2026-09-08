@@ -27,6 +27,7 @@ using namespace gpos;
 
 
 // forward declarations
+class CDSLRule;
 class CGroup;
 class CExpression;
 class CJob;
@@ -162,7 +163,9 @@ private:
 	void InsertExpressionChildren(CExpression *pexpr,
 								  CGroupArray *pdrgpgroupChildren,
 								  CXform::EXformId exfidOrigin,
-								  CGroupExpression *pgexprOrigin);
+								  CGroupExpression *pgexprOrigin,
+								  const CDSLRule *pruleOrigin = nullptr,
+								  const CHAR *szTargetPath = "r");
 
 	// create and schedule the main optimization job
 	void ScheduleMainJob(CSchedulerContext *psc,
@@ -254,7 +257,9 @@ public:
 	// insert expression tree to memo
 	CGroup *PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 						 CXform::EXformId exfidOrigin,
-						 CGroupExpression *pgexprOrigin, BOOL fIntermediate);
+						 CGroupExpression *pgexprOrigin, BOOL fIntermediate,
+						 const CDSLRule *pruleOrigin = nullptr,
+						 const CHAR *szTargetPath = "r");
 
 	// insert a set of xform results into the memo
 	void InsertXformResult(CGroup *pgroupOrigin, CXformResult *pxfres,
