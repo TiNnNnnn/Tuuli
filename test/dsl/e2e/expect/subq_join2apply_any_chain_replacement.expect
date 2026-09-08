@@ -1,0 +1,48 @@
+{
+  "description": "A correlated ANY inside a join region chains through DSL unnest, decorrelation, and semi-join elimination",
+  "plans": [
+    {
+      "name": "chain",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "alternative": []
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformLeftSemiApplyIn2LeftSemiJoin",
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "output": [
+      "1,1,1",
+      "1,1,1",
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,1",
+      "1,1,1",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}

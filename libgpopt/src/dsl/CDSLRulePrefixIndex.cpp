@@ -182,7 +182,8 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 	// shared Join matcher so the trie can keep inspecting its child groups.
 	const BOOL fSemiApplyInView =
 		COperator::EopLogicalLeftSemiApply == pedge->m_eopid &&
-		COperator::EopLogicalLeftSemiApplyIn == pop->Eopid();
+		(COperator::EopLogicalLeftSemiApplyIn == pop->Eopid() ||
+		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == pop->Eopid());
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
 		!fDedupAggView && !fCorrelatedNotInApplyView && !fSemiApplyInView)
 	{
@@ -386,7 +387,8 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		EdslopSemiApply == popRoot->Edslop() &&
 		2 == popRoot->UlChildren() &&
 		EdslopFilter == (*popRoot)[1]->Edslop() &&
-		COperator::EopLogicalLeftSemiApplyIn == eopidBucket;
+		(COperator::EopLogicalLeftSemiApplyIn == eopidBucket ||
+		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopidBucket);
 	m_fFollowDSLSelectAlternatives =
 		m_fFollowDSLSelectAlternatives || fSemiApplyInView;
 	if (popRoot->Eopid() == eopidBucket || fDedupAggView ||

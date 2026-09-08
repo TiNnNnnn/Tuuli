@@ -586,7 +586,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fExpectedSemiApply =
 		fSemiApply &&
 		(COperator::EopLogicalLeftSemiApply == eopid ||
-			 COperator::EopLogicalLeftSemiApplyIn == eopid);
+		 COperator::EopLogicalLeftSemiApplyIn == eopid ||
+		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopid);
 	const BOOL fExpectedInnerApply =
 		fInnerApply &&
 		(COperator::EopLogicalInnerApply == eopid ||

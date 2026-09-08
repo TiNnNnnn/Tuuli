@@ -1179,10 +1179,9 @@ CJobJoinEnumeration::FEnumerateRegion(
 				target, join, CXform::ExfDPHyperJoinRegion, m_pgexpr,
 				!full /*intermediate*/);
 			join->Release();
-			reverse_target =
-				subset_groups.Record(joined.Value(), reverse_target);
-			GPOS_ASSERT(reverse_target == target);
-			(void) reverse_target;
+			// Record resolves either group to the duplicate master; its identity is
+			// not required to remain the first insertion's address.
+			(void) subset_groups.Record(joined.Value(), reverse_target);
 		}
 	}
 	const ULONG materialization_us = phase_clock.ElapsedUS();

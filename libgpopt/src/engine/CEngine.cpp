@@ -512,6 +512,14 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 			if (!pgroupChild->FScalar() &&
 				CGroup::FReachable(m_mp, pgroupChild, pgroupTarget))
 			{
+				if (GPOS_FTRACE(EopttracePrintDSLRule))
+				{
+					CAutoTrace at(m_mp);
+					at.Os() << "DSL_TRACE {\"kind\":\"alternative_rejected\","
+							"\"reason\":\"memo_cycle\",\"target_group\":"
+						 << pgroupTarget->Id() << ",\"child_group\":"
+						 << pgroupChild->Id() << "}" << std::endl;
+				}
 				pdrgpgroupChildren->Release();
 				return pgroupTarget;
 			}

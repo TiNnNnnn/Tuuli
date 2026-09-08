@@ -145,8 +145,8 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 	GPOS_CHECK_STACK_SIZE;
 	GPOS_ASSERT(nullptr != mp && nullptr != expr);
 	const COperator::EOperatorId op_id = expr->Pop()->Eopid();
-	const BOOL is_join = COperator::EopLogicalInnerJoin == op_id ||
-						 (include_complex && FCDCSupportedJoin(op_id));
+	const BOOL is_join_op = COperator::EopLogicalInnerJoin == op_id ||
+							(include_complex && FCDCSupportedJoin(op_id));
 	// A Memo group leaf may carry a join operator but deliberately has no
 	// children. Keep it as an opaque group reference; the region extractor
 	// reconstructs marked members from their owning groups later.
@@ -155,6 +155,11 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 		expr->Pop()->AddRef();
 		return GPOS_NEW(mp) CExpression(mp, expr->Pop(), expr->Pgexpr());
 	}
+	// A subquery predicate is not a join-graph edge.  Keep this join as a
+	// region boundary until subquery unnesting turns it into relational input.
+	const BOOL is_join =
+		is_join_op &&
+		!(3 == expr->Arity() && (*expr)[2]->DeriveHasSubquery());
 	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
 	for (ULONG child = 0; child < expr->Arity(); ++child)
 	{
