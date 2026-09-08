@@ -384,7 +384,9 @@ def compare_query(
     native_set = set(native_sequence)
     mapped_set = {name for rule_hash in applied_hashes for name in hash_xforms.get(rule_hash, ())}
     replacement_origins = set(modes["replacement"]["native_memo_origins"])
-    forbidden_origins = sorted(replacement_origins & set(semantic_xforms))
+    forbidden_origins = sorted(
+        replacement_origins & (set(semantic_xforms) | join_xforms)
+    )
     plan_kind = plan_difference(modes["native"]["plan"], modes["replacement"]["plan"])
     outcome_equal = all(
         modes["replacement"][key] == modes["native"][key]
@@ -411,14 +413,16 @@ def compare_query(
         event.get("status") == "applied"
         for event in modes["replacement"]["dphyper_events"]
     )
-    join_enumeration_replaced = not native_join_sequence or dphyper_applied
+    join_enumeration_replaced = not (replacement_origins & join_xforms)
     explanations = []
     if not trigger_set_equal:
         explanations.append("different_semantic_search_path")
     elif not trigger_order_equal:
         explanations.append("atomic_DSL_rules_change_Cascades_order")
-    if native_join_sequence or dphyper_applied:
+    if dphyper_applied:
         explanations.append("DPHyper_join_enumeration")
+    elif native_join_sequence:
+        explanations.append("join_enumeration_bypassed_on_replacement_path")
     if plan_kind != "identical":
         explanations.append(f"final_plan_{plan_kind}")
     if forbidden_origins:
@@ -432,6 +436,7 @@ def compare_query(
         "trigger_set_equal": trigger_set_equal,
         "trigger_order_equal": trigger_order_equal,
         "join_enumeration_replaced": join_enumeration_replaced,
+        "dphyper_applied": dphyper_applied,
         "plan_comparison": plan_kind,
         "native_trigger_sequence": native_sequence,
         "native_join_trigger_sequence": native_join_sequence,
@@ -535,6 +540,7 @@ def main() -> int:
         "join_enumeration_replaced": sum(
             result["join_enumeration_replaced"] for result in results
         ),
+        "dphyper_applied": sum(result["dphyper_applied"] for result in results),
         "plan_identical": sum(result["plan_comparison"] == "identical" for result in results),
         "coverage_status": {
             status: sum(result["coverage_status"] == status for result in results)
