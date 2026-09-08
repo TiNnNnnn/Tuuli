@@ -23,6 +23,7 @@ from run_dphyper_stability import parse_dphyper_events
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKLOADS = SCRIPT_DIR / "workloads"
+DEFAULT_POLICY = SCRIPT_DIR / "rules/bounded_expansive_cbo.policy"
 XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
 OPTIMIZATION_TIME_RE = re.compile(r"\[OPT\]: Total Optimization Time: (\d+)ms")
 SERVER_FAILURE_MARKERS = (
@@ -41,13 +42,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("-t", "--test", action="append", default=[])
     parser.add_argument("--workload-dir", type=Path, default=DEFAULT_WORKLOADS)
     parser.add_argument("--rule-file", type=Path, default=SCRIPT_DIR / "rules/orca_replacements.rules")
-    parser.add_argument("--policy-file", type=Path)
+    parser.add_argument("--policy-file", type=Path, default=DEFAULT_POLICY)
+    parser.add_argument("--unbounded", action="store_true")
     parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "build/dsl-workloads")
     parser.add_argument("--port", type=int, default=60460)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--strict", action="store_true")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.unbounded:
+        args.policy_file = None
+    return args
 
 
 def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
