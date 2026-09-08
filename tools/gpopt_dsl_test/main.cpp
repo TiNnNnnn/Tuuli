@@ -36,6 +36,7 @@
 #include "unittest/gpopt/dsl/CDSLOrderLimitTest.h"
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 #include "unittest/gpopt/dsl/CDSLPolicyTest.h"
+#include "unittest/gpopt/dsl/CDSLStatsExperimentTest.h"
 #include "unittest/gpopt/dsl/CDSLProjTest.h"
 #include "unittest/gpopt/dsl/CDSLQuantifiedTest.h"
 #include "unittest/gpopt/dsl/CDSLTriggerTest.h"
@@ -49,6 +50,7 @@ using namespace gpopt;
 static gpos::CUnittest rgut[] = {
 	GPOS_UNITTEST_STD(CDSLParserTest),
 	GPOS_UNITTEST_STD(CDSLPolicyTest),
+	GPOS_UNITTEST_STD(CDSLStatsExperimentTest),
 	GPOS_UNITTEST_STD(CDSLEngineTest),
 	GPOS_UNITTEST_STD(CDSLFixtureTest),
 	GPOS_UNITTEST_STD(CDSLMatchTest),

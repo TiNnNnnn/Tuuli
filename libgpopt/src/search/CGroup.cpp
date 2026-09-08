@@ -18,6 +18,7 @@
 #include "gpos/task/CWorker.h"
 
 #include "gpopt/base/CDrvdProp.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CDrvdPropCtxtPlan.h"
 #include "gpopt/base/CDrvdPropCtxtRelational.h"
 #include "gpopt/base/COptimizationContext.h"
@@ -1694,6 +1695,15 @@ CGroup::PstatsRecursiveDerive(CMemoryPool *pmpLocal, CMemoryPool *pmpGlobal,
 		}
 	}
 
+	IStatistics *experiment_stats =
+		COptCtxt::PoctxtFromTLS()->PstatsApplyDSLExperiment(pmpGlobal, this,
+															stats);
+	if (nullptr != experiment_stats)
+	{
+		stats->Release();
+		stats = experiment_stats;
+	}
+
 	if (!FInitStats(stats))
 	{
 		// a group stat object already exists, we append derived stats to that object
@@ -2197,6 +2207,13 @@ CGroup::PstatsCompute(COptimizationContext *poc, CExpressionHandle &exprhdl,
 	stats = CLogical::PopConvert(pgexpr->Pop())
 				->PstatsDerive(m_mp, exprhdl, poc->Pdrgpstat());
 	GPOS_ASSERT(nullptr != stats);
+	IStatistics *experiment_stats =
+		COptCtxt::PoctxtFromTLS()->PstatsApplyDSLExperiment(m_mp, this, stats);
+	if (nullptr != experiment_stats)
+	{
+		stats->Release();
+		stats = experiment_stats;
+	}
 
 	// add computed stats to local map
 	poc->AddRef();

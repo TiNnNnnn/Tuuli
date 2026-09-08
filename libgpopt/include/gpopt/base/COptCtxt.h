@@ -13,6 +13,7 @@
 #define GPOPT_COptCtxt_H
 
 #include <unordered_map>
+#include <unordered_set>
 
 #include "gpos/base.h"
 #include "gpos/common/CHashMapIter.h"
@@ -24,11 +25,21 @@
 #include "gpopt/base/SPartSelectorInfo.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 
+namespace gpnaucrates
+{
+class IStatistics;
+}
+
 namespace gpopt
 {
 using namespace gpos;
 
 class CDSLPolicySnapshot;
+class CDSLStatsExperimentSnapshot;
+class CExpression;
+class CGroup;
+class COperator;
+struct SDSLStatsExperimentTarget;
 struct SDSLRulePolicy;
 
 // hash maps ULONG -> array of ULONGs
@@ -208,6 +219,11 @@ private:
 	// query-local; the process-global rule engine remains read-only.
 	CDSLPolicySnapshot *m_pdslPolicySnapshot;
 
+	CDSLStatsExperimentSnapshot *m_pdslStatsExperimentSnapshot;
+	std::unordered_map<const CGroup *, const SDSLStatsExperimentTarget *>
+		m_dsl_stats_group_targets;
+	std::unordered_set<const CGroup *> m_dsl_stats_traced_groups;
+
 public:
 	COptCtxt(COptCtxt &) = delete;
 
@@ -283,6 +299,16 @@ public:
 	{
 		return m_pdslPolicySnapshot;
 	}
+
+	void InitializeDSLStatsExperiment(const CExpression *root);
+	void RegisterDSLStatsExperimentGroup(const COperator *pop,
+									 CGroup *group);
+	gpnaucrates::IStatistics *PstatsApplyDSLExperiment(
+		CMemoryPool *mp, const CExpression *expr,
+		gpnaucrates::IStatistics *stats);
+	gpnaucrates::IStatistics *PstatsApplyDSLExperiment(
+		CMemoryPool *mp, const CGroup *group,
+		gpnaucrates::IStatistics *stats);
 
 	// are we optimizing a DML query
 	BOOL

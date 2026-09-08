@@ -13,18 +13,23 @@
 
 #include "gpos/base.h"
 #include "gpos/common/CAutoP.h"
+#include "gpos/error/CAutoTrace.h"
 
 #include "gpopt/base/CDefaultComparator.h"
 #include "gpopt/cost/ICostModel.h"
 #include "gpopt/eval/IConstExprEvaluator.h"
 #include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/exception.h"
+#include "gpopt/operators/CExpression.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
+#include "naucrates/statistics/IStatistics.h"
 #include "naucrates/traceflags/traceflags.h"
 
 
 using namespace gpopt;
+using namespace gpnaucrates;
 
 // value of the first value part id
 ULONG COptCtxt::m_ulFirstValidPartId = 1;
@@ -65,7 +70,8 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_ulDSLCandidatesFound(0),
 	  m_ulDSLGeneratedAlternatives(0),
 	  m_dsl_generated_alternatives_by_rule(nullptr),
-	  m_pdslPolicySnapshot(nullptr)
+	  m_pdslPolicySnapshot(nullptr),
+	  m_pdslStatsExperimentSnapshot(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != col_factory);
@@ -137,6 +143,146 @@ COptCtxt::~COptCtxt()
 	m_dsl_rule_trace_counters->Release();
 	m_dsl_generated_alternatives_by_rule->Release();
 	GPOS_DELETE(m_pdslPolicySnapshot);
+	GPOS_DELETE(m_pdslStatsExperimentSnapshot);
+}
+
+void
+COptCtxt::InitializeDSLStatsExperiment(const CExpression *root)
+{
+	GPOS_ASSERT(nullptr == m_pdslStatsExperimentSnapshot);
+	const CHAR *path =
+		m_optimizer_config->GetHint()->SzDSLStatsExperimentPath();
+	if (nullptr == path || '\0' == path[0])
+	{
+		return;
+	}
+	CWStringDynamic errors(m_mp);
+	m_pdslStatsExperimentSnapshot =
+		CDSLStatsExperimentSnapshot::PsnapshotLoadFile(m_mp, path, root, &errors);
+	if (nullptr == m_pdslStatsExperimentSnapshot)
+	{
+		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+				   errors.GetBuffer());
+	}
+}
+
+void
+COptCtxt::RegisterDSLStatsExperimentGroup(const COperator *pop, CGroup *group)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot)
+	{
+		return;
+	}
+	const SDSLStatsExperimentTarget *target =
+		m_pdslStatsExperimentSnapshot->Ptarget(pop);
+	if (nullptr != target)
+	{
+		m_dsl_stats_group_targets[group] = target;
+	}
+}
+
+namespace
+{
+std::string
+JsonEscape(const std::string &value)
+{
+	std::string escaped;
+	for (CHAR ch : value)
+	{
+		switch (ch)
+		{
+			case '"':
+			case '\\':
+				escaped.push_back('\\');
+				escaped.push_back(ch);
+				break;
+			case '\n':
+				escaped.append("\\n");
+				break;
+			case '\r':
+				escaped.append("\\r");
+				break;
+			case '\t':
+				escaped.append("\\t");
+				break;
+			case '\b':
+				escaped.append("\\b");
+				break;
+			case '\f':
+				escaped.append("\\f");
+				break;
+			default:
+				escaped.push_back(ch);
+		}
+	}
+	return escaped;
+}
+
+IStatistics *
+PstatsScaleForExperiment(CMemoryPool *mp, IStatistics *stats,
+						 const SDSLStatsExperimentTarget *target,
+						 const CHAR *experiment, const CHAR *site,
+						 BOOL trace_event)
+{
+	if (nullptr == target)
+	{
+		return nullptr;
+	}
+	if (target->m_inject && stats->Rows() == CDouble(target->m_rows))
+	{
+		return nullptr;
+	}
+	if (trace_event && GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		CAutoTrace trace(mp);
+		const std::string escaped_experiment = JsonEscape(experiment);
+		const std::string escaped_relations = JsonEscape(target->m_relations);
+		trace.Os() << "DSL_TRACE {\"kind\":\""
+				   << (target->m_inject ? "stats_injection"
+									: "stats_observation")
+				   << "\","
+				   << "\"experiment\":\"" << escaped_experiment.c_str()
+				   << "\","
+				   << "\"relations\":\"" << escaped_relations.c_str()
+				   << "\","
+				   << "\"site\":\"" << site << "\","
+				   << "\"native_rows\":" << stats->Rows().Get();
+		if (target->m_inject)
+		{
+			trace.Os() << ",\"rows\":" << target->m_rows;
+		}
+		trace.Os() << "}" << std::endl;
+	}
+	if (!target->m_inject)
+	{
+		return nullptr;
+	}
+	return stats->ScaleStats(mp, CDouble(target->m_rows) / stats->Rows());
+}
+}  // namespace
+
+IStatistics *
+COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CExpression *expr,
+										IStatistics *stats)
+{
+	return nullptr == m_pdslStatsExperimentSnapshot
+		? nullptr
+		: PstatsScaleForExperiment(
+			  mp, stats, m_pdslStatsExperimentSnapshot->Ptarget(expr),
+			  m_pdslStatsExperimentSnapshot->SzId(), "expression", true);
+}
+
+IStatistics *
+COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CGroup *group,
+										IStatistics *stats)
+{
+	const auto found = m_dsl_stats_group_targets.find(group);
+	return m_dsl_stats_group_targets.end() == found
+		? nullptr
+		: PstatsScaleForExperiment(
+			  mp, stats, found->second,
+			  m_pdslStatsExperimentSnapshot->SzId(), "memo_group",
+			  m_dsl_stats_traced_groups.insert(group).second);
 }
 
 

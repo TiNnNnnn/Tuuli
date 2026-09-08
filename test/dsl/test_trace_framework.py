@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -54,8 +55,11 @@ from run_workload_comparison import (
     psql,
     produced_xforms,
     server_failure,
+    settings,
     timing_summary,
+    trace_records,
     trace_settings,
+    write_profile_policies,
 )
 
 
@@ -129,6 +133,40 @@ class TraceFrameworkTest(unittest.TestCase):
         )
         self.assertEqual((timings["p50_ms"], timings["p95_ms"]), (50, 95))
         self.assertIn("SET optimizer_print_xform=off;", trace_settings("replacement", [], None))
+
+    def test_workload_stats_experiment_is_query_local_and_recorded(self) -> None:
+        self.assertIn(
+            "RESET pg_orca.dsl_stats_experiment_path;",
+            settings("native", [], None),
+        )
+        configured = settings("replacement", [], None, Path("/tmp/a'b.yml"))
+        self.assertIn(
+            "SET pg_orca.dsl_stats_experiment_path='/tmp/a''b.yml';",
+            configured,
+        )
+        records = trace_records(
+            'LOG: DSL_TRACE {"kind":"stats_injection","relations":"a",'
+            '"native_rows":10,"rows":20}\n'
+        )
+        self.assertEqual(records[0]["rows"], 20)
+
+    def test_workload_rule_profile_changes_only_target_policy(self) -> None:
+        args = SimpleNamespace(
+            profile_rule="0123456789abcdef",
+            profile_rbo_phase="pre_join",
+            profile_effect="preserves_join_graph",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            policies = write_profile_policies(Path(temporary), args)
+            off = policies["off"].read_text(encoding="utf-8")
+            rbo = policies["rbo"].read_text(encoding="utf-8")
+            cbo = policies["cbo"].read_text(encoding="utf-8")
+
+        self.assertIn("- rule: 0123456789abcdef\n", off)
+        self.assertIn("enabled: false", off)
+        self.assertIn("placement: rbo", rbo)
+        self.assertIn("phase: pre_join", rbo)
+        self.assertIn("placement: cbo", cbo)
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"

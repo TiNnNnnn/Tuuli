@@ -43,6 +43,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workload-dir", type=Path, default=DEFAULT_WORKLOADS)
     parser.add_argument("--rule-file", type=Path, default=SCRIPT_DIR / "rules/orca_replacements.rules")
     parser.add_argument("--policy-file", type=Path, default=DEFAULT_POLICY)
+    parser.add_argument(
+        "--stats-experiment", type=Path, action="append", default=[],
+        help="also run each query with this cardinality experiment (repeatable)",
+    )
+    parser.add_argument(
+        "--profile-rule",
+        help="also run causal OFF/RBO/CBO arms for this canonical rule hash",
+    )
+    parser.add_argument(
+        "--profile-rbo-phase",
+        choices=("normalize", "pre_join", "cleanup"),
+        default="pre_join",
+    )
+    parser.add_argument(
+        "--profile-effect",
+        choices=("changes_join_graph", "preserves_join_graph", "join_reordering"),
+        default="preserves_join_graph",
+    )
     parser.add_argument("--unbounded", action="store_true")
     parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "build/dsl-workloads")
     parser.add_argument("--port", type=int, default=60460)
@@ -52,6 +70,13 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.unbounded:
         args.policy_file = None
+    missing = [path for path in args.stats_experiment if not path.is_file()]
+    if missing:
+        parser.error(f"stats experiment not found: {missing[0]}")
+    if args.profile_rule and not re.fullmatch(r"[0-9a-fA-F]{16}", args.profile_rule):
+        parser.error("profile rule must be a 16-digit canonical hexadecimal identity")
+    if args.profile_rule:
+        args.profile_rule = args.profile_rule.lower()
     return args
 
 
@@ -93,7 +118,12 @@ def psql(
     raise AssertionError("unreachable")
 
 
-def settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
+def settings(
+    mode: str,
+    semantic_xforms: list[str],
+    policy_file: Path | None,
+    stats_experiment: Path | None = None,
+) -> str:
     replacement = mode == "replacement"
     disabled = "\n".join(
         f"DO $dsl$ BEGIN PERFORM disable_xform('{name}'); END $dsl$;"
@@ -103,11 +133,16 @@ def settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) ->
     if replacement and policy_file is not None:
         path = str(policy_file.resolve()).replace("'", "''")
         policy = f"SET pg_orca.dsl_rule_policy_path='{path}';"
+    stats = "RESET pg_orca.dsl_stats_experiment_path;"
+    if stats_experiment is not None:
+        path = str(stats_experiment.resolve()).replace("'", "''")
+        stats = f"SET pg_orca.dsl_stats_experiment_path='{path}';"
     return f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={'on' if replacement else 'off'};
 {policy}
+{stats}
 SET pg_orca.enable_dphyper={'on' if replacement else 'off'};
 SET pg_orca.dphyper_shadow=off;
 SET pg_orca.enable_assert_maxonerow=off;
@@ -117,9 +152,14 @@ SET pg_orca.trace_fallback=on;
 """
 
 
-def trace_settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
+def trace_settings(
+    mode: str,
+    semantic_xforms: list[str],
+    policy_file: Path | None,
+    stats_experiment: Path | None = None,
+) -> str:
     native_xform_trace = "on" if mode == "native" else "off"
-    return settings(mode, semantic_xforms, policy_file) + """
+    return settings(mode, semantic_xforms, policy_file, stats_experiment) + """
 SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
 SET optimizer_print_optimization_stats=on;
@@ -301,6 +341,84 @@ def inventory(
     return semantic, hashes, semantic_set, joins
 
 
+def run_mode(
+    args: argparse.Namespace,
+    psql_bin: Path,
+    socket: Path,
+    database: str,
+    query: str,
+    artifact: Path,
+    artifact_name: str,
+    mode: str,
+    semantic_xforms: list[str],
+    policy_file: Path | None,
+    stats_experiment: Path | None = None,
+) -> dict[str, Any]:
+    base = settings(mode, semantic_xforms, policy_file, stats_experiment)
+    plan_out, plan_err, plan_rc, plan_ms = psql(
+        psql_bin, socket, args.port, database,
+        trace_settings(mode, semantic_xforms, policy_file, stats_experiment)
+        + f"\nEXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, FORMAT JSON) {query};",
+        args.timeout,
+    )
+    if plan_rc == 0:
+        rows_out, rows_err, rows_rc, rows_ms = psql(
+            psql_bin, socket, args.port, database,
+            base + f"\nSET client_min_messages=warning;\nCOPY ({query}) TO STDOUT WITH (FORMAT csv);",
+            args.timeout,
+        )
+    else:
+        rows_out, rows_err, rows_rc, rows_ms = "", "", plan_rc, 0.0
+    (artifact / f"{artifact_name}.plan.json").write_text(plan_out, encoding="utf-8")
+    (artifact / f"{artifact_name}.trace").write_text(plan_err, encoding="utf-8")
+    records = trace_records(plan_err)
+    optimizer = optimizer_name(plan_out)
+    planning_ms, execution_ms = explain_times(plan_out)
+    return {
+        "plan_rc": plan_rc,
+        "rows_rc": rows_rc,
+        "rows_skipped": plan_rc != 0,
+        "server_failure": server_failure(plan_err + rows_err),
+        "plan_ms": round(plan_ms, 3),
+        "rows_ms": round(rows_ms, 3),
+        "optimization_ms": optimization_time(plan_err),
+        "planning_ms": planning_ms,
+        "execution_ms": execution_ms,
+        "rows_hash": hashlib.sha256(rows_out.encode()).hexdigest(),
+        "error": "\n".join(
+            summary
+            for summary in (
+                error_summary(plan_err),
+                error_summary(rows_err) if rows_rc else "",
+            )
+            if summary
+        ),
+        "optimizer": optimizer,
+        "fallback": plan_rc == 0 and optimizer == "postgres",
+        "plan": plan_tree(plan_out),
+        "produced_xforms": produced_xforms(plan_err),
+        "applied_rule_hashes": [
+            record["rule_hash"] for record in records
+            if record.get("status") in {"applied", "applied_rbo"}
+            and "rule_hash" in record
+        ],
+        "profile_rule_statuses": [
+            record.get("status") for record in records
+            if record.get("kind") == "application"
+            and record.get("rule_hash") == getattr(args, "profile_rule", None)
+        ],
+        "stats_events": [
+            record for record in records
+            if record.get("kind") in {"stats_injection", "stats_observation"}
+        ],
+        "dphyper_events": parse_dphyper_events(plan_err),
+        "native_memo_origins": sorted({
+            str(record.get("origin")) for record in records
+            if record.get("kind") == "memo_alternative" and record.get("source") == "native"
+        }),
+    }
+
+
 def compare_query(
     args: argparse.Namespace,
     psql_bin: Path,
@@ -318,59 +436,82 @@ def compare_query(
     artifact.mkdir(parents=True, exist_ok=True)
     modes: dict[str, dict[str, Any]] = {}
     for mode in ("native", "replacement"):
-        base = settings(mode, semantic_xforms, args.policy_file)
-        plan_out, plan_err, plan_rc, plan_ms = psql(
-            psql_bin, socket, args.port, database,
-            trace_settings(mode, semantic_xforms, args.policy_file)
-            + f"\nEXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, FORMAT JSON) {query};",
-            args.timeout,
+        modes[mode] = run_mode(
+            args, psql_bin, socket, database, query, artifact, mode, mode,
+            semantic_xforms, args.policy_file,
         )
-        if plan_rc == 0:
-            rows_out, rows_err, rows_rc, rows_ms = psql(
-                psql_bin, socket, args.port, database,
-                base + f"\nSET client_min_messages=warning;\nCOPY ({query}) TO STDOUT WITH (FORMAT csv);",
-                args.timeout,
+
+    stats_experiments = []
+    for index, path in enumerate(args.stats_experiment, 1):
+        experiment_modes = {
+            mode: run_mode(
+                args, psql_bin, socket, database, query, artifact,
+                f"stats-{index}.{mode}", mode, semantic_xforms,
+                args.policy_file, path,
             )
-        else:
-            rows_out, rows_err, rows_rc, rows_ms = "", "", plan_rc, 0.0
-        (artifact / f"{mode}.plan.json").write_text(plan_out, encoding="utf-8")
-        trace = plan_err
-        (artifact / f"{mode}.trace").write_text(trace, encoding="utf-8")
-        records = trace_records(trace)
-        optimizer = optimizer_name(plan_out)
-        planning_ms, execution_ms = explain_times(plan_out)
-        modes[mode] = {
-            "plan_rc": plan_rc,
-            "rows_rc": rows_rc,
-            "rows_skipped": plan_rc != 0,
-            "server_failure": server_failure(plan_err + rows_err),
-            "plan_ms": round(plan_ms, 3),
-            "rows_ms": round(rows_ms, 3),
-            "optimization_ms": optimization_time(trace),
-            "planning_ms": planning_ms,
-            "execution_ms": execution_ms,
-            "rows_hash": hashlib.sha256(rows_out.encode()).hexdigest(),
-            "error": "\n".join(
-                summary
-                for summary in (
-                    error_summary(plan_err),
-                    error_summary(rows_err) if rows_rc else "",
+            for mode in ("native", "replacement")
+        }
+        stats_experiments.append({
+            "path": str(path.resolve()),
+            "modes": experiment_modes,
+            "comparisons": {
+                mode: {
+                    "outcome_equal": all(
+                        experiment_modes[mode][key] == modes[mode][key]
+                        for key in ("plan_rc", "rows_rc")
+                    ),
+                    "rows_equal": (
+                        experiment_modes[mode]["rows_rc"] == modes[mode]["rows_rc"] == 0
+                        and experiment_modes[mode]["rows_hash"] == modes[mode]["rows_hash"]
+                    ),
+                    "plan_comparison": plan_difference(
+                        modes[mode]["plan"], experiment_modes[mode]["plan"]
+                    ),
+                }
+                for mode in ("native", "replacement")
+            },
+        })
+
+    rule_profile = None
+    if args.profile_rule:
+        scenarios = []
+        for index, stats_path in enumerate([None, *args.stats_experiment]):
+            arms = {
+                arm: run_mode(
+                    args, psql_bin, socket, database, query, artifact,
+                    f"profile-{index}.{arm}", "replacement", semantic_xforms,
+                    args.profile_policies[arm], stats_path,
                 )
-                if summary
-            ),
-            "optimizer": optimizer,
-            "fallback": plan_rc == 0 and optimizer == "postgres",
-            "plan": plan_tree(plan_out),
-            "produced_xforms": produced_xforms(trace),
-            "applied_rule_hashes": [
-                record["rule_hash"] for record in records
-                if record.get("status") == "applied" and "rule_hash" in record
-            ],
-            "dphyper_events": parse_dphyper_events(trace),
-            "native_memo_origins": sorted({
-                str(record.get("origin")) for record in records
-                if record.get("kind") == "memo_alternative" and record.get("source") == "native"
-            }),
+                for arm in ("off", "rbo", "cbo")
+            }
+            scenarios.append({
+                "stats_experiment": (
+                    str(stats_path.resolve()) if stats_path is not None else None
+                ),
+                "arms": arms,
+                "comparisons": {
+                    arm: {
+                        "outcome_equal": all(
+                            arms[arm][key] == arms["off"][key]
+                            for key in ("plan_rc", "rows_rc")
+                        ),
+                        "rows_equal": (
+                            arms[arm]["rows_rc"] == arms["off"]["rows_rc"] == 0
+                            and arms[arm]["rows_hash"] == arms["off"]["rows_hash"]
+                        ),
+                        "plan_comparison": plan_difference(
+                            arms["off"]["plan"], arms[arm]["plan"]
+                        ),
+                        "target_statuses": arms[arm]["profile_rule_statuses"],
+                    }
+                    for arm in ("rbo", "cbo")
+                },
+            })
+        rule_profile = {
+            "rule_hash": args.profile_rule,
+            "rbo_phase": args.profile_rbo_phase,
+            "effect": args.profile_effect,
+            "scenarios": scenarios,
         }
 
     produced = modes["native"]["produced_xforms"]
@@ -447,8 +588,18 @@ def compare_query(
         "forbidden_native_origins": forbidden_origins,
         "explanations": explanations,
         "modes": modes,
+        "stats_experiments": stats_experiments,
+        "rule_profile": rule_profile,
     }
-    for mode in modes.values():
+    for mode in [*modes.values(), *(
+        mode
+        for experiment in stats_experiments
+        for mode in experiment["modes"].values()
+    ), *(
+        mode
+        for scenario in ([] if rule_profile is None else rule_profile["scenarios"])
+        for mode in scenario["arms"].values()
+    )]:
         mode.pop("plan")
     (artifact / "comparison.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     return result
@@ -457,6 +608,52 @@ def compare_query(
 def selected(workload: str, query: Path, patterns: list[str]) -> bool:
     key = f"{workload}/{query.stem}"
     return not patterns or any(fnmatch.fnmatchcase(key, pattern) for pattern in patterns)
+
+
+def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
+    return [
+        *result["modes"].values(),
+        *(
+            mode
+            for experiment in result["stats_experiments"]
+            for mode in experiment["modes"].values()
+        ),
+        *(
+            mode
+            for scenario in (
+                [] if result["rule_profile"] is None
+                else result["rule_profile"]["scenarios"]
+            )
+            for mode in scenario["arms"].values()
+        ),
+    ]
+
+
+def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Path]:
+    policies = {}
+    entries = {
+        "off": "  enabled: false\n",
+        "rbo": (
+            "  enabled: true\n"
+            "  placement: rbo\n"
+            f"  phase: {args.profile_rbo_phase}\n"
+            f"  effect: {args.profile_effect}\n"
+            "  priority: 0\n"
+            "  order: bottom_up\n"
+            "  fixpoint: true\n"
+        ),
+        "cbo": (
+            "  enabled: true\n"
+            "  placement: cbo\n"
+            "  phase: explore\n"
+            f"  effect: {args.profile_effect}\n"
+        ),
+    }
+    for arm, fields in entries.items():
+        path = root / f"profile-{arm}.policy"
+        path.write_text(f"- rule: {args.profile_rule}\n{fields}", encoding="utf-8")
+        policies[arm] = path
+    return policies
 
 
 def main() -> int:
@@ -470,6 +667,9 @@ def main() -> int:
         data = root / "data"
         socket = root / "socket"
         socket.mkdir()
+        args.profile_policies = (
+            write_profile_policies(root, args) if args.profile_rule else {}
+        )
         init = run([str(pg_bindir / "initdb"), "-D", str(data), "--no-locale", "--encoding=UTF8"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if init.returncode:
             raise RuntimeError(init.stdout)
@@ -521,7 +721,7 @@ def main() -> int:
                     )
                 query_by_name = {query.name: query for query in queries}
                 for index, result in enumerate(workload_results):
-                    if not any(mode["server_failure"] for mode in result["modes"].values()):
+                    if not any(mode["server_failure"] for mode in all_mode_results(result)):
                         continue
                     if not wait_ready(pg_bindir / "pg_isready", socket, args.port, database):
                         raise RuntimeError("PostgreSQL did not recover after a backend crash")
@@ -582,6 +782,46 @@ def main() -> int:
             }
             for mode in ("native", "replacement")
         },
+        "stats_experiments": {
+            "runs": sum(len(result["stats_experiments"]) for result in results),
+            "outcome_equal": sum(
+                comparison["outcome_equal"]
+                for result in results
+                for experiment in result["stats_experiments"]
+                for comparison in experiment["comparisons"].values()
+            ),
+            "rows_equal": sum(
+                comparison["rows_equal"]
+                for result in results
+                for experiment in result["stats_experiments"]
+                for comparison in experiment["comparisons"].values()
+            ),
+            "events": sum(
+                len(mode["stats_events"])
+                for result in results
+                for experiment in result["stats_experiments"]
+                for mode in experiment["modes"].values()
+            ),
+        },
+        "rule_profile": {
+            "rule_hash": args.profile_rule,
+            "scenarios": sum(
+                len(result["rule_profile"]["scenarios"])
+                for result in results if result["rule_profile"] is not None
+            ),
+            "outcome_equal": sum(
+                comparison["outcome_equal"]
+                for result in results if result["rule_profile"] is not None
+                for scenario in result["rule_profile"]["scenarios"]
+                for comparison in scenario["comparisons"].values()
+            ),
+            "rows_equal": sum(
+                comparison["rows_equal"]
+                for result in results if result["rule_profile"] is not None
+                for scenario in result["rule_profile"]["scenarios"]
+                for comparison in scenario["comparisons"].values()
+            ),
+        },
     }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     failed = any(
@@ -593,6 +833,19 @@ def main() -> int:
         )
         or not result["join_enumeration_replaced"]
         or result["forbidden_native_origins"]
+        or any(
+            not comparison["outcome_equal"] or not comparison["rows_equal"]
+            for experiment in result["stats_experiments"]
+            for comparison in experiment["comparisons"].values()
+        )
+        or any(
+            not comparison["outcome_equal"] or not comparison["rows_equal"]
+            for scenario in (
+                [] if result["rule_profile"] is None
+                else result["rule_profile"]["scenarios"]
+            )
+            for comparison in scenario["comparisons"].values()
+        )
         or (args.strict and (not result["trigger_set_equal"] or not result["trigger_order_equal"] or result["plan_comparison"] != "identical"))
         for result in results
     )

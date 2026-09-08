@@ -369,6 +369,7 @@ CEngine::Init(CQueryContext *pqc, CSearchStageArray *search_stage_array)
 	}
 
 	m_pqc = pqc;
+	COptCtxt::PoctxtFromTLS()->InitializeDSLStatsExperiment(m_pqc->Pexpr());
 	InitLogicalExpression(m_pqc->Pexpr());
 
 	m_pqc->PdrgpcrSystemCols()->AddRef();
@@ -535,6 +536,8 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 	// find the group that contains created group expression
 	CGroup *pgroupContainer =
 		m_pmemo->PgroupInsert(pgroupTarget, pexpr, pgexpr);
+	COptCtxt::PoctxtFromTLS()->RegisterDSLStatsExperimentGroup(
+		pop, pgroupContainer);
 
 	if (nullptr == pgexpr->Pgroup())
 	{

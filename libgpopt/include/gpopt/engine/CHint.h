@@ -72,6 +72,10 @@ private:
 	// all-CBO snapshot; the rules themselves remain in the separate rule file.
 	std::string m_dslRulePolicyPath;
 
+	// Optional query-local cardinality experiment. Empty is the zero-overhead
+	// production path.
+	std::string m_dslStatsExperimentPath;
+
 public:
 	CHint(const CHint &) = delete;
 
@@ -85,7 +89,8 @@ public:
 		  ULONG dphyper_edge_budget = 100000,
 		  ULONG dphyper_pair_budget = 100,
 		  BOOL enable_dphyper = false,
-		  const CHAR *dsl_rule_policy_path = nullptr)
+		  const CHAR *dsl_rule_policy_path = nullptr,
+		  const CHAR *dsl_stats_experiment_path = nullptr)
 		: m_ulJoinArityForAssociativityCommutativity(
 			  join_arity_for_associativity_commutativity),
 		  m_ulArrayExpansionThreshold(array_expansion_threshold),
@@ -104,7 +109,10 @@ public:
 		  m_fEnableDPHyper(enable_dphyper),
 		  m_dslRulePolicyPath(nullptr == dsl_rule_policy_path
 							  ? ""
-							  : dsl_rule_policy_path)
+							  : dsl_rule_policy_path),
+		  m_dslStatsExperimentPath(nullptr == dsl_stats_experiment_path
+								   ? ""
+								   : dsl_stats_experiment_path)
 	{
 	}
 
@@ -210,6 +218,12 @@ public:
 	SzDSLRulePolicyPath() const
 	{
 		return m_dslRulePolicyPath.c_str();
+	}
+
+	const CHAR *
+	SzDSLStatsExperimentPath() const
+	{
+		return m_dslStatsExperimentPath.c_str();
 	}
 
 	// generate default hint configurations, which disables sort during insert on

@@ -193,6 +193,7 @@ int   pg_orca_dphyper_pair_budget = 100;
 int   pg_orca_dsl_rule_max_alternatives = 0;
 int   pg_orca_dsl_rule_max_alternatives_per_rule = 0;
 char *pg_orca_dsl_rule_policy_path = NULL;
+char *pg_orca_dsl_stats_experiment_path = NULL;
 
 /*
  * Comma-separated native xforms that are suppressed for a DSL replacement
@@ -950,6 +951,16 @@ void _PG_init(void)
         "all admitted rules in Cascades CBO.",
         NULL,
         &pg_orca_dsl_rule_policy_path,
+        "",
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomStringVariable(
+        "pg_orca.dsl_stats_experiment_path",
+        "Path to a query-local SPJ cardinality experiment. Entries identify "
+        "intermediates by relation aliases and supply absolute row counts.",
+        NULL,
+        &pg_orca_dsl_stats_experiment_path,
         "",
         PGC_USERSET,
         0, NULL, NULL, NULL);

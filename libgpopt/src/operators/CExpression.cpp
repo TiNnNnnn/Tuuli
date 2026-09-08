@@ -590,10 +590,19 @@ CExpression::PstatsDerive(CReqdPropRelational *prprel,
 	// cache derived stats on expression
 	IStatistics *stats = exprhdl.Pstats();
 	GPOS_ASSERT(nullptr != stats);
+	IStatistics *experiment_stats =
+		COptCtxt::PoctxtFromTLS()->PstatsApplyDSLExperiment(m_mp, this, stats);
+	if (nullptr != experiment_stats)
+	{
+		stats = experiment_stats;
+	}
 
 	if (nullptr == m_pstats)
 	{
-		stats->AddRef();
+		if (nullptr == experiment_stats)
+		{
+			stats->AddRef();
+		}
 		m_pstats = stats;
 	}
 	else
@@ -604,6 +613,7 @@ CExpression::PstatsDerive(CReqdPropRelational *prprel,
 		m_pstats->Release();
 		m_pstats = nullptr;
 		m_pstats = stats_copy;
+		CRefCount::SafeRelease(experiment_stats);
 	}
 	GPOS_ASSERT(nullptr != m_pstats);
 

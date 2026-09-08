@@ -33,6 +33,7 @@ extern int  pg_orca_cost_model;	/* 0 = gpdb, 1 = pg */
 extern int  pg_orca_dsl_rule_max_alternatives;
 extern int  pg_orca_dsl_rule_max_alternatives_per_rule;
 extern char *pg_orca_dsl_rule_policy_path;
+extern char *pg_orca_dsl_stats_experiment_path;
 extern int  pg_orca_dphyper_edge_budget;
 extern int  pg_orca_dphyper_pair_budget;
 
