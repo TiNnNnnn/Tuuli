@@ -110,6 +110,8 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(graph["schema_version"], 2)
         self.assertEqual(len(graph["edges"]), 2)
         self.assertEqual(graph["edges"][1]["observations"], 2)
+        self.assertEqual(graph["edges"][1]["src_target_path"], "r/0")
+        self.assertEqual(graph["edges"][1]["dst_source_path"], "r")
         self.assertEqual(
             graph["edges"][1]["binding_path_counts"], {"r/1": 2}
         )

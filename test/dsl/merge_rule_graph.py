@@ -59,6 +59,8 @@ def merge_graph(
             "src_rule": src,
             "dst_rule": dst,
             "target_path": path,
+            "src_target_path": record.get("src_target_path", path),
+            "dst_source_path": record.get("dst_source_path", "r"),
             "path_kind": record.get("path_kind", "instantiated_expression"),
             "scheduler": record.get("scheduler", "unknown"),
             "evidence": "runtime_observed",

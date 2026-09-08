@@ -65,6 +65,9 @@ struct SRuleGraphNode
 	std::string rule_identity;
 	std::string source_root;
 	std::string target_root;
+	std::string source_pattern;
+	std::string target_pattern;
+	std::set<std::string> constraints;
 };
 
 struct SRuleGraphEdge
@@ -185,6 +188,15 @@ Narrow(const CWStringDynamic &value)
 		result.push_back(wc >= 0 && wc <= 0x7f ? static_cast<char>(wc) : '?');
 	}
 	return result;
+}
+
+std::string
+PatternText(CMemoryPool *mp, const CDSLOp *pattern)
+{
+	CWStringDynamic text(mp);
+	COstreamString stream(&text);
+	pattern->OsPrint(stream);
+	return Narrow(text);
 }
 
 std::string
@@ -378,7 +390,8 @@ AppendRuleGraphEdges(const std::vector<SParsedRule> &rules, size_t src,
 }
 
 void
-BuildRuleGraph(const std::vector<SParsedRule> &rules, SAudit *audit)
+BuildRuleGraph(CMemoryPool *mp, const std::vector<SParsedRule> &rules,
+			   SAudit *audit)
 {
 	SRuleGraph &graph = audit->rule_graph;
 	graph.nodes.reserve(rules.size());
@@ -392,8 +405,15 @@ BuildRuleGraph(const std::vector<SParsedRule> &rules, SAudit *audit)
 			continue;
 		}
 		unique_rules.push_back(parsed);
-		graph.nodes.push_back(
-			{record.id, record.identity, record.source_root, record.target_root});
+		graph.nodes.push_back({
+			record.id,
+			record.identity,
+			record.source_root,
+			record.target_root,
+			PatternText(mp, parsed.rule->PfragSrc()->PopRoot()),
+			PatternText(mp, parsed.rule->PfragTgt()->PopRoot()),
+			record.constraints,
+		});
 	}
 	graph.outgoing.resize(unique_rules.size());
 	std::vector<std::vector<size_t>> root_index(EdslopSentinel);
@@ -798,7 +818,17 @@ WriteReports(const SAudit &audit)
 				   << node.rule_id << ",\"rule_hash\":\""
 				   << JsonEscape(node.rule_identity) << "\",\"source_root\":\""
 				   << JsonEscape(node.source_root) << "\",\"target_root\":\""
-				   << JsonEscape(node.target_root) << "\"}";
+				   << JsonEscape(node.target_root) << "\",\"source_pattern\":\""
+				   << JsonEscape(node.source_pattern) << "\",\"target_pattern\":\""
+				   << JsonEscape(node.target_pattern) << "\",\"constraints\":[";
+		bool first_constraint = true;
+		for (const std::string &constraint : node.constraints)
+		{
+			graph_json << (first_constraint ? "" : ",") << "\""
+					   << JsonEscape(constraint) << "\"";
+			first_constraint = false;
+		}
+		graph_json << "]}";
 		first = false;
 	}
 	graph_json << (first ? "" : "\n  ") << "],\n  \"edges\":[";
@@ -814,7 +844,10 @@ WriteReports(const SAudit &audit)
 					   << JsonEscape(graph.nodes[edge.dst].rule_identity)
 					   << "\",\"target_path\":\""
 					   << JsonEscape(edge.target_path)
-					   << "\",\"evidence\":\"static_template\"}";
+					   << "\",\"src_target_path\":\""
+					   << JsonEscape(edge.target_path)
+					   << "\",\"dst_source_path\":\"r\","
+						  "\"evidence\":\"static_template\"}";
 			first = false;
 		}
 	}
@@ -827,6 +860,7 @@ WriteReports(const SAudit &audit)
 				   << "    {\"src_rule\":\""
 				   << JsonEscape(graph.nodes[input.first].rule_identity)
 				   << "\",\"target_path\":\"" << JsonEscape(input.second)
+				   << "\",\"src_target_path\":\"" << JsonEscape(input.second)
 				   << "\",\"reason\":\"input_placeholder\"}";
 		first = false;
 	}
@@ -965,7 +999,7 @@ AuditFiles(CMemoryPool *mp, SAudit *audit)
 			}
 		}
 	}
-	BuildRuleGraph(parsed_rules, audit);
+	BuildRuleGraph(mp, parsed_rules, audit);
 	for (const SParsedRule &parsed : parsed_rules)
 	{
 		parsed.rule->Release();
