@@ -237,14 +237,23 @@ PstatsScaleForExperiment(CMemoryPool *mp, IStatistics *stats,
 		CAutoTrace trace(mp);
 		const std::string escaped_experiment = JsonEscape(experiment);
 		const std::string escaped_relations = JsonEscape(target->m_relations);
+		const std::string escaped_fingerprint =
+			JsonEscape(target->m_fingerprint);
+		const std::string escaped_operator = JsonEscape(target->m_operator);
 		trace.Os() << "DSL_TRACE {\"kind\":\""
 				   << (target->m_inject ? "stats_injection"
 									: "stats_observation")
 				   << "\","
 				   << "\"experiment\":\"" << escaped_experiment.c_str()
-				   << "\","
-				   << "\"relations\":\"" << escaped_relations.c_str()
-				   << "\","
+				   << "\",\"fingerprint\":\""
+				   << escaped_fingerprint.c_str() << "\",\"operator\":\""
+				   << escaped_operator.c_str() << "\"";
+		if (!target->m_relations.empty())
+		{
+			trace.Os() << ",\"relations\":\""
+					   << escaped_relations.c_str() << "\"";
+		}
+		trace.Os() << ","
 				   << "\"site\":\"" << site << "\","
 				   << "\"native_rows\":" << stats->Rows().Get();
 		if (target->m_inject)

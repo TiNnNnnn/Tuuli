@@ -15,6 +15,7 @@ class CDSLStatsExperimentTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_ResolveSPJBoundaries();
+	static GPOS_RESULT EresUnittest_ExpressionFingerprintRoundTrip();
 	static GPOS_RESULT EresUnittest_StrictInput();
 };
 }  // namespace gpopt

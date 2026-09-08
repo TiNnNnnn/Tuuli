@@ -22,12 +22,15 @@ enum EDSLStatsBoundary
 {
 	EdslstatsboundaryScan,
 	EdslstatsboundarySelect,
-	EdslstatsboundaryJoin
+	EdslstatsboundaryJoin,
+	EdslstatsboundaryExpression
 };
 
 struct SDSLStatsExperimentTarget
 {
 	std::string m_relations;
+	std::string m_fingerprint;
+	std::string m_operator;
 	DOUBLE m_rows;
 	EDSLStatsBoundary m_boundary;
 	const COperator *m_pop;
@@ -57,6 +60,7 @@ public:
 	static CDSLStatsExperimentSnapshot *PsnapshotLoadFile(
 		CMemoryPool *mp, const CHAR *path, const CExpression *root,
 		CWStringDynamic *errors);
+	static std::string Fingerprint(CMemoryPool *mp, const CExpression *expr);
 
 	const SDSLStatsExperimentTarget *Ptarget(const COperator *pop) const;
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;

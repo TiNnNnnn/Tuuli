@@ -3,6 +3,8 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLStatsExperimentTest.h"
 
+#include <sstream>
+
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
@@ -18,6 +20,8 @@ CDSLStatsExperimentTest::EresUnittest()
 	CUnittest tests[] = {
 		GPOS_UNITTEST_FUNC(
 			CDSLStatsExperimentTest::EresUnittest_ResolveSPJBoundaries),
+		GPOS_UNITTEST_FUNC(
+			CDSLStatsExperimentTest::EresUnittest_ExpressionFingerprintRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_StrictInput),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
@@ -75,16 +79,63 @@ CDSLStatsExperimentTest::EresUnittest_ResolveSPJBoundaries()
 		"discover: true\n"
 		"cardinalities:\n",
 		join, &errors);
-	valid = valid && nullptr != snapshot && 3 == snapshot->UlTargets() &&
+	valid = valid && nullptr != snapshot && 5 == snapshot->UlTargets() &&
 		nullptr != snapshot->Ptarget(outer_select) &&
 		nullptr != snapshot->Ptarget(b) && nullptr != snapshot->Ptarget(join) &&
-		nullptr == snapshot->Ptarget(inner_select);
+		nullptr != snapshot->Ptarget(inner_select) &&
+		nullptr != snapshot->Ptarget(a);
 	GPOS_DELETE(snapshot);
 	join->Release();
 	b->Release();
 	outer_select->Release();
 	inner_select->Release();
 	a->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_ExpressionFingerprintRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("a", 1, &cols);
+	CExpression *agg = fixture.PexprLogicalGbAgg(get, cols);
+	CWStringDynamic errors(mp);
+	CDSLStatsExperimentSnapshot *snapshot =
+		CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp,
+			"experiment: discover-expression\n"
+			"discover: true\n"
+			"cardinalities:\n",
+			agg, &errors);
+	const SDSLStatsExperimentTarget *discovered =
+		nullptr == snapshot ? nullptr : snapshot->Ptarget(agg);
+	BOOL valid = nullptr != discovered && discovered->m_relations.empty() &&
+		"CLogicalGbAgg" == discovered->m_operator &&
+		16 == discovered->m_fingerprint.size();
+	std::string fingerprint =
+		nullptr == discovered ? "" : discovered->m_fingerprint;
+	GPOS_DELETE(snapshot);
+
+	std::ostringstream config;
+	config << "experiment: inject-expression\n"
+			   << "cardinalities:\n"
+			   << "  - expression: " << fingerprint << "\n"
+			   << "    operator: CLogicalGbAgg\n"
+			   << "    rows: 13\n";
+	errors.Reset();
+	snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+		mp, config.str().c_str(), agg, &errors);
+	const SDSLStatsExperimentTarget *injected =
+		nullptr == snapshot ? nullptr : snapshot->Ptarget(agg);
+	valid = valid && nullptr != injected && injected->m_inject &&
+		13.0 == injected->m_rows && nullptr == snapshot->Ptarget(get);
+
+	GPOS_DELETE(snapshot);
+	agg->Release();
+	get->Release();
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
@@ -106,8 +157,29 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 	CDSLStatsExperimentSnapshot *snapshot =
 		CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
 			mp, duplicate, get, &errors);
-	const BOOL valid = nullptr == snapshot && 0 < errors.Length();
+	BOOL valid = nullptr == snapshot && 0 < errors.Length();
 	GPOS_DELETE(snapshot);
+
+	CColRefArray *cols = nullptr;
+	CExpression *repeated = fixture.PexprLogicalGet("repeated", 1, &cols);
+	CExpression *predicate = fixture.PexprEqPred((*cols)[0], (*cols)[0]);
+	CExpression *join =
+		fixture.PexprLogicalInnerJoin(repeated, repeated, predicate);
+	predicate->Release();
+	std::ostringstream ambiguous;
+	ambiguous << "experiment: ambiguous\n"
+			  << "cardinalities:\n"
+			  << "  - expression: "
+			  << CDSLStatsExperimentSnapshot::Fingerprint(mp, repeated) << "\n"
+			  << "    operator: CLogicalGet\n"
+			  << "    rows: 3\n";
+	errors.Reset();
+	snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+		mp, ambiguous.str().c_str(), join, &errors);
+	valid = valid && nullptr == snapshot && 0 < errors.Length();
+	GPOS_DELETE(snapshot);
+	join->Release();
+	repeated->Release();
 	get->Release();
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
