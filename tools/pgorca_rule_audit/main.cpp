@@ -643,7 +643,8 @@ WriteReports(const SAudit &audit)
 	std::ofstream candidates(fs::path(audit.output_dir) /
 						 "replacement_candidates.csv");
 	std::ofstream graph_json(fs::path(audit.output_dir) / "rule_graph.json");
-	if (!json || !unsupported || !candidates || !graph_json)
+	std::ofstream graph_dot(fs::path(audit.output_dir) / "rule_graph.dot");
+	if (!json || !unsupported || !candidates || !graph_json || !graph_dot)
 	{
 		std::cerr << "cannot open one or more report files" << std::endl;
 		return false;
@@ -820,6 +821,33 @@ WriteReports(const SAudit &audit)
 		first = false;
 	}
 	graph_json << (first ? "" : "\n  ") << "]\n}\n";
+
+	graph_dot << "digraph dsl_rules {\n  rankdir=LR;\n";
+	for (const SRuleGraphNode &node : graph.nodes)
+	{
+		graph_dot << "  \"" << node.rule_identity << "\" [label=\""
+				  << node.rule_id << ": " << node.source_root << " -> "
+				  << node.target_root << "\\n" << node.rule_identity << "\"];\n";
+	}
+	for (size_t src = 0; src < graph.outgoing.size(); ++src)
+	{
+		for (const SRuleGraphEdge &edge : graph.outgoing[src])
+		{
+			graph_dot << "  \"" << graph.nodes[src].rule_identity << "\" -> \""
+					  << graph.nodes[edge.dst].rule_identity << "\" [label=\""
+					  << edge.target_path << "\"];\n";
+		}
+	}
+	for (size_t index = 0; index < graph.unresolved_inputs.size(); ++index)
+	{
+		const auto &input = graph.unresolved_inputs[index];
+		graph_dot << "  input_" << index << " [shape=box,style=dashed,label=\"Input @ "
+				  << input.second << "\"];\n  \""
+				  << graph.nodes[input.first].rule_identity << "\" -> input_"
+				  << index << " [style=dashed,label=\"" << input.second
+				  << "\"];\n";
+	}
+	graph_dot << "}\n";
 	return true;
 }
 

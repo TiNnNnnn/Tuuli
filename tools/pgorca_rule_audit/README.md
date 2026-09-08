@@ -21,6 +21,8 @@ It writes:
 - `rule_graph.json`: admitted rules, target-path anchored static edges, and
   unresolved `Input` anchors which Bots/workloads may later turn into observed
   edges.
+- `rule_graph.dot`: the same graph rendered as Graphviz input, including
+  parallel edges and dashed unresolved `Input` anchors.
 
 `supported_static` means that every source operator has a matcher, every target
 operator has an instantiator, the source root has a DSL shell, and every
