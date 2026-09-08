@@ -18,6 +18,9 @@ It writes:
 - `replacement_candidates.csv`: statically supported rules and possible native
   Xforms. Every row remains `needs_runtime_replacement_test` until the
   native/shadow/negative/replacement E2E matrix proves causality.
+- `rule_graph.json`: admitted rules, target-path anchored static edges, and
+  unresolved `Input` anchors which Bots/workloads may later turn into observed
+  edges.
 
 `supported_static` means that every source operator has a matcher, every target
 operator has an instantiator, the source root has a DSL shell, and every

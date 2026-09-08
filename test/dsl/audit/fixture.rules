@@ -7,6 +7,10 @@ SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)
 # Input can be nested but cannot be dispatched as a source root.
 Input<t0>|Input<t1>|TableEq(t1,t0)
 
+# Structural-only fixture: its target exposes two Filter roots, so the graph
+# must retain parallel edges to the first rule at target paths r and r/0.
+Filter<p0 a0>(Filter<p1 a1>(Input<t0>))|Filter<p2 a2>(Filter<p3 a3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);PredicateEq(p2,p0);PredicateEq(p3,p1)
+
 # Deliberately malformed, to verify per-line parse failure reporting.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|AttrsEq(a1,
 

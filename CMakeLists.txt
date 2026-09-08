@@ -565,7 +565,7 @@ add_test(
 )
 set_tests_properties(pgorca_rule_audit_fixture PROPERTIES
     PASS_REGULAR_EXPRESSION
-    "candidates=5 parsed=3 supported_static=2 unsupported_static=1 parse_failed=1 skipped_non_eq=1 native_exploration=97 semantic_rewrite=50 join_enumeration=19 implementation_property=28"
+    "candidates=6 parsed=4 supported_static=3 unsupported_static=1 parse_failed=1 skipped_non_eq=1 native_exploration=97 semantic_rewrite=50 join_enumeration=19 implementation_property=28 graph_nodes=3 static_edges=5 unresolved_inputs=3"
 )
 
 # -------------------------------------------------------------------

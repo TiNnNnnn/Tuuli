@@ -11,6 +11,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "gpos/_api.h"
@@ -42,6 +43,7 @@ struct SFeatureStats
 struct SRuleRecord
 {
 	unsigned long id = 0;
+	std::string identity;
 	std::string file;
 	unsigned long line = 0;
 	std::string dsl;
@@ -55,6 +57,33 @@ struct SRuleRecord
 	std::set<std::string> target_ops;
 	std::set<std::string> constraints;
 	std::vector<std::string> native_xforms;
+};
+
+struct SRuleGraphNode
+{
+	unsigned long rule_id;
+	std::string rule_identity;
+	std::string source_root;
+	std::string target_root;
+};
+
+struct SRuleGraphEdge
+{
+	size_t dst;
+	std::string target_path;
+};
+
+struct SRuleGraph
+{
+	std::vector<SRuleGraphNode> nodes;
+	std::vector<std::vector<SRuleGraphEdge>> outgoing;
+	std::vector<std::pair<size_t, std::string>> unresolved_inputs;
+};
+
+struct SParsedRule
+{
+	size_t record;
+	CDSLRule *rule;
 };
 
 struct SXformRecord
@@ -119,6 +148,7 @@ struct SAudit
 	std::map<std::string, SFeatureStats> operators;
 	std::map<std::string, unsigned long> constraints;
 	std::map<std::string, unsigned long> reason_counts;
+	SRuleGraph rule_graph;
 	unsigned long physical_lines = 0;
 	unsigned long candidates = 0;
 	unsigned long parsed = 0;
@@ -266,6 +296,110 @@ OpName(const CDSLOp *op)
 	return name;
 }
 
+enum ETemplateMatch
+{
+	EtmNo,
+	EtmStatic,
+	EtmNeedsRuntime
+};
+
+ETemplateMatch
+ETemplateMatches(const CDSLOp *pattern, const CDSLOp *target)
+{
+	if (EdslopInput == pattern->Edslop())
+	{
+		return EtmStatic;
+	}
+	if (EdslopInput == target->Edslop())
+	{
+		return EtmNeedsRuntime;
+	}
+	if (pattern->Edslop() != target->Edslop() ||
+		pattern->FDistinct() != target->FDistinct() ||
+		pattern->Edslsort() != target->Edslsort() ||
+		pattern->UlChildren() != target->UlChildren())
+	{
+		return EtmNo;
+	}
+	if (EdslaggfuncUnknown != pattern->Edslaggfunc())
+	{
+		if (EdslaggfuncUnknown == target->Edslaggfunc())
+		{
+			return EtmNeedsRuntime;
+		}
+		if (pattern->Edslaggfunc() != target->Edslaggfunc())
+		{
+			return EtmNo;
+		}
+	}
+
+	ETemplateMatch result = EtmStatic;
+	for (ULONG child = 0; child < pattern->UlChildren(); ++child)
+	{
+		const ETemplateMatch child_result =
+			ETemplateMatches((*pattern)[child], (*target)[child]);
+		if (EtmNo == child_result)
+		{
+			return EtmNo;
+		}
+		if (EtmNeedsRuntime == child_result)
+		{
+			result = EtmNeedsRuntime;
+		}
+	}
+	return result;
+}
+
+void
+AppendRuleGraphEdges(const std::vector<SParsedRule> &rules, size_t src,
+					 const CDSLOp *target, const std::string &path,
+					 const std::vector<std::vector<size_t>> &root_index,
+					 SRuleGraph *graph)
+{
+	if (EdslopInput == target->Edslop())
+	{
+		graph->unresolved_inputs.emplace_back(src, path);
+		return;
+	}
+	for (size_t dst : root_index[target->Edslop()])
+	{
+		if (EtmStatic == ETemplateMatches(
+						 rules[dst].rule->PfragSrc()->PopRoot(), target))
+		{
+			graph->outgoing[src].push_back({dst, path});
+		}
+	}
+	for (ULONG child = 0; child < target->UlChildren(); ++child)
+	{
+		AppendRuleGraphEdges(rules, src, (*target)[child],
+						 path + "/" + std::to_string(child), root_index,
+						 graph);
+	}
+}
+
+void
+BuildRuleGraph(const std::vector<SParsedRule> &rules, SAudit *audit)
+{
+	SRuleGraph &graph = audit->rule_graph;
+	graph.nodes.reserve(rules.size());
+	graph.outgoing.resize(rules.size());
+	std::vector<std::vector<size_t>> root_index(EdslopSentinel);
+	for (const SParsedRule &parsed : rules)
+	{
+		const SRuleRecord &record = audit->rules[parsed.record];
+		graph.nodes.push_back(
+			{record.id, record.identity, record.source_root, record.target_root});
+		root_index[parsed.rule->PfragSrc()->PopRoot()->Edslop()].push_back(
+			graph.nodes.size() - 1);
+	}
+	for (size_t src = 0; src < rules.size(); ++src)
+	{
+		AppendRuleGraphEdges(rules, src,
+						 rules[src].rule->PfragTgt()->PopRoot(), "r",
+						 root_index, &graph);
+	}
+}
+
 void
 CollectOps(const CDSLOp *op, BOOL source, SRuleRecord *record, SAudit *audit)
 {
@@ -362,6 +496,7 @@ AnalyzeRule(CDSLRule *rule, SRuleRecord *record, SAudit *audit)
 {
 	CDSLOp *source_root = rule->PfragSrc()->PopRoot();
 	CDSLOp *target_root = rule->PfragTgt()->PopRoot();
+	record->identity = rule->SzIdentity();
 	record->source_root = OpName(source_root);
 	record->target_root = OpName(target_root);
 
@@ -507,7 +642,8 @@ WriteReports(const SAudit &audit)
 						  "unsupported_features.csv");
 	std::ofstream candidates(fs::path(audit.output_dir) /
 						 "replacement_candidates.csv");
-	if (!json || !unsupported || !candidates)
+	std::ofstream graph_json(fs::path(audit.output_dir) / "rule_graph.json");
+	if (!json || !unsupported || !candidates || !graph_json)
 	{
 		std::cerr << "cannot open one or more report files" << std::endl;
 		return false;
@@ -641,6 +777,49 @@ WriteReports(const SAudit &audit)
 				   << CsvEscape(Join(rule.native_xforms, ";"))
 				   << ",needs_runtime_replacement_test\n";
 	}
+
+	const SRuleGraph &graph = audit.rule_graph;
+	graph_json << "{\n  \"schema_version\":1,\n  \"nodes\":[";
+	first = true;
+	for (const SRuleGraphNode &node : graph.nodes)
+	{
+		graph_json << (first ? "\n" : ",\n") << "    {\"rule_id\":"
+				   << node.rule_id << ",\"rule_hash\":\""
+				   << JsonEscape(node.rule_identity) << "\",\"source_root\":\""
+				   << JsonEscape(node.source_root) << "\",\"target_root\":\""
+				   << JsonEscape(node.target_root) << "\"}";
+		first = false;
+	}
+	graph_json << (first ? "" : "\n  ") << "],\n  \"edges\":[";
+	first = true;
+	for (size_t src = 0; src < graph.outgoing.size(); ++src)
+	{
+		for (const SRuleGraphEdge &edge : graph.outgoing[src])
+		{
+			graph_json << (first ? "\n" : ",\n")
+					   << "    {\"src_rule\":\""
+					   << JsonEscape(graph.nodes[src].rule_identity)
+					   << "\",\"dst_rule\":\""
+					   << JsonEscape(graph.nodes[edge.dst].rule_identity)
+					   << "\",\"target_path\":\""
+					   << JsonEscape(edge.target_path)
+					   << "\",\"evidence\":\"static_template\"}";
+			first = false;
+		}
+	}
+	graph_json << (first ? "" : "\n  ")
+			   << "],\n  \"unresolved_inputs\":[";
+	first = true;
+	for (const auto &input : graph.unresolved_inputs)
+	{
+		graph_json << (first ? "\n" : ",\n")
+				   << "    {\"src_rule\":\""
+				   << JsonEscape(graph.nodes[input.first].rule_identity)
+				   << "\",\"target_path\":\"" << JsonEscape(input.second)
+				   << "\",\"reason\":\"input_placeholder\"}";
+		first = false;
+	}
+	graph_json << (first ? "" : "\n  ") << "]\n}\n";
 	return true;
 }
 
@@ -669,6 +848,7 @@ AuditFiles(CMemoryPool *mp, SAudit *audit)
 		return;
 	}
 	std::sort(files.begin(), files.end());
+	std::vector<SParsedRule> parsed_rules;
 
 	unsigned long next_id = 1;
 	for (const fs::path &path : files)
@@ -677,6 +857,10 @@ AuditFiles(CMemoryPool *mp, SAudit *audit)
 		if (!input)
 		{
 			audit->fatal_error = "cannot read rule file: " + path.string();
+			for (const SParsedRule &parsed : parsed_rules)
+			{
+				parsed.rule->Release();
+			}
 			return;
 		}
 		std::string raw;
@@ -732,9 +916,21 @@ AuditFiles(CMemoryPool *mp, SAudit *audit)
 
 			audit->parsed++;
 			AnalyzeRule(rule, &record, audit);
-			rule->Release();
 			audit->rules.push_back(std::move(record));
+			if ("supported_static" == audit->rules.back().status)
+			{
+				parsed_rules.push_back({audit->rules.size() - 1, rule});
+			}
+			else
+			{
+				rule->Release();
+			}
 		}
+	}
+	BuildRuleGraph(parsed_rules, audit);
+	for (const SParsedRule &parsed : parsed_rules)
+	{
+		parsed.rule->Release();
 	}
 }
 
@@ -812,7 +1008,16 @@ main(int argc, char **argv)
 			  << " semantic_rewrite=" << audit.semantic_xforms
 			  << " join_enumeration=" << audit.join_enumeration_xforms
 			  << " implementation_property="
-			  << audit.implementation_property_xforms << std::endl;
+			  << audit.implementation_property_xforms;
+	unsigned long static_edges = 0;
+	for (const auto &edges : audit.rule_graph.outgoing)
+	{
+		static_edges += edges.size();
+	}
+	std::cout << " graph_nodes=" << audit.rule_graph.nodes.size()
+			  << " static_edges=" << static_edges
+			  << " unresolved_inputs="
+			  << audit.rule_graph.unresolved_inputs.size() << std::endl;
 	std::cout << "Reports: " << audit.output_dir << std::endl;
 	return 0;
 }
