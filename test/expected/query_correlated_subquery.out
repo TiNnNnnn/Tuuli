@@ -301,17 +301,18 @@ explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j fr
                        QUERY PLAN
 ---------------------------------------------------------
  Nested Loop
-   ->  Seq Scan on c
-   ->  Materialize
+   Join Filter: true
+   ->  Result
+         Filter: (a.j = (SubPlan 1))
          ->  Nested Loop
-               Join Filter: (a.j = (SubPlan 1))
+               Join Filter: true
+               ->  Seq Scan on a
                ->  Seq Scan on b
-               ->  Materialize
-                     ->  Seq Scan on a
-               SubPlan 1
-                 ->  Seq Scan on c c_1
-                       Filter: ((j = a.j) AND (i = b.i))
-(11 rows)
+         SubPlan 1
+           ->  Seq Scan on c c_1
+                 Filter: ((j = a.j) AND (i = b.i))
+   ->  Seq Scan on c
+(13 rows)
 
 \echo '-- force_explain'
 -- force_explain
@@ -319,18 +320,17 @@ explain (costs off) select A.i, B.i, C.j from A, B, C where A.j = (select C.j fr
                           QUERY PLAN
 ---------------------------------------------------------------
  Nested Loop
-   ->  Seq Scan on c
-   ->  Materialize
+   Join Filter: true
+   ->  Result
+         Filter: (a.j = (SubPlan 1))
          ->  Nested Loop
-               Join Filter: (a.j = (SubPlan 1))
+               Join Filter: true
+               ->  Seq Scan on a
                ->  Seq Scan on b
-               ->  Materialize
-                     ->  Seq Scan on a
-               SubPlan 1
-                 ->  Result
-                       One-Time Filter: (a.j = b.j)
-                       ->  Seq Scan on c c_1
-                             Filter: ((j = a.j) AND (i = b.i))
+         SubPlan 1
+           ->  Seq Scan on c c_1
+                 Filter: ((j = a.j) AND (i = b.i) AND (a.j = b.j))
+   ->  Seq Scan on c
 (13 rows)
 
 --select distinct(C.j) as C_j ,A.i as A_i, B.i as B_i from A, B, C where A.j = (select sum(C.j) from C where C.j = A.j and C.i = B.i) and C.j > 600 limit 10;
