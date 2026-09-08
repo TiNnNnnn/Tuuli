@@ -11,6 +11,8 @@
 
 #include "gpopt/search/CScheduler.h"
 
+#include <algorithm>
+
 #include "gpos/base.h"
 #include "gpos/common/CWallClock.h"
 #include "gpos/error/CAutoTrace.h"
@@ -46,6 +48,8 @@ CScheduler::CScheduler(CMemoryPool *mp, ULONG ulJobs
 	  m_ulpStatsCompleted(0),
 	  m_ulpStatsCompletedQueued(0),
 	  m_ulpStatsResumed(0),
+	  m_ulpStatsMaxRunnable(0),
+	  m_ullStatsRunnableDepth(0),
 	  m_job_calls{0},
 	  m_job_us{0}
 #ifdef GPOS_DEBUG
@@ -397,6 +401,9 @@ CScheduler::EjrPostExecute(CJob *pj, BOOL fCompleted)
 CJob *
 CScheduler::PjRetrieve()
 {
+	m_ulpStatsMaxRunnable =
+		std::max(m_ulpStatsMaxRunnable, m_ulpQueued);
+	m_ullStatsRunnableDepth += m_ulpQueued;
 	// retrieve runnable job from lists of waiting jobs
 	SJobLink *pjl = m_listjlWaiting.Pop();
 	CJob *pj = nullptr;
@@ -576,9 +583,11 @@ CScheduler::PrintStats() const
 {
 	GPOS_TRACE_FORMAT(
 		"Job statistics: Queued=%d Dequeued=%d Suspended=%d "
-		"Resumed=%d CompletedQueued=%d Completed=%d",
+		"Resumed=%d CompletedQueued=%d Completed=%d "
+		"RunnableMax=%d RunnableDepth=%llu",
 		m_ulpStatsQueued, m_ulpStatsDequeued, m_ulpStatsSuspended,
-		m_ulpStatsResumed, m_ulpStatsCompletedQueued, m_ulpStatsCompleted);
+		m_ulpStatsResumed, m_ulpStatsCompletedQueued, m_ulpStatsCompleted,
+		m_ulpStatsMaxRunnable, m_ullStatsRunnableDepth);
 	static const CHAR *job_names[CJob::EjtSentinel] = {
 		"test", "group_optimization", "group_implementation",
 		"group_exploration", "group_expression_optimization",

@@ -108,6 +108,8 @@ private:
 	ULONG_PTR m_ulpStatsCompleted;
 	ULONG_PTR m_ulpStatsCompletedQueued;
 	ULONG_PTR m_ulpStatsResumed;
+	ULONG_PTR m_ulpStatsMaxRunnable;
+	ULLONG m_ullStatsRunnableDepth;
 
 	// Per-type scheduler profiling, populated only when optimization statistics
 	// are requested. Counts include reentrant executions of suspended jobs.
