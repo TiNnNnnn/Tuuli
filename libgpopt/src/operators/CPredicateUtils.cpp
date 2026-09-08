@@ -2991,6 +2991,12 @@ CPredicateUtils::FBuiltInComparisonIsVeryStrict(IMDId *mdid)
 		case GPDB_TEXT_LEQ_OP:
 		case GPDB_TEXT_GT_OP:
 		case GPDB_TEXT_GEQ_OP:
+		case GPDB_BPCHAR_EQ_OP:
+		case GPDB_BPCHAR_NEQ_OP:
+		case GPDB_BPCHAR_LT_OP:
+		case GPDB_BPCHAR_LEQ_OP:
+		case GPDB_BPCHAR_GT_OP:
+		case GPDB_BPCHAR_GEQ_OP:
 			// these built-in operators have well-known behavior, they always
 			// return NULL when one of the operands is NULL and they
 			// never return NULL when both operands are not NULL

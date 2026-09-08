@@ -1,0 +1,73 @@
+{
+  "description": "The generic ErrorFree predicate check admits PostgreSQL fixed-length character comparisons",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "scope": "Uncorrelated IN over built-in bpchar comparison operators",
+    "status": "verified_full_replacement",
+    "dsl_rule_hashes": [
+      "e3458abf2b3167d5"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "A ",
+      "A "
+    ],
+    "postgres_output": [
+      "A ",
+      "A "
+    ]
+  }
+}

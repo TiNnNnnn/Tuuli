@@ -28,6 +28,13 @@
 #define GPDB_TEXT_GT_OP OID(666)
 #define GPDB_TEXT_GEQ_OP OID(667)
 
+#define GPDB_BPCHAR_EQ_OP OID(1054)
+#define GPDB_BPCHAR_NEQ_OP OID(1057)
+#define GPDB_BPCHAR_LT_OP OID(1058)
+#define GPDB_BPCHAR_LEQ_OP OID(1059)
+#define GPDB_BPCHAR_GT_OP OID(1060)
+#define GPDB_BPCHAR_GEQ_OP OID(1061)
+
 
 // fwd decl
 namespace gpdxl
