@@ -301,6 +301,11 @@ public:
 	}
 
 	void InitializeDSLStatsExperiment(const CExpression *root);
+	BOOL
+	FHasDSLStatsExperiment() const
+	{
+		return nullptr != m_pdslStatsExperimentSnapshot;
+	}
 	void RegisterDSLStatsExperimentGroup(const COperator *pop,
 									 CGroup *group);
 	gpnaucrates::IStatistics *PstatsApplyDSLExperiment(
@@ -309,6 +314,11 @@ public:
 	gpnaucrates::IStatistics *PstatsApplyDSLExperiment(
 		CMemoryPool *mp, const CGroup *group,
 		gpnaucrates::IStatistics *stats);
+	void TraceDSLExperimentOutcome(
+		DOUBLE optimizer_cost, ULONG selected_plan_nodes,
+		ULONG selected_plan_cbo_dsl_nodes, ULONG memo_groups,
+		ULONG memo_group_expressions, ULONG optimization_ms,
+		ULLONG optimizer_memory_bytes) const;
 
 	// are we optimizing a DML query
 	BOOL

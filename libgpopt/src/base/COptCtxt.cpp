@@ -294,6 +294,41 @@ COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CGroup *group,
 			  m_dsl_stats_traced_groups.insert(group).second);
 }
 
+void
+COptCtxt::TraceDSLExperimentOutcome(
+	DOUBLE optimizer_cost, ULONG selected_plan_nodes,
+	ULONG selected_plan_cbo_dsl_nodes, ULONG memo_groups,
+	ULONG memo_group_expressions, ULONG optimization_ms,
+	ULLONG optimizer_memory_bytes) const
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot ||
+		!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+
+	const std::string experiment =
+		JsonEscape(m_pdslStatsExperimentSnapshot->SzId());
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"experiment_outcome\","
+				   << "\"engine\":\"pgorca\",\"experiment\":\""
+				   << experiment.c_str() << "\",\"optimizer_cost\":"
+				   << optimizer_cost << ",\"selected_plan_nodes\":"
+				   << selected_plan_nodes
+				   << ",\"selected_plan_cbo_dsl_nodes\":"
+				   << selected_plan_cbo_dsl_nodes
+				   << ",\"selected_plan_has_cbo_dsl_provenance\":"
+				   << (0 < selected_plan_cbo_dsl_nodes ? "true" : "false")
+				   << ",\"memo_groups\":" << memo_groups
+				   << ",\"memo_group_expressions\":"
+				   << memo_group_expressions
+				   << ",\"cbo_generated_dsl_alternatives\":"
+				   << m_ulDSLGeneratedAlternatives
+				   << ",\"optimization_ms\":" << optimization_ms
+				   << ",\"optimizer_memory_bytes\":"
+				   << optimizer_memory_bytes << "}" << std::endl;
+}
+
 
 //---------------------------------------------------------------------------
 //	@function:

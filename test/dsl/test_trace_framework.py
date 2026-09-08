@@ -147,8 +147,11 @@ class TraceFrameworkTest(unittest.TestCase):
         records = trace_records(
             'LOG: DSL_TRACE {"kind":"stats_injection","relations":"a",'
             '"native_rows":10,"rows":20}\n'
+            'LOG: DSL_TRACE {"kind":"experiment_outcome",'
+            '"experiment":"trial","optimizer_cost":1.5}\n'
         )
         self.assertEqual(records[0]["rows"], 20)
+        self.assertEqual(records[1]["experiment"], "trial")
 
     def test_workload_rule_profile_changes_only_target_policy(self) -> None:
         args = SimpleNamespace(

@@ -62,6 +62,7 @@ private:
 
 	// index of current search stage
 	ULONG m_ulCurrSearchStage;
+	ULONG m_ulDSLExperimentOptimizationMs;
 
 	// memo table
 	CMemo *m_pmemo;

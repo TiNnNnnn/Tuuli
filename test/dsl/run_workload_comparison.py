@@ -411,6 +411,10 @@ def run_mode(
             record for record in records
             if record.get("kind") in {"stats_injection", "stats_observation"}
         ],
+        "experiment_outcomes": [
+            record for record in records
+            if record.get("kind") == "experiment_outcome"
+        ],
         "dphyper_events": parse_dphyper_events(plan_err),
         "native_memo_origins": sorted({
             str(record.get("origin")) for record in records
@@ -798,6 +802,12 @@ def main() -> int:
             ),
             "events": sum(
                 len(mode["stats_events"])
+                for result in results
+                for experiment in result["stats_experiments"]
+                for mode in experiment["modes"].values()
+            ),
+            "outcomes": sum(
+                len(mode["experiment_outcomes"])
                 for result in results
                 for experiment in result["stats_experiments"]
                 for mode in experiment["modes"].values()

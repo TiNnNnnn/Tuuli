@@ -13,6 +13,7 @@
 #include "gpos/base.h"
 #include "gpos/common/CAutoTimer.h"
 #include "gpos/common/CHashMapIter.h"
+#include "gpos/common/CWallClock.h"
 #include "gpos/common/syslibwrapper.h"
 #include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
@@ -97,6 +98,20 @@ public:
 
 namespace
 {
+void
+CountDSLPlanNodes(const CExpression *expr, ULONG *nodes, ULONG *dsl_nodes)
+{
+	++(*nodes);
+	if (nullptr != expr->Pgexpr() && expr->Pgexpr()->FHasDSLProvenance())
+	{
+		++(*dsl_nodes);
+	}
+	for (ULONG child = 0; child < expr->Arity(); ++child)
+	{
+		CountDSLPlanNodes((*expr)[child], nodes, dsl_nodes);
+	}
+}
+
 ULONG
 UlDPHyperCostExprHash(CExpression *expr)
 {
@@ -171,6 +186,7 @@ CEngine::CEngine(CMemoryPool *mp)
 	  m_pqc(nullptr),
 	  m_search_stage_array(nullptr),
 	  m_ulCurrSearchStage(0),
+	  m_ulDSLExperimentOptimizationMs(0),
 	  m_pmemo(nullptr),
 	  m_pexprEnforcerPattern(nullptr),
 	  m_xforms(nullptr),
@@ -2430,7 +2446,11 @@ CEngine::Optimize()
 				  GPOS_FTRACE(EopttracePrintOptimizationStatistics));
 
 	GPOS_ASSERT(nullptr != PgroupRoot());
-	GPOS_ASSERT(nullptr != COptCtxt::PoctxtFromTLS());
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	GPOS_ASSERT(nullptr != poctxt);
+	const BOOL trace_experiment = poctxt->FHasDSLStatsExperiment() &&
+								  GPOS_FTRACE(EopttracePrintDSLRule);
+	CWallClock experiment_clock(trace_experiment);
 
 	const ULONG ulJobs =
 		std::min((ULONG) GPOPT_JOBS_CAP,
@@ -2490,6 +2510,10 @@ CEngine::Optimize()
 	if (CEnumeratorConfig::FSample())
 	{
 		SamplePlans();
+	}
+	if (trace_experiment)
+	{
+		m_ulDSLExperimentOptimizationMs = experiment_clock.ElapsedMS();
 	}
 }
 
@@ -2595,6 +2619,21 @@ CEngine::PexprExtractPlan()
 	CDrvdPropCtxtPlan *pdpctxtplan = GPOS_NEW(m_mp) CDrvdPropCtxtPlan(m_mp);
 	pexpr->PdpDerive(pdpctxtplan);
 	pdpctxtplan->Release();
+
+	COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+	if (poctxt->FHasDSLStatsExperiment() &&
+		GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		ULONG selected_plan_nodes = 0;
+		ULONG selected_plan_cbo_dsl_nodes = 0;
+		CountDSLPlanNodes(pexpr, &selected_plan_nodes,
+						  &selected_plan_cbo_dsl_nodes);
+		poctxt->TraceDSLExperimentOutcome(
+			pexpr->Cost().Get(), selected_plan_nodes,
+			selected_plan_cbo_dsl_nodes, m_pmemo->UlpGroups(),
+			m_pmemo->UlGrpExprs(), m_ulDSLExperimentOptimizationMs,
+			m_mp->TotalAllocatedSize());
+	}
 
 	return pexpr;
 }
