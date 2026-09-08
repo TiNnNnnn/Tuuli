@@ -1,7 +1,13 @@
 {
   "name": "job",
-  "query_count": 113,
+  "query_count": 363,
   "source_url": "https://github.com/gregrahn/join-order-benchmark",
   "source_commit": "a39603662e023e449cb2121997a5034df9e02ebf",
-  "source_path": "schema.sql and [0-9]*.sql"
+  "source_path": "schema.sql and [0-9]*.sql",
+  "sqlstorm_sample": {
+    "source_url": "https://github.com/SQL-Storm/SQLStorm",
+    "source_commit": "b3bb0b96794a6afe9bb8f3ff2b243562b779c40d",
+    "path": "v1.0/job/distinct_queries.csv and queries/*.sql",
+    "count": 250
+  }
 }

@@ -1,0 +1,69 @@
+WITH UserStats AS (
+  SELECT
+    u.Id AS UserId,
+    u.DisplayName,
+    u.Reputation,
+    COUNT(b.Id) AS BadgeCount,
+    SUM(CASE WHEN v.VoteTypeId = 2 THEN 1 ELSE 0 END) AS TotalUpVotes,
+    SUM(CASE WHEN v.VoteTypeId = 3 THEN 1 ELSE 0 END) AS TotalDownVotes
+  FROM Users AS u
+  LEFT JOIN Badges AS b
+    ON u.Id = b.UserId
+  LEFT JOIN Votes AS v
+    ON u.Id = v.UserId
+  GROUP BY
+    u.Id,
+    u.DisplayName,
+    u.Reputation
+), PostInteraction AS (
+  SELECT
+    p.Id AS PostId,
+    p.Title,
+    p.CreationDate,
+    p.Score,
+    COALESCE(SUM(CASE WHEN NOT c.Id IS NULL THEN 1 ELSE 0 END), 0) AS CommentCount,
+    COALESCE(SUM(CASE WHEN v.VoteTypeId = 2 THEN 1 ELSE 0 END), 0) AS UpVoteCount,
+    COALESCE(SUM(CASE WHEN v.VoteTypeId = 3 THEN 1 ELSE 0 END), 0) AS DownVoteCount
+  FROM Posts AS p
+  LEFT JOIN Comments AS c
+    ON p.Id = c.PostId
+  LEFT JOIN Votes AS v
+    ON p.Id = v.PostId
+  GROUP BY
+    p.Id,
+    p.Title,
+    p.CreationDate,
+    p.Score
+), CombinedStats AS (
+  SELECT
+    us.UserId,
+    us.DisplayName,
+    us.Reputation,
+    us.BadgeCount,
+    pi.PostId,
+    pi.Title,
+    pi.CreationDate,
+    pi.Score,
+    pi.CommentCount,
+    pi.UpVoteCount,
+    pi.DownVoteCount
+  FROM UserStats AS us
+  JOIN PostInteraction AS pi
+    ON us.UserId = pi.PostId
+)
+SELECT
+  cs.DisplayName,
+  cs.Reputation,
+  cs.BadgeCount,
+  cs.Title,
+  cs.CreationDate,
+  cs.Score,
+  cs.CommentCount,
+  cs.UpVoteCount,
+  cs.DownVoteCount
+FROM CombinedStats AS cs
+WHERE
+  cs.Reputation > 1000
+ORDER BY
+  cs.Reputation DESC,
+  cs.Score DESC;

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -46,14 +47,32 @@ from run_trace_corpus import (
 )
 from run_workload_comparison import (
     error_summary,
+    explain_times,
+    optimization_time,
     optimizer_name,
     plan_difference,
+    psql,
     produced_xforms,
+    server_failure,
+    timing_summary,
     trace_settings,
 )
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    @patch("run_workload_comparison.wait_ready", return_value=True)
+    @patch("run_workload_comparison.run")
+    def test_workload_psql_retries_after_server_recovery(self, run, _ready) -> None:
+        run.side_effect = [
+            subprocess.CompletedProcess([], 2, "", "database system is in recovery mode"),
+            subprocess.CompletedProcess([], 0, "ok", ""),
+        ]
+
+        stdout, _, returncode, _ = psql(Path("psql"), Path("/tmp"), 1, "db", "SELECT 1", 1)
+
+        self.assertEqual((stdout, returncode), ("ok", 0))
+        self.assertEqual(run.call_count, 2)
+
     def test_workload_comparison_preserves_xform_order_and_plan_reason(self) -> None:
         trace = (
             'TRACE,"Xform: CXformFirst\nAlternatives:\n0:\n"\n'
@@ -95,6 +114,20 @@ class TraceFrameworkTest(unittest.TestCase):
             "pg_orca",
         )
         self.assertEqual(optimizer_name('[{"Plan": {}}]'), "postgres")
+        self.assertEqual(
+            explain_times('[{"Plan": {}, "Planning Time": 1.25, "Execution Time": 2.5}]'),
+            (1.25, 2.5),
+        )
+        self.assertEqual(
+            optimization_time("[OPT]: Total Optimization Time: 17ms"), 17
+        )
+        self.assertTrue(server_failure("server closed the connection unexpectedly"))
+        timings = timing_summary(
+            [{"modes": {"native": {"value": value}}} for value in range(1, 101)],
+            "native",
+            "value",
+        )
+        self.assertEqual((timings["p50_ms"], timings["p95_ms"]), (50, 95))
         self.assertIn("SET optimizer_print_xform=off;", trace_settings("replacement", [], None))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:

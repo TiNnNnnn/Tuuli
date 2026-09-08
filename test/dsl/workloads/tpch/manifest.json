@@ -1,6 +1,6 @@
 {
   "name": "tpch",
-  "query_count": 22,
+  "query_count": 272,
   "sources": [
     {
       "source_url": "https://github.com/SQL-Storm/SQLStorm",
@@ -12,5 +12,11 @@
       "source_commit": "1d80104b3fb4b5f8a82a647763138d81de46f429",
       "path": "dss/tpch-{create,pkeys,alter}.sql"
     }
-  ]
+  ],
+  "sqlstorm_sample": {
+    "source_url": "https://github.com/SQL-Storm/SQLStorm",
+    "source_commit": "b3bb0b96794a6afe9bb8f3ff2b243562b779c40d",
+    "path": "v1.0/tpch/distinct_queries.csv and queries/*.sql",
+    "count": 250
+  }
 }

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import difflib
 import fnmatch
 import hashlib
@@ -23,6 +24,13 @@ from run_dphyper_stability import parse_dphyper_events
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKLOADS = SCRIPT_DIR / "workloads"
 XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
+OPTIMIZATION_TIME_RE = re.compile(r"\[OPT\]: Total Optimization Time: (\d+)ms")
+SERVER_FAILURE_MARKERS = (
+    "server closed the connection unexpectedly",
+    "database system is in recovery mode",
+    "database system is not yet accepting connections",
+    "connection refused",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -37,6 +45,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "build/dsl-workloads")
     parser.add_argument("--port", type=int, default=60460)
     parser.add_argument("--timeout", type=int, default=60)
+    parser.add_argument("--jobs", type=int, default=1)
     parser.add_argument("--strict", action="store_true")
     return parser.parse_args()
 
@@ -54,22 +63,29 @@ def psql(
     timeout: int,
 ) -> tuple[str, str, int, float]:
     start = time.perf_counter()
-    try:
-        result = run(
-            [
-                str(binary), "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
-                "-h", str(socket), "-p", str(port), "-d", database,
-            ],
-            input=f"SET statement_timeout='{timeout * 1000}ms';\n{sql}",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout + 5,
-        )
+    command = [
+        str(binary), "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
+        "-h", str(socket), "-p", str(port), "-d", database,
+    ]
+    for attempt in range(2):
+        try:
+            result = run(
+                command,
+                input=f"SET statement_timeout='{timeout * 1000}ms';\n{sql}",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=timeout + 5,
+            )
+        except subprocess.TimeoutExpired as error:
+            stdout = error.stdout.decode() if isinstance(error.stdout, bytes) else (error.stdout or "")
+            stderr = error.stderr.decode() if isinstance(error.stderr, bytes) else (error.stderr or "")
+            return stdout, stderr + "\nTIMEOUT", 124, 1000 * (time.perf_counter() - start)
+        if attempt == 0 and server_failure(result.stderr) and wait_ready(
+            binary.with_name("pg_isready"), socket, port, database
+        ):
+            continue
         return result.stdout, result.stderr, result.returncode, 1000 * (time.perf_counter() - start)
-    except subprocess.TimeoutExpired as error:
-        stdout = error.stdout.decode() if isinstance(error.stdout, bytes) else (error.stdout or "")
-        stderr = error.stderr.decode() if isinstance(error.stderr, bytes) else (error.stderr or "")
-        return stdout, stderr + "\nTIMEOUT", 124, 1000 * (time.perf_counter() - start)
+    raise AssertionError("unreachable")
 
 
 def settings(mode: str, semantic_xforms: list[str], policy_file: Path | None) -> str:
@@ -101,6 +117,7 @@ def trace_settings(mode: str, semantic_xforms: list[str], policy_file: Path | No
     return settings(mode, semantic_xforms, policy_file) + """
 SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
+SET optimizer_print_optimization_stats=on;
 SET pg_orca.trace_dsl_rule=on;
 SET client_min_messages=log;
 """.format(xform_trace=native_xform_trace)
@@ -123,12 +140,32 @@ def error_summary(text: str) -> str:
     return "\n".join(
         line
         for line in text.splitlines()
-        if line.startswith(("ERROR:", "FATAL:"))
+        if "ERROR:" in line
+        or "FATAL:" in line
         or ',ERROR,"' in line
         or line.startswith("INFO:  pg_orca: falling back")
         or (line.startswith("DETAIL:") and "Failed assertion" in line)
+        or any(marker in line for marker in SERVER_FAILURE_MARKERS)
         or line == "TIMEOUT"
     )
+
+
+def server_failure(text: str) -> bool:
+    return any(marker in text for marker in SERVER_FAILURE_MARKERS)
+
+
+def wait_ready(binary: Path, socket: Path, port: int, database: str) -> bool:
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        result = run(
+            [str(binary), "-q", "-h", str(socket), "-p", str(port), "-d", database],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        if result.returncode == 0:
+            return True
+        time.sleep(0.1)
+    return False
 
 
 def produced_xforms(text: str) -> list[str]:
@@ -161,6 +198,19 @@ def optimizer_name(stdout: str) -> str | None:
         return value[0].get("Optimizer", "postgres")
     except (IndexError, TypeError, json.JSONDecodeError):
         return None
+
+
+def explain_times(stdout: str) -> tuple[float | None, float | None]:
+    try:
+        value = json.loads(stdout)[0]
+        return value.get("Planning Time"), value.get("Execution Time")
+    except (IndexError, TypeError, json.JSONDecodeError):
+        return None, None
+
+
+def optimization_time(trace: str) -> int | None:
+    matches = OPTIMIZATION_TIME_RE.findall(trace)
+    return int(matches[-1]) if matches else None
 
 
 def walk_plan(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -198,6 +248,24 @@ def plan_difference(left: dict[str, Any] | None, right: dict[str, Any] | None) -
 
 def compact(sequence: list[str]) -> list[str]:
     return [item for index, item in enumerate(sequence) if index == 0 or sequence[index - 1] != item]
+
+
+def timing_summary(results: list[dict[str, Any]], mode: str, field: str) -> dict[str, Any]:
+    values = sorted(
+        result["modes"][mode][field]
+        for result in results
+        if result["modes"][mode][field] is not None
+    )
+    if not values:
+        return {"count": 0}
+    return {
+        "count": len(values),
+        "total_ms": round(sum(values), 3),
+        "mean_ms": round(sum(values) / len(values), 3),
+        "p50_ms": values[(50 * len(values) - 1) // 100],
+        "p95_ms": values[min(len(values) - 1, (95 * len(values) - 1) // 100)],
+        "max_ms": values[-1],
+    }
 
 
 def inventory(
@@ -249,24 +317,33 @@ def compare_query(
         plan_out, plan_err, plan_rc, plan_ms = psql(
             psql_bin, socket, args.port, database,
             trace_settings(mode, semantic_xforms, args.policy_file)
-            + f"\nEXPLAIN (COSTS OFF, FORMAT JSON) {query};",
+            + f"\nEXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, FORMAT JSON) {query};",
             args.timeout,
         )
-        rows_out, rows_err, rows_rc, rows_ms = psql(
-            psql_bin, socket, args.port, database,
-            base + f"\nSET client_min_messages=warning;\nCOPY ({query}) TO STDOUT WITH (FORMAT csv);",
-            args.timeout,
-        )
+        if plan_rc == 0:
+            rows_out, rows_err, rows_rc, rows_ms = psql(
+                psql_bin, socket, args.port, database,
+                base + f"\nSET client_min_messages=warning;\nCOPY ({query}) TO STDOUT WITH (FORMAT csv);",
+                args.timeout,
+            )
+        else:
+            rows_out, rows_err, rows_rc, rows_ms = "", "", plan_rc, 0.0
         (artifact / f"{mode}.plan.json").write_text(plan_out, encoding="utf-8")
         trace = plan_err
         (artifact / f"{mode}.trace").write_text(trace, encoding="utf-8")
         records = trace_records(trace)
         optimizer = optimizer_name(plan_out)
+        planning_ms, execution_ms = explain_times(plan_out)
         modes[mode] = {
             "plan_rc": plan_rc,
             "rows_rc": rows_rc,
+            "rows_skipped": plan_rc != 0,
+            "server_failure": server_failure(plan_err + rows_err),
             "plan_ms": round(plan_ms, 3),
             "rows_ms": round(rows_ms, 3),
+            "optimization_ms": optimization_time(trace),
+            "planning_ms": planning_ms,
+            "execution_ms": execution_ms,
             "rows_hash": hashlib.sha256(rows_out.encode()).hexdigest(),
             "error": "\n".join(
                 summary
@@ -409,23 +486,38 @@ def main() -> int:
                 ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 if loaded.returncode:
                     raise RuntimeError(f"{workload} schema failed:\n{loaded.stdout}")
-                queries = sorted((args.workload_dir / workload / "sql").glob("*.sql"))
-                for query in queries:
-                    if not selected(workload, query, args.test):
-                        continue
-                    result = compare_query(
+                queries = [
+                    query
+                    for query in sorted((args.workload_dir / workload / "sql").glob("*.sql"))
+                    if selected(workload, query, args.test)
+                ]
+
+                def compare(query: Path) -> dict[str, Any]:
+                    return compare_query(
                         args, pg_bindir / "psql", socket, database, workload, query,
                         semantic_xforms, hash_xforms, semantic_xform_set,
                         join_xforms,
                     )
-                    results.append(result)
+
+                with ThreadPoolExecutor(max_workers=args.jobs) as executor:
+                    workload_results = list(executor.map(compare, queries))
+                for result in workload_results:
                     print(
-                        f"{workload}/{query.stem}: outcome={result['outcome_equal']} "
+                        f"{workload}/{Path(result['query']).stem}: outcome={result['outcome_equal']} "
                         f"triggers={result['trigger_set_equal']}/{result['trigger_order_equal']} "
                         f"plan={result['plan_comparison']} "
                         f"coverage={result['coverage_status']}",
                         flush=True,
                     )
+                query_by_name = {query.name: query for query in queries}
+                for index, result in enumerate(workload_results):
+                    if not any(mode["server_failure"] for mode in result["modes"].values()):
+                        continue
+                    if not wait_ready(pg_bindir / "pg_isready", socket, args.port, database):
+                        raise RuntimeError("PostgreSQL did not recover after a backend crash")
+                    print(f"{workload}/{Path(result['query']).stem}: retry after server recovery", flush=True)
+                    workload_results[index] = compare(query_by_name[result["query"]])
+                results.extend(workload_results)
         finally:
             run([str(pg_bindir / "pg_ctl"), "-D", str(data), "stop", "-m", "fast"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -471,6 +563,13 @@ def main() -> int:
         "plan_difference_reasons": {
             reason: sum(result["plan_comparison"] == reason for result in results)
             for reason in ("join_order", "expression_or_property", "physical_shape", "plan_error")
+        },
+        "timings": {
+            mode: {
+                field: timing_summary(results, mode, field)
+                for field in ("optimization_ms", "planning_ms", "execution_ms", "plan_ms", "rows_ms")
+            }
+            for mode in ("native", "replacement")
         },
     }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

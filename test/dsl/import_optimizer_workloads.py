@@ -64,12 +64,33 @@ def numbered_queries(directory: Path, count: int, width: int) -> list[tuple[str,
     ]
 
 
+def sampled_sqlstorm_queries(
+    root: Path, dataset: str, count: int, excluded: set[str] | None = None
+) -> list[tuple[str, str]]:
+    directory = root / "v1.0" / dataset
+    with (directory / "distinct_queries.csv").open(encoding="utf-8", newline="") as stream:
+        query_names = [
+            row["query"] for row in csv.DictReader(stream)
+            if row["query"] not in (excluded or set())
+        ][:count]
+    if len(query_names) != count:
+        raise ValueError(f"SQLStorm {dataset} has only {len(query_names)} selectable queries")
+    return [
+        (
+            f"s{int(Path(name).stem):05d}",
+            (directory / "queries" / name).read_text(encoding="utf-8"),
+        )
+        for name in query_names
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sqlstorm", type=Path, required=True)
     parser.add_argument("--job", type=Path, required=True)
     parser.add_argument("--pg-tpcds", type=Path, required=True)
     parser.add_argument("--pg-tpch", type=Path, required=True)
+    parser.add_argument("--sqlstorm-sample-count", type=int, default=250)
     parser.add_argument(
         "--output", type=Path, default=Path(__file__).with_name("workloads")
     )
@@ -77,6 +98,7 @@ def main() -> int:
 
     sqlstorm_sha = git_sha(args.sqlstorm)
     common = {"source_url": SQLSTORM_URL, "source_commit": sqlstorm_sha}
+    sample_count = args.sqlstorm_sample_count
     write_workload(
         args.output,
         "tpch",
@@ -84,7 +106,8 @@ def main() -> int:
             (args.pg_tpch / f"dss/{name}").read_text(encoding="utf-8")
             for name in ("tpch-create.sql", "tpch-pkeys.sql", "tpch-alter.sql")
         ),
-        numbered_queries(args.sqlstorm / "v0.0/tpch/queries", 22, 2),
+        numbered_queries(args.sqlstorm / "v0.0/tpch/queries", 22, 2)
+        + sampled_sqlstorm_queries(args.sqlstorm, "tpch", sample_count),
         {
             "sources": [
                 {**common, "path": "v0.0/tpch/queries/1.sql..22.sql"},
@@ -93,7 +116,12 @@ def main() -> int:
                     "source_commit": git_sha(args.pg_tpch),
                     "path": "dss/tpch-{create,pkeys,alter}.sql",
                 },
-            ]
+            ],
+            "sqlstorm_sample": {
+                **common,
+                "path": "v1.0/tpch/distinct_queries.csv and queries/*.sql",
+                "count": sample_count,
+            },
         },
     )
     write_workload(
@@ -103,7 +131,8 @@ def main() -> int:
             args.pg_tpcds
             / "DSGen-software-code-4.0.0/tools/tpcds.sql"
         ).read_text(encoding="utf-8"),
-        numbered_queries(args.sqlstorm / "v0.0/tpcds/queries", 103, 3),
+        numbered_queries(args.sqlstorm / "v0.0/tpcds/queries", 103, 3)
+        + sampled_sqlstorm_queries(args.sqlstorm, "tpcds", sample_count),
         {
             "sources": [
                 {**common, "path": "v0.0/tpcds/queries/1.sql..103.sql"},
@@ -114,6 +143,11 @@ def main() -> int:
                 },
             ],
             "selection": "99 templates produce 103 executable statements",
+            "sqlstorm_sample": {
+                **common,
+                "path": "v1.0/tpcds/distinct_queries.csv and queries/*.sql",
+                "count": sample_count,
+            },
         },
     )
 
@@ -128,11 +162,16 @@ def main() -> int:
         args.output,
         "job",
         (args.job / "schema.sql").read_text(encoding="utf-8"),
-        job_queries,
+        job_queries + sampled_sqlstorm_queries(args.sqlstorm, "job", sample_count),
         {
             "source_url": JOB_URL,
             "source_commit": git_sha(args.job),
             "source_path": "schema.sql and [0-9]*.sql",
+            "sqlstorm_sample": {
+                **common,
+                "path": "v1.0/job/distinct_queries.csv and queries/*.sql",
+                "count": sample_count,
+            },
         },
     )
 
@@ -142,6 +181,12 @@ def main() -> int:
     sqlstorm_queries = [
         (f"q{int(row['query'][:-4]):05d}", row["text"]) for row in rows
     ]
+    sqlstorm_queries += sampled_sqlstorm_queries(
+        args.sqlstorm,
+        "stackoverflow",
+        sample_count,
+        {row["query"] for row in rows},
+    )
     write_workload(
         args.output,
         "sqlstorm",
@@ -152,7 +197,12 @@ def main() -> int:
         {
             **common,
             "source_path": "v1.0/stackoverflow/semantic_queries.csv",
-            "selection": "upstream semantically validated PostgreSQL queries",
+            "selection": "23 semantically validated PostgreSQL queries plus a distinct-query sample",
+            "sqlstorm_sample": {
+                **common,
+                "path": "v1.0/stackoverflow/distinct_queries.csv and queries/*.sql",
+                "count": sample_count,
+            },
         },
     )
     return 0
