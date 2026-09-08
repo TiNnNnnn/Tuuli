@@ -23,6 +23,7 @@ from build_xform_replacement_inventory import (
 )
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
+from merge_rule_graph import merge_graph, render_dot
 from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
@@ -64,6 +65,58 @@ from run_workload_comparison import (
 
 
 class TraceFrameworkTest(unittest.TestCase):
+    def test_runtime_rule_edges_merge_as_multigraph_evidence(self) -> None:
+        base = {
+            "schema_version": 1,
+            "nodes": [
+                {
+                    "rule_id": 1,
+                    "rule_hash": "a",
+                    "source_root": "Filter",
+                    "target_root": "Input",
+                },
+                {
+                    "rule_id": 2,
+                    "rule_hash": "b",
+                    "source_root": "Proj",
+                    "target_root": "Proj",
+                },
+            ],
+            "edges": [
+                {
+                    "src_rule": "a",
+                    "dst_rule": "b",
+                    "target_path": "r",
+                    "evidence": "static_template",
+                }
+            ],
+            "unresolved_inputs": [],
+        }
+        event = {
+            "kind": "rule_edge",
+            "engine": "pgorca",
+            "scheduler": "rbo",
+            "src_rule": "a",
+            "dst_rule": "b",
+            "target_path": "r/0",
+            "path_kind": "instantiated_expression",
+            "binding_path": "r/1",
+            "evidence": "runtime_observed",
+            "relation": "followed_by",
+        }
+
+        graph = merge_graph(base, [event, event])
+
+        self.assertEqual(graph["schema_version"], 2)
+        self.assertEqual(len(graph["edges"]), 2)
+        self.assertEqual(graph["edges"][1]["observations"], 2)
+        self.assertEqual(
+            graph["edges"][1]["binding_path_counts"], {"r/1": 2}
+        )
+        self.assertIn("color=blue", render_dot(graph))
+        with self.assertRaisesRegex(ValueError, "unknown rule"):
+            merge_graph(base, [{**event, "dst_rule": "missing"}])
+
     @patch("run_workload_comparison.wait_ready", return_value=True)
     @patch("run_workload_comparison.run")
     def test_workload_psql_retries_after_server_recovery(self, run, _ready) -> None:

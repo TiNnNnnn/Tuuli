@@ -28,3 +28,12 @@ It writes:
 operator has an instantiator, the source root has a DSL shell, and every
 constraint has a checker. It does not mean that a particular SQL expression
 will match, satisfy live metadata constraints, or produce a usable plan.
+
+Merge workload-observed `rule_edge` records into a persistent graph and render
+them as blue DOT edges with:
+
+```sh
+python3 test/dsl/merge_rule_graph.py build/rule-audit/rule_graph.json \
+  build/workload.log --output build/rule_graph.merged.json \
+  --dot build/rule_graph.merged.dot
+```
