@@ -193,8 +193,9 @@ public:
 						   ULONG *pulFailed = nullptr) const;
 
 	// ③: instantiate the rule's target template under the bound model, in mp.
-	CExpression *PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
-								  const CDSLModel *pmodel) const;
+	CExpression *PexprInstantiate(
+		CMemoryPool *mp, const CDSLRule *prule, const CDSLModel *pmodel,
+		CDSLTargetInputOriginArray *inputOrigins = nullptr) const;
 
 	// Scheduler-neutral evaluation. It does not inspect or reserve a CBO/RBO
 	// budget and never inserts/replaces an expression. Caller owns the result.

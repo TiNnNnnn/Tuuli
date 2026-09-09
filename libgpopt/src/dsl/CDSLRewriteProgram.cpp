@@ -244,29 +244,43 @@ CDSLRewriteProgram::TraceObservedEdge(const Path &path,
 	   << producer->second.m_prule->SzIdentity() << "\",\"dst_rule\":\""
 	   << prule->SzIdentity() << "\",\"target_path\":\""
 	   << producer->second.m_target_path.c_str()
+	   << "\",\"src_target_path\":\""
+	   << producer->second.m_target_path.c_str()
+	   << "\",\"dst_source_path\":\"r"
 	   << "\",\"path_kind\":\"instantiated_expression\","
 		  "\"binding_path\":\""
 	   << bindingPath.c_str() << "\",\"source_fingerprint\":"
 	   << CExpression::HashValue(pexprSource)
-	   << ",\"evidence\":\"runtime_observed\","
-		  "\"relation\":\"followed_by\"}"
+	   << ",\"evidence\":\"runtime_observed\",\"relation\":\""
+	   << producer->second.m_relation << "\"}"
 	   << std::endl;
 }
 
 void
-CDSLRewriteProgram::RecordTargetNodes(const Path &path,
-									 const CDSLRule *prule,
-									 CExpression *pexprTarget,
-									 const std::string &targetPath)
+CDSLRewriteProgram::RecordTargetNodes(
+	const Path &path, const CDSLRule *prule, CExpression *pexprTarget,
+	const std::string &targetPath,
+	const CDSLTargetInputOriginArray &inputOrigins)
 {
+	for (const SDSLTargetInputOrigin &input : inputOrigins)
+	{
+		if (input.m_expression_path == targetPath)
+		{
+			m_node_producers[StrPath(path)] = {
+				prule, input.m_template_path, "input_exposes"};
+			return;
+		}
+	}
 	if (pexprTarget->Pop()->FLogical())
-		m_node_producers[StrPath(path)] = {prule, targetPath};
+		m_node_producers[StrPath(path)] = {
+			prule, targetPath, "followed_by"};
 	for (ULONG child = 0; child < pexprTarget->Arity(); ++child)
 	{
 		Path childPath = path;
 		childPath.push_back(child);
 		RecordTargetNodes(childPath, prule, (*pexprTarget)[child],
-						  targetPath + "/" + std::to_string(child));
+						  targetPath + "/" + std::to_string(child),
+						  inputOrigins);
 	}
 }
 
@@ -523,7 +537,8 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 		if (GPOS_FTRACE(EopttracePrintDSLRule))
 		{
 			DiscardTargetNodes(path);
-			RecordTargetNodes(path, prule, pexprNewNode, "r");
+			RecordTargetNodes(path, prule, pexprNewNode, "r",
+							  decision->TargetInputOrigins());
 		}
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
 								 pexprNewNode, "applied_rbo",

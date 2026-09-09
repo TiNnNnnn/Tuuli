@@ -11,6 +11,8 @@
 
 #include "gpopt/base/COptCtxt.h"
 
+#include <utility>
+
 #include "gpos/base.h"
 #include "gpos/common/CAutoP.h"
 #include "gpos/error/CAutoTrace.h"
@@ -390,20 +392,24 @@ COptCtxt::RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates)
 
 void
 COptCtxt::RegisterDSLPendingAlternative(const CExpression *pexpr,
-										const CDSLRule *prule)
+										const CDSLRule *prule,
+										const CDSLTargetInputOriginArray &inputOrigins)
 {
 	GPOS_ASSERT(nullptr != pexpr);
 	GPOS_ASSERT(nullptr != prule);
-	m_dsl_pending_alternative_rules[pexpr] = prule;
+	m_dsl_pending_alternative_rules[pexpr] = {prule, inputOrigins};
 }
 
 const CDSLRule *
-COptCtxt::PdslruleTakePendingAlternative(const CExpression *pexpr)
+COptCtxt::PdslruleTakePendingAlternative(
+	const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins)
 {
+	GPOS_ASSERT(nullptr != inputOrigins);
 	auto found = m_dsl_pending_alternative_rules.find(pexpr);
 	if (m_dsl_pending_alternative_rules.end() == found)
 		return nullptr;
-	const CDSLRule *prule = found->second;
+	const CDSLRule *prule = found->second.m_prule;
+	*inputOrigins = std::move(found->second.m_input_origins);
 	m_dsl_pending_alternative_rules.erase(found);
 	return prule;
 }
@@ -411,12 +417,14 @@ COptCtxt::PdslruleTakePendingAlternative(const CExpression *pexpr)
 void
 COptCtxt::RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 										 const CDSLRule *prule,
-										 const CHAR *szTargetPath)
+										 const CHAR *szTargetPath,
+										 const CHAR *szRelation)
 {
 	GPOS_ASSERT(nullptr != pgexpr);
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != szTargetPath);
-	m_dsl_group_expression_origins[pgexpr] = {prule, szTargetPath};
+	GPOS_ASSERT(nullptr != szRelation);
+	m_dsl_group_expression_origins[pgexpr] = {prule, szTargetPath, szRelation};
 }
 
 void
@@ -437,11 +445,14 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 				   << "\",\"dst_rule\":\"" << prule->SzIdentity()
 				   << "\",\"target_path\":\""
 				   << found->second.m_target_path.c_str()
+				   << "\",\"src_target_path\":\""
+				   << found->second.m_target_path.c_str()
+				   << "\",\"dst_source_path\":\"r"
 				   << "\",\"path_kind\":\"instantiated_expression\","
 					  "\"binding_group\":" << pgexpr->Pgroup()->Id()
 				   << ",\"binding_group_expression\":" << pgexpr->Id()
-				   << ",\"evidence\":\"runtime_observed\","
-					  "\"relation\":\"memo_consumes\"}"
+				   << ",\"evidence\":\"runtime_observed\",\"relation\":\""
+				   << found->second.m_relation.c_str() << "\"}"
 				   << std::endl;
 }
 

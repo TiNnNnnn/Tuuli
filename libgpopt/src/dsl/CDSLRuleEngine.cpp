@@ -841,7 +841,8 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	CExpression *pexprResult = pdecision->PexprDetachTarget();
 	if (fReady && GPOS_FTRACE(EopttracePrintDSLRule))
 	{
-		poctxt->RegisterDSLPendingAlternative(pexprResult, prule);
+		poctxt->RegisterDSLPendingAlternative(
+			pexprResult, prule, pdecision->TargetInputOrigins());
 	}
 	GPOS_DELETE(pdecision);
 	return pexprResult;
@@ -942,9 +943,18 @@ CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 			EdsldecisionDuplicate == pdecision->Status())
 		{
 			CExpression *pexprTarget = pdecision->PexprDetachTarget();
+			CDSLTargetInputOriginArray inputOrigins =
+				pdecision->TargetInputOrigins();
 			(*pexpr)[1]->AddRef();
 			CExpression *pexprWrapped =
 				CUtils::PexprSafeSelect(mp, pexprTarget, (*pexpr)[1]);
+			if (pexprWrapped != pexprTarget)
+			{
+				for (SDSLTargetInputOrigin &input : inputOrigins)
+				{
+					input.m_expression_path.insert(1, "/0");
+				}
+			}
 			const BOOL fSchemaPreserved =
 				pexprWrapped->DeriveOutputColumns()->Equals(
 					pexpr->DeriveOutputColumns());
@@ -956,6 +966,7 @@ CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 			{
 				pexprWrapped->Release();
 				pexprWrapped = nullptr;
+				inputOrigins.clear();
 			}
 			CDSLRewriteDecision *pdecisionWrapped = GPOS_NEW(mp)
 				CDSLRewriteDecision(
@@ -966,7 +977,8 @@ CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 					fFingerprint ? CExpression::HashValue(pexpr) : 0,
 					nullptr == pexprWrapped || !fFingerprint
 						? 0
-						: CExpression::HashValue(pexprWrapped));
+						: CExpression::HashValue(pexprWrapped),
+					inputOrigins);
 			GPOS_DELETE(pdecision);
 			GPOS_DELETE(pdecisionRejected);
 			pdrgpexprView->Release();
@@ -1026,7 +1038,9 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	const ULONG ulConstraintUs = fTrace ? stageTimer.ElapsedUS() : 0;
 	if (fTrace)
 		stageTimer.Restart();
-	CExpression *pexprTarget = PexprInstantiate(mp, prule, pmodel);
+	CDSLTargetInputOriginArray inputOrigins;
+	CExpression *pexprTarget = PexprInstantiate(
+		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr);
 	const ULONG ulInstantiateUs = fTrace ? stageTimer.ElapsedUS() : 0;
 	if (nullptr == pexprTarget)
 	{
@@ -1043,7 +1057,7 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	return GPOS_NEW(mp) CDSLRewriteDecision(
 		pmodel, pexprTarget, status, nullptr, gpos::ulong_max, ulMatchUs,
 		ulConstraintUs, ulInstantiateUs, ulSourceFingerprint,
-		ulTargetFingerprint);
+		ulTargetFingerprint, inputOrigins);
 }
 
 //---------------------------------------------------------------------------
@@ -1088,7 +1102,8 @@ CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
 
 CExpression *
 CDSLRuleEngine::PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
-								 const CDSLModel *pmodel) const
+								 const CDSLModel *pmodel,
+								 CDSLTargetInputOriginArray *inputOrigins) const
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != prule);
@@ -1098,7 +1113,7 @@ CDSLRuleEngine::PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
 	// AddRef-grafted, residual conjuncts merged, target symbols resolved through
 	// the rule's equality classes. See CDSLInstantiator.
 	CDSLInstantiator instantiator(mp);
-	return instantiator.PexprInstantiate(prule, pmodel);
+	return instantiator.PexprInstantiate(prule, pmodel, inputOrigins);
 }
 
 // EOF

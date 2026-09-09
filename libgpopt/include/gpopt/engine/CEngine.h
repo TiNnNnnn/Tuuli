@@ -17,6 +17,7 @@
 
 #include "gpos/base.h"
 
+#include "gpopt/dsl/CDSLProvenance.h"
 #include "gpopt/search/CMemo.h"
 #include "gpopt/search/CSearchStage.h"
 #include "gpopt/xforms/CXform.h"
@@ -165,7 +166,8 @@ private:
 								  CXform::EXformId exfidOrigin,
 								  CGroupExpression *pgexprOrigin,
 								  const CDSLRule *pruleOrigin = nullptr,
-								  const CHAR *szTargetPath = "r");
+								  const CHAR *szTargetPath = "r",
+								  const CDSLTargetInputOriginArray *inputOrigins = nullptr);
 
 	// create and schedule the main optimization job
 	void ScheduleMainJob(CSchedulerContext *psc,
@@ -259,7 +261,8 @@ public:
 						 CXform::EXformId exfidOrigin,
 						 CGroupExpression *pgexprOrigin, BOOL fIntermediate,
 						 const CDSLRule *pruleOrigin = nullptr,
-						 const CHAR *szTargetPath = "r");
+						 const CHAR *szTargetPath = "r",
+						 const CDSLTargetInputOriginArray *inputOrigins = nullptr);
 
 	// insert a set of xform results into the memo
 	void InsertXformResult(CGroup *pgroupOrigin, CXformResult *pxfres,

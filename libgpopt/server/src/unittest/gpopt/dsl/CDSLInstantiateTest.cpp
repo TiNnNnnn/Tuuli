@@ -839,10 +839,14 @@ CDSLInstantiateTest::EresUnittest_BaseSubtreeReused()
 	else
 	{
 		CDSLInstantiator inst(mp);
-		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		CDSLTargetInputOriginArray inputOrigins;
+		pexprTgt = inst.PexprInstantiate(prule, pmodel, &inputOrigins);
 		// target Select's relational child[0] must be the very Get subtree the
 		// source Select was built over (pointer identity — grafted, not rebuilt).
-		if (nullptr == pexprTgt || (*pexprTgt)[0] != pexprGet)
+		if (nullptr == pexprTgt || (*pexprTgt)[0] != pexprGet ||
+			1 != inputOrigins.size() ||
+			"r/0" != inputOrigins[0].m_template_path ||
+			"r/0" != inputOrigins[0].m_expression_path)
 		{
 			eres = GPOS_FAILED;
 		}

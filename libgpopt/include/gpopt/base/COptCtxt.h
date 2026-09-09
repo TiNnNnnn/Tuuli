@@ -24,6 +24,7 @@
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/IComparator.h"
 #include "gpopt/base/SPartSelectorInfo.h"
+#include "gpopt/dsl/CDSLProvenance.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 
 namespace gpnaucrates
@@ -83,6 +84,13 @@ struct SDSLGroupExpressionOrigin
 {
 	const CDSLRule *m_prule;
 	std::string m_target_path;
+	std::string m_relation;
+};
+
+struct SDSLPendingAlternative
+{
+	const CDSLRule *m_prule;
+	CDSLTargetInputOriginArray m_input_origins;
 };
 
 using UlongToDSLRuleTraceCountersMap =
@@ -223,7 +231,7 @@ private:
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
 	std::unordered_map<ULONG, std::unordered_map<ULONG, ULONG>>
 		m_dsl_generated_alternatives_by_node_rule;
-	std::unordered_map<const CExpression *, const CDSLRule *>
+	std::unordered_map<const CExpression *, SDSLPendingAlternative>
 		m_dsl_pending_alternative_rules;
 	std::unordered_map<const CGroupExpression *, SDSLGroupExpressionOrigin>
 		m_dsl_group_expression_origins;
@@ -256,11 +264,14 @@ public:
 	void RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings);
 	void RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates);
 	void RegisterDSLPendingAlternative(const CExpression *pexpr,
-									 const CDSLRule *prule);
-	const CDSLRule *PdslruleTakePendingAlternative(const CExpression *pexpr);
+									 const CDSLRule *prule,
+									 const CDSLTargetInputOriginArray &inputOrigins);
+	const CDSLRule *PdslruleTakePendingAlternative(
+		const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins);
 	void RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 									  const CDSLRule *prule,
-									  const CHAR *szTargetPath);
+									  const CHAR *szTargetPath,
+									  const CHAR *szRelation);
 	void TraceDSLCBOEdge(const CDSLRule *prule,
 						  const CExpression *pexprSource) const;
 

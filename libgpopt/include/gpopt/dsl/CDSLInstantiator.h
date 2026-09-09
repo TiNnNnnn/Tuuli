@@ -48,9 +48,11 @@
 #include "gpos/common/CHashMap.h"
 
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLProvenance.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/operators/CExpression.h"
 
@@ -109,6 +111,19 @@ private:
 	std::unordered_map<const CDSLSymbol *, ULONG> m_shared_cte_by_target;
 	std::vector<const CDSLSymbol *> m_shared_sources;
 	std::vector<ULONG> m_shared_cte_ids;
+
+	// Populated only for tracing: exact target-template Input anchors and the
+	// corresponding roots in the instantiated expression.
+	CDSLTargetInputOriginArray *m_pinput_origins;
+	std::unordered_map<const CDSLOp *, std::string> m_target_input_paths;
+	mutable std::vector<std::pair<const CExpression *, std::string> >
+		m_built_input_roots;
+	void IndexTargetInputs(const CDSLOp *pop, const std::string &path);
+	void RecordBuiltInput(const CDSLOp *pop, const CExpression *pexpr) const;
+	BOOL FFindExpressionPath(const CExpression *root,
+							 const CExpression *target,
+							 std::string *path) const;
+	void CollectTargetInputOrigins(const CExpression *root);
 
 	// populate m_phmAlias from the rule's equality constraints. An *Eq(x,y) links
 	// x and y; whichever side was declared on the target aliases the other.
@@ -294,7 +309,7 @@ private:
 	// reused memo subtree; re-root it via an identity PexprCopyWithRemappedColumns
 	// (fresh nodes, colrefs unchanged). Consumes pexpr, returns the fresh-rooted
 	// expression (or pexpr unchanged if it was already fresh / NULL).
-	CExpression *PexprFreshRoot(CExpression *pexpr) const;
+	CExpression *PexprFreshRoot(CExpression *pexpr);
 
 public:
 	CDSLInstantiator(const CDSLInstantiator &) = delete;
@@ -312,8 +327,9 @@ public:
 
 	// build the rule's target expression; NULL if instantiation is not possible
 	// (missing binding, unsupported operator). Caller owns the returned ref.
-	CExpression *PexprInstantiate(const CDSLRule *prule,
-								  const CDSLModel *pmodel);
+	CExpression *PexprInstantiate(
+		const CDSLRule *prule, const CDSLModel *pmodel,
+		CDSLTargetInputOriginArray *inputOrigins = nullptr);
 };
 }  // namespace gpopt
 

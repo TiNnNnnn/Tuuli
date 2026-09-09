@@ -63,6 +63,7 @@ private:
 	{
 		const CDSLRule *m_prule = nullptr;
 		std::string m_target_path;
+		const CHAR *m_relation = nullptr;
 	};
 
 	CMemoryPool *m_mp;
@@ -108,7 +109,8 @@ private:
 						   CExpression *pexprSource) const;
 	void RecordTargetNodes(const Path &path, const CDSLRule *prule,
 						 CExpression *pexprTarget,
-						 const std::string &targetPath);
+						 const std::string &targetPath,
+						 const CDSLTargetInputOriginArray &inputOrigins);
 	void DiscardTargetNodes(const Path &path);
 	BOOL FCandidate(const CDSLRuleArray *pdrgCandidates,
 					const CDSLRule *prule) const;

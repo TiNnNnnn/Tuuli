@@ -17,15 +17,34 @@ EDGE_FIELDS = (
     "src_rule",
     "dst_rule",
     "target_path",
+    "src_target_path",
+    "dst_source_path",
     "path_kind",
     "scheduler",
     "evidence",
     "relation",
 )
 
+TRACE_SUFFIXES = {".plan", ".trace"}
+
 
 def edge_key(edge: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(edge.get(field) for field in EDGE_FIELDS)
+
+
+def read_trace_inputs(paths: Iterable[Path]) -> Iterable[dict[str, Any]]:
+    for path in paths:
+        traces = (
+            sorted(
+                candidate
+                for candidate in path.rglob("*")
+                if candidate.is_file() and candidate.suffix in TRACE_SUFFIXES
+            )
+            if path.is_dir()
+            else [path]
+        )
+        for trace in traces:
+            yield from read_records(trace)
 
 
 def merge_graph(
@@ -102,10 +121,18 @@ def render_dot(graph: dict[str, Any]) -> str:
         runtime = edge.get("evidence") == "runtime_observed"
         count = f' x{edge.get("observations", 0)}' if runtime else ""
         attrs = ",color=blue,penwidth=2" if runtime else ""
+        label = edge.get("target_path", "?")
+        if runtime:
+            label = (
+                f'{edge.get("relation", "followed_by")}\\n'
+                f'{edge.get("scheduler", "unknown")}:'
+                f'{edge.get("src_target_path", label)}->'
+                f'{edge.get("dst_source_path", "r")}{count}'
+            )
         lines.append(
             f'  "{dot_escape(edge["src_rule"])}" -> '
             f'"{dot_escape(edge["dst_rule"])}" '
-            f'[label="{dot_escape(edge.get("target_path", "?"))}{count}"{attrs}];'
+            f'[label="{dot_escape(label)}"{attrs}];'
         )
     for index, item in enumerate(graph.get("unresolved_inputs", [])):
         lines.append(
@@ -123,17 +150,16 @@ def render_dot(graph: dict[str, Any]) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("graph", type=Path, help="base rule_graph.json")
-    parser.add_argument("traces", type=Path, nargs="+", help="DSL trace files")
+    parser.add_argument(
+        "traces", type=Path, nargs="+", help="DSL trace files or artifact directories"
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--dot", type=Path)
     args = parser.parse_args()
 
     try:
         graph = json.loads(args.graph.read_text(encoding="utf-8"))
-        records = (
-            record for trace in args.traces for record in read_records(trace)
-        )
-        merged = merge_graph(graph, records)
+        merged = merge_graph(graph, read_trace_inputs(args.traces))
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(
             json.dumps(merged, ensure_ascii=False, indent=2, sort_keys=True) + "\n",

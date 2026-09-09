@@ -13,7 +13,8 @@ CDSLRewriteDecision::CDSLRewriteDecision(
 	EDslRewriteDecisionStatus status, const CDSLConstraint *pconFailed,
 	ULONG ulFailedConstraint, ULONG ulMatchUs, ULONG ulConstraintUs,
 	ULONG ulInstantiateUs, ULONG ulSourceFingerprint,
-	ULONG ulTargetFingerprint)
+	ULONG ulTargetFingerprint,
+	const CDSLTargetInputOriginArray &targetInputOrigins)
 	: m_status(status),
 	  m_pmodel(pmodel),
 	  m_pexprTarget(pexprTarget),
@@ -23,7 +24,8 @@ CDSLRewriteDecision::CDSLRewriteDecision(
 	  m_ulConstraintUs(ulConstraintUs),
 	  m_ulInstantiateUs(ulInstantiateUs),
 	  m_ulSourceFingerprint(ulSourceFingerprint),
-	  m_ulTargetFingerprint(ulTargetFingerprint)
+	  m_ulTargetFingerprint(ulTargetFingerprint),
+	  m_target_input_origins(targetInputOrigins)
 {
 	GPOS_ASSERT(nullptr != pmodel);
 	GPOS_ASSERT((EdsldecisionReady == status || EdsldecisionDuplicate == status) ==

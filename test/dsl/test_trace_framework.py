@@ -23,7 +23,7 @@ from build_xform_replacement_inventory import (
 )
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog
-from merge_rule_graph import merge_graph, render_dot
+from merge_rule_graph import merge_graph, read_trace_inputs, render_dot
 from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
@@ -115,9 +115,25 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(
             graph["edges"][1]["binding_path_counts"], {"r/1": 2}
         )
-        self.assertIn("color=blue", render_dot(graph))
+        dot = render_dot(graph)
+        self.assertIn("color=blue", dot)
+        self.assertIn(r"followed_by\\nrbo:r/0->r x2", dot)
         with self.assertRaisesRegex(ValueError, "unknown rule"):
             merge_graph(base, [{**event, "dst_rule": "missing"}])
+
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = Path(temporary) / "query" / "replacement.plan"
+            artifact.parent.mkdir()
+            artifact.write_text(
+                'LOG: DSL_TRACE {"kind":"rule_edge","engine":"pgorca"}\n',
+                encoding="utf-8",
+            )
+            ignored = artifact.with_suffix(".json")
+            ignored.write_text('{"kind":"rule_edge"}\n', encoding="utf-8")
+            self.assertEqual(
+                list(read_trace_inputs([Path(temporary)])),
+                [{"kind": "rule_edge", "engine": "pgorca"}],
+            )
 
     @patch("run_workload_comparison.wait_ready", return_value=True)
     @patch("run_workload_comparison.run")

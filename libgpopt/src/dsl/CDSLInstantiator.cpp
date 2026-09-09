@@ -839,13 +839,84 @@ CDSLInstantiator::CDSLInstantiator(CMemoryPool *mp)
 	  m_phmDerivedCols(nullptr),
 	  m_phmDerivedPreds(nullptr),
 	  m_prule(nullptr),
-	  m_pdrgpsymBuiltInputs(nullptr)
+	  m_pdrgpsymBuiltInputs(nullptr),
+	  m_pinput_origins(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmAlias = GPOS_NEW(mp) CDSLSymbolAliasMap(mp);
 	m_phmDerivedCols = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
 	m_phmDerivedPreds = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpsymBuiltInputs = GPOS_NEW(mp) CDSLSymbolArray(mp);
+}
+
+void
+CDSLInstantiator::IndexTargetInputs(const CDSLOp *pop,
+									 const std::string &path)
+{
+	if (EdslopInput == pop->Edslop())
+	{
+		m_target_input_paths.emplace(pop, path);
+		return;
+	}
+	for (ULONG child = 0; child < pop->UlChildren(); ++child)
+	{
+		IndexTargetInputs((*pop)[child],
+						  path + "/" + std::to_string(child));
+	}
+}
+
+void
+CDSLInstantiator::RecordBuiltInput(const CDSLOp *pop,
+								const CExpression *pexpr) const
+{
+	if (nullptr == m_pinput_origins || nullptr == pexpr)
+	{
+		return;
+	}
+	auto path = m_target_input_paths.find(pop);
+	if (m_target_input_paths.end() != path)
+	{
+		m_built_input_roots.emplace_back(pexpr, path->second);
+	}
+}
+
+BOOL
+CDSLInstantiator::FFindExpressionPath(const CExpression *root,
+								   const CExpression *target,
+								   std::string *path) const
+{
+	if (root == target)
+	{
+		return true;
+	}
+	for (ULONG child = 0; child < root->Arity(); ++child)
+	{
+		const size_t length = path->size();
+		path->append("/").append(std::to_string(child));
+		if (FFindExpressionPath((*root)[child], target, path))
+		{
+			return true;
+		}
+		path->resize(length);
+	}
+	return false;
+}
+
+void
+CDSLInstantiator::CollectTargetInputOrigins(const CExpression *root)
+{
+	if (nullptr == m_pinput_origins || nullptr == root)
+	{
+		return;
+	}
+	for (const auto &input : m_built_input_roots)
+	{
+		std::string expressionPath("r");
+		if (FFindExpressionPath(root, input.first, &expressionPath))
+		{
+			m_pinput_origins->push_back({input.second, expressionPath});
+		}
+	}
 }
 
 //---------------------------------------------------------------------------
@@ -2482,12 +2553,15 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 			m_input_col_maps.emplace(pop, phm);
 			pdrgpcrFrom->Release();
 		}
-		return CXformUtils::PexprCTEConsumer(m_mp, shared->second,
-										 pdrgpcrConsumer);
+		CExpression *pexprConsumer = CXformUtils::PexprCTEConsumer(
+			m_mp, shared->second, pdrgpcrConsumer);
+		RecordBuiltInput(pop, pexprConsumer);
+		return pexprConsumer;
 	}
 	if (!fAlreadyBuilt)
 	{
 		pexpr->AddRef();
+		RecordBuiltInput(pop, pexpr);
 		return pexpr;
 	}
 
@@ -2505,6 +2579,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	pdrgpcrTo->Release();
 	m_input_col_maps.emplace(pop, phm);
 	pdrgpcrFrom->Release();
+	RecordBuiltInput(pop, pexprCopy);
 	return pexprCopy;
 }
 
@@ -5410,7 +5485,7 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 //		targets (Filter/Join) are returned as-is.
 //---------------------------------------------------------------------------
 CExpression *
-CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
+CDSLInstantiator::PexprFreshRoot(CExpression *pexpr)
 {
 	if (nullptr == pexpr || nullptr == pexpr->Pgexpr())
 	{
@@ -5435,6 +5510,13 @@ CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
 	}
 	CExpression *pexprFresh = GPOS_NEW(m_mp)
 		CExpression(m_mp, popFresh, pdrgpexprChildren);
+	for (auto &input : m_built_input_roots)
+	{
+		if (input.first == pexpr)
+		{
+			input.first = pexprFresh;
+		}
+	}
 	pexpr->Release();
 	return pexprFresh;
 }
@@ -5445,12 +5527,19 @@ CDSLInstantiator::PexprFreshRoot(CExpression *pexpr) const
 //---------------------------------------------------------------------------
 CExpression *
 CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
-								   const CDSLModel *pmodel)
+								   const CDSLModel *pmodel,
+								   CDSLTargetInputOriginArray *inputOrigins)
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pmodel);
 
 	m_prule = prule;
+	m_pinput_origins = inputOrigins;
+	if (nullptr != m_pinput_origins)
+	{
+		m_pinput_origins->clear();
+		IndexTargetInputs(prule->PfragTgt()->PopRoot(), "r");
+	}
 	BuildAliasMap(prule);
 	if (!FPrepareSharedInputs(prule, pmodel))
 	{
@@ -5553,7 +5642,10 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
 			CPredicateUtils::PexprConjunction(m_mp, nullptr));
 	}
-	return PexprFreshRoot(PexprFinalizeSharedInputs(pexprTgt));
+	CExpression *pexprResult =
+		PexprFreshRoot(PexprFinalizeSharedInputs(pexprTgt));
+	CollectTargetInputOrigins(pexprResult);
+	return pexprResult;
 }
 
 // EOF

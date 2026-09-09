@@ -1,0 +1,37 @@
+{
+  "description": "Cascade attributes a DSL match enabled by an inlined Input subtree",
+  "plans": [
+    {
+      "name": "cbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "input_exposes_cte_cbo.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\"",
+        "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\"",
+        "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"cbo\",\"src_rule\":\"f2116d97cabfa066\",\"dst_rule\":\"dec0eb1e99571556\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\"",
+        "\"relation\":\"input_exposes\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInlineCTEConsumer",
+      "CXformInlineCTEConsumerUnderSelect",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "policy": "input_exposes_cte_cbo.policy",
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ]
+  }
+}

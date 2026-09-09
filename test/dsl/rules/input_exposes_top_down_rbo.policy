@@ -1,0 +1,14 @@
+- rule: '*'
+  enabled: false
+- rule: a7d859279ffc7369
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: preserves_join_graph
+  priority: 0
+  order: top_down
+  fixpoint: true
+  budget:
+    per_node: 8
+    per_rule: 16
+    per_query: 32

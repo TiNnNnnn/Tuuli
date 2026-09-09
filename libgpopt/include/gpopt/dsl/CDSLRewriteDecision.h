@@ -15,6 +15,7 @@
 #include "gpos/base.h"
 
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLProvenance.h"
 #include "gpopt/operators/CExpression.h"
 
 namespace gpopt
@@ -43,6 +44,7 @@ private:
 	ULONG m_ulInstantiateUs;
 	ULONG m_ulSourceFingerprint;
 	ULONG m_ulTargetFingerprint;
+	CDSLTargetInputOriginArray m_target_input_origins;
 
 public:
 	CDSLRewriteDecision(const CDSLRewriteDecision &) = delete;
@@ -52,7 +54,8 @@ public:
 						const CDSLConstraint *pconFailed,
 						ULONG ulFailedConstraint, ULONG ulMatchUs,
 						ULONG ulConstraintUs, ULONG ulInstantiateUs,
-						ULONG ulSourceFingerprint, ULONG ulTargetFingerprint);
+						ULONG ulSourceFingerprint, ULONG ulTargetFingerprint,
+						const CDSLTargetInputOriginArray &targetInputOrigins = {});
 	~CDSLRewriteDecision();
 
 	EDslRewriteDecisionStatus Status() const { return m_status; }
@@ -65,6 +68,11 @@ public:
 	ULONG UlInstantiateUs() const { return m_ulInstantiateUs; }
 	ULONG UlSourceFingerprint() const { return m_ulSourceFingerprint; }
 	ULONG UlTargetFingerprint() const { return m_ulTargetFingerprint; }
+	const CDSLTargetInputOriginArray &
+	TargetInputOrigins() const
+	{
+		return m_target_input_origins;
+	}
 
 	// Transfer the sole target reference to a scheduler.
 	CExpression *PexprDetachTarget();

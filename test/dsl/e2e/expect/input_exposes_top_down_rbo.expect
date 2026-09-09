@@ -1,0 +1,34 @@
+{
+  "description": "Top-down RBO attributes a rewrite reached through an instantiated Input placeholder",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "input_exposes_top_down_rbo.policy",
+      "contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"a7d859279ffc7369\"",
+        "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"rbo\",\"src_rule\":\"a7d859279ffc7369\",\"dst_rule\":\"a7d859279ffc7369\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\"",
+        "\"relation\":\"input_exposes\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "input_exposes_top_down_rbo.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
