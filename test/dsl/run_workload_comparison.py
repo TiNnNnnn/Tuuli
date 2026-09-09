@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
         default="preserves_join_graph",
     )
     parser.add_argument("--unbounded", action="store_true")
-    parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "build/dsl-workloads")
+    parser.add_argument("--output", type=Path, default=SCRIPT_DIR.parent.parent / "output/dsl-workloads")
     parser.add_argument("--port", type=int, default=60460)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--jobs", type=int, default=1)
