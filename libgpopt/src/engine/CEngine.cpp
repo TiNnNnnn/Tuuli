@@ -34,6 +34,7 @@
 #include "gpopt/base/CQueryContext.h"
 #include "gpopt/base/CReqdPropPlan.h"
 #include "gpopt/base/CReqdPropRelational.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/engine/CEnumeratorConfig.h"
 #include "gpopt/engine/CStatisticsConfig.h"
 #include "gpopt/exception.h"
@@ -2438,11 +2439,18 @@ CEngine::ProcessTraceFlags()
 			const ULONG *pulRuleId = iter.Key();
 			const SDSLRuleTraceCounters *prule = iter.Value();
 			GPOS_ASSERT(nullptr != pulRuleId && nullptr != prule);
+			const CDSLRule *pdslrule =
+				CDSLRuleEngine::Instance()->PdslruleById(*pulRuleId);
 			CAutoTrace at(m_mp);
 			at.Os() << "DSL_TRACE {\"kind\":\"rule_summary\","
 						  "\"engine\":\"pgorca\",\"stage\":"
-					<< m_ulCurrSearchStage << ",\"rule_id\":" << *pulRuleId
-					<< ",\"binding_attempts\":" << prule->UlAttempts()
+					<< m_ulCurrSearchStage << ",\"rule_id\":" << *pulRuleId;
+			if (nullptr != pdslrule)
+			{
+				at.Os() << ",\"rule_hash\":\"" << pdslrule->SzIdentity()
+						<< "\"";
+			}
+			at.Os() << ",\"binding_attempts\":" << prule->UlAttempts()
 					<< ",\"bound_symbols\":" << prule->m_bound_symbols
 					<< ",\"match_us\":" << prule->m_match_us
 					<< ",\"constraint_us\":" << prule->m_constraint_us

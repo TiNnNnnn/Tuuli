@@ -539,6 +539,22 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 	return nullptr == pulId ? 0 : *pulId;
 }
 
+const CDSLRule *
+CDSLRuleEngine::PdslruleById(ULONG ulRuleId) const
+{
+	// ponytail: keep this trace-only lookup linear; add an inverse map only if
+	// rule-bank scale makes trace finalization measurable.
+	for (ULONG ul = 0; ul < m_pdrgprule->Size(); ++ul)
+	{
+		const CDSLRule *prule = (*m_pdrgprule)[ul];
+		if (ulRuleId == UlRuleId(prule))
+		{
+			return prule;
+		}
+	}
+	return nullptr;
+}
+
 BOOL
 CDSLRuleEngine::FHasOrdinaryProjSourceRoot() const
 {

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import difflib
 import fnmatch
@@ -31,6 +32,35 @@ SERVER_FAILURE_MARKERS = (
     "database system is in recovery mode",
     "database system is not yet accepting connections",
     "connection refused",
+)
+RULE_COUNTER_FIELDS = (
+    "binding_attempts",
+    "bound_symbols",
+    "match_rejected",
+    "constraint_rejected",
+    "instantiate_rejected",
+    "generated_alternatives",
+    "duplicate_alternatives",
+    "budget_exhausted",
+    "budget_skipped",
+    "match_us",
+    "constraint_us",
+    "instantiate_us",
+)
+CURVE_SEARCH_FIELDS = (
+    "memo_groups",
+    "memo_group_expressions",
+    "groups",
+    "group_expressions",
+    "bindings_built",
+    "candidates_found",
+    "rule_candidates",
+    "rule_applications",
+    "optimizer_cost",
+    "optimization_ms",
+    "planning_ms",
+    "execution_ms",
+    "optimizer_memory_bytes",
 )
 
 
@@ -313,6 +343,59 @@ def timing_summary(results: list[dict[str, Any]], mode: str, field: str) -> dict
     }
 
 
+def distribution(values: list[float | int]) -> dict[str, Any]:
+    ordered = sorted(values)
+    if not ordered:
+        return {"count": 0}
+    return {
+        "count": len(ordered),
+        "min": ordered[0],
+        "mean": round(sum(ordered) / len(ordered), 6),
+        "p50": ordered[(50 * len(ordered) - 1) // 100],
+        "p95": ordered[min(len(ordered) - 1, (95 * len(ordered) - 1) // 100)],
+        "max": ordered[-1],
+    }
+
+
+def dsl_observability(records: list[dict[str, Any]]) -> dict[str, Any]:
+    rules: dict[str, dict[str, Any]] = {}
+    candidates: dict[str, dict[str, Any]] = {}
+    outcomes: dict[str, dict[str, Any]] = {}
+    memo = pipeline = None
+    for record in records:
+        kind = record.get("kind")
+        if kind == "memo_summary":
+            memo = record
+        elif kind == "pipeline_summary":
+            pipeline = record
+        elif kind == "rule_summary":
+            key = str(record.get("rule_hash", record.get("rule_id")))
+            rules[key] = record
+        elif kind == "rule_candidate":
+            key = str(record.get("rule_hash"))
+            candidate = candidates.setdefault(key, {"statuses": {}, "timing_us": {}})
+            status = str(record.get("status", "unknown"))
+            candidate["statuses"][status] = candidate["statuses"].get(status, 0) + 1
+            for field in ("match_us", "constraint_us", "instantiate_us"):
+                candidate["timing_us"][field] = candidate["timing_us"].get(field, 0) + int(record.get(field, 0))
+        elif kind == "rule_candidate_outcome":
+            key = str(record.get("rule_hash"))
+            outcome = outcomes.setdefault(key, {"statuses": {}, "memo_version_deltas": []})
+            status = str(record.get("status", "unknown"))
+            outcome["statuses"][status] = outcome["statuses"].get(status, 0) + 1
+            before = record.get("memo_version_before")
+            after = record.get("memo_version_after")
+            if isinstance(before, int) and isinstance(after, int):
+                outcome["memo_version_deltas"].append(after - before)
+    return {
+        "memo": memo,
+        "pipeline": pipeline,
+        "rules": rules,
+        "candidates": candidates,
+        "candidate_outcomes": outcomes,
+    }
+
+
 def inventory(
     args: argparse.Namespace,
 ) -> tuple[list[str], dict[str, set[str]], set[str], set[str]]:
@@ -415,6 +498,7 @@ def run_mode(
             record for record in records
             if record.get("kind") == "experiment_outcome"
         ],
+        "dsl_observability": dsl_observability(records),
         "dphyper_events": parse_dphyper_events(plan_err),
         "native_memo_origins": sorted({
             str(record.get("origin")) for record in records
@@ -633,6 +717,264 @@ def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
     ]
 
 
+def experiment_observations(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    observations = []
+    for result in results:
+        for experiment in result["stats_experiments"]:
+            for mode, run_result in experiment["modes"].items():
+                outcomes = run_result["experiment_outcomes"]
+                observations.append({
+                    "workload": result["workload"],
+                    "query": result["query"],
+                    "experiment_path": experiment["path"],
+                    "experiment": outcomes[-1].get("experiment") if outcomes else None,
+                    "mode": mode,
+                    "arm": None,
+                    "stats": run_result["stats_events"],
+                    "search": {
+                        **(run_result["dsl_observability"]["memo"] or {}),
+                        **(run_result["dsl_observability"]["pipeline"] or {}),
+                        **(outcomes[-1] if outcomes else {}),
+                        **{
+                            field: run_result[field]
+                            for field in ("optimization_ms", "planning_ms", "execution_ms")
+                        },
+                    },
+                    "rules": run_result["dsl_observability"]["rules"],
+                    "candidates": run_result["dsl_observability"]["candidates"],
+                    "candidate_outcomes": run_result["dsl_observability"]["candidate_outcomes"],
+                })
+        if result["rule_profile"] is None:
+            continue
+        for scenario in result["rule_profile"]["scenarios"]:
+            for arm, run_result in scenario["arms"].items():
+                outcomes = run_result["experiment_outcomes"]
+                if not outcomes:
+                    continue
+                observations.append({
+                    "workload": result["workload"],
+                    "query": result["query"],
+                    "experiment_path": scenario["stats_experiment"],
+                    "experiment": outcomes[-1].get("experiment"),
+                    "mode": "replacement",
+                    "arm": arm,
+                    "stats": run_result["stats_events"],
+                    "search": {
+                        **(run_result["dsl_observability"]["memo"] or {}),
+                        **(run_result["dsl_observability"]["pipeline"] or {}),
+                        **outcomes[-1],
+                        **{
+                            field: run_result[field]
+                            for field in ("optimization_ms", "planning_ms", "execution_ms")
+                        },
+                    },
+                    "rules": run_result["dsl_observability"]["rules"],
+                    "candidates": run_result["dsl_observability"]["candidates"],
+                    "candidate_outcomes": run_result["dsl_observability"]["candidate_outcomes"],
+                })
+    return observations
+
+
+def experiment_distribution_summary(
+    observations: list[dict[str, Any]],
+) -> dict[str, Any]:
+    grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+    for observation in observations:
+        grouped[(observation["experiment"], observation["mode"], observation["arm"])].append(observation)
+
+    summaries = []
+    for (experiment, mode, arm), runs in sorted(grouped.items(), key=lambda item: str(item[0])):
+        search_fields = sorted({
+            field
+            for run in runs
+            for field, value in run["search"].items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        })
+        rule_hashes = sorted({rule for run in runs for rule in run["rules"]})
+        trigger_distributions = {}
+        for rule in rule_hashes:
+            trigger_distributions[rule] = {
+                field: distribution([
+                    run["rules"].get(rule, {}).get(field, 0) for run in runs
+                ])
+                for field in RULE_COUNTER_FIELDS
+            }
+            trigger_distributions[rule]["run_presence"] = sum(
+                rule in run["rules"] for run in runs
+            )
+
+        candidate_rules = sorted({
+            rule
+            for run in runs
+            for rule in run["candidates"]
+        })
+        candidate_triggers = {}
+        for rule in candidate_rules:
+            statuses = sorted({
+                status
+                for run in runs
+                for status in run["candidates"].get(rule, {}).get("statuses", {})
+            })
+            timings = sorted({
+                field
+                for run in runs
+                for field in run["candidates"].get(rule, {}).get("timing_us", {})
+            })
+            candidate_triggers[rule] = {
+                "run_presence": sum(rule in run["candidates"] for run in runs),
+                "statuses": {
+                    status: distribution([
+                        run["candidates"].get(rule, {}).get("statuses", {}).get(status, 0)
+                        for run in runs
+                    ])
+                    for status in statuses
+                },
+                "timing_us": {
+                    field: distribution([
+                        run["candidates"].get(rule, {}).get("timing_us", {}).get(field, 0)
+                        for run in runs
+                    ])
+                    for field in timings
+                },
+            }
+
+        candidate_effects = {}
+        outcome_rules = sorted({
+            rule
+            for run in runs
+            for rule in run["candidate_outcomes"]
+        })
+        for rule in outcome_rules:
+            deltas = [
+                delta
+                for run in runs
+                for delta in run["candidate_outcomes"].get(rule, {}).get(
+                    "memo_version_deltas", []
+                )
+            ]
+            statuses: dict[str, int] = defaultdict(int)
+            for run in runs:
+                for status, count in run["candidate_outcomes"].get(
+                    rule, {}
+                ).get("statuses", {}).items():
+                    statuses[status] += count
+            candidate_effects[rule] = {
+                "memo_version_delta": distribution(deltas),
+                "statuses": dict(sorted(statuses.items())),
+            }
+
+        statistics: dict[str, dict[str, list[float]]] = {}
+        for run in runs:
+            for event in run["stats"]:
+                selector = str(
+                    event.get("fingerprint")
+                    or event.get("relations")
+                    or event.get("operator")
+                    or "unknown"
+                )
+                item = statistics.setdefault(
+                    selector, {"native_rows": [], "effective_rows": [], "scale": []}
+                )
+                native = event.get("native_rows")
+                effective = event.get("rows", native)
+                if isinstance(native, (int, float)):
+                    item["native_rows"].append(native)
+                if isinstance(effective, (int, float)):
+                    item["effective_rows"].append(effective)
+                if isinstance(native, (int, float)) and native and isinstance(effective, (int, float)):
+                    item["scale"].append(effective / native)
+
+        summaries.append({
+            "experiment": experiment,
+            "mode": mode,
+            "arm": arm,
+            "runs": len(runs),
+            "statistics": {
+                selector: {
+                    field: distribution(values) for field, values in fields.items()
+                }
+                for selector, fields in sorted(statistics.items())
+            },
+            "search_space": {
+                field: distribution([
+                    value
+                    for run in runs
+                    if isinstance((value := run["search"].get(field)), (int, float))
+                    and not isinstance(value, bool)
+                ])
+                for field in search_fields
+            },
+            "rule_triggers": trigger_distributions,
+            "candidate_triggers": candidate_triggers,
+            "candidate_effects": candidate_effects,
+        })
+    curves: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
+    for run in observations:
+        for event in run["stats"]:
+            selector = str(
+                event.get("fingerprint")
+                or event.get("relations")
+                or event.get("operator")
+                or "unknown"
+            )
+            native = event.get("native_rows")
+            effective = event.get("rows", native)
+            point = {
+                "workload": run["workload"],
+                "query": run["query"],
+                "experiment": run["experiment"],
+                "intervened": event.get("kind") == "stats_injection",
+                "native_rows": native,
+                "effective_rows": effective,
+                "scale": (
+                    effective / native
+                    if isinstance(native, (int, float))
+                    and native
+                    and isinstance(effective, (int, float))
+                    else None
+                ),
+                "search": {
+                    field: run["search"].get(field)
+                    for field in CURVE_SEARCH_FIELDS
+                    if run["search"].get(field) is not None
+                },
+                "rule_triggers": {
+                    rule: {
+                        field: int(counters.get(field, 0))
+                        for field in RULE_COUNTER_FIELDS
+                        if counters.get(field, 0)
+                    }
+                    for rule, counters in run["rules"].items()
+                    if any(counters.get(field, 0) for field in RULE_COUNTER_FIELDS)
+                },
+                "candidate_triggers": run["candidates"],
+            }
+            curves[(selector, run["mode"], run["arm"])].append(point)
+
+    return {
+        "groups": summaries,
+        "factor_curves": [
+            {
+                "selector": selector,
+                "mode": mode,
+                "arm": arm,
+                "points": sorted(
+                    points,
+                    key=lambda point: (
+                        point["scale"] is None,
+                        point["scale"] or 0,
+                        point["workload"],
+                        point["query"],
+                    ),
+                ),
+            }
+            for (selector, mode, arm), points in sorted(
+                curves.items(), key=lambda item: str(item[0])
+            )
+        ],
+    }
+
+
 def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Path]:
     policies = {}
     entries = {
@@ -735,6 +1077,7 @@ def main() -> int:
         finally:
             run([str(pg_bindir / "pg_ctl"), "-D", str(data), "stop", "-m", "fast"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
+    observations = experiment_observations(results)
     summary = {
         "queries": len(results),
         "outcome_equal": sum(result["outcome_equal"] for result in results),
@@ -832,8 +1175,15 @@ def main() -> int:
                 for comparison in scenario["comparisons"].values()
             ),
         },
+        "experiment_observability": experiment_distribution_summary(
+            observations
+        ),
     }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    (args.output / "experiment_observations.jsonl").write_text(
+        "".join(json.dumps(observation, sort_keys=True) + "\n" for observation in observations),
+        encoding="utf-8",
+    )
     failed = any(
         result["coverage_status"] == "replacement_failed"
         or not result["outcome_equal"]

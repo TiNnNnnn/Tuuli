@@ -167,6 +167,8 @@ public:
 	// Stable physical source line. Returns zero only for a pointer that is not
 	// owned by this engine.
 	ULONG UlRuleId(const CDSLRule *prule) const;
+	// Trace-only reverse lookup of a physical source line.
+	const CDSLRule *PdslruleById(ULONG ulRuleId) const;
 
 	// Whether any loaded rule needs an ordinary (non-DISTINCT) Proj at the
 	// source root. QueryContext uses this to preserve the otherwise implicit

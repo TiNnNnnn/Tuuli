@@ -48,7 +48,11 @@ from run_trace_corpus import (
     validate_rule_ids,
 )
 from run_workload_comparison import (
+    distribution,
+    dsl_observability,
     error_summary,
+    experiment_distribution_summary,
+    experiment_observations,
     explain_times,
     optimization_time,
     optimizer_name,
@@ -306,6 +310,88 @@ class TraceFrameworkTest(unittest.TestCase):
         )
         self.assertEqual(records[0]["rows"], 20)
         self.assertEqual(records[1]["experiment"], "trial")
+
+    def test_stats_experiment_observability_keeps_trigger_and_search_distributions(self) -> None:
+        records = [
+            {"kind": "memo_summary", "groups": 4, "group_expressions": 9},
+            {"kind": "pipeline_summary", "bindings_built": 7},
+            {
+                "kind": "rule_summary",
+                "rule_hash": "a",
+                "binding_attempts": 3,
+                "generated_alternatives": 1,
+            },
+            {
+                "kind": "rule_candidate",
+                "rule_hash": "a",
+                "status": "applied_rbo",
+                "match_us": 4,
+                "constraint_us": 2,
+                "instantiate_us": 3,
+            },
+            {
+                "kind": "rule_candidate_outcome",
+                "rule_hash": "a",
+                "status": "memo_inserted",
+                "memo_version_before": 5,
+                "memo_version_after": 7,
+            },
+        ]
+        observed = dsl_observability(records)
+        run = {
+            "workload": "tpch",
+            "query": "q01.sql",
+            "modes": {},
+            "rule_profile": None,
+            "stats_experiments": [{
+                "path": "/tmp/card.yaml",
+                "modes": {"replacement": {
+                    "stats_events": [{
+                        "kind": "stats_injection",
+                        "fingerprint": "f",
+                        "native_rows": 10,
+                        "rows": 20,
+                    }],
+                    "experiment_outcomes": [{
+                        "experiment": "card-2x",
+                        "memo_groups": 4,
+                    }],
+                    "optimization_ms": 2,
+                    "planning_ms": 3.0,
+                    "execution_ms": 1.0,
+                    "dsl_observability": observed,
+                }},
+            }],
+        }
+
+        observations = experiment_observations([run])
+        distributions = experiment_distribution_summary(observations)
+        summary = distributions["groups"][0]
+
+        self.assertEqual(distribution([1, 2, 9])["p50"], 2)
+        self.assertEqual(summary["statistics"]["f"]["scale"]["mean"], 2.0)
+        self.assertEqual(summary["search_space"]["group_expressions"]["max"], 9)
+        self.assertEqual(
+            summary["rule_triggers"]["a"]["generated_alternatives"]["mean"],
+            1.0,
+        )
+        self.assertEqual(
+            summary["candidate_triggers"]["a"]["statuses"]["applied_rbo"]["max"],
+            1,
+        )
+        self.assertEqual(
+            summary["candidate_effects"]["a"]["memo_version_delta"]["max"],
+            2,
+        )
+        point = distributions["factor_curves"][0]["points"][0]
+        self.assertTrue(point["intervened"])
+        self.assertEqual(point["scale"], 2.0)
+        self.assertEqual(point["search"]["memo_groups"], 4)
+        self.assertEqual(
+            point["rule_triggers"],
+            {"a": {"binding_attempts": 3, "generated_alternatives": 1}},
+        )
+        self.assertEqual(point["candidate_triggers"]["a"]["statuses"], {"applied_rbo": 1})
 
     def test_workload_rule_profile_changes_only_target_policy(self) -> None:
         args = SimpleNamespace(
