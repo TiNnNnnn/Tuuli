@@ -374,6 +374,7 @@ CDSLRewriteProgram::ObserveReadyAlternatives(
 	{
 		return;
 	}
+	const std::string bindingPath = StrPath(path);
 
 	for (ULONG ul = ulFirst; ul < ordered.size(); ul++)
 	{
@@ -408,7 +409,8 @@ CDSLRewriteProgram::ObserveReadyAlternatives(
 		CExpression *pexprShadowNode = PexprResolve(pexprShadowRoot, path);
 		m_pengine->TraceRBOOutcome(
 			m_mp, prule, &policy, decision, pexprSource, pexprShadowNode,
-			"applicable_rbo", "source_replaced_by_prior_rule", pruleSelected);
+			"applicable_rbo", "source_replaced_by_prior_rule", pruleSelected,
+			pexprRoot, bindingPath.c_str());
 		m_ulApplicableAlternatives++;
 		pexprShadowRoot->Release();
 		GPOS_DELETE(decision);
@@ -427,6 +429,7 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 	*ppexprNewRoot = nullptr;
 	if (m_fHardBudgetExhausted || !pexprSource->Pop()->FLogical())
 		return false;
+	const std::string bindingPath = StrPath(path);
 
 	CDSLRuleArray *candidates = m_pengine->PdrgpruleCandidates(
 		m_mp, pexprSource->Pop()->Eopid(), pexprSource,
@@ -469,7 +472,8 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 			else if (EdsldecisionDuplicate == decision->Status())
 				status = "duplicate";
 			m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
-									 decision->PexprTarget(), status, nullptr);
+									 decision->PexprTarget(), status, nullptr,
+									 nullptr, pexprRoot, bindingPath.c_str());
 			GPOS_DELETE(decision);
 			continue;
 		}
@@ -502,7 +506,8 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 			 m_ulAddedNodes + addedNodes > m_ulHardAddedNodes))
 		{
 			m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
-									 pexprTarget, "budget_skipped", nullptr);
+									 pexprTarget, "budget_skipped", nullptr,
+									 nullptr, pexprRoot, bindingPath.c_str());
 			GPOS_DELETE(decision);
 			continue;
 		}
@@ -542,7 +547,8 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 		}
 		m_pengine->TraceRBOOutcome(m_mp, prule, &policy, decision, pexprSource,
 								 pexprNewNode, "applied_rbo",
-								 "source_alternative_replaced");
+								 "source_alternative_replaced", nullptr, pexprRoot,
+								 bindingPath.c_str());
 		ObserveReadyAlternatives(path, pexprRoot, pexprSource, prule, ordered,
 							 ulRule + 1);
 		*ppexprNewRoot = pexprNewRoot;

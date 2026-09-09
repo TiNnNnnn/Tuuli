@@ -51,8 +51,8 @@ def merge_graph(
     base: dict[str, Any], records: Iterable[dict[str, Any]]
 ) -> dict[str, Any]:
     graph = deepcopy(base)
-    nodes = {
-        node.get("rule_hash")
+    node_by_hash = {
+        node.get("rule_hash"): node
         for node in graph.get("nodes", [])
         if isinstance(node, dict)
     }
@@ -62,14 +62,81 @@ def merge_graph(
         for edge in edges
         if isinstance(edge, dict) and edge.get("evidence") == "runtime_observed"
     }
+    selected_by_state: dict[tuple[Any, ...], dict[str, Any]] = {}
+
+    def observe(edge: dict[str, Any], binding: object = None) -> None:
+        key = edge_key(edge)
+        merged = indexed.get(key)
+        if merged is None:
+            merged = edge
+            merged["observations"] = 0
+            merged["binding_path_counts"] = {}
+            edges.append(merged)
+            indexed[key] = merged
+        merged["observations"] = int(merged.get("observations", 0)) + 1
+        if isinstance(binding, str) and binding:
+            counts = merged.setdefault("binding_path_counts", {})
+            counts[binding] = int(counts.get(binding, 0)) + 1
 
     for record in records:
-        if record.get("kind") != "rule_edge" or record.get("engine") != "pgorca":
+        if record.get("engine") != "pgorca":
+            continue
+        if record.get("kind") == "experiment_outcome":
+            selected_by_state.clear()
+            continue
+        if record.get("kind") == "rule_candidate":
+            rule = record.get("rule_hash")
+            if rule not in node_by_hash:
+                raise ValueError(f"candidate references unknown rule: {rule}")
+            node = node_by_hash[rule]
+            status = str(record.get("status", "unknown"))
+            scheduler = str(record.get("placement", "unknown"))
+            node["candidate_observations"] = int(
+                node.get("candidate_observations", 0)
+            ) + 1
+            statuses = node.setdefault("candidate_status_counts", {})
+            statuses[status] = int(statuses.get(status, 0)) + 1
+            schedulers = node.setdefault("candidate_scheduler_counts", {})
+            schedulers[scheduler] = int(schedulers.get(scheduler, 0)) + 1
+
+            if scheduler != "rbo":
+                continue
+            state_key = (
+                record.get("experiment"),
+                record.get("state_fingerprint"),
+                record.get("binding_fingerprint"),
+            )
+            if status == "applied_rbo":
+                selected_by_state[state_key] = record
+                continue
+            selected = selected_by_state.get(state_key)
+            if status != "applicable_rbo" or selected is None:
+                continue
+            src = selected.get("rule_hash")
+            if src == rule:
+                continue
+            binding = record.get("binding_path", "r")
+            observe(
+                {
+                    "src_rule": src,
+                    "dst_rule": rule,
+                    "target_path": binding,
+                    "src_target_path": binding,
+                    "dst_source_path": binding,
+                    "path_kind": "candidate_state",
+                    "scheduler": "rbo",
+                    "evidence": "runtime_observed",
+                    "relation": "ordered_before",
+                },
+                binding,
+            )
+            continue
+        if record.get("kind") != "rule_edge":
             continue
         src = record.get("src_rule")
         dst = record.get("dst_rule")
         path = record.get("target_path")
-        if src not in nodes or dst not in nodes:
+        if src not in node_by_hash or dst not in node_by_hash:
             raise ValueError(f"runtime edge references unknown rule: {src} -> {dst}")
         if not isinstance(path, str) or not path:
             raise ValueError("runtime edge has no target_path")
@@ -85,19 +152,7 @@ def merge_graph(
             "evidence": "runtime_observed",
             "relation": record.get("relation", "followed_by"),
         }
-        key = edge_key(observed)
-        edge = indexed.get(key)
-        if edge is None:
-            edge = observed
-            edge["observations"] = 0
-            edge["binding_path_counts"] = {}
-            edges.append(edge)
-            indexed[key] = edge
-        edge["observations"] = int(edge.get("observations", 0)) + 1
-        binding = record.get("binding_path")
-        if isinstance(binding, str) and binding:
-            counts = edge.setdefault("binding_path_counts", {})
-            counts[binding] = int(counts.get(binding, 0)) + 1
+        observe(observed, record.get("binding_path"))
 
     graph["schema_version"] = max(2, int(graph.get("schema_version", 1)))
     return graph

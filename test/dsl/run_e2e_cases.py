@@ -214,6 +214,22 @@ def policy_setting(args: argparse.Namespace, expected: dict[str, object]) -> str
     return f"SET pg_orca.dsl_rule_policy_path='{escaped}';"
 
 
+def experiment_setting(args: argparse.Namespace, expected: dict[str, object]) -> str:
+    experiment = expected.get("stats_experiment")
+    if experiment is None:
+        return "RESET pg_orca.dsl_stats_experiment_path;"
+    if (
+        not isinstance(experiment, str)
+        or pathlib.Path(experiment).name != experiment
+    ):
+        raise ValueError(f"invalid experiment fixture name: {experiment!r}")
+    path = (args.policy_dir / experiment).resolve()
+    if not path.is_file():
+        raise ValueError(f"experiment fixture not found: {path}")
+    escaped = str(path).replace("'", "''")
+    return f"SET pg_orca.dsl_stats_experiment_path='{escaped}';"
+
+
 def run_plan(args: argparse.Namespace, query: str, plan: dict[str, object]) -> str:
     enabled = "on" if plan.get("dsl", True) else "off"
     trace = "on" if plan.get("trace", False) else "off"
@@ -227,6 +243,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule={enabled};
 {policy_setting(args, plan)}
+{experiment_setting(args, plan)}
 {bool_guc_setting('pg_orca.enable_assert_maxonerow', plan.get('assert_maxonerow'), False)}
 {bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
 {bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), True)}
@@ -278,7 +295,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         for key in (
             "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
-            "disable_xforms", "policy", "assert_maxonerow"
+            "disable_xforms", "policy", "stats_experiment", "assert_maxonerow"
         )
         if key in expected
     }

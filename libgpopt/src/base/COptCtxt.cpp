@@ -11,6 +11,7 @@
 
 #include "gpopt/base/COptCtxt.h"
 
+#include <sstream>
 #include <utility>
 
 #include "gpos/base.h"
@@ -36,6 +37,13 @@ using namespace gpnaucrates;
 
 // value of the first value part id
 ULONG COptCtxt::m_ulFirstValidPartId = 1;
+
+namespace
+{
+std::string JsonEscape(const std::string &value);
+void EmitExperimentCandidate(CMemoryPool *mp, const CHAR *experiment,
+							 const std::string &suffix);
+}  // namespace
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -72,6 +80,9 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_ulDSLCandidateLookupUs(0),
 	  m_ulDSLCandidatesFound(0),
 	  m_ulDSLGeneratedAlternatives(0),
+	  m_ulDSLExperimentSequence(0),
+	  m_ulDSLExperimentCandidates(0),
+	  m_ulDSLExperimentApplications(0),
 	  m_dsl_generated_alternatives_by_rule(nullptr),
 	  m_pdslPolicySnapshot(nullptr),
 	  m_pdslStatsExperimentSnapshot(nullptr)
@@ -167,6 +178,12 @@ COptCtxt::InitializeDSLStatsExperiment(const CExpression *root)
 		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
 				   errors.GetBuffer());
 	}
+	for (const std::string &suffix : m_dsl_pending_experiment_candidates)
+	{
+		EmitExperimentCandidate(m_mp, m_pdslStatsExperimentSnapshot->SzId(),
+							 suffix);
+	}
+	m_dsl_pending_experiment_candidates.clear();
 }
 
 void
@@ -219,6 +236,17 @@ JsonEscape(const std::string &value)
 		}
 	}
 	return escaped;
+}
+
+void
+EmitExperimentCandidate(CMemoryPool *mp, const CHAR *experiment,
+						const std::string &suffix)
+{
+	CAutoTrace trace(mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"rule_candidate\","
+				   << "\"engine\":\"pgorca\",\"experiment\":\""
+				   << JsonEscape(experiment).c_str() << "\"" << suffix.c_str()
+				   << std::endl;
 }
 
 IStatistics *
@@ -327,9 +355,98 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << memo_group_expressions
 				   << ",\"cbo_generated_dsl_alternatives\":"
 				   << m_ulDSLGeneratedAlternatives
+				   << ",\"rule_candidates\":"
+				   << m_ulDSLExperimentCandidates
+				   << ",\"rule_applications\":"
+				   << m_ulDSLExperimentApplications
 				   << ",\"optimization_ms\":" << optimization_ms
 				   << ",\"optimizer_memory_bytes\":"
 				   << optimizer_memory_bytes << "}" << std::endl;
+}
+
+void
+COptCtxt::TraceDSLExperimentCandidate(
+	const CDSLRule *prule, const CHAR *placement, const CHAR *status,
+	const CExpression *pexprState, const CExpression *pexprSource,
+	const CExpression *pexprTarget, const CHAR *bindingPath, ULONG matchUs,
+	ULONG constraintUs, ULONG instantiateUs, BOOL applied)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+	if (nullptr == m_pdslStatsExperimentSnapshot)
+	{
+		const CHAR *path =
+			m_optimizer_config->GetHint()->SzDSLStatsExperimentPath();
+		if (nullptr == path || '\0' == path[0])
+		{
+			return;
+		}
+	}
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != placement);
+	GPOS_ASSERT(nullptr != status);
+	GPOS_ASSERT(nullptr != pexprState);
+	GPOS_ASSERT(nullptr != pexprSource);
+
+	const std::string state =
+		CDSLStatsExperimentSnapshot::Fingerprint(m_mp, pexprState);
+	const std::string source =
+		CDSLStatsExperimentSnapshot::Fingerprint(m_mp, pexprSource);
+	const CGroupExpression *pgexpr = pexprSource->Pgexpr();
+	std::string binding(source);
+	if (nullptr != bindingPath)
+	{
+		binding.append("@").append(bindingPath);
+	}
+	else if (nullptr != pgexpr)
+	{
+		binding.append("@g")
+			.append(std::to_string(pgexpr->Pgroup()->Id()))
+			.append(":e")
+			.append(std::to_string(pgexpr->Id()));
+	}
+
+	++m_ulDSLExperimentCandidates;
+	if (applied)
+	{
+		++m_ulDSLExperimentApplications;
+	}
+	std::ostringstream event;
+	event << ",\"sequence\":" << ++m_ulDSLExperimentSequence
+		  << ",\"state_fingerprint\":\"" << state
+		  << "\",\"rule_id\":"
+		  << CDSLRuleEngine::Instance()->UlRuleId(prule)
+		  << ",\"rule_hash\":\"" << prule->SzIdentity()
+		  << "\",\"binding_fingerprint\":\"" << binding
+		  << "\",\"source_fingerprint\":\"" << source << "\"";
+	if (nullptr != pexprTarget)
+	{
+		event << ",\"target_fingerprint\":\""
+			  << CDSLStatsExperimentSnapshot::Fingerprint(m_mp, pexprTarget)
+			  << "\"";
+	}
+	if (nullptr != pgexpr)
+	{
+		event << ",\"group\":" << pgexpr->Pgroup()->Id()
+			  << ",\"group_expression\":" << pgexpr->Id();
+	}
+	if (nullptr != bindingPath)
+	{
+		event << ",\"binding_path\":\"" << bindingPath << "\"";
+	}
+	event << ",\"placement\":\"" << placement << "\",\"status\":\""
+		  << status << "\",\"match_us\":" << matchUs
+		  << ",\"constraint_us\":" << constraintUs
+		  << ",\"instantiate_us\":" << instantiateUs << "}";
+	if (nullptr == m_pdslStatsExperimentSnapshot)
+	{
+		m_dsl_pending_experiment_candidates.push_back(event.str());
+		return;
+	}
+	EmitExperimentCandidate(m_mp, m_pdslStatsExperimentSnapshot->SzId(),
+						 event.str());
 }
 
 

@@ -15,6 +15,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "gpos/base.h"
 #include "gpos/common/CHashMapIter.h"
@@ -227,6 +228,10 @@ private:
 	ULONG m_ulDSLCandidatesFound;
 
 	ULONG m_ulDSLGeneratedAlternatives;
+	ULONG m_ulDSLExperimentSequence;
+	ULONG m_ulDSLExperimentCandidates;
+	ULONG m_ulDSLExperimentApplications;
+	std::vector<std::string> m_dsl_pending_experiment_candidates;
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
 	std::unordered_map<ULONG, std::unordered_map<ULONG, ULONG>>
@@ -351,6 +356,12 @@ public:
 		ULONG selected_plan_cbo_dsl_nodes, ULONG memo_groups,
 		ULONG memo_group_expressions, ULONG optimization_ms,
 		ULLONG optimizer_memory_bytes) const;
+	void TraceDSLExperimentCandidate(
+		const CDSLRule *prule, const CHAR *placement, const CHAR *status,
+		const CExpression *pexprState, const CExpression *pexprSource,
+		const CExpression *pexprTarget, const CHAR *bindingPath,
+		ULONG matchUs, ULONG constraintUs, ULONG instantiateUs,
+		BOOL applied);
 
 	// are we optimizing a DML query
 	BOOL

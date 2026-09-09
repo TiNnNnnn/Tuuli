@@ -10,6 +10,8 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLRuleEngine.h"
 
+#include <cstring>
+
 #include "gpos/common/CWallClock.h"
 #include "gpos/error/CAutoTrace.h"
 #include "gpos/io/COstreamString.h"
@@ -645,6 +647,18 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			nullptr == pmodel ? 0 : pmodel->Size());
 		poctxt->RecordDSLRuleTiming(ulRuleId, ulMatchUs, ulConstraintUs,
 								 ulInstantiateUs);
+		if (EdsltraceApplied == edsltrace ||
+			EdsltraceDuplicate == edsltrace ||
+			EdsltraceBudgetExhausted == edsltrace ||
+			EdsltraceBudgetSkipped == edsltrace)
+		{
+			poctxt->TraceDSLExperimentCandidate(
+				prule, "cbo",
+				EdsltraceApplied == edsltrace ? "ready_cbo" : szStage,
+				pexprSrc, pexprSrc, pexprTgt, nullptr, ulMatchUs,
+				ulConstraintUs, ulInstantiateUs,
+				EdsltraceApplied == edsltrace);
+		}
 	}
 	// Full xform tracing is explicitly diagnostic. Unlike the cardinality-limited
 	// application record below, retain every rejected binding so a later valid
@@ -854,7 +868,8 @@ CDSLRuleEngine::TraceRBOOutcome(
 	const SDSLRulePolicy *policy,
 	const CDSLRewriteDecision *pdecision, CExpression *pexprSource,
 	CExpression *pexprTarget, const CHAR *szStatus, const CHAR *szReason,
-	const CDSLRule *pruleSelected) const
+	const CDSLRule *pruleSelected, CExpression *pexprState,
+	const CHAR *szBindingPath) const
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 		return;
@@ -862,6 +877,19 @@ CDSLRuleEngine::TraceRBOOutcome(
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexprSource);
 	GPOS_ASSERT(nullptr != szStatus);
+	if (nullptr != pdecision &&
+		(0 == std::strcmp(szStatus, "applied_rbo") ||
+		 0 == std::strcmp(szStatus, "applicable_rbo") ||
+		 0 == std::strcmp(szStatus, "duplicate") ||
+		 0 == std::strcmp(szStatus, "budget_skipped")))
+	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidate(
+			prule, "rbo", szStatus,
+			nullptr == pexprState ? pexprSource : pexprState, pexprSource,
+			pexprTarget, szBindingPath, pdecision->UlMatchUs(),
+			pdecision->UlConstraintUs(), pdecision->UlInstantiateUs(),
+			0 == std::strcmp(szStatus, "applied_rbo"));
+	}
 
 	CAutoTrace trace(mp);
 	IOstream &os = trace.Os();

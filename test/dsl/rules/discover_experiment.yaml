@@ -1,0 +1,3 @@
+experiment: dsl-e2e-discover
+discover: true
+cardinalities:

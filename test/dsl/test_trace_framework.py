@@ -135,6 +135,46 @@ class TraceFrameworkTest(unittest.TestCase):
                 [{"kind": "rule_edge", "engine": "pgorca"}],
             )
 
+    def test_rbo_candidate_set_adds_directed_order_edge(self) -> None:
+        base = {
+            "nodes": [
+                {"rule_hash": "a", "source_root": "Filter"},
+                {"rule_hash": "b", "source_root": "Filter"},
+            ],
+            "edges": [],
+        }
+        shared = {
+            "kind": "rule_candidate",
+            "engine": "pgorca",
+            "experiment": "trial",
+            "state_fingerprint": "state",
+            "binding_fingerprint": "binding",
+            "binding_path": "r/0",
+            "placement": "rbo",
+        }
+        graph = merge_graph(
+            base,
+            [
+                {**shared, "rule_hash": "a", "status": "applied_rbo"},
+                {**shared, "rule_hash": "b", "status": "applicable_rbo"},
+                {
+                    "kind": "experiment_outcome",
+                    "engine": "pgorca",
+                    "experiment": "trial",
+                },
+            ],
+        )
+
+        self.assertEqual(graph["nodes"][0]["candidate_observations"], 1)
+        self.assertEqual(
+            graph["nodes"][1]["candidate_status_counts"],
+            {"applicable_rbo": 1},
+        )
+        self.assertEqual(len(graph["edges"]), 1)
+        self.assertEqual(graph["edges"][0]["relation"], "ordered_before")
+        self.assertEqual(graph["edges"][0]["src_rule"], "a")
+        self.assertEqual(graph["edges"][0]["dst_rule"], "b")
+
     @patch("run_workload_comparison.wait_ready", return_value=True)
     @patch("run_workload_comparison.run")
     def test_workload_psql_retries_after_server_recovery(self, run, _ready) -> None:

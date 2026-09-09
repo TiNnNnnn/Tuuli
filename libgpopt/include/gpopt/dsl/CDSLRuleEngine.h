@@ -212,7 +212,9 @@ public:
 						 CExpression *pexprSource,
 						 CExpression *pexprTarget, const CHAR *szStatus,
 						 const CHAR *szReason,
-						 const CDSLRule *pruleSelected = nullptr) const;
+						 const CDSLRule *pruleSelected = nullptr,
+						 CExpression *pexprState = nullptr,
+						 const CHAR *szBindingPath = nullptr) const;
 
 	// Run the complete match -> check -> instantiate pipeline for one rule.
 	// When pg_orca.trace_dsl_rule is enabled, this is also the single attribution

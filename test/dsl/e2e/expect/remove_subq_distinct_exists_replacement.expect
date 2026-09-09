@@ -25,6 +25,9 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"bc2d97446eab95bb\""
       ],
+      "not_contains": [
+        "\"kind\":\"rule_candidate\""
+      ],
       "alternative": [
         "CXformRemoveSubqDistinct",
         "CXformDSLRule_Exists"

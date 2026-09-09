@@ -8,8 +8,11 @@
         "CXformSimplifyGbAgg"
       ],
       "policy": "input_exposes_top_down_rbo.policy",
+      "stats_experiment": "discover_experiment.yaml",
       "contains": [
         "\"status\":\"applied_rbo\",\"rule_hash\":\"a7d859279ffc7369\"",
+        "\"rule_hash\":\"a7d859279ffc7369\",\"binding_fingerprint\":",
+        "\"placement\":\"rbo\",\"status\":\"applied_rbo\"",
         "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"rbo\",\"src_rule\":\"a7d859279ffc7369\",\"dst_rule\":\"a7d859279ffc7369\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\"",
         "\"relation\":\"input_exposes\""
       ]
