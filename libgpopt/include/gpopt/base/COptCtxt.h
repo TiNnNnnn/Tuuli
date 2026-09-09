@@ -92,6 +92,8 @@ struct SDSLPendingAlternative
 {
 	const CDSLRule *m_prule;
 	CDSLTargetInputOriginArray m_input_origins;
+	ULONG m_ul_candidate_sequence;
+	ULONG m_ul_memo_version;
 };
 
 using UlongToDSLRuleTraceCountersMap =
@@ -231,6 +233,7 @@ private:
 	ULONG m_ulDSLExperimentSequence;
 	ULONG m_ulDSLExperimentCandidates;
 	ULONG m_ulDSLExperimentApplications;
+	ULONG m_ulDSLMemoVersion;
 	std::vector<std::string> m_dsl_pending_experiment_candidates;
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
@@ -240,6 +243,7 @@ private:
 		m_dsl_pending_alternative_rules;
 	std::unordered_map<const CGroupExpression *, SDSLGroupExpressionOrigin>
 		m_dsl_group_expression_origins;
+	std::unordered_map<std::string, ULONG> m_dsl_selected_plan_rules;
 
 	// Immutable scheduling metadata compiled at query start. It is deliberately
 	// query-local; the process-global rule engine remains read-only.
@@ -272,13 +276,15 @@ public:
 									 const CDSLRule *prule,
 									 const CDSLTargetInputOriginArray &inputOrigins);
 	const CDSLRule *PdslruleTakePendingAlternative(
-		const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins);
+		const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins,
+		ULONG *candidateSequence, ULONG *memoVersion);
 	void RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 									  const CDSLRule *prule,
 									  const CHAR *szTargetPath,
 									  const CHAR *szRelation);
 	void TraceDSLCBOEdge(const CDSLRule *prule,
 						  const CExpression *pexprSource) const;
+	void RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr);
 
 	ULONG UlDSLBindingCalls() const { return m_ulDSLBindingCalls; }
 	ULONG UlDSLBindingBuildUs() const { return m_ulDSLBindingBuildUs; }
@@ -362,6 +368,11 @@ public:
 		const CExpression *pexprTarget, const CHAR *bindingPath,
 		ULONG matchUs, ULONG constraintUs, ULONG instantiateUs,
 		BOOL applied);
+	void TraceDSLExperimentCandidateOutcome(
+		const CDSLRule *prule, const CHAR *status, ULONG candidateSequence,
+		ULONG memoVersionBefore, const CGroup *group,
+		const CGroupExpression *gexpr);
+	void AdvanceDSLMemoVersion() { ++m_ulDSLMemoVersion; }
 
 	// are we optimizing a DML query
 	BOOL

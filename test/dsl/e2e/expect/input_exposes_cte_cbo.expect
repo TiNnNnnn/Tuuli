@@ -18,6 +18,9 @@
         "\"kind\":\"rule_candidate\",\"engine\":\"pgorca\",\"experiment\":\"dsl-e2e-discover\"",
         "\"rule_hash\":\"f2116d97cabfa066\",\"binding_fingerprint\":",
         "\"placement\":\"cbo\",\"status\":\"ready_cbo\"",
+        "\"kind\":\"rule_candidate_outcome\",\"engine\":\"pgorca\",\"experiment\":\"dsl-e2e-discover\"",
+        "\"rule_hash\":\"f2116d97cabfa066\",\"status\":\"memo_inserted\",\"memo_version_before\":",
+        "\"selected_plan_cbo_dsl_rules\":{\"dec0eb1e99571556\":",
         "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"cbo\",\"src_rule\":\"f2116d97cabfa066\",\"dst_rule\":\"dec0eb1e99571556\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\"",
         "\"relation\":\"input_exposes\""
       ]

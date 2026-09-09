@@ -657,7 +657,7 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 				EdsltraceApplied == edsltrace ? "ready_cbo" : szStage,
 				pexprSrc, pexprSrc, pexprTgt, nullptr, ulMatchUs,
 				ulConstraintUs, ulInstantiateUs,
-				EdsltraceApplied == edsltrace);
+				false /* CBO application is known only after Memo insertion */);
 		}
 	}
 	// Full xform tracing is explicitly diagnostic. Unlike the cardinality-limited

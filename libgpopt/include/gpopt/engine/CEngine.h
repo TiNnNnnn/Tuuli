@@ -262,7 +262,9 @@ public:
 						 CGroupExpression *pgexprOrigin, BOOL fIntermediate,
 						 const CDSLRule *pruleOrigin = nullptr,
 						 const CHAR *szTargetPath = "r",
-						 const CDSLTargetInputOriginArray *inputOrigins = nullptr);
+						 const CDSLTargetInputOriginArray *inputOrigins = nullptr,
+						 ULONG candidateSequence = 0,
+						 ULONG memoVersionBefore = 0);
 
 	// insert a set of xform results into the memo
 	void InsertXformResult(CGroup *pgroupOrigin, CXformResult *pxfres,

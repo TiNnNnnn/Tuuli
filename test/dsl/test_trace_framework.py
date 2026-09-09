@@ -175,6 +175,49 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(graph["edges"][0]["src_rule"], "a")
         self.assertEqual(graph["edges"][0]["dst_rule"], "b")
 
+    def test_cbo_candidate_outcome_records_memo_acceptance(self) -> None:
+        base = {
+            "nodes": [{"rule_hash": "a", "source_root": "Filter"}],
+            "edges": [],
+        }
+        candidate = {
+            "kind": "rule_candidate",
+            "engine": "pgorca",
+            "experiment": "trial",
+            "sequence": 3,
+            "rule_hash": "a",
+            "placement": "cbo",
+            "status": "ready_cbo",
+        }
+        outcome = {
+            "kind": "rule_candidate_outcome",
+            "engine": "pgorca",
+            "experiment": "trial",
+            "candidate_sequence": 3,
+            "rule_hash": "a",
+            "status": "memo_inserted",
+            "memo_version_before": 8,
+            "memo_version_after": 10,
+        }
+        experiment_outcome = {
+            "kind": "experiment_outcome",
+            "engine": "pgorca",
+            "experiment": "trial",
+            "selected_plan_cbo_dsl_rules": {"a": 2},
+        }
+
+        graph = merge_graph(base, [candidate, outcome, experiment_outcome])
+
+        self.assertEqual(
+            graph["nodes"][0]["candidate_outcome_counts"],
+            {"memo_inserted": 1},
+        )
+        self.assertEqual(graph["nodes"][0]["memo_version_delta_total"], 2)
+        self.assertEqual(graph["nodes"][0]["selected_plan_observations"], 2)
+        self.assertEqual(graph["nodes"][0]["selected_plan_queries"], 1)
+        with self.assertRaisesRegex(ValueError, "no matching candidate"):
+            merge_graph(base, [outcome])
+
     @patch("run_workload_comparison.wait_ready", return_value=True)
     @patch("run_workload_comparison.run")
     def test_workload_psql_retries_after_server_recovery(self, run, _ready) -> None:

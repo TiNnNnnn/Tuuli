@@ -11,6 +11,8 @@
 
 #include "gpopt/base/COptCtxt.h"
 
+#include <cstring>
+#include <map>
 #include <sstream>
 #include <utility>
 
@@ -83,6 +85,7 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_ulDSLExperimentSequence(0),
 	  m_ulDSLExperimentCandidates(0),
 	  m_ulDSLExperimentApplications(0),
+	  m_ulDSLMemoVersion(0),
 	  m_dsl_generated_alternatives_by_rule(nullptr),
 	  m_pdslPolicySnapshot(nullptr),
 	  m_pdslStatsExperimentSnapshot(nullptr)
@@ -361,7 +364,21 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << m_ulDSLExperimentApplications
 				   << ",\"optimization_ms\":" << optimization_ms
 				   << ",\"optimizer_memory_bytes\":"
-				   << optimizer_memory_bytes << "}" << std::endl;
+				   << optimizer_memory_bytes
+				   << ",\"selected_plan_cbo_dsl_rules\":{";
+	BOOL first_rule = true;
+	for (const auto &entry : std::map<std::string, ULONG>(
+			 m_dsl_selected_plan_rules.begin(),
+			 m_dsl_selected_plan_rules.end()))
+	{
+		if (!first_rule)
+		{
+			trace.Os() << ",";
+		}
+		first_rule = false;
+		trace.Os() << "\"" << entry.first.c_str() << "\":" << entry.second;
+	}
+	trace.Os() << "}}" << std::endl;
 }
 
 void
@@ -430,7 +447,8 @@ COptCtxt::TraceDSLExperimentCandidate(
 	if (nullptr != pgexpr)
 	{
 		event << ",\"group\":" << pgexpr->Pgroup()->Id()
-			  << ",\"group_expression\":" << pgexpr->Id();
+			  << ",\"group_expression\":" << pgexpr->Id()
+			  << ",\"memo_version\":" << m_ulDSLMemoVersion;
 	}
 	if (nullptr != bindingPath)
 	{
@@ -447,6 +465,44 @@ COptCtxt::TraceDSLExperimentCandidate(
 	}
 	EmitExperimentCandidate(m_mp, m_pdslStatsExperimentSnapshot->SzId(),
 						 event.str());
+}
+
+void
+COptCtxt::TraceDSLExperimentCandidateOutcome(
+	const CDSLRule *prule, const CHAR *status, ULONG candidateSequence,
+	ULONG memoVersionBefore, const CGroup *group,
+	const CGroupExpression *gexpr)
+{
+	if (0 == candidateSequence || nullptr == m_pdslStatsExperimentSnapshot ||
+		!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != status);
+	GPOS_ASSERT(nullptr != group);
+	if (0 == std::strcmp(status, "memo_inserted"))
+	{
+		++m_ulDSLExperimentApplications;
+	}
+
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"rule_candidate_outcome\","
+				   << "\"engine\":\"pgorca\",\"experiment\":\""
+				   << JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+				   << "\",\"candidate_sequence\":" << candidateSequence
+				   << ",\"rule_id\":"
+				   << CDSLRuleEngine::Instance()->UlRuleId(prule)
+				   << ",\"rule_hash\":\"" << prule->SzIdentity()
+				   << "\",\"status\":\"" << status
+				   << "\",\"memo_version_before\":" << memoVersionBefore
+				   << ",\"memo_version_after\":" << m_ulDSLMemoVersion
+				   << ",\"group\":" << group->Id();
+	if (nullptr != gexpr)
+	{
+		trace.Os() << ",\"group_expression\":" << gexpr->Id();
+	}
+	trace.Os() << "}" << std::endl;
 }
 
 
@@ -514,19 +570,27 @@ COptCtxt::RegisterDSLPendingAlternative(const CExpression *pexpr,
 {
 	GPOS_ASSERT(nullptr != pexpr);
 	GPOS_ASSERT(nullptr != prule);
-	m_dsl_pending_alternative_rules[pexpr] = {prule, inputOrigins};
+	m_dsl_pending_alternative_rules[pexpr] = {
+		prule, inputOrigins, m_ulDSLExperimentSequence, m_ulDSLMemoVersion};
 }
 
 const CDSLRule *
 COptCtxt::PdslruleTakePendingAlternative(
-	const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins)
+	const CExpression *pexpr, CDSLTargetInputOriginArray *inputOrigins,
+	ULONG *candidateSequence, ULONG *memoVersion)
 {
 	GPOS_ASSERT(nullptr != inputOrigins);
+	GPOS_ASSERT(nullptr != candidateSequence);
+	GPOS_ASSERT(nullptr != memoVersion);
+	*candidateSequence = 0;
+	*memoVersion = 0;
 	auto found = m_dsl_pending_alternative_rules.find(pexpr);
 	if (m_dsl_pending_alternative_rules.end() == found)
 		return nullptr;
 	const CDSLRule *prule = found->second.m_prule;
 	*inputOrigins = std::move(found->second.m_input_origins);
+	*candidateSequence = found->second.m_ul_candidate_sequence;
+	*memoVersion = found->second.m_ul_memo_version;
 	m_dsl_pending_alternative_rules.erase(found);
 	return prule;
 }
@@ -542,6 +606,21 @@ COptCtxt::RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 	GPOS_ASSERT(nullptr != szTargetPath);
 	GPOS_ASSERT(nullptr != szRelation);
 	m_dsl_group_expression_origins[pgexpr] = {prule, szTargetPath, szRelation};
+}
+
+void
+COptCtxt::RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr)
+{
+	for (const CGroupExpression *origin = pgexpr; nullptr != origin;
+		 origin = origin->PgexprOrigin())
+	{
+		const auto found = m_dsl_group_expression_origins.find(origin);
+		if (m_dsl_group_expression_origins.end() != found)
+		{
+			++m_dsl_selected_plan_rules[found->second.m_prule->SzIdentity()];
+			return;
+		}
+	}
 }
 
 void

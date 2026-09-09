@@ -63,6 +63,7 @@ def merge_graph(
         if isinstance(edge, dict) and edge.get("evidence") == "runtime_observed"
     }
     selected_by_state: dict[tuple[Any, ...], dict[str, Any]] = {}
+    candidates: dict[tuple[Any, Any], dict[str, Any]] = {}
 
     def observe(edge: dict[str, Any], binding: object = None) -> None:
         key = edge_key(edge)
@@ -82,7 +83,22 @@ def merge_graph(
         if record.get("engine") != "pgorca":
             continue
         if record.get("kind") == "experiment_outcome":
+            selected_rules = record.get("selected_plan_cbo_dsl_rules", {})
+            if isinstance(selected_rules, dict):
+                for rule, count in selected_rules.items():
+                    if rule not in node_by_hash:
+                        raise ValueError(
+                            f"selected plan references unknown rule: {rule}"
+                        )
+                    node = node_by_hash[rule]
+                    node["selected_plan_observations"] = int(
+                        node.get("selected_plan_observations", 0)
+                    ) + int(count)
+                    node["selected_plan_queries"] = int(
+                        node.get("selected_plan_queries", 0)
+                    ) + 1
             selected_by_state.clear()
+            candidates.clear()
             continue
         if record.get("kind") == "rule_candidate":
             rule = record.get("rule_hash")
@@ -98,6 +114,7 @@ def merge_graph(
             statuses[status] = int(statuses.get(status, 0)) + 1
             schedulers = node.setdefault("candidate_scheduler_counts", {})
             schedulers[scheduler] = int(schedulers.get(scheduler, 0)) + 1
+            candidates[(record.get("experiment"), record.get("sequence"))] = record
 
             if scheduler != "rbo":
                 continue
@@ -130,6 +147,26 @@ def merge_graph(
                 },
                 binding,
             )
+            continue
+        if record.get("kind") == "rule_candidate_outcome":
+            rule = record.get("rule_hash")
+            if rule not in node_by_hash:
+                raise ValueError(f"candidate outcome references unknown rule: {rule}")
+            candidate = candidates.get(
+                (record.get("experiment"), record.get("candidate_sequence"))
+            )
+            if candidate is None or candidate.get("rule_hash") != rule:
+                raise ValueError("candidate outcome has no matching candidate")
+            node = node_by_hash[rule]
+            status = str(record.get("status", "unknown"))
+            outcomes = node.setdefault("candidate_outcome_counts", {})
+            outcomes[status] = int(outcomes.get(status, 0)) + 1
+            before = record.get("memo_version_before")
+            after = record.get("memo_version_after")
+            if isinstance(before, int) and isinstance(after, int):
+                node["memo_version_delta_total"] = int(
+                    node.get("memo_version_delta_total", 0)
+                ) + after - before
             continue
         if record.get("kind") != "rule_edge":
             continue

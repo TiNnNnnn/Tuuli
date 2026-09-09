@@ -119,16 +119,18 @@ public:
 namespace
 {
 void
-CountDSLPlanNodes(const CExpression *expr, ULONG *nodes, ULONG *dsl_nodes)
+CountDSLPlanNodes(const CExpression *expr, ULONG *nodes, ULONG *dsl_nodes,
+				  COptCtxt *poctxt)
 {
 	++(*nodes);
 	if (nullptr != expr->Pgexpr() && expr->Pgexpr()->FHasDSLProvenance())
 	{
 		++(*dsl_nodes);
+		poctxt->RecordDSLSelectedPlanRule(expr->Pgexpr());
 	}
 	for (ULONG child = 0; child < expr->Arity(); ++child)
 	{
-		CountDSLPlanNodes((*expr)[child], nodes, dsl_nodes);
+		CountDSLPlanNodes((*expr)[child], nodes, dsl_nodes, poctxt);
 	}
 }
 
@@ -517,7 +519,8 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 					  CXform::EXformId exfidOrigin,
 					  CGroupExpression *pgexprOrigin, BOOL fIntermediate,
 					  const CDSLRule *pruleOrigin, const CHAR *szTargetPath,
-					  const CDSLTargetInputOriginArray *inputOrigins)
+					  const CDSLTargetInputOriginArray *inputOrigins,
+					  ULONG candidateSequence, ULONG memoVersionBefore)
 {
 	// recursive function - check stack
 	GPOS_CHECK_STACK_SIZE;
@@ -571,6 +574,9 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 			if (!pgroupChild->FScalar() &&
 				CGroup::FReachable(m_mp, pgroupChild, pgroupTarget))
 			{
+				COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
+					pruleOrigin, "memo_cycle_rejected", candidateSequence,
+					memoVersionBefore, pgroupTarget, nullptr);
 				if (GPOS_FTRACE(EopttracePrintDSLRule))
 				{
 					CAutoTrace at(m_mp);
@@ -594,9 +600,14 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 	// find the group that contains created group expression
 	CGroup *pgroupContainer =
 		m_pmemo->PgroupInsert(pgroupTarget, pexpr, pgexpr);
+	const BOOL inserted = nullptr != pgexpr->Pgroup();
+	if (inserted)
+	{
+		COptCtxt::PoctxtFromTLS()->AdvanceDSLMemoVersion();
+	}
 	COptCtxt::PoctxtFromTLS()->RegisterDSLStatsExperimentGroup(
 		pop, pgroupContainer);
-	if (nullptr != pruleOrigin && nullptr != pgexpr->Pgroup())
+	if (nullptr != pruleOrigin && inserted)
 	{
 		COptCtxt::PoctxtFromTLS()->RegisterDSLGroupExpressionOrigin(
 			pgexpr, pruleOrigin,
@@ -604,8 +615,15 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 								   : inputOrigin->m_template_path.c_str(),
 			nullptr == inputOrigin ? "memo_consumes" : "input_exposes");
 	}
+	if (0 != candidateSequence)
+	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
+			pruleOrigin, inserted ? "memo_inserted" : "memo_duplicate",
+			candidateSequence, memoVersionBefore, pgroupContainer,
+			inserted ? pgexpr : nullptr);
+	}
 
-	if (nullptr == pgexpr->Pgroup())
+	if (!inserted)
 	{
 		// insertion failed, release created group expression
 		pgexpr->Release();
@@ -652,10 +670,14 @@ CEngine::InsertXformResult(
 	{
 		const CDSLRule *pruleOrigin = nullptr;
 		CDSLTargetInputOriginArray inputOrigins;
+		ULONG candidateSequence = 0;
+		ULONG memoVersionBefore = 0;
 		if (CGroupExpression::FDSLRuleXform(exfidOrigin))
 		{
 			pruleOrigin = COptCtxt::PoctxtFromTLS()
-							  ->PdslruleTakePendingAlternative(pexpr, &inputOrigins);
+							  ->PdslruleTakePendingAlternative(
+								  pexpr, &inputOrigins, &candidateSequence,
+								  &memoVersionBefore);
 		}
 		CExpression *pexprInsert = pexpr;
 		const BOOL join_region_ingress =
@@ -674,7 +696,8 @@ CEngine::InsertXformResult(
 		}
 		CGroup *pgroupContainer =
 			PgroupInsert(pgroupOrigin, pexprInsert, exfidOrigin, pgexprOrigin,
-						 false /*fIntermediate*/, pruleOrigin, "r", &inputOrigins);
+						 false /*fIntermediate*/, pruleOrigin, "r", &inputOrigins,
+						 candidateSequence, memoVersionBefore);
 		if (pexprInsert != pexpr)
 		{
 			pexprInsert->Release();
@@ -2684,7 +2707,7 @@ CEngine::PexprExtractPlan()
 		ULONG selected_plan_nodes = 0;
 		ULONG selected_plan_cbo_dsl_nodes = 0;
 		CountDSLPlanNodes(pexpr, &selected_plan_nodes,
-						  &selected_plan_cbo_dsl_nodes);
+						  &selected_plan_cbo_dsl_nodes, poctxt);
 		poctxt->TraceDSLExperimentOutcome(
 			pexpr->Cost().Get(), selected_plan_nodes,
 			selected_plan_cbo_dsl_nodes, m_pmemo->UlpGroups(),
