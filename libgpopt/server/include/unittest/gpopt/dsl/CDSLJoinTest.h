@@ -31,6 +31,7 @@ class CDSLJoinTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_PhysicalApply();
+	static GPOS_RESULT EresUnittest_PhysicalMaxOneRow();
 
 	// InnerJoin<a0 a1>(Input<t0>,Input<t1>) matches a live CLogicalInnerJoin;
 	// <a0> binds the left join column(s), <a1> the right, children bind the two

@@ -18,6 +18,12 @@
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPatternNode.h"
 #include "gpopt/xforms/CXformImplementApply.h"
+#include "gpopt/xforms/CXformImplementMaxOneRow.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
+#include "gpopt/operators/CPhysicalAssert.h"
+#include "gpos/io/COstreamString.h"
+#include "naucrates/dxl/CDXLUtils.h"
+#include "naucrates/dxl/operators/CDXLPhysicalAssert.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -257,6 +263,7 @@ CDSLJoinTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PhysicalApply),
+		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PhysicalMaxOneRow),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_FullJoinRoundTrip),
@@ -301,6 +308,84 @@ CDSLJoinTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_PhysicalMaxOneRow()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CXformImplementMaxOneRow> xform(GPOS_NEW(mp)
+												 CXformImplementMaxOneRow(mp));
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+	CAutoRef<CExpression> expr(
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
+								 fix.PexprLogicalGet("max_one_row", 2)));
+	CExpressionHandle handle(mp);
+	handle.Attach(expr.Value());
+	GPOS_UNITTEST_ASSERT(xform->Exfp(handle) ==
+						 CXform::ExfpNone); // GPDB fixture
+	xform->Transform(context.Value(), result.Value(), expr.Value());
+	GPOS_UNITTEST_ASSERT(result->Size() == 1);
+	auto *physical = (*result->Pdrgpexpr())[0];
+	GPOS_UNITTEST_ASSERT(physical->Arity() == 1 &&
+						 (*physical)[0] == (*expr)[0]);
+	auto *op = CPhysicalAssert::PopConvert(physical->Pop());
+	GPOS_UNITTEST_ASSERT(op->FMaxOneRow() && !op->FPassThruStats());
+	CAutoRef<CPhysicalAssert> ordinary(GPOS_NEW(mp) CPhysicalAssert(
+		mp, GPOS_NEW(mp)
+				CException(CException::ExmaSQL, CException::ExmiSQLMaxOneRow)));
+	GPOS_UNITTEST_ASSERT(!op->Matches(ordinary.Value()) &&
+						 ordinary->FPassThruStats());
+
+	// The optional attribute defaults to false for existing DXL assets.
+	const CHAR *xml =
+		"<dxl:DXLMessage xmlns:dxl=\"http://greenplum.com/dxl/2010/12/\">"
+		"<dxl:Plan Id=\"0\" SpaceSize=\"0\"><dxl:Assert ErrorCode=\"21000\">"
+		"<dxl:Properties><dxl:Cost StartupCost=\"0\" TotalCost=\"1\" "
+		"Rows=\"1\" Width=\"0\"/></dxl:Properties>"
+		"<dxl:ProjList/><dxl:AssertConstraintList><dxl:AssertConstraint "
+		"ErrorMessage=\"cardinality\">"
+		"<dxl:ConstValue TypeMdid=\"0.16.1.0\" IsNull=\"false\" "
+		"Value=\"true\"/>"
+		"</dxl:AssertConstraint></dxl:AssertConstraintList>"
+		"<dxl:Result><dxl:Properties><dxl:Cost StartupCost=\"0\" "
+		"TotalCost=\"1\" Rows=\"1\" Width=\"0\"/></dxl:Properties>"
+		"<dxl:ProjList/><dxl:Filter/><dxl:OneTimeFilter/></dxl:Result>"
+		"</dxl:Assert></dxl:Plan></dxl:DXLMessage>";
+	ULLONG id, size;
+	CAutoRef<gpdxl::CDXLNode> parsed(
+		gpdxl::CDXLUtils::GetPlanDXLNode(mp, xml, nullptr, &id, &size));
+	GPOS_UNITTEST_ASSERT(
+		!gpdxl::CDXLPhysicalAssert::Cast(parsed->GetOperator())->FMaxOneRow());
+	for (BOOL bounded : {false, true})
+	{
+		CAutoRef<gpdxl::CDXLNode> node(GPOS_NEW(mp) gpdxl::CDXLNode(
+			mp, GPOS_NEW(mp) gpdxl::CDXLPhysicalAssert(mp, "21000", bounded)));
+		parsed->GetProperties()->AddRef();
+		node->SetProperties(parsed->GetProperties());
+		for (ULONG i = 0; i < parsed->Arity(); ++i)
+		{
+			(*parsed)[i]->AddRef();
+			node->AddChild((*parsed)[i]);
+		}
+		CWStringDynamic text(mp);
+		COstreamString stream(&text);
+		gpdxl::CDXLUtils::SerializePlan(mp, stream, node.Value(), 0, 0, true,
+										false);
+		CHAR *serialized =
+			gpdxl::CDXLUtils::CreateMultiByteCharStringFromWCString(
+				mp, text.GetBuffer());
+		CAutoRef<gpdxl::CDXLNode> roundtrip(gpdxl::CDXLUtils::GetPlanDXLNode(
+			mp, serialized, nullptr, &id, &size));
+		GPOS_DELETE_ARRAY(serialized);
+		GPOS_UNITTEST_ASSERT(
+			gpdxl::CDXLPhysicalAssert::Cast(roundtrip->GetOperator())
+				->FMaxOneRow() == bounded);
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

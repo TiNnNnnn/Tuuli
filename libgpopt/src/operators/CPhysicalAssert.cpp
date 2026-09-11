@@ -28,8 +28,8 @@ using namespace gpopt;
 //		Ctor
 //
 //---------------------------------------------------------------------------
-CPhysicalAssert::CPhysicalAssert(CMemoryPool *mp, CException *pexc)
-	: CPhysical(mp), m_pexc(pexc)
+CPhysicalAssert::CPhysicalAssert(CMemoryPool *mp, CException *pexc, BOOL max_one_row)
+	: CPhysical(mp), m_pexc(pexc), m_max_one_row(max_one_row)
 {
 	GPOS_ASSERT(nullptr != pexc);
 
@@ -76,7 +76,7 @@ CPhysicalAssert::PcrsRequired(CMemoryPool *mp, CExpressionHandle &exprhdl,
 		"Required properties can only be computed on the relational child");
 
 	return PcrsChildReqd(mp, exprhdl, pcrsRequired, child_index,
-						 1 /*ulScalarIndex*/);
+						 m_max_one_row ? gpos::ulong_max : 1 /*ulScalarIndex*/);
 }
 
 
@@ -220,7 +220,16 @@ CPhysicalAssert::PdsDerive(CMemoryPool *,  // mp
 CRewindabilitySpec *
 CPhysicalAssert::PrsDerive(CMemoryPool *mp, CExpressionHandle &exprhdl) const
 {
-	return PrsDerivePassThruOuter(mp, exprhdl);
+	CRewindabilitySpec *child = PrsDerivePassThruOuter(mp, exprhdl);
+	// The cardinality counter supports rescan, not mark/restore.
+	if (m_max_one_row && child->Ert() == CRewindabilitySpec::ErtMarkRestore)
+	{
+		auto *result = GPOS_NEW(mp) CRewindabilitySpec(
+			CRewindabilitySpec::ErtRewindable, child->Emht(), child->IsOriginNLJoin());
+		child->Release();
+		return result;
+	}
+	return child;
 }
 
 
@@ -241,7 +250,8 @@ CPhysicalAssert::Matches(COperator *pop) const
 	}
 
 	CPhysicalAssert *popAssert = CPhysicalAssert::PopConvert(pop);
-	return CException::Equals(*(popAssert->Pexc()), *m_pexc);
+	return m_max_one_row == popAssert->FMaxOneRow() &&
+		CException::Equals(*(popAssert->Pexc()), *m_pexc);
 }
 
 
@@ -329,6 +339,7 @@ CPhysicalAssert::OsPrint(IOstream &os) const
 	}
 
 	os << SzId() << " (Error code: " << m_pexc->GetSQLState() << ")";
+	if (m_max_one_row) os << " MaxOneRow";
 	return os;
 }
 

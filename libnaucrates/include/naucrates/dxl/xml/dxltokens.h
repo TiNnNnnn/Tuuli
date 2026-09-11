@@ -705,6 +705,7 @@ enum Edxltoken
 	EdxltokenPhysicalAssert,
 
 	EdxltokenErrorCode,
+	EdxltokenMaxOneRow,
 	EdxltokenErrorMessage,
 
 	EdxltokenOnCommitAction,

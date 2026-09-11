@@ -26,8 +26,8 @@ using namespace gpdxl;
 //		Ctor
 //
 //---------------------------------------------------------------------------
-CDXLPhysicalAssert::CDXLPhysicalAssert(CMemoryPool *mp, const CHAR *sql_state)
-	: CDXLPhysical(mp)
+CDXLPhysicalAssert::CDXLPhysicalAssert(CMemoryPool *mp, const CHAR *sql_state, BOOL max_one_row)
+	: CDXLPhysical(mp), m_max_one_row(max_one_row)
 {
 	GPOS_ASSERT(nullptr != sql_state);
 	GPOS_ASSERT(GPOS_SQLSTATE_LENGTH == clib::Strlen(sql_state));
@@ -94,6 +94,10 @@ CDXLPhysicalAssert::SerializeToDXL(CXMLSerializer *xml_serializer,
 	xml_serializer->AddAttribute(CDXLTokens::GetDXLTokenStr(EdxltokenErrorCode),
 								 m_sql_state);
 
+	if (m_max_one_row)
+	{
+		xml_serializer->AddAttribute(CDXLTokens::GetDXLTokenStr(EdxltokenMaxOneRow), true);
+	}
 	dxlnode->SerializePropertiesToDXL(xml_serializer);
 	dxlnode->SerializeChildrenToDXL(xml_serializer);
 

@@ -2525,7 +2525,6 @@ CTranslatorExprToDXL::PdxlnAssert(CExpression *pexprAssert,
 
 	// extract components
 	CExpression *pexprRelational = (*pexprAssert)[0];
-	CExpression *pexprScalar = (*pexprAssert)[1];
 	CPhysicalAssert *popAssert =
 		CPhysicalAssert::PopConvert(pexprAssert->Pop());
 
@@ -2540,7 +2539,24 @@ CTranslatorExprToDXL::PdxlnAssert(CExpression *pexprAssert,
 		pulNonGatherMotions, pfDML, false /*fRemap*/, false /*fRoot*/);
 
 	// translate scalar expression
-	CDXLNode *pdxlnAssertPredicate = PdxlnScalar(pexprScalar);
+	CDXLNode *pdxlnAssertPredicate;
+	if (popAssert->FMaxOneRow())
+	{
+		// Keep MaxOneRow unary in Memo. The unchanged DXL Assert layout carries
+		// a tautological check; the explicit MaxOneRow flag drives counting.
+		CExpression *truth = CUtils::PexprScalarConstBool(m_mp, true);
+		auto *message = GPOS_NEW(m_mp) CWStringDynamic(m_mp,
+			GPOS_WSZ_LIT("more than one row returned by a subquery used as an expression"));
+		pdxlnAssertPredicate = GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLScalarAssertConstraintList(m_mp),
+			GPOS_NEW(m_mp) CDXLNode(m_mp,
+				GPOS_NEW(m_mp) CDXLScalarAssertConstraint(m_mp, message), PdxlnScalar(truth)));
+		truth->Release();
+	}
+	else
+	{
+		pdxlnAssertPredicate = PdxlnScalar((*pexprAssert)[1]);
+	}
 
 	GPOS_ASSERT(nullptr != pexprAssert->Prpp());
 
@@ -2548,7 +2564,7 @@ CTranslatorExprToDXL::PdxlnAssert(CExpression *pexprAssert,
 
 	const CHAR *sql_state = popAssert->Pexc()->GetSQLState();
 	CDXLPhysicalAssert *pdxlopAssert =
-		GPOS_NEW(m_mp) CDXLPhysicalAssert(m_mp, sql_state);
+		GPOS_NEW(m_mp) CDXLPhysicalAssert(m_mp, sql_state, popAssert->FMaxOneRow());
 	CDXLNode *pdxlnAssert = GPOS_NEW(m_mp) CDXLNode(
 		m_mp, pdxlopAssert, pdxlnPrL, pdxlnAssertPredicate, child_dxlnode);
 

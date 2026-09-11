@@ -1,0 +1,52 @@
+{
+  "description": "Direct MaxOneRow cardinality check with logical Assert lowering and scalar SubPlan alternatives disabled",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformMaxOneRow2Assert",
+        "CXformImplementLeftOuterCorrelatedApply",
+        "CXformImplementInnerCorrelatedApply"
+      ],
+      "assert_maxonerow": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Custom Scan (Assert)",
+        "MaxOneRow"
+      ],
+      "not_contains": [
+        "WindowAgg"
+      ],
+      "alternative": [
+        "CXformImplementMaxOneRow"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformMaxOneRow2Assert",
+      "CXformImplementLeftOuterCorrelatedApply",
+      "CXformImplementInnerCorrelatedApply"
+    ],
+    "policy": "disable_all.policy",
+    "assert_maxonerow": true,
+    "output": [
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2"
+    ],
+    "postgres_output": [
+      "1,2",
+      "2,2",
+      "3,2",
+      "4,2",
+      "5,2",
+      "6,2"
+    ]
+  }
+}

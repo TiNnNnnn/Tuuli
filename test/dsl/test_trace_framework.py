@@ -49,6 +49,7 @@ from merge_rule_graph import merge_graph, read_trace_inputs, render_dot
 from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
+    run_sql as run_e2e_sql,
     actual_rows,
     actual_plan,
     bool_guc_setting,
@@ -160,6 +161,27 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertNotEqual(before, artifact_snapshot({"engine": path}))
             path.unlink()
             self.assertIn("error", artifact_snapshot({"engine": path})["engine"])
+
+    def test_e2e_expected_sqlstate_rejects_success_and_other_failures(self) -> None:
+        args = SimpleNamespace(psql="psql", host="socket", port="1")
+        for code, output, accepted in (
+            (1, "ERROR:  21000\n", True),
+            (0, "", False),
+            (1, "ERROR:  XX000\n", False),
+            (2, "server closed the connection unexpectedly", False),
+        ):
+            with self.subTest(code=code, output=output), patch(
+                "run_e2e_cases.subprocess.run",
+                return_value=SimpleNamespace(returncode=code, stdout=output),
+            ):
+                if accepted:
+                    self.assertEqual(run_e2e_sql(args, "SELECT 1", error_sqlstate="21000"),
+                                     "SQLSTATE 21000")
+                else:
+                    with self.assertRaises(RuntimeError):
+                        run_e2e_sql(args, "SELECT 1", error_sqlstate="21000")
+        with self.assertRaises(ValueError):
+            run_e2e_sql(args, "SELECT 1", error_sqlstate=".*")
 
     def test_e2e_result_rows_use_the_requested_cardinality_experiment(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])

@@ -59,15 +59,25 @@ def psql_command(args: argparse.Namespace, tuples_only: bool = False) -> list[st
     return command
 
 
-def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False) -> str:
+def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False,
+            error_sqlstate: str | None = None) -> str:
+    if error_sqlstate is not None and not re.fullmatch(r"[0-9A-Z]{5}", error_sqlstate):
+        raise ValueError("error_sqlstate must be a five-character SQLSTATE")
+    error_options = ["-v", "VERBOSITY=sqlstate"] if error_sqlstate else []
     process = subprocess.run(
-        [*psql_command(args, tuples_only), "-c", sql],
+        [*psql_command(args, tuples_only), *error_options, "-c", sql],
         check=False,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         timeout=60,
     )
+    if error_sqlstate is not None:
+        if process.returncode != 0 and re.search(
+            rf"^ERROR:\s+{error_sqlstate}\s*$", process.stdout, re.MULTILINE
+        ):
+            return f"SQLSTATE {error_sqlstate}"
+        raise RuntimeError(f"Expected SQLSTATE {error_sqlstate}, got:\n{process.stdout}")
     if process.returncode != 0:
         raise RuntimeError(process.stdout.rstrip())
     return process.stdout.rstrip("\n")
@@ -362,6 +372,7 @@ SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
         tuples_only=True,
+        error_sqlstate=expected.get("error_sqlstate"),
     )
     postgres_rows = run_sql(
         args,
@@ -371,13 +382,14 @@ SET pg_orca.enable_orca=off;
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
         tuples_only=True,
+        error_sqlstate=expected.get("error_sqlstate"),
     )
     actual = {
         key: expected[key]
         for key in (
             "dphyper", "dphyper_shadow", "dphyper_edge_budget",
             "dphyper_pair_budget", "native", "disable_xforms", "policy",
-            "assert_maxonerow", "stats_experiment"
+            "assert_maxonerow", "stats_experiment", "error_sqlstate"
         )
         if key in expected
     }

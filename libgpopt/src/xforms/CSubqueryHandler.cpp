@@ -59,6 +59,7 @@
 #include "naucrates/md/IMDTypeBool.h"
 #include "naucrates/md/IMDTypeInt8.h"
 #include "naucrates/traceflags/traceflags.h"
+#include "gpopt/cost/ICostModel.h"
 
 using namespace gpopt;
 
@@ -661,12 +662,14 @@ CSubqueryHandler::FGenerateCorrelatedApplyForScalarSubquery(
 	// use MaxOneRow expression, only if
 	// (1) correlated execution is not enforced,
 	// (2) there are no outer references below, and
-	// (3) transformation converting MaxOneRow to Assert is enabled
+	// (3) an executable MaxOneRow lowering or direct implementation is enabled
 	BOOL fUseMaxOneRow =
 		!fEnforceCorrelatedApply && !psd->m_fHasOuterRefs &&
-		FRewriteAvailable(CXform::ExfMaxOneRow2Assert,
+		((GPOPT_FENABLED_XFORM(CXform::ExfImplementMaxOneRow) &&
+		  COptCtxt::PoctxtFromTLS()->GetCostModel()->Ecmt() == ICostModel::EcmtPG) ||
+		 FRewriteAvailable(CXform::ExfMaxOneRow2Assert,
 						  CXform::ExfDSLRuleMaxOneRow,
-						  COperator::EopLogicalMaxOneRow);
+						  COperator::EopLogicalMaxOneRow));
 
 	if (psd->m_fValueSubquery)
 	{

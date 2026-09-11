@@ -5952,8 +5952,9 @@ CTranslatorDXLToPlStmt::TranslateDXLAssert(
 
 	List *error_messages = CTranslatorUtils::GetAssertErrorMsgs(filter_dxlnode);
 	GPOS_ASSERT(1 <= gpdb::ListLength(error_messages));
-	assert_node->custom_private = list_make2(
-		makeInteger(assert_errcode), gpdb::ListNth(error_messages, 0));
+	assert_node->custom_private = list_make3(
+		makeInteger(assert_errcode), gpdb::ListNth(error_messages, 0),
+		makeInteger(assert_dxlop->FMaxOneRow()));
 
 	// translate operator costs
 	TranslatePlanCosts(assert_dxlnode, plan);

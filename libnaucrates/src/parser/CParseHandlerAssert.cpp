@@ -76,7 +76,10 @@ CParseHandlerAssert::StartElement(const XMLCh *const,  // element_uri,
 			CDXLTokens::GetDXLTokenStr(EdxltokenErrorCode)->GetBuffer());
 	}
 
-	m_dxl_op = GPOS_NEW(m_mp) CDXLPhysicalAssert(m_mp, error_code);
+	BOOL max_one_row = CDXLOperatorFactory::ExtractConvertAttrValueToBool(
+		m_parse_handler_mgr->GetDXLMemoryManager(), attrs,
+		EdxltokenMaxOneRow, EdxltokenPhysicalAssert, true /*optional*/, false);
+	m_dxl_op = GPOS_NEW(m_mp) CDXLPhysicalAssert(m_mp, error_code, max_one_row);
 
 	// ctor created a copy of the error code
 	GPOS_DELETE_ARRAY(error_code);

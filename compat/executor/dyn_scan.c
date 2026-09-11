@@ -109,6 +109,8 @@ typedef struct AssertCSState
 	ExprState  *check_state;
 	int			errcode;
 	char	   *errmessage;
+	bool		max_one_row;
+	bool		seen_row;
 } AssertCSState;
 
 /* Forward declarations of all callbacks */
@@ -202,6 +204,8 @@ assert_begin(CustomScanState *node, EState *estate, int eflags)
 	Assert(outerPlan(cscan) != NULL);
 	state->errcode = intVal(linitial(cscan->custom_private));
 	state->errmessage = strVal(lsecond(cscan->custom_private));
+	state->max_one_row = list_length(cscan->custom_private) > 2 &&
+		intVal(lthird(cscan->custom_private)) != 0;
 	state->check_state = ExecInitCheck(cscan->custom_exprs, (PlanState *) node);
 	outerPlanState(node) = ExecInitNode(outerPlan(cscan), estate, eflags);
 	ExecAssignProjectionInfo(&node->ss.ps, NULL);
@@ -216,6 +220,11 @@ assert_exec(CustomScanState *node)
 
 	if (TupIsNull(slot))
 		return NULL;
+	if (state->max_one_row && state->seen_row)
+		ereport(ERROR,
+				(errcode(ERRCODE_CARDINALITY_VIOLATION),
+				 errmsg("more than one row returned by a subquery used as an expression")));
+	state->seen_row = true;
 
 	econtext = node->ss.ps.ps_ExprContext;
 	ResetExprContext(econtext);
@@ -239,6 +248,7 @@ assert_end(CustomScanState *node)
 static void
 assert_rescan(CustomScanState *node)
 {
+	((AssertCSState *) node)->seen_row = false;
 	if (outerPlanState(node)->chgParam == NULL)
 		ExecReScan(outerPlanState(node));
 }

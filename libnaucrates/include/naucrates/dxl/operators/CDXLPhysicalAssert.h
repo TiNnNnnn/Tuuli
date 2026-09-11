@@ -42,12 +42,14 @@ public:
 private:
 	// error code
 	CHAR m_sql_state[GPOS_SQLSTATE_LENGTH + 1];
+	BOOL m_max_one_row;
 
 public:
 	CDXLPhysicalAssert(CDXLPhysicalAssert &) = delete;
 
 	// ctor
-	CDXLPhysicalAssert(CMemoryPool *mp, const CHAR *sql_state);
+	CDXLPhysicalAssert(CMemoryPool *mp, const CHAR *sql_state, BOOL max_one_row = false);
+	BOOL FMaxOneRow() const { return m_max_one_row; }
 
 	// dtor
 	~CDXLPhysicalAssert() override;

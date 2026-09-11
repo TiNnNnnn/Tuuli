@@ -1,0 +1,43 @@
+{
+  "description": "Two NULL tuples still violate MaxOneRow; count tuples, not non-null values",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformMaxOneRow2Assert",
+        "CXformImplementLeftOuterCorrelatedApply",
+        "CXformImplementInnerCorrelatedApply"
+      ],
+      "assert_maxonerow": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Custom Scan (Assert)",
+        "MaxOneRow"
+      ],
+      "not_contains": [
+        "WindowAgg"
+      ],
+      "alternative": [
+        "CXformImplementMaxOneRow"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformMaxOneRow2Assert",
+      "CXformImplementLeftOuterCorrelatedApply",
+      "CXformImplementInnerCorrelatedApply"
+    ],
+    "policy": "disable_all.policy",
+    "assert_maxonerow": true,
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}

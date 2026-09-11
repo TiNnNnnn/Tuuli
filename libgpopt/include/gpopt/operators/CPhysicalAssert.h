@@ -53,13 +53,15 @@ class CPhysicalAssert : public CPhysical
 private:
 	// exception
 	CException *m_pexc;
+	BOOL m_max_one_row;
 
 
 public:
 	CPhysicalAssert(const CPhysicalAssert &) = delete;
 
 	// ctor
-	CPhysicalAssert(CMemoryPool *mp, CException *pexc);
+	CPhysicalAssert(CMemoryPool *mp, CException *pexc, BOOL max_one_row = false);
+	BOOL FMaxOneRow() const { return m_max_one_row; }
 
 	// dtor
 	~CPhysicalAssert() override;
@@ -169,7 +171,7 @@ public:
 	BOOL
 	FPassThruStats() const override
 	{
-		return true;
+		return !m_max_one_row;
 	}
 
 	//-------------------------------------------------------------------------------------

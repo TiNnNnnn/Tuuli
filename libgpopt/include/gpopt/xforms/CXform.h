@@ -272,6 +272,7 @@ public:
 		ExfImplementUnion,
 		ExfImplementSetOp,
 		ExfImplementApply,
+		ExfImplementMaxOneRow,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

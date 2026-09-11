@@ -159,6 +159,7 @@ CDXLTokens::Init(CMemoryPool *mp)
 		{EdxltokenPhysicalCTEConsumer, GPOS_WSZ_LIT("CTEConsumer")},
 
 		{EdxltokenErrorCode, GPOS_WSZ_LIT("ErrorCode")},
+		{EdxltokenMaxOneRow, GPOS_WSZ_LIT("MaxOneRow")},
 		{EdxltokenErrorMessage, GPOS_WSZ_LIT("ErrorMessage")},
 
 		{EdxltokenOnCommitAction, GPOS_WSZ_LIT("OnCommitAction")},
