@@ -17,6 +17,48 @@ The fixtures intentionally contain no benchmark data. They validate planning,
 rule provenance and empty-input outcomes; populated result equivalence is a
 separate workload run against the same SQL assets.
 
+Optional deterministic data batches (`--workload tpch --setup-sql ...`):
+
+- `fixtures/tpch_small_data.sql`: sparse columns and a narrow date range.
+- `fixtures/tpch_domain_data.sql`: 128 parts × 16 suppliers, 256 customers,
+  2,048 orders across 1992–1998, and 6,144 lineitems. A finite domain-coverage
+  fixture with deliberate cyclic correlations, not dbgen or a random sample.
+
+Use separate output directories and fresh databases for these batches. Discover
+new statistics targets for each fixture; do not reuse another batch's estimates.
+Nonempty results may expose order ties, unordered aggregates or optimizer bugs:
+retain mismatches for diagnosis rather than treating matching row counts as
+equivalence. These fixtures do not establish production runtime distributions.
+
+Named value-parameter templates and finite validation cases are in
+`fixtures/parameters/`. Generate a separate workload without changing originals:
+
+```sh
+python3 test/dsl/instantiate_query_workload.py \
+  --spec test/dsl/workloads/fixtures/parameters/domain_cases.json \
+  --output output/parameter-workload
+```
+
+Pass that output as `--workload-dir` to `run_workload_comparison.py`; use the
+matching schema/data fixture. Parameters are named `:value` AST placeholders,
+not identifier substitutions or SQL string fragments. All declared cases are
+retained, including equal SQL instances; template similarity does not imply
+similar search. The initial cases validate machinery, not a population sample.
+For an observation-only run, inspect all instances with
+`profile_rule_candidates.py --parameter-manifest output/parameter-workload/tpch/manifest.json
+--results <runner-output> --output output/parameter-response`.
+
+`fixtures/parameters/compute_cases.json` adds total-comparison and potentially
+overflowing integer-projection controls over the same declared filter thresholds.
+The latter must retain the DSL `ErrorFree` rejection even on small fixture values.
+For per-instance OFF/CBO contribution, run with `--profile-rule <hash>
+--profile-cbo-only --timing-repeats 3` and the pure observation config, then add
+`--cbo-contribution <hash>` to the parameter report command. This also emits a
+Chinese `-contribution.png` with search deltas, untraced timing pairs, and direct
+root costs relative to the incumbent at each costing event. Parameter instances
+are not cardinality-injection factors; different projection templates are not
+causal performance pairs.
+
 Run one checked-in query with:
 
 ```sh
@@ -28,5 +70,334 @@ Run only the 1,000-query SQLStorm sample with `-t '*/s*'`.
 The empty-schema comparison uses `empty_workload_cbo.policy` by default; pass
 `--unbounded` when diagnosing the complete DSL search space.
 
+For broader **attempt coverage**, sample the locally imported WeTune application
+SQL without requiring a rule to appear in the final plan:
+
+```sh
+python3 test/dsl/profile_corpus_attempts.py --pg-config /path/to/pg_config \
+  --audit-bin build-ninja/pgorca_rule_audit \
+  --output output/wetune-attempts --per-dataset 4 --jobs 4
+```
+
+This reuses `trace_corpus.sh` and the candidate-counter audit. Sampling is uniform
+without replacement within each application, with a frozen manifest and seed;
+equal SQL instances retain their original line IDs. To extend a batch without
+repeating it, use the same seed and `--offset 4` in a new output directory.
+`--per-dataset 0` selects all remaining instances. Existing output is never
+overwritten. The replacement rule library stays in CBO, semantic native xforms
+are disabled using the same inventory as the workload comparator, and DPHyper
+owns join enumeration. Each query has a 60-second statement timeout.
+
+Every dispatched candidate is observed: rejection, construction, duplicate and
+Memo insertion outcomes. Trie-rejected rules are not dispatched evaluations;
+budget skips are counted separately. Failed-query prefixes remain available but
+are not complete distributions. Consumption edges require actual recorded
+provenance, not co-occurrence or final-plan membership. Per-query raw evidence is
+kept as gzip logs, compact summaries and a Chinese PNG are written under output.
+This is empty-schema, generic-parameter **planning only**, not a correctness,
+runtime-benefit or population-weighted rule-frequency verdict. No private rule
+bank or local imported corpus is added to CI by this command.
+
+Describe conditional responses from existing compressed traces without replaying SQL:
+
+```sh
+python3 test/dsl/profile_rule_conditions.py \
+  --results output/wetune-attempts --results output/wetune-attempts-next \
+  --output output/wetune-conditions --rule '592029aaa72e88fb=过滤合并'
+```
+
+This rechecks candidate counters and query identities, then groups each rule's
+attempts by **pre-evaluation** tree size/depth. It reports per-query cells, both
+query-equal and attempt-pooled responses, and query IQRs (not confidence bands).
+Ready/duplicate rates use evaluated attempts as their denominator; construction
+time is conditional on reaching construction. Direct Memo growth
+is amortized across evaluations and excludes future rule chains. Truncated or
+pattern-containing shapes stay unknown; missing cached cardinalities are not
+filled from later statistics. Failed prefixes remain separate from complete-run
+curves. These are post-hoc marginal descriptions, not adjusted causal effects,
+held-out validation, execution benefits, or recommendations to move a rule to RBO.
+
+Add `--physical-effects` to audit the cost-candidate lifecycle and link each rule's
+newly inserted logical roots to their **direct** physical implementations. The
+additional Chinese plot shows evaluation work, direct Memo growth, physical-cost
+events, emitted source-root consumption edges, same-context incumbent comparisons,
+and final-plan occurrences. All dispatched rules remain in the report, including
+those with no linked physical candidate. Incomplete lifecycle evidence is excluded
+from benefit comparisons, not converted to zero benefit. First candidates with no
+incumbent and near-equal costs at trace precision are separate categories; local
+cost reductions are never summed into a global saving. These labels are not
+OFF/CBO causal differences, physical-search CPU time, or measured execution gains.
+The JSON retains query-local candidate IDs for inspection, not as model features.
+New cost traces also carry the existing Memo `origin_chain`. When available,
+`ancestral` and the Chinese lineage plot include intermediate native logical
+lowerings (such as CTEAnchor to Sequence). Direct-only historical evidence remains
+valid, but missing ancestry stays `null`. The audit checks chain identities, the
+immediate-source head and cycles. A physical event is counted once per rule even
+if multiple roots of that rule occur in its chain; attribution across different
+rules is nonexclusive and does not capture every child-input dependency.
+
+Export selected imported cases, without changing their SQL or schema, for a
+nonempty OFF/CBO experiment using the normal workload runner:
+
+```sh
+python3 test/dsl/profile_corpus_attempts.py --pg-config /path/to/pg_config \
+  --audit-bin build-ninja/pgorca_rule_audit --case pybbs:31 \
+  --export-only --output output/selected-workload
+python3 test/dsl/run_workload_comparison.py --pg-config /path/to/pg_config \
+  --audit-bin build-ninja/pgorca_rule_audit --workload-dir output/selected-workload \
+  --workload pybbs --setup-sql test/dsl/workloads/fixtures/pybbs_profile_data.sql \
+  --profile-rule 92983d6d3650ab0c --profile-cbo-only --unbounded \
+  --stats-experiment test/dsl/rules/stats_input_observation.yaml \
+  --timing-repeats 7 --timing-warmups 1 --timing-seed 7 --jobs 1 --timeout 60 \
+  --output output/paired-run
+python3 test/dsl/profile_rule_pair.py \
+  --case '左连接计数=output/paired-run/pybbs/31/comparison.json' \
+  --output output/paired-summary
+```
+
+`--workload` accepts a directory name containing `schema.sql` and `sql/*.sql`;
+the default four benchmark suites are unchanged. Export does not instantiate
+parameters: choose literal cases or instantiate them explicitly before execution.
+The paired reporter reuses the shared result, lifecycle and timing audits and
+requires exactly one observation-only scenario (no fabricated cardinality target).
+Injected experiments use the existing sweep reporter instead. It reports both
+planning/execution deltas and their **within-pair** sum, never the sum of separate
+medians. These fixtures are declared synthetic mechanisms, not random samples or
+held-out evidence of query-independent rule profiles. Private corpora stay local.
+
+To measure data-scale responses, use a setup SQL template with an explicit
+`${rows}` placeholder and freeze all scales before running:
+
+```sh
+python3 test/dsl/profile_data_scale.py --pg-config /path/to/pg_config \
+  --audit-bin build-ninja/pgorca_rule_audit --workload-dir output/selected-workload \
+  --workload fatfreecrm --query 154 --rule a7d859279ffc7369 \
+  --setup-template test/dsl/workloads/fixtures/fatfreecrm_profile_scale.template.sql \
+  --rows 1250 2500 5000 10000 20000 40000 --seed 17 \
+  --output output/dedup-data-scale
+```
+
+Export `fatfreecrm:154` first using the command above. This runner reuses the
+OFF/CBO comparator sequentially, randomizes the scale execution order, and records
+source fingerprints, failures and all paired observations. Seven measured blocks
+and one warmup are used per condition; each SQL remains limited to 60 seconds.
+The geometric grid gives equal resolution on the log-scale axis; it is neither a
+population sample nor a q-error coverage guarantee for actual data distributions.
+Data and ANALYZE statistics change together. The Chinese plot shows sample
+medians/IQRs, not confidence intervals, fitted functions or a proven break-even
+threshold. Unavailable observations stay missing rather than becoming zero benefit.
+
+Compare several completed scale responses without assigning curve families:
+
+```sh
+python3 test/dsl/compare_rule_curves.py \
+  --case '去重／计数=output/dedup-data-scale/响应.json' \
+  --case '去重／另一查询=output/other-query-scale/响应.json' \
+  --output output/curve-validation
+```
+
+This uses audited OFF/CBO paired differences. It compares constant and affine-in-row
+models by leaving one **scale** out; it does not claim held-out-query prediction,
+statistical significance or universal curve classes. Incomplete declared designs
+remain visible and are not fitted. Freeze query/scale choices before measurement;
+plot all repeats and retain failed batches. Example scale fixtures for `spree:564`
+and `pybbs:31` preserve original SQL/constraints, including foreign-key parents and
+deterministic ordering, and change only their declared data-size parameter.
+The additional Chinese search-stage plot separates target attempts, generated
+candidates, new-root insertions and whole-search physical costing. A generated
+candidate may be a Memo duplicate; none of these counters requires final-plan
+selection. The JSON also retains target stage counts and all physical-search
+deltas. Fewer than three scales remain reportable but are not fitted.
+
+Two fixed-width fixtures extend the same workflow to Filter merge and
+Compute/Filter movement: `pybbs_permission_profile_scale.template.sql` for
+`pybbs:50` (30% predicate selectivity), and `forest_tag_profile_scale.template.sql`
+for `forest_blog:75` (one primary-key match at every declared scale). These are
+controlled mechanisms, not samples of real application data distributions.
+
+For rule-independent dimension evaluation, reuse frozen corpus traces without SQL
+replay or selecting rule hashes:
+
+```sh
+python3 test/dsl/evaluate_rule_dimensions.py \
+  --results output/orchestration-wetune-attempts-v1 \
+  --results output/orchestration-wetune-attempts-v2 \
+  --output output/generic-dimensions
+```
+
+All complete queries contribute dispatched attempts. The common dimensions are
+pre-evaluation relational/scalar/total node counts, depth and already-cached root
+cardinality. Missing values remain unknown, including cardinalities unavailable
+until later search. Each application is held out in turn; a one-dimensional
+dyadic-bin mean uses training queries only, falling back to their global mean
+for missing/unseen bins. Query IDs only control grouping and equal weighting;
+neither query nor rule identity enters predictions. Per-attempt squared error is
+computed from sums and squared sums, not from errors of cell means. Targets are
+`log1p(match_us)` and candidate-generation probability (Brier score).
+
+The Chinese plot reports error change against the training-only constant baseline
+and known-bin coverage. Failed prefixes remain in the audit inventory but are not
+fitted. This retrospective, instrumented, empty-schema analysis is neither a
+causal factor study nor proof of unseen-rule generalization; correlated dimensions
+and changes in rule composition still need separate checks.
+
+Add generic RuleIR features without rule-specific selection:
+
+```sh
+ninja -C build-ninja -j16 pgorca_rule_audit
+build-ninja/pgorca_rule_audit test/dsl/rules output/template-audit
+python3 test/dsl/evaluate_rule_dimensions.py \
+  --results output/orchestration-wetune-attempts-v1 \
+  --results output/orchestration-wetune-attempts-v2 \
+  --rule-graph output/template-audit/rule_graph.json \
+  --output output/template-dimensions
+```
+
+The graph is joined using canonical identity, but model keys contain only coarse
+source-template size, constraint count, or their combination with input scalar
+size. Missing observed rules or old graphs without features fail closed. The
+report records the graph fingerprint and how many rules share coarse signatures;
+rule attributes may still identify rare rules, so application holdout is not
+unseen-rule validation. Target-side metrics and placeholder counts are exported
+for later comparisons, not claimed as evaluated predictors in this experiment.
+
+### Rule-driven example pilot
+
+`../export_rule_examples.py` reuses the local WeTune parser and plan-to-SQL
+example translator through `../ExportRuleExamples.java`. Supply
+`--wetune-classpath` (current compiled `superopt`, `sql`, `common` directories,
+then dependency jars) and a new `--output` directory. No downloads or WeTune
+prover changes are required; this optional local experiment is not a CI job.
+
+`--minimal-inputs` uses the shared WeTune `translateAsPlan(rule, true)` overload
+to omit spare, unbound input columns. Build the local `dsl-support` sources
+first. The default WeTune API keeps its old schema; neither mode trims SQL
+outputs. An Input without bound attributes still gets one integer column.
+
+The export contains `rule_examples/schema.sql`, `rule_examples/sql/*_source.sql`
+and `*_target.sql`, `setup.sql`, and a manifest retaining unsupported rules and
+translation errors. Pass that workload and setup to `run_workload_comparison.py`
+with `--stats-experiment test/dsl/rules/stats_input_observation.yaml`, `--postgres-oracle`, `--timeout 60`
+and `--unbounded`. Analyze with:
+
+```sh
+python3 test/dsl/export_rule_examples.py --output output/example-export \
+  --results output/example-comparison --report-output output/example-comparison
+```
+
+`--report-output` keeps a rerun's Chinese plot and JSON alongside its results,
+without overwriting the report for an older engine using the same frozen SQL.
+
+This is joint instantiation of certified rule pairs, not reverse rewriting of
+arbitrary target plans. The adapter accepts only layouts/constraints completely
+represented by the existing example translator. Inputs are integer tables and
+attribute vectors have width one. Constraints are never dropped; SQL output
+arity mismatches fail closed. Concrete bag equality is a fixture check, not a
+new proof. `checks/` contains optional symmetric EXCEPT ALL verification queries:
+keep them outside the profiling population because the wrappers introduce their
+own search space. Native-rule isolation warnings are retained separately from
+successful DSL candidate construction. Generated cases are not representative
+workload samples and must not leak across training/test splits.
+
+Unique attributes use a `UNIQUE NOT NULL` witness: nullable SQL UNIQUE is not a
+strict relational key. Other nullable attributes still receive NULLs. This is
+an explicit input-domain restriction, not an added rule premise or a proof.
+New manifests require an independent PostgreSQL result oracle; agreement between
+native ORCA and DSL alone can hide shared metadata errors. The optional runner
+flag saves `postgres.rows.csv` and per-mode bag comparisons without adding PG to
+ORCA's trace or timing aggregates. A failed oracle, unequal pair, incomplete trace
+or native isolation violation makes report validation fail while preserving the
+diagnostic JSON/plot. This checks concrete bags, not general rule equivalence or
+ORDER BY semantics.
+
+The runner now records `result_semantics`: unordered outer SELECT/set operations
+use the COPY multiset hash, while outer ORDER BY, unavailable parsing, and legacy
+records retain ordered byte comparison. Duplicate rows and NULL versus empty
+text remain distinct. The PG oracle also checks ordering when required; LIMIT
+can still produce a genuine differing selected bag and is not automatically waived.
+
+Cardinality injection must respect ORCA's minimum estimate of one row. Both the
+configuration loader and sweep generator reject smaller values; neither clamps
+requests silently. Keep failed old designs separate from revised experiments.
+`generate_stats_sweep.py --trace` accepts plain or gzip discovery traces.
+
+Audit a single-query, possibly multi-input sweep with:
+
+```sh
+python3 test/dsl/profile_rule_candidates.py \
+  --sweep-manifest output/sweep/manifest.json \
+  --comparison output/run/workload/query/comparison.json \
+  --output output/response/基数响应
+```
+
+The audit checks every requested coordinate against trace consumption, pairs
+with the all-ones control, and separates logical stage counts from independently
+audited costing, pruning, and retention counts. The plot connects only observed
+one-coordinate points; joint points remain in JSON. No causal rule benefit,
+untraced runtime improvement, or query-independent generalization is implied.
+
 Redistributed source licenses are preserved under `licenses/`. The JOB files
 are attributed to the Join Order Benchmark repository in its manifest.
+
+For nonempty application experiments, `profile_corpus_attempts.py --export-only
+--schema-domain base` exports the original migrated DDL without the appended
+`-- WeTune schema patches` block. The default remains `wetune`: imported schemas
+and constraint-aligned trace tests are unchanged. Record the chosen domain and
+both schema checksums; these are different constraint domains, not interchangeable
+alignment results. The `fixtures/*_profile_data.sql` files provide synthetic
+nonempty data for the corresponding application queries, not production data.
+
+E2E `rows.stats_experiment` uses the same validated YAML mechanism as plan checks,
+so both result execution and EXPLAIN can exercise an injected estimate. PostgreSQL
+oracle execution remains uninjected and ORCA-disabled. See `insub_aggregate_residual`
+for a regression in which an estimate of one row previously selected an incorrect
+DSL alternative that had dropped a sibling WHERE predicate below an aggregate.
+
+Workload comparator `-t` patterns match `workload/query_stem` (for example
+`-t solidus/124`). A selection with no queries now fails before starting PostgreSQL.
+Each comparison records CRC32/size/path snapshots of the installed optimizer,
+PostgreSQL, audit executable, rules and runner before server startup and after the
+query. Changed endpoints invalidate contribution deltas; these snapshots do not
+monitor concurrent changes that are reverted before the final check. Historical
+unstamped experiments must remain explicitly distinguished from stamped results.
+
+Candidate input observations include only already-complete Memo logical properties
+(column/key counts and join depth) and the current Group expression count. They do
+not derive statistics or properties. Missing cached state remains null. Physical
+requirements and local/final selection events belong to later stages and must not
+be used as pre-evaluation predictors.
+
+The optional WeTune example adapter accepts positional SetOp outputs and their
+AttrsSub/projection-schema chains. `export_rule_examples.py --input-columns N`
+sets a minimum Input width without deleting rule-bound columns. Full-row symbols
+retain every position; an independently selected positional subset currently
+chooses the first column. Equal full-row symbols must retain equal widths across
+both plans. Explicit SetOp input mappings remain unsupported, and scalar consumers
+reject multi-column attribute bindings. SQL export checks every nested set
+operation's input arity and both final output widths. This is a bounded concrete witness
+domain, not full operator coverage or a new proof. Keep unsupported records in the
+manifest and compare both generated sides against the independent PG oracle.
+
+For multi-input sweeps, `compare_rule_curves.additive_response_check` predicts
+joint responses from the control and coordinate axes only. The optional
+`clipped_affine_check` checks a chosen cost-envelope hypothesis; it does not select
+a universal curve family. All-zero training cannot identify a threshold. Neither
+an axis-composition check nor refitting on another query is query-independent
+validation. Keep OFF-fallback/CBO-success feasibility evidence separate from
+comparable cost or timing deltas.
+
+`instantiate_query_workload.instantiate_relations(sql, mapping)` substitutes
+schema-preserving Input queries simultaneously, retaining per-occurrence aliases
+(including self-joins). It is a fixture constructor, not an equivalence rewrite;
+the caller must preserve both sides' schema and integrity constraints and run the
+PG oracle. CTEs, SELECT INTO and qualified source relation names are rejected in
+this bounded generated-example path.
+
+Nested cardinality targets may share a multiplier using repeatable
+`generate_stats_sweep.py --coordinate-group fingerprint1,fingerprint2` options.
+The groups must partition the selected fingerprints; the sampling coordinates
+are groups, not individual targets. This can preserve the discovered Select/Get
+row ratio while varying independent branches. Manifests retain independent
+coordinate factors and every target's requested rows, so the ordinary runner
+still audits each injection's consumption. Preserving declared ratios is not a
+claim that every histogram or full database distribution is jointly realizable.

@@ -68,6 +68,7 @@ struct SRuleGraphNode
 	std::string source_pattern;
 	std::string target_pattern;
 	std::set<std::string> constraints;
+	std::map<std::string, unsigned long> template_features;
 };
 
 struct SRuleGraphEdge
@@ -390,6 +391,22 @@ AppendRuleGraphEdges(const std::vector<SParsedRule> &rules, size_t src,
 }
 
 void
+CollectTemplateFeatures(const CDSLOp *op, const std::string &side,
+						unsigned long depth,
+						std::map<std::string, unsigned long> *features)
+{
+	++(*features)[side + "_nodes"];
+	(*features)[side + "_inputs"] += EdslopInput == op->Edslop();
+	(*features)[side + "_symbol_slots"] += op->Pdrgpsym()->Size();
+	(*features)[side + "_depth"] =
+		std::max((*features)[side + "_depth"], depth);
+	for (ULONG child = 0; child < op->UlChildren(); ++child)
+	{
+		CollectTemplateFeatures((*op)[child], side, depth + 1, features);
+	}
+}
+
+void
 BuildRuleGraph(CMemoryPool *mp, const std::vector<SParsedRule> &rules,
 			   SAudit *audit)
 {
@@ -413,7 +430,15 @@ BuildRuleGraph(CMemoryPool *mp, const std::vector<SParsedRule> &rules,
 			PatternText(mp, parsed.rule->PfragSrc()->PopRoot()),
 			PatternText(mp, parsed.rule->PfragTgt()->PopRoot()),
 			record.constraints,
+			{},
 		});
+		auto &features = graph.nodes.back().template_features;
+		CollectTemplateFeatures(parsed.rule->PfragSrc()->PopRoot(), "source", 1,
+								&features);
+		CollectTemplateFeatures(parsed.rule->PfragTgt()->PopRoot(), "target", 1,
+								&features);
+		features["constraint_count"] = parsed.rule->Pdrgpcon()->Size();
+		features["constraint_kinds"] = record.constraints.size();
 	}
 	graph.outgoing.resize(unique_rules.size());
 	std::vector<std::vector<size_t>> root_index(EdslopSentinel);
@@ -828,7 +853,15 @@ WriteReports(const SAudit &audit)
 					   << JsonEscape(constraint) << "\"";
 			first_constraint = false;
 		}
-		graph_json << "]}";
+		graph_json << "],\"template_features\":{";
+		bool first_feature = true;
+		for (const auto &feature : node.template_features)
+		{
+			graph_json << (first_feature ? "" : ",") << '"'
+					   << feature.first << "\":" << feature.second;
+			first_feature = false;
+		}
+		graph_json << "}}";
 		first = false;
 	}
 	graph_json << (first ? "" : "\n  ") << "],\n  \"edges\":[";

@@ -5,17 +5,25 @@ from __future__ import annotations
 
 import argparse
 from collections import defaultdict
+from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+import csv
 import difflib
 import fnmatch
+from functools import lru_cache
 import hashlib
+import io
 import json
+import math
 import os
 from pathlib import Path
+import random
 import re
 import subprocess
+import sys
 import tempfile
 import time
+import zlib
 from typing import Any
 
 from build_xform_replacement_inventory import merge_inventory, read_matrices
@@ -25,6 +33,9 @@ from run_dphyper_stability import parse_dphyper_events
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_WORKLOADS = SCRIPT_DIR / "workloads"
 DEFAULT_POLICY = SCRIPT_DIR / "rules/empty_workload_cbo.policy"
+# COPY output is already buffered. Do not reject valid large text/aggregate fields;
+# set the process-wide CSV limit once, not concurrently in run_mode workers.
+csv.field_size_limit(sys.maxsize)
 XFORM_RE = re.compile(r"CXform[A-Za-z0-9_]+")
 OPTIMIZATION_TIME_RE = re.compile(r"\[OPT\]: Total Optimization Time: (\d+)ms")
 SERVER_FAILURE_MARKERS = (
@@ -68,8 +79,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--pg-config", required=True)
     parser.add_argument("--audit-bin", required=True)
-    parser.add_argument("--workload", action="append", choices=("tpch", "tpcds", "job", "sqlstorm"))
-    parser.add_argument("-t", "--test", action="append", default=[])
+    parser.add_argument("--workload", action="append", help="workload directory name; defaults to the four benchmark suites")
+    parser.add_argument("-t", "--test", action="append", default=[], help="glob of workload/query_stem")
     parser.add_argument("--workload-dir", type=Path, default=DEFAULT_WORKLOADS)
     parser.add_argument("--rule-file", type=Path, default=SCRIPT_DIR / "rules/orca_replacements.rules")
     parser.add_argument("--policy-file", type=Path, default=DEFAULT_POLICY)
@@ -79,8 +90,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--profile-rule",
-        help="also run causal OFF/RBO/CBO arms for this canonical rule hash",
+        help="also run causal OFF/RBO/CBO arms for this hash; other rules use engine defaults, not --policy-file",
     )
+    parser.add_argument("--profile-cbo-only", action="store_true",
+                        help="profile only OFF/CBO; never construct or execute an RBO policy")
     parser.add_argument(
         "--profile-rbo-phase",
         choices=("normalize", "pre_join", "cleanup"),
@@ -96,8 +109,27 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=60460)
     parser.add_argument("--timeout", type=int, default=60)
     parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--timing-repeats", type=int, default=0,
+                        help="untraced randomized complete-block OFF/RBO/CBO timing rounds (0 disables)")
+    parser.add_argument("--timing-warmups", type=int, default=1)
+    parser.add_argument("--timing-seed", type=int, default=0)
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--postgres-oracle", action="store_true",
+                        help="also check result bags against PostgreSQL with ORCA disabled")
+    parser.add_argument("--setup-sql", type=Path, help="load data after schema, in the isolated test database")
+    parser.add_argument("--cardinality-probes", type=Path,
+                        help="JSON targets with operator/fingerprint and row-producing SQL to count")
+    parser.add_argument("--input-stats-reference", type=Path,
+                        help="preload native discovery comparison.json as external input statistics, not optimizer stats")
     args = parser.parse_args()
+    if any(not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_-]*", name) for name in (args.workload or [])):
+        parser.error("workload must be a directory name, not a path")
+    if args.profile_cbo_only and not args.profile_rule:
+        parser.error("--profile-cbo-only requires --profile-rule")
+    if args.timing_repeats < 0 or args.timing_warmups < 0:
+        parser.error("timing repeats/warmups must be nonnegative")
+    if args.timing_repeats and (not args.profile_rule or args.jobs != 1):
+        parser.error("timing requires --profile-rule and --jobs 1")
     if args.unbounded:
         args.policy_file = None
     missing = [path for path in args.stats_experiment if not path.is_file()]
@@ -107,11 +139,37 @@ def parse_args() -> argparse.Namespace:
         parser.error("profile rule must be a 16-digit canonical hexadecimal identity")
     if args.profile_rule:
         args.profile_rule = args.profile_rule.lower()
+    if args.input_stats_reference and (not args.setup_sql or not args.profile_rule or not args.stats_experiment):
+        parser.error("input stats reference requires --setup-sql, --profile-rule and --stats-experiment")
+    if args.setup_sql or args.cardinality_probes:
+        if not args.workload or len(args.workload) != 1:
+            parser.error("data setup/probes require exactly one explicit --workload")
+        for path in (args.setup_sql, args.cardinality_probes):
+            if path is not None and not path.is_file():
+                parser.error(f"fixture not found: {path}")
     return args
 
 
 def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=False, text=True, **kwargs)
+
+
+def artifact_snapshot(paths: dict[str, Path]) -> dict:
+    """Content provenance, not a cryptographic identity or a lock against concurrent installs."""
+    snapshot = {}
+    for name, path in paths.items():
+        item = {"path": str(path.resolve())}
+        try:
+            checksum = size = 0
+            with path.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    checksum = zlib.crc32(chunk, checksum)
+                    size += len(chunk)
+            item.update(size=size, crc32=f"{checksum:08x}")
+        except OSError as error:
+            item["error"] = str(error)
+        snapshot[name] = item
+    return snapshot
 
 
 def psql(
@@ -121,13 +179,14 @@ def psql(
     database: str,
     sql: str,
     timeout: int,
+    retry_on_server_failure: bool = True,
 ) -> tuple[str, str, int, float]:
     start = time.perf_counter()
     command = [
         str(binary), "-X", "-qAt", "-v", "ON_ERROR_STOP=1",
         "-h", str(socket), "-p", str(port), "-d", database,
     ]
-    for attempt in range(2):
+    for attempt in range(2 if retry_on_server_failure else 1):
         try:
             result = run(
                 command,
@@ -140,12 +199,37 @@ def psql(
             stdout = error.stdout.decode() if isinstance(error.stdout, bytes) else (error.stdout or "")
             stderr = error.stderr.decode() if isinstance(error.stderr, bytes) else (error.stderr or "")
             return stdout, stderr + "\nTIMEOUT", 124, 1000 * (time.perf_counter() - start)
-        if attempt == 0 and server_failure(result.stderr) and wait_ready(
+        if retry_on_server_failure and attempt == 0 and server_failure(result.stderr) and wait_ready(
             binary.with_name("pg_isready"), socket, port, database
         ):
             continue
         return result.stdout, result.stderr, result.returncode, 1000 * (time.perf_counter() - start)
     raise AssertionError("unreachable")
+
+
+def collect_cardinalities(binary: Path, socket: Path, port: int, database: str,
+                          probes: list[dict], timeout: int) -> list[dict]:
+    identities = set()
+    for probe in probes:
+        identity = (probe.get("fingerprint"), probe.get("operator"))
+        if (not re.fullmatch(r"[0-9a-f]{16}", identity[0] or "")
+                or not re.fullmatch(r"CLogical[A-Za-z0-9]+", identity[1] or "")
+                or not isinstance(probe.get("sql"), str) or not probe["sql"].strip()
+                or identity in identities):
+            raise ValueError("cardinality probes require distinct operator/fingerprint and SQL")
+        identities.add(identity)
+    results = []
+    for probe in probes:
+        sql = probe["sql"].strip().removesuffix(";")
+        stdout, stderr, rc, elapsed = psql(binary, socket, port, database,
+            "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;\n"
+            "SET LOCAL pg_orca.enable_orca=off;\n"
+            f"SELECT COUNT(*) FROM ({sql}) AS cardinality_probe;\nROLLBACK;", timeout)
+        valid = rc == 0 and re.fullmatch(r"[0-9]+", stdout.strip()) is not None
+        results.append({**probe, "status": "ok" if valid else "error", "returncode": rc,
+                        "actual_rows": int(stdout.strip()) if valid else None,
+                        "elapsed_ms": elapsed, "error": stderr if not valid else ""})
+    return results
 
 
 def settings(
@@ -200,14 +284,34 @@ SET client_min_messages=log;
 
 def trace_records(text: str) -> list[dict[str, Any]]:
     records = []
+    contexts = {}
     for line in text.splitlines():
         if "DSL_TRACE {" not in line:
             continue
         payload = line.split("DSL_TRACE ", 1)[1]
         try:
-            records.append(json.loads(payload[: payload.rfind("}") + 1]))
+            record = json.loads(payload[: payload.rfind("}") + 1])
         except (ValueError, json.JSONDecodeError):
-            pass
+            continue
+        if record.get("kind") == "candidate_context":
+            key = record.get("field"), record.get("context_id")
+            if key[0] not in ("input_context", "binding_context") or type(key[1]) is not int or key[1] < 1:
+                raise ValueError("invalid candidate context definition")
+            if not isinstance(record.get("value"), dict) or (key in contexts and contexts[key] != record["value"]):
+                raise ValueError("invalid or conflicting candidate context definition")
+            contexts[key] = record["value"]
+        if record.get("kind") == "rule_candidate":
+            for field in ("input_context", "binding_context"):
+                if field + "_id" not in record:
+                    continue
+                value = contexts.get((field, record[field + "_id"]))
+                if value is None or (field in record and record[field] != value):
+                    record.setdefault("context_resolution_errors", []).append(field)
+                else:
+                    record[field] = deepcopy(value)
+        records.append(record)
+        if record.get("kind") == "experiment_outcome":
+            contexts.clear()  # Context IDs are query-local; support concatenated completed runs.
     return records
 
 
@@ -297,6 +401,8 @@ def walk_plan(plan: dict[str, Any] | None) -> list[dict[str, Any]]:
 def plan_difference(left: dict[str, Any] | None, right: dict[str, Any] | None) -> str:
     if left is None or right is None:
         return "plan_error"
+    # EXPLAIN ANALYZE's execution counters are not optimizer plan properties.
+    left, right = timing_plan(left), timing_plan(right)
     if left == right:
         return "identical"
     left_nodes = [node.get("Node Type") for node in walk_plan(left)]
@@ -396,6 +502,154 @@ def dsl_observability(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def experiment_run_status(result: dict[str, Any], expect_outcome: bool) -> str:
+    """Classify completed runs without treating fallback/partial traces as ORCA success."""
+    if result.get("server_failure"):
+        return "server_failure"
+    error = result.get("error", "").lower()
+    timed_out = "timeout" in error
+    for stage in ("plan", "rows"):
+        rc = result.get(f"{stage}_rc")
+        if rc is None:
+            return "unknown"
+        if rc != 0:
+            return f"{stage}_timeout" if rc == 124 or timed_out else f"{stage}_error"
+    if result.get("fallback") or result.get("optimizer") == "postgres":
+        return "fallback"
+    if result.get("optimizer") != "pg_orca":
+        return "unknown_optimizer"
+    if expect_outcome:
+        outcomes = result.get("experiment_outcomes", [])
+        if len(outcomes) != 1 or not isinstance(outcomes[0].get("stats_targets"), list):
+            return "incomplete_trace"
+        for target in outcomes[0]["stats_targets"]:
+            if any(target.get(key) is None for key in (
+                "selector_kind", "selector", "operator", "fingerprint", "requested_rows", "consumed",
+            )):
+                return "incomplete_trace"
+            if target["consumed"] is not True:
+                return "injection_unconsumed"
+    return "ok"
+
+
+@lru_cache(maxsize=256)
+def result_semantics(query: str) -> str:
+    """Only opt into bag comparison when the SQL parser establishes no outer order."""
+    try:
+        import sqlglot
+        from sqlglot import exp
+    except ImportError:
+        return "ordered"
+    try:
+        parsed = sqlglot.parse(query, read="postgres")
+        if len(parsed) == 1 and isinstance(parsed[0], (exp.Select, exp.Union, exp.Intersect, exp.Except)):
+            return "ordered" if parsed[0].args.get("order") is not None else "bag"
+    except (ValueError, sqlglot.errors.ParseError, sqlglot.errors.TokenError):
+        pass
+    return "ordered"  # Legacy/unparsed statements retain conservative byte equality.
+
+
+def result_hash(run: dict) -> str | None:
+    return run.get("rows_bag_hash" if run.get("result_semantics") == "bag" else "rows_hash")
+
+
+def results_equal(reference: dict, candidate: dict) -> bool:
+    return (reference.get("rows_rc") == candidate.get("rows_rc") == 0
+            and reference.get("result_semantics", "ordered") == candidate.get("result_semantics", "ordered")
+            and result_hash(reference) is not None and result_hash(reference) == result_hash(candidate))
+
+
+def profile_comparability(
+    reference: dict[str, Any], candidate: dict[str, Any], expect_outcome: bool,
+    reference_label: str = "off",
+) -> dict[str, Any]:
+    # Necessary result checks, not a proof of equal statistics interventions.
+    reasons = [
+        f"{arm}:{status}"
+        for arm, result in ((reference_label, reference), ("arm", candidate))
+        if (status := experiment_run_status(result, expect_outcome)) != "ok"
+    ]
+    if not reasons:
+        if result_hash(reference) is None or result_hash(candidate) is None:
+            reasons.append("missing_rows_hash")
+        elif not results_equal(reference, candidate):
+            reasons.append("rows_mismatch")
+        if expect_outcome:
+            # A matching config alone does not establish the same resolved boundary.
+            fields = ("selector_kind", "selector", "operator", "fingerprint", "requested_rows")
+            signatures = [
+                sorted(tuple(target[key] for key in fields)
+                       for target in result["experiment_outcomes"][0]["stats_targets"])
+                for result in (reference, candidate)
+            ]
+            if signatures[0] != signatures[1]:
+                reasons.append("injection_target_mismatch")
+    return {"result_comparable": not reasons, "exclusions": reasons}
+
+
+def load_input_stats_reference(path: Path, workload: str, query: Path, schema: Path, setup: Path) -> dict:
+    """Freeze an independent native estimate source before starting the new database/query."""
+    raw = path.read_bytes()
+    source = json.loads(raw)
+    fixture = json.loads((path.parents[2] / "summary.json").read_text()).get("fixture") or {}
+    crc = lambda data: f"{zlib.crc32(data):08x}"
+    if (source.get("workload") != workload or fixture.get("workload") != workload
+            or source.get("query_crc32") != crc(query.read_bytes())
+            or fixture.get("schema_crc32") != crc(schema.read_bytes())
+            or (fixture.get("setup") or {}).get("crc32") != crc(setup.read_bytes())):
+        raise ValueError("input statistics reference SQL/schema/setup identity mismatch")
+    candidates = []
+    for experiment in source.get("stats_experiments", []):
+        run = experiment.get("modes", {}).get("native", {})
+        outcomes = run.get("experiment_outcomes", [])
+        events = run.get("stats_events", [])
+        if (experiment_run_status(run, True) == "ok" and outcomes[0]["stats_targets"] == []
+                and run.get("rows_hash") and any(e.get("kind") == "stats_observation" for e in events)
+                and not any(e.get("kind") == "stats_injection" for e in events)):
+            candidates.append(run)
+    if len(candidates) != 1:
+        raise ValueError("require exactly one successful native observation-only reference")
+    run = candidates[0]
+    experiment = run["experiment_outcomes"][0].get("experiment")
+    observed = defaultdict(set)
+    for event in run["stats_events"]:
+        if event.get("kind") != "stats_observation":
+            continue
+        key, operator, rows = (event.get(field) for field in ("fingerprint", "operator", "native_rows"))
+        if (not isinstance(key, str) or not re.fullmatch(r"[0-9a-f]{16}", key)
+                or not isinstance(operator, str) or not re.fullmatch(r"CLogical[A-Za-z0-9]+", operator)
+                or type(rows) not in (int, float) or not math.isfinite(rows) or rows < 0
+                or experiment is None or event.get("experiment") != experiment):
+            raise ValueError("invalid native statistics reference observation")
+        observed[key, operator].add(rows)
+    return {"source": str(path.resolve()), "source_crc32": crc(raw), "fixture": fixture,
+            "workload": workload, "query_crc32": source["query_crc32"], "rows_hash": run["rows_hash"],
+            "rows_bag_hash": run.get("rows_bag_hash"), "result_semantics": run.get("result_semantics", "ordered"),
+            "kind": "frozen_native_estimate", "loaded_before_query": True, "optimizer_consumed": False,
+            "attachment": "post_run_analysis",
+            "targets": [{"reference_key": key, "operator": operator,
+                         "status": "available" if len(rows) == 1 else "ambiguous",
+                         "rows": next(iter(rows)) if len(rows) == 1 else None}
+                        for (key, operator), rows in sorted(observed.items())]}
+
+
+def annotate_input_stats_reference(result: dict, reference: dict) -> None:
+    lookup = {(t["reference_key"], t["operator"]): t for t in reference["targets"]}
+    result["input_stats_reference"] = reference
+    for run in all_mode_results(result):
+        same_result = results_equal({**reference, "rows_rc": 0}, run)
+        for observation in [*run.get("rule_input_observations", []), *run.get("candidate_events", [])]:
+            context = observation.get("input_context")
+            if context is None:
+                continue
+            for node in [context["root"], *(child["node"] for child in context["children"])]:
+                target = lookup.get((node.get("reference_key"), node["operator"])) if same_result else None
+                node["external_reference"] = {
+                    "status": target["status"] if target else "unmatched" if same_result else "result_not_verified",
+                    "rows": target["rows"] if target else None,
+                }
+
+
 def inventory(
     args: argparse.Namespace,
 ) -> tuple[list[str], dict[str, set[str]], set[str], set[str]]:
@@ -408,7 +662,8 @@ def inventory(
     if result.returncode:
         raise RuntimeError(result.stdout)
     runtime = json.loads((audit_dir / "coverage.json").read_text(encoding="utf-8"))
-    merged = merge_inventory(runtime, read_matrices(SCRIPT_DIR / "e2e/expect"))
+    graph = json.loads((audit_dir / 'rule_graph.json').read_text())
+    merged = merge_inventory(runtime, read_matrices(SCRIPT_DIR / "e2e/expect"), graph)
     semantic = sorted(entry["name"] for entry in merged["xforms"] if entry["category"] == "semantic_rewrite")
     semantic_set = set(semantic)
     joins = {
@@ -422,6 +677,39 @@ def inventory(
             for rule_hash in evidence["dsl_rule_hashes"]:
                 hashes.setdefault(rule_hash, set()).add(entry["name"])
     return semantic, hashes, semantic_set, joins
+
+
+def copy_result_summary(output: str) -> dict[str, Any]:
+    """Diagnostic multiset hash, not an ORDER BY/LIMIT equivalence verdict."""
+    lines = io.StringIO(output, newline="").readlines()
+    reader = csv.reader(lines, strict=True)
+    records, start = [], 0
+    for _ in reader:
+        # Retain raw quoting: COPY CSV NULL and empty text decode to the same
+        # Python string, but are different SQL values. Embedded newlines stay
+        # inside their record; duplicate records retain their multiplicity.
+        records.append("".join(lines[start:reader.line_num]))
+        start = reader.line_num
+    # ponytail: sort buffered records; use external sorting if results outgrow memory.
+    return {"rows_count": len(records),
+            "rows_bag_hash": hashlib.sha256("".join(sorted(records)).encode()).hexdigest()}
+
+
+def collect_postgres_oracle(args, binary, socket, database, query, artifact, modes):
+    stdout, stderr, rc, elapsed = psql(binary, socket, args.port, database,
+        "LOAD 'pg_orca';\nSET pg_orca.enable_orca=off;\n"
+        f"COPY ({query}) TO STDOUT WITH (FORMAT csv);", args.timeout)
+    (artifact / 'postgres.rows.csv').write_text(stdout)
+    (artifact / 'postgres.rows.stderr').write_text(stderr)
+    bag = (copy_result_summary(stdout) if rc == 0 else {'rows_count': None, 'rows_bag_hash': None})
+    equal = {name: rc == 0 and mode['rows_rc'] == 0 and
+             bag['rows_bag_hash'] == mode.get('rows_bag_hash') for name, mode in modes.items()}
+    oracle = {'rows_rc': rc, 'rows_hash': hashlib.sha256(stdout.encode()).hexdigest(),
+              'result_semantics': result_semantics(query), **bag}
+    comparable = {name: results_equal(oracle, {**mode, 'result_semantics': oracle['result_semantics']})
+                  for name, mode in modes.items()}
+    return {**oracle, 'rows_ms': elapsed, 'mode_bag_equal': equal, 'mode_result_equal': comparable,
+            'valid': bool(comparable) and all(comparable.values()), 'error': error_summary(stderr)}
 
 
 def run_mode(
@@ -438,22 +726,31 @@ def run_mode(
     stats_experiment: Path | None = None,
 ) -> dict[str, Any]:
     base = settings(mode, semantic_xforms, policy_file, stats_experiment)
+    # Experimental failures are observations, not disposable retry attempts.
+    retry_failures = not (stats_experiment or getattr(args, "stats_experiment", None)
+                         or getattr(args, "profile_rule", None))
     plan_out, plan_err, plan_rc, plan_ms = psql(
         psql_bin, socket, args.port, database,
         trace_settings(mode, semantic_xforms, policy_file, stats_experiment)
         + f"\nEXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, FORMAT JSON) {query};",
         args.timeout,
+        retry_on_server_failure=retry_failures,
     )
     if plan_rc == 0:
         rows_out, rows_err, rows_rc, rows_ms = psql(
             psql_bin, socket, args.port, database,
             base + f"\nSET client_min_messages=warning;\nCOPY ({query}) TO STDOUT WITH (FORMAT csv);",
             args.timeout,
+            retry_on_server_failure=retry_failures,
         )
     else:
         rows_out, rows_err, rows_rc, rows_ms = "", "", plan_rc, 0.0
     (artifact / f"{artifact_name}.plan.json").write_text(plan_out, encoding="utf-8")
     (artifact / f"{artifact_name}.trace").write_text(plan_err, encoding="utf-8")
+    # Preserve COPY output and errors, including partial failures. The recorded
+    # rows_rc/rows_skipped distinguish completed results from incomplete output.
+    (artifact / f"{artifact_name}.rows.csv").write_text(rows_out, encoding="utf-8")
+    (artifact / f"{artifact_name}.rows.stderr").write_text(rows_err, encoding="utf-8")
     records = trace_records(plan_err)
     optimizer = optimizer_name(plan_out)
     planning_ms, execution_ms = explain_times(plan_out)
@@ -468,6 +765,9 @@ def run_mode(
         "planning_ms": planning_ms,
         "execution_ms": execution_ms,
         "rows_hash": hashlib.sha256(rows_out.encode()).hexdigest(),
+        "result_semantics": result_semantics(query),
+        **(copy_result_summary(rows_out) if plan_rc == rows_rc == 0
+           else {"rows_count": None, "rows_bag_hash": None}),
         "error": "\n".join(
             summary
             for summary in (
@@ -478,11 +778,14 @@ def run_mode(
         ),
         "optimizer": optimizer,
         "fallback": plan_rc == 0 and optimizer == "postgres",
+        "timeout_ms": args.timeout * 1000,
+        "timing_source": "traced_explain_analyze",
         "plan": plan_tree(plan_out),
         "produced_xforms": produced_xforms(plan_err),
         "applied_rule_hashes": [
             record["rule_hash"] for record in records
-            if record.get("status") in {"applied", "applied_rbo"}
+            if record.get("kind") == "application"
+            and record.get("status") in {"applied", "applied_rbo"}
             and "rule_hash" in record
         ],
         "profile_rule_statuses": [
@@ -490,10 +793,22 @@ def run_mode(
             if record.get("kind") == "application"
             and record.get("rule_hash") == getattr(args, "profile_rule", None)
         ],
+        "rule_input_observations": [
+            {key: record.get(key) for key in (
+                "rule_hash", "placement", "status", "input_sampling", "input_context")}
+            for record in records
+            if record.get("kind") == "application" and "input_context" in record
+        ],
         "stats_events": [
             record for record in records
             if record.get("kind") in {"stats_injection", "stats_observation"}
         ],
+        "candidate_events": [record for record in records
+                             if record.get("kind") in {"rule_candidate", "rule_candidate_outcome"}],
+        "cost_events": [record for record in records if record.get("kind") == "cost_candidate"],
+        "cost_lifecycle_events": [record for record in records if record.get("kind") == "cost_lifecycle"],
+        "search_checks": [record for record in records if record.get("kind") == "search_check"],
+        "rule_edges": [record for record in records if record.get("kind") == "rule_edge"],
         "experiment_outcomes": [
             record for record in records
             if record.get("kind") == "experiment_outcome"
@@ -505,6 +820,102 @@ def run_mode(
             if record.get("kind") == "memo_alternative" and record.get("source") == "native"
         }),
     }
+
+
+def timing_plan(plan: Any) -> Any:
+    """Remove EXPLAIN ANALYZE measurements, retaining plan fields (raw JSON is also saved)."""
+    if isinstance(plan, list):
+        return [timing_plan(child) for child in plan]
+    if not isinstance(plan, dict):
+        return plan
+    return {key: timing_plan(value) for key, value in plan.items() if not (
+        key.startswith(("Actual ", "Rows Removed ", "Shared ", "Local ", "Temp ", "I/O "))
+        or key in {"Sort Method", "Sort Space Used", "Sort Space Type", "Heap Fetches",
+                   "Hash Buckets", "Original Hash Buckets", "Hash Batches", "Original Hash Batches",
+                   "HashAgg Batches", "Peak Memory Usage", "Disk Usage", "Workers Launched"}
+    )}
+
+
+def timing_schedule(scenarios: int, repeats: int, warmups: int, seed: int,
+                    arms=("off", "rbo", "cbo")):
+    if tuple(arms) not in (("off", "rbo", "cbo"), ("off", "cbo")):
+        raise ValueError("timing requires OFF/CBO or OFF/RBO/CBO arms in canonical order")
+    rng = random.Random(seed)
+    for phase, rounds in (("warmup", warmups), ("measurement", repeats)):
+        for block in range(rounds):
+            cells = [(index, arm) for index in range(scenarios) for arm in arms]
+            rng.shuffle(cells)
+            for index, arm in cells:
+                yield phase, block, index, arm
+
+
+def run_profile_timing(args: argparse.Namespace, binary: Path, socket: Path, database: str,
+                       query: str, artifact: Path, semantic_xforms: list[str], scenarios: list[dict]) -> dict:
+    samples = []
+    # New backends per sample: warm shared buffers, not a persistent-session cache.
+    with (artifact / "timing-samples.jsonl").open("w", encoding="utf-8") as log:
+        for sequence, (phase, block, index, arm) in enumerate(timing_schedule(
+                len(scenarios), args.timing_repeats, args.timing_warmups, args.timing_seed,
+                tuple(args.profile_policies))):
+            scenario = scenarios[index]
+            stats_path = scenario["stats_experiment"]
+            diagnostic = scenario["arms"][arm]
+            sql = settings("replacement", semantic_xforms, args.profile_policies[arm],
+                           Path(stats_path) if stats_path else None) + """
+SET optimizer_print_xform=off;
+SET optimizer_print_xform_results=off;
+SET optimizer_print_optimization_stats=off;
+SET pg_orca.trace_dsl_rule=off;
+SET client_min_messages=warning;
+""" + f"EXPLAIN (ANALYZE, COSTS OFF, TIMING OFF, FORMAT JSON) {query};"
+            stdout, stderr, rc, elapsed = psql(binary, socket, args.port, database, sql,
+                                               args.timeout, retry_on_server_failure=False)
+            stem = f"timing-{sequence:04d}.{arm}"
+            (artifact / f"{stem}.plan.json").write_text(stdout, encoding="utf-8")
+            (artifact / f"{stem}.stderr").write_text(stderr, encoding="utf-8")
+            planning, execution = explain_times(stdout)
+            optimizer = optimizer_name(stdout)
+            plan = plan_tree(stdout)
+            if server_failure(stderr):
+                status = "server_failure"
+            elif rc:
+                status = "plan_timeout" if rc == 124 or "timeout" in stderr.lower() else "plan_error"
+            elif optimizer == "postgres":
+                status = "fallback"
+            elif optimizer != "pg_orca":
+                status = "unknown_optimizer"
+            elif plan is None or not all(isinstance(t, (int, float)) and math.isfinite(t) and t >= 0
+                                         for t in (planning, execution)):
+                status = "incomplete_timing"
+            elif trace_records(stderr) or optimization_time(stderr) is not None:
+                status = "trace_enabled"
+            else:
+                status = "ok"
+            comparable = profile_comparability(scenario["arms"]["off"], diagnostic, stats_path is not None)
+            reasons = list(comparable["exclusions"])
+            if status != "ok":
+                reasons.append(status)
+            plan_matches = plan is not None and timing_plan(plan) == timing_plan(diagnostic["plan"])
+            if not plan_matches:
+                reasons.append("diagnostic_plan_mismatch")
+            sample = {
+                "sequence": sequence, "phase": phase, "block": block, "scenario": index, "arm": arm,
+                "stats_experiment": stats_path, "artifact": stem, "status": status, "returncode": rc,
+                "timeout_ms": args.timeout * 1000, "optimizer": optimizer,
+                "planning_ms": planning, "execution_ms": execution, "client_wall_ms": elapsed,
+                "diagnostic_plan_matches": plan_matches, "comparison_exclusions": reasons,
+                "diagnostic_rows_hash": diagnostic.get("rows_hash"),
+                "diagnostic_rows_count": diagnostic.get("rows_count"),
+                "error": stderr if status != "ok" else "",
+            }
+            samples.append(sample)
+            log.write(json.dumps(sample, sort_keys=True) + "\n")
+            log.flush()  # Keep every attempt, including failed warmups; never retry timed samples.
+    return {"source": "untraced_explain_analyze", "seed": args.timing_seed,
+            "arms": list(args.profile_policies),
+            "repeats": args.timing_repeats, "warmups": args.timing_warmups,
+            "design": "randomized_complete_blocks", "connection": "new_backend_per_sample",
+            "result_validation": "separate_diagnostic_run", "samples": samples}
 
 
 def compare_query(
@@ -519,7 +930,12 @@ def compare_query(
     semantic_xform_set: set[str],
     join_xforms: set[str],
 ) -> dict[str, Any]:
-    query = query_path.read_text(encoding="utf-8").strip().removesuffix(";")
+    query_bytes = query_path.read_bytes()
+    reference = getattr(args, "input_stats_reference_snapshot", None)
+    if reference and (reference["workload"] != workload
+                      or reference["query_crc32"] != f"{zlib.crc32(query_bytes):08x}"):
+        raise ValueError("preloaded input statistics reference query mismatch")
+    query = query_bytes.decode("utf-8").strip().removesuffix(";")
     artifact = args.output / workload / query_path.stem
     artifact.mkdir(parents=True, exist_ok=True)
     modes: dict[str, dict[str, Any]] = {}
@@ -548,10 +964,7 @@ def compare_query(
                         experiment_modes[mode][key] == modes[mode][key]
                         for key in ("plan_rc", "rows_rc")
                     ),
-                    "rows_equal": (
-                        experiment_modes[mode]["rows_rc"] == modes[mode]["rows_rc"] == 0
-                        and experiment_modes[mode]["rows_hash"] == modes[mode]["rows_hash"]
-                    ),
+                    "rows_equal": results_equal(modes[mode], experiment_modes[mode]),
                     "plan_comparison": plan_difference(
                         modes[mode]["plan"], experiment_modes[mode]["plan"]
                     ),
@@ -570,7 +983,7 @@ def compare_query(
                     f"profile-{index}.{arm}", "replacement", semantic_xforms,
                     args.profile_policies[arm], stats_path,
                 )
-                for arm in ("off", "rbo", "cbo")
+                for arm in args.profile_policies
             }
             scenarios.append({
                 "stats_experiment": (
@@ -579,28 +992,34 @@ def compare_query(
                 "arms": arms,
                 "comparisons": {
                     arm: {
+                        **profile_comparability(arms["off"], arms[arm], stats_path is not None),
                         "outcome_equal": all(
                             arms[arm][key] == arms["off"][key]
                             for key in ("plan_rc", "rows_rc")
                         ),
-                        "rows_equal": (
-                            arms[arm]["rows_rc"] == arms["off"]["rows_rc"] == 0
-                            and arms[arm]["rows_hash"] == arms["off"]["rows_hash"]
-                        ),
+                        "rows_equal": results_equal(arms["off"], arms[arm]),
                         "plan_comparison": plan_difference(
                             arms["off"]["plan"], arms[arm]["plan"]
                         ),
                         "target_statuses": arms[arm]["profile_rule_statuses"],
                     }
-                    for arm in ("rbo", "cbo")
+                    for arm in arms if arm != "off"
                 },
             })
         rule_profile = {
             "rule_hash": args.profile_rule,
-            "rbo_phase": args.profile_rbo_phase,
+            "arms": list(args.profile_policies),
+            "placement_baseline": "cbo",
+            "background_policy": "engine_defaults_not_policy_file",
+            "policy_snapshots": {arm: path.read_text(encoding="utf-8")
+                                 for arm, path in args.profile_policies.items()},
+            "rbo_phase": args.profile_rbo_phase if "rbo" in args.profile_policies else None,
             "effect": args.profile_effect,
             "scenarios": scenarios,
         }
+        if args.timing_repeats:
+            rule_profile["timing"] = run_profile_timing(
+                args, psql_bin, socket, database, query, artifact, semantic_xforms, scenarios)
 
     produced = modes["native"]["produced_xforms"]
     native_sequence = [name for name in produced if name in semantic_xform_set]
@@ -621,11 +1040,7 @@ def compare_query(
         modes["replacement"][key] == modes["native"][key]
         for key in ("plan_rc", "rows_rc")
     )
-    rows_equal = (
-        modes["native"]["rows_rc"] == 0
-        and modes["replacement"]["rows_rc"] == 0
-        and modes["native"]["rows_hash"] == modes["replacement"]["rows_hash"]
-    )
+    rows_equal = results_equal(modes["native"], modes["replacement"])
     native_orca = modes["native"]["optimizer"] == "pg_orca"
     replacement_orca = modes["replacement"]["optimizer"] == "pg_orca"
     if native_orca and replacement_orca:
@@ -659,8 +1074,14 @@ def compare_query(
     result = {
         "workload": workload,
         "query": query_path.name,
+        "query_crc32": f"{zlib.crc32(query_bytes):08x}",
         "outcome_equal": outcome_equal,
         "rows_equal": rows_equal,
+        # Supplemental diagnosis: ordered queries still require ordered equality.
+        "rows_bag_equal": (
+            modes["native"].get("rows_bag_hash") == modes["replacement"].get("rows_bag_hash")
+            if all(m.get("rows_bag_hash") is not None for m in modes.values()) else None
+        ),
         "coverage_status": coverage_status,
         "trigger_set_equal": trigger_set_equal,
         "trigger_order_equal": trigger_order_equal,
@@ -679,6 +1100,18 @@ def compare_query(
         "stats_experiments": stats_experiments,
         "rule_profile": rule_profile,
     }
+    if reference:
+        annotate_input_stats_reference(result, reference)
+    if getattr(args, 'postgres_oracle', False):
+        result['postgres_oracle'] = collect_postgres_oracle(
+            args, psql_bin, socket, database, query, artifact, modes)
+    if getattr(args, "artifact_start", None) is not None:
+        end = artifact_snapshot(args.artifact_paths)
+        result["artifact_provenance"] = {
+            "before_server_start": args.artifact_start, "after_query": end,
+            "endpoints_equal": end == args.artifact_start,
+            "scope": "file_contents_at_endpoints_not_continuous_install_monitoring",
+        }
     for mode in [*modes.values(), *(
         mode
         for experiment in stats_experiments
@@ -696,6 +1129,14 @@ def compare_query(
 def selected(workload: str, query: Path, patterns: list[str]) -> bool:
     key = f"{workload}/{query.stem}"
     return not patterns or any(fnmatch.fnmatchcase(key, pattern) for pattern in patterns)
+
+
+def select_workload_queries(root: Path, workloads: list[str], patterns: list[str]) -> dict:
+    queries = {workload: [q for q in sorted((root / workload / "sql").glob("*.sql"))
+                         if selected(workload, q, patterns)] for workload in workloads}
+    if not any(queries.values()):
+        raise ValueError(f"no queries selected: {patterns}; -t expects workload/query_stem")
+    return queries
 
 
 def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
@@ -720,58 +1161,53 @@ def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
 def experiment_observations(results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     observations = []
     for result in results:
+        runs = []
         for experiment in result["stats_experiments"]:
             for mode, run_result in experiment["modes"].items():
-                outcomes = run_result["experiment_outcomes"]
-                observations.append({
-                    "workload": result["workload"],
-                    "query": result["query"],
-                    "experiment_path": experiment["path"],
-                    "experiment": outcomes[-1].get("experiment") if outcomes else None,
-                    "mode": mode,
-                    "arm": None,
-                    "stats": run_result["stats_events"],
-                    "search": {
-                        **(run_result["dsl_observability"]["memo"] or {}),
-                        **(run_result["dsl_observability"]["pipeline"] or {}),
-                        **(outcomes[-1] if outcomes else {}),
-                        **{
-                            field: run_result[field]
-                            for field in ("optimization_ms", "planning_ms", "execution_ms")
-                        },
-                    },
-                    "rules": run_result["dsl_observability"]["rules"],
-                    "candidates": run_result["dsl_observability"]["candidates"],
-                    "candidate_outcomes": run_result["dsl_observability"]["candidate_outcomes"],
-                })
-        if result["rule_profile"] is None:
-            continue
-        for scenario in result["rule_profile"]["scenarios"]:
+                runs.append((experiment["path"], mode, None, None, run_result, None))
+        profile = result["rule_profile"]
+        for scenario in profile["scenarios"] if profile else []:
             for arm, run_result in scenario["arms"].items():
-                outcomes = run_result["experiment_outcomes"]
-                if not outcomes:
-                    continue
-                observations.append({
-                    "workload": result["workload"],
-                    "query": result["query"],
-                    "experiment_path": scenario["stats_experiment"],
-                    "experiment": outcomes[-1].get("experiment"),
-                    "mode": "replacement",
-                    "arm": arm,
-                    "stats": run_result["stats_events"],
-                    "search": {
-                        **(run_result["dsl_observability"]["memo"] or {}),
-                        **(run_result["dsl_observability"]["pipeline"] or {}),
-                        **outcomes[-1],
-                        **{
-                            field: run_result[field]
-                            for field in ("optimization_ms", "planning_ms", "execution_ms")
-                        },
-                    },
-                    "rules": run_result["dsl_observability"]["rules"],
-                    "candidates": run_result["dsl_observability"]["candidates"],
-                    "candidate_outcomes": run_result["dsl_observability"]["candidate_outcomes"],
-                })
+                runs.append((scenario["stats_experiment"], "replacement", arm,
+                    profile["rule_hash"], run_result, profile_comparability(
+                        scenario["arms"]["off"], run_result,
+                        scenario["stats_experiment"] is not None)))
+        for path, mode, arm, rule, run_result, comparison in runs:
+            outcomes = run_result["experiment_outcomes"]
+            outcome = outcomes[0] if len(outcomes) == 1 else {}
+            status = experiment_run_status(run_result, path is not None)
+            observations.append({
+                "workload": result["workload"],
+                "query": result["query"],
+                "experiment_path": path,
+                "experiment": outcome.get("experiment"),
+                "mode": mode,
+                "arm": arm,
+                "profile_rule_hash": rule,
+                "status": status,
+                "complete": status == "ok",
+                "comparison": comparison,
+                "execution": {field: run_result.get(field) for field in (
+                    "plan_rc", "rows_rc", "rows_skipped", "optimizer", "fallback",
+                    "server_failure", "error", "rows_hash", "timeout_ms",
+                    "plan_ms", "rows_ms", "timing_source",
+                )},
+                "stats": run_result["stats_events"],
+                "rule_inputs": run_result.get("rule_input_observations", []),
+                "candidate_events": run_result.get("candidate_events", []),
+                "input_stats_reference": result.get("input_stats_reference"),
+                "search": {
+                    **(run_result["dsl_observability"]["memo"] or {}),
+                    **(run_result["dsl_observability"]["pipeline"] or {}),
+                    **outcome,
+                    **{field: run_result[field] for field in (
+                        "optimization_ms", "planning_ms", "execution_ms",
+                    )},
+                },
+                "rules": run_result["dsl_observability"]["rules"],
+                "candidates": run_result["dsl_observability"]["candidates"],
+                "candidate_outcomes": run_result["dsl_observability"]["candidate_outcomes"],
+            })
     return observations
 
 
@@ -780,10 +1216,19 @@ def experiment_distribution_summary(
 ) -> dict[str, Any]:
     grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for observation in observations:
-        grouped[(observation["experiment"], observation["mode"], observation["arm"])].append(observation)
+        grouped[(observation["experiment_path"], observation["mode"],
+                 observation["arm"], observation["profile_rule_hash"])].append(observation)
 
     summaries = []
-    for (experiment, mode, arm), runs in sorted(grouped.items(), key=lambda item: str(item[0])):
+    for (path, mode, arm, profile_rule), all_runs in sorted(grouped.items(), key=lambda item: str(item[0])):
+        ids = {run["experiment"] for run in all_runs if run["experiment"] is not None}
+        experiment = next(iter(ids)) if len(ids) == 1 else None
+        run_statuses: dict[str, int] = defaultdict(int)
+        for run in all_runs:
+            run_statuses[run["status"]] += 1
+        # Partial counters are retained in observations, not zero-filled into
+        # successful-run distributions or interpreted as completed search work.
+        runs = [run for run in all_runs if run["complete"]]
         search_fields = sorted({
             field
             for run in runs
@@ -886,9 +1331,17 @@ def experiment_distribution_summary(
 
         summaries.append({
             "experiment": experiment,
+            "experiment_path": path,
             "mode": mode,
             "arm": arm,
-            "runs": len(runs),
+            "profile_rule_hash": profile_rule,
+            "runs": len(all_runs),
+            "complete_runs": len(runs),
+            "status_counts": dict(sorted(run_statuses.items())),
+            "result_comparable_runs": sum(
+                bool(run["comparison"] and run["comparison"]["result_comparable"])
+                for run in all_runs
+            ),
             "statistics": {
                 selector: {
                     field: distribution(values) for field, values in fields.items()
@@ -923,7 +1376,16 @@ def experiment_distribution_summary(
                 "workload": run["workload"],
                 "query": run["query"],
                 "experiment": run["experiment"],
+                "experiment_path": run["experiment_path"],
+                "status": run["status"],
+                "complete": run["complete"],
+                "comparison": run["comparison"],
                 "intervened": event.get("kind") == "stats_injection",
+                # Keep the joint intervention when projecting one axis; this
+                # is not an isolated response curve if other targets also vary.
+                "intervention_targets": run["search"].get("stats_targets"),
+                "site": event.get("site"),
+                "scale_basis": "stats_at_application",
                 "native_rows": native,
                 "effective_rows": effective,
                 "scale": (
@@ -949,7 +1411,7 @@ def experiment_distribution_summary(
                 },
                 "candidate_triggers": run["candidates"],
             }
-            curves[(selector, run["mode"], run["arm"])].append(point)
+            curves[(selector, run["mode"], run["arm"], run["profile_rule_hash"])].append(point)
 
     return {
         "groups": summaries,
@@ -958,6 +1420,7 @@ def experiment_distribution_summary(
                 "selector": selector,
                 "mode": mode,
                 "arm": arm,
+                "profile_rule_hash": rule,
                 "points": sorted(
                     points,
                     key=lambda point: (
@@ -968,7 +1431,7 @@ def experiment_distribution_summary(
                     ),
                 ),
             }
-            for (selector, mode, arm), points in sorted(
+            for (selector, mode, arm, rule), points in sorted(
                 curves.items(), key=lambda item: str(item[0])
             )
         ],
@@ -996,6 +1459,8 @@ def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Pa
         ),
     }
     for arm, fields in entries.items():
+        if arm == "rbo" and getattr(args, "profile_cbo_only", False):
+            continue
         path = root / f"profile-{arm}.policy"
         path.write_text(f"- rule: {args.profile_rule}\n{fields}", encoding="utf-8")
         policies[arm] = path
@@ -1004,10 +1469,29 @@ def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Pa
 
 def main() -> int:
     args = parse_args()
+    workloads = args.workload or ["tpch", "tpcds", "job", "sqlstorm"]
+    query_selection = select_workload_queries(args.workload_dir, workloads, args.test)
     args.output.mkdir(parents=True, exist_ok=True)
     pg_bindir = Path(subprocess.check_output([args.pg_config, "--bindir"], text=True).strip())
+    pg_libdir = Path(subprocess.check_output([args.pg_config, "--pkglibdir"], text=True).strip())
+    args.artifact_paths = {"postgres": pg_bindir / "postgres", "pg_orca": pg_libdir / "pg_orca.so",
+                           "rule_audit": Path(args.audit_bin), "rules": args.rule_file,
+                           "runner": Path(__file__)}
+    args.artifact_start = artifact_snapshot(args.artifact_paths)
+    if any("error" in item for item in args.artifact_start.values()):
+        raise ValueError(f"cannot fingerprint experiment artifacts: {args.artifact_start}")
     semantic_xforms, hash_xforms, semantic_xform_set, join_xforms = inventory(args)
-    workloads = args.workload or ["tpch", "tpcds", "job", "sqlstorm"]
+    args.input_stats_reference_snapshot = None
+    if args.input_stats_reference:
+        workload = workloads[0]
+        queries = query_selection[workload]
+        if len(queries) != 1:
+            raise ValueError("input statistics reference requires exactly one selected query")
+        if args.input_stats_reference.resolve().is_relative_to(args.output.resolve()):
+            raise ValueError("reference must be outside the new output directory")
+        args.input_stats_reference_snapshot = load_input_stats_reference(
+            args.input_stats_reference, workload, queries[0],
+            args.workload_dir / workload / "schema.sql", args.setup_sql)
     with tempfile.TemporaryDirectory(prefix="pgorca-workloads.", dir="/tmp") as temporary:
         root = Path(temporary)
         data = root / "data"
@@ -1028,8 +1512,12 @@ def main() -> int:
         if start.returncode:
             raise RuntimeError(start.stdout)
         results = []
+        fixture_context = {}
         try:
             for workload in workloads:
+                queries = query_selection[workload]
+                if not queries:
+                    continue
                 database = f"dsl_{workload}"
                 created = run([str(pg_bindir / "createdb"), "-h", str(socket), "-p", str(args.port), database], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 if created.returncode:
@@ -1042,12 +1530,32 @@ def main() -> int:
                 ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
                 if loaded.returncode:
                     raise RuntimeError(f"{workload} schema failed:\n{loaded.stdout}")
-                queries = [
-                    query
-                    for query in sorted((args.workload_dir / workload / "sql").glob("*.sql"))
-                    if selected(workload, query, args.test)
-                ]
-
+                fixture_context = {"workload": workload,
+                    "schema_crc32": f"{zlib.crc32(schema.read_bytes()):08x}", "setup": None}
+                if args.setup_sql:
+                    setup = args.setup_sql.read_text(encoding="utf-8")
+                    _, error, rc, _ = psql(pg_bindir / "psql", socket, args.port, database,
+                                          "SET pg_orca.enable_orca=off;\n" + setup, args.timeout)
+                    if rc:
+                        raise RuntimeError(f"{workload} data setup failed:\n{error}")
+                    fixture_context["setup"] = {"path": str(args.setup_sql.resolve()),
+                        "crc32": f"{zlib.crc32(setup.encode()):08x}"}
+                reference = args.input_stats_reference_snapshot
+                if reference and (
+                        fixture_context["schema_crc32"] != reference["fixture"]["schema_crc32"]
+                        or fixture_context["setup"]["crc32"] != reference["fixture"]["setup"]["crc32"]):
+                    raise ValueError("fixture changed since input statistics reference was loaded")
+                if args.cardinality_probes:
+                    probes = json.loads(args.cardinality_probes.read_text(encoding="utf-8"))
+                    measured = collect_cardinalities(pg_bindir / "psql", socket, args.port,
+                                                     database, probes, args.timeout)
+                    (args.output / "actual-cardinalities.json").write_text(json.dumps({
+                        "schema_version": 1, "baseline_kind": "measured_actual_rows",
+                        "fixture": fixture_context, "mapping": "explicit_sql_to_logical_target",
+                        "targets": measured,
+                    }, indent=2) + "\n", encoding="utf-8")
+                    if any(probe["status"] != "ok" for probe in measured):
+                        raise RuntimeError("cardinality probes failed; see actual-cardinalities.json")
                 def compare(query: Path) -> dict[str, Any]:
                     return compare_query(
                         args, pg_bindir / "psql", socket, database, workload, query,
@@ -1067,6 +1575,8 @@ def main() -> int:
                     )
                 query_by_name = {query.name: query for query in queries}
                 for index, result in enumerate(workload_results):
+                    if args.timing_repeats or args.stats_experiment or args.profile_rule:
+                        continue  # Preserve experimental failures, including the first crash.
                     if not any(mode["server_failure"] for mode in all_mode_results(result)):
                         continue
                     if not wait_ready(pg_bindir / "pg_isready", socket, args.port, database):
@@ -1079,6 +1589,9 @@ def main() -> int:
 
     observations = experiment_observations(results)
     summary = {
+        "artifact_provenance": {"before_server_start": args.artifact_start,
+            "all_query_endpoints_equal": all(result["artifact_provenance"]["endpoints_equal"] for result in results)},
+        "fixture": fixture_context if args.setup_sql or args.cardinality_probes else None,
         "queries": len(results),
         "outcome_equal": sum(result["outcome_equal"] for result in results),
         "rows_equal": sum(result["rows_equal"] for result in results),
@@ -1162,6 +1675,12 @@ def main() -> int:
                 len(result["rule_profile"]["scenarios"])
                 for result in results if result["rule_profile"] is not None
             ),
+            "result_comparable": sum(
+                comparison["result_comparable"]
+                for result in results if result["rule_profile"] is not None
+                for scenario in result["rule_profile"]["scenarios"]
+                for comparison in scenario["comparisons"].values()
+            ),
             "outcome_equal": sum(
                 comparison["outcome_equal"]
                 for result in results if result["rule_profile"] is not None
@@ -1179,13 +1698,35 @@ def main() -> int:
             observations
         ),
     }
+    if args.postgres_oracle:
+        summary['postgres_oracle'] = {
+            'queries': len(results),
+            'valid': sum(result['postgres_oracle']['valid'] for result in results),
+            'mode_bag_equal': {mode: sum(result['postgres_oracle']['mode_bag_equal'][mode]
+                                         for result in results)
+                               for mode in ('native', 'replacement')},
+        }
+    if args.timing_repeats:
+        samples = [sample for result in results
+                   for sample in (result["rule_profile"] or {}).get("timing", {}).get("samples", [])]
+        summary["profile_timing"] = {}
+        for phase in ("warmup", "measurement"):
+            subset = [s for s in samples if s["phase"] == phase]
+            summary["profile_timing"][phase] = {
+                "attempts": len(subset),
+                "statuses": {status: sum(s["status"] == status for s in subset)
+                             for status in sorted({s["status"] for s in subset})},
+                "diagnostic_comparable": sum(not s["comparison_exclusions"] for s in subset),
+            }
     (args.output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     (args.output / "experiment_observations.jsonl").write_text(
         "".join(json.dumps(observation, sort_keys=True) + "\n" for observation in observations),
         encoding="utf-8",
     )
     failed = any(
-        result["coverage_status"] == "replacement_failed"
+        not result["artifact_provenance"]["endpoints_equal"]
+        or result["coverage_status"] == "replacement_failed"
+        or (args.postgres_oracle and not result['postgres_oracle']['valid'])
         or not result["outcome_equal"]
         or (
             result["coverage_status"] == "comparable"
@@ -1194,12 +1735,17 @@ def main() -> int:
         or not result["join_enumeration_replaced"]
         or result["forbidden_native_origins"]
         or any(
+            experiment_run_status(mode, True) != "ok"
+            for experiment in result["stats_experiments"]
+            for mode in experiment["modes"].values()
+        )
+        or any(
             not comparison["outcome_equal"] or not comparison["rows_equal"]
             for experiment in result["stats_experiments"]
             for comparison in experiment["comparisons"].values()
         )
         or any(
-            not comparison["outcome_equal"] or not comparison["rows_equal"]
+            not comparison["result_comparable"]
             for scenario in (
                 [] if result["rule_profile"] is None
                 else result["rule_profile"]["scenarios"]
@@ -1207,6 +1753,8 @@ def main() -> int:
             for comparison in scenario["comparisons"].values()
         )
         or (args.strict and (not result["trigger_set_equal"] or not result["trigger_order_equal"] or result["plan_comparison"] != "identical"))
+        or any(sample["comparison_exclusions"]
+               for sample in (result["rule_profile"] or {}).get("timing", {}).get("samples", []))
         for result in results
     )
     return 1 if failed else 0

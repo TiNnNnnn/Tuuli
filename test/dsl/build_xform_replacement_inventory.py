@@ -129,8 +129,15 @@ def read_matrices(expect_dir: Path) -> list[dict[str, Any]]:
 
 
 def merge_inventory(
-    runtime: dict[str, Any], matrices: list[dict[str, Any]]
+    runtime: dict[str, Any], matrices: list[dict[str, Any]], rule_graph: dict | None = None
 ) -> dict[str, Any]:
+    if rule_graph is not None:
+        known = {node['rule_hash'] for node in rule_graph['nodes']}
+        for matrix in matrices:
+            missing = set(matrix.get('dsl_rule_hashes', [])) - known
+            if missing:
+                raise ValueError(f"{matrix['case']}: replacement evidence references absent rules: "
+                                 + ', '.join(sorted(missing)))
     xforms = runtime.get("xforms")
     if not isinstance(xforms, list):
         raise ValueError("runtime audit has no xforms array")
@@ -228,13 +235,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--trace", type=Path)
     parser.add_argument("--allow-native-origin", action="append", default=[])
     parser.add_argument("--strict-provenance", action="store_true")
+    parser.add_argument("--rule-graph", type=Path, help="production rule_graph.json for identity validation")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     runtime = json.loads(args.runtime_audit.read_text(encoding="utf-8"))
-    inventory = merge_inventory(runtime, read_matrices(args.expect_dir))
+    graph = json.loads(args.rule_graph.read_text()) if args.rule_graph else None
+    inventory = merge_inventory(runtime, read_matrices(args.expect_dir), graph)
     if args.trace is not None:
         inventory["memo_provenance"] = audit_memo_provenance(
             runtime, read_records(args.trace), set(args.allow_native_origin)

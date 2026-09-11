@@ -19,10 +19,12 @@ EDGE_FIELDS = (
     "target_path",
     "src_target_path",
     "dst_source_path",
+    "dst_binding_path",
     "path_kind",
     "scheduler",
     "evidence",
     "relation",
+    "producer_relation",
 )
 
 TRACE_SUFFIXES = {".plan", ".trace"}
@@ -65,7 +67,7 @@ def merge_graph(
     selected_by_state: dict[tuple[Any, ...], dict[str, Any]] = {}
     candidates: dict[tuple[Any, Any], dict[str, Any]] = {}
 
-    def observe(edge: dict[str, Any], binding: object = None) -> None:
+    def observe(edge: dict[str, Any], binding: object = None, status: object = None) -> None:
         key = edge_key(edge)
         merged = indexed.get(key)
         if merged is None:
@@ -75,6 +77,9 @@ def merge_graph(
             edges.append(merged)
             indexed[key] = merged
         merged["observations"] = int(merged.get("observations", 0)) + 1
+        if isinstance(status, str):
+            counts = merged.setdefault("candidate_status_counts", {})
+            counts[status] = int(counts.get(status, 0)) + 1
         if isinstance(binding, str) and binding:
             counts = merged.setdefault("binding_path_counts", {})
             counts[binding] = int(counts.get(binding, 0)) + 1
@@ -189,7 +194,10 @@ def merge_graph(
             "evidence": "runtime_observed",
             "relation": record.get("relation", "followed_by"),
         }
-        observe(observed, record.get("binding_path"))
+        for field in ("dst_binding_path", "producer_relation"):
+            if field in record:
+                observed[field] = record[field]
+        observe(observed, record.get("binding_path"), record.get("candidate_status"))
 
     graph["schema_version"] = max(2, int(graph.get("schema_version", 1)))
     return graph
@@ -219,7 +227,7 @@ def render_dot(graph: dict[str, Any]) -> str:
                 f'{edge.get("relation", "followed_by")}\\n'
                 f'{edge.get("scheduler", "unknown")}:'
                 f'{edge.get("src_target_path", label)}->'
-                f'{edge.get("dst_source_path", "r")}{count}'
+                f'{edge.get("dst_binding_path", edge.get("dst_source_path", "r"))}{count}'
             )
         lines.append(
             f'  "{dot_escape(edge["src_rule"])}" -> '
