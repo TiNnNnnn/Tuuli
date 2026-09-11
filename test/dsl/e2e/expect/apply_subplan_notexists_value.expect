@@ -1,0 +1,72 @@
+{
+  "description": "Execute NOT EXISTS through PG NOT(EXISTS SubPlan), without optional decorrelation or ordinary Apply implementation",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations",
+        "CXformInnerApplyWithOuterKey2InnerJoin",
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+        "CXformLeftSemiApply2LeftSemiJoin",
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformImplementApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "SubPlan"
+      ],
+      "alternative": [
+        "CXformImplementLeftOuterCorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations",
+      "CXformInnerApplyWithOuterKey2InnerJoin",
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+      "CXformLeftSemiApply2LeftSemiJoin",
+      "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+      "CXformImplementApply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,t",
+      "2,t",
+      "3,f",
+      "4,t",
+      "5,t",
+      "6,t"
+    ],
+    "postgres_output": [
+      "1,t",
+      "2,t",
+      "3,f",
+      "4,t",
+      "5,t",
+      "6,t"
+    ]
+  }
+}

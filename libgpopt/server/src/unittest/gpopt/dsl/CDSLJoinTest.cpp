@@ -14,6 +14,10 @@
 
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/common/CAutoRef.h"
+#include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CPatternNode.h"
+#include "gpopt/xforms/CXformImplementApply.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -252,6 +256,7 @@ GPOS_RESULT
 CDSLJoinTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PhysicalApply),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_InstantiatePreservesJoin),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_FullJoinRoundTrip),
@@ -296,6 +301,96 @@ CDSLJoinTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_PhysicalApply()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CXformImplementApply> xform(GPOS_NEW(mp) CXformImplementApply(mp));
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	CAutoRef<CPatternNode> pattern(
+		GPOS_NEW(mp) CPatternNode(mp, CPatternNode::EmtMatchRegularApply));
+	for (auto kind :
+		 {COperator::EopLogicalInnerApply, COperator::EopLogicalLeftOuterApply,
+		  COperator::EopLogicalLeftSemiApply,
+		  COperator::EopLogicalLeftSemiApplyIn,
+		  COperator::EopLogicalLeftAntiSemiApply,
+		  COperator::EopLogicalLeftAntiSemiApplyNotIn})
+	{
+		CColRefArray *left_cols, *right_cols;
+		auto *left = fix.PexprLogicalGet("apply_left", 2, &left_cols);
+		auto *right = fix.PexprLogicalGet("apply_right", 2, &right_cols);
+		auto *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append((*right_cols)[0]);
+		auto *predicate = fix.PexprEqPred((*left_cols)[1], (*right_cols)[1]);
+		// A non-leaf inner input has a separate outer reference: both this
+		// correlation and the Apply-local predicate must survive unchanged.
+		right = CUtils::PexprLogicalSelect(
+			mp, right, fix.PexprEqPred((*left_cols)[0], (*right_cols)[0]));
+		COperator *logical = nullptr;
+		COperator::EOperatorId expected = COperator::EopSentinel;
+		switch (kind)
+		{
+		case COperator::EopLogicalInnerApply:
+			logical = GPOS_NEW(mp)
+				CLogicalInnerApply(mp, columns, COperator::EopScalarSubquery);
+			expected = COperator::EopPhysicalInnerNLJoin;
+			break;
+		case COperator::EopLogicalLeftOuterApply:
+			logical = GPOS_NEW(mp) CLogicalLeftOuterApply(
+				mp, columns, COperator::EopScalarSubquery);
+			expected = COperator::EopPhysicalLeftOuterNLJoin;
+			break;
+		case COperator::EopLogicalLeftSemiApply:
+			logical = GPOS_NEW(mp) CLogicalLeftSemiApply(
+				mp, columns, COperator::EopScalarSubqueryExists);
+			expected = COperator::EopPhysicalLeftSemiNLJoin;
+			break;
+		case COperator::EopLogicalLeftSemiApplyIn:
+			logical = GPOS_NEW(mp) CLogicalLeftSemiApplyIn(
+				mp, columns, COperator::EopScalarSubqueryAny);
+			expected = COperator::EopPhysicalLeftSemiNLJoin;
+			break;
+		case COperator::EopLogicalLeftAntiSemiApply:
+			logical = GPOS_NEW(mp) CLogicalLeftAntiSemiApply(
+				mp, columns, COperator::EopScalarSubqueryNotExists);
+			expected = COperator::EopPhysicalLeftAntiSemiNLJoin;
+			break;
+		case COperator::EopLogicalLeftAntiSemiApplyNotIn:
+			logical = GPOS_NEW(mp) CLogicalLeftAntiSemiApplyNotIn(
+				mp, columns, COperator::EopScalarSubqueryAll);
+			expected = COperator::EopPhysicalLeftAntiSemiNLJoinNotIn;
+			break;
+		default:
+			GPOS_ASSERT(false);
+		}
+		GPOS_UNITTEST_ASSERT(pattern->MatchesOperator(kind));
+		CAutoRef<CExpression> expr(
+			GPOS_NEW(mp) CExpression(mp, logical, left, right, predicate));
+		// This fixture uses the GPDB cost model: the new implementation must
+		// leave its existing correlated/distributed execution path unchanged.
+		CExpressionHandle handle(mp);
+		handle.Attach(expr.Value());
+		GPOS_UNITTEST_ASSERT(xform->Exfp(handle) == CXform::ExfpNone);
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		xform->Transform(context.Value(), result.Value(), expr.Value());
+		GPOS_UNITTEST_ASSERT(result->Size() == 1);
+		auto *physical = (*result->Pdrgpexpr())[0];
+		GPOS_UNITTEST_ASSERT(physical->Pop()->Eopid() == expected &&
+							 physical->Arity() == 3);
+		for (ULONG i = 0; i < 3; ++i)
+			GPOS_UNITTEST_ASSERT((*physical)[i] == (*expr)[i]);
+	}
+	GPOS_UNITTEST_ASSERT(
+		!pattern->MatchesOperator(COperator::EopLogicalInnerCorrelatedApply));
+	GPOS_UNITTEST_ASSERT(!pattern->MatchesOperator(
+		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn));
+	GPOS_UNITTEST_ASSERT(
+		!pattern->MatchesOperator(COperator::EopLogicalInnerJoin));
+	return GPOS_OK;
 }
 
 GPOS_RESULT

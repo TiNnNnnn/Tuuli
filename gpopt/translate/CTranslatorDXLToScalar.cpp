@@ -852,6 +852,13 @@ CTranslatorDXLToScalar::TranslateDXLScalarSubplanToScalar(
 
 	SubLinkType slink = CTranslatorUtils::MapDXLSubplanToSublinkType(
 		dxlop->GetDxlSubplanType());
+	// NOT_EXISTS_SUBLINK is a GPDB-only tag. PG executes the same semantics
+	// with NOT over EXISTS; keep its child plan and all parameter bindings.
+	const BOOL negate_exists = slink == NOT_EXISTS_SUBLINK;
+	if (negate_exists)
+	{
+		slink = EXISTS_SUBLINK;
+	}
 	Expr *test_expr = TranslateDXLSubplanTestExprToScalar(
 		dxlop->GetDxlTestExpr(), slink, colid_var, dxlop->FOuterParam(),
 		&param_ids);
@@ -914,19 +921,6 @@ CTranslatorDXLToScalar::TranslateDXLScalarSubplanToScalar(
 	GPOS_ASSERT(nullptr != plan_child->targetlist &&
 				1 <= gpdb::ListLength(plan_child->targetlist));
 
-	// NOT_EXISTS_SUBLINK means ORCA could not decorrelate the NOT EXISTS
-	// into an anti-join (e.g. due to LIMIT or skip-level correlations).
-	// PG18's executor has no native support for this subplan type, and any
-	// workaround here produces either incorrect semantics or O(N^k) plans.
-	// Signal failure so pg_orca falls back to standard_planner, which
-	// handles all NOT EXISTS cases correctly (anti-join or safe subplan).
-	if (slink == NOT_EXISTS_SUBLINK)
-	{
-		GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiDXL2PlStmtConversion,
-				   GPOS_WSZ_LIT("NOT EXISTS correlated subplan not supported; "
-								"falling back to standard planner"));
-	}
-
 	// translate subplan and set test expression
 	SubPlan *subplan =
 		TranslateSubplanFromChildPlan(plan_child, slink, dxl_to_plstmt_ctxt);
@@ -984,6 +978,14 @@ CTranslatorDXLToScalar::TranslateDXLScalarSubplanToScalar(
 		return (Expr *) prm;
 	}
 
+	if (negate_exists)
+	{
+		auto *negation = MakeNode(BoolExpr);
+		negation->boolop = NOT_EXPR;
+		negation->args = ListMake1(subplan);
+		negation->location = -1;
+		return (Expr *) negation;
+	}
 	return (Expr *) subplan;
 }
 

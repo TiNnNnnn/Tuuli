@@ -71,6 +71,7 @@ CLogicalLeftAntiSemiApply::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(
 		CXform::ExfLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations);
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleNotExists);
+	(void) xform_set->ExchangeSet(CXform::ExfImplementApply);
 
 	return xform_set;
 }

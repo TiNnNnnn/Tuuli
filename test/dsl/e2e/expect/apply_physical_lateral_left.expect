@@ -1,0 +1,84 @@
+{
+  "description": "Regression: LATERAL already enters as a parameterized Join; preserve the shared NLJ path with LIMIT/OFFSET independently of Apply implementation",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations",
+        "CXformInnerApplyWithOuterKey2InnerJoin",
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+        "CXformLeftSemiApply2LeftSemiJoin",
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformImplementInnerCorrelatedApply",
+        "CXformImplementLeftOuterCorrelatedApply",
+        "CXformImplementLeftSemiCorrelatedApply",
+        "CXformImplementLeftSemiCorrelatedApplyIn",
+        "CXformImplementLeftAntiSemiCorrelatedApply",
+        "CXformImplementLeftAntiSemiCorrelatedApplyNotIn",
+        "CXformImplementApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "Nested Loop"
+      ],
+      "alternative": [
+        "CXformLeftOuterJoin2NLJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations",
+      "CXformInnerApplyWithOuterKey2InnerJoin",
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+      "CXformLeftSemiApply2LeftSemiJoin",
+      "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoin",
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+      "CXformImplementInnerCorrelatedApply",
+      "CXformImplementLeftOuterCorrelatedApply",
+      "CXformImplementLeftSemiCorrelatedApply",
+      "CXformImplementLeftSemiCorrelatedApplyIn",
+      "CXformImplementLeftAntiSemiCorrelatedApply",
+      "CXformImplementLeftAntiSemiCorrelatedApplyNotIn",
+      "CXformImplementApply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,",
+      "2,",
+      "3,",
+      "4,",
+      "5,3",
+      "6,3"
+    ],
+    "postgres_output": [
+      "1,",
+      "2,",
+      "3,",
+      "4,",
+      "5,3",
+      "6,3"
+    ]
+  }
+}

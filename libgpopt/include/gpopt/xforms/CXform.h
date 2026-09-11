@@ -271,6 +271,7 @@ public:
 		ExfDSLRuleCTEAnchor,
 		ExfImplementUnion,
 		ExfImplementSetOp,
+		ExfImplementApply,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

@@ -138,6 +138,7 @@ CLogicalLeftOuterApply::PxfsCandidates(CMemoryPool *mp) const
 	(void) xform_set->ExchangeSet(
 		CXform::ExfLeftOuterApply2LeftOuterJoinNoCorrelations);
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleJoinApply);
+	(void) xform_set->ExchangeSet(CXform::ExfImplementApply);
 
 	return xform_set;
 }

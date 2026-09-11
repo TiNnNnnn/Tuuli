@@ -37,6 +37,7 @@ public:
 		EmtMatchAllApply,
 		EmtMatchJoinApply,
 		EmtMatchIntersectOrDifference,
+		EmtMatchRegularApply,
 		EmtSentinel
 	};
 
@@ -98,6 +99,13 @@ public:
 	{
 		switch (m_match)
 		{
+			case EmtMatchRegularApply:
+				return EopLogicalInnerApply == opid ||
+					   EopLogicalLeftOuterApply == opid ||
+					   EopLogicalLeftSemiApply == opid ||
+					   EopLogicalLeftSemiApplyIn == opid ||
+					   EopLogicalLeftAntiSemiApply == opid ||
+					   EopLogicalLeftAntiSemiApplyNotIn == opid;
 			case EmtMatchIntersectOrDifference:
 				return EopLogicalIntersect == opid || EopLogicalIntersectAll == opid ||
 					EopLogicalDifference == opid || EopLogicalDifferenceAll == opid;
