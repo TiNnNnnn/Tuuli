@@ -1,0 +1,36 @@
+{
+  "description": "Existing CTE Sequence execution remains available when optional inlining is disabled; this is not an all-CTE-rules-off test",
+  "plans": [
+    {
+      "name": "sequence_without_inlining",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCTEAnchor2TrivialSelect",
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CTE Scan"
+      ],
+      "alternative": [
+        "CXformCTEAnchor2Sequence"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCTEAnchor2TrivialSelect",
+      "CXformInlineCTEConsumer",
+      "CXformInlineCTEConsumerUnderSelect"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "t"
+    ],
+    "postgres_output": [
+      "t"
+    ]
+  }
+}

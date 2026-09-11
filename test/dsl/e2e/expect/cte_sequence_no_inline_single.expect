@@ -1,0 +1,101 @@
+{
+  "description": "Existing CTE Sequence execution remains available when optional inlining is disabled; this is not an all-CTE-rules-off test",
+  "plans": [
+    {
+      "name": "default_inline",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "CTE Scan",
+        "Xform: CXformCTEAnchor2Sequence\n"
+      ],
+      "alternative": [
+        "CXformCTEAnchor2TrivialSelect",
+        "CXformInlineCTEConsumer"
+      ]
+    },
+    {
+      "name": "anchor_inline_disabled",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCTEAnchor2TrivialSelect"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CTE Scan"
+      ],
+      "not_contains": [
+        "Xform: CXformCTEAnchor2TrivialSelect\n"
+      ],
+      "alternative": [
+        "CXformCTEAnchor2Sequence"
+      ]
+    },
+    {
+      "name": "consumer_inline_disabled",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CTE Scan"
+      ],
+      "not_contains": [
+        "Xform: CXformInlineCTEConsumer\n",
+        "Xform: CXformInlineCTEConsumerUnderSelect\n"
+      ],
+      "alternative": [
+        "CXformCTEAnchor2Sequence"
+      ]
+    },
+    {
+      "name": "sequence_without_inlining",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCTEAnchor2TrivialSelect",
+        "CXformInlineCTEConsumer",
+        "CXformInlineCTEConsumerUnderSelect"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CTE Scan"
+      ],
+      "not_contains": [
+        "Xform: CXformCTEAnchor2TrivialSelect\n",
+        "Xform: CXformInlineCTEConsumer\n",
+        "Xform: CXformInlineCTEConsumerUnderSelect\n"
+      ],
+      "alternative": [
+        "CXformCTEAnchor2Sequence"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCTEAnchor2TrivialSelect",
+      "CXformInlineCTEConsumer",
+      "CXformInlineCTEConsumerUnderSelect"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

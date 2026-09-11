@@ -11,6 +11,12 @@ def main():
     with tempfile.TemporaryDirectory(prefix='pgorca-template-features.') as directory:
         subprocess.run([sys.argv[1], str(Path(__file__).resolve().parents[2] / 'test/dsl/audit'), directory], check=True)
         nodes = json.loads((Path(directory) / 'rule_graph.json').read_text())['nodes']
+        runtime = json.loads((Path(directory) / 'coverage.json').read_text())
+        categories = {x['name']: x['category'] for x in runtime['xforms']}
+        assert categories['CXformCTEAnchor2Sequence'] == 'implementation_property'
+        for name in ('CXformCTEAnchor2TrivialSelect', 'CXformInlineCTEConsumer',
+                     'CXformInlineCTEConsumerUnderSelect'):
+            assert categories[name] == 'semantic_rewrite'
         assert len(nodes) == 3
         for n in nodes:
             f = n['template_features']

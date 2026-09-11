@@ -134,7 +134,7 @@ jobs:
 
       - name: Build DSL tests and extension
         run: |
-          cmake --build build --target gpopt_dsl_test pg_orca -j "$(nproc)"
+          cmake --build build --target gpopt_dsl_test pg_orca pgorca_rule_audit -j "$(nproc)"
 
       - name: Run DSL unit tests
         run: ctest --test-dir build --output-on-failure --no-tests=error -R '^gpopt_dsl_test$'
@@ -161,6 +161,18 @@ jobs:
             --pg-config /usr/lib/postgresql/18/bin/pg_config \
             --output-dir build/dsl-corpus
 
+      - name: Verify CTE execution without semantic rewrites
+        env:
+          PG_CONFIG: /usr/lib/postgresql/18/bin/pg_config
+          DSL_E2E_OUTPUT_DIR: output/cte-execution-contract
+        run: |
+          build/pgorca_rule_audit test/dsl/audit output/cte-execution-contract/audit
+          python3 tools/pgorca_rule_audit/test_features.py build/pgorca_rule_audit
+          test/dsl/e2e.sh --disable-semantic-xforms output/cte-execution-contract/audit/coverage.json \
+            -t cte_sequence_no_inline_columns -t cte_sequence_no_inline_empty \
+            -t cte_sequence_no_inline_multi -t cte_sequence_no_inline_nested \
+            -t cte_sequence_no_inline_volatile -t cte_sequence_no_inline_rescan
+
       - name: Upload DSL E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -169,6 +181,7 @@ jobs:
           path: |
             build/dsl-e2e/
             build/dsl-corpus/
+            output/cte-execution-contract/
 
   build-centos:
     name: centos-stream9 / gcc / Debug + tests

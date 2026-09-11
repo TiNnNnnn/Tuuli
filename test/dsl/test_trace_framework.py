@@ -57,6 +57,8 @@ from run_e2e_cases import (
     memo_provenance,
     produced_alternative,
     validate_replacement_matrix,
+    semantic_xforms_from_audit,
+    validate_execution_trace,
 )
 from run_trace_corpus import (
     alignment_summary,
@@ -161,6 +163,27 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertNotEqual(before, artifact_snapshot({"engine": path}))
             path.unlink()
             self.assertIn("error", artifact_snapshot({"engine": path})["engine"])
+
+    def test_execution_baseline_disables_only_audited_semantic_xforms(self) -> None:
+        runtime = {"schema_version": 2, "totals": {
+            "native_exploration_xforms": 3, "semantic_rewrite_xforms": 1}, "xforms": [
+            {"name": "CXformInlineCTEConsumer", "category": "semantic_rewrite"},
+            {"name": "CXformCTEAnchor2Sequence", "category": "implementation_property"},
+            {"name": "CXformInnerJoinCommutativity", "category": "join_enumeration"}]}
+        disabled = semantic_xforms_from_audit(runtime)
+        self.assertEqual(disabled, ["CXformInlineCTEConsumer"])
+        self.assertNotIn("CTEAnchor2Sequence", disabled_xform_settings({}, disabled))
+        for invalid in (None, [], {}, {**runtime, "xforms": []},
+                        {**runtime, "totals": {}}, {**runtime, "totals": None},
+                        {**runtime, "xforms": [runtime["xforms"][0]] * 3},
+                        {**runtime, "xforms": [{"name": "CXformBad", "category": "unknown"}]}):
+            with self.assertRaises(ValueError):
+                semantic_xforms_from_audit(invalid)
+        validate_execution_trace("Optimizer: pg_orca\nXform: CXformCTEAnchor2Sequence\n", disabled)
+        for output in ("Seq Scan", "Falling back to Postgres\nOptimizer: pg_orca",
+                       "Optimizer: pg_orca\nXform: CXformInlineCTEConsumer\n"):
+            with self.assertRaises(ValueError):
+                validate_execution_trace(output, disabled)
 
     def test_e2e_expected_sqlstate_rejects_success_and_other_failures(self) -> None:
         args = SimpleNamespace(psql="psql", host="socket", port="1")

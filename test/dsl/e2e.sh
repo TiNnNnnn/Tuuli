@@ -28,12 +28,15 @@ Usage: $0 [-t CASE]...
   -t, --test CASE  Run one case name or pattern; may be repeated
   -x, --disable-xform XFORM
                    Disable one native xform in every state; may be repeated
+  --disable-semantic-xforms AUDIT_JSON
+                   Disable audited semantic rewrites; require ORCA plans and xform trace
   -h, --help       Show this help
 EOF
 }
 
 SELECTED_CASES="${DSL_E2E_CASES:-}"
 DISABLED_XFORMS=()
+AUDIT_ARGS=()
 while (( $# > 0 )); do
     case "$1" in
         -t|--test)
@@ -53,6 +56,12 @@ while (( $# > 0 )); do
         -h|--help)
             usage
             exit 0
+            ;;
+        --disable-semantic-xforms)
+            (( $# >= 2 )) || fail "$1 requires a runtime coverage.json"
+            [[ -r "$2" ]] || fail "runtime audit not found: $2"
+            AUDIT_ARGS=(--disable-semantic-xforms "$2")
+            shift 2
             ;;
         *)
             fail "unknown argument: $1"
@@ -147,6 +156,7 @@ python3 "$SCRIPT_DIR/run_e2e_cases.py" \
     --result-dir "$RESULT_DIR" \
     --diff-dir "$DIFF_DIR" \
     --artifact-dir "$ARTIFACT_DIR" \
+    "${AUDIT_ARGS[@]}" \
     "${CASE_ARGS[@]}"
 
 echo "Actual output: $RESULT_DIR"

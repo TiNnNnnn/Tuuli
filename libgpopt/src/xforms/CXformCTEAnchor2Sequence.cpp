@@ -55,7 +55,13 @@ CXformCTEAnchor2Sequence::Exfp(CExpressionHandle &exprhdl) const
 		COptCtxt::PoctxtFromTLS()->Pcteinfo()->UlConsumers(id);
 	GPOS_ASSERT(0 < ulConsumers);
 
-	if (1 == ulConsumers && CXformUtils::FInlinableCTE(id))
+	// Prefer inlining a single consumer only while both native steps are
+	// available. Disabling either step must not also suppress the independent
+	// Sequence alternative. A DSL inline rule may offer another alternative,
+	// but its presence alone does not guarantee a successful rewrite.
+	if (1 == ulConsumers && CXformUtils::FInlinableCTE(id) &&
+		GPOPT_FENABLED_XFORM(CXform::ExfCTEAnchor2TrivialSelect) &&
+		GPOPT_FENABLED_XFORM(CXform::ExfInlineCTEConsumer))
 	{
 		return CXform::ExfpNone;
 	}

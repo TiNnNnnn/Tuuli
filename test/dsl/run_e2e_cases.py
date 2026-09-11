@@ -37,7 +37,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifact-dir", type=pathlib.Path, required=True)
     parser.add_argument("--cases")
     parser.add_argument("--disable-xform", action="append", default=[])
+    parser.add_argument("--disable-semantic-xforms", type=pathlib.Path,
+                        help="Disable semantic rewrites from this build's coverage.json; retain execution preparation")
     return parser.parse_args()
+
+
+def semantic_xforms_from_audit(runtime: dict[str, object]) -> list[str]:
+    if not isinstance(runtime, dict):
+        raise ValueError("expected runtime xform audit object")
+    entries = runtime.get("xforms", [])
+    categories = {"semantic_rewrite", "join_enumeration", "implementation_property"}
+    if runtime.get("schema_version") != 2 or not isinstance(entries, list) or not entries:
+        raise ValueError("expected nonempty runtime xform audit schema 2")
+    names = set()
+    semantic = []
+    for entry in entries:
+        name = entry.get("name") if isinstance(entry, dict) else None
+        if (not isinstance(name, str) or not XFORM_RE.fullmatch(name)
+                or name in names or entry.get("category") not in categories):
+            raise ValueError("invalid, duplicate or unclassified runtime xform")
+        names.add(name)
+        if entry["category"] == "semantic_rewrite":
+            semantic.append(name)
+    totals = runtime.get("totals", {})
+    if (not isinstance(totals, dict) or not semantic
+            or totals.get("native_exploration_xforms") != len(entries)
+            or totals.get("semantic_rewrite_xforms") != len(semantic)):
+        raise ValueError("incomplete runtime xform audit")
+    return sorted(semantic)
+
+
+def validate_execution_trace(output: str, disabled: list[str]) -> None:
+    if "Optimizer: pg_orca" not in output or "Falling back to Postgres" in output:
+        raise ValueError("execution baseline requires an ORCA plan, not fallback")
+    fired = [name for name in disabled if f"Xform: {name}\n" in output]
+    if fired:
+        raise ValueError(f"disabled xforms fired: {fired}")
 
 
 def psql_command(args: argparse.Namespace, tuples_only: bool = False) -> list[str]:
@@ -417,6 +452,16 @@ def main() -> int:
     args.result_dir.mkdir(parents=True, exist_ok=True)
     args.diff_dir.mkdir(parents=True, exist_ok=True)
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
+    if not sql_files:
+        raise ValueError("no E2E cases selected")
+    if args.disable_semantic_xforms:
+        runtime = json.loads(args.disable_semantic_xforms.read_text(encoding="utf-8"))
+        semantic = semantic_xforms_from_audit(runtime)
+        args.disable_xform = sorted(set(args.disable_xform) | set(semantic))
+        (args.artifact_dir / "execution-policy.json").write_text(canonical({
+            "runtime_xforms": runtime["xforms"],
+            "disabled_xforms": args.disable_xform,
+        }), encoding="utf-8")
 
     failed = []
     for sql_path in sql_files:
@@ -434,9 +479,13 @@ def main() -> int:
         actual["plans"] = []
 
         for plan in expectation.get("plans", []):
+            if args.disable_semantic_xforms and not plan.get("xform_trace", plan.get("trace", False)):
+                raise ValueError("execution baseline requires xform trace in every plan state")
             output = run_plan(args, query, plan)
             artifact = args.artifact_dir / f"{case_name}.{plan['name']}.plan"
             artifact.write_text(output + "\n", encoding="utf-8")
+            if args.disable_semantic_xforms:
+                validate_execution_trace(output, args.disable_xform)
             actual["plans"].append(actual_plan(plan, output))
         if "rows" in expectation:
             actual["rows"] = actual_rows(args, query, expectation["rows"])
