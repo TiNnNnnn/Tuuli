@@ -121,6 +121,10 @@ def parse_args() -> argparse.Namespace:
                         help="JSON targets with operator/fingerprint and row-producing SQL to count")
     parser.add_argument("--input-stats-reference", type=Path,
                         help="preload native discovery comparison.json as external input statistics, not optimizer stats")
+    parser.add_argument("--dro-contract", type=Path, help="bind a frozen DRO contract before starting PostgreSQL")
+    parser.add_argument("--dro-unit", help="preassigned independent unit ID (repeats remain inside this unit)")
+    parser.add_argument("--dro-describe", action="store_true",
+                        help="write acquisition descriptor only; do not initialize or start PostgreSQL")
     args = parser.parse_args()
     if any(not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_-]*", name) for name in (args.workload or [])):
         parser.error("workload must be a directory name, not a path")
@@ -130,6 +134,11 @@ def parse_args() -> argparse.Namespace:
         parser.error("timing repeats/warmups must be nonnegative")
     if args.timing_repeats and (not args.profile_rule or args.jobs != 1):
         parser.error("timing requires --profile-rule and --jobs 1")
+    if bool(args.dro_contract) != bool(args.dro_unit) or (args.dro_describe and args.dro_contract):
+        parser.error("pair --dro-contract with --dro-unit; --dro-describe is a separate preflight")
+    if (args.dro_contract or args.dro_describe) and not (
+            args.profile_cbo_only and args.timing_repeats > 0 and args.postgres_oracle):
+        parser.error("DRO collection requires --profile-cbo-only, positive --timing-repeats and --postgres-oracle")
     if args.unbounded:
         args.policy_file = None
     missing = [path for path in args.stats_experiment if not path.is_file()]
@@ -931,6 +940,8 @@ def compare_query(
     join_xforms: set[str],
 ) -> dict[str, Any]:
     query_bytes = query_path.read_bytes()
+    if getattr(args, 'dro_receipt', None) is not None and artifact_snapshot(args.dro_input_paths) != args.dro_input_start:
+        raise ValueError('DRO input files changed after contract binding and before query execution')
     reference = getattr(args, "input_stats_reference_snapshot", None)
     if reference and (reference["workload"] != workload
                       or reference["query_crc32"] != f"{zlib.crc32(query_bytes):08x}"):
@@ -1112,6 +1123,9 @@ def compare_query(
             "endpoints_equal": end == args.artifact_start,
             "scope": "file_contents_at_endpoints_not_continuous_install_monitoring",
         }
+    if getattr(args, 'dro_receipt', None) is not None:
+        result['dro_collection'] = {**args.dro_receipt,
+            'input_endpoints_equal': artifact_snapshot(args.dro_input_paths) == args.dro_input_start}
     for mode in [*modes.values(), *(
         mode
         for experiment in stats_experiments
@@ -1467,6 +1481,36 @@ def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Pa
     return policies
 
 
+def collection_descriptor(args, query_selection, semantic_xforms):
+    """Describe actual files/settings; one selected SQL per independently assigned unit."""
+    from calibrate_rule_dro import contract_identity
+
+    selected = [(workload, query) for workload, queries in query_selection.items() for query in queries]
+    if len(selected) != 1:
+        raise ValueError('DRO collection requires exactly one selected query per unit')
+    workload, query = selected[0]
+    paths = {'query': query, 'schema': args.workload_dir / workload / 'schema.sql',
+             **{f'stats_{i}': path for i, path in enumerate(args.stats_experiment)}}
+    paths.update({key: path for key in ('setup_sql', 'policy_file', 'input_stats_reference', 'cardinality_probes')
+                  if (path := getattr(args, key, None)) is not None})
+    paths.update({f'profile_{arm}': path for arm, path in args.profile_policies.items()})
+    args.dro_input_paths = paths
+    args.dro_input_start = artifact_snapshot(paths)
+    if any('error' in item for item in args.dro_input_start.values()):
+        raise ValueError('cannot fingerprint DRO input files')
+    content = lambda snapshot: {key: {field: item[field] for field in ('crc32', 'size')}
+                                for key, item in snapshot.items()}
+    return {'environment_identity': contract_identity(content(args.artifact_start)),
+            'policies': {arm: contract_identity({'policy': path.read_text(encoding='utf-8'),
+                                                'background': 'engine_defaults_not_policy_file'})
+                         for arm, path in args.profile_policies.items()},
+            'inputs': content(args.dro_input_start), 'workload': workload,
+            'protocol': {key: getattr(args, key) for key in ('timeout', 'jobs', 'timing_repeats',
+                         'timing_warmups', 'timing_seed', 'profile_rule', 'profile_effect', 'postgres_oracle')},
+            'semantic_xforms': semantic_xforms,
+            'scope': 'actual_runner_acquisition_descriptor_not_sampling_justification'}
+
+
 def main() -> int:
     args = parse_args()
     workloads = args.workload or ["tpch", "tpcds", "job", "sqlstorm"]
@@ -1477,6 +1521,9 @@ def main() -> int:
     args.artifact_paths = {"postgres": pg_bindir / "postgres", "pg_orca": pg_libdir / "pg_orca.so",
                            "rule_audit": Path(args.audit_bin), "rules": args.rule_file,
                            "runner": Path(__file__)}
+    if args.dro_contract or args.dro_describe:
+        args.artifact_paths.update(dro_calibration=SCRIPT_DIR / 'calibrate_rule_dro.py',
+                                   dro_math=SCRIPT_DIR / 'rule_dro.py')
     args.artifact_start = artifact_snapshot(args.artifact_paths)
     if any("error" in item for item in args.artifact_start.values()):
         raise ValueError(f"cannot fingerprint experiment artifacts: {args.artifact_start}")
@@ -1500,6 +1547,17 @@ def main() -> int:
         args.profile_policies = (
             write_profile_policies(root, args) if args.profile_rule else {}
         )
+        if args.dro_contract or args.dro_describe:
+            from calibrate_rule_dro import bind_collection
+            descriptor = collection_descriptor(args, query_selection, semantic_xforms)
+            if args.dro_describe:
+                with (args.output / 'dro-acquisition.json').open('x') as stream:
+                    stream.write(json.dumps(descriptor, indent=2) + '\n')
+                return 0
+            contract = json.loads(args.dro_contract.read_text())
+            args.dro_receipt = bind_collection(contract, args.dro_unit, descriptor)
+            with (args.output / 'dro-collection.json').open('x') as stream:
+                stream.write(json.dumps({'contract': contract, 'binding': args.dro_receipt}, indent=2) + '\n')
         init = run([str(pg_bindir / "initdb"), "-D", str(data), "--no-locale", "--encoding=UTF8"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         if init.returncode:
             raise RuntimeError(init.stdout)

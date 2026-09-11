@@ -36,6 +36,8 @@ from profile_data_scale import scale_setups
 from compare_rule_curves import model_check, transport_check, additive_response_check, clipped_affine_check, summarize as summarize_curve
 from evaluate_rule_dimensions import (fit_dimensions, score_dimensions, pooled_cells,
                                       template_cells, validate as validate_dimensions)
+from rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget
+from calibrate_rule_dro import calibrate, validate_contract, contract_identity, audit_timing_input, bind_collection, timing_records
 from export_rule_examples import render_example, decode_records as decode_rule_examples, summarize_examples
 from build_xform_replacement_inventory import (
     audit_memo_provenance,
@@ -3209,6 +3211,404 @@ class RuleExampleExportTest(unittest.TestCase):
         values = [row.expressions[0] for row in rows]
         self.assertTrue(all(not isinstance(v, exp.Null) for v in values))
         self.assertEqual(len({v.sql() for v in values}), len(rows))
+
+
+class RuleDROTest(unittest.TestCase):
+    def test_cdf_extrema_against_exhaustive_probability_simplex(self):
+        from fractions import Fraction as F
+        from itertools import combinations_with_replacement
+
+        # Enumerate ALL quarter-mass distributions on {0,1,2}. For these eta
+        # values the CDF extremizers are on this grid, so this is an exact oracle
+        # independent of the implementation's sorted mass transfer.
+        distributions = list(combinations_with_replacement(range(3), 4))
+        for values in distributions:
+            for eta in (F(0), F(1, 4), F(1, 2), F(1)):
+                feasible = [q for q in distributions if all(
+                    abs(F(sum(x <= t for x in q) - sum(x <= t for x in values), 4)) <= eta
+                    for t in (0, 1, 2))]
+                for threshold in (F(-1), F(0), F(1, 2), F(1), F(3, 2), F(2), F(3)):
+                    for tail in ('below', 'above'):
+                        bound = cdf_metric_bounds(values, (0, 2), bandwidth=eta, threshold=threshold, tail=tail)
+                        worst = max(F(sum(x < threshold if tail == 'below' else x > threshold for x in q), 4)
+                                    for q in feasible)
+                        self.assertEqual(bound['violation_upper'], worst)
+                        self.assertEqual(bound['mean_lower'], min(F(sum(q), 4) for q in feasible))
+                        self.assertEqual(bound['mean_upper'], max(F(sum(q), 4) for q in feasible))
+                        w1 = metric_bounds(values, (0, 2), radius=2*eta, threshold=threshold, tail=tail)
+                        self.assertLessEqual(bound['violation_upper'], w1['violation_upper'])
+                        self.assertGreaterEqual(bound['mean_lower'], w1['mean_lower'])
+                        self.assertLessEqual(bound['mean_upper'], w1['mean_upper'])
+
+    def test_cdf_atoms_support_and_coverage_are_not_w1_drift_robustness(self):
+        from fractions import Fraction as F
+
+        result = cdf_metric_bounds([0], (-1, 1), bandwidth=F(1, 10), threshold=0, tail='below')
+        self.assertAlmostEqual(result['violation_upper'], 0.1)
+        # Arbitrarily small W1 movement of a boundary atom can violate with
+        # probability one. A stationary CDF band does NOT cover that drift.
+        self.assertEqual(metric_bounds([0], (-1, 1), radius=1e-12,
+                                       threshold=0, tail='below')['violation_upper'], 1)
+        for eta in (F(0), F(1, 3), F(1)):
+            for threshold, expected in ((0, 0), (1, 1)):
+                self.assertEqual(cdf_metric_bounds([0], (0, 0), bandwidth=eta,
+                                                   threshold=threshold, tail='below')['violation_upper'], expected)
+        for eta in (-1, 2, True, float('nan')):
+            with self.assertRaises(ValueError):
+                cdf_metric_bounds([0], (0, 1), bandwidth=eta, threshold=0, tail='below')
+        for n in (6, 20, 50):
+            eta = dkw_w1_radius(n, (0, 1), beta=F(1, 20), comparisons=3)
+            covered = F(0)
+            for k in range(n + 1):
+                values = [1]*k + [0]*(n-k)
+                result = cdf_metric_bounds(values, (0, 1), bandwidth=eta, threshold=F(1, 2), tail='above')
+                if F(result['mean_lower']) <= F(1, 2) <= F(result['mean_upper']) and F(result['violation_upper']) >= F(1, 2):
+                    covered += F(math.comb(n, k), 2**n)
+            self.assertGreaterEqual(covered**3, F(19, 20))
+
+    def test_transport_bounds_against_independent_exact_dual(self):
+        from fractions import Fraction as F
+        from itertools import combinations_with_replacement
+
+        # The piecewise-linear dual minimizes over lambda=0 and all kinks
+        # 1/distance, independently of the primal sorted transport algorithm.
+        for values in combinations_with_replacement(range(-1, 4), 3):
+            for threshold in (0, 1, 2):
+                for radius in (F(0), F(1, 100), F(1, 3), F(2)):
+                    distances = [max(F(0), F(v - threshold)) for v in values]
+                    lambdas = [F(0), *(1 / d for d in distances if d)]
+                    empirical = F(sum(v < threshold for v in values), len(values))
+                    dual = min(lam * radius + sum(max(F(0), 1 - lam * d)
+                                                 for d in distances) / len(values)
+                               for lam in lambdas) if radius else empirical
+                    result = metric_bounds(values, (-1, 3), radius=radius,
+                                           threshold=threshold, tail='below')
+                    self.assertGreaterEqual(F(result['violation_upper']), dual)
+                    self.assertLessEqual(result['violation_upper'], math.nextafter(float(dual), math.inf))
+                    mean = F(sum(values), len(values))
+                    self.assertLessEqual(F(result['mean_lower']), max(-1, mean - radius))
+                    self.assertGreaterEqual(F(result['mean_upper']), min(3, mean + radius))
+                    reflected = metric_bounds([-v for v in reversed(values)], (-3, 1), radius=radius,
+                                              threshold=-threshold, tail='above')
+                    self.assertEqual(result['violation_upper'], reflected['violation_upper'])
+                    self.assertEqual(result['mean_lower'], -reflected['mean_upper'])
+
+    def test_strict_boundaries_support_and_validation(self):
+        from fractions import Fraction as F
+
+        def bound(values, support=(-1, 1), radius=0, threshold=0, tail='below'):
+            return metric_bounds(values, support, radius=radius, threshold=threshold, tail=tail)
+
+        self.assertEqual(bound([0])['violation_upper'], 0)
+        self.assertEqual(bound([0], radius=math.ulp(0.0))['violation_upper'], 1)
+        self.assertEqual(bound([0], support=(0, 1), radius=1)['violation_upper'], 0)
+        self.assertEqual(bound([0], support=(0, 0), radius=1)['violation_upper'], 0)
+        self.assertEqual(bound([0], threshold=2, radius=1)['violation_upper'], 1)
+        self.assertEqual(bound([1], radius=F(1, 4))['violation_upper'], 0.25)
+        self.assertEqual(bound([1], radius=2)['violation_upper'], 1)
+        for options in ({'values': []}, {'values': [2]}, {'values': [None]}, {'values': [True]},
+                        {'values': [float('nan')]}, {'values': [float('inf')]},
+                        {'values': [0], 'support': (1, -1)}, {'values': [0], 'support': (0,)},
+                        {'values': [0], 'radius': -1}, {'values': [0], 'tail': 'invalid'},
+                        {'values': [0], 'threshold': float('inf')}):
+            with self.subTest(options=options), self.assertRaises(ValueError):
+                bound(**options)
+
+    def test_radius_rounding_monotonicity_and_frozen_family_coverage(self):
+        from decimal import Decimal, localcontext
+        from fractions import Fraction as F
+
+        previous = math.inf
+        for n in (1, 8, 32, 128, 512, 8192):
+            radius = dkw_w1_radius(n, (-1, 1), beta=F(1, 20), comparisons=6)
+            with localcontext() as context:
+                context.prec = 100
+                reference = 2 * min(Decimal(1), (Decimal(240).ln() / (2 * n)).sqrt())
+                self.assertGreaterEqual(Decimal.from_float(radius), reference)
+                self.assertLessEqual(radius, math.nextafter(float(reference), math.inf))
+            self.assertLessEqual(radius, previous)
+            previous = radius
+            self.assertGreaterEqual(radius, dkw_w1_radius(n, (-1, 1), beta=F(1, 20), comparisons=1))
+        # Enumerate the ENTIRE binomial sample-count distribution, not a noisy
+        # simulation. For Bernoulli(1/2), W1 = |k/n - 1/2|. Independent policies
+        # let us compute simultaneous coverage exactly, including post-selection.
+        for n in (6, 20, 50):
+            radius = F(dkw_w1_radius(n, (0, 1), beta=F(1, 20), comparisons=3))
+            covered = sum(F(math.comb(n, k), 2 ** n) for k in range(n + 1)
+                          if abs(F(k, n) - F(1, 2)) <= radius)
+            self.assertGreaterEqual(covered ** 3, F(19, 20))
+        self.assertEqual(dkw_w1_radius(1, (0, 0), beta=0.05, comparisons=1), 0)
+        for field, bad_values in (('sample_count', (0, -1, True, 1.5)),
+                                  ('comparisons', (0, True, 1.5)), ('beta', (0, 1, -1, float('nan')))):
+            for value in bad_values:
+                options = dict(sample_count=10, support=(0, 1), beta=0.05, comparisons=1)
+                options[field] = value
+                with self.subTest(options=options), self.assertRaises(ValueError):
+                    dkw_w1_radius(**options)
+
+
+class RuleDROCalibrationTest(unittest.TestCase):
+    def test_ambiguity_set_is_frozen_and_defaults_to_previous_w1(self):
+        contract, data = self.example()
+        contract['metrics']['planning'].update(support=[0, 60000], threshold=100, risk_limit=0.2)
+        data['contract_identity'] = contract_identity(contract)
+        first = calibrate(contract, data)
+        self.assertEqual(first['ambiguity_set'], 'wasserstein')
+        self.assertEqual(first['strata']['all']['decision'], 'no_risk_feasible_fallback')
+        contract['ambiguity_set'] = 'dkw_cdf'
+        with self.assertRaisesRegex(ValueError, 'frozen contract'):
+            calibrate(contract, data)
+        data['contract_identity'] = contract_identity(contract)
+        second = calibrate(contract, data)
+        self.assertEqual(second['ambiguity_set'], 'dkw_cdf')
+        self.assertEqual(second['strata']['all']['selected_policy'], 'candidate')
+        for policy in contract['policies']:
+            for name in contract['metrics']:
+                old = first['strata']['all']['policies'][policy]['bounds'][name]
+                new = second['strata']['all']['policies'][policy]['bounds'][name]
+                self.assertLessEqual(new['violation_upper'], old['violation_upper'])
+        contract['ambiguity_set'] = 'unknown'
+        with self.assertRaisesRegex(ValueError, 'ambiguity set'):
+            validate_contract(contract)
+
+    def test_a_priori_sample_budget_is_minimal_and_never_exceeds_cap(self):
+        for target in (0.01, 0.05, 0.1, 0.5, 2):
+            for cap in (1, 100, 100000):
+                report = sample_budget((-1, 1), target_radius=target, beta=0.05, comparisons=4, max_units=cap)
+                count = report['required_units']
+                if count is None:
+                    self.assertGreater(report['radius_at_cap'], target)
+                else:
+                    self.assertLessEqual(count, cap)
+                    self.assertLessEqual(report['radius_at_required_units'], target)
+                    if count > 1:
+                        self.assertGreater(dkw_w1_radius(count-1, (-1, 1), beta=0.05, comparisons=4), target)
+        for target, cap in ((0, 10), (-1, 10), (float('nan'), 10), (1, 0), (1, True)):
+            with self.assertRaises(ValueError):
+                sample_budget((0, 1), target_radius=target, beta=0.05, comparisons=1, max_units=cap)
+
+    def test_collection_binds_actual_inputs_and_protocol_before_sampling(self):
+        from copy import deepcopy
+        from run_workload_comparison import collection_descriptor
+        contract, _ = self.example()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'schema.sql').write_text('CREATE TABLE t(a int);')
+            query = root / 'q.sql'
+            query.write_text('SELECT * FROM t;')
+            policies = {}
+            for arm in ('off', 'cbo'):
+                policies[arm] = root / f'{arm}.policy'
+                policies[arm].write_text(f'policy {arm}')
+            args = SimpleNamespace(workload_dir=root, stats_experiment=[], profile_policies=policies,
+                                   artifact_start={'binary': {'size': 1, 'crc32': 'abc'}}, timeout=60,
+                                   jobs=1, timing_repeats=2, timing_warmups=1, timing_seed=7,
+                                   profile_rule='0'*16, profile_effect='preserves_join_graph', postgres_oracle=True)
+            actual = collection_descriptor(args, {'': [query]}, ['xform'])
+            contract['baseline'] = 'off'
+            contract['environment_identity'], contract['policies'] = actual['environment_identity'], actual['policies']
+            contract['collection_units'] = {unit: contract_identity(actual)
+                for split in contract['strata'].values() for ids in split.values() for unit in ids}
+            receipt = bind_collection(contract, 'u0', actual)
+            self.assertEqual(receipt['phase'], 'calibration')
+            self.assertEqual(bind_collection(contract, 'holdout', actual)['phase'], 'holdout')
+            for field in ('environment_identity', 'policies', 'inputs', 'protocol'):
+                changed = deepcopy(actual)
+                changed[field] = 'different'
+                with self.subTest(field=field), self.assertRaises(ValueError):
+                    bind_collection(contract, 'u0', changed)
+            with self.assertRaises(ValueError):
+                bind_collection(contract, 'unassigned-unit', actual)
+            args.timing_repeats += 1
+            changed = collection_descriptor(args, {'': [query]}, ['xform'])
+            with self.assertRaises(ValueError):
+                bind_collection(contract, 'u0', changed)
+            query.write_text('SELECT 2;')
+            self.assertNotEqual(actual['inputs'], collection_descriptor(args, {'': [query]}, ['xform'])['inputs'])
+
+    @staticmethod
+    def example():
+        # Synthetic bounded outcomes only; these are not actual timing claims.
+        contract = {'version': 1, 'epoch': 'synthetic', 'placement': 'cbo',
+                    'incomplete_units': 'reject_epoch', 'environment_identity': 'fixture-v1',
+                    'population': 'synthetic point masses', 'independent_unit': 'independent draw',
+                    'sampling': 'iid_units_fixed_n', 'sampling_justification': 'constant independent draws',
+                    'aggregation': 'one bounded observation per unit',
+                    'support_justification': 'defined synthetic generator support',
+                    'beta': 0.05, 'policies': {'base': 'base-snapshot', 'candidate': 'candidate-snapshot'},
+                    'baseline': 'base', 'objective': 'gain',
+                    'strata': {'all': {'calibration': [f'u{i}' for i in range(128)], 'holdout': ['holdout']}},
+                    'metrics': {'gain': {'support': [-1, 1], 'tail': 'below', 'threshold': -0.1,
+                                         'risk_limit': 0.5, 'definition': 'synthetic relative gain'},
+                                'planning': {'support': [0, 2], 'tail': 'above', 'threshold': 2,
+                                             'risk_limit': 0.1, 'definition': 'synthetic bounded planning'}}}
+        records = [{'stratum': 'all', 'unit': unit, 'policy': policy, 'status': 'ok',
+                    'semantic_valid': True, 'environment_identity': 'fixture-v1', 'policy_identity': snapshot,
+                    'metrics': {'gain': 0 if policy == 'base' else 0.8, 'planning': 1}}
+                   for unit in contract['strata']['all']['calibration']
+                   for policy, snapshot in contract['policies'].items()]
+        return contract, {'contract_identity': contract_identity(contract), 'records': records}
+
+    def test_finite_selection_baseline_identity_and_absolute_risk(self):
+        contract, data = self.example()
+        result = calibrate(contract, data)
+        self.assertEqual(result['comparisons'], 4)
+        self.assertEqual(result['strata']['all']['selected_policy'], 'candidate')
+        baseline = result['strata']['all']['policies']['base']['bounds']['gain']
+        self.assertEqual((baseline['radius'], baseline['mean_lower'], baseline['violation_upper']), (0, 0, 0))
+        self.assertEqual(result['strata']['all']['policies']['candidate']['bounds']['gain']['sample_count'], 128)
+        contract['metrics']['gain']['risk_limit'] = 0.01
+        data['contract_identity'] = contract_identity(contract)
+        self.assertEqual(calibrate(contract, data)['strata']['all']['decision'], 'retain_baseline')
+        contract['metrics']['planning']['threshold'] = 0
+        data['contract_identity'] = contract_identity(contract)
+        report = calibrate(contract, data)['strata']['all']
+        self.assertIsNone(report['selected_policy'])
+        self.assertEqual(report['decision'], 'no_risk_feasible_fallback')
+
+    def test_rejects_missing_repeated_failed_leaked_or_changed_units(self):
+        from copy import deepcopy
+        contract, original = self.example()
+        mutations = [lambda d: d['records'].pop(),
+                     lambda d: d['records'].append(deepcopy(d['records'][0])),
+                     lambda d: d.update(contract_identity='changed'),
+                     *(lambda d, k=k, v=v: d['records'][0].update({k: v}) for k, v in (
+                         ('unit', 'holdout'), ('status', 'timeout'), ('semantic_valid', False),
+                         ('environment_identity', 'other-build'), ('policy_identity', 'other-policy'),
+                         ('metrics', {'gain': 0}), ('metrics', {'gain': 0.1, 'planning': 1}),
+                         ('metrics', {'gain': 0, 'planning': 3}),
+                         ('metrics', {'gain': 0, 'planning': float('nan')})))]
+        for index, change in enumerate(mutations):
+            data = deepcopy(original)
+            change(data)
+            with self.subTest(index=index), self.assertRaises(ValueError):
+                calibrate(contract, data)
+        contract['strata']['all']['holdout'] = ['u0']
+        with self.assertRaisesRegex(ValueError, 'overlap'):
+            validate_contract(contract)
+
+    def test_prospective_calibration_requires_matching_unchanged_input_receipt(self):
+        contract, data = self.example()
+        contract['collection_units'] = {unit: 'descriptor' for split in contract['strata'].values()
+                                        for ids in split.values() for unit in ids}
+        data['contract_identity'] = contract_identity(contract)
+        with self.assertRaisesRegex(ValueError, 'acquisition binding'):
+            calibrate(contract, data)
+        for row in data['records']:
+            row.update(acquisition_identity='descriptor', input_endpoints_equal=True)
+        self.assertEqual(calibrate(contract, data)['strata']['all']['selected_policy'], 'candidate')
+        data['records'][0]['input_endpoints_equal'] = False
+        with self.assertRaisesRegex(ValueError, 'acquisition binding'):
+            calibrate(contract, data)
+
+    def test_dro_collector_options_require_cbo_timing_and_oracle(self):
+        base = ['runner', '--pg-config', 'pg_config', '--audit-bin', 'audit']
+        valid = ['--dro-describe', '--profile-rule', '0'*16, '--profile-cbo-only',
+                 '--timing-repeats', '1', '--postgres-oracle']
+        with patch.object(sys, 'argv', base + valid):
+            self.assertTrue(parse_workload_args().dro_describe)
+        cases = [['--dro-unit', 'unit'], ['--dro-contract', 'contract'],
+                 [v for v in valid if v != '--postgres-oracle'],
+                 valid + ['--dro-contract', 'contract', '--dro-unit', 'unit']]
+        for options in cases:
+            with patch.object(sys, 'argv', base + options), patch('sys.stderr'), self.assertRaises(SystemExit):
+                parse_workload_args()
+
+    def test_freeze_and_calibrate_cli_never_overwrite(self):
+        contract, data = self.example()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, frozen, observations, result = [root / name for name in ('input', 'contract', 'data', 'result')]
+            source.write_text(json.dumps(contract))
+            observations.write_text(json.dumps(data))
+            tool = [sys.executable, str(SCRIPT_DIR / 'calibrate_rule_dro.py')]
+            freeze = [*tool, 'freeze', str(source), '--output', str(frozen)]
+            self.assertEqual(subprocess.run(freeze, capture_output=True).returncode, 0)
+            saved = frozen.read_bytes()
+            self.assertNotEqual(subprocess.run(freeze, capture_output=True).returncode, 0)
+            self.assertEqual(frozen.read_bytes(), saved)
+            process = subprocess.run([*tool, 'calibrate', str(frozen), str(observations),
+                                      '--output', str(result)], capture_output=True, text=True)
+            self.assertEqual(process.returncode, 0, process.stderr)
+            self.assertEqual(json.loads(result.read_text())['strata']['all']['selected_policy'], 'candidate')
+
+    @staticmethod
+    def timing_example():
+        from copy import deepcopy
+        run = {'plan_rc': 0, 'rows_rc': 0, 'optimizer': 'pg_orca', 'rows_hash': 'same'}
+        artifacts = {'binary': {'crc32': 'abc', 'size': 1}}
+        samples = [{'sequence': seq, 'phase': phase, 'block': block, 'scenario': scenario, 'arm': arm,
+                    'status': 'ok', 'returncode': 0, 'optimizer': 'pg_orca', 'diagnostic_plan_matches': True,
+                    'comparison_exclusions': [], 'execution_ms': 1, 'planning_ms': 2}
+                   for seq, (phase, block, scenario, arm) in enumerate(timing_schedule(1, 2, 1, 7, ('off', 'cbo')))]
+        comparison = {'query': 'synthetic', 'postgres_oracle': {**run, 'valid': True},
+                      'artifact_provenance': {'before_server_start': artifacts, 'after_query': deepcopy(artifacts)},
+                      'rule_profile': {'scenarios': [{'stats_experiment': None, 'arms': {'off': run, 'cbo': run}}],
+                                       'timing': {'source': 'untraced_explain_analyze',
+                                                  'design': 'randomized_complete_blocks', 'arms': ['off', 'cbo'],
+                                                  'repeats': 2, 'warmups': 1, 'seed': 7, 'samples': samples}}}
+        return comparison
+
+    def test_historical_schedule_audit_is_not_a_calibration_certificate(self):
+        comparison = self.timing_example()
+        samples = comparison['rule_profile']['timing']['samples']
+        report = audit_timing_input(comparison)
+        self.assertEqual(report['measurement_exclusions'], [])
+        self.assertEqual(report['observed_runs'], 6)
+        self.assertFalse(report['population_calibration_eligible'])
+        samples[-1]['status'] = 'plan_timeout'
+        self.assertIn('failed_or_incomparable_timing_sample', audit_timing_input(comparison)['measurement_exclusions'])
+        samples.pop()
+        self.assertIn('incomplete_or_modified_randomized_schedule', audit_timing_input(comparison)['measurement_exclusions'])
+
+    def test_bound_timing_aggregation_preserves_unit_size_caps_and_failures(self):
+        comparison = self.timing_example()
+        contract, _ = self.example()
+        contract.update(sampling='acquisition_smoke_test', baseline='cbo',
+                        strata={'all': {'calibration': ['u0'], 'holdout': ['held']}})
+        contract['measurement'] = {'kind': 'paired_capped_timing_mean_v1', 'scenario': 0,
+                                   'execution_floor_ms': 0.001, 'execution_cap_ms': 60,
+                                   'gain_clip': 1, 'planning_cap_ms': 2}
+        contract['metrics']['planning_ms'] = contract['metrics'].pop('planning')
+        comparison.update(workload='synthetic', query_crc32='sql-crc')
+        profile = comparison['rule_profile']
+        profile.update(policy_snapshots={'off': 'off policy', 'cbo': 'cbo policy'},
+                       background_policy='engine_defaults_not_policy_file')
+        contract['policies'] = {arm: contract_identity({'policy': text, 'background': profile['background_policy']})
+                                for arm, text in profile['policy_snapshots'].items()}
+        contract['environment_identity'] = contract_identity(comparison['artifact_provenance']['before_server_start'])
+        acquisition = {'policies': contract['policies'], 'environment_identity': contract['environment_identity'],
+                       'workload': 'synthetic', 'inputs': {'query': {'crc32': 'sql-crc'}},
+                       'protocol': {'timing_repeats': 2, 'timing_warmups': 1, 'timing_seed': 7, 'timeout': 60}}
+        contract['collection_units'] = {unit: contract_identity(acquisition) for unit in ('u0', 'held')}
+        comparison['dro_collection'] = {**bind_collection(contract, 'u0', acquisition), 'input_endpoints_equal': True}
+        samples = profile['timing']['samples']
+        for sample in samples:
+            sample['timeout_ms'] = 60000
+            sample['execution_ms'] = 4 if (sample['arm'] == 'off') == (sample['block'] == 0) else 1
+            sample['planning_ms'] = 4 if sample['block'] == 0 else 1
+        rows = timing_records(contract, comparison)
+        self.assertEqual(len(rows), 2)  # Two policies, not four independent observations.
+        self.assertTrue(all(row['metrics'] == {'gain': 0, 'planning_ms': 1.5} for row in rows))
+        with self.assertRaisesRegex(ValueError, 'smoke tests'):
+            calibrate(contract, {'contract_identity': contract_identity(contract), 'records': rows})
+        comparison['query_crc32'] = 'different-sql'
+        with self.assertRaisesRegex(ValueError, 'differs from receipt'):
+            timing_records(contract, comparison)
+        comparison['query_crc32'] = 'sql-crc'
+        for sample in samples:
+            sample['execution_ms'] = 0 if sample['arm'] == 'off' else 100000
+        capped = {row['policy']: row['metrics'] for row in timing_records(contract, comparison)}
+        self.assertEqual(capped['off']['gain'], 1)
+        self.assertEqual(capped['cbo']['gain'], 0)
+        samples[0]['status'] = 'plan_timeout'  # Failed warmup invalidates both paired rows.
+        rows = timing_records(contract, comparison)
+        self.assertTrue(all(row['status'] == 'invalid' and row['metrics'] == {} for row in rows))
+        samples.pop()
+        self.assertTrue(all(row['status'] == 'invalid' for row in timing_records(contract, comparison)))
+        contract['metrics']['gain']['support'] = [-0.5, 0.5]
+        with self.assertRaisesRegex(ValueError, 'supports must match'):
+            validate_contract(contract)
 
 
 if __name__ == "__main__":
