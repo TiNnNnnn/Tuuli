@@ -10,17 +10,194 @@
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
+#include <map>
 #include <sstream>
 #include <unordered_set>
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CDrvdPropRelational.h"
+#include "gpopt/dsl/CDSLModel.h"
 #include "gpos/io/COstreamString.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalDynamicGetBase.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/COperator.h"
+#include "gpopt/search/CGroup.h"
+#include "gpopt/search/CGroupExpression.h"
+#include "naucrates/statistics/IStatistics.h"
+#include "naucrates/statistics/CStatistics.h"
 
 using namespace gpopt;
+
+namespace
+{
+std::string Fingerprint(CMemoryPool *mp, const CExpression *expr,
+	std::unordered_map<const CExpression *, std::string> *cache);
+}
+
+std::string
+CDSLStatsExperimentSnapshot::ExpressionShape(const CExpression *expr)
+{
+	std::map<std::string, ULONG> operators;
+	std::vector<std::pair<const CExpression *, ULONG>> pending{{expr, 1}};
+	ULONG nodes = 0, scalar = 0, patterns = 0, depth = 0;
+	// Bound diagnostic work and JSON size, not matching or search. Counts are
+	// prefix counts when incomplete; consumers must not infer absent operators.
+	while (!pending.empty() && nodes < 4096)
+	{
+		const auto entry = pending.back();
+		const CExpression *input = entry.first;
+		const std::string name(input->Pop()->SzId());
+		if (16 == operators.size() && operators.end() == operators.find(name))
+			break;
+		pending.pop_back();
+		++operators[name];
+		++nodes;
+		scalar += input->Pop()->FScalar() ? 1 : 0;
+		patterns += input->Pop()->FPattern() ? 1 : 0;
+		depth = std::max(depth, entry.second);
+		for (ULONG i = input->Arity(); i > 0; --i)
+			pending.emplace_back((*input)[i - 1], entry.second + 1);
+	}
+	std::ostringstream out;
+	out << "{\"complete\":" << (pending.empty() ? "true" : "false")
+		<< ",\"nodes\":" << nodes << ",\"scalar_nodes\":" << scalar
+		<< ",\"pattern_nodes\":" << patterns << ",\"depth\":" << depth
+		<< ",\"operators\":{";
+	BOOL first = true;
+	for (const auto &entry : operators)
+	{
+		if (!first)
+			out << ",";
+		first = false;
+		out << "\"" << entry.first << "\":" << entry.second;
+	}
+	out << "}}";
+	return out.str();
+}
+
+std::string
+CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLModel *model)
+{
+	const CDSLSymbolArray *symbols = rule->PfragSrc()->Pdrgpsym();
+	std::string entries;
+	ULONG total = 0, retained = 0;
+	BOOL full = false;
+	for (ULONG i = 0; i < symbols->Size(); ++i)
+	{
+		const CDSLSymbol *symbol = (*symbols)[i];
+		const BOOL table = EdslsymTable == symbol->Esymkind();
+		if (!table && EdslsymPred != symbol->Esymkind())
+			continue;
+		++total;
+		if (full)
+			continue;
+		const CExpression *bound = nullptr == model ? nullptr
+			: table ? model->PexprTable(symbol) : model->PexprPred(symbol);
+		std::ostringstream entry;
+		entry << "{\"symbol_index\":" << i << ",\"kind\":\""
+			<< (table ? "table" : "predicate") << "\",\"bound\":"
+			<< (nullptr == bound ? "false" : "true")
+			<< ",\"derived\":" << (nullptr != model && model->FDerivedBinding(symbol) ? "true" : "false")
+			<< ",\"shape\":" << (nullptr == bound ? "null" : ExpressionShape(bound)) << "}";
+		if (entries.size() + entry.str().size() + 1 > 2048)
+		{
+			full = true;
+			continue;
+		}
+		if (retained++)
+			entries += ",";
+		entries += entry.str();
+	}
+	return "{\"capture\":\"after_evaluation\",\"scope\":\"source_table_predicate_symbols\","
+		"\"symbols\":[" + entries + "],\"total_symbols\":" + std::to_string(total) +
+		",\"omitted_symbols\":" + std::to_string(total - retained) + "}";
+}
+
+std::string
+CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *mp)
+{
+	std::ostringstream out;
+	out << std::setprecision(17);
+	std::unordered_map<const CExpression *, std::string> fingerprints;
+	const auto node = [&](const CExpression *input)
+	{
+		const gpnaucrates::IStatistics *stats = input->Pstats();
+		const CHAR *origin = nullptr == stats ? "missing" : "expression";
+		if (nullptr == stats && nullptr != input->Pgexpr())
+		{
+			stats = input->Pgexpr()->Pgroup()->Pstats();
+			if (nullptr != stats)
+				origin = "memo_group";
+		}
+		out << "{\"operator\":\"" << input->Pop()->SzId()
+			<< "\",\"arity\":" << input->Arity()
+			<< ",\"stats_source\":\"" << origin << "\",\"rows\":";
+		if (nullptr != stats && std::isfinite(stats->Rows().Get()))
+			out << stats->Rows().Get();
+		else
+			out << "null";
+		out << ",\"empty\":";
+		if (nullptr != stats)
+			out << (stats->IsEmpty() ? "true" : "false");
+		else
+			out << "null";
+		const CGroup *group = nullptr == input->Pgexpr() ? nullptr : input->Pgexpr()->Pgroup();
+		out << ",\"memo_group_expressions\":";
+		if (nullptr != group)
+			out << group->UlGExprs();
+		else
+			out << "null";
+		out << ",\"logical_properties\":";
+		// Read only detached, complete Memo properties. Instrumentation must not
+		// trigger property/statistics derivation or change rule scheduling.
+		CDrvdProp *props = nullptr == group ? nullptr : group->Pdp();
+		if (nullptr != props && props->IsComplete() && props->Ept() == CDrvdProp::EptRelational)
+		{
+			const CDrvdPropRelational *rel = CDrvdPropRelational::GetRelationalProperties(props);
+			const CKeyCollection *keys = rel->GetKeyCollection();
+			out << "{\"source\":\"complete_memo_group\",\"output_columns\":"
+				<< rel->GetOutputColumns()->Size() << ",\"outer_columns\":"
+				<< rel->GetOuterReferences()->Size() << ",\"not_null_columns\":"
+				<< rel->GetNotNullColumns()->Size() << ",\"key_count\":"
+				<< (nullptr == keys ? 0 : keys->Keys()) << ",\"join_depth\":"
+				<< rel->GetJoinDepth() << "}";
+		}
+		else
+			out << "null";
+		// A query-local provenance key, not a query-independent model feature.
+		if (nullptr != mp)
+			out << ",\"reference_key\":\"" << ::Fingerprint(mp, input, &fingerprints) << "\"";
+		out << "}";
+	};
+	out << "{\"capture\":\"before_evaluation\","
+		   "\"scope\":\"source_before_match_view\",\"source_shape\":"
+		<< ExpressionShape(expr) << ",\"root\":";
+	node(expr);
+	out << ",\"children\":[";
+	ULONG total = 0;
+	// Bound each compact JSON line; omitted children are counted, not hidden.
+	const ULONG limit = 8;
+	for (ULONG i = 0; i < expr->Arity(); ++i)
+	{
+		const CExpression *child = (*expr)[i];
+		if (child->Pop()->FScalar())
+			continue;
+		if (total < limit)
+		{
+			if (0 < total)
+				out << ",";
+			out << "{\"position\":" << i << ",\"node\":";
+			node(child);
+			out << "}";
+		}
+		++total;
+	}
+	out << "],\"relational_children\":" << total
+		<< ",\"omitted_children\":" << (total > limit ? total - limit : 0) << "}";
+	return out.str();
+}
 
 namespace
 {
@@ -147,7 +324,7 @@ ParseRows(const std::string &value, DOUBLE *rows)
 	CHAR *end = nullptr;
 	const DOUBLE parsed = std::strtod(value.c_str(), &end);
 	if (ERANGE == errno || end == value.c_str() || '\0' != *end ||
-		!std::isfinite(parsed) || GPOS_FP_ABS_MIN > parsed ||
+		!std::isfinite(parsed) || CStatistics::MinRows.Get() > parsed ||
 		GPOS_FP_ABS_MAX < parsed)
 	{
 		return false;
@@ -271,7 +448,7 @@ Parse(const CHAR *content, std::string *id,
 			current.m_has_rows = ParseRows(value, &current.m_rows);
 			if (!current.m_has_rows)
 			{
-				Error(errors, line_no, "rows must be a positive finite number");
+				Error(errors, line_no, "rows must be finite and at least 1 (ORCA statistics minimum)");
 				valid = false;
 			}
 		}

@@ -21,9 +21,14 @@
 #include "gpos/error/CAutoTrace.h"
 
 #include "gpopt/base/CDefaultComparator.h"
+#include "gpopt/base/CCostContext.h"
+#include "gpopt/base/COptimizationContext.h"
+#include "gpopt/base/CEnfdOrder.h"
+#include "gpopt/base/CEnfdDistribution.h"
 #include "gpopt/cost/ICostModel.h"
 #include "gpopt/eval/IConstExprEvaluator.h"
 #include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLRewriteDecision.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/exception.h"
@@ -256,15 +261,17 @@ IStatistics *
 PstatsScaleForExperiment(CMemoryPool *mp, IStatistics *stats,
 						 const SDSLStatsExperimentTarget *target,
 						 const CHAR *experiment, const CHAR *site,
-						 BOOL trace_event)
+						 BOOL trace_event,
+						 const CGroup *group,
+						 std::unordered_set<const SDSLStatsExperimentTarget *> *consumed)
 {
 	if (nullptr == target)
 	{
 		return nullptr;
 	}
-	if (target->m_inject && stats->Rows() == CDouble(target->m_rows))
+	if (target->m_inject && GPOS_FTRACE(EopttracePrintDSLRule))
 	{
-		return nullptr;
+		consumed->insert(target);
 	}
 	if (trace_event && GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -290,13 +297,17 @@ PstatsScaleForExperiment(CMemoryPool *mp, IStatistics *stats,
 		trace.Os() << ","
 				   << "\"site\":\"" << site << "\","
 				   << "\"native_rows\":" << stats->Rows().Get();
+		if (nullptr != group)
+			trace.Os() << ",\"group\":" << group->Id();
 		if (target->m_inject)
 		{
-			trace.Os() << ",\"rows\":" << target->m_rows;
+			trace.Os() << ",\"rows\":" << target->m_rows
+					   << ",\"changed\":"
+					   << (stats->Rows() == CDouble(target->m_rows) ? "false" : "true");
 		}
 		trace.Os() << "}" << std::endl;
 	}
-	if (!target->m_inject)
+	if (!target->m_inject || stats->Rows() == CDouble(target->m_rows))
 	{
 		return nullptr;
 	}
@@ -312,7 +323,9 @@ COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CExpression *expr,
 		? nullptr
 		: PstatsScaleForExperiment(
 			  mp, stats, m_pdslStatsExperimentSnapshot->Ptarget(expr),
-			  m_pdslStatsExperimentSnapshot->SzId(), "expression", true);
+			  m_pdslStatsExperimentSnapshot->SzId(), "expression", true,
+			  nullptr == expr->Pgexpr() ? nullptr : expr->Pgexpr()->Pgroup(),
+			  &m_dsl_stats_consumed_targets);
 }
 
 IStatistics *
@@ -325,7 +338,151 @@ COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CGroup *group,
 		: PstatsScaleForExperiment(
 			  mp, stats, found->second,
 			  m_pdslStatsExperimentSnapshot->SzId(), "memo_group",
-			  m_dsl_stats_traced_groups.insert(group).second);
+			  m_dsl_stats_traced_groups.insert(group).second,
+			  group,
+			  &m_dsl_stats_consumed_targets);
+}
+
+void
+COptCtxt::TraceDSLExperimentCost(const CGroupExpression *expr,
+	const COptimizationContext *context, ULONG request, const CHAR *status,
+	CCostContext *cost)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot || !GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	CAutoTrace trace(m_mp);
+	auto &out = trace.Os();
+	out << "DSL_TRACE {\"kind\":\"cost_candidate\",\"experiment\":\""
+		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+		<< "\",\"sequence\":" << ++m_ulDSLExperimentCostEvents
+		<< ",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+		<< ",\"memo_version\":" << m_ulDSLMemoVersion
+		<< ",\"group\":" << expr->Pgroup()->Id()
+		<< ",\"group_expression\":" << expr->Id()
+		<< ",\"operator\":\"" << expr->Pop()->SzId()
+		<< "\",\"optimization_context\":" << context->Id()
+		<< ",\"search_stage\":" << context->UlSearchStageIndex()
+		<< ",\"optimization_request\":" << request
+		<< ",\"status\":\"" << status << "\"";
+	const auto *required = context->Prpp();
+	out << ",\"required_columns\":" << required->PcrsRequired()->Size()
+		<< ",\"required_order_columns\":" << required->Peo()->PosRequired()->UlSortColumns()
+		<< ",\"required_order_matching\":" << (ULONG) required->Peo()->Eom()
+		<< ",\"required_distribution_type\":" << (ULONG) required->Ped()->PdsRequired()->Edt();
+	if (nullptr != context->PccBest())
+		out << ",\"context_best_cost_at_event\":" << context->PccBest()->Cost().Get();
+	const auto *origin = expr->PgexprOrigin();
+	if (nullptr != origin)
+		out << ",\"origin_group\":" << origin->Pgroup()->Id()
+			<< ",\"origin_expression\":" << origin->Id();
+	// Preserve intermediate logical lowering (for example Anchor -> Sequence).
+	// These are existing Memo provenance links, not inferred rule dependencies.
+	out << ",\"origin_chain\":[";
+	for (const auto *ancestor = origin; nullptr != ancestor;
+		 ancestor = ancestor->PgexprOrigin())
+	{
+		if (ancestor != origin) out << ",";
+		out << "{\"group\":" << ancestor->Pgroup()->Id()
+			<< ",\"group_expression\":" << ancestor->Id()
+			<< ",\"operator\":\"" << ancestor->Pop()->SzId() << "\"}";
+	}
+	out << "]";
+	if (nullptr != cost)
+	{
+		cost->SetDSLTraceCandidate(m_ulDSLExperimentCostEvents);
+		// This is the evaluated candidate, before best-context insertion/selection.
+		out << ",\"cost\":" << cost->Cost().Get()
+			<< ",\"cost_kind\":\"" << (cost->FPruned() ? "lower_bound" : "computed") << "\"";
+		const auto *stats = cost->Pstats();  // Access cached stats only.
+		if (nullptr != stats && std::isfinite(stats->Rows().Get()))
+			out << ",\"rows\":" << stats->Rows().Get();
+		const auto *stats_expr = cost->PgexprForStats();
+		if (nullptr != stats_expr)
+			out << ",\"stats_group\":" << stats_expr->Pgroup()->Id()
+				<< ",\"stats_expression\":" << stats_expr->Id();
+		out << ",\"child_contexts\":[";
+		const auto *children = cost->Pdrgpoc();
+		for (ULONG i = 0; nullptr != children && i < children->Size(); ++i)
+		{
+			if (i > 0) out << ",";
+			out << "{\"index\":" << i << ",\"group\":" << (*children)[i]->Pgroup()->Id()
+				<< ",\"optimization_context\":" << (*children)[i]->Id();
+			const auto *best = (*children)[i]->PccBest();
+			out << ",\"cost_candidate_sequence\":" << (nullptr == best ? 0 : best->UlDSLTraceCandidate()) << "}";
+		}
+		out << "]";
+	}
+	out << "}" << std::endl;
+}
+
+void
+COptCtxt::TraceDSLExperimentCostLifecycle(const CHAR *status, const CCostContext *candidate,
+	const CCostContext *previous, const COptimizationContext *owner)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot || !GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	CAutoTrace trace(m_mp);
+	if (nullptr == owner) owner = candidate->Poc();
+	trace.Os() << "DSL_TRACE {\"kind\":\"cost_lifecycle\",\"experiment\":\""
+		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+		<< "\",\"sequence\":" << ++m_ulDSLExperimentCostLifecycleEvents
+		<< ",\"status\":\"" << status
+		<< "\",\"candidate_sequence\":" << candidate->UlDSLTraceCandidate()
+		<< ",\"previous_candidate_sequence\":" << (nullptr == previous ? 0 : previous->UlDSLTraceCandidate())
+		<< ",\"group\":" << owner->Pgroup()->Id()
+		<< ",\"optimization_context\":" << owner->Id()
+		<< "}" << std::endl;
+}
+
+void
+COptCtxt::TraceDSLExperimentSelectedCost(const CExpression *expr, ULONG node, ULONG parent)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot || !GPOS_FTRACE(EopttracePrintDSLRule)
+		|| !expr->Pop()->FPhysical())
+		return;
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"cost_lifecycle\",\"experiment\":\""
+		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+		<< "\",\"sequence\":" << ++m_ulDSLExperimentCostLifecycleEvents
+		<< ",\"status\":\"selected_plan\",\"candidate_sequence\":" << expr->UlDSLTraceCandidate()
+		<< ",\"plan_node\":" << node << ",\"parent_plan_node\":" << parent
+		<< ",\"operator\":\"" << expr->Pop()->SzId()
+		<< "\",\"cost\":" << expr->Cost().Get() << "}" << std::endl;
+}
+
+void
+COptCtxt::TraceDSLExperimentSearchCheck(const CHAR *check, const CHAR *status,
+	const CGroupExpression *expr, const CReqdPropPlan *required, ULONG request,
+	const CCostContext *incumbent, DOUBLE lower_bound, const CCostContext *child, ULONG child_index)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot || !GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	CAutoTrace trace(m_mp);
+	auto &out = trace.Os();
+	out << "DSL_TRACE {\"kind\":\"search_check\",\"experiment\":\""
+		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+		<< "\",\"sequence\":" << ++m_ulDSLExperimentSearchChecks
+		<< ",\"check\":\"" << check << "\",\"status\":\"" << status
+		<< "\",\"group\":" << expr->Pgroup()->Id() << ",\"group_expression\":" << expr->Id()
+		<< ",\"operator\":\"" << expr->Pop()->SzId()
+		<< "\",\"preceding_cost_candidates\":" << m_ulDSLExperimentCostEvents
+		<< ",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+		<< ",\"memo_version\":" << m_ulDSLMemoVersion
+		<< ",\"required_columns\":" << required->PcrsRequired()->Size()
+		<< ",\"required_order_columns\":" << required->Peo()->PosRequired()->UlSortColumns()
+		<< ",\"required_distribution_type\":" << (ULONG) required->Ped()->PdsRequired()->Edt();
+	if (request != gpos::ulong_max)
+		out << ",\"optimization_request\":" << request;
+	if (nullptr != incumbent)
+		out << ",\"incumbent_candidate\":" << incumbent->UlDSLTraceCandidate()
+			<< ",\"incumbent_context\":" << incumbent->Poc()->Id()
+			<< ",\"incumbent_cost\":" << incumbent->Cost().Get();
+	if (lower_bound >= 0)
+		out << ",\"lower_bound\":" << lower_bound;
+	if (nullptr != child)
+		out << ",\"optimized_child_candidate\":" << child->UlDSLTraceCandidate()
+			<< ",\"optimized_child_index\":" << child_index;
+	out << "}" << std::endl;
 }
 
 void
@@ -360,6 +517,12 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << m_ulDSLGeneratedAlternatives
 				   << ",\"rule_candidates\":"
 				   << m_ulDSLExperimentCandidates
+				   << ",\"candidate_trace_version\":2"
+				   << ",\"binding_edge_trace_version\":1,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
+				   << ",\"cost_trace_version\":1,\"cost_candidates\":" << m_ulDSLExperimentCostEvents
+				   << ",\"cost_lifecycle_version\":1,\"cost_lifecycle_events\":" << m_ulDSLExperimentCostLifecycleEvents
+				   << ",\"search_check_version\":1,\"search_checks\":" << m_ulDSLExperimentSearchChecks
+				   << ",\"candidate_context_encoding\":\"dictionary_v1\""
 				   << ",\"rule_applications\":"
 				   << m_ulDSLExperimentApplications
 				   << ",\"optimization_ms\":" << optimization_ms
@@ -378,7 +541,32 @@ COptCtxt::TraceDSLExperimentOutcome(
 		first_rule = false;
 		trace.Os() << "\"" << entry.first.c_str() << "\":" << entry.second;
 	}
-	trace.Os() << "}}" << std::endl;
+	trace.Os() << "},\"stats_targets\":[";
+	BOOL first_target = true;
+	for (const auto &target : m_pdslStatsExperimentSnapshot->Targets())
+	{
+		if (!target.m_inject)
+		{
+			continue;
+		}
+		if (!first_target)
+		{
+			trace.Os() << ",";
+		}
+		first_target = false;
+		const BOOL expression = target.m_relations.empty();
+		trace.Os() << "{\"selector_kind\":\""
+				   << (expression ? "expression" : "relations")
+				   << "\",\"selector\":\""
+				   << JsonEscape(expression ? target.m_fingerprint : target.m_relations).c_str()
+				   << "\",\"operator\":\"" << JsonEscape(target.m_operator).c_str()
+				   << "\",\"fingerprint\":\"" << JsonEscape(target.m_fingerprint).c_str()
+				   << "\",\"requested_rows\":" << target.m_rows
+				   << ",\"consumed\":"
+				   << (m_dsl_stats_consumed_targets.count(&target) > 0 ? "true" : "false")
+				   << "}";
+	}
+	trace.Os() << "]}" << std::endl;
 }
 
 void
@@ -386,7 +574,8 @@ COptCtxt::TraceDSLExperimentCandidate(
 	const CDSLRule *prule, const CHAR *placement, const CHAR *status,
 	const CExpression *pexprState, const CExpression *pexprSource,
 	const CExpression *pexprTarget, const CHAR *bindingPath, ULONG matchUs,
-	ULONG constraintUs, ULONG instantiateUs, BOOL applied)
+	ULONG constraintUs, ULONG instantiateUs, BOOL applied,
+	const CDSLRewriteDecision *decision)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -457,7 +646,40 @@ COptCtxt::TraceDSLExperimentCandidate(
 	event << ",\"placement\":\"" << placement << "\",\"status\":\""
 		  << status << "\",\"match_us\":" << matchUs
 		  << ",\"constraint_us\":" << constraintUs
-		  << ",\"instantiate_us\":" << instantiateUs << "}";
+		  << ",\"instantiate_us\":" << instantiateUs
+		  << ",\"evaluated\":" << (nullptr != decision ? "true" : "false");
+	if (nullptr != decision)
+	{
+		const auto contextReference = [&](const CHAR *field, const std::string &value)
+		{
+			const std::string key = std::string(field) + ":" + value;
+			auto found = m_dsl_experiment_context_ids.find(key);
+			ULONG id;
+			if (m_dsl_experiment_context_ids.end() == found)
+			{
+				id = m_dsl_experiment_context_ids.size() + 1;
+				m_dsl_experiment_context_ids.emplace(key, id);
+				CAutoTrace context(m_mp);
+				context.Os() << "DSL_TRACE {\"kind\":\"candidate_context\",\"engine\":\"pgorca\","
+					<< "\"context_id\":" << id << ",\"field\":\"" << field
+					<< "\",\"value\":" << value.c_str() << "}" << std::endl;
+			}
+			else
+				id = found->second;
+			event << ",\"" << field << "_id\":" << id;
+		};
+		event << ",\"bound_symbols\":"
+			<< (nullptr == decision->Pmodel() ? 0 : decision->Pmodel()->Size());
+		if (!decision->InputContext().empty())
+			contextReference("input_context", decision->InputContext());
+		contextReference("binding_context",
+			CDSLStatsExperimentSnapshot::BindingContext(prule, decision->Pmodel()));
+		if (nullptr != decision->PconFailed())
+			event << ",\"failed_constraint\":\""
+				<< CDSLConstraintKindTable::SzName(decision->PconFailed()->Edslcon())
+				<< "\",\"failed_constraint_index\":" << decision->UlFailedConstraint();
+	}
+	event << "}";
 	if (nullptr == m_pdslStatsExperimentSnapshot)
 	{
 		m_dsl_pending_experiment_candidates.push_back(event.str());
@@ -471,7 +693,7 @@ void
 COptCtxt::TraceDSLExperimentCandidateOutcome(
 	const CDSLRule *prule, const CHAR *status, ULONG candidateSequence,
 	ULONG memoVersionBefore, const CGroup *group,
-	const CGroupExpression *gexpr)
+	const CGroupExpression *gexpr, ULONG insertionVersionBefore)
 {
 	if (0 == candidateSequence || nullptr == m_pdslStatsExperimentSnapshot ||
 		!GPOS_FTRACE(EopttracePrintDSLRule))
@@ -496,6 +718,7 @@ COptCtxt::TraceDSLExperimentCandidateOutcome(
 				   << ",\"rule_hash\":\"" << prule->SzIdentity()
 				   << "\",\"status\":\"" << status
 				   << "\",\"memo_version_before\":" << memoVersionBefore
+				   << ",\"memo_version_at_insertion_start\":" << insertionVersionBefore
 				   << ",\"memo_version_after\":" << m_ulDSLMemoVersion
 				   << ",\"group\":" << group->Id();
 	if (nullptr != gexpr)
@@ -625,10 +848,27 @@ COptCtxt::RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr)
 
 void
 COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
-							 const CExpression *pexprSource) const
+							 const CExpression *pexprSource, const CHAR *status,
+							 const std::string &bindingPath)
 {
-	if (!GPOS_FTRACE(EopttracePrintDSLRule) || nullptr == pexprSource->Pgexpr())
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 		return;
+	// Full attempt tracing uses the existing statistics-experiment stream. Keep
+	// ordinary diagnostics root/ready-only: their fixed task buffer must also
+	// retain the final Memo provenance and rule summaries.
+	const BOOL full = 0 != m_ulDSLExperimentSequence;
+	if (!full && 0 != std::strcmp(status, "ready_cbo"))
+		return;
+	GPOS_CHECK_STACK_SIZE;
+	GPOS_CHECK_ABORT;
+	// Walk the extracted binding, never other alternatives of its Memo groups.
+	// An original root may consume a DSL-produced child. Binding paths are not
+	// positions in an adapted DSL template, so keep these coordinate spaces apart.
+	for (ULONG i = 0; full && i < pexprSource->Arity(); ++i)
+	{
+		TraceDSLCBOEdge(prule, (*pexprSource)[i], status,
+			bindingPath + "/" + std::to_string(i));
+	}
 	auto found = m_dsl_group_expression_origins.find(pexprSource->Pgexpr());
 	if (m_dsl_group_expression_origins.end() == found)
 		return;
@@ -643,11 +883,21 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 				   << found->second.m_target_path.c_str()
 				   << "\",\"src_target_path\":\""
 				   << found->second.m_target_path.c_str()
-				   << "\",\"dst_source_path\":\"r"
-				   << "\",\"path_kind\":\"instantiated_expression\","
+				   << "\",\"dst_source_path\":"
+				   << (bindingPath == "r" ? "\"r\"" : "null")
+				   << ",\"dst_binding_path\":\"" << bindingPath.c_str()
+				   << "\",\"path_kind\":\""
+				   << (bindingPath == "r" ? "instantiated_expression" : "source_binding_expression")
+				   << "\",\"candidate_status\":\"" << status
+				   << "\",\"dst_candidate_sequence\":" << m_ulDSLExperimentSequence
+				   << ",\"binding_edge_sequence\":" << ++m_ulDSLBindingOriginEdges
+				   << ","
 					  "\"binding_group\":" << pgexpr->Pgroup()->Id()
 				   << ",\"binding_group_expression\":" << pgexpr->Id()
 				   << ",\"evidence\":\"runtime_observed\",\"relation\":\""
+				   << (0 == std::strcmp(status, "ready_cbo")
+					   ? found->second.m_relation.c_str() : "binding_observed")
+				   << "\",\"producer_relation\":\""
 				   << found->second.m_relation.c_str() << "\"}"
 				   << std::endl;
 }

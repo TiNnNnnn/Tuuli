@@ -97,6 +97,8 @@ private:
 
 	// stats of owner group expression
 	IStatistics *m_pstats;
+	// Observation identity only; never participates in costing or comparison.
+	ULONG m_ulDSLTraceCandidate{0};
 
 	// derive stats of owner group expression
 	void DeriveStats();
@@ -200,6 +202,9 @@ public:
 	}
 
 	// check if we need to derive stats for this context
+	ULONG UlDSLTraceCandidate() const { return m_ulDSLTraceCandidate; }
+	void SetDSLTraceCandidate(ULONG sequence) { m_ulDSLTraceCandidate = sequence; }
+
 	BOOL FNeedsNewStats() const;
 
 	// check if new stats were derived for this context

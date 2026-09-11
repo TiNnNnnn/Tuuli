@@ -39,11 +39,15 @@ using namespace gpos;
 
 class CDSLPolicySnapshot;
 class CDSLRule;
+class CDSLRewriteDecision;
 class CDSLStatsExperimentSnapshot;
 class CExpression;
 class CGroup;
 class CGroupExpression;
 class COperator;
+class COptimizationContext;
+class CCostContext;
+class CReqdPropPlan;
 struct SDSLStatsExperimentTarget;
 struct SDSLRulePolicy;
 
@@ -233,8 +237,14 @@ private:
 	ULONG m_ulDSLExperimentSequence;
 	ULONG m_ulDSLExperimentCandidates;
 	ULONG m_ulDSLExperimentApplications;
+	ULONG m_ulDSLExperimentCostEvents{0};
+	ULONG m_ulDSLExperimentCostLifecycleEvents{0};
+	ULONG m_ulDSLExperimentSearchChecks{0};
+	ULONG m_ulDSLBindingOriginEdges{0};
 	ULONG m_ulDSLMemoVersion;
 	std::vector<std::string> m_dsl_pending_experiment_candidates;
+	// Lossless trace encoding only; never consulted by matching or costing.
+	std::unordered_map<std::string, ULONG> m_dsl_experiment_context_ids;
 
 	UlongToUlongMap *m_dsl_generated_alternatives_by_rule;
 	std::unordered_map<ULONG, std::unordered_map<ULONG, ULONG>>
@@ -253,6 +263,7 @@ private:
 	std::unordered_map<const CGroup *, const SDSLStatsExperimentTarget *>
 		m_dsl_stats_group_targets;
 	std::unordered_set<const CGroup *> m_dsl_stats_traced_groups;
+	std::unordered_set<const SDSLStatsExperimentTarget *> m_dsl_stats_consumed_targets;
 
 public:
 	COptCtxt(COptCtxt &) = delete;
@@ -283,7 +294,8 @@ public:
 									  const CHAR *szTargetPath,
 									  const CHAR *szRelation);
 	void TraceDSLCBOEdge(const CDSLRule *prule,
-						  const CExpression *pexprSource) const;
+						  const CExpression *pexprSource, const CHAR *status,
+						  const std::string &bindingPath = "r");
 	void RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr);
 
 	ULONG UlDSLBindingCalls() const { return m_ulDSLBindingCalls; }
@@ -367,12 +379,23 @@ public:
 		const CExpression *pexprState, const CExpression *pexprSource,
 		const CExpression *pexprTarget, const CHAR *bindingPath,
 		ULONG matchUs, ULONG constraintUs, ULONG instantiateUs,
-		BOOL applied);
+		BOOL applied, const CDSLRewriteDecision *decision = nullptr);
 	void TraceDSLExperimentCandidateOutcome(
 		const CDSLRule *prule, const CHAR *status, ULONG candidateSequence,
 		ULONG memoVersionBefore, const CGroup *group,
-		const CGroupExpression *gexpr);
+		const CGroupExpression *gexpr, ULONG insertionVersionBefore);
 	void AdvanceDSLMemoVersion() { ++m_ulDSLMemoVersion; }
+	void TraceDSLExperimentCost(const CGroupExpression *expr,
+		const COptimizationContext *context, ULONG request, const CHAR *status,
+		CCostContext *cost = nullptr);
+	void TraceDSLExperimentCostLifecycle(const CHAR *status, const CCostContext *candidate,
+		const CCostContext *previous, const COptimizationContext *owner = nullptr);
+	void TraceDSLExperimentSelectedCost(const CExpression *expr, ULONG node, ULONG parent);
+	void TraceDSLExperimentSearchCheck(const CHAR *check, const CHAR *status,
+		const CGroupExpression *expr, const CReqdPropPlan *required, ULONG request,
+		const CCostContext *incumbent = nullptr, DOUBLE lower_bound = -1,
+		const CCostContext *child = nullptr, ULONG child_index = gpos::ulong_max);
+	ULONG UlDSLMemoVersion() const { return m_ulDSLMemoVersion; }
 
 	// are we optimizing a DML query
 	BOOL

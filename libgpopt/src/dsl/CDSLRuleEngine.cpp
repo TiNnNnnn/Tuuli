@@ -23,6 +23,8 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLStatsExperiment.h"
+#include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/search/CGroup.h"
@@ -33,6 +35,27 @@ using namespace gpopt;
 
 namespace
 {
+// An eliminating rewrite can rebuild an expression already present below the
+// source binding. Direct insertion then finds that descendant group, but merging
+// it with its ancestor would create a Memo cycle. Recognize exact bound-tree
+// reuse; do not scan or change the Memo's enumeration/merge policy.
+BOOL
+FMatchesMemoDescendant(CExpression *source, CExpression *target)
+{
+	GPOS_CHECK_STACK_SIZE;
+	for (ULONG ul = 0; ul < source->Arity(); ul++)
+	{
+		CExpression *child = (*source)[ul];
+		if (child->Pop()->FLogical() &&
+			((nullptr != child->Pgexpr() && target->Matches(child)) ||
+			 FMatchesMemoDescendant(child, target)))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 // A DSL target is inserted into the source expression's Memo group. Reused
 // target subtrees may already belong to the Memo; none may depend on that
 // source group, otherwise insertion would add a relational back-edge and
@@ -646,7 +669,8 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			 const CExpression *pexprSrc, const CExpression *pexprTgt,
 			 const CDSLConstraint *pconFailed = nullptr,
 			 ULONG ulFailed = gpos::ulong_max, ULONG ulMatchUs = 0,
-			 ULONG ulConstraintUs = 0, ULONG ulInstantiateUs = 0)
+			 ULONG ulConstraintUs = 0, ULONG ulInstantiateUs = 0,
+			 const CDSLRewriteDecision *decision = nullptr)
 {
 	if (!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -663,17 +687,17 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 			nullptr == pmodel ? 0 : pmodel->Size());
 		poctxt->RecordDSLRuleTiming(ulRuleId, ulMatchUs, ulConstraintUs,
 								 ulInstantiateUs);
-		if (EdsltraceApplied == edsltrace ||
-			EdsltraceDuplicate == edsltrace ||
-			EdsltraceBudgetExhausted == edsltrace ||
-			EdsltraceBudgetSkipped == edsltrace)
+		// The experiment stream retains every attempt; compact application events
+		// below remain first-per-rule/status for existing trace consumers.
+		poctxt->TraceDSLExperimentCandidate(
+			prule, "cbo", EdsltraceApplied == edsltrace ? "ready_cbo" : szStage,
+			pexprSrc, pexprSrc, pexprTgt, nullptr, ulMatchUs,
+			ulConstraintUs, ulInstantiateUs,
+			false /* application is known only after Memo insertion */, decision);
+		if (nullptr != decision)
 		{
-			poctxt->TraceDSLExperimentCandidate(
-				prule, "cbo",
-				EdsltraceApplied == edsltrace ? "ready_cbo" : szStage,
-				pexprSrc, pexprSrc, pexprTgt, nullptr, ulMatchUs,
-				ulConstraintUs, ulInstantiateUs,
-				false /* CBO application is known only after Memo insertion */);
+			poctxt->TraceDSLCBOEdge(prule, pexprSrc,
+				EdsltraceApplied == edsltrace ? "ready_cbo" : szStage);
 		}
 	}
 	// Full xform tracing is explicitly diagnostic. Unlike the cardinality-limited
@@ -733,6 +757,11 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	{
 		os << ",\"binding_count\":"
 		   << (nullptr == pmodel ? 0 : pmodel->Size());
+	}
+	if (nullptr != decision && !decision->InputContext().empty())
+	{
+		os << ",\"input_sampling\":\"first_rule_status\",\"input_context\":"
+		   << decision->InputContext().c_str();
 	}
 	// Constraint identity is compact and essential for classifying corpus
 	// misses. Emit it even without the very expensive full xform trace.
@@ -810,7 +839,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	if (EdsldecisionMatchRejected == pdecision->Status())
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceMatchRejected, prule, pmodel, pexpr,
-					 nullptr, nullptr, gpos::ulong_max, ulMatchUs);
+					 nullptr, nullptr, gpos::ulong_max, ulMatchUs, 0, 0, pdecision);
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
@@ -818,7 +847,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceConstraintRejected, prule, pmodel,
 					 pexpr, nullptr, pdecision->PconFailed(),
-					 pdecision->UlFailedConstraint(), ulMatchUs, ulConstraintUs);
+					 pdecision->UlFailedConstraint(), ulMatchUs, ulConstraintUs, 0, pdecision);
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
@@ -830,7 +859,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// may repeatedly fire as native xforms enumerate equivalent children.
 		TraceDSLRule(mp, ulRuleId, EdsltraceDuplicate, prule, pmodel, pexpr,
 					 pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
-					 ulConstraintUs, ulInstantiateUs);
+					 ulConstraintUs, ulInstantiateUs, pdecision);
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
@@ -843,7 +872,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// the source group. Another acyclic binding may still apply the same rule.
 		TraceDSLRule(mp, ulRuleId, EdsltraceInstantiateRejected, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
-					 ulConstraintUs, ulInstantiateUs);
+					 ulConstraintUs, ulInstantiateUs, pdecision);
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
@@ -852,22 +881,18 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	{
 		TraceDSLRule(mp, ulRuleId, EdsltraceBudgetExhausted, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
-					 ulConstraintUs, ulInstantiateUs);
+					 ulConstraintUs, ulInstantiateUs, pdecision);
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
 	const BOOL fReady = EdsldecisionReady == pdecision->Status();
-	if (fReady)
-	{
-		poctxt->TraceDSLCBOEdge(prule, pexpr);
-	}
 	TraceDSLRule(mp, ulRuleId,
 				 EdsldecisionInstantiateRejected == pdecision->Status()
 					 ? EdsltraceInstantiateRejected
 					 : EdsltraceApplied,
 				 prule,
 				 pmodel, pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
-				 ulConstraintUs, ulInstantiateUs);
+				 ulConstraintUs, ulInstantiateUs, pdecision);
 	CExpression *pexprResult = pdecision->PexprDetachTarget();
 	if (fReady && GPOS_FTRACE(EopttracePrintDSLRule))
 	{
@@ -893,18 +918,14 @@ CDSLRuleEngine::TraceRBOOutcome(
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexprSource);
 	GPOS_ASSERT(nullptr != szStatus);
-	if (nullptr != pdecision &&
-		(0 == std::strcmp(szStatus, "applied_rbo") ||
-		 0 == std::strcmp(szStatus, "applicable_rbo") ||
-		 0 == std::strcmp(szStatus, "duplicate") ||
-		 0 == std::strcmp(szStatus, "budget_skipped")))
+	if (nullptr != pdecision)
 	{
 		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidate(
 			prule, "rbo", szStatus,
 			nullptr == pexprState ? pexprSource : pexprState, pexprSource,
 			pexprTarget, szBindingPath, pdecision->UlMatchUs(),
 			pdecision->UlConstraintUs(), pdecision->UlInstantiateUs(),
-			0 == std::strcmp(szStatus, "applied_rbo"));
+			0 == std::strcmp(szStatus, "applied_rbo"), pdecision);
 	}
 
 	CAutoTrace trace(mp);
@@ -941,6 +962,11 @@ CDSLRuleEngine::TraceRBOOutcome(
 	}
 	if (nullptr != pdecision)
 	{
+		if (!pdecision->InputContext().empty())
+		{
+			os << ",\"input_sampling\":\"emitted_rbo_outcome\",\"input_context\":"
+			   << pdecision->InputContext().c_str();
+		}
 		os << ",\"match_us\":" << pdecision->UlMatchUs()
 		   << ",\"constraint_us\":" << pdecision->UlConstraintUs()
 		   << ",\"instantiate_us\":" << pdecision->UlInstantiateUs();
@@ -960,6 +986,23 @@ CDSLRewriteDecision *
 CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 								  CExpression *pexpr,
 								  BOOL fFingerprint) const
+{
+	std::string context;
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		const CHAR *path = COptCtxt::PoctxtFromTLS()->GetOptimizerConfig()
+			->GetHint()->SzDSLStatsExperimentPath();
+		if (nullptr != path && '\0' != path[0])
+			context = CDSLStatsExperimentSnapshot::InputContext(pexpr, mp);
+	}
+	CDSLRewriteDecision *decision = PdecisionEvaluateWithViews(mp, prule, pexpr, fFingerprint);
+	decision->SetInputContext(std::move(context));
+	return decision;
+}
+
+CDSLRewriteDecision *
+CDSLRuleEngine::PdecisionEvaluateWithViews(CMemoryPool *mp, const CDSLRule *prule,
+										 CExpression *pexpr, BOOL fFingerprint) const
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != prule);
@@ -1085,6 +1128,20 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	CDSLTargetInputOriginArray inputOrigins;
 	CExpression *pexprTarget = PexprInstantiate(
 		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr);
+	if (nullptr != pexprTarget && nullptr != pexpr->Pgexpr() &&
+		!pexprTarget->Matches(pexpr) &&
+		FMatchesMemoDescendant(pexpr, pexprTarget))
+	{
+		// A fresh identity Select admits the equivalent descendant as an
+		// alternative without merging ancestor/descendant groups. This is the
+		// same representation used by native operator-eliminating xforms.
+		pexprTarget = CUtils::PexprLogicalSelect(
+			mp, pexprTarget, CUtils::PexprScalarConstBool(mp, true));
+		for (SDSLTargetInputOrigin &input : inputOrigins)
+		{
+			input.m_expression_path.insert(1, "/0");
+		}
+	}
 	const ULONG ulInstantiateUs = fTrace ? stageTimer.ElapsedUS() : 0;
 	if (nullptr == pexprTarget)
 	{

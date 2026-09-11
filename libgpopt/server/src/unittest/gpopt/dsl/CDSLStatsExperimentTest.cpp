@@ -10,6 +10,19 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/dsl/CDSLStatsExperiment.h"
+#include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CPatternLeaf.h"
+#include "gpopt/base/CDrvdPropRelational.h"
+#include "gpopt/base/CUtils.h"
+#include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CLogicalUnionAll.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/search/CGroup.h"
+#include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
+#include "gpopt/search/CMemo.h"
+#include "naucrates/statistics/CStatistics.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -23,8 +36,293 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLStatsExperimentTest::EresUnittest_ExpressionFingerprintRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_StrictInput),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	// Four bag-equivalent VALUES orders, partitioned between two parent groups.
+	// Try every partition so the test does not depend on hash bucket traversal.
+	for (ULONG dsl = 0; dsl < 2; ++dsl)
+	{
+		for (ULONG pair = 1; pair < 4; ++pair)
+		{
+			CMemo memo(mp);
+			const auto insert = [&](CExpression *expr, CGroup *owner, CGroupArray *children)
+			{
+				CGroupExpression *origin = nullptr;
+				if (dsl && children->Size() > 0)
+				{
+					CGroupProxy child((*children)[0]);
+					origin = child.PgexprFirst();
+				}
+				expr->Pop()->AddRef();
+				CGroupExpression *gexpr = GPOS_NEW(mp) CGroupExpression(mp,
+					expr->Pop(), children, nullptr != origin ? CXform::ExfDSLRuleSelect : CXform::ExfInvalid,
+					origin, false);
+				CGroup *group = memo.PgroupInsert(owner, expr, gexpr);
+				GPOS_ASSERT(nullptr != gexpr->Pgroup());
+				return group;
+			};
+			CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+			CGroup *scalar = insert(predicate, nullptr, GPOS_NEW(mp) CGroupArray(mp));
+			CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+			columns->Append(fixture.PcrCreateInt4("v"));
+			CExpression *inputs[4];
+			CGroup *leaves[4];
+			for (ULONG i = 0; i < 4; ++i)
+			{
+				IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+				for (ULONG j = 0; j < 4; ++j)
+				{
+					CExpression *value = CUtils::PexprScalarConstInt4(mp, (i + j) % 4);
+					IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+					datum->AddRef();
+					IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+					row->Append(datum);
+					rows->Append(row);
+					value->Release();
+				}
+				columns->AddRef();
+				inputs[i] = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, rows));
+				leaves[i] = insert(inputs[i], nullptr, GPOS_NEW(mp) CGroupArray(mp));
+			}
+			CGroup *parents[2] = {nullptr, nullptr};
+			for (ULONG i = 0; i < 4; ++i)
+			{
+				const ULONG owner = (i == 0 || i == pair) ? 0 : 1;
+				CExpression *filter = fixture.PexprLogicalSelect(inputs[i], predicate);
+				CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+				children->Append(leaves[i]);
+				children->Append(scalar);
+				parents[owner] = insert(filter, parents[owner], children);
+				filter->Release();
+			}
+			for (ULONG i = 0; i < memo.UlpGroups(); ++i)
+			{
+				CGroup *group = memo.Pgroup(i);
+				CGroupProxy proxy(group);
+				proxy.SetState(CGroup::estExploring);
+				proxy.SetState(CGroup::estExplored);
+				for (CGroupExpression *expr = proxy.PgexprFirst(); nullptr != expr;
+					 expr = proxy.PgexprNext(expr))
+				{
+					expr->SetState(CGroupExpression::estExploring);
+					expr->SetState(CGroupExpression::estExplored);
+				}
+			}
+			memo.SetRoot(parents[0]);
+			for (ULONG i = 0; i < 3; ++i)
+				CMemo::MarkDuplicates(leaves[i], leaves[3]);
+			memo.GroupMerge();
+			BOOL valid = CGroup::FDuplicateGroups(parents[0], parents[1]) &&
+				memo.PgroupRoot()->UlGExprs() == 1 && leaves[3]->UlGExprs() == 4 &&
+				!CGroup::FReachable(mp, leaves[3], memo.PgroupRoot());
+			const ULONG count = memo.UlGrpExprs();
+			memo.GroupMerge();
+			valid = valid && memo.UlGrpExprs() == count;
+			for (CExpression *input : inputs)
+				input->Release();
+			predicate->Release();
+			columns->Release();
+			if (!valid)
+				return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("private_name", 1, &cols);
+	CExpression *pred = fixture.PexprEqConst((*cols)[0], 7);
+	CExpression *other = fixture.PexprEqConst((*cols)[0], 999);
+	CExpression *select = fixture.PexprLogicalSelect(get, pred);
+	const std::string shape = CDSLStatsExperimentSnapshot::ExpressionShape(select);
+	BOOL valid = nullptr == select->Pstats() && nullptr == get->Pstats() &&
+		std::string::npos == shape.find("private_name") &&
+		std::string::npos != shape.find("\"CScalarCmp\":1") &&
+		std::string::npos != shape.find("\"depth\":3") &&
+		CDSLStatsExperimentSnapshot::ExpressionShape(pred) ==
+			CDSLStatsExperimentSnapshot::ExpressionShape(other);
+	CExpression *pattern = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp));
+	valid = valid && std::string::npos !=
+		CDSLStatsExperimentSnapshot::ExpressionShape(pattern).find("\"pattern_nodes\":1");
+	pattern->Release();
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	CColRef2dArray *inputCols = GPOS_NEW(mp) CColRef2dArray(mp);
+	for (ULONG i = 0; i < 4100; ++i)
+	{
+		get->AddRef();
+		children->Append(get);
+		cols->AddRef();
+		inputCols->Append(cols);
+	}
+	cols->AddRef();
+	CExpression *wide = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalUnionAll(mp, cols, inputCols), children);
+	const std::string partial = CDSLStatsExperimentSnapshot::ExpressionShape(wide);
+	valid = valid && std::string::npos != partial.find("\"complete\":false") &&
+		std::string::npos != partial.find("\"nodes\":4096");
+	wide->Release();
+	CWStringDynamic errors(mp);
+	CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
+		"Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)", "EQ", &errors);
+	if (nullptr != rule)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const std::string empty = CDSLStatsExperimentSnapshot::BindingContext(rule, model);
+		valid = valid && std::string::npos != empty.find("\"bound\":false") &&
+			std::string::npos != empty.find("\"total_symbols\":2");
+		for (ULONG i = 0; i < rule->PfragSrc()->Pdrgpsym()->Size(); ++i)
+		{
+			const CDSLSymbol *sym = (*rule->PfragSrc()->Pdrgpsym())[i];
+			if (EdslsymTable == sym->Esymkind())
+				valid = model->FBind(sym, select) && valid;
+			else if (EdslsymPred == sym->Esymkind())
+				valid = model->FBind(sym, pred) && valid;
+		}
+		const std::string bound = CDSLStatsExperimentSnapshot::BindingContext(rule, model);
+		valid = valid && std::string::npos != bound.find("after_evaluation") &&
+			std::string::npos == bound.find("\"bound\":false") &&
+			std::string::npos != bound.find("\"CLogicalSelect\":1") &&
+			std::string::npos != bound.find("\"omitted_symbols\":0") && nullptr == select->Pstats();
+		model->Release();
+		rule->Release();
+	}
+	else
+		valid = false;
+	select->Release();
+	other->Release();
+	pred->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("first", 1, &cols);
+	CExpression *other = fixture.PexprLogicalGet("renamed", 1);
+	const std::string context = CDSLStatsExperimentSnapshot::InputContext(get);
+	BOOL valid = nullptr == get->Pstats() &&
+		context == CDSLStatsExperimentSnapshot::InputContext(other) &&
+		std::string::npos != context.find("\"rows\":null") &&
+		std::string::npos != context.find("\"stats_source\":\"missing\"");
+	const std::string keyed = CDSLStatsExperimentSnapshot::InputContext(get, mp);
+	valid = valid && nullptr == get->Pstats() &&
+		std::string::npos != keyed.find("\"reference_key\":\"" +
+			CDSLStatsExperimentSnapshot::Fingerprint(mp, get) + "\"") &&
+		keyed != CDSLStatsExperimentSnapshot::InputContext(other, mp);
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	CColRef2dArray *input_cols = GPOS_NEW(mp) CColRef2dArray(mp);
+	for (ULONG i = 0; i < 9; ++i)
+	{
+		get->AddRef();
+		children->Append(get);
+		cols->AddRef();
+		input_cols->Append(cols);
+	}
+	cols->AddRef();
+	CExpression *join = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalUnionAll(mp, cols, input_cols), children);
+	const std::string wide = CDSLStatsExperimentSnapshot::InputContext(join);
+	valid = valid && nullptr == join->Pstats() && nullptr == get->Pstats() &&
+		std::string::npos != wide.find("\"relational_children\":9") &&
+		std::string::npos != wide.find("\"omitted_children\":1");
+	CGroup *group = GPOS_NEW(mp) CGroup(mp, false);
+	{
+		CGroupProxy proxy(group);
+		proxy.SetId(0);
+		proxy.InitProperties(GPOS_NEW(mp) CDrvdPropRelational(mp));
+		get->Pop()->AddRef();
+		CGroupExpression *gexpr = GPOS_NEW(mp) CGroupExpression(mp, get->Pop(),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr, false);
+		proxy.Insert(gexpr);
+		get->Pop()->AddRef();
+		CExpression *bound = GPOS_NEW(mp) CExpression(mp, get->Pop(), gexpr);
+		ULongPtrArray *ids = GPOS_NEW(mp) ULongPtrArray(mp);
+		proxy.InitStats(gpnaucrates::CStatistics::MakeDummyStats(mp, ids, CDouble(42.0)));
+		ids->Release();
+		const std::string cached = CDSLStatsExperimentSnapshot::InputContext(bound);
+		valid = valid && nullptr == bound->Pstats() && group->Pstats()->Rows() == CDouble(42.0) &&
+			std::string::npos != cached.find("\"memo_group_expressions\":1") &&
+			std::string::npos != cached.find("\"logical_properties\":null") &&
+			std::string::npos != cached.find("\"stats_source\":\"memo_group\"") &&
+			std::string::npos != cached.find("\"rows\":42");
+		bound->Release();
+		get->Pop()->AddRef();
+		bound = GPOS_NEW(mp) CExpression(mp, get->Pop(), gexpr);
+		const std::string direct = CDSLStatsExperimentSnapshot::InputContext(bound);
+		valid = valid && nullptr != bound->Pstats() &&
+			std::string::npos != direct.find("\"stats_source\":\"expression\"") &&
+			std::string::npos != direct.find("\"rows\":42");
+		bound->Release();
+	}
+	group->Release();
+	join->Release();
+	other->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *table = fixture.PexprLogicalGet("cached", 2, &columns);
+	columns->AddRef();
+	CExpression *get = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+	table->Release();
+	// Explicit fixture preparation, not a side effect of observation.
+	CDrvdProp *props = get->PdpDerive();
+	props->AddRef();
+	CGroup *group = GPOS_NEW(mp) CGroup(mp, false);
+	BOOL valid;
+	{
+		CGroupProxy proxy(group);
+		proxy.SetId(0);
+		proxy.InitProperties(props);
+		get->Pop()->AddRef();
+		CGroupExpression *gexpr = GPOS_NEW(mp) CGroupExpression(mp, get->Pop(),
+			GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr, false);
+		proxy.Insert(gexpr);
+		get->Pop()->AddRef();
+		CExpression *bound = GPOS_NEW(mp) CExpression(mp, get->Pop(), gexpr);
+		const std::string context = CDSLStatsExperimentSnapshot::InputContext(bound);
+		valid = nullptr == bound->Pstats() && nullptr == group->Pstats() &&
+			group->Pdp() == props && group->UlGExprs() == 1 &&
+			std::string::npos != context.find("\"output_columns\":2") &&
+			std::string::npos != context.find("\"outer_columns\":0") &&
+			std::string::npos != context.find("\"source\":\"complete_memo_group\"");
+		bound->Release();
+	}
+	group->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -159,6 +457,20 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 			mp, duplicate, get, &errors);
 	BOOL valid = nullptr == snapshot && 0 < errors.Length();
 	GPOS_DELETE(snapshot);
+
+	// Positive fractional estimates below MinRows violate downstream join
+	// scale-factor invariants. Reject at the experiment boundary, never clamp.
+	for (const CHAR *rows : {"0", "0.5", "nan", "inf"})
+	{
+		std::ostringstream invalid_rows;
+		invalid_rows << "experiment: invalid-rows\ncardinalities:\n"
+					 << "  - relations: [a]\n    rows: " << rows << "\n";
+		errors.Reset();
+		snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp, invalid_rows.str().c_str(), get, &errors);
+		valid = valid && nullptr == snapshot && 0 < errors.Length();
+		GPOS_DELETE(snapshot);
+	}
 
 	CColRefArray *cols = nullptr;
 	CExpression *repeated = fixture.PexprLogicalGet("repeated", 1, &cols);

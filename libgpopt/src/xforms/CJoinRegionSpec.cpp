@@ -140,10 +140,19 @@ CJoinRegionSpec::~CJoinRegionSpec()
 CExpression *
 CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 										BOOL include_complex,
-										BOOL parent_is_join)
+										BOOL parent_is_join,
+										BOOL preserve_bindings)
 {
 	GPOS_CHECK_STACK_SIZE;
 	GPOS_ASSERT(nullptr != mp && nullptr != expr);
+	// Native bindings refer to an equivalence group, not to a new expression
+	// to insert. Rebuilding their children loses that contract (including
+	// predicates represented by other alternatives of the same group).
+	if (preserve_bindings && nullptr != expr->Pgexpr())
+	{
+		expr->AddRef();
+		return expr;
+	}
 	const COperator::EOperatorId op_id = expr->Pop()->Eopid();
 	const BOOL is_join_op = COperator::EopLogicalInnerJoin == op_id ||
 							(include_complex && FCDCSupportedJoin(op_id));
@@ -164,7 +173,8 @@ CJoinRegionSpec::PexprMarkDPHyperRegions(CMemoryPool *mp, CExpression *expr,
 	for (ULONG child = 0; child < expr->Arity(); ++child)
 	{
 		children->Append(PexprMarkDPHyperRegions(
-			mp, (*expr)[child], include_complex, is_join && child < 2));
+			mp, (*expr)[child], include_complex, is_join && child < 2,
+			preserve_bindings));
 	}
 
 	COperator *op = nullptr;

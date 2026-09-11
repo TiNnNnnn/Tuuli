@@ -468,6 +468,8 @@ CGroupExpression::PccInsertBest(CCostContext *pcc)
 		// insert new context
 		pccKept = PccInsert(pcc);
 		GPOS_ASSERT(pccKept == pcc);
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCostLifecycle(
+			nullptr == pccExisting ? "retained_new" : "retained_replacement", pcc, pccExisting);
 
 		if (nullptr != pccExisting)
 		{
@@ -482,6 +484,7 @@ CGroupExpression::PccInsertBest(CCostContext *pcc)
 	else
 	{
 		// re-insert existing context
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCostLifecycle("discarded", pcc, pccExisting);
 		pcc->Release();
 		pccKept = PccInsert(pccExisting);
 		GPOS_ASSERT(pccKept == pccExisting);
@@ -514,12 +517,14 @@ CGroupExpression::PccComputeCost(
 
 	if (!fPruned && !FValidContext(mp, poc, pdrgpoc))
 	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCost(this, poc, ulOptReq, "invalid_context");
 		return nullptr;
 	}
 
 	// check if the same cost context is already created for current group expression
 	if (FCostContextExists(poc, pdrgpoc))
 	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCost(this, poc, ulOptReq, "duplicate_context");
 		return nullptr;
 	}
 
@@ -557,9 +562,12 @@ CGroupExpression::PccComputeCost(
 	pcc->SetState(CCostContext::estCosted);
 	if (fValid)
 	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCost(this, poc, ulOptReq,
+			fPruned ? "pruned" : "costed", pcc);
 		return PccInsertBest(pcc);
 	}
 
+	COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCost(this, poc, ulOptReq, "invalid_plan");
 	pcc->Release();
 
 	// invalid cost context

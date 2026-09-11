@@ -88,6 +88,8 @@ private:
 
 	// cost of physical expression node when copied out of the memo
 	CCost m_cost;
+	// Exact costing provenance for normal Memo extraction; zero means unavailable.
+	ULONG m_ulDSLTraceCandidate{0};
 
 	// id of origin group, used for debugging expressions extracted from memo
 	ULONG m_ulOriginGrpId;
@@ -274,6 +276,9 @@ public:
 	static ULONG UlHashDedup(const CExpression *pexpr);
 
 	// rehydrate expression from a given cost context and child expressions
+	ULONG UlDSLTraceCandidate() const { return m_ulDSLTraceCandidate; }
+	void SetDSLTraceCandidate(ULONG sequence) { m_ulDSLTraceCandidate = sequence; }
+
 	static CExpression *PexprRehydrate(CMemoryPool *mp, CCostContext *pcc,
 									   CExpressionArray *pdrgpexpr,
 									   CDrvdPropCtxtPlan *pdpctxtplan);

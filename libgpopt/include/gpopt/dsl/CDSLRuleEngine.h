@@ -108,6 +108,9 @@ private:
 	CDSLRewriteDecision *PdecisionEvaluateDirect(
 		CMemoryPool *mp, const CDSLRule *prule, CExpression *pexpr,
 		BOOL fFingerprint) const;
+	CDSLRewriteDecision *PdecisionEvaluateWithViews(
+		CMemoryPool *mp, const CDSLRule *prule, CExpression *pexpr,
+		BOOL fFingerprint) const;
 
 public:
 	CDSLRuleEngine(const CDSLRuleEngine &) = delete;

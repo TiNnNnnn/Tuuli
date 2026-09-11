@@ -17,6 +17,8 @@ using namespace gpos;
 
 class CExpression;
 class COperator;
+class CDSLRule;
+class CDSLModel;
 
 enum EDSLStatsBoundary
 {
@@ -61,11 +63,19 @@ public:
 		CMemoryPool *mp, const CHAR *path, const CExpression *root,
 		CWStringDynamic *errors);
 	static std::string Fingerprint(CMemoryPool *mp, const CExpression *expr);
+	// Cached properties only: never derive statistics for instrumentation.
+	static std::string InputContext(const CExpression *expr, CMemoryPool *mp = nullptr);
+	static std::string ExpressionShape(const CExpression *expr);
+	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model);
 
 	const SDSLStatsExperimentTarget *Ptarget(const COperator *pop) const;
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
 	ULONG UlTargets() const { return (ULONG) m_targets.size(); }
+	const std::vector<SDSLStatsExperimentTarget> &Targets() const
+	{
+		return m_targets;
+	}
 };
 
 }  // namespace gpopt

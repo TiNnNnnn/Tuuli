@@ -121,9 +121,10 @@ namespace
 {
 void
 CountDSLPlanNodes(const CExpression *expr, ULONG *nodes, ULONG *dsl_nodes,
-				  COptCtxt *poctxt)
+				  COptCtxt *poctxt, ULONG parent = 0)
 {
-	++(*nodes);
+	const ULONG node = ++(*nodes);
+	poctxt->TraceDSLExperimentSelectedCost(expr, node, parent);
 	if (nullptr != expr->Pgexpr() && expr->Pgexpr()->FHasDSLProvenance())
 	{
 		++(*dsl_nodes);
@@ -131,7 +132,7 @@ CountDSLPlanNodes(const CExpression *expr, ULONG *nodes, ULONG *dsl_nodes,
 	}
 	for (ULONG child = 0; child < expr->Arity(); ++child)
 	{
-		CountDSLPlanNodes((*expr)[child], nodes, dsl_nodes, poctxt);
+		CountDSLPlanNodes((*expr)[child], nodes, dsl_nodes, poctxt, node);
 	}
 }
 
@@ -523,6 +524,8 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 					  const CDSLTargetInputOriginArray *inputOrigins,
 					  ULONG candidateSequence, ULONG memoVersionBefore)
 {
+	const ULONG insertionVersionBefore = 0 == candidateSequence
+		? 0 : COptCtxt::PoctxtFromTLS()->UlDSLMemoVersion();
 	// recursive function - check stack
 	GPOS_CHECK_STACK_SIZE;
 	GPOS_CHECK_ABORT;
@@ -577,7 +580,7 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 			{
 				COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
 					pruleOrigin, "memo_cycle_rejected", candidateSequence,
-					memoVersionBefore, pgroupTarget, nullptr);
+					memoVersionBefore, pgroupTarget, nullptr, insertionVersionBefore);
 				if (GPOS_FTRACE(EopttracePrintDSLRule))
 				{
 					CAutoTrace at(m_mp);
@@ -621,7 +624,7 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
 			pruleOrigin, inserted ? "memo_inserted" : "memo_duplicate",
 			candidateSequence, memoVersionBefore, pgroupContainer,
-			inserted ? pgexpr : nullptr);
+			inserted ? pgexpr : nullptr, insertionVersionBefore);
 	}
 
 	if (!inserted)
@@ -681,25 +684,31 @@ CEngine::InsertXformResult(
 								  &memoVersionBefore);
 		}
 		CExpression *pexprInsert = pexpr;
+		const BOOL dsl_result = CGroupExpression::FDSLRuleXform(exfidOrigin);
 		const BOOL join_region_ingress =
 			nullptr != dynamic_cast<CLogicalApply *>(pgexprOrigin->Pop()) &&
 			nullptr != dynamic_cast<CLogicalJoin *>(pexpr->Pop());
-		if ((CGroupExpression::FDSLRuleXform(exfidOrigin) ||
-			 join_region_ingress) &&
+		// Native rewrites can introduce joins below non-join wrappers too.
+		// Preserve the existing shadow path and physical implementation bindings.
+		const BOOL mark_join_regions =
+			(dsl_result || join_region_ingress ||
+			 (pexpr->Pop()->FLogical() && !GPOS_FTRACE(EopttraceDPHyperShadow))) &&
 			COptCtxt::PoctxtFromTLS()
 				->GetOptimizerConfig()
 				->GetHint()
-				->FEnableDPHyper())
+				->FEnableDPHyper();
+		if (mark_join_regions)
 		{
 			pexprInsert =
 				CJoinRegionSpec::PexprMarkDPHyperRegions(
-					m_mp, pexpr, true /*include complex*/);
+					m_mp, pexpr, true /*include complex*/,
+					false /*parent_is_join*/, !dsl_result /*preserve_bindings*/);
 		}
 		CGroup *pgroupContainer =
 			PgroupInsert(pgroupOrigin, pexprInsert, exfidOrigin, pgexprOrigin,
 						 false /*fIntermediate*/, pruleOrigin, "r", &inputOrigins,
 						 candidateSequence, memoVersionBefore);
-		if (pexprInsert != pexpr)
+		if (mark_join_regions)
 		{
 			pexprInsert->Release();
 		}
@@ -955,11 +964,18 @@ CEngine::FSafeToPrune(
 {
 	GPOS_ASSERT(nullptr != pcostLowerBound);
 	*pcostLowerBound = GPOPT_INVALID_COST;
+	const auto record = [&](const CHAR *status, BOOL result,
+		const CCostContext *incumbent = nullptr, DOUBLE bound = -1)
+	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentSearchCheck("prune", status,
+			pgexpr, prpp, gpos::ulong_max, incumbent, bound, pccChild, child_index);
+		return result;
+	};
 
 	if (!GPOS_FTRACE(EopttraceEnableSpacePruning))
 	{
 		// space pruning is disabled
-		return false;
+		return record("disabled", false);
 	}
 
 	if (GPOS_FTRACE(EopttraceDeriveStatsForDPE) &&
@@ -967,7 +983,7 @@ CEngine::FSafeToPrune(
 	{
 		// stat derivation for Dynamic Partition Elimination may not allow non-trivial cost bounds
 
-		return false;
+		return record("dpe_unsafe", false);
 	}
 
 	// check if container group has a plan for given properties
@@ -980,14 +996,12 @@ CEngine::FSafeToPrune(
 		CCost costLowerBound =
 			pgexpr->CostLowerBound(m_mp, prpp, pccChild, child_index);
 		*pcostLowerBound = costLowerBound;
-		if (costLowerBound > pocGroup->PccBest()->Cost())
-		{
-			// group expression cannot deliver a better plan for given properties and can be safely pruned
-			return true;
-		}
+		const BOOL pruned = costLowerBound > pocGroup->PccBest()->Cost();
+		return record(pruned ? "pruned" : "bound_not_worse", pruned,
+			pocGroup->PccBest(), costLowerBound.Get());
 	}
 
-	return false;
+	return record("no_incumbent", false);
 }
 
 
@@ -3179,6 +3193,12 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 						 ULONG ulOptReq)
 {
 	GPOS_CHECK_ABORT;
+	const auto record = [&](const CHAR *status, BOOL result)
+	{
+		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentSearchCheck("properties", status,
+			exprhdl.Pgexpr(), prpp, ulOptReq);
+		return result;
+	};
 
 	if (GPOS_FTRACE(EopttracePrintMemoEnforcement))
 	{
@@ -3193,7 +3213,7 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 	// check if operator provides required columns
 	if (!prpp->FProvidesReqdCols(m_mp, exprhdl, ulOptReq))
 	{
-		return false;
+		return record("missing_columns", false);
 	}
 
 	CPhysical *popPhysical = CPhysical::PopConvert(exprhdl.Pop());
@@ -3209,7 +3229,7 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 	BOOL fOrderReqd = !prpp->Peo()->PosRequired()->IsEmpty();
 	if (!fOrderReqd && COperator::EopPhysicalSort == op_id)
 	{
-		return false;
+		return record("sort_without_order", false);
 	}
 
 	// check if motion operator is passed an ANY distribution spec;
@@ -3219,7 +3239,7 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 		(CDistributionSpec::EdtAny != prpp->Ped()->PdsRequired()->Edt());
 	if (!fDistributionReqd && CUtils::FPhysicalMotion(popPhysical))
 	{
-		return false;
+		return record("motion_any_distribution", false);
 	}
 
 	// check if spool operator is passed a non-rewindable spec;
@@ -3228,7 +3248,7 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 	if (!prpp->Per()->PrsRequired()->IsCheckRequired() &&
 		COperator::EopPhysicalSpool == op_id)
 	{
-		return false;
+		return record("spool_without_rewind", false);
 	}
 
 	// check if partition selector is passed a propagation spec not
@@ -3245,11 +3265,11 @@ CEngine::FCheckReqdProps(CExpressionHandle &exprhdl, CReqdPropPlan *prpp,
 			CPhysicalPartitionSelector::PopConvert(popPhysical);
 		if (!pps->Contains(part_selector->ScanId()))
 		{
-			return false;
+			return record("partition_selector_without_scan", false);
 		}
 	}
 
-	return true;
+	return record("accepted", true);
 }
 
 UlongPtrArray *

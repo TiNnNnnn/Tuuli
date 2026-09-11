@@ -16,6 +16,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -1792,6 +1793,7 @@ CDPHyperGraphTest::EresUnittest_EnumerationProvenance()
 	{
 		CGroupProxy proxy(base_group);
 		proxy.SetId(0);
+		proxy.InitProperties(GPOS_NEW(mp) CDrvdPropRelational(mp));
 	}
 	{
 		CGroupProxy proxy(enumerated_group);
@@ -1825,6 +1827,16 @@ CDPHyperGraphTest::EresUnittest_EnumerationProvenance()
 	}
 	CExpression *pattern = GPOS_NEW(mp)
 		CExpression(mp, GPOS_NEW(mp) CPatternTree(mp));
+
+	// Region marking on native results must keep an existing Memo reference
+	// opaque and return an owned reference, not reinsert a reconstructed tree.
+	base->Pop()->AddRef();
+	CExpression *bound = GPOS_NEW(mp) CExpression(mp, base->Pop(), base);
+	CExpression *preserved = CJoinRegionSpec::PexprMarkDPHyperRegions(
+		mp, bound, true, false, true /*preserve_bindings*/);
+	GPOS_UNITTEST_ASSERT(preserved == bound && preserved->Pgexpr() == base);
+	preserved->Release();
+	bound->Release();
 
 	CBinding before_enumeration(true /*skip_dphyper_provenance*/);
 	CExpression *enumerated_binding =

@@ -170,10 +170,11 @@ public:
 	// Copy an expression tree while marking every maximal binary InnerJoin
 	// region, or every CD-C-supported mixed join region when requested. Query
 	// preprocessing and DSL alternatives share this path so region ownership
-	// does not depend on which phase produced the tree.
+	// does not depend on which phase produced the tree. Native xform results
+	// preserve bound Memo subtrees as opaque inputs, just as insertion does.
 	static CExpression *PexprMarkDPHyperRegions(
 		CMemoryPool *mp, CExpression *expr, BOOL include_complex = false,
-		BOOL parent_is_join = false);
+		BOOL parent_is_join = false, BOOL preserve_bindings = false);
 
 	// Build once.  Unsupported relational subtrees are opaque atoms.  The root
 	// itself must be a supported three-child logical join.

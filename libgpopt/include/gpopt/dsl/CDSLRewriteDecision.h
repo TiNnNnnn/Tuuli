@@ -12,6 +12,8 @@
 #ifndef GPOPT_CDSLRewriteDecision_H
 #define GPOPT_CDSLRewriteDecision_H
 
+#include <string>
+#include <utility>
 #include "gpos/base.h"
 
 #include "gpopt/dsl/CDSLModel.h"
@@ -45,6 +47,7 @@ private:
 	ULONG m_ulSourceFingerprint;
 	ULONG m_ulTargetFingerprint;
 	CDSLTargetInputOriginArray m_target_input_origins;
+	std::string m_input_context;
 
 public:
 	CDSLRewriteDecision(const CDSLRewriteDecision &) = delete;
@@ -68,6 +71,8 @@ public:
 	ULONG UlInstantiateUs() const { return m_ulInstantiateUs; }
 	ULONG UlSourceFingerprint() const { return m_ulSourceFingerprint; }
 	ULONG UlTargetFingerprint() const { return m_ulTargetFingerprint; }
+	void SetInputContext(std::string context) { m_input_context = std::move(context); }
+	const std::string &InputContext() const { return m_input_context; }
 	const CDSLTargetInputOriginArray &
 	TargetInputOrigins() const
 	{

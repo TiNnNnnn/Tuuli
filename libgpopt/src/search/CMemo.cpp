@@ -397,6 +397,8 @@ CMemo::PexprExtractPlan(CMemoryPool *mp, CGroup *pgroupRoot,
 	}
 	CExpression *pexpr = GPOS_NEW(mp) CExpression(
 		mp, pgexprBest->Pop(), pgexprBest, pdrgpexpr, prpp, stats, cost);
+	if (nullptr != poc)
+		pexpr->SetDSLTraceCandidate(poc->PccBest()->UlDSLTraceCandidate());
 
 	if (pexpr->Pop()->FPhysical() && !poc->PccBest()->IsValid(mp))
 	{
@@ -528,11 +530,12 @@ CMemo::FRehash()
 		BOOL fMergeGroups = false;
 		if (pgroupFound != pgroup)
 		{
-			CGroup *pgroupDup = pgroup->PgroupDuplicate();
-			CGroup *pgroupFoundDup = pgroupFound->PgroupDuplicate();
-			fMergeGroups =
-				(nullptr == pgroupDup && nullptr == pgroupFoundDup) ||
-				(pgroupDup != pgroupFoundDup);
+			// Earlier entries in this rehash may have joined these classes.
+			// Deduplicating inside one class cannot introduce a new memo cycle;
+			// comparing a master's null link with its alias mistakes it for one.
+			pgroup->ResolveDuplicateMaster();
+			pgroupFound->ResolveDuplicateMaster();
+			fMergeGroups = !CGroup::FDuplicateGroups(pgroup, pgroupFound);
 
 			const BOOL fDSLProvenance =
 				pgexpr->FHasDSLProvenance() ||
