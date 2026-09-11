@@ -3348,6 +3348,29 @@ class RuleDROTest(unittest.TestCase):
 
 
 class RuleDROCalibrationTest(unittest.TestCase):
+    def test_holdout_never_reselects_and_uses_separate_units_and_budget(self):
+        from copy import deepcopy
+        contract, data = self.example()
+        contract['holdout_beta'] = 0.01
+        contract['strata']['all']['holdout'] = ['held-' + u for u in contract['strata']['all']['calibration']]
+        data['contract_identity'] = contract_identity(contract)
+        selection = calibrate(contract, data)
+        self.assertEqual(selection['strata']['all']['selected_policy'], 'candidate')
+        holdout = deepcopy(data)
+        for row in holdout['records']:
+            row['unit'] = 'held-' + row['unit']
+            if row['policy'] == 'candidate':
+                row['metrics']['gain'] = -0.8
+        with self.assertRaises(ValueError):
+            calibrate(contract, holdout)
+        scored = calibrate(contract, holdout, frozen_selection=selection)
+        self.assertEqual(scored['evaluation_phase'], 'holdout')
+        self.assertEqual(scored['beta'], 0.01)
+        self.assertEqual(scored['strata']['all']['selected_policy'], 'candidate')
+        self.assertFalse(scored['strata']['all']['selected_risk_feasible'])
+        with self.assertRaises(ValueError):
+            calibrate(contract, holdout, frozen_selection=scored)
+
     def test_ambiguity_set_is_frozen_and_defaults_to_previous_w1(self):
         contract, data = self.example()
         contract['metrics']['planning'].update(support=[0, 60000], threshold=100, risk_limit=0.2)
@@ -3601,6 +3624,23 @@ class RuleDROCalibrationTest(unittest.TestCase):
         capped = {row['policy']: row['metrics'] for row in timing_records(contract, comparison)}
         self.assertEqual(capped['off']['gain'], 1)
         self.assertEqual(capped['cbo']['gain'], 0)
+        # The total-time objective is frozen in the contract, never inferred
+        # from which endpoint happens to improve after measurement.
+        for sample in samples:
+            sample['execution_ms'] = 1
+            sample['planning_ms'] = 1 if sample['arm'] == 'off' else 2
+        self.assertEqual(timing_records(contract, comparison)[0]['metrics']['gain'], 0)
+        contract['measurement']['gain_time'] = 'planning_execution'
+        with self.assertRaisesRegex(ValueError, 'receipt'):
+            timing_records(contract, comparison)
+        comparison['dro_collection'] = {**bind_collection(contract, 'u0', acquisition), 'input_endpoints_equal': True}
+        total = {row['policy']: row['metrics'] for row in timing_records(contract, comparison)}
+        self.assertAlmostEqual(total['off']['gain'], math.log(3 / 2))
+        self.assertEqual(total['cbo']['gain'], 0)
+        contract['measurement']['gain_time'] = 'client_wall'
+        with self.assertRaisesRegex(ValueError, 'unsupported timing'):
+            validate_contract(contract)
+        contract['measurement']['gain_time'] = 'planning_execution'
         samples[0]['status'] = 'plan_timeout'  # Failed warmup invalidates both paired rows.
         rows = timing_records(contract, comparison)
         self.assertTrue(all(row['status'] == 'invalid' and row['metrics'] == {} for row in rows))

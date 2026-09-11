@@ -37,6 +37,8 @@ def validate_contract(contract):
         raise ValueError('require fixed-size iid calibration or explicit acquisition-only smoke test')
     if not 0 < _number(contract['beta']) < 1:
         raise ValueError('invalid total confidence budget')
+    if 'holdout_beta' in contract and not 0 < _number(contract['holdout_beta']) < 1:
+        raise ValueError('invalid independent holdout confidence budget')
     policies, strata, metrics = (contract[name] for name in ('policies', 'strata', 'metrics'))
     for mapping in (policies, strata, metrics):
         if not isinstance(mapping, dict) or not mapping or any(
@@ -72,6 +74,7 @@ def validate_contract(contract):
         spec = contract['measurement']
         if (spec.get('kind') != 'paired_capped_timing_mean_v1'
                 or type(spec.get('scenario')) is not int or spec['scenario'] < 0
+                or spec.get('gain_time', 'execution') not in ('execution', 'planning_execution')
                 or set(metrics) != {'gain', 'planning_ms'}):
             raise ValueError('unsupported timing metric definition or scenario')
         floor, cap, clip, planning_cap = [_number(spec[k]) for k in
@@ -107,7 +110,7 @@ def bind_collection(contract, unit, acquisition):
             'scope': 'bound_before_server_start_not_independence_or_calibration_certificate'}
 
 
-def calibrate(contract, observations):
+def calibrate(contract, observations, *, frozen_selection=None):
     """Check the complete frozen Cartesian product, then compute simultaneous bounds.
 
     Independence/support/snapshot authenticity are external assumptions. CRC
@@ -117,11 +120,18 @@ def calibrate(contract, observations):
     identity = validate_contract(contract)
     if contract['sampling'] != 'iid_units_fixed_n':
         raise ValueError('acquisition smoke tests cannot produce population calibration certificates')
+    phase, beta = 'calibration', contract['beta']
+    if frozen_selection is not None:
+        if (frozen_selection.get('contract_identity') != identity
+                or frozen_selection.get('evaluation_phase') != 'calibration'
+                or 'holdout_beta' not in contract):
+            raise ValueError('holdout requires the frozen calibration selection and its own confidence budget')
+        phase, beta = 'holdout', contract['holdout_beta']
     if observations.get('contract_identity') != identity:
         raise ValueError('observations do not reference the frozen contract')
     policies, strata, metrics = (contract[name] for name in ('policies', 'strata', 'metrics'))
     expected = {(h, unit, policy) for h, split in strata.items()
-                for unit in split['calibration'] for policy in policies}
+                for unit in split[phase] for policy in policies}
     records = {}
     for row in observations['records']:
         key = row['stratum'], row['unit'], row['policy']
@@ -154,22 +164,29 @@ def calibrate(contract, observations):
         for policy in policies:
             bounds = {}
             for name, metric in metrics.items():
-                values = [records[h, unit, policy]['metrics'][name] for unit in split['calibration']]
+                values = [records[h, unit, policy]['metrics'][name] for unit in split[phase]]
                 # Baseline relative gain is structurally zero, but its absolute
                 # planning/space risks must still pass the ordinary calibration.
                 support = (0, 0) if policy == contract['baseline'] and name == 'gain' else metric['support']
                 if contract.get('ambiguity_set', 'wasserstein') == 'dkw_cdf':
                     # Unit-width DKW radius is the dimensionless CDF bandwidth.
-                    eta = dkw_w1_radius(len(values), (0, 1), beta=contract['beta'], comparisons=comparisons)
+                    eta = dkw_w1_radius(len(values), (0, 1), beta=beta, comparisons=comparisons)
                     bounds[name] = cdf_metric_bounds(values, support, bandwidth=eta,
                                                      threshold=metric['threshold'], tail=metric['tail'])
                 else:
-                    radius = dkw_w1_radius(len(values), support, beta=contract['beta'], comparisons=comparisons)
+                    radius = dkw_w1_radius(len(values), support, beta=beta, comparisons=comparisons)
                     bounds[name] = metric_bounds(values, support, radius=radius,
                                                  threshold=metric['threshold'], tail=metric['tail'])
             feasible = all(_number(bounds[name]['violation_upper']) <= _number(metric['risk_limit'])
                            for name, metric in metrics.items())
             candidates[policy] = {'bounds': bounds, 'risk_feasible': feasible}
+        if frozen_selection is not None:
+            selected = frozen_selection['strata'][h]['selected_policy']
+            if selected is not None and selected not in policies:
+                raise ValueError('frozen selection contains an undeclared policy')
+            reports[h] = {'policies': candidates, 'selected_policy': selected, 'decision': 'evaluate_frozen_selection',
+                          'selected_risk_feasible': None if selected is None else candidates[selected]['risk_feasible']}
+            continue  # Never select again from holdout outcomes.
         improving = [p for p in policies if candidates[p]['risk_feasible']
                      and candidates[p]['bounds']['gain']['mean_lower'] > 0]
         selected = (max(improving, key=lambda p: candidates[p]['bounds']['gain']['mean_lower'])
@@ -181,7 +198,7 @@ def calibrate(contract, observations):
     return {'scope': 'conditional_iid_calibration_not_deployment_authorization',
             'contract_identity': identity, 'comparisons': comparisons,
             'ambiguity_set': contract.get('ambiguity_set', 'wasserstein'),
-            'beta': contract['beta'], 'strata': reports,
+            'beta': beta, 'evaluation_phase': phase, 'strata': reports,
             'external_assumptions': ['frozen_before_sampling', 'iid_units_from_declared_population',
                                      'known_support_and_metric_semantics', 'provenance_and_semantic_validation']}
 
@@ -244,6 +261,9 @@ def timing_records(contract, comparison):
     """One paired aggregate per unit/policy; failures remain rows, never get imputed.
 
     Caps define a NEW measured utility, not original uncensored runtime gain.
+    gain_time defaults to execution; planning_execution instead measures the
+    sum of server planning and execution (not connection or client latency).
+    The historical execution_floor/cap fields bound the selected time metric.
     Warmups validate acquisition but do not enter the aggregate; their failures
     still invalidate the entire unit. Quantized timing/float arithmetic is part
     of the declared measurement, not a claim of exact physical execution time.
@@ -285,8 +305,9 @@ def timing_records(contract, comparison):
                 ('execution_floor_ms', 'execution_cap_ms', 'gain_clip', 'planning_cap_ms'))
             for block in range(timing['repeats']):
                 sample, baseline = lookup[block, policy], lookup[block, contract['baseline']]
-                execution = min(cap, max(floor, sample['execution_ms']))
-                reference = min(cap, max(floor, baseline['execution_ms']))
+                total = spec.get('gain_time', 'execution') == 'planning_execution'
+                execution = min(cap, max(floor, sample['execution_ms'] + (sample['planning_ms'] if total else 0)))
+                reference = min(cap, max(floor, baseline['execution_ms'] + (baseline['planning_ms'] if total else 0)))
                 gains.append(max(-clip, min(clip, math.log(reference) - math.log(execution))))
                 planning.append(min(planning_cap, sample['planning_ms']))
             metrics = {'gain': mean(gains), 'planning_ms': mean(planning)}
@@ -308,6 +329,8 @@ def main():
     evaluate = commands.add_parser('calibrate')
     evaluate.add_argument('contract', type=Path)
     evaluate.add_argument('observations', type=Path)
+    evaluate.add_argument('--frozen-selection', type=Path,
+                          help='evaluate holdout against a previous calibration result, without reselection')
     audit = commands.add_parser('audit-timing')
     audit.add_argument('comparisons', type=Path, nargs='+')
     export = commands.add_parser('export-timing', help='convert bound comparisons to one row per unit/policy')
@@ -326,7 +349,8 @@ def main():
         result = json.loads(args.input.read_text())
         validate_contract(result)
     elif args.command == 'calibrate':
-        result = calibrate(json.loads(args.contract.read_text()), json.loads(args.observations.read_text()))
+        result = calibrate(json.loads(args.contract.read_text()), json.loads(args.observations.read_text()),
+                           frozen_selection=json.loads(args.frozen_selection.read_text()) if args.frozen_selection else None)
     elif args.command == 'budget':
         result = {**sample_budget(args.support, target_radius=args.target_radius, beta=args.beta,
                                  comparisons=args.comparisons, max_units=args.max_units),
