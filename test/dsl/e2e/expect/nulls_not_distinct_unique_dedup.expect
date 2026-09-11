@@ -1,0 +1,30 @@
+{
+  "description": "NULLS NOT DISTINCT is a strict key even when nullable and still permits dedup elimination",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "not_contains": [
+        "Aggregate"
+      ]
+    },
+    {
+      "name": "dsl",
+      "not_contains": [
+        "Aggregate"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "",
+      "1",
+      "2"
+    ]
+  }
+}

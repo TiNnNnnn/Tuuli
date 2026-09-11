@@ -1,0 +1,26 @@
+{
+  "description": "MySQL date-only differences, valid day-number epoch, NULL propagation and numeric string aggregation",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "dsl",
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,733321,t,-2,1;1;2;3"
+    ],
+    "postgres_output": [
+      "1,733321,t,-2,1;1;2;3"
+    ]
+  }
+}

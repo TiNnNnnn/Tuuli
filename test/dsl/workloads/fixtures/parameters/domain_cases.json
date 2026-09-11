@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "workload": "tpch",
+  "parameter_design": {
+    "method": "declared_finite_scenarios",
+    "scope": "mechanism_validation_not_a_probability_sample",
+    "purpose": "test_within_template_search_variation_before_scaling",
+    "fixture": "tpch_domain_data.sql"
+  },
+  "templates": [
+    {
+      "id": "revenue_dates",
+      "sql_file": "revenue_dates.sql",
+      "cases": [
+        {"id": "control", "parameters": {"start_date": "1997-01-01", "end_date": "1998-01-01"}},
+        {"id": "early", "parameters": {"start_date": "1992-01-01", "end_date": "1993-01-01"}},
+        {"id": "middle", "parameters": {"start_date": "1994-01-01", "end_date": "1995-01-01"}},
+        {"id": "day", "parameters": {"start_date": "1997-01-01", "end_date": "1997-01-02"}},
+        {"id": "wide", "parameters": {"start_date": "1992-01-01", "end_date": "1999-01-01"}},
+        {"id": "outside", "parameters": {"start_date": "2010-01-01", "end_date": "2011-01-01"}},
+        {"id": "contradiction", "parameters": {"start_date": "1998-01-01", "end_date": "1992-01-01"}},
+        {"id": "null", "parameters": {"start_date": null, "end_date": "1998-01-01"}}
+      ]
+    },
+    {
+      "id": "supplier_threshold",
+      "sql_file": "supplier_threshold.sql",
+      "cases": [
+        {"id": "control", "parameters": {"brand": "%BrandA%", "comment_length": 10, "suppliers": 5}},
+        {"id": "brand_b", "parameters": {"brand": "%BrandB%", "comment_length": 10, "suppliers": 5}},
+        {"id": "all", "parameters": {"brand": "%", "comment_length": 10, "suppliers": 5}},
+        {"id": "outside", "parameters": {"brand": "%absent%", "comment_length": 10, "suppliers": 5}},
+        {"id": "comment_empty", "parameters": {"brand": "%BrandA%", "comment_length": 50, "suppliers": 5}},
+        {"id": "having_boundary", "parameters": {"brand": "%BrandA%", "comment_length": 10, "suppliers": 15}},
+        {"id": "having_empty", "parameters": {"brand": "%BrandA%", "comment_length": 10, "suppliers": 16}},
+        {"id": "null", "parameters": {"brand": null, "comment_length": 10, "suppliers": 5}}
+      ]
+    }
+  ]
+}

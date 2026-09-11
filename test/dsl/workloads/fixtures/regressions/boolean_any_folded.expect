@@ -1,0 +1,36 @@
+{
+  "description": "PENDING: folded Boolean ANY equality/inequality must preserve empty, mixed and NULL sets",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "dsl",
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,f,f,f,f",
+      "2,f,f,f,f",
+      "3,t,t,t,t",
+      "4,,t,t,",
+      "5,f,t,t,f",
+      "6,f,t,t,f"
+    ],
+    "postgres_output": [
+      "1,f,f,f,f",
+      "2,f,f,f,f",
+      "3,t,t,t,t",
+      "4,,t,t,",
+      "5,f,t,t,f",
+      "6,f,t,t,f"
+    ]
+  }
+}

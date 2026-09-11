@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "workload": "tpch",
+  "parameter_design": {
+    "method": "declared_finite_scenarios",
+    "scope": "mechanism_validation_not_a_probability_sample",
+    "purpose": "nonconstant_predicate_and_expression_safety_coverage",
+    "fixture": "tpch_domain_data.sql",
+    "threshold_basis": "fixture_size_domain_1_to_50_including_empty_and_null_boundaries",
+    "not_a_causal_contrast": "different_projection_templates_have_different_outputs"
+  },
+  "templates": [
+    {
+      "id": "compute_compare",
+      "sql_file": "compute_compare.sql",
+      "cases": [
+        {"id": "all", "parameters": {"minimum_size": 0}},
+        {"id": "broad", "parameters": {"minimum_size": 10}},
+        {"id": "middle", "parameters": {"minimum_size": 25}},
+        {"id": "narrow", "parameters": {"minimum_size": 49}},
+        {"id": "empty", "parameters": {"minimum_size": 50}},
+        {"id": "null", "parameters": {"minimum_size": null}}
+      ]
+    },
+    {
+      "id": "compute_arithmetic",
+      "sql_file": "compute_arithmetic.sql",
+      "cases": [
+        {"id": "all", "parameters": {"minimum_size": 0}},
+        {"id": "broad", "parameters": {"minimum_size": 10}},
+        {"id": "middle", "parameters": {"minimum_size": 25}},
+        {"id": "narrow", "parameters": {"minimum_size": 49}},
+        {"id": "empty", "parameters": {"minimum_size": 50}},
+        {"id": "null", "parameters": {"minimum_size": null}}
+      ]
+    }
+  ]
+}

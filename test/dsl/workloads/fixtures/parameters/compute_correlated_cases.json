@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "workload": "tpch",
+  "parameter_design": {
+    "method": "declared_finite_scenarios",
+    "scope": "mechanism_validation_not_a_probability_sample",
+    "purpose": "correlated_input_and_downstream_consumption_of_compute_filter_movement",
+    "fixture": "tpch_domain_data.sql",
+    "threshold_basis": "fixture_availability_102_to_244_including_empty_and_null_boundaries"
+  },
+  "templates": [
+    {
+      "id": "compute_correlated_in",
+      "sql_file": "compute_correlated_in.sql",
+      "cases": [
+        {"id": "all", "parameters": {"minimum_quantity": 0}},
+        {"id": "broad", "parameters": {"minimum_quantity": 150}},
+        {"id": "middle", "parameters": {"minimum_quantity": 200}},
+        {"id": "narrow", "parameters": {"minimum_quantity": 243}},
+        {"id": "empty", "parameters": {"minimum_quantity": 244}},
+        {"id": "null", "parameters": {"minimum_quantity": null}}
+      ]
+    }
+  ]
+}

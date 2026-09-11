@@ -1,0 +1,7 @@
+[
+  {
+    "fingerprint": "ecfc5ad779898c49",
+    "operator": "CLogicalGet",
+    "sql": "SELECT * FROM orders"
+  }
+]

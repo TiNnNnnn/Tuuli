@@ -23,6 +23,7 @@ from typing import Any, Iterable
 try:
     import sqlglot
     from sqlglot import exp
+    from sqlglot.dialects.mysql import MySQL
     from sqlglot.errors import ErrorLevel
 except ImportError as error:  # pragma: no cover - developer-only dependency
     raise SystemExit("sqlglot is required to import WeTune workloads") from error
@@ -40,6 +41,13 @@ INTEGER_TYPES = {
     "BIGINT": "BIGINT",
     "UBIGINT": "NUMERIC(20)",
 }
+
+
+class WorkloadMySQL(MySQL):
+    class Parser(MySQL.Parser):
+        # Keep the function instead of lowering it to the invalid PG year 0000.
+        FUNCTIONS = {**MySQL.Parser.FUNCTIONS,
+                     "TO_DAYS": lambda args: exp.Anonymous(this="TO_DAYS", expressions=args)}
 
 
 def detect_dialect(schema_sql: str) -> str:
@@ -79,6 +87,48 @@ def normalize_mysql_query(expression: exp.Expression) -> exp.Expression:
     return expression.transform(normalize)
 
 
+def normalize_mysql_functions(expression: exp.Expression) -> exp.Expression:
+    """Lower functions for the valid Gregorian date/text domain of imported data."""
+    # Walk bottom-up so generated replacements retain already-normalized arguments.
+    for node in reversed(list(expression.walk())):
+        replacement = None
+        if isinstance(node, exp.DateDiff) and (
+                node.args.get("unit") is None or node.args["unit"].name.upper() == "DAY"):
+            # MySQL DATEDIFF ignores time of day; AGE returns an interval, not days.
+            replacement = exp.Paren(this=exp.Sub(
+                this=exp.cast(node.this.copy(), "DATE"),
+                expression=exp.cast(node.expression.copy(), "DATE")))
+        elif isinstance(node, exp.Anonymous) and node.name.upper() == "TO_DAYS":
+            if len(node.expressions) != 1:
+                raise ValueError("TO_DAYS requires one argument")
+            # MySQL's day number at AD 0001-01-01 is 366. PostgreSQL has no year 0.
+            replacement = exp.Paren(this=exp.Add(this=exp.Sub(
+                this=exp.cast(node.expressions[0].copy(), "DATE"),
+                expression=exp.cast(exp.Literal.string("0001-01-01"), "DATE")),
+                expression=exp.Literal.number(366)))
+        elif isinstance(node, exp.Concat) and all(
+                isinstance(arg, exp.Literal) and arg.is_string for arg in node.expressions):
+            # A typed CONCAT result cannot be compared to a timestamp in PG;
+            # folding literal-only concatenation preserves contextual literal typing.
+            replacement = exp.Literal.string("".join(arg.this for arg in node.expressions))
+        elif isinstance(node, exp.GroupConcat):
+            value = node.this
+            if isinstance(value, exp.Order):
+                value = value.this
+                if isinstance(value, exp.Distinct):
+                    raise ValueError("GROUP_CONCAT DISTINCT with ORDER BY requires typed order normalization")
+            if isinstance(value, exp.Distinct):
+                value.set("expressions", [exp.cast(arg.copy(), "TEXT") for arg in value.expressions])
+            else:
+                value.replace(exp.cast(value.copy(), "TEXT"))
+        if replacement is not None:
+            if node is expression:
+                expression = replacement
+            else:
+                node.replace(replacement)
+    return expression
+
+
 def expand_having_aliases(expression: exp.Expression) -> exp.Expression:
     """Expand SELECT aliases referenced by MySQL HAVING clauses."""
     for select in expression.find_all(exp.Select):
@@ -113,12 +163,14 @@ def translate_query(query: str, dialect: str) -> tuple[str, str | None]:
     for candidate, repair in attempts:
         try:
             expression = sqlglot.parse_one(
-                candidate, read=dialect, error_level=ErrorLevel.RAISE
+                candidate, read=WorkloadMySQL if dialect == "mysql" else dialect,
+                error_level=ErrorLevel.RAISE
             )
             if dialect == "mysql":
                 expression = normalize_mysql_identifiers(expression)
                 expression = normalize_mysql_query(expression)
                 expression = expand_having_aliases(expression)
+                expression = normalize_mysql_functions(expression)
             rendered = expression.sql(
                 dialect="postgres", unsupported_level=ErrorLevel.RAISE
             )

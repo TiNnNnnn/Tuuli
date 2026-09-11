@@ -1,0 +1,30 @@
+{
+  "description": "Every component of a null-distinct unique key must be NOT NULL before it is a relational key",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Aggregate"
+      ]
+    },
+    {
+      "name": "dsl",
+      "contains": [
+        "Aggregate"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,",
+      "1,2",
+      "2,3"
+    ],
+    "postgres_output": [
+      "1,",
+      "1,2",
+      "2,3"
+    ]
+  }
+}

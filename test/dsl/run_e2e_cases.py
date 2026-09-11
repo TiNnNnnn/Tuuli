@@ -351,6 +351,7 @@ LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
 SET pg_orca.enable_dsl_rule=on;
 {policy_setting(args, expected)}
+{experiment_setting(args, expected)}
 SET pg_orca.enable_assert_maxonerow={'on' if expected.get('assert_maxonerow', False) else 'off'};
 SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
 SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
@@ -376,7 +377,7 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
         for key in (
             "dphyper", "dphyper_shadow", "dphyper_edge_budget",
             "dphyper_pair_budget", "native", "disable_xforms", "policy",
-            "assert_maxonerow"
+            "assert_maxonerow", "stats_experiment"
         )
         if key in expected
     }

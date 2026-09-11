@@ -2,6 +2,18 @@
   "description": "DPHyper owns NULL-aware anti join swaps inside a mixed join region",
   "plans": [
     {
+      "name": "replacement-dsl",
+      "dsl": true,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=replacement"
+      ],
+      "joins": 1
+    },
+    {
       "name": "replacement",
       "dsl": false,
       "dphyper": true,

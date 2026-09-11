@@ -1,0 +1,5 @@
+# Isolate duplicate membership elimination from other DSL join rewrites.
+- rule: '*'
+  enabled: false
+- rule: 8c0ea513d6ad3223
+  enabled: true

@@ -1,0 +1,30 @@
+{
+  "description": "Nullable SQL UNIQUE is not a relational key: DISTINCT must retain NULL deduplication",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Aggregate"
+      ]
+    },
+    {
+      "name": "dsl",
+      "contains": [
+        "Aggregate"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "",
+      "1",
+      "2"
+    ]
+  }
+}

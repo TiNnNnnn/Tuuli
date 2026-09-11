@@ -1,0 +1,5 @@
+experiment: dsl-e2e-stats-noop
+discover: false
+cardinalities:
+  - relations: [a]
+    rows: 4

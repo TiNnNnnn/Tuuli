@@ -2,6 +2,17 @@
   "description": "Duplicate InSub removal with native and causal controls",
   "plans": [
     {
+      "name": "isolated-native-on",
+      "xform_trace": false,
+      "trace": true,
+      "policy": "isolate_repeated_insub.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8c0ea513d6ad3223\"",
+        "Optimizer: pg_orca"
+      ],
+      "joins": 1
+    },
+    {
       "name": "off-native-on",
       "dsl": false,
       "contains": [

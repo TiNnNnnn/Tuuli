@@ -1,0 +1,5 @@
+experiment: dsl-e2e-single-outer-row
+discover: false
+cardinalities:
+  - relations: [a]
+    rows: 1

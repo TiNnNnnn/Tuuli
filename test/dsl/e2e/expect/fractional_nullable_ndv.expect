@@ -1,0 +1,48 @@
+{
+  "description": "Fractional catalog NDV uses total rows; six non-null values and NULL produce seven groups with DSL both off and on",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "stats_input_observation.yaml",
+      "contains": [
+        "\"operator\":\"CLogicalGbAgg\",\"site\":\"memo_group\",\"native_rows\":7.000000"
+      ],
+      "not_contains": [
+        "\"operator\":\"CLogicalGbAgg\",\"site\":\"memo_group\",\"native_rows\":6.000000"
+      ]
+    },
+    {
+      "name": "dsl",
+      "trace": true,
+      "stats_experiment": "stats_input_observation.yaml",
+      "contains": [
+        "\"operator\":\"CLogicalGbAgg\",\"site\":\"memo_group\",\"native_rows\":7.000000"
+      ],
+      "not_contains": [
+        "\"operator\":\"CLogicalGbAgg\",\"site\":\"memo_group\",\"native_rows\":6.000000"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "postgres_output": [
+      "",
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  }
+}

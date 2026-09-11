@@ -1,0 +1,1 @@
+SELECT DISTINCT a FROM dsl_nullable_unique ORDER BY a NULLS FIRST;

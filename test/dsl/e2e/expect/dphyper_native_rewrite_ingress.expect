@@ -1,0 +1,77 @@
+{
+  "description": "Native rewrites introducing joins below wrappers re-enter DPHyper without changing the disabled or shadow paths",
+  "plans": [
+    {
+      "name": "disabled",
+      "dsl": false,
+      "dphyper": false,
+      "trace": true,
+      "not_contains": [
+        "DPHyper: status=applied"
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [
+          "CXformReduceAggInputViaCTE",
+          "CXformInnerJoinCommutativity"
+        ],
+        "forbidden_origins": []
+      }
+    },
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=replacement"
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [
+          "CXformReduceAggInputViaCTE",
+          "CXformDPHyperJoinRegion"
+        ],
+        "forbidden_origins": [
+          "CXformInnerJoinCommutativity",
+          "CXformJoinAssociativity"
+        ]
+      }
+    },
+    {
+      "name": "shadow",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": true,
+      "trace": true,
+      "contains": [
+        "DPHyper: status=applied",
+        "mode=shadow"
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [
+          "CXformReduceAggInputViaCTE",
+          "CXformInnerJoinCommutativity"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

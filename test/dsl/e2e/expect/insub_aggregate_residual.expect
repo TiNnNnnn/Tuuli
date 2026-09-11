@@ -1,0 +1,28 @@
+{
+  "description": "An IN rewrite below Project/Agg preserves sibling WHERE predicates even when cardinality injection selects an index join",
+  "plans": [
+    {
+      "name": "injected",
+      "xform_trace": false,
+      "trace": true,
+      "stats_experiment": "stats_single_outer_row.yaml",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"rows\":1.000000,\"changed\":true",
+        "Filter: (status = 1)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "stats_experiment": "stats_single_outer_row.yaml",
+    "output": [
+      "410"
+    ],
+    "postgres_output": [
+      "410"
+    ]
+  }
+}

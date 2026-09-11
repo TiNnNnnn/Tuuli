@@ -1,0 +1,47 @@
+{
+  "description": "A no-op cardinality injection is consumed and traced without changing rows, even with DSL disabled",
+  "plans": [
+    {
+      "name": "traced",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "stats_noop_experiment.yaml",
+      "contains": [
+        "\"kind\":\"stats_injection\"",
+        "\"native_rows\":4.000000",
+        "\"rows\":4.000000,\"changed\":false",
+        "\"stats_targets\":[{\"selector_kind\":\"relations\",\"selector\":\"a\"",
+        "\"requested_rows\":4.000000,\"consumed\":true"
+      ],
+      "not_contains": [
+        "\"consumed\":false"
+      ]
+    },
+    {
+      "name": "untraced",
+      "dsl": false,
+      "trace": false,
+      "stats_experiment": "stats_noop_experiment.yaml",
+      "contains": [
+        "Seq Scan on dsl_eq_left"
+      ],
+      "not_contains": [
+        "DSL_TRACE"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

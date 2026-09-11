@@ -7,7 +7,7 @@
     "scope": "Pure outer foreign-key grouping attrs joined to a unique referred equality key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d8e3bfd930532f66"
+      "abbf8a73e6365f11"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\"",
+        "\"status\":\"applied\",\"rule_hash\":\"abbf8a73e6365f11\"",
         "Xform: CXformPushGbBelowJoin"
       ]
     },
@@ -46,7 +46,7 @@
         "CXformPushGbBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\""
+        "\"status\":\"applied\",\"rule_hash\":\"abbf8a73e6365f11\""
       ],
       "provenance": {
         "required_sources": [
