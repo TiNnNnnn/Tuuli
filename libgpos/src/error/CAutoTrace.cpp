@@ -11,6 +11,7 @@
 
 #include "gpos/error/CAutoTrace.h"
 
+#include "gpos/task/CAutoSuspendAbort.h"
 #include "gpos/task/ITask.h"
 
 using namespace gpos;
@@ -40,6 +41,9 @@ CAutoTrace::~CAutoTrace()
 {
 	if (0 < m_wstr.Length() && !ITask::Self()->GetErrCtxt()->IsPending())
 	{
+		// Like CAutoTimer: defer cancellation until outside this noexcept
+		// destructor. The next normal abort check still cancels the task.
+		CAutoSuspendAbort suspend_abort;
 		GPOS_TRACE(m_wstr.GetBuffer());
 	}
 }

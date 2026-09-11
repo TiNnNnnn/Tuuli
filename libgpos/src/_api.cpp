@@ -29,6 +29,26 @@
 
 using namespace gpos;
 
+namespace
+{
+class CLoggerCallback : public CLogger
+{
+	void (*m_callback)(void *, const WCHAR *);
+	void *m_context;
+
+	void
+	Write(const WCHAR *entry, ULONG) override
+	{
+		m_callback(m_context, entry);
+	}
+
+public:
+	CLoggerCallback(void (*callback)(void *, const WCHAR *), void *context)
+		: m_callback(callback), m_context(context)
+	{
+	}
+};
+}  // namespace
 
 // refer gpopt/exception.cpp for explanation of errors
 const ULONG expected_opt_fallback[] = {
@@ -188,10 +208,14 @@ gpos_exec(gpos_exec_params *params)
 
 				CAutoP<CWStringStatic> apwstr;
 				CAutoP<COstreamString> aposs;
-				CAutoP<CLoggerStream> aplogger;
+				CAutoP<CLogger> aplogger;
 
-				// use passed buffer for logging
-				if (nullptr != params->error_buffer)
+				if (nullptr != params->log_callback)
+				{
+					aplogger = GPOS_NEW(mp) CLoggerCallback(
+						params->log_callback, params->log_context);
+				}
+				else if (nullptr != params->error_buffer)
 				{
 					GPOS_ASSERT(0 < params->error_buffer_size);
 
@@ -200,7 +224,9 @@ gpos_exec(gpos_exec_params *params)
 						params->error_buffer_size / GPOS_SIZEOF(WCHAR));
 					aposs = GPOS_NEW(mp) COstreamString(apwstr.Value());
 					aplogger = GPOS_NEW(mp) CLoggerStream(*aposs.Value());
-
+				}
+				if (nullptr != aplogger.Value())
+				{
 					CTaskContext *ptskctxt = ptsk->GetTaskCtxt();
 					ptskctxt->SetLogOut(aplogger.Value());
 					ptskctxt->SetLogErr(aplogger.Value());

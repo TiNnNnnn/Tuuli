@@ -470,6 +470,9 @@ char *MemCtxtStrdup(MemoryContext context, const char *string);
 void GpdbEreportImpl(int xerrcode, int severitylevel, const char *xerrmsg,
 					 const char *xerrhint, const char *filename, int lineno,
 					 const char *funcname);
+
+// Task logging defers PostgreSQL interrupts to the next GPOS abort check.
+void LogOptimizerMessage(const char *message);
 #define GpdbEreport(xerrcode, severitylevel, xerrmsg, xerrhint)       \
 	gpdb::GpdbEreportImpl(xerrcode, severitylevel, xerrmsg, xerrhint, \
 						  __FILE__, __LINE__, PG_FUNCNAME_MACRO)

@@ -2003,6 +2003,30 @@ gpdb::GpdbEreportImpl(int xerrcode, int severitylevel, const char *xerrmsg,
 	GP_WRAP_END;
 }
 
+void
+gpdb::LogOptimizerMessage(const char *message)
+{
+	GP_WRAP_START;
+	{
+		// errfinish(LOG) checks PostgreSQL interrupts. Do not let it consume
+		// cancellation inside a GPOS logger (which retries ordinary errors),
+		// or throw from an auto-trace/timer destructor. Preserve the pending
+		// flag for the next normal GPOS abort check instead.
+		const int saved_holdoff = InterruptHoldoffCount;
+		HOLD_INTERRUPTS();
+		PG_TRY();
+		{
+			ereport(LOG, (errmsg_internal("%s", message), errhidestmt(true)));
+		}
+		PG_FINALLY();
+		{
+			InterruptHoldoffCount = saved_holdoff;
+		}
+		PG_END_TRY();
+	}
+	GP_WRAP_END;
+}
+
 char *
 gpdb::NodeToString(void *obj)
 {

@@ -244,8 +244,16 @@ COptTasks::Execute(void *(*func)(void *), void *func_arg)
 {
 	Assert(func);
 
-	CHAR *err_buf = (CHAR *) palloc(GPOPT_ERROR_BUFFER_SIZE);
-	err_buf[0] = '\0';
+	// Detailed experiments can emit arbitrarily many entries. Stream those
+	// entries without changing the ordinary query's buffered logging path.
+	const bool stream_log = nullptr != pg_orca_dsl_stats_experiment_path &&
+							'\0' != pg_orca_dsl_stats_experiment_path[0];
+	CHAR *err_buf =
+		stream_log ? nullptr : (CHAR *) palloc(GPOPT_ERROR_BUFFER_SIZE);
+	if (nullptr != err_buf)
+	{
+		err_buf[0] = '\0';
+	}
 
 	// initialize DXL support
 	InitDXL();
@@ -261,6 +269,7 @@ COptTasks::Execute(void *(*func)(void *), void *func_arg)
 	params.error_buffer = err_buf;
 	params.error_buffer_size = GPOPT_ERROR_BUFFER_SIZE;
 	params.abort_requested = &abort_flag;
+	params.log_callback = stream_log ? LogTaskMessage : nullptr;
 
 	// execute task and send log message to server log
 	GPOS_TRY
@@ -277,8 +286,31 @@ COptTasks::Execute(void *(*func)(void *), void *func_arg)
 }
 
 void
+COptTasks::LogTaskMessage(void *, const WCHAR *message)
+{
+	CHAR *str = CreateMultiByteCharStringFromWCString(message);
+	GPOS_TRY
+	{
+		// Use the existing error boundary: a PostgreSQL longjmp must never
+		// skip the task/logger's C++ destructors, including on cancellation.
+		gpdb::LogOptimizerMessage(str);
+	}
+	GPOS_CATCH_EX(ex)
+	{
+		gpdb::GPDBFree(str);
+		GPOS_RETHROW(ex);
+	}
+	GPOS_CATCH_END;
+	gpdb::GPDBFree(str);
+}
+
+void
 COptTasks::LogExceptionMessageAndDelete(CHAR *err_buf)
 {
+	if (nullptr == err_buf)
+	{
+		return;
+	}
 	if ('\0' != err_buf[0])
 	{
 		elog(LOG, "%s",

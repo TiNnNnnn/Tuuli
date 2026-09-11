@@ -119,6 +119,9 @@ private:
 	// map GPOS log severity level to GPDB, print error and delete the given error buffer
 	static void LogExceptionMessageAndDelete(CHAR *err_buf);
 
+	// Incremental experimental diagnostics; PostgreSQL errors unwind through GPOS.
+	static void LogTaskMessage(void *context, const WCHAR *message);
+
 	// create optimizer configuration object
 	static COptimizerConfig *CreateOptimizerConfig(CMemoryPool *mp,
 												   ICostModel *cost_model);

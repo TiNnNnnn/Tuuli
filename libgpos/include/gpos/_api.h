@@ -50,6 +50,12 @@ struct gpos_exec_params
 	char *error_buffer;	   /* buffer used to store error messages */
 	int error_buffer_size; /* size of error message buffer */
 	bool *abort_requested; /* flag indicating if abort is requested */
+	/* Optional synchronous sink, preferred over error_buffer. The entry is only
+	 * valid during the call. Must not longjmp across GPOS frames; adapters must
+	 * translate foreign errors to GPOS exceptions. Existing logger retry/abort
+	 * handling applies. Neither callback nor context is owned by GPOS. */
+	void (*log_callback)(void *, const wchar_t *) = nullptr;
+	void *log_context = nullptr;
 };
 
 /* struct containing initialization parameters for gpos */
