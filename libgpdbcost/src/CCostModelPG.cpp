@@ -25,6 +25,7 @@
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CPhysicalAgg.h"
+#include "gpopt/operators/CPhysicalUnion.h"
 #include "gpopt/operators/CPhysicalHashJoin.h"
 #include "gpopt/operators/CPhysicalDynamicScan.h"
 #include "gpopt/operators/CPhysicalIndexOnlyScan.h"
@@ -843,12 +844,16 @@ CCostModelPG::CostSort(CMemoryPool *,  // mp
 {
 	GPOS_ASSERT(COperator::EopPhysicalSort == exprhdl.Pop()->Eopid());
 
-	DOUBLE tuples = pci->Rows();
+	return CCost(pci->NumRebinds() * TupleSortCost(pci->Rows(), pci->Width()));
+}
+
+DOUBLE
+CCostModelPG::TupleSortCost(DOUBLE tuples, DOUBLE width)
+{
 	if (tuples < 2.0)
 	{
 		tuples = 2.0;  // PG: avoid log(0); mirrors costsize.c:1912
 	}
-	const DOUBLE width = pci->Width();
 
 	const DOUBLE comparison_cost = 2.0 * cpu_operator_cost;
 	const DOUBLE log2_tuples = std::log2(tuples);
@@ -894,7 +899,7 @@ CCostModelPG::CostSort(CMemoryPool *,  // mp
 
 	const DOUBLE run = cpu_operator_cost * tuples;
 
-	return CCost(pci->NumRebinds() * (cpu + disk_cost + run));
+	return cpu + disk_cost + run;
 }
 
 //---------------------------------------------------------------------------
@@ -3045,6 +3050,31 @@ CCostModelPG::CostUnionAll(CMemoryPool *,  // mp
 	return CCost(kAppendCpuCostMultiplier * cpu_tuple_cost * pci->Rows());
 }
 
+CCost
+CCostModelPG::CostUnion(CExpressionHandle &exprhdl, const SCostingInfo *pci)
+{
+	auto *op = static_cast<CPhysicalUnion *>(exprhdl.Pop());
+	DOUBLE rows = 0.0, bytes = 0.0;
+	for (ULONG i = 0; i < exprhdl.Arity(); ++i)
+	{
+		rows += pci->PdRows()[i];
+		bytes += pci->PdRows()[i] * pci->GetWidth()[i];
+	}
+	const DOUBLE width = rows > 0.0 ? bytes / rows : pci->Width();
+	const ULONG keys = op->PdrgpcrOutput()->Size();
+	const DOUBLE groups = std::max(1.0, pci->Rows());
+	// Same PG Append and grouping-only aggregate charges as their separate
+	// physical operators. Charge sorting/spilling on all input rows, not NDV.
+	DOUBLE cost = 0.5 * cpu_tuple_cost * rows;
+	if (keys > 0)
+	{
+		cost += cpu_operator_cost * keys * rows + cpu_tuple_cost * groups;
+		cost += op->FHash() ? HashAggSpillCost(rows, width, groups, 0).Get()
+						  : TupleSortCost(rows, width);
+	}
+	return CCost(pci->NumRebinds() * cost);
+}
+
 //---------------------------------------------------------------------------
 //	Bitmap index tree costing: PG cost_bitmap_tree_node / cost_bitmap_and_node
 //	/ cost_bitmap_or_node (costsize.c:1115-1230).
@@ -4074,6 +4104,9 @@ CCostModelPG::Cost(CExpressionHandle &exprhdl, const SCostingInfo *pci) const
 
 		case COperator::EopPhysicalSerialUnionAll:
 			local = CostUnionAll(m_mp, exprhdl, pci);
+			break;
+		case COperator::EopPhysicalUnion:
+			local = CostUnion(exprhdl, pci);
 			break;
 
 		case COperator::EopPhysicalIndexScan:

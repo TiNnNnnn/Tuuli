@@ -1,0 +1,67 @@
+{
+  "description": "Native UNION implementation without DSL or Union2UnionAll: nullable keys, n-ary inputs and output projection",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Xform: CXformUnion2UnionAll",
+        "Xform: CXformDSLRule_Union"
+      ],
+      "alternative": [
+        "CXformImplementUnion"
+      ]
+    },
+    {
+      "name": "all_dsl_disabled",
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "policy": "disable_all.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\""
+      ],
+      "alternative": [
+        "CXformImplementUnion"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnionAll"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "-1",
+      "-1",
+      "1",
+      "1",
+      "2",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "-1",
+      "-1",
+      "1",
+      "1",
+      "2",
+      "2",
+      "3"
+    ]
+  }
+}

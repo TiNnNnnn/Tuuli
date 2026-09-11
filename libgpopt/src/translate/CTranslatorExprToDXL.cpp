@@ -19,6 +19,7 @@
 #include "gpopt/translate/CTranslatorExprToDXL.h"
 
 #include "gpos/common/CAutoTimer.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/common/CHashMap.h"
 
 #include "gpopt/base/CCastUtils.h"
@@ -69,6 +70,7 @@
 #include "gpopt/operators/CPhysicalTVF.h"
 #include "gpopt/operators/CPhysicalTableScan.h"
 #include "gpopt/operators/CPhysicalUnionAll.h"
+#include "gpopt/operators/CPhysicalUnion.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarArray.h"
 #include "gpopt/operators/CScalarArrayCoerceExpr.h"
@@ -527,6 +529,7 @@ CTranslatorExprToDXL::CreateDXLNode(CExpression *pexpr,
 				pfDML);
 			break;
 		case COperator::EopPhysicalSerialUnionAll:
+		case COperator::EopPhysicalUnion:
 			dxlnode = CTranslatorExprToDXL::PdxlnAppend(
 				pexpr, colref_array, pdrgpdsBaseTables, pulNonGatherMotions,
 				pfDML);
@@ -2669,7 +2672,10 @@ CTranslatorExprToDXL::PdxlnAppend(CExpression *pexprUnionAll,
 	CPhysicalUnionAll *popUnionAll =
 		CPhysicalUnionAll::PopConvert(pexprUnionAll->Pop());
 	CColRefArray *pdrgpcrOutputAll = popUnionAll->PdrgpcrOutput();
-	CColRefSet *reqdCols = pexprUnionAll->Prpp()->PcrsRequired();
+	const BOOL distinct = popUnionAll->Eopid() == COperator::EopPhysicalUnion;
+	CColRefSet *reqdCols = distinct
+		? GPOS_NEW(m_mp) CColRefSet(m_mp, pdrgpcrOutputAll)
+		: pexprUnionAll->Prpp()->PcrsRequired();
 
 	CDXLPhysicalAppend *dxl_op =
 		GPOS_NEW(m_mp) CDXLPhysicalAppend(m_mp, false, false);
@@ -2747,7 +2753,70 @@ CTranslatorExprToDXL::PdxlnAppend(CExpression *pexprUnionAll,
 	}
 	reqd_col_positions->Release();
 
+	if (distinct)
+	{
+		reqdCols->Release();
+		return PdxlnUnionDedup(pexprUnionAll, pdxlnAppend);
+	}
 	return pdxlnAppend;
+}
+
+CDXLNode *
+CTranslatorExprToDXL::PdxlnUnionDedup(CExpression *pexpr, CDXLNode *append)
+{
+	auto *op = static_cast<CPhysicalUnion *>(pexpr->Pop());
+	auto *columns = op->PdrgpcrOutput();
+	CAutoRef<CColRefSet> all(GPOS_NEW(m_mp) CColRefSet(m_mp, columns));
+	if (columns->Size() == 0)
+	{
+		// Zero-column DISTINCT yields one empty tuple iff input is nonempty.
+		auto *limit = GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLPhysicalLimit(m_mp));
+		limit->SetProperties(GetProperties(pexpr));
+		auto *count = GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLScalarLimitCount(m_mp));
+		auto *one = CUtils::PexprScalarConstInt8(m_mp, 1);
+		count->AddChild(PdxlnScalar(one));
+		one->Release();
+		limit->AddChild(PdxlnProjList(all.Value(), columns));
+		limit->AddChild(append);
+		limit->AddChild(count);
+		limit->AddChild(GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLScalarLimitOffset(m_mp)));
+		return limit;
+	}
+	CDXLNode *child = append;
+	if (!op->FHash())
+	{
+		CAutoRef<COrderSpec> order(GPOS_NEW(m_mp) COrderSpec(m_mp));
+		for (ULONG i = 0; i < columns->Size(); ++i)
+		{
+			auto *column = (*columns)[i];
+			auto *mdid = column->RetrieveType()->GetMdidForCmpType(IMDType::EcmptL);
+			mdid->AddRef();
+			order->Append(mdid, column, COrderSpec::EntLast);
+		}
+		child = GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLPhysicalSort(m_mp, false));
+		child->SetProperties(GetProperties(pexpr));
+		child->AddChild(PdxlnProjList(all.Value(), columns));
+		child->AddChild(PdxlnFilter(nullptr));
+		child->AddChild(GetSortColListDXL(order.Value()));
+		child->AddChild(GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLScalarLimitCount(m_mp)));
+		child->AddChild(GPOS_NEW(m_mp) CDXLNode(m_mp,
+			GPOS_NEW(m_mp) CDXLScalarLimitOffset(m_mp)));
+		child->AddChild(append);
+	}
+	auto *aggregate = GPOS_NEW(m_mp) CDXLPhysicalAgg(m_mp,
+		op->FHash() ? EdxlaggstrategyHashed : EdxlaggstrategySorted, false);
+	aggregate->SetGroupingCols(CUtils::Pdrgpul(m_mp, columns));
+	auto *result = GPOS_NEW(m_mp) CDXLNode(m_mp, aggregate);
+	result->SetProperties(GetProperties(pexpr));
+	result->AddChild(PdxlnProjList(all.Value(), columns));
+	result->AddChild(PdxlnFilter(nullptr));
+	result->AddChild(child);
+	return result;
 }
 
 //---------------------------------------------------------------------------

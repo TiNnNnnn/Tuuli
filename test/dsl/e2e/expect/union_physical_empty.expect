@@ -1,0 +1,33 @@
+{
+  "description": "UNION physical implementation without optional lowering",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformImplementUnion"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnionAll"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "0"
+    ],
+    "postgres_output": [
+      "0"
+    ]
+  }
+}

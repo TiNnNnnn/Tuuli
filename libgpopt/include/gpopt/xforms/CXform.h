@@ -244,8 +244,8 @@ public:
 		// Build-on-outer anti-semi hash join (Hash Right Anti Join in PG).
 		ExfLeftAntiSemiJoin2HashJoinBuildOuter,
 		// MONSOON DSL-rule shells (one per source-root operator kind); each
-		// dispatches to the shared CDSLRuleEngine. Keep these last, just before
-		// ExfInvalid, so all pre-existing xform ids are unchanged.
+		// dispatches to the shared CDSLRuleEngine. Append new xforms below this
+		// block so all pre-existing xform ids remain unchanged.
 		ExfDSLRuleSelect,
 		ExfDSLRuleProject,
 		ExfDSLRuleInnerJoin,
@@ -269,6 +269,7 @@ public:
 		ExfDSLRuleFullJoin,
 		ExfDSLRuleCTEConsumer,
 		ExfDSLRuleCTEAnchor,
+		ExfImplementUnion,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

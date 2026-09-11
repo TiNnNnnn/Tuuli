@@ -1,0 +1,3 @@
+# Physical implementation must not depend on any optional DSL rewrite.
+- rule: '*'
+  enabled: false

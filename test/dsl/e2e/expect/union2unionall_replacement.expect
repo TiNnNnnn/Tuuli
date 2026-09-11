@@ -39,8 +39,14 @@
         "CXformUnion2UnionAll",
         "CXformPushGbBelowUnionAll"
       ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
       "not_contains": [
         "Xform: CXformUnion2UnionAll"
+      ],
+      "alternative": [
+        "CXformImplementUnion"
       ]
     },
     {

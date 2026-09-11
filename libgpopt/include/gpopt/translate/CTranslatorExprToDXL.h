@@ -406,6 +406,8 @@ private:
 					   CDistributionSpecArray *pdrgpdsBaseTables,
 					   ULONG *pulNonGatherMotions, BOOL *pfDML);
 
+	CDXLNode *PdxlnUnionDedup(CExpression *pexpr, CDXLNode *append);
+
 	// translate an union all op
 	CDXLNode *PdxlnAppend(CExpression *pexprUnionAll,
 						  CColRefArray *colref_array,

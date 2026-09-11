@@ -51,6 +51,9 @@ private:
 							  const SCostingInfo *pci);
 
 	// per-operator cost helpers (port of PG costsize.c)
+	static DOUBLE TupleSortCost(DOUBLE tuples, DOUBLE width);
+	static CCost CostUnion(CExpressionHandle &exprhdl, const SCostingInfo *pci);
+
 	static CCost CostScan(CMemoryPool *mp, CExpressionHandle &exprhdl,
 						  const SCostingInfo *pci);
 

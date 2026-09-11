@@ -180,6 +180,7 @@
 #include "gpopt/xforms/CXformSplitWindowFunc.h"
 #include "gpopt/xforms/CXformSubqJoin2Apply.h"
 #include "gpopt/xforms/CXformUnion2UnionAll.h"
+#include "gpopt/xforms/CXformImplementUnion.h"
 #include "gpopt/xforms/CXformUnnestTVF.h"
 #include "gpopt/xforms/CXformUpdate2DML.h"
 #include "gpopt/xforms/CXformUtils.h"

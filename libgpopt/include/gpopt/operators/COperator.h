@@ -239,6 +239,7 @@ public:
 		EopPhysicalScalarAgg,
 
 		EopPhysicalSerialUnionAll,
+		EopPhysicalUnion,
 
 		EopPhysicalSort,
 		EopPhysicalLimit,

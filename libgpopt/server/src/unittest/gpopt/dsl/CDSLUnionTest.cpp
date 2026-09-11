@@ -4,6 +4,7 @@
 #include "unittest/gpopt/dsl/CDSLUnionTest.h"
 
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -28,6 +29,9 @@
 #include "gpopt/operators/CLogicalDifference.h"
 #include "gpopt/operators/CLogicalDifferenceAll.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CPhysicalUnion.h"
+#include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/xforms/CXformImplementUnion.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -298,6 +302,7 @@ GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_PhysicalImplementation),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate),
@@ -331,6 +336,66 @@ CDSLUnionTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_StatsIgnoreOuterColumns),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_PhysicalImplementation()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CXformImplementUnion> xform(GPOS_NEW(mp) CXformImplementUnion(mp));
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	for (ULONG count : {0u, 2u})
+	{
+		auto *left_cols = GPOS_NEW(mp) CColRefArray(mp);
+		auto *right_cols = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < count; ++i)
+		{
+			left_cols->Append(fix.PcrCreateInt4("left"));
+			right_cols->Append(fix.PcrCreateInt4("right"));
+		}
+		CAutoRef<CExpression> left(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, left_cols,
+				GPOS_NEW(mp) IDatum2dArray(mp))));
+		CAutoRef<CExpression> right(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, right_cols,
+				GPOS_NEW(mp) IDatum2dArray(mp))));
+		CAutoRef<CExpression> expr(PexprSetOp(mp, true,
+			left.Value(), left_cols, right.Value(), right_cols));
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		xform->Transform(context.Value(), result.Value(), expr.Value());
+		GPOS_UNITTEST_ASSERT(result->Size() == (count == 0 ? 1 : 2));
+		for (ULONG i = 0; i < result->Size(); ++i)
+		{
+			auto *alt = (*result->Pdrgpexpr())[i];
+			auto *op = static_cast<CPhysicalUnion *>(alt->Pop());
+			GPOS_UNITTEST_ASSERT(alt->Arity() == 2 && (*alt)[0] == left.Value() &&
+				(*alt)[1] == right.Value() && !op->FPassThruStats());
+			CExpressionHandle handle(mp);
+			CAutoRef<CColRefSet> required(GPOS_NEW(mp) CColRefSet(mp));
+			CAutoRef<CColRefSet> child(op->PcrsRequired(mp, handle,
+				required.Value(), 1, nullptr, 0));
+			GPOS_UNITTEST_ASSERT(child->Size() == count);
+		}
+		if (count > 0)
+		{
+			GPOS_UNITTEST_ASSERT(!(*result->Pdrgpexpr())[0]->Pop()->Matches(
+				(*result->Pdrgpexpr())[1]->Pop()));
+			auto *original = static_cast<CPhysicalUnion *>((*result->Pdrgpexpr())[0]->Pop());
+			auto *remapped = GPOS_NEW(mp) CColRef2dArray(mp);
+			remapped->Append(PdrgpcrCopy(mp, left_cols));
+			auto *reversed = GPOS_NEW(mp) CColRefArray(mp);
+			reversed->Append((*right_cols)[1]);
+			reversed->Append((*right_cols)[0]);
+			remapped->Append(reversed);
+			original->PdrgpcrOutput()->AddRef();
+			CAutoRef<CPhysicalUnion> different(GPOS_NEW(mp) CPhysicalUnion(
+				mp, original->PdrgpcrOutput(), remapped, false));
+			GPOS_UNITTEST_ASSERT(!original->Matches(different.Value()));
+		}
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

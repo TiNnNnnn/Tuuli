@@ -1,0 +1,32 @@
+{
+  "description": "Native zero-column UNION lowering must preserve empty input, not produce a scalar aggregate row",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformImplementUnion"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "Limit"
+      ],
+      "alternative": [
+        "CXformUnion2UnionAll"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformImplementUnion"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "0"
+    ],
+    "postgres_output": [
+      "0"
+    ]
+  }
+}

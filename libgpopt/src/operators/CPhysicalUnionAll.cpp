@@ -175,7 +175,19 @@ CPhysicalUnionAll::Matches(COperator *pop) const
 	{
 		CPhysicalUnionAll *popUnionAll = CPhysicalUnionAll::PopConvert(pop);
 
-		return PdrgpcrOutput()->Equals(popUnionAll->PdrgpcrOutput());
+		if (!PdrgpcrOutput()->Equals(popUnionAll->PdrgpcrOutput()) ||
+			PdrgpdrgpcrInput()->Size() != popUnionAll->PdrgpdrgpcrInput()->Size())
+		{
+			return false;
+		}
+		for (ULONG i = 0; i < PdrgpdrgpcrInput()->Size(); ++i)
+		{
+			if (!(*PdrgpdrgpcrInput())[i]->Equals((*popUnionAll->PdrgpdrgpcrInput())[i]))
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 
 	return false;
