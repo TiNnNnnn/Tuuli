@@ -172,8 +172,7 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 
 		// EXISTS frequently arrives with translator-generated guards, e.g.
 		// NOT(outer_agg IS NULL) AND EXISTS(...). Consume exactly one direct
-		// existential conjunct and preserve all other conjuncts as a Select above
-		// the generated Apply.
+		// existential conjunct and bind all other conjuncts with its outer input.
 		CExpressionArray *pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
 		CExpression *pexprExists = nullptr;
@@ -188,9 +187,7 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		}
 
 		BOOL fMatched = false;
-		if (nullptr != pexprExists &&
-			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
-			m_pmatcher->FMatch((*pop)[1], (*pexprExists)[0], pmodel))
+		if (nullptr != pexprExists)
 		{
 			CExpressionArray *pdrgpexprResidual =
 				GPOS_NEW(m_mp) CExpressionArray(m_mp);
@@ -203,8 +200,13 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 					pdrgpexprResidual->Append(pexprConj);
 				}
 			}
-			pmodel->SetExistsResidualConjuncts(pdrgpexprResidual);
-			fMatched = true;
+			(*pexpr)[0]->AddRef();
+			CExpression *pexprOuter = CUtils::PexprSafeSelect(
+				m_mp, (*pexpr)[0],
+				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual));
+			fMatched = m_pmatcher->FMatch((*pop)[0], pexprOuter, pmodel) &&
+				m_pmatcher->FMatch((*pop)[1], (*pexprExists)[0], pmodel);
+			pexprOuter->Release();
 		}
 		pdrgpexprConj->Release();
 		return fMatched;

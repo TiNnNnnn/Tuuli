@@ -1830,15 +1830,15 @@ CTranslatorRelcacheToDXL::RetrieveRelStats(CMemoryPool *mp, IMDId *mdid)
 namespace
 {
 // Decode pg_statistic.stadistinct (absolute if >0, fractional if <0) into an
-// absolute NDV given total row count and null fraction.  Returns 0.0 when
-// stadistinct == 0 (no estimate).
+// absolute non-null NDV given total row count. The fractional catalog value
+// already accounts for NULLs; applying stanullfrac again undercounts NDV.
+// Returns 0.0 when stadistinct == 0 (no estimate).
 static CDouble
-DecodeStaDistinct(double stadistinct, double num_rows, double null_freq)
+DecodeStaDistinct(double stadistinct, double num_rows)
 {
 	if (stadistinct < 0)
 	{
-		return CDouble(num_rows) * (CDouble(1.0) - CDouble(null_freq)) *
-			   CDouble(-stadistinct);
+		return CDouble(num_rows) * CDouble(-stadistinct);
 	}
 	if (stadistinct > 0)
 	{
@@ -1922,9 +1922,8 @@ NdvBoundFromUniqueKeys(OID rel_oid, AttrNumber attno, double num_rows)
 			}
 			Form_pg_statistic of =
 				(Form_pg_statistic) GETSTRUCT(ostats);
-			double onull = (of->stanullfrac > 0) ? of->stanullfrac : 0.0;
 			CDouble other_ndv =
-				DecodeStaDistinct(of->stadistinct, num_rows, onull);
+				DecodeStaDistinct(of->stadistinct, num_rows);
 			gpdb::FreeHeapTuple(ostats);
 			if (other_ndv <= CDouble(0.0))
 			{
@@ -2034,18 +2033,9 @@ CTranslatorRelcacheToDXL::RetrieveColStats(CMemoryPool *mp,
 	CDouble width = CDouble(form_pg_stats->stawidth);
 
 	// calculate total number of distinct values
-	CDouble num_distinct(1.0);
-	if (form_pg_stats->stadistinct < 0)
-	{
-		GPOS_ASSERT(form_pg_stats->stadistinct > -1.01);
-		num_distinct =
-			num_rows * (1 - null_freq) * CDouble(-form_pg_stats->stadistinct);
-	}
-	else
-	{
-		num_distinct = CDouble(form_pg_stats->stadistinct);
-	}
-	num_distinct = num_distinct.Ceil();
+	GPOS_ASSERT(form_pg_stats->stadistinct > -1.01);
+	CDouble num_distinct =
+		DecodeStaDistinct(form_pg_stats->stadistinct, num_rows).Ceil();
 
 	// Apply unique-key NDV lower bound.  ANALYZE's sample-based NDV estimate
 	// can severely undercount distinct values for high-cardinality FK columns

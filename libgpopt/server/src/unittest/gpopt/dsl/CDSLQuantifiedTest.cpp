@@ -511,6 +511,20 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 		GPOS_ASSERT(COperator::EopScalarCmp == (*pexprApply)[2]->Pop()->Eopid());
 		GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
 
+		// This carrier computes a boolean over all inner rows. Treating it as
+		// an ordinary LeftApply would permit decorrelation to a row-wise LOJ.
+		CDSLRule *pruleRowApply = PruleParse(mp,
+			"LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
+			"LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"
+			"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"
+			"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)");
+		GPOS_ASSERT(nullptr != pruleRowApply);
+		CDSLModel *pmodelRowApply = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(!CDSLMatcher(mp, pruleRowApply).FMatch(
+			pruleRowApply->PfragSrc()->PopRoot(), pexprApply, pmodelRowApply));
+		pmodelRowApply->Release();
+		pruleRowApply->Release();
+
 		pexprTarget->Release();
 		pmodel->Release();
 		prule->Release();

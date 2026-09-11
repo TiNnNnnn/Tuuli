@@ -121,17 +121,6 @@ private:
 	// match records residuals.
 	CExpressionArray *m_pdrgpexprResidual;
 
-	// conjuncts surrounding a ScalarSubqueryExists in its source Select. The
-	// EXISTS matcher consumes only the existential conjunct; these predicates
-	// must remain as a Select above the instantiated LeftSemiApply. Kept separate
-	// from Filter/Join residuals because an Exists subtree may contain either.
-	CExpressionArray *m_pdrgpexprExistsResidual;
-
-	// Other conjuncts beside matched IN/ANY subqueries in their source Select.
-	// Each IN comparison predicate is stored separately in m_phmInSubPred under
-	// that InSubFilter node's attrs symbol, allowing nested/repeated IN rules.
-	CExpressionArray *m_pdrgpexprInSubResidual;
-
 	// Project-list scalar subtrees (CScalarProjectList), keyed by each Proj's
 	// schema symbol. A rule may contain sibling or nested Proj nodes, so a single
 	// global slot would let a later match overwrite an earlier one. Values are
@@ -211,15 +200,6 @@ public:
 		return m_pdrgpexprResidual;
 	}
 
-	// record/access predicates adjacent to the consumed EXISTS conjunct.
-	void SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr);
-
-	CExpressionArray *
-	PdrgpexprExistsResidual() const
-	{
-		return m_pdrgpexprExistsResidual;
-	}
-
 	// Record the exact comparison predicate for one source InSubFilter attrs
 	// symbol. Takes ownership of pexpr. Returns false on an incompatible repeat.
 	BOOL FSetInSubPred(const CDSLSymbol *psymAttrs, CExpression *pexpr);
@@ -244,14 +224,6 @@ public:
 	// origin-subquery metadata instead of manufacturing a pattern Apply.
 	BOOL FSetApplyCarrier(const CDSLSymbol *psymPred, CExpression *pexpr);
 	CExpression *PexprApplyCarrier(const CDSLSymbol *psymPred) const;
-
-	void SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr);
-
-	CExpressionArray *
-	PdrgpexprInSubResidual() const
-	{
-		return m_pdrgpexprInSubResidual;
-	}
 
 	//------------------------------------------------------------------
 	// project list (Proj match — M1 produces, instantiator consumes)

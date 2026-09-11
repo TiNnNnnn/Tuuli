@@ -627,7 +627,26 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 
 		if (fMatched)
 		{
-			fMatched = m_pmatcher->FMatch(popBase, (*pexpr)[0], pmodel);
+			// Sibling conjuncts belong to this membership test's outer input,
+			// not to a global residual slot. Binding that complete relation keeps
+			// them at the right depth when a target removes IN below an Agg/Proj,
+			// or when another nested subquery is matched in the same model.
+			CExpressionArray *pdrgpexprResidual =
+				GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+			{
+				if (!rgfUsed[ul])
+				{
+					(*pdrgpexprConj)[ul]->AddRef();
+					pdrgpexprResidual->Append((*pdrgpexprConj)[ul]);
+				}
+			}
+			(*pexpr)[0]->AddRef();
+			CExpression *pexprOuter = CUtils::PexprSafeSelect(
+				m_mp, (*pexpr)[0],
+				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual));
+			fMatched = m_pmatcher->FMatch(popBase, pexprOuter, pmodel);
+			pexprOuter->Release();
 		}
 		for (ULONG ulNode = 0; ulNode < rgpopChain.size() && fMatched;
 			 ulNode++)
@@ -644,21 +663,6 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 				pmodel->FSetInSubPred(psymAttrs, PexprComparison(pexprAny));
 		}
 
-		if (fMatched)
-		{
-			CExpressionArray *pdrgpexprResidual =
-				GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
-			{
-				if (!rgfUsed[ul])
-				{
-					CExpression *pexprConj = (*pdrgpexprConj)[ul];
-					pexprConj->AddRef();
-					pdrgpexprResidual->Append(pexprConj);
-				}
-			}
-			pmodel->SetInSubResidualConjuncts(pdrgpexprResidual);
-		}
 		pdrgpexprConj->Release();
 		return fMatched;
 	}

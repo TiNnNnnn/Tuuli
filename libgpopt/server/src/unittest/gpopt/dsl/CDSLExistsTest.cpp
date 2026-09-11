@@ -390,8 +390,8 @@ CDSLExistsTest::EresUnittest_PreApplyPreservesResidual()
 	CDSLMatcher matcher(mp);
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
-	GPOS_ASSERT(nullptr != pmodel->PdrgpexprExistsResidual());
-	GPOS_ASSERT(1 == pmodel->PdrgpexprExistsResidual()->Size());
+	// The sibling predicate is part of the matched Agg's HAVING binding,
+	// so it survives target construction without an unscoped residual slot.
 
 	CDSLConstraintChecker checker(mp);
 	GPOS_ASSERT(checker.FCheck(prule, pmodel));

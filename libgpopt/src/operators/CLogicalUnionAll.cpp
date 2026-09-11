@@ -195,7 +195,12 @@ CLogicalUnionAll::PstatsDerive(CMemoryPool *mp, CExpressionHandle &exprhdl,
 
 	CReqdPropRelational *prprel =
 		CReqdPropRelational::GetReqdRelationalProps(exprhdl.Prp());
-	CColRefArray *pdrgpcrOutputStats = prprel->PcrsStat()->Pdrgpcr(mp);
+	// A correlated parent's request can include outer columns. As in
+	// PcrsStat(), only this operator's output has a branch-column mapping.
+	CColRefSet *pcrsOutputStats = GPOS_NEW(mp) CColRefSet(mp, pdrgpcrOutput);
+	pcrsOutputStats->Intersection(prprel->PcrsStat());
+	CColRefArray *pdrgpcrOutputStats = pcrsOutputStats->Pdrgpcr(mp);
+	pcrsOutputStats->Release();
 
 	CColRef2dArray *pdrgpdrgpcrInputStats = GPOS_NEW(mp) CColRef2dArray(mp);
 	/* 

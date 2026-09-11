@@ -42,8 +42,6 @@ CDSLFrameBound::Matches(const CDSLFrameBound *other) const
 CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
 	  m_pdrgpexprResidual(nullptr),
-	  m_pdrgpexprExistsResidual(nullptr),
-	  m_pdrgpexprInSubResidual(nullptr),
 	  m_fDedupDrop(false),
 	  m_pexprDistinctAgg(nullptr)
 {
@@ -90,16 +88,7 @@ CDSLModel::~CDSLModel()
 	m_pdrgpexprUnionBindings->Release();
 	m_pdrgpexprNaryUnionTails->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
-	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
-	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
 	CRefCount::SafeRelease(m_pexprDistinctAgg);
-}
-
-void
-CDSLModel::SetExistsResidualConjuncts(CExpressionArray *pdrgpexpr)
-{
-	CRefCount::SafeRelease(m_pdrgpexprExistsResidual);
-	m_pdrgpexprExistsResidual = pdrgpexpr;
 }
 
 BOOL
@@ -215,13 +204,6 @@ CDSLModel::PexprApplyCarrier(const CDSLSymbol *psymPred) const
 	GPOS_ASSERT(nullptr != psymPred);
 	GPOS_ASSERT(EdslsymPred == psymPred->Esymkind());
 	return m_phmApplyCarrier->Find(psymPred);
-}
-
-void
-CDSLModel::SetInSubResidualConjuncts(CExpressionArray *pdrgpexpr)
-{
-	CRefCount::SafeRelease(m_pdrgpexprInSubResidual);
-	m_pdrgpexprInSubResidual = pdrgpexpr;
 }
 
 //---------------------------------------------------------------------------

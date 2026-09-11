@@ -607,6 +607,18 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	{
 		return false;
 	}
+	if (fExpectedInnerApply || fExpectedLeftOuterApply)
+	{
+		CLogicalApply *apply = CLogicalApply::PopConvert(pexprJoin->Pop());
+		// A correlated ANY/ALL/EXISTS value carrier folds an inner result set
+		// into a boolean SubPlan value. It is not the row-producing Apply of
+		// the DSL, even when its inner relation has no outer references.
+		if (apply->FCorrelated() &&
+			COperator::EopScalarSubquery != apply->EopidOriginSubq())
+		{
+			return false;
+		}
+	}
 	if (fSemiApply &&
 		COperator::EopLogicalLeftSemiApplyIn == eopid &&
 		CUtils::FScalarConstTrue((*pexprJoin)[2]))

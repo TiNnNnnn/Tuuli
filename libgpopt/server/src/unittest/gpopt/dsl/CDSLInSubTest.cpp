@@ -136,6 +136,8 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_DecorrelatedSemiJoinRemap),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PreApplyNestedResidual),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PreApplyIndependentResiduals),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin),
 		GPOS_UNITTEST_FUNC(
@@ -343,6 +345,135 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 	prule->Release();
 	pexprSource->Release();
 	pexprSemi->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Exercise both a real Project and the Project/Agg shell used for aggregate
+	// queries. The same unchanged rule must preserve the WHERE predicate below
+	// that shell even though its target eliminates the InSub operator.
+	for (ULONG ulAgg = 0; ulAgg < 2; ulAgg++)
+	{
+		CColRefArray *pdrgpcrOuter = nullptr;
+		CExpression *pexprOuter =
+			fix.PexprLogicalGet("residual_outer", 2, &pdrgpcrOuter, 0);
+		CColRefArray *pdrgpcrInner = nullptr;
+		CExpression *pexprInner =
+			fix.PexprLogicalGet("residual_inner", 2, &pdrgpcrInner, 0);
+		CExpression *pexprResidual = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+		CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
+		pdrgpexprConj->Append(PexprScalarAny(
+			mp, fix, pexprInner, (*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]));
+		pexprResidual->AddRef();
+		pdrgpexprConj->Append(pexprResidual);
+		CExpression *pexprRel = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter,
+			CPredicateUtils::PexprConjunction(mp, pdrgpexprConj));
+		CColRefArray *pdrgpcrOutput = GPOS_NEW(mp) CColRefArray(mp);
+		if (ulAgg)
+		{
+			CColRefArray *pdrgpcrGrouping = GPOS_NEW(mp) CColRefArray(mp);
+			CColRef *pcrMax = fix.PcrCreateInt4("residual_max");
+			CExpression *pexprAgg = fix.PexprLogicalGbAgg(
+				pexprRel, pdrgpcrGrouping, pcrMax, (*pdrgpcrOuter)[0]);
+			pdrgpcrGrouping->Release();
+			pexprRel->Release();
+			pexprRel = pexprAgg;
+			pdrgpcrOutput->Append(pcrMax);
+		}
+		else
+		{
+			pdrgpcrOutput->Append((*pdrgpcrOuter)[0]);
+		}
+		CExpression *pexprSource = fix.PexprLogicalProject(pexprRel, pdrgpcrOutput);
+		pdrgpcrOutput->Release();
+		pexprRel->Release();
+		CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(prule, pmodel));
+		CDSLInstantiator instantiator(mp);
+		CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_ASSERT(nullptr != pexprTarget);
+		CExpression *pexprJoin = (*pexprTarget)[0];
+		if (ulAgg)
+		{
+			GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprJoin->Pop()->Eopid());
+			pexprJoin = (*pexprJoin)[0];
+		}
+		GPOS_ASSERT(COperator::EopLogicalInnerJoin == pexprJoin->Pop()->Eopid());
+		GPOS_ASSERT(COperator::EopLogicalSelect == (*pexprJoin)[0]->Pop()->Eopid());
+		GPOS_ASSERT((*(*pexprJoin)[0])[1]->Matches(pexprResidual));
+		GPOS_ASSERT(pexprTarget->DeriveOuterReferences()->Size() == 0);
+		pexprTarget->Release();
+		pmodel->Release();
+		prule->Release();
+		pexprSource->Release();
+		pexprResidual->Release();
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_PreApplyIndependentResiduals()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *inputs[3];
+	CColRefArray *columns[3];
+	for (ULONG ul = 0; ul < 3; ul++)
+	{
+		inputs[ul] = fix.PexprLogicalGet("nested_residual", 2, &columns[ul], 0);
+	}
+	CExpression *predicates[2] = {fix.PexprPredAtom((*columns[0])[1]),
+									fix.PexprPredAtom((*columns[1])[1])};
+	CExpression *pexprSource = inputs[2];
+	for (ULONG ul = 2; ul > 0; ul--)
+	{
+		CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+		conjuncts->Append(PexprScalarAny(
+			mp, fix, pexprSource, (*columns[ul - 1])[0], (*columns[ul])[0]));
+		predicates[ul - 1]->AddRef();
+		conjuncts->Append(predicates[ul - 1]);
+		pexprSource = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalSelect(mp), inputs[ul - 1],
+			CPredicateUtils::PexprConjunction(mp, conjuncts));
+	}
+	CDSLRule *prule = PruleParse(mp,
+		"InSubFilter<a0>(Input<t0>,InSubFilter<a1>(Input<t1>,Input<t2>))|"
+		"InSubFilter<a2>(Input<t3>,InSubFilter<a3>(Input<t4>,Input<t5>))|"
+		"TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);AttrsEq(a2,a0);AttrsEq(a3,a1)");
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
+	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	CExpression *pexprLevel = pexprTarget;
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn == pexprLevel->Pop()->Eopid());
+		GPOS_ASSERT(COperator::EopLogicalSelect == (*pexprLevel)[0]->Pop()->Eopid());
+		GPOS_ASSERT((*(*pexprLevel)[0])[1]->Matches(predicates[ul]));
+		pexprLevel = (*pexprLevel)[1];
+	}
+	GPOS_ASSERT(pexprTarget->DeriveOuterReferences()->Size() == 0);
+	pexprTarget->Release();
+	pmodel->Release();
+	prule->Release();
+	pexprSource->Release();
+	predicates[0]->Release();
+	predicates[1]->Release();
 	return GPOS_OK;
 }
 

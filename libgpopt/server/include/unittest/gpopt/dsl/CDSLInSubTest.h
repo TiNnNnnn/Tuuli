@@ -23,6 +23,8 @@ public:
 	static GPOS_RESULT EresUnittest_PushedDownJoinRemap();
 	static GPOS_RESULT EresUnittest_DecorrelatedSemiJoinRemap();
 	static GPOS_RESULT EresUnittest_SemiJoinToInnerJoin();
+	static GPOS_RESULT EresUnittest_PreApplyNestedResidual();
+	static GPOS_RESULT EresUnittest_PreApplyIndependentResiduals();
 	static GPOS_RESULT EresUnittest_SemiJoinComputedKeyToInnerJoin();
 	static GPOS_RESULT EresUnittest_ResidualSemiJoinBindings();
 	static GPOS_RESULT EresUnittest_ResidualInSubTarget();

@@ -569,6 +569,20 @@ get_relation_keys(Relation rel)
 			Datum	   *dats = NULL;
 			int			numKeys = 0;
 			int			i;
+			HeapTuple	index_tuple;
+			Form_pg_index index_form;
+			bool		valid_index;
+
+			index_tuple = SearchSysCache1(INDEXRELID,
+										ObjectIdGetDatum(contuple->conindid));
+			if (!HeapTupleIsValid(index_tuple))
+				elog(ERROR, "cache lookup failed for index %u", contuple->conindid);
+			index_form = (Form_pg_index) GETSTRUCT(index_tuple);
+			valid_index = index_form->indisvalid && index_form->indisunique &&
+				index_form->indimmediate;
+			ReleaseSysCache(index_tuple);
+			if (!valid_index)
+				continue;
 
 			dat = heap_getattr(htup, Anum_pg_constraint_conkey,
 							   RelationGetDescr(conrel), &isnull);
@@ -583,8 +597,20 @@ get_relation_keys(Relation rel)
 			for (i = 0; i < numKeys; i++)
 			{
 				int16		key_elem = DatumGetInt16(dats[i]);
+
+				/* Reject invalid attribute numbers before consulting nullability. */
+				if (key_elem <= 0 || key_elem > RelationGetDescr(rel)->natts)
+				{
+					list_free(key);
+					key = NIL;
+					break;
+				}
 				key = lappend_int(key, (int) key_elem);
 			}
+
+			pfree(dats);
+			if (key == NIL)
+				continue;
 
 			/*
 			 * A nullable UNIQUE constraint admits duplicate NULL rows and so

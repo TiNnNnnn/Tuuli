@@ -8,6 +8,8 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CReqdPropRelational.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -326,8 +328,42 @@ CDSLUnionTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SharedBranchesUseCTE),
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_StatsIgnoreOuterColumns),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_StatsIgnoreOuterColumns()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *left_cols = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefArray *right_cols = GPOS_NEW(mp) CColRefArray(mp);
+	left_cols->Append(fix.PcrCreateInt4("left"));
+	right_cols->Append(fix.PcrCreateInt4("right"));
+	CExpression *left = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, left_cols,
+			GPOS_NEW(mp) IDatum2dArray(mp)));
+	CExpression *right = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, right_cols,
+			GPOS_NEW(mp) IDatum2dArray(mp)));
+	CExpression *expr = PexprSetOp(mp, false, left, left_cols, right, right_cols);
+	CColRef *outer = fix.PcrCreateInt4("outer");
+	CColRefSet *requested = GPOS_NEW(mp) CColRefSet(mp, left_cols);
+	requested->Include(outer);
+	CReqdPropRelational *required = GPOS_NEW(mp) CReqdPropRelational(requested);
+	IStatistics *stats = expr->PstatsDerive(required, nullptr);
+	CReqdPropRelational *derived = stats->GetReqdRelationalProps(mp);
+	BOOL valid = derived->PcrsStat()->FMember((*left_cols)[0]) &&
+		!derived->PcrsStat()->FMember(outer) && requested->FMember(outer);
+	derived->Release();
+	required->Release();
+	expr->Release();
+	left->Release();
+	right->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

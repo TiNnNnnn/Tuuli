@@ -4621,12 +4621,7 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 			COperator::EopScalarSubqueryExists);
 	}
 
-	CExpressionArray *pdrgpexprResidual =
-		pmodel->PdrgpexprExistsResidual();
-	if (nullptr == pdrgpexprResidual)
-	{
-		pdrgpexprResidual = pmodel->PdrgpexprResidual();
-	}
+	CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
 	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
 	{
 		CExpressionArray *pdrgpexprCopy =
@@ -4818,22 +4813,6 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 		CExpression *pexprResult = GPOS_NEW(m_mp) CExpression(
 			m_mp, GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp, exfidOrigin),
 			pexprOuter, pexprInner, pexprTargetPred);
-		CExpressionArray *pdrgpexprResidual =
-			pmodel->PdrgpexprInSubResidual();
-		if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
-		{
-			CExpressionArray *pdrgpexprCopy =
-				GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
-			{
-				CExpression *pexprConj = (*pdrgpexprResidual)[ul];
-				pexprConj->AddRef();
-				pdrgpexprCopy->Append(pexprConj);
-			}
-			pexprResult = GPOS_NEW(m_mp) CExpression(
-				m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
-				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
-		}
 		return pexprResult;
 	}
 
@@ -4916,24 +4895,6 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 			COperator::EopScalarSubqueryAny, pexprPred);
 	}
 
-	CExpressionArray *pdrgpexprResidual =
-		pmodel->PdrgpexprInSubResidual();
-	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
-	{
-		CExpressionArray *pdrgpexprCopy =
-			GPOS_NEW(m_mp) CExpressionArray(m_mp);
-		for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
-		{
-			CExpression *pexprConj = (*pdrgpexprResidual)[ul];
-			pexprConj->AddRef();
-			pdrgpexprCopy->Append(pexprConj);
-		}
-		CExpression *pexprResidual =
-			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy);
-		pexprResult = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
-			pexprResidual);
-	}
 	return pexprResult;
 }
 
@@ -5073,12 +5034,7 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 		}
 	}
 
-	CExpressionArray *pdrgpexprResidual =
-		pmodel->PdrgpexprInSubResidual();
-	if (nullptr == pdrgpexprResidual)
-	{
-		pdrgpexprResidual = pmodel->PdrgpexprResidual();
-	}
+	CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
 	if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
 	{
 		CExpressionArray *pdrgpexprCopy =
@@ -5574,45 +5530,8 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 		pexprTgt = PexprBuild(popTgtRoot, pmodel);
 	}
 
-	// EXISTS/IN are represented before decorrelation as one conjunct of a
-	// CLogicalSelect. Their matchers retain every sibling conjunct. When the
-	// target keeps the same subquery operator, PexprBuildExists/InSub attaches
-	// those residuals at the corresponding structural position. An eliminating
-	// rule (for example InSubFilter(...) -> Input<...>) has no target-side
-	// builder at which to do that, so restore the source Select shell here.
 	const EDslOpKind edslopSrc = popSrcRoot->Edslop();
 	const EDslOpKind edslopTgt = popTgtRoot->Edslop();
-	CExpressionArray *pdrgpexprResidual = nullptr;
-	if ((EdslopExists == edslopSrc || EdslopNotExists == edslopSrc) &&
-		edslopSrc != edslopTgt)
-	{
-		pdrgpexprResidual = pmodel->PdrgpexprExistsResidual();
-	}
-	else if (EdslopInSubFilter == edslopSrc &&
-			 EdslopInSubFilter != edslopTgt)
-	{
-		pdrgpexprResidual = pmodel->PdrgpexprInSubResidual();
-	}
-	else if ((EdslopAny == edslopSrc || EdslopAll == edslopSrc) &&
-			 edslopSrc != edslopTgt)
-	{
-		pdrgpexprResidual = pmodel->PdrgpexprInSubResidual();
-	}
-	if (nullptr != pexprTgt && nullptr != pdrgpexprResidual &&
-		0 < pdrgpexprResidual->Size())
-	{
-		CExpressionArray *pdrgpexprCopy =
-			GPOS_NEW(m_mp) CExpressionArray(m_mp);
-		for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
-		{
-			CExpression *pexprConj = (*pdrgpexprResidual)[ul];
-			pexprConj->AddRef();
-			pdrgpexprCopy->Append(pexprConj);
-		}
-		pexprTgt = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprTgt,
-			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
-	}
 
 	// dedup drop: the source root was a redundant SELECT DISTINCT (pure-dedup
 	// CLogicalGbAgg whose grouping cols form a key). PexprBuild produced the

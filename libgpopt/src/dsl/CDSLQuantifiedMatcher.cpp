@@ -115,29 +115,30 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		CColRefArray *pdrgpcrOuter =
 			(*pexprQuantified)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
 		CExpression *pexprCmp = PexprComparison(m_mp, pexprQuantified);
+		CExpressionArray *pdrgpexprResidual =
+			GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
+		{
+			CExpression *pexprConj = (*pdrgpexprConj)[ul];
+			if (pexprConj != pexprQuantified)
+			{
+				pexprConj->AddRef();
+				pdrgpexprResidual->Append(pexprConj);
+			}
+		}
+		(*pexpr)[0]->AddRef();
+		CExpression *pexprOuter = CUtils::PexprSafeSelect(
+			m_mp, (*pexpr)[0],
+			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual));
 		BOOL fMatched = pmodel->FBind((*pop->Pdrgpsym())[0], pexprCmp) &&
 			pmodel->FBind((*pop->Pdrgpsym())[1], pdrgpcrOuter) &&
-			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+			m_pmatcher->FMatch((*pop)[0], pexprOuter, pmodel) &&
 			FMatchInner((*pop)[1], (*pexprQuantified)[0], pdrgpcrInner,
 						pmodel);
 		pexprCmp->Release();
 		pdrgpcrOuter->Release();
 		pdrgpcrInner->Release();
-		if (fMatched)
-		{
-			CExpressionArray *pdrgpexprResidual =
-				GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
-			{
-				CExpression *pexprConj = (*pdrgpexprConj)[ul];
-				if (pexprConj != pexprQuantified)
-				{
-					pexprConj->AddRef();
-					pdrgpexprResidual->Append(pexprConj);
-				}
-			}
-			pmodel->SetInSubResidualConjuncts(pdrgpexprResidual);
-		}
+		pexprOuter->Release();
 		pdrgpexprConj->Release();
 		return fMatched;
 	}
