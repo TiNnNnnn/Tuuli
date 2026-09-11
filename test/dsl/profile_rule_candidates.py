@@ -1073,6 +1073,8 @@ def cbo_contribution(manifest: dict, comparison: dict, manifest_dir: Path,
                      artifacts: Path | None = None) -> list[dict]:
     """CBO minus OFF, separating optimizer feasibility from comparable performance."""
     profile = comparison["rule_profile"]
+    if len(profile.get("intervention_rule_hashes", [])) > 1:
+        raise ValueError("single-rule contribution cannot attribute a joint rule bundle")
     if profile.get("arms") != ["off", "cbo"] or set(profile["policy_snapshots"]) != {"off", "cbo"}:
         raise ValueError("contribution report requires explicit OFF/CBO-only policies")
     diagnostics = profile_points(manifest, comparison, manifest_dir)

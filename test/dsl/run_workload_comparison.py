@@ -94,6 +94,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--profile-cbo-only", action="store_true",
                         help="profile only OFF/CBO; never construct or execute an RBO policy")
+    parser.add_argument("--profile-companion-rule", action="append", default=[],
+                        help="toggle another rule with --profile-rule as one OFF/CBO bundle (repeatable)")
     parser.add_argument(
         "--profile-rbo-phase",
         choices=("normalize", "pre_join", "cleanup"),
@@ -148,6 +150,11 @@ def parse_args() -> argparse.Namespace:
         parser.error("profile rule must be a 16-digit canonical hexadecimal identity")
     if args.profile_rule:
         args.profile_rule = args.profile_rule.lower()
+    if args.profile_companion_rule:
+        try:
+            profile_targets(args)
+        except ValueError as error:
+            parser.error(str(error))
     if args.input_stats_reference and (not args.setup_sql or not args.profile_rule or not args.stats_experiment):
         parser.error("input stats reference requires --setup-sql, --profile-rule and --stats-experiment")
     if args.setup_sql or args.cardinality_probes:
@@ -1028,6 +1035,9 @@ def compare_query(
             "effect": args.profile_effect,
             "scenarios": scenarios,
         }
+        if getattr(args, "profile_companion_rule", []):
+            rule_profile["intervention_rule_hashes"] = profile_targets(args)
+            rule_profile["intervention_scope"] = "joint_bundle_not_individual_rule_effect"
         if args.timing_repeats:
             rule_profile["timing"] = run_profile_timing(
                 args, psql_bin, socket, database, query, artifact, semantic_xforms, scenarios)
@@ -1198,6 +1208,8 @@ def experiment_observations(results: list[dict[str, Any]]) -> list[dict[str, Any
                 "mode": mode,
                 "arm": arm,
                 "profile_rule_hash": rule,
+                **({"intervention_rule_hashes": profile["intervention_rule_hashes"]}
+                   if arm is not None and profile.get("intervention_rule_hashes") else {}),
                 "status": status,
                 "complete": status == "ok",
                 "comparison": comparison,
@@ -1231,10 +1243,11 @@ def experiment_distribution_summary(
     grouped: dict[tuple[Any, ...], list[dict[str, Any]]] = defaultdict(list)
     for observation in observations:
         grouped[(observation["experiment_path"], observation["mode"],
-                 observation["arm"], observation["profile_rule_hash"])].append(observation)
+                 observation["arm"], observation["profile_rule_hash"],
+                 tuple(sorted(observation.get("intervention_rule_hashes", []))))].append(observation)
 
     summaries = []
-    for (path, mode, arm, profile_rule), all_runs in sorted(grouped.items(), key=lambda item: str(item[0])):
+    for (path, mode, arm, profile_rule, bundle), all_runs in sorted(grouped.items(), key=lambda item: str(item[0])):
         ids = {run["experiment"] for run in all_runs if run["experiment"] is not None}
         experiment = next(iter(ids)) if len(ids) == 1 else None
         run_statuses: dict[str, int] = defaultdict(int)
@@ -1349,6 +1362,7 @@ def experiment_distribution_summary(
             "mode": mode,
             "arm": arm,
             "profile_rule_hash": profile_rule,
+            **({"intervention_rule_hashes": list(bundle)} if bundle else {}),
             "runs": len(all_runs),
             "complete_runs": len(runs),
             "status_counts": dict(sorted(run_statuses.items())),
@@ -1425,7 +1439,8 @@ def experiment_distribution_summary(
                 },
                 "candidate_triggers": run["candidates"],
             }
-            curves[(selector, run["mode"], run["arm"], run["profile_rule_hash"])].append(point)
+            curves[(selector, run["mode"], run["arm"], run["profile_rule_hash"],
+                    tuple(sorted(run.get("intervention_rule_hashes", []))))].append(point)
 
     return {
         "groups": summaries,
@@ -1435,6 +1450,7 @@ def experiment_distribution_summary(
                 "mode": mode,
                 "arm": arm,
                 "profile_rule_hash": rule,
+                **({"intervention_rule_hashes": list(bundle)} if bundle else {}),
                 "points": sorted(
                     points,
                     key=lambda point: (
@@ -1445,15 +1461,29 @@ def experiment_distribution_summary(
                     ),
                 ),
             }
-            for (selector, mode, arm, rule), points in sorted(
+            for (selector, mode, arm, rule, bundle), points in sorted(
                 curves.items(), key=lambda item: str(item[0])
             )
         ],
     }
 
 
+def profile_targets(args: argparse.Namespace) -> list[str]:
+    companions = getattr(args, "profile_companion_rule", [])
+    if companions and not (args.profile_rule and getattr(args, "profile_cbo_only", False)):
+        raise ValueError("companion rules require --profile-rule and --profile-cbo-only")
+    hashes = [args.profile_rule, *companions]
+    if any(not isinstance(h, str) or re.fullmatch(r"[0-9a-fA-F]{16}", h) is None for h in hashes):
+        raise ValueError("profile targets must be 16-digit hexadecimal identities")
+    hashes = [h.lower() for h in hashes]
+    if len(set(hashes)) != len(hashes):
+        raise ValueError("duplicate profile target")
+    return [hashes[0], *sorted(hashes[1:])]
+
+
 def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Path]:
     policies = {}
+    targets = profile_targets(args)
     entries = {
         "off": "  enabled: false\n",
         "rbo": (
@@ -1476,7 +1506,7 @@ def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Pa
         if arm == "rbo" and getattr(args, "profile_cbo_only", False):
             continue
         path = root / f"profile-{arm}.policy"
-        path.write_text(f"- rule: {args.profile_rule}\n{fields}", encoding="utf-8")
+        path.write_text("".join(f"- rule: {target}\n{fields}" for target in targets), encoding="utf-8")
         policies[arm] = path
     return policies
 

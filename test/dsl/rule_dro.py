@@ -174,6 +174,31 @@ def cdf_metric_bounds(samples, support, *, bandwidth, threshold, tail):
             'empirical_violation': float(empirical), 'violation_upper': _outward(worst, True)}
 
 
+def tv_shift_bounds(bounds, support, *, distance, threshold, tail):
+    """Transfer supplied scalar bounds across a KNOWN total-variation budget.
+
+    If TV(P,Q)<=rho, bounded means move by at most (b-a)*rho and
+    event probabilities by rho. A mixture-weight budget implies this only
+    when conditional outcome kernels remain unchanged. This function neither
+    estimates drift nor authenticates the source confidence statement.
+    These are conservative transfers, not exact extrema of a W1/CDF ball.
+    """
+    low, high = _support(support)
+    rho, threshold = _number(distance), _number(threshold)
+    lower, risk = (_number(bounds[name]) for name in ('mean_lower', 'violation_upper'))
+    if (not 0 <= rho <= 1 or not low <= lower <= high or not 0 <= risk <= 1
+            or tail not in ('below', 'above')):
+        raise ValueError('invalid TV budget, source bounds or event direction')
+    partial = low < threshold <= high if tail == 'below' else low <= threshold < high
+    known_bad = low < threshold if tail == 'below' else low > threshold
+    if not partial and risk < int(known_bad):
+        raise ValueError('source risk bound contradicts the known support')
+    return {'scope': 'conditional_tv_transfer_of_supplied_bounds',
+            'tv_radius': _outward(rho, True),
+            'mean_lower': _outward(max(low, lower - (high - low) * rho), False),
+            'violation_upper': _outward(min(Fraction(1), risk + rho) if partial else Fraction(known_bad), True)}
+
+
 def demo(output, font):
     """Reproducible, explicitly synthetic sample-size diagnostic (not SQL evidence)."""
     import json

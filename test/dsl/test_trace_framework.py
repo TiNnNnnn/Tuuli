@@ -36,7 +36,7 @@ from profile_data_scale import scale_setups
 from compare_rule_curves import model_check, transport_check, additive_response_check, clipped_affine_check, summarize as summarize_curve
 from evaluate_rule_dimensions import (fit_dimensions, score_dimensions, pooled_cells,
                                       template_cells, validate as validate_dimensions)
-from rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget
+from rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget, tv_shift_bounds
 from calibrate_rule_dro import calibrate, validate_contract, contract_identity, audit_timing_input, bind_collection, timing_records
 from export_rule_examples import render_example, decode_records as decode_rule_examples, summarize_examples
 from build_xform_replacement_inventory import (
@@ -2153,6 +2153,16 @@ class TraceFrameworkTest(unittest.TestCase):
         curve = next(c for c in summary["factor_curves"] if c["arm"] == "rbo")
         self.assertEqual([p["complete"] for p in curve["points"]], [False, True])
 
+        # A shared trace anchor is not a shared intervention: never pool bundles.
+        run["rule_profile"]["intervention_rule_hashes"] = ["target", "companion"]
+        bundled = experiment_observations([run])
+        self.assertTrue(all(o["intervention_rule_hashes"] == ["target", "companion"] for o in bundled))
+        combined = experiment_distribution_summary(observations + bundled)
+        for field in ("groups", "factor_curves"):
+            self.assertEqual(len(combined[field]), 2 * len(summary[field]))
+            self.assertEqual(sum(g.get("intervention_rule_hashes") == ["companion", "target"]
+                                 for g in combined[field]), len(summary[field]))
+
     def test_profile_requires_consumed_and_matching_stats_targets(self) -> None:
         target = {"selector_kind": "expression", "selector": "f", "operator": "CLogicalGet",
                   "fingerprint": "f", "requested_rows": 10, "consumed": True}
@@ -2206,6 +2216,33 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertIn("placement: rbo", rbo)
         self.assertIn("phase: pre_join", rbo)
         self.assertIn("placement: cbo", cbo)
+
+    def test_cbo_bundle_policy_toggles_every_declared_rule_and_rejects_duplicates(self):
+        with self.assertRaisesRegex(ValueError, "joint rule bundle"):
+            cbo_contribution({}, {"rule_profile": {
+                "intervention_rule_hashes": ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"]}}, Path("/tmp"))
+        from run_workload_comparison import profile_targets
+        args = SimpleNamespace(profile_rule='a'*16, profile_companion_rule=['C'*16, 'b'*16],
+                               profile_cbo_only=True, profile_rbo_phase='pre_join',
+                               profile_effect='preserves_join_graph')
+        self.assertEqual(profile_targets(args), ['a'*16, 'b'*16, 'c'*16])
+        with tempfile.TemporaryDirectory() as directory:
+            policies = write_profile_policies(Path(directory), args)
+            self.assertEqual(tuple(policies), ('off', 'cbo'))
+            for arm, enabled in (('off', 'false'), ('cbo', 'true')):
+                text = policies[arm].read_text()
+                self.assertEqual(text.count('enabled: ' + enabled), 3)
+                for target in profile_targets(args):
+                    self.assertEqual(text.count('- rule: ' + target), 1)
+            original = policies['off'].read_text()
+            args.profile_companion_rule = ['A'*16]
+            with self.assertRaisesRegex(ValueError, 'duplicate'):
+                write_profile_policies(Path(directory), args)
+            self.assertEqual(policies['off'].read_text(), original)
+        for companions, cbo in ((['bad'], True), (['b'*16], False)):
+            args.profile_companion_rule, args.profile_cbo_only = companions, cbo
+            with self.assertRaises(ValueError):
+                profile_targets(args)
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
@@ -3214,6 +3251,44 @@ class RuleExampleExportTest(unittest.TestCase):
 
 
 class RuleDROTest(unittest.TestCase):
+    def test_tv_transfer_against_all_finite_distribution_pairs(self):
+        from collections import Counter
+        from fractions import Fraction as F
+        from itertools import combinations_with_replacement
+        distributions = list(combinations_with_replacement((-1, 0, 1), 4))
+        for p in distributions:
+            for q in distributions:
+                pc, qc = Counter(p), Counter(q)
+                rho = sum(F(abs(pc[x] - qc[x]), 8) for x in (-1, 0, 1))
+                for threshold in (-2, -1, 0, 1, 2):
+                    for tail in ('below', 'above'):
+                        bad = lambda x: x < threshold if tail == 'below' else x > threshold
+                        source = {'mean_lower': F(sum(p), 4), 'violation_upper': F(sum(map(bad, p)), 4)}
+                        shifted = tv_shift_bounds(source, (-1, 1), distance=rho, threshold=threshold, tail=tail)
+                        self.assertLessEqual(F(shifted['mean_lower']), F(sum(q), 4))
+                        self.assertGreaterEqual(F(shifted['violation_upper']), F(sum(map(bad, q)), 4))
+
+    def test_tv_transfer_support_and_drift_are_not_inferred_from_data(self):
+        source = {'mean_lower': 0, 'violation_upper': 0}
+        self.assertEqual(tv_shift_bounds(source, (0, 0), distance=1, threshold=0, tail='below')['violation_upper'], 0)
+        for change in ({'distance': -.1}, {'distance': 1.1}, {'distance': True}, {'tail': 'bad'},
+                       {'bounds': {**source, 'mean_lower': 2}}, {'threshold': 3}):
+            with self.assertRaises(ValueError):
+                tv_shift_bounds(**{'bounds': source, 'support': (-1, 1), 'distance': 0,
+                                   'threshold': 0, 'tail': 'below', **change})
+        # Equal mixture weights do NOT control a changed conditional kernel:
+        # source outcome +1 -> target -1 can have outcome TV=1, not weight TV=0.
+        unchanged = tv_shift_bounds({'mean_lower': 1, 'violation_upper': 0}, (-1, 1),
+                                   distance=0, threshold=0, tail='below')
+        self.assertGreater(unchanged['mean_lower'], -1)
+        # Move one quarter of a +1 atom to -1: both bounds are attained.
+        quarter = tv_shift_bounds({'mean_lower': 1, 'violation_upper': 0}, (-1, 1),
+                                 distance=.25, threshold=0, tail='below')
+        self.assertEqual((quarter['mean_lower'], quarter['violation_upper']), (.5, .25))
+        full = tv_shift_bounds({'mean_lower': 1, 'violation_upper': 0}, (-1, 1),
+                              distance=1, threshold=0, tail='below')
+        self.assertEqual((full['mean_lower'], full['violation_upper']), (-1, 1))
+
     def test_cdf_extrema_against_exhaustive_probability_simplex(self):
         from fractions import Fraction as F
         from itertools import combinations_with_replacement
