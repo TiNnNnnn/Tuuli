@@ -15,6 +15,7 @@ class CDSLUnionTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_PhysicalImplementation();
+	static GPOS_RESULT EresUnittest_PhysicalSetOpDXL();
 	static GPOS_RESULT EresUnittest_MatchAndDistinctGate();
 	static GPOS_RESULT EresUnittest_SetOpKindsMatchAndInstantiate();
 	static GPOS_RESULT EresUnittest_IntersectInputBindingsBuildJoin();

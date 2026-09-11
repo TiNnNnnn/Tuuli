@@ -1,0 +1,35 @@
+{
+  "description": "UNION dedup can rebind correlated inputs without optional lowerings",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformImplementUnion"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnionAll"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,4",
+      "2,2"
+    ],
+    "postgres_output": [
+      "1,4",
+      "2,2"
+    ]
+  }
+}

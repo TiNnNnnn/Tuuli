@@ -1,0 +1,37 @@
+{
+  "description": "Physical EXCEPT: duplicate and NULL counts without logical rewrites",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join",
+        "CXformIntersectAll2LeftSemiJoin",
+        "CXformDifference2LeftAntiSemiJoin",
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformImplementSetOp"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersect2Join",
+      "CXformIntersectAll2LeftSemiJoin",
+      "CXformDifference2LeftAntiSemiJoin",
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,2"
+    ],
+    "postgres_output": [
+      "1,2"
+    ]
+  }
+}

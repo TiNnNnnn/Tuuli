@@ -110,6 +110,7 @@ CParseHandlerFactory::Init(CMemoryPool *mp)
 		{EdxltokenPhysicalLimit, &CreateLimitParseHandler},
 		{EdxltokenPhysicalSort, &CreateSortParseHandler},
 		{EdxltokenPhysicalAppend, &CreateAppendParseHandler},
+		{EdxltokenPhysicalSetOp, &CreateAppendParseHandler},
 		{EdxltokenPhysicalMaterialize, &CreateMaterializeParseHandler},
 		{EdxltokenPhysicalDynamicTableScan, &CreateDTSParseHandler},
 		{EdxltokenPhysicalDynamicIndexScan, &CreateDynamicIdxScanParseHandler},

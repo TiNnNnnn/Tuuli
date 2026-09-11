@@ -270,6 +270,7 @@ public:
 		ExfDSLRuleCTEConsumer,
 		ExfDSLRuleCTEAnchor,
 		ExfImplementUnion,
+		ExfImplementSetOp,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

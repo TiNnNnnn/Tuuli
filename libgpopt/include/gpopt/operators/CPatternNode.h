@@ -36,6 +36,7 @@ public:
 		EmtMatchNotExistsApplyOrAntiSemiJoin,
 		EmtMatchAllApply,
 		EmtMatchJoinApply,
+		EmtMatchIntersectOrDifference,
 		EmtSentinel
 	};
 
@@ -97,6 +98,9 @@ public:
 	{
 		switch (m_match)
 		{
+			case EmtMatchIntersectOrDifference:
+				return EopLogicalIntersect == opid || EopLogicalIntersectAll == opid ||
+					EopLogicalDifference == opid || EopLogicalDifferenceAll == opid;
 			case EmtMatchInnerOrLeftOuterJoin:
 				return COperator::EopLogicalInnerJoin == opid ||
 					   COperator::EopLogicalLeftOuterJoin == opid;

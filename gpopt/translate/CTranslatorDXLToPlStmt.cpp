@@ -85,6 +85,7 @@ extern "C" {
 #include "naucrates/dxl/operators/CDXLNode.h"
 #include "naucrates/dxl/operators/CDXLPhysicalAgg.h"
 #include "naucrates/dxl/operators/CDXLPhysicalAppend.h"
+#include "naucrates/dxl/operators/CDXLPhysicalSetOp.h"
 #include "naucrates/dxl/operators/CDXLPhysicalAssert.h"
 #include "naucrates/dxl/operators/CDXLPhysicalBitmapTableScan.h"
 #include "naucrates/dxl/operators/CDXLPhysicalCTAS.h"
@@ -534,6 +535,7 @@ CTranslatorDXLToPlStmt::TranslateDXLOperatorToPlan(
 			break;
 		}
 		case EdxlopPhysicalAppend:
+		case EdxlopPhysicalSetOp:
 		{
 			plan = TranslateDXLAppend(dxlnode, output_context,
 									  ctxt_translation_prev_siblings);
@@ -4530,13 +4532,20 @@ CTranslatorDXLToPlStmt::TranslateDXLAppend(
 	const CDXLNode *append_dxlnode, CDXLTranslateContext *output_context,
 	CDXLTranslationContextArray *ctxt_translation_prev_siblings)
 {
-	// create append plan node
-	Append *append = MakeNode(Append);
-	/* PG18: -1 means no partition pruning; 0 (palloc0 default) would
-	 * trigger ExecInitPartitionExecPruning and crash with apprelids=NULL */
-	append->part_prune_index = -1;
-
-	Plan *plan = &(append->plan);
+	const BOOL setop = append_dxlnode->GetOperator()->GetDXLOperator() ==
+		EdxlopPhysicalSetOp;
+	Plan *plan;
+	if (setop)
+	{
+		plan = (Plan *) MakeNode(SetOp);
+	}
+	else
+	{
+		auto *append = MakeNode(Append);
+		// PG18: -1 means no partition pruning (zero is a valid pruning index).
+		append->part_prune_index = -1;
+		plan = &append->plan;
+	}
 	plan->plan_node_id = m_dxl_to_plstmt_context->GetNextPlanId();
 
 	// translate operator costs
@@ -4544,13 +4553,13 @@ CTranslatorDXLToPlStmt::TranslateDXLAppend(
 
 	const ULONG arity = append_dxlnode->Arity();
 	GPOS_ASSERT(EdxlappendIndexFirstChild < arity);
-	append->appendplans = NIL;
+	List *input_plans = NIL;
 
 	// translate children
-	CDXLTranslateContext child_context(m_mp, false,
-									   output_context->GetColIdToParamIdMap());
 	for (ULONG ul = EdxlappendIndexFirstChild; ul < arity; ul++)
 	{
+		CDXLTranslateContext child_context(m_mp, false,
+			output_context->GetColIdToParamIdMap());
 		CDXLNode *child_dxlnode = (*append_dxlnode)[ul];
 
 		Plan *child_plan = TranslateDXLOperatorToPlan(
@@ -4558,11 +4567,29 @@ CTranslatorDXLToPlStmt::TranslateDXLAppend(
 
 		GPOS_ASSERT(nullptr != child_plan && "child plan cannot be NULL");
 
-		append->appendplans = gpdb::LAppend(append->appendplans, child_plan);
+		input_plans = gpdb::LAppend(input_plans, child_plan);
 	}
 
 	CDXLNode *project_list_dxlnode = (*append_dxlnode)[EdxlappendIndexProjList];
 	CDXLNode *filter_dxlnode = (*append_dxlnode)[EdxlappendIndexFilter];
+	if (setop && (gpdb::ListLength(input_plans) < 2 || filter_dxlnode->Arity() != 0))
+	{
+		GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+			GPOS_WSZ_LIT("SetOp needs at least two inputs and cannot evaluate quals"));
+	}
+	if (setop)
+	{
+		ListCell *cell;
+		ForEach(cell, input_plans)
+		{
+			auto *child = (Plan *) lfirst(cell);
+			if ((ULONG) gpdb::ListLength(child->targetlist) != project_list_dxlnode->Arity())
+			{
+				GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+					GPOS_WSZ_LIT("SetOp input columns are not positionally aligned"));
+			}
+		}
+	}
 
 	plan->targetlist = NIL;
 	const ULONG length = project_list_dxlnode->Arity();
@@ -4597,6 +4624,24 @@ CTranslatorDXLToPlStmt::TranslateDXLAppend(
 			CTranslatorUtils::CreateMultiByteCharStringFromWCString(
 				sc_proj_elem_dxlop->GetMdNameAlias()->GetMDName()->GetBuffer());
 		target_entry->resno = attno;
+		if (setop)
+		{
+			auto *left = (Plan *) linitial(input_plans);
+			auto *entry = (TargetEntry *) gpdb::ListNth(left->targetlist, ul);
+			var->varcollid = gpdb::ExprCollation((Node *) entry->expr);
+			ListCell *cell;
+			ForEach(cell, input_plans)
+			{
+				auto *child = (Plan *) lfirst(cell);
+				auto *input = (TargetEntry *) gpdb::ListNth(child->targetlist, ul);
+				if (input->resjunk || gpdb::ExprType((Node *) input->expr) != var->vartype ||
+					gpdb::ExprCollation((Node *) input->expr) != var->varcollid)
+				{
+					GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+						GPOS_WSZ_LIT("SetOp input types or collations differ"));
+				}
+			}
+		}
 
 		// restore aliases that failed the wide character conversion
 		restore_unknown_locale_resname(output_context->GetQuery(),
@@ -4618,12 +4663,72 @@ CTranslatorDXLToPlStmt::TranslateDXLAppend(
 		nullptr,  // translate context for the base table
 		child_contexts, output_context);
 
+	if (setop)
+	{
+		auto *op = static_cast<CDXLPhysicalSetOp *>(append_dxlnode->GetOperator());
+		SetOpCmd command;
+		switch (op->Kind())
+		{
+			case EdxlsetopIntersect: command = SETOPCMD_INTERSECT; break;
+			case EdxlsetopIntersectAll: command = SETOPCMD_INTERSECT_ALL; break;
+			case EdxlsetopDifference: command = SETOPCMD_EXCEPT; break;
+			case EdxlsetopDifferenceAll: command = SETOPCMD_EXCEPT_ALL; break;
+			default:
+				GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+					GPOS_WSZ_LIT("Invalid physical set operation"));
+				command = SETOPCMD_INTERSECT; // unreachable
+		}
+		Plan *left = (Plan *) linitial(input_plans);
+		for (int i = 1; i < gpdb::ListLength(input_plans); ++i)
+		{
+			auto *node = i + 1 == gpdb::ListLength(input_plans)
+				? (SetOp *) plan : MakeNode(SetOp);
+			if (&node->plan != plan)
+			{
+				node->plan.plan_node_id = m_dxl_to_plstmt_context->GetNextPlanId();
+				node->plan.targetlist = (List *) gpdb::CopyObject(plan->targetlist);
+				TranslatePlanCosts(append_dxlnode, &node->plan);
+				// Intermediate bag cardinality is bounded by the first input.
+				node->plan.plan_rows = left->plan_rows;
+			}
+			node->plan.lefttree = left;
+			node->plan.righttree = (Plan *) gpdb::ListNth(input_plans, i);
+			node->cmd = command;
+			node->strategy = op->FHash() ? SETOP_HASHED : SETOP_SORTED;
+			node->numCols = length;
+			node->cmpColIdx = (AttrNumber *) gpdb::GPDBAlloc(length * sizeof(AttrNumber));
+			node->cmpOperators = (Oid *) gpdb::GPDBAlloc(length * sizeof(Oid));
+			node->cmpCollations = (Oid *) gpdb::GPDBAlloc(length * sizeof(Oid));
+			node->cmpNullsFirst = (bool *) gpdb::GPDBAlloc(length * sizeof(bool));
+			for (ULONG c = 0; c < length; ++c)
+			{
+				auto *entry = (TargetEntry *) gpdb::ListNth(left->targetlist, c);
+				Oid eq = gpdb::GetEqualityOp(gpdb::ExprType((Node *) entry->expr));
+				node->cmpColIdx[c] = c + 1;
+				node->cmpOperators[c] = op->FHash() ? eq :
+					gpdb::GetOrderingOpForEqualityOp(eq, nullptr);
+				node->cmpCollations[c] = gpdb::ExprCollation((Node *) entry->expr);
+				node->cmpNullsFirst[c] = false;
+				if (!OidIsValid(node->cmpOperators[c]))
+				{
+					GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+						GPOS_WSZ_LIT("SetOp comparison operator is unavailable"));
+				}
+			}
+			node->numGroups = left->plan_rows >= (double) LONG_MAX ? LONG_MAX :
+				std::max(1L, (long) left->plan_rows);
+			SetParamIds(&node->plan);
+			left = &node->plan;
+		}
+		gpdb::ListFree(input_plans);
+	}
+	else
+	{
+		((Append *) plan)->appendplans = input_plans;
+	}
 	SetParamIds(plan);
-
-	// cleanup
 	child_contexts->Release();
-
-	return (Plan *) append;
+	return plan;
 }
 
 //---------------------------------------------------------------------------

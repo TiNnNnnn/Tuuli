@@ -281,6 +281,7 @@ public:
 		// is large (e.g. TPC-H Q22's NOT EXISTS on orders).
 		EopPhysicalLeftAntiSemiHashJoinBuildOuter,
 
+		EopPhysicalSetOp,
 		EopSentinel
 	};
 

@@ -5,6 +5,7 @@
 #include "gpopt/operators/CLogicalUnion.h"
 #include "gpopt/operators/CPatternMultiLeaf.h"
 #include "gpopt/operators/CPhysicalUnion.h"
+#include "gpopt/operators/CPhysicalSetOp.h"
 
 using namespace gpopt;
 
@@ -30,7 +31,7 @@ CXformImplementUnion::Transform(CXformContext *context, CXformResult *result,
 								CExpression *expr) const
 {
 	CMemoryPool *mp = context->Pmp();
-	auto *logical = CLogicalUnion::PopConvert(expr->Pop());
+	auto *logical = CLogicalSetOp::PopConvert(expr->Pop());
 	auto *output = logical->PdrgpcrOutput();
 	auto *inputs = logical->PdrgpdrgpcrInput();
 	for (BOOL hash : {false, true})
@@ -50,8 +51,9 @@ CXformImplementUnion::Transform(CXformContext *context, CXformResult *result,
 		}
 		output->AddRef();
 		inputs->AddRef();
-		result->Add(GPOS_NEW(mp) CExpression(
-			mp, GPOS_NEW(mp) CPhysicalUnion(mp, output, inputs, hash),
-			children));
+		CPhysicalUnion *physical = logical->Eopid() == COperator::EopLogicalUnion
+			? GPOS_NEW(mp) CPhysicalUnion(mp, output, inputs, hash)
+			: GPOS_NEW(mp) CPhysicalSetOp(mp, output, inputs, hash, logical->Eopid());
+		result->Add(GPOS_NEW(mp) CExpression(mp, physical, children));
 	}
 }

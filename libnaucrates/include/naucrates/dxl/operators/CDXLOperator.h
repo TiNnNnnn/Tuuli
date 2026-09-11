@@ -162,6 +162,7 @@ enum Edxlopid
 
 	EdxlopPhysicalAssert,
 
+	EdxlopPhysicalSetOp,
 	EdxlopSentinel
 };
 

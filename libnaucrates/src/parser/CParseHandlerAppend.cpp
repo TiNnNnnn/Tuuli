@@ -12,6 +12,7 @@
 #include "naucrates/dxl/parser/CParseHandlerAppend.h"
 
 #include "naucrates/dxl/operators/CDXLOperatorFactory.h"
+#include "naucrates/dxl/operators/CDXLPhysicalSetOp.h"
 #include "naucrates/dxl/parser/CParseHandlerFactory.h"
 #include "naucrates/dxl/parser/CParseHandlerFilter.h"
 #include "naucrates/dxl/parser/CParseHandlerProjList.h"
@@ -50,7 +51,7 @@ CParseHandlerAppend::CParseHandlerAppend(
 //
 //---------------------------------------------------------------------------
 void
-CParseHandlerAppend::SetupInitialHandlers(const Attributes &attrs)
+CParseHandlerAppend::SetupInitialHandlers(const Attributes &attrs, BOOL setop)
 {
 	// seeing a result tag
 	GPOS_ASSERT(m_dxl_op == nullptr &&
@@ -58,8 +59,25 @@ CParseHandlerAppend::SetupInitialHandlers(const Attributes &attrs)
 	GPOS_ASSERT(this->Length() == 0 &&
 				"No handlers should have been added yet");
 
-	m_dxl_op = (CDXLPhysicalAppend *) CDXLOperatorFactory::MakeDXLAppend(
-		m_parse_handler_mgr->GetDXLMemoryManager(), attrs);
+	auto *memory = m_parse_handler_mgr->GetDXLMemoryManager();
+	if (setop)
+	{
+		ULONG kind = CDXLOperatorFactory::ExtractConvertAttrValueToUlong(
+			memory, attrs, EdxltokenSetOpType, EdxltokenPhysicalSetOp);
+		if (kind < EdxlsetopIntersect || kind >= EdxlsetopSentinel)
+		{
+			GPOS_RAISE(ExmaDXL, ExmiDXLInvalidAttributeValue,
+				CDXLTokens::GetDXLTokenStr(EdxltokenSetOpType)->GetBuffer(),
+				CDXLTokens::GetDXLTokenStr(EdxltokenPhysicalSetOp)->GetBuffer());
+		}
+		BOOL hash = CDXLOperatorFactory::ExtractConvertAttrValueToBool(
+			memory, attrs, EdxltokenSetOpHash, EdxltokenPhysicalSetOp);
+		m_dxl_op = GPOS_NEW(m_mp) CDXLPhysicalSetOp(m_mp, EdxlSetOpType(kind), hash);
+	}
+	else
+	{
+		m_dxl_op = CDXLOperatorFactory::MakeDXLAppend(memory, attrs);
+	}
 
 	// parse handler for the filter
 	CParseHandlerBase *filter_parse_handler =
@@ -101,13 +119,15 @@ CParseHandlerAppend::StartElement(const XMLCh *const element_uri,
 								  const XMLCh *const element_qname,
 								  const Attributes &attrs)
 {
-	if (0 == XMLString::compareString(
+	BOOL setop = 0 == XMLString::compareString(
+		CDXLTokens::XmlstrToken(EdxltokenPhysicalSetOp), element_local_name);
+	if ((setop || 0 == XMLString::compareString(
 				 CDXLTokens::XmlstrToken(EdxltokenPhysicalAppend),
-				 element_local_name) &&
+				 element_local_name)) &&
 		nullptr == m_dxl_op)
 	{
 		// open a root Append element
-		SetupInitialHandlers(attrs);
+		SetupInitialHandlers(attrs, setop);
 	}
 	else if (nullptr != m_dxl_op)
 	{
@@ -147,7 +167,8 @@ CParseHandlerAppend::EndElement(const XMLCh *const,	 // element_uri,
 )
 {
 	if (0 != XMLString::compareString(
-				 CDXLTokens::XmlstrToken(EdxltokenPhysicalAppend),
+				 CDXLTokens::XmlstrToken(m_dxl_op && m_dxl_op->GetDXLOperator() ==
+					EdxlopPhysicalSetOp ? EdxltokenPhysicalSetOp : EdxltokenPhysicalAppend),
 				 element_local_name))
 	{
 		CWStringDynamic *str = CDXLUtils::CreateDynamicStringFromXMLChArray(

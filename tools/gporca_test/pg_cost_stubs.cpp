@@ -23,6 +23,8 @@ double cpu_operator_cost = 0.0025;	// DEFAULT_CPU_OPERATOR_COST
 int    effective_cache_size = 524288;  // DEFAULT_EFFECTIVE_CACHE_SIZE (4 GiB in 8KB pages)
 int    work_mem = 4096;			   // DEFAULT_WORK_MEM (KB)
 double hash_mem_multiplier = 2.0;  // DEFAULT_HASH_MEM_MULTIPLIER
+double disable_cost = 1.0e10;
+bool enable_hashagg = true;
 
 }  // extern "C"
 

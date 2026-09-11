@@ -8,6 +8,9 @@ namespace gpopt
 {
 class CXformImplementUnion : public CXformImplementation
 {
+protected:
+	explicit CXformImplementUnion(CExpression *pattern)
+		: CXformImplementation(pattern) {}
 public:
 	explicit CXformImplementUnion(CMemoryPool *mp);
 	EXformId

@@ -71,6 +71,8 @@
 #include "gpopt/operators/CPhysicalTableScan.h"
 #include "gpopt/operators/CPhysicalUnionAll.h"
 #include "gpopt/operators/CPhysicalUnion.h"
+#include "gpopt/operators/CPhysicalSetOp.h"
+#include "naucrates/dxl/operators/CDXLPhysicalSetOp.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarArray.h"
 #include "gpopt/operators/CScalarArrayCoerceExpr.h"
@@ -530,6 +532,7 @@ CTranslatorExprToDXL::CreateDXLNode(CExpression *pexpr,
 			break;
 		case COperator::EopPhysicalSerialUnionAll:
 		case COperator::EopPhysicalUnion:
+		case COperator::EopPhysicalSetOp:
 			dxlnode = CTranslatorExprToDXL::PdxlnAppend(
 				pexpr, colref_array, pdrgpdsBaseTables, pulNonGatherMotions,
 				pfDML);
@@ -2673,12 +2676,30 @@ CTranslatorExprToDXL::PdxlnAppend(CExpression *pexprUnionAll,
 		CPhysicalUnionAll::PopConvert(pexprUnionAll->Pop());
 	CColRefArray *pdrgpcrOutputAll = popUnionAll->PdrgpcrOutput();
 	const BOOL distinct = popUnionAll->Eopid() == COperator::EopPhysicalUnion;
-	CColRefSet *reqdCols = distinct
+	const BOOL setop = popUnionAll->Eopid() == COperator::EopPhysicalSetOp;
+	CColRefSet *reqdCols = (distinct || setop)
 		? GPOS_NEW(m_mp) CColRefSet(m_mp, pdrgpcrOutputAll)
 		: pexprUnionAll->Prpp()->PcrsRequired();
 
-	CDXLPhysicalAppend *dxl_op =
-		GPOS_NEW(m_mp) CDXLPhysicalAppend(m_mp, false, false);
+	CDXLPhysical *dxl_op;
+	if (setop)
+	{
+		auto *op = static_cast<CPhysicalSetOp *>(popUnionAll);
+		EdxlSetOpType kind = EdxlsetopSentinel;
+		switch (op->Kind())
+		{
+			case COperator::EopLogicalIntersect: kind = EdxlsetopIntersect; break;
+			case COperator::EopLogicalIntersectAll: kind = EdxlsetopIntersectAll; break;
+			case COperator::EopLogicalDifference: kind = EdxlsetopDifference; break;
+			case COperator::EopLogicalDifferenceAll: kind = EdxlsetopDifferenceAll; break;
+			default: GPOS_ASSERT(!"Unexpected physical set operation");
+		}
+		dxl_op = GPOS_NEW(m_mp) CDXLPhysicalSetOp(m_mp, kind, op->FHash());
+	}
+	else
+	{
+		dxl_op = GPOS_NEW(m_mp) CDXLPhysicalAppend(m_mp, false, false);
+	}
 	CDXLNode *pdxlnAppend = GPOS_NEW(m_mp) CDXLNode(m_mp, dxl_op);
 
 	// compute a list of indexes of output columns that are actually required
@@ -2753,10 +2774,10 @@ CTranslatorExprToDXL::PdxlnAppend(CExpression *pexprUnionAll,
 	}
 	reqd_col_positions->Release();
 
-	if (distinct)
+	if (distinct || setop)
 	{
 		reqdCols->Release();
-		return PdxlnUnionDedup(pexprUnionAll, pdxlnAppend);
+		if (distinct) return PdxlnUnionDedup(pexprUnionAll, pdxlnAppend);
 	}
 	return pdxlnAppend;
 }

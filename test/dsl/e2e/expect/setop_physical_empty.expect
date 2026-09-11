@@ -1,0 +1,43 @@
+{
+  "description": "Direct SetOp with optional logical lowerings and DSL disabled",
+  "plans": [
+    {
+      "name": "physical_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersect2Join",
+        "CXformIntersectAll2LeftSemiJoin",
+        "CXformDifference2LeftAntiSemiJoin",
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformImplementSetOp"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersect2Join",
+      "CXformIntersectAll2LeftSemiJoin",
+      "CXformDifference2LeftAntiSemiJoin",
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "except,5",
+      "except_all,0",
+      "intersect,0",
+      "intersect_all,0"
+    ],
+    "postgres_output": [
+      "except,5",
+      "except_all,0",
+      "intersect,0",
+      "intersect_all,0"
+    ]
+  }
+}

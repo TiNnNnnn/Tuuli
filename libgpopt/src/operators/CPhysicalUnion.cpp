@@ -37,10 +37,17 @@ CPhysicalUnion::PdsRequired(CMemoryPool *mp, CExpressionHandle &,
 CRewindabilitySpec *
 CPhysicalUnion::PrsDerive(CMemoryPool *mp, CExpressionHandle &exprhdl) const
 {
-	// Neither HashAgg nor Group guarantees mark/restore; use an enforcer.
-	CRewindabilitySpec *child = CPhysicalUnionAll::PrsDerive(mp, exprhdl);
-	CRewindabilitySpec *result = GPOS_NEW(mp)
-		CRewindabilitySpec(CRewindabilitySpec::ErtNone, child->Emht());
-	child->Release();
-	return result;
+	// Dedup/SetOp can rescan their inputs, but cannot mark/restore. Taking the
+	// weakest input also prevents a rescannable first child from hiding a
+	// non-rescannable later child. ErtNone here would forbid correlated rescans
+	// even with a Spool above us: that Spool still needs to rebind this subtree.
+	auto type = CRewindabilitySpec::ErtRewindable;
+	auto hazard = CRewindabilitySpec::EmhtNoMotion;
+	for (ULONG i = 0; i < exprhdl.Arity(); ++i)
+	{
+		auto *child = exprhdl.Pdpplan(i)->Prs();
+		if (child->Ert() > type) type = child->Ert();
+		if (child->HasMotionHazard()) hazard = CRewindabilitySpec::EmhtMotion;
+	}
+	return GPOS_NEW(mp) CRewindabilitySpec(type, hazard);
 }
