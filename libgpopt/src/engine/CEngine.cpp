@@ -602,8 +602,9 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 						 pgexprOrigin, fIntermediate);
 
 	// find the group that contains created group expression
+	CGroupExpression *canonical = nullptr;
 	CGroup *pgroupContainer =
-		m_pmemo->PgroupInsert(pgroupTarget, pexpr, pgexpr);
+		m_pmemo->PgroupInsert(pgroupTarget, pexpr, pgexpr, &canonical);
 	const BOOL inserted = nullptr != pgexpr->Pgroup();
 	if (inserted)
 	{
@@ -611,20 +612,21 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 	}
 	COptCtxt::PoctxtFromTLS()->RegisterDSLStatsExperimentGroup(
 		pop, pgroupContainer);
-	if (nullptr != pruleOrigin && inserted)
+	if (nullptr != pruleOrigin)
 	{
 		COptCtxt::PoctxtFromTLS()->RegisterDSLGroupExpressionOrigin(
-			pgexpr, pruleOrigin,
+			canonical, pruleOrigin,
 			nullptr == inputOrigin ? szTargetPath
 								   : inputOrigin->m_template_path.c_str(),
-			nullptr == inputOrigin ? "memo_consumes" : "input_exposes");
+			nullptr == inputOrigin ? "memo_consumes" : "input_exposes",
+			inserted ? "memo_inserted" : "memo_duplicate");
 	}
 	if (0 != candidateSequence)
 	{
 		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
 			pruleOrigin, inserted ? "memo_inserted" : "memo_duplicate",
 			candidateSequence, memoVersionBefore, pgroupContainer,
-			inserted ? pgexpr : nullptr, insertionVersionBefore);
+			canonical, insertionVersionBefore);
 	}
 
 	if (!inserted)

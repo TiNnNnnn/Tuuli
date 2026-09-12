@@ -2,6 +2,7 @@
 // MONSOON DSL corpus capability auditor.
 //
 // Usage: pgorca_rule_audit <rules-directory> [output-directory]
+//        pgorca_rule_audit --policy-snapshot <rules-file> [policy-file]
 //---------------------------------------------------------------------------
 #include <algorithm>
 #include <filesystem>
@@ -21,6 +22,7 @@
 #include "gpos/string/CWStringDynamic.h"
 
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/init.h"
 #include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -69,6 +71,7 @@ struct SRuleGraphNode
 	std::string target_pattern;
 	std::set<std::string> constraints;
 	std::map<std::string, unsigned long> template_features;
+	std::string learning_ir;
 };
 
 struct SRuleGraphEdge
@@ -105,6 +108,8 @@ FImplementationPropertyExploration(CXform::EXformId id)
 {
 	switch (id)
 	{
+		case CXform::ExfSubquery2CorrelatedApply:
+			return true;  // Scalar subquery execution, not optional decorrelation.
 		// Logical access-path generation retained beside physical implementation.
 		case CXform::ExfSelect2IndexGet:
 		case CXform::ExfSelect2DynamicIndexGet:
@@ -145,6 +150,9 @@ FImplementationPropertyExploration(CXform::EXformId id)
 
 struct SAudit
 {
+	BOOL export_policy = false;
+	std::string policy_file;
+	std::string policy_json;
 	std::string rules_dir;
 	std::string output_dir;
 	std::vector<SRuleRecord> rules;
@@ -406,6 +414,76 @@ CollectTemplateFeatures(const CDSLOp *op, const std::string &side,
 	}
 }
 
+// Learning ids follow structural first occurrence, not printed variable names,
+// parser ids or pointer order. Keep the live rule and its policy identity intact.
+using LearningSymbols = std::map<const CDSLSymbol *, size_t>;
+
+void
+WriteLearningSymbols(std::ostream &out, const CDSLSymbolArray *args,
+					 LearningSymbols *symbols)
+{
+	out << '[';
+	for (ULONG i = 0; i < args->Size(); ++i)
+	{
+		const auto entry = symbols->emplace((*args)[i], symbols->size());
+		out << (i ? "," : "") << entry.first->second;
+	}
+	out << ']';
+}
+
+void
+WriteLearningOp(std::ostream &out, const CDSLOp *op, LearningSymbols *symbols)
+{
+	out << "{\"op\":\"" << JsonEscape(OpName(op)) << "\",\"symbols\":";
+	WriteLearningSymbols(out, op->Pdrgpsym(), symbols);
+	out << ",\"children\":[";
+	for (ULONG i = 0; i < op->UlChildren(); ++i)
+	{
+		out << (i ? "," : "");
+		WriteLearningOp(out, (*op)[i], symbols);
+	}
+	out << "]}";
+}
+
+std::string
+LearningIR(const CDSLRule *rule)
+{
+	LearningSymbols symbols;
+	std::ostringstream out;
+	out << "{\"schema_version\":1,\"source\":";
+	WriteLearningOp(out, rule->PfragSrc()->PopRoot(), &symbols);
+	out << ",\"target\":";
+	WriteLearningOp(out, rule->PfragTgt()->PopRoot(), &symbols);
+	out << ",\"constraints\":[";
+	const CDSLConstraintArray *constraints = rule->Pdrgpcon();
+	for (ULONG i = 0; i < constraints->Size(); ++i)
+	{
+		const CDSLConstraint *constraint = (*constraints)[i];
+		out << (i ? "," : "") << "{\"kind\":\""
+			<< CDSLConstraintKindTable::SzName(constraint->Edslcon())
+			<< "\",\"symbols\":";
+		WriteLearningSymbols(out, constraint->Pdrgpsym(), &symbols);
+		out << '}';
+	}
+	out << "],\"symbols\":[";
+	std::vector<const CDSLSymbol *> ordered(symbols.size());
+	for (const auto &entry : symbols)
+	{
+		ordered[entry.second] = entry.first;
+	}
+	for (size_t i = 0; i < ordered.size(); ++i)
+	{
+		const CDSLSymbol *symbol = ordered[i];
+		out << (i ? "," : "") << "{\"kind\":\""
+			<< CDSLOpKindTable::WcSymPrefix(symbol->Esymkind())
+			<< "\",\"side\":\""
+			<< (EdslsideSource == symbol->Eside() ? "source" : "target")
+			<< "\"}";
+	}
+	out << "]}";
+	return out.str();
+}
+
 void
 BuildRuleGraph(CMemoryPool *mp, const std::vector<SParsedRule> &rules,
 			   SAudit *audit)
@@ -431,6 +509,7 @@ BuildRuleGraph(CMemoryPool *mp, const std::vector<SParsedRule> &rules,
 			PatternText(mp, parsed.rule->PfragTgt()->PopRoot()),
 			record.constraints,
 			{},
+			LearningIR(parsed.rule),
 		});
 		auto &features = graph.nodes.back().template_features;
 		CollectTemplateFeatures(parsed.rule->PfragSrc()->PopRoot(), "source", 1,
@@ -861,7 +940,7 @@ WriteReports(const SAudit &audit)
 					   << feature.first << "\":" << feature.second;
 			first_feature = false;
 		}
-		graph_json << "}}";
+		graph_json << "},\"learning_ir\":" << node.learning_ir << '}';
 		first = false;
 	}
 	graph_json << (first ? "" : "\n  ") << "],\n  \"edges\":[";
@@ -1039,11 +1118,90 @@ AuditFiles(CMemoryPool *mp, SAudit *audit)
 	}
 }
 
+void
+ExportPolicy(CMemoryPool *mp, SAudit *audit)
+{
+	CWStringDynamic errors(mp);
+	CDSLRuleLoader::SLoadStats stats;
+	CDSLRuleArray *rules = CDSLRuleLoader::PdrgpdslruleLoadFile(
+		mp, audit->rules_dir.c_str(), true, &stats, &errors);
+	if (nullptr == rules)
+	{
+		audit->fatal_error = Narrow(errors);
+		return;
+	}
+	CDSLPolicy *policy = nullptr;
+	if (!audit->policy_file.empty())
+	{
+		policy = CDSLPolicyLoader::PpolicyLoadFile(mp, audit->policy_file.c_str(), &errors);
+		if (nullptr == policy)
+		{
+			audit->fatal_error = Narrow(errors);
+			rules->Release();
+			return;
+		}
+	}
+	CDSLPolicySnapshot *snapshot = CDSLPolicySnapshot::PsnapshotCompile(mp, rules, policy, &errors);
+	CRefCount::SafeRelease(policy);
+	if (nullptr == snapshot)
+	{
+		audit->fatal_error = Narrow(errors);
+		rules->Release();
+		return;
+	}
+	// Export native list membership, not an invented execution/trigger order.
+	std::map<const CDSLRule *, std::pair<std::string, ULONG>> membership;
+	ULONG ordinal = 0;
+	for (const CDSLRule *rule : snapshot->CboRules())
+		membership.emplace(rule, std::make_pair("cbo", ordinal++));
+	for (ULONG phase = 0; phase < 3; ++phase)
+	{
+		ordinal = 0;
+		for (const CDSLRule *rule : snapshot->RboRules((EDslRulePhase) phase))
+			membership.emplace(rule, std::make_pair(SzDSLPhase((EDslRulePhase) phase), ordinal++));
+	}
+	std::ostringstream out;
+	out << std::boolalpha << "{\"schema_version\":1,\"explicit_policy\":" << snapshot->FExplicitPolicy()
+		<< ",\"scope\":\"native_policy_snapshot_not_runtime_applicability\",\"load\":{\"admitted\":"
+		<< stats.ul_admitted << ",\"skipped_non_eq\":" << stats.ul_skipped
+		<< ",\"failed\":" << stats.ul_failed << "},\"load_errors\":\"" << JsonEscape(Narrow(errors))
+		<< "\",\"rules\":[";
+	for (ULONG index = 0; index < rules->Size(); ++index)
+	{
+		const CDSLRule *rule = (*rules)[index];
+		const SDSLRulePolicy &p = snapshot->Policy(rule);
+		if (index > 0)
+			out << ',';
+		out << "{\"rule_hash\":\"" << rule->SzIdentity() << "\",\"source_line\":" << rule->UlSourceLine()
+			<< ",\"enabled\":" << p.m_fEnabled << ",\"placement\":\"" << SzDSLPlacement(p.m_edslplacement)
+			<< "\",\"phase\":\"" << SzDSLPhase(p.m_edslphase) << "\",\"effect\":\"" << SzDSLEffect(p.m_edsleffect)
+			<< "\",\"priority\":" << p.m_iPriority << ",\"order\":\"" << SzDSLOrder(p.m_edslorder)
+			<< "\",\"fixpoint\":" << p.m_fFixpoint << ",\"budget\":{\"per_node\":" << p.m_ulBudgetPerNode
+			<< ",\"per_rule\":" << p.m_ulBudgetPerRule << ",\"per_query\":" << p.m_ulBudgetPerQuery
+			<< "},\"candidate_list\":";
+		auto found = membership.find(rule);
+		if (membership.end() == found)
+			out << "null,\"candidate_list_position\":null";
+		else
+			out << '"' << found->second.first << "\",\"candidate_list_position\":" << found->second.second;
+		out << '}';
+	}
+	out << "]}";
+	audit->policy_json = out.str();
+	GPOS_DELETE(snapshot);
+	rules->Release();
+}
+
 void *
 RunAudit(void *argument)
 {
 	SAudit *audit = static_cast<SAudit *>(argument);
 	CAutoMemoryPool amp;
+	if (audit->export_policy)
+	{
+		ExportPolicy(amp.Pmp(), audit);
+		return nullptr;
+	}
 	AuditFiles(amp.Pmp(), audit);
 	if (audit->fatal_error.empty())
 	{
@@ -1056,15 +1214,19 @@ RunAudit(void *argument)
 int
 main(int argc, char **argv)
 {
-	if (argc < 2 || argc > 3)
+	const BOOL export_policy = argc > 1 && std::string(argv[1]) == "--policy-snapshot";
+	if ((export_policy && (argc < 3 || argc > 4)) || (!export_policy && (argc < 2 || argc > 3)))
 	{
 		std::cerr << "usage: pgorca_rule_audit <rules-directory> "
-					 "[output-directory]" << std::endl;
+					 "[output-directory]\n       pgorca_rule_audit --policy-snapshot <rules-file> [policy-file]" << std::endl;
 		return 2;
 	}
 
 	SAudit audit;
-	audit.rules_dir = fs::absolute(argv[1]).lexically_normal().string();
+	audit.export_policy = export_policy;
+	audit.rules_dir = fs::absolute(argv[export_policy ? 2 : 1]).lexically_normal().string();
+	if (export_policy && argc == 4)
+		audit.policy_file = fs::absolute(argv[3]).lexically_normal().string();
 	audit.output_dir =
 		fs::absolute(argc == 3 ? argv[2] : "rule-audit").lexically_normal().string();
 
@@ -1097,6 +1259,11 @@ main(int argc, char **argv)
 	{
 		std::cerr << audit.fatal_error << std::endl;
 		return 1;
+	}
+	if (export_policy)
+	{
+		std::cout << audit.policy_json << std::endl;
+		return 0;
 	}
 	if (!WriteReports(audit))
 	{

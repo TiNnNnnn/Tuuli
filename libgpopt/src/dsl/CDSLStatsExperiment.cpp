@@ -16,6 +16,7 @@
 #include <unordered_set>
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpos/io/COstreamString.h"
@@ -149,6 +150,22 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 			out << group->UlGExprs();
 		else
 			out << "null";
+		out << ",\"memo_state\":";
+		if (nullptr != group)
+		{
+			const CGroup *stats_owner = group;
+			while (nullptr != stats_owner->PgroupDuplicate())
+				stats_owner = stats_owner->PgroupDuplicate();
+			out << "{\"group\":" << group->Id()
+				<< ",\"statistics_owner_group\":" << stats_owner->Id()
+				<< ",\"group_expression\":" << input->Pgexpr()->Id()
+				<< ",\"group_explored\":" << (group->FExplored() ? "true" : "false")
+				<< ",\"group_implemented\":" << (group->FImplemented() ? "true" : "false")
+				<< ",\"expression_explored\":" << (input->Pgexpr()->FExplored() ? "true" : "false")
+				<< ",\"expression_implemented\":" << (input->Pgexpr()->FImplemented() ? "true" : "false") << "}";
+		}
+		else
+			out << "null";
 		out << ",\"logical_properties\":";
 		// Read only detached, complete Memo properties. Instrumentation must not
 		// trigger property/statistics derivation or change rule scheduling.
@@ -171,7 +188,11 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 			out << ",\"reference_key\":\"" << ::Fingerprint(mp, input, &fingerprints) << "\"";
 		out << "}";
 	};
-	out << "{\"capture\":\"before_evaluation\","
+	out << "{";
+	COptCtxt *context = COptCtxt::PoctxtFromTLS();
+	if (nullptr != context && context->FHasDSLStatsExperiment())
+		out << "\"stats_lifecycle_sequence\":" << context->UlDSLStatsLifecycleEvents() << ",";
+	out << "\"capture\":\"before_evaluation\","
 		   "\"scope\":\"source_before_match_view\",\"source_shape\":"
 		<< ExpressionShape(expr) << ",\"root\":";
 	node(expr);
@@ -195,7 +216,24 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 		++total;
 	}
 	out << "],\"relational_children\":" << total
-		<< ",\"omitted_children\":" << (total > limit ? total - limit : 0) << "}";
+		<< ",\"omitted_children\":" << (total > limit ? total - limit : 0);
+	// Ordered operator/arity prefix distinguishes trees with the same histogram.
+	// Bound the diagnostic prefix; omitted paths remain explicitly unobserved.
+	out << ",\"source_tree\":{\"nodes\":[";
+	std::vector<const CExpression *> pending{expr};
+	ULONG retained = 0;
+	while (!pending.empty() && retained < 64)
+	{
+		const CExpression *input = pending.back();
+		pending.pop_back();
+		if (retained++)
+			out << ",";
+		out << "{\"operator\":\"" << input->Pop()->SzId()
+			<< "\",\"arity\":" << input->Arity() << "}";
+		for (ULONG i = input->Arity(); i > 0; --i)
+			pending.push_back((*input)[i - 1]);
+	}
+	out << "],\"complete\":" << (pending.empty() ? "true" : "false") << "}}";
 	return out.str();
 }
 

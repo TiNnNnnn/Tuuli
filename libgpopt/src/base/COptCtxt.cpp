@@ -12,6 +12,7 @@
 #include "gpopt/base/COptCtxt.h"
 
 #include <cstring>
+#include <iomanip>
 #include <map>
 #include <sstream>
 #include <utility>
@@ -344,6 +345,36 @@ COptCtxt::PstatsApplyDSLExperiment(CMemoryPool *mp, const CGroup *group,
 }
 
 void
+COptCtxt::TraceDSLStatsLifecycle(const CGroup *group, const IStatistics *stats)
+{
+	if (nullptr == m_pdslStatsExperimentSnapshot || !GPOS_FTRACE(EopttracePrintDSLRule) || group->FScalar())
+		return;
+	std::ostringstream out;
+	out << std::setprecision(17);
+	out << "DSL_TRACE {\"kind\":\"group_stats_lifecycle\",\"experiment\":\""
+		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId())
+		<< "\",\"sequence\":" << ++m_ulDSLStatsLifecycleEvents
+		<< ",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+		<< ",\"preceding_cost_candidates\":" << m_ulDSLExperimentCostEvents
+		<< ",\"memo_version\":" << m_ulDSLMemoVersion
+		<< ",\"group\":" << group->Id()
+		<< ",\"status\":\"" << (nullptr == stats ? "reset" : "available")
+		<< "\",\"scope\":\"group_cache_after_write\",\"rows\":";
+	if (nullptr != stats && std::isfinite(stats->Rows().Get()))
+		out << stats->Rows().Get();
+	else
+		out << "null";
+	out << ",\"empty\":";
+	if (nullptr != stats)
+		out << (stats->IsEmpty() ? "true" : "false");
+	else
+		out << "null";
+	out << "}";
+	CAutoTrace trace(m_mp);
+	trace.Os() << out.str().c_str() << std::endl;
+}
+
+void
 COptCtxt::TraceDSLExperimentCost(const CGroupExpression *expr,
 	const COptimizationContext *context, ULONG request, const CHAR *status,
 	CCostContext *cost)
@@ -356,6 +387,7 @@ COptCtxt::TraceDSLExperimentCost(const CGroupExpression *expr,
 		<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
 		<< "\",\"sequence\":" << ++m_ulDSLExperimentCostEvents
 		<< ",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+		<< ",\"stats_lifecycle_sequence\":" << m_ulDSLStatsLifecycleEvents
 		<< ",\"memo_version\":" << m_ulDSLMemoVersion
 		<< ",\"group\":" << expr->Pgroup()->Id()
 		<< ",\"group_expression\":" << expr->Id()
@@ -518,8 +550,9 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << ",\"rule_candidates\":"
 				   << m_ulDSLExperimentCandidates
 				   << ",\"candidate_trace_version\":2"
-				   << ",\"binding_edge_trace_version\":1,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
+				   << ",\"binding_edge_trace_version\":3,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
 				   << ",\"cost_trace_version\":1,\"cost_candidates\":" << m_ulDSLExperimentCostEvents
+				   << ",\"stats_lifecycle_version\":1,\"stats_lifecycle_events\":" << m_ulDSLStatsLifecycleEvents
 				   << ",\"cost_lifecycle_version\":1,\"cost_lifecycle_events\":" << m_ulDSLExperimentCostLifecycleEvents
 				   << ",\"search_check_version\":1,\"search_checks\":" << m_ulDSLExperimentSearchChecks
 				   << ",\"candidate_context_encoding\":\"dictionary_v1\""
@@ -822,13 +855,53 @@ void
 COptCtxt::RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 										 const CDSLRule *prule,
 										 const CHAR *szTargetPath,
-										 const CHAR *szRelation)
+										 const CHAR *szRelation, const CHAR *outcome)
 {
 	GPOS_ASSERT(nullptr != pgexpr);
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != szTargetPath);
 	GPOS_ASSERT(nullptr != szRelation);
-	m_dsl_group_expression_origins[pgexpr] = {prule, szTargetPath, szRelation};
+	// Equivalent generators are diagnostic alternatives, not selected-plan credit.
+	GPOS_ASSERT(nullptr != outcome);
+	GPOS_ASSERT(0 == std::strcmp(outcome, "memo_inserted") ||
+		0 == std::strcmp(outcome, "memo_duplicate") ||
+		0 == std::strcmp(outcome, "memo_rehashed"));
+	if (0 != std::strcmp(outcome, "memo_inserted") &&
+		(!GPOS_FTRACE(EopttracePrintDSLRule) ||
+		 (0 == std::strcmp(outcome, "memo_duplicate") && 0 == m_ulDSLExperimentSequence)))
+		return;
+	auto &origins = m_dsl_group_expression_origins[pgexpr];
+	for (const auto &origin : origins)
+	{
+		if (0 == std::strcmp(origin.m_prule->SzIdentity(), prule->SzIdentity()) &&
+			origin.m_target_path == szTargetPath &&
+			origin.m_relation == szRelation && origin.m_outcome == outcome)
+			return;
+	}
+	origins.push_back({prule, szTargetPath, szRelation, outcome});
+}
+
+const std::vector<SDSLGroupExpressionOrigin> *
+COptCtxt::DSLGroupExpressionOrigins(const CGroupExpression *pgexpr) const
+{
+	const auto found = m_dsl_group_expression_origins.find(pgexpr);
+	return m_dsl_group_expression_origins.end() == found ? nullptr : &found->second;
+}
+
+void
+COptCtxt::MergeDSLGroupExpressionOrigins(const CGroupExpression *from,
+	const CGroupExpression *to)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule) || from == to)
+		return;
+	const auto *origins = DSLGroupExpressionOrigins(from);
+	if (nullptr == origins)
+		return;
+	// Hash-map rehash preserves references to its values. Keep the old entry
+	// for extracted bindings still referring to the duplicate expression.
+	for (const auto &origin : *origins)
+		RegisterDSLGroupExpressionOrigin(to, origin.m_prule,
+			origin.m_target_path.c_str(), origin.m_relation.c_str(), "memo_rehashed");
 }
 
 void
@@ -837,11 +910,17 @@ COptCtxt::RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr)
 	for (const CGroupExpression *origin = pgexpr; nullptr != origin;
 		 origin = origin->PgexprOrigin())
 	{
-		const auto found = m_dsl_group_expression_origins.find(origin);
-		if (m_dsl_group_expression_origins.end() != found)
+		const auto *origins = DSLGroupExpressionOrigins(origin);
+		if (nullptr != origins)
 		{
-			++m_dsl_selected_plan_rules[found->second.m_prule->SzIdentity()];
-			return;
+			for (const auto &producer : *origins)
+			{
+				if (producer.m_outcome == "memo_inserted")
+				{
+					++m_dsl_selected_plan_rules[producer.m_prule->SzIdentity()];
+					return;
+				}
+			}
 		}
 	}
 }
@@ -869,37 +948,40 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 		TraceDSLCBOEdge(prule, (*pexprSource)[i], status,
 			bindingPath + "/" + std::to_string(i));
 	}
-	auto found = m_dsl_group_expression_origins.find(pexprSource->Pgexpr());
-	if (m_dsl_group_expression_origins.end() == found)
+	const auto *origins = DSLGroupExpressionOrigins(pexprSource->Pgexpr());
+	if (nullptr == origins)
 		return;
 
 	const CGroupExpression *pgexpr = pexprSource->Pgexpr();
-	CAutoTrace trace(m_mp);
-	trace.Os() << "DSL_TRACE {\"kind\":\"rule_edge\",\"engine\":\"pgorca\","
-				   << "\"scheduler\":\"cbo\",\"src_rule\":\""
-				   << found->second.m_prule->SzIdentity()
-				   << "\",\"dst_rule\":\"" << prule->SzIdentity()
-				   << "\",\"target_path\":\""
-				   << found->second.m_target_path.c_str()
-				   << "\",\"src_target_path\":\""
-				   << found->second.m_target_path.c_str()
-				   << "\",\"dst_source_path\":"
-				   << (bindingPath == "r" ? "\"r\"" : "null")
-				   << ",\"dst_binding_path\":\"" << bindingPath.c_str()
-				   << "\",\"path_kind\":\""
-				   << (bindingPath == "r" ? "instantiated_expression" : "source_binding_expression")
-				   << "\",\"candidate_status\":\"" << status
-				   << "\",\"dst_candidate_sequence\":" << m_ulDSLExperimentSequence
-				   << ",\"binding_edge_sequence\":" << ++m_ulDSLBindingOriginEdges
-				   << ","
-					  "\"binding_group\":" << pgexpr->Pgroup()->Id()
-				   << ",\"binding_group_expression\":" << pgexpr->Id()
-				   << ",\"evidence\":\"runtime_observed\",\"relation\":\""
-				   << (0 == std::strcmp(status, "ready_cbo")
-					   ? found->second.m_relation.c_str() : "binding_observed")
-				   << "\",\"producer_relation\":\""
-				   << found->second.m_relation.c_str() << "\"}"
-				   << std::endl;
+	for (const auto &producer : *origins)
+	{
+		if (!full && producer.m_outcome != "memo_inserted")
+			continue;
+		CAutoTrace trace(m_mp);
+		trace.Os() << "DSL_TRACE {\"kind\":\"rule_edge\",\"engine\":\"pgorca\","
+			<< "\"scheduler\":\"cbo\",\"src_rule\":\""
+			<< producer.m_prule->SzIdentity()
+			<< "\",\"dst_rule\":\"" << prule->SzIdentity()
+			<< "\",\"target_path\":\"" << producer.m_target_path.c_str()
+			<< "\",\"src_target_path\":\"" << producer.m_target_path.c_str()
+			<< "\",\"dst_source_path\":"
+			<< (bindingPath == "r" ? "\"r\"" : "null")
+			<< ",\"dst_binding_path\":\"" << bindingPath.c_str()
+			<< "\",\"path_kind\":\""
+			<< (bindingPath == "r" ? "instantiated_expression" : "source_binding_expression")
+			<< "\",\"candidate_status\":\"" << status
+			<< "\",\"dst_candidate_sequence\":" << m_ulDSLExperimentSequence
+			<< ",\"binding_edge_sequence\":" << ++m_ulDSLBindingOriginEdges
+			<< ",\"binding_group\":" << pgexpr->Pgroup()->Id()
+			<< ",\"binding_group_expression\":" << pgexpr->Id()
+			<< ",\"evidence\":\"runtime_observed\",\"relation\":\""
+			<< (0 == std::strcmp(status, "ready_cbo")
+				? producer.m_relation.c_str() : "binding_observed")
+			<< "\",\"producer_relation\":\"" << producer.m_relation.c_str()
+			<< "\",\"producer_outcome\":\""
+			<< producer.m_outcome.c_str()
+			<< "\"}" << std::endl;
+	}
 }
 
 void

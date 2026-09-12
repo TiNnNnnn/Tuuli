@@ -136,7 +136,8 @@ public:
 
 	// insert group expression into hash table
 	CGroup *PgroupInsert(CGroup *pgroupTarget, CExpression *pexprOrigin,
-						 CGroupExpression *pgexpr);
+						 CGroupExpression *pgexpr,
+						 CGroupExpression **canonical = nullptr);
 
 	// extract a plan that delivers the given required properties
 	CExpression *PexprExtractPlan(CMemoryPool *mp, CGroup *pgroupRoot,

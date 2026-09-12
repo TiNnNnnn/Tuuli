@@ -229,7 +229,7 @@ CMemo::FNewGroup(CGroup **ppgroupTarget, CGroupExpression *pgexpr, BOOL fScalar)
 //---------------------------------------------------------------------------
 CGroup *
 CMemo::PgroupInsert(CGroup *pgroupTarget, CExpression *pexprOrigin,
-					CGroupExpression *pgexpr)
+					CGroupExpression *pgexpr, CGroupExpression **canonical)
 {
 	GPOS_ASSERT(nullptr != pgexpr);
 	GPOS_CHECK_ABORT;
@@ -262,6 +262,12 @@ CMemo::PgroupInsert(CGroup *pgroupTarget, CExpression *pexprOrigin,
 	{
 		pgroupContainer =
 			PgroupInsert(pgroupTarget, pgexpr, pexprOrigin, fNewGroup);
+	}
+
+	// Borrow the surviving expression for observation, including deduplication.
+	if (nullptr != canonical)
+	{
+		*canonical = nullptr != pgexprFound ? pgexprFound : pgexpr;
 	}
 
 	// if insertion failed, release group as needed
@@ -555,6 +561,9 @@ CMemo::FRehash()
 
 		// mark duplicate group expression
 		pgexpr->SetDuplicate(pgexprFound);
+		COptCtxt *context = COptCtxt::PoctxtFromTLS();
+		if (nullptr != context)
+			context->MergeDSLGroupExpressionOrigins(pgexpr, pgexprFound);
 
 		// move group expression to duplicates list in owner group
 		{

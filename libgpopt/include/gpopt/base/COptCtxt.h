@@ -90,6 +90,7 @@ struct SDSLGroupExpressionOrigin
 	const CDSLRule *m_prule;
 	std::string m_target_path;
 	std::string m_relation;
+	std::string m_outcome;
 };
 
 struct SDSLPendingAlternative
@@ -238,6 +239,7 @@ private:
 	ULONG m_ulDSLExperimentCandidates;
 	ULONG m_ulDSLExperimentApplications;
 	ULONG m_ulDSLExperimentCostEvents{0};
+	ULONG m_ulDSLStatsLifecycleEvents{0};
 	ULONG m_ulDSLExperimentCostLifecycleEvents{0};
 	ULONG m_ulDSLExperimentSearchChecks{0};
 	ULONG m_ulDSLBindingOriginEdges{0};
@@ -251,7 +253,7 @@ private:
 		m_dsl_generated_alternatives_by_node_rule;
 	std::unordered_map<const CExpression *, SDSLPendingAlternative>
 		m_dsl_pending_alternative_rules;
-	std::unordered_map<const CGroupExpression *, SDSLGroupExpressionOrigin>
+	std::unordered_map<const CGroupExpression *, std::vector<SDSLGroupExpressionOrigin>>
 		m_dsl_group_expression_origins;
 	std::unordered_map<std::string, ULONG> m_dsl_selected_plan_rules;
 
@@ -292,7 +294,11 @@ public:
 	void RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 									  const CDSLRule *prule,
 									  const CHAR *szTargetPath,
-									  const CHAR *szRelation);
+									  const CHAR *szRelation, const CHAR *outcome);
+	const std::vector<SDSLGroupExpressionOrigin> *DSLGroupExpressionOrigins(
+		const CGroupExpression *pgexpr) const;
+	void MergeDSLGroupExpressionOrigins(const CGroupExpression *from,
+		const CGroupExpression *to);
 	void TraceDSLCBOEdge(const CDSLRule *prule,
 						  const CExpression *pexprSource, const CHAR *status,
 						  const std::string &bindingPath = "r");
@@ -385,6 +391,8 @@ public:
 		ULONG memoVersionBefore, const CGroup *group,
 		const CGroupExpression *gexpr, ULONG insertionVersionBefore);
 	void AdvanceDSLMemoVersion() { ++m_ulDSLMemoVersion; }
+	void TraceDSLStatsLifecycle(const CGroup *group, const gpnaucrates::IStatistics *stats);
+	ULONG UlDSLStatsLifecycleEvents() const { return m_ulDSLStatsLifecycleEvents; }
 	void TraceDSLExperimentCost(const CGroupExpression *expr,
 		const COptimizationContext *context, ULONG request, const CHAR *status,
 		CCostContext *cost = nullptr);
