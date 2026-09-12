@@ -17,7 +17,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from test_rule_policy_encoding import EncodingTest
+from test_rule_policy_model import SequenceEncoderTest
+from test_rule_tree_model import RuleTreeLayoutTest, RuleTreeModelTest
+from test_rule_history_encoding import RuleHistoryEncodingTest, RuleHistoryModelTest
+from test_query_policy_encoding import QueryEncodingTest
+from test_group_expression_encoding import GroupExpressionEncodingTest
+
 from build_reference_manifest import build_manifest
+from expand_rule_neighborhoods import propose as propose_rule_neighborhoods
 from instantiate_query_workload import instantiate, instantiate_relations, write_workload as write_parameter_workload
 from generate_stats_sweep import discovery_targets, geometric_factors, sweep_points, write_sweep, sampled_input_target, write_cohort_sweeps
 from plot_stats_sweep import measured_points, timing_points
@@ -25,10 +33,10 @@ from profile_rule_candidates import (candidate_evidence, STAGES, binding_shape_f
                                      family_design_weights, injection_order, sweep_candidate_evidence, cbo_contribution,
                                      parameter_candidate_evidence, candidate_state, state_coverage, cost_evidence,
                                      cost_lifecycle_evidence, search_check_evidence, search_contribution, target_root_costs,
-                                     observed_rule_edges, binding_origin_evidence)
+                                     observed_rule_edges, binding_origin_evidence, post_search_evidence)
 from profile_query_cohort import (build_cohort, cohort_results, query_features, rule_distribution,
                                   local_input_records, placement_evidence, incremental_cohort, stratified_cohort)
-from profile_corpus_attempts import select_cases, summarize_trace, coverage, export_workload
+from profile_corpus_attempts import select_cases, summarize_trace, coverage, export_workload, partition_history
 from run_workload_comparison import parse_args as parse_workload_args
 from profile_rule_conditions import condition_bins, query_cells, aggregate_cells, rule_effects
 from profile_rule_pair import paired_evidence
@@ -46,6 +54,7 @@ from build_xform_replacement_inventory import (
 from compare_rule_traces import compare, read_records
 from import_wetune_workloads import postgres_schema, schema_catalog, translate_query
 from merge_rule_graph import merge_graph, read_trace_inputs, render_dot
+from render_rule_dependency_graph import graph_counts, query_edge_support
 from replacement_rule_classification import audit_rule_file, audit_rule_text
 from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
@@ -75,8 +84,14 @@ from run_trace_corpus import (
 )
 from run_workload_comparison import (
     artifact_snapshot,
+    freeze_feature_graph,
     select_workload_queries,
     collect_cardinalities,
+    collect_catalog_context,
+    collect_policy_context,
+    parse_comparison_policies,
+    policy_experiment,
+    all_mode_results,
     collect_postgres_oracle,
     annotate_input_stats_reference,
     load_input_stats_reference,
@@ -163,6 +178,51 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertNotEqual(before, artifact_snapshot({"engine": path}))
             path.unlink()
             self.assertIn("error", artifact_snapshot({"engine": path})["engine"])
+
+    def test_rule_neighborhoods_keep_bridges_and_nonadjacent_combinations(self) -> None:
+        a, b, c = ('a' * 16, 'b' * 16, 'c' * 16)
+        graph = {'nodes': [{'rule_hash': h} for h in (a, b, c)], 'edges': []}
+        edges = [{'kind': 'rule_edge', 'engine': 'pgorca', 'scheduler': 'cbo',
+                  'src_rule': u, 'dst_rule': v, 'target_path': 'r', 'relation': 'memo_consumes'}
+                 for u, v in ((a, b), (b, c))]
+        summary = {'dataset': 'w', 'runs': [
+            {'case_id': 'q1', 'complete': True, 'attempted_rules': [a] * 100, 'edges': edges[:1]},
+            {'case_id': 'q2', 'complete': False, 'attempted_rules': [a], 'edges': edges[1:]}]}
+        result = propose_rule_neighborhoods(graph, [summary], hotspots=1, max_hops=2)
+        self.assertEqual(result['hotspots'], [a])
+        self.assertEqual(result['distance'], {a: 0, b: 1, c: 2})
+        self.assertEqual(result['complete_queries'], 1)
+        self.assertIn([a, c], result['layers'][2]['disabled_subsets'])
+        self.assertIn([], result['layers'][0]['disabled_subsets'])
+        self.assertEqual([x['policy_count_including_baseline'] for x in result['layers']], [2, 4, 8])
+        self.assertEqual(graph['edges'], [])  # Original directed evidence is not mutated.
+        limited = propose_rule_neighborhoods(graph, [summary], hotspots=1, max_hops=2, enumerate_limit=1)
+        self.assertIsNone(limited['layers'][2]['disabled_subsets'])
+        self.assertFalse(limited['layers'][2]['enumeration_complete'])
+        with self.assertRaisesRegex(ValueError, 'duplicate discovery'):
+            propose_rule_neighborhoods(graph, [summary, summary])
+        graph['nodes'].pop()
+        with self.assertRaises(ValueError):
+            propose_rule_neighborhoods(graph, [summary])
+
+    def test_rule_neighborhood_layers_are_nested_on_every_three_node_graph(self) -> None:
+        import itertools
+        rules = [letter * 16 for letter in 'abc']
+        possible = list(itertools.permutations(rules, 2))
+        summary = {'dataset': 'w', 'runs': [{'case_id': 'q', 'complete': True,
+                                           'attempted_rules': rules[:2]}]}
+        for bits in itertools.product((False, True), repeat=len(possible)):
+            graph = {'nodes': [{'rule_hash': h} for h in rules], 'edges': [
+                {'src_rule': u, 'dst_rule': v, 'evidence': 'static_template'}
+                for use, (u, v) in zip(bits, possible) if use]}
+            result = propose_rule_neighborhoods(graph, [summary], hotspots=2, max_hops=3)
+            previous = set()
+            for layer in result['layers']:
+                policies = {tuple(s) for s in layer['disabled_subsets']}
+                self.assertLessEqual(previous, policies)
+                self.assertEqual(len(policies), 2 ** len(layer['rules']))
+                previous = policies
+            self.assertEqual(result['layers'][2]['rules'], result['layers'][3]['rules'])
 
     def test_execution_baseline_disables_only_audited_semantic_xforms(self) -> None:
         runtime = {"schema_version": 2, "totals": {
@@ -538,6 +598,119 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(translate_query(source, 'mysql')[0] + ';\n',
                          (SCRIPT_DIR / 'e2e/sql/mysql_function_translation.sql').read_text())
 
+    def test_mysql_current_date_translation_uses_statement_time(self) -> None:
+        for function in ('curdate()', 'CURRENT_DATE()', 'CURRENT_DATE'):
+            sql, _ = translate_query('SELECT ' + function, 'mysql')
+            self.assertEqual(sql, 'SELECT CAST(STATEMENT_TIMESTAMP() AS DATE)')
+        for source in ('SELECT CURDATE() + INTERVAL 1 DAY', 'SELECT INTERVAL 1 DAY + CURDATE()',
+                       'SELECT CURDATE() - INTERVAL 1 SECOND'):
+            sql, _ = translate_query(source, 'mysql')
+            self.assertIn('STATEMENT_TIMESTAMP()', sql)
+            self.assertNotIn('CURDATE', sql)
+        for source in ('SELECT CURDATE(1)', 'SELECT CURDATE() + 1', 'SELECT (CURDATE()) * 1'):
+            with self.assertRaises(ValueError):
+                translate_query(source, 'mysql')
+        self.assertEqual(translate_query('SELECT CURRENT_DATE', 'postgres')[0], 'SELECT CURRENT_DATE')
+        root = SCRIPT_DIR / 'corpus/pybbs'
+        self.assertEqual(translate_query((root / 'source.sql').read_text().splitlines()[65], 'mysql')[0],
+                         (root / 'cases.sql').read_text().splitlines()[65])
+
+    def test_whole_policy_pilot_keeps_failures_and_excludes_unencoded_domains(self) -> None:
+        from copy import deepcopy
+        from train_policy_baseline import baseline_exclusions
+        record = {'admission': {'feature_integrity_verified': True, 'feature_exclusions': [],
+                                'model_training_eligible': False},
+                  'inputs': {'stats_experiment_document': None, 'candidate_policy': [{'placement': 'cbo'}]},
+                  'response': {'status': 'complete', 'planning_ms_median': 1., 'execution_ms_median': 0.,
+                               'exclusions': []}}
+        original = deepcopy(record)
+        self.assertEqual(baseline_exclusions(record), [])
+        self.assertEqual(record, original)  # Global training admission is never rewritten.
+        for field, value, error in (
+            ('status', 'incomplete', 'incomplete_response'),
+            ('execution_ms_median', None, 'invalid_response_execution_ms_median'),
+            ('planning_ms_median', float('nan'), 'invalid_response_planning_ms_median')):
+            changed = deepcopy(record)
+            changed['response'][field] = value
+            self.assertIn(error, baseline_exclusions(changed))
+        record['inputs']['stats_experiment_document'] = 'discover: true'
+        self.assertIn('intervention_channel_not_encoded', baseline_exclusions(record))
+        record['inputs']['candidate_policy'][0]['placement'] = 'rbo'
+        self.assertIn('outside_fixed_cbo_action_domain', baseline_exclusions(record))
+        record['admission']['feature_integrity_verified'] = False
+        self.assertIn('input_integrity_unverified', baseline_exclusions(record))
+
+    def test_policy_training_catalogs_can_vary_but_unencoded_environment_cannot(self) -> None:
+        from copy import deepcopy
+        from train_policy_baseline import measurement_environment
+        artifacts = {k: {'size': 17, 'crc32': '1234abcd', 'path': '/old/' + k}
+                     for k in ('postgres', 'pg_orca', 'rule_audit', 'rules', 'runner')}
+        comparison = {'artifact_provenance': {'before_server_start': artifacts}}
+        context = {'catalog': {'settings': {'search_path': 'public', 'work_mem': '4096'},
+                               'relations': [{'oid': 1, 'estimated_rows': 10}]},
+                   'settings_sql': {'default': "SET pg_orca.dsl_rule_policy_path='/tmp/p.policy';\n"
+                                    "SET pg_orca.enable_dphyper=on;\n"}}
+        expected = measurement_environment(context, comparison, 'default')
+        changed = deepcopy(context)
+        changed['catalog']['relations'] = [{'oid': 25, 'estimated_rows': 90000}]
+        changed['catalog']['captured_at'] = 'different capture time'
+        changed['settings_sql']['default'] = changed['settings_sql']['default'].replace('/tmp/p.policy', '/new/q.policy')
+        self.assertEqual(expected, measurement_environment(changed, comparison, 'default'))
+        changed['catalog']['settings']['work_mem'] = '8192'
+        self.assertNotEqual(expected, measurement_environment(changed, comparison, 'default'))
+        changed = deepcopy(context)
+        changed['settings_sql']['default'] += "DO $$ BEGIN PERFORM disable_xform('CXformX'); END $$;\n"
+        self.assertNotEqual(expected, measurement_environment(changed, comparison, 'default'))
+        other = deepcopy(comparison)
+        other['artifact_provenance']['before_server_start']['pg_orca']['crc32'] = 'abcdef01'
+        self.assertNotEqual(expected, measurement_environment(context, other, 'default'))
+        changed['settings_sql']['default'] += "SET pg_orca.dsl_rule_policy_path='second.policy';\n"
+        with self.assertRaisesRegex(ValueError, 'one explicitly resolved policy'):
+            measurement_environment(changed, comparison, 'default')
+
+    def test_whole_policy_selection_uses_predictions_and_keeps_failed_denominator(self) -> None:
+        from copy import deepcopy
+        from train_policy_baseline import selection_metrics
+        records, predictions = [], []
+        for query, observed in (('q1', (10., 20.)), ('q2', (100., 20.)), ('failed', (1., 1.))):
+            for arm, time in zip(('a', 'b'), observed):
+                unit = {'query': query, 'policy': arm}
+                failed = query == 'failed' and arm == 'b'
+                records.append({'unit': unit, 'pilot': {'split': 'validation',
+                    'exclusions': ['failure'] if failed else []}, 'response': {
+                    'status': 'incomplete' if failed else 'complete', 'timing_samples': [
+                        {'phase': 'measurement', 'status': 'ok', 'comparison_exclusions': [],
+                         'optimizer': 'pg_orca', 'planning_ms': time, 'execution_ms': 1.}]}})
+                if not failed:
+                    predictions.append({'unit': unit, 'split': 'validation',
+                        'predicted_log1p_ms': [math.log1p(1. if arm == 'a' else 2.), 0.],
+                        'training_policy_constant': [math.log1p(2. if arm == 'a' else 1.), 0.]})
+        original = deepcopy(records)
+        result = selection_metrics(predictions, records, 'validation')
+        self.assertEqual((result['assigned_queries'], result['paired_queries']), (3, 2))
+        self.assertEqual(result['best_measured_fixed_policy'], 'b')
+        self.assertEqual(result['selectors']['model']['policy'], 'a')
+        self.assertEqual(result['selectors']['model']['empirical_regret_ms'], 70.)
+        self.assertEqual(result['selectors']['training_policy_constant']['empirical_regret_ms'], 0.)
+        self.assertEqual(records, original)
+        self.assertEqual(selection_metrics(predictions, records, 'test')['assigned_queries'], 0)
+        with self.assertRaisesRegex(ValueError, 'duplicate policy prediction'):
+            selection_metrics(predictions + predictions[:1], records, 'validation')
+        missing = selection_metrics(predictions[1:], records, 'validation')
+        self.assertEqual(missing['paired_queries'], 1)
+        broken = deepcopy(predictions)
+        broken[0]['predicted_log1p_ms'][0] = float('nan')
+        with self.assertRaisesRegex(ValueError, 'invalid time prediction'):
+            selection_metrics(broken, records, 'validation')
+        # Joint median, not the sum of two marginal medians.
+        record = deepcopy(records[0])
+        samples = record['response']['timing_samples']
+        template = samples[0]
+        samples[:] = [dict(template, planning_ms=p, execution_ms=e)
+                      for p, e in ((0., 10.), (10., 0.), (11., 11.))]
+        joint = selection_metrics(predictions[:2], [record, records[1]], 'validation')
+        self.assertEqual(joint['policy_totals']['a']['observed_ms'], 10.)
+
     def test_plan_comparison_ignores_execution_metrics_but_keeps_optimizer_choices(self) -> None:
         baseline = {"Node Type": "Hash Join", "Actual Rows": 20, "Shared Hit Blocks": 3,
                     "Hash Cond": "a.id = b.id", "Plans": [{"Node Type": "Hash", "Hash Buckets": 1024,
@@ -695,6 +868,27 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIsNone(candidate_state(invalid)["features"]["root"]["rows"])
         self.assertEqual(state_coverage([])["captured"], 0)
 
+    def test_context_availability_distinguishes_metadata_missing_and_zero(self) -> None:
+        node = {"stats_source": "missing", "memo_group_expressions": 0,
+                "logical_properties": {"source": "complete_memo_group", "output_columns": 0,
+                    "outer_columns": 0, "not_null_columns": 0, "key_count": 0, "join_depth": 0}}
+        row = {"evaluated": True, "input_context": {
+            "capture": "before_evaluation", "scope": "source_before_match_view", "root": node,
+            "children": [{"position": 0, "node": {"stats_source": "expression", "rows": 0}}],
+            "relational_children": 2, "omitted_children": 1}}
+        coverage = state_coverage([row, {**row, "evaluated": False}])
+        self.assertEqual((coverage["attempts"], coverage["captured"]), (2, 1))
+        self.assertEqual(coverage["node_availability"]["root"], {
+            "observed_nodes": 1, "rows_available": 0, "logical_properties_available": 1,
+            "memo_group_expressions_available": 1, "stats_sources": {"missing": 1}})
+        self.assertEqual(coverage["node_availability"]["observed_relational_children"], {
+            "observed_nodes": 1, "rows_available": 1, "logical_properties_available": 0,
+            "memo_group_expressions_available": 0, "stats_sources": {"expression": 1}})
+        self.assertEqual(coverage["all_relational_child_rows_available"], 0)
+        node["logical_properties"]["source"] = "after_evaluation"
+        self.assertEqual(state_coverage([row])["node_availability"]["root"]["logical_properties_available"], 0)
+        self.assertEqual(state_coverage([])["node_availability"]["root"]["observed_nodes"], 0)
+
     def test_shape_features_separate_pre_input_from_bound_predicate_and_unknowns(self) -> None:
         shape = {"complete": True, "pattern_nodes": 0, "nodes": 3, "depth": 2,
                  "operators": {"CScalarSubqueryExists": 1}}
@@ -776,7 +970,35 @@ class TraceFrameworkTest(unittest.TestCase):
         observed = summarize_trace(text, 0, None)
         self.assertTrue(observed["complete"], observed["exclusions"])
         self.assertEqual(observed["attempts"], 2)  # No selected-plan event is required.
+        self.assertEqual(observed["rule_state_coverage"], {"r": observed["state_coverage"]})
         self.assertEqual(observed["statuses"]["match_rejected"], 1)
+        self.assertFalse(observed['binding_origin']['complete'])  # Legacy evidence stays legacy.
+        strict = summarize_trace(text, 0, None, required_binding_version=3)
+        self.assertFalse(strict['complete'])
+        self.assertIn('unexpected_binding_edge_trace_version', strict['exclusions'])
+        records[-1].update(binding_edge_trace_version=3, binding_origin_edges=1)
+        edge = {'engine': 'pgorca', 'kind': 'rule_edge', 'scheduler': 'cbo',
+                'src_rule': 'a', 'dst_rule': 'r', 'src_target_path': 'r', 'target_path': 'r',
+                'dst_source_path': 'r', 'dst_binding_path': 'r', 'dst_candidate_sequence': 2,
+                'candidate_status': 'ready_cbo', 'binding_edge_sequence': 1,
+                'binding_group': 1, 'binding_group_expression': 1,
+                'relation': 'memo_consumes', 'producer_relation': 'memo_consumes',
+                'producer_outcome': 'memo_duplicate'}
+        strict_text = '\n'.join('DSL_TRACE ' + json.dumps(r) for r in [*records, edge])
+        strict = summarize_trace(strict_text, 0, None, required_binding_version=3)
+        self.assertTrue(strict['complete'], strict['exclusions'])
+        self.assertEqual(strict['edges'][0]['producer_outcome'], 'memo_duplicate')
+        self.assertEqual(strict['edges'][0]['dst_memo_outcome'], 'memo_inserted')
+        foreign = '\n'.join('DSL_TRACE ' + json.dumps(r)
+                            for r in [*records, {**edge, 'experiment': 'other'}])
+        foreign = summarize_trace(foreign, 0, None, required_binding_version=3)
+        self.assertIn('binding_edge_experiment_mismatch', foreign['exclusions'])
+        self.assertNotIn('dst_memo_outcome', foreign['edges'][0])
+        missing_edge = summarize_trace('\n'.join('DSL_TRACE ' + json.dumps(r) for r in records),
+                                       0, None, required_binding_version=3)
+        self.assertTrue(missing_edge['candidate_complete'])
+        self.assertFalse(missing_edge['complete'])
+        self.assertIn('binding_edge_count_mismatch', missing_edge['exclusions'])
         partial = summarize_trace(text, 3, "fallback")
         self.assertFalse(partial["complete"])
         self.assertEqual(partial["attempts"], 2)  # Failed-query evidence is not discarded.
@@ -811,6 +1033,65 @@ class TraceFrameworkTest(unittest.TestCase):
             full = select_cases(root, 0, 7)[0]["cases"]
             self.assertEqual({c["case_id"] for c in full}, {"app:1", "app:3", "app:4"})
             self.assertEqual(sum(c["query"] == "SELECT 1" for c in full), 2)
+
+    def test_history_partition_deduplicates_without_splitting_literal_families(self) -> None:
+        items = [{'dataset': 'app', 'cases': [
+            {'case_id': 'app:1', 'query': 'SELECT x FROM t WHERE x = 1'},
+            {'case_id': 'app:2', 'query': 'SELECT x FROM t WHERE x = 1'},
+            {'case_id': 'app:3', 'query': 'SELECT x FROM t WHERE x = 99'},
+            {'case_id': 'app:4', 'query': 'CREATE TABLE t (x int)'}]},
+            {'dataset': 'other', 'cases': [
+                {'case_id': 'other:1', 'query': 'SELECT x FROM t WHERE x = 2'}]}]
+        cohort = partition_history(items, 7)
+        first, duplicate, variant, invalid, other = cohort['entries']
+        self.assertEqual(duplicate['duplicate_of'], 'app:1')
+        self.assertEqual(invalid['split'], 'parse_error')
+        self.assertEqual({e['family'] for e in (first, variant, other)}, {first['family']})
+        self.assertEqual({e['split'] for e in (first, variant, other)}, {first['split']})
+        self.assertEqual(cohort['entries'], partition_history(items, 7)['entries'])
+        self.assertEqual(sum(cohort['counts'].values()), 5)
+
+    def test_fallback_audit_reads_lossless_compressed_trace(self) -> None:
+        import gzip
+        from run_trace_corpus import orca_fallback_reason
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'q.log.gz'
+            with gzip.open(path, 'wt') as stream:
+                stream.write('Optimizer: pg_orca\n')
+            self.assertIsNone(orca_fallback_reason(path))
+            with gzip.open(path, 'wt') as stream:
+                stream.write('ERROR: planning failed\n')
+            self.assertIsNotNone(orca_fallback_reason(path))
+
+    def test_history_graph_gate_rejects_missing_roots_and_counts_queries_not_edges(self) -> None:
+        from copy import deepcopy
+        from audit_history_corpus import graph_exclusions, audit_corpus
+        graph = {'trees': [{'nodes': [{'path': 'r'}], 'root': 0}],
+                 'contexts': [{'attempts': 3, 'rule_hash': 'a', 'tree': 0}],
+                 'edges': [{'src_rule': 'a', 'dst_rule': 'a', 'tree': 0,
+                            'root': 0, 'dst_binding_path': 'r'}],
+                 'denominators': {'attempts': 3, 'observed_edges': 1,
+                                  'admitted_edges': 1, 'exclusions': {}}}
+        self.assertEqual(graph_exclusions(graph, {'a'}), [])
+        bad = deepcopy(graph)
+        bad['edges'][0]['dst_binding_path'] = 'r/99'
+        self.assertIn('unresolved_actual_binding_root', graph_exclusions(bad, {'a'}))
+        bad = deepcopy(graph)
+        bad['denominators']['exclusions']['edge_binding_root_unobserved'] = 2
+        self.assertIn('edge_binding_root_unobserved', graph_exclusions(bad, {'a'}))
+        bad = deepcopy(graph)
+        bad['denominators']['attempts'] = 0
+        self.assertIn('invalid_graph_denominator', graph_exclusions(bad, {'a'}))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'manifest.json').write_text(json.dumps({'history_split': 'train',
+                'datasets': [{'cases': [{'case_id': 'app:1', 'dataset': 'app', 'query': 'SELECT 1'}]}]}))
+            with self.assertRaisesRegex(ValueError, 'unfinished'):
+                audit_corpus(root)
+            pending = audit_corpus(root, progress=True)
+            self.assertEqual(pending['assigned_queries'], 1)
+            self.assertEqual(pending['eligible_query_graphs'], 0)
+            self.assertFalse(pending['minimum_training_graphs_met'])
 
     def test_workload_applied_sequence_excludes_candidate_events_not_repeated_applications(self) -> None:
         application = {"kind": "application", "status": "applied_rbo", "rule_hash": "target"}
@@ -1261,6 +1542,11 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(len(schedule), 24)
         binary_schedule = list(timing_schedule(2, 3, 1, 7, ("off", "cbo")))
         self.assertEqual(len(binary_schedule), 16)
+        custom = list(timing_schedule(2, 3, 1, 7, ('baseline', 'bounded', 'disabled')))
+        self.assertEqual(len(custom), 24)
+        for phase, block in {(p, b) for p, b, _, _ in custom}:
+            self.assertEqual({(i, a) for p, b, i, a in custom if (p, b) == (phase, block)},
+                             {(i, a) for i in range(2) for a in ('baseline', 'bounded', 'disabled')})
         self.assertEqual({arm for _, _, _, arm in binary_schedule}, {"off", "cbo"})
         for block in range(3):
             self.assertEqual({(i, arm) for phase, b, i, arm in binary_schedule if phase == "measurement" and b == block},
@@ -1309,6 +1595,13 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertEqual(result["arms"], ["off", "cbo"])
             self.assertEqual(len(result["samples"]), 6)
             self.assertEqual({s["arm"] for s in result["samples"]}, {"off", "cbo"})
+            execute.reset_mock()
+            execute.side_effect = [(stdout, "", 0, 8)] * 6
+            args.profile_policies = {arm: None for arm in ('default', 'bounded')}
+            scenarios[0]['arms'] = {arm: diagnostic for arm in args.profile_policies}
+            result = run_profile_timing(args, Path('psql'), Path('/tmp'), 'db', 'SELECT 1', Path(temporary), [], scenarios)
+            self.assertEqual(result['arms'], ['default', 'bounded'])
+            self.assertTrue(all(not s['comparison_exclusions'] for s in result['samples']))
 
     def test_observed_edges_preserve_missing_empty_and_raw_evidence(self) -> None:
         self.assertIsNone(observed_rule_edges({}, None))
@@ -1394,6 +1687,31 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertTrue(cost_evidence(run)['complete'])  # Old direct-only logs remain usable.
         with self.assertRaisesRegex(ValueError, 'missing_origin_chain'):
             target_root_costs(run, target, True)
+
+    def test_post_search_attribution_is_nonexclusive_and_not_pre_features(self) -> None:
+        rows = [{'rule_hash': rule, 'memo_outcome': {'status': 'memo_inserted',
+                 'group': 3, 'group_expression': expr}} for rule, expr in [('a', 1), ('b', 2)]]
+        run = {'cost_events': [{'sequence': 1, 'origin_group': 3, 'origin_expression': 2,
+                 'status': 'costed', 'origin_chain': [{'group': 3, 'group_expression': 2},
+                                                     {'group': 3, 'group_expression': 1}]}],
+               'cost_lifecycle_events': []}
+        with patch('profile_rule_candidates.candidate_evidence', return_value={'rows': rows, 'exclusions': []}), \
+             patch('profile_rule_candidates.cost_lifecycle_evidence', return_value={'exclusions': []}):
+            report = post_search_evidence(run)
+            self.assertTrue(report['complete'])
+            self.assertFalse(report['usable_as_pre_evaluation_features'])
+            self.assertEqual(report['rules']['a']['direct']['cost_sequences'], [])
+            self.assertEqual(report['rules']['a']['recorded_descendants']['cost_sequences'], [1])
+            self.assertEqual(report['rules']['b']['recorded_descendants']['cost_sequences'], [1])
+            self.assertEqual(report['attributed_distinct_cost_events'], 1)  # Not 1 + 1.
+            rows[0]['memo_outcome']['status'] = 'memo_duplicate'
+            self.assertNotIn('a', post_search_evidence(run)['rules'])
+            del run['cost_events'][0]['origin_chain']
+            invalid = post_search_evidence(run)
+            self.assertFalse(invalid['complete'])
+            self.assertIsNone(invalid['rules'])
+            self.assertIsNone(invalid['attributed_distinct_cost_events'])
+        self.assertIsNone(post_search_evidence({})['rules'])
 
     def test_cbo_contribution_separates_fallback_from_performance(self) -> None:
         run = {"optimizer": "pg_orca", "plan_rc": 0, "rows_rc": 0, "rows_hash": "same",
@@ -1530,6 +1848,177 @@ class TraceFrameworkTest(unittest.TestCase):
                 self.assertIsNone(result[0]["actual_rows"])
         with self.assertRaises(ValueError):
             collect_cardinalities(Path("psql"), Path("/tmp"), 1, "db", probes * 2, 60)
+
+    def test_catalog_context_is_read_only_and_preserves_missing_statistics(self) -> None:
+        catalog = {'captured_at': '2026-09-12T00:00:00Z', 'settings': {},
+                   'relations': [{'oid': 1, 'estimated_rows': None}, {'oid': 2, 'estimated_rows': 0}],
+                   'columns': [], 'statistics': [{'n_distinct': -0.5}], 'constraints': [], 'indexes': []}
+        with patch('run_workload_comparison.psql', return_value=(json.dumps(catalog), '', 0, 3.0)) as execute:
+            result = collect_catalog_context(Path('psql'), Path('/tmp'), 1, 'db', 60)
+            self.assertEqual(result['status'], 'ok')
+            self.assertEqual(result['catalog'], catalog)
+            self.assertEqual(result['elapsed_ms'], 3.0)
+            sql = execute.call_args.args[4]
+            self.assertIn('REPEATABLE READ READ ONLY', sql)
+            self.assertIn('pg_orca.enable_orca=off', sql)
+            self.assertNotIn('ANALYZE', sql)
+            self.assertFalse(execute.call_args.kwargs['retry_on_server_failure'])
+        for stdout, rc in (('', 124), ('null', 0), ('{}', 0), ('[]', 0), ('invalid', 0)):
+            with patch('run_workload_comparison.psql', return_value=(stdout, 'failed', rc, 1.0)):
+                result = collect_catalog_context(Path('psql'), Path('/tmp'), 1, 'db', 60)
+                self.assertEqual(result['status'], 'error')
+                self.assertIsNone(result['catalog'])
+                self.assertEqual(result['returncode'], rc)
+
+    def test_feature_graph_freezes_all_evidence_before_collection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / 'collection'
+            output.mkdir()
+            source = root / 'graph.json'
+            graph = {'schema_version': 2, 'nodes': [{'rule_hash': 'a'*16}],
+                     'edges': [{'src_rule': 'a'*16, 'dst_rule': 'a'*16, 'target_path': p}
+                               for p in ('r', 'r/0')],
+                     'learning_metadata': {'feature_cutoff': None}, 'unresolved_inputs': ['placeholder']}
+            raw = json.dumps(graph).encode()
+            source.write_bytes(raw)
+            receipt = freeze_feature_graph(source, output)
+            self.assertEqual((output / 'feature-graph.json').read_bytes(), raw)
+            self.assertEqual((receipt['nodes'], receipt['edges']), (1, 2))
+            self.assertEqual(receipt['capture'], 'before_server_start')
+            self.assertFalse(receipt['historical_split_verified'])
+            self.assertEqual(json.loads((output / 'feature-graph-snapshot.json').read_text()), receipt)
+            self.assertEqual(artifact_snapshot({'graph': output / 'feature-graph.json'})['graph'], receipt['snapshot'])
+            source.write_text('{}')
+            self.assertEqual((output / 'feature-graph.json').read_bytes(), raw)
+            with self.assertRaises(ValueError):
+                freeze_feature_graph(output / 'feature-graph.json', output)
+            source.write_bytes(raw)
+            with self.assertRaises(FileExistsError):
+                freeze_feature_graph(source, output)
+            bad_graphs = [{}, {'schema_version': 2, 'nodes': [], 'edges': graph['edges']},
+                          {**graph, 'nodes': graph['nodes'] * 2},
+                          {**graph, 'nodes': [None]}, {**graph, 'edges': [None]},
+                          {**graph, 'edges': [{'src_rule': [], 'dst_rule': 'a'*16}]},
+                          {**graph, 'unknown': float('nan')}]
+            for bad in bad_graphs:
+                source.write_text(json.dumps(bad))
+                with self.assertRaises(ValueError):
+                    freeze_feature_graph(source, output)
+            argv = ['runner', '--pg-config', 'pg_config', '--audit-bin', 'audit', '--feature-graph', str(source)]
+            with patch.object(sys, 'argv', argv), patch('sys.stderr'), self.assertRaises(SystemExit):
+                parse_workload_args()
+            with patch.object(sys, 'argv', argv + ['--capture-pre-context']):
+                self.assertEqual(parse_workload_args().feature_graph, source)
+
+    def test_policy_context_uses_native_compiler_and_retains_failures(self) -> None:
+        snapshot = {'schema_version': 1, 'scope': 'native_policy_snapshot_not_runtime_applicability',
+                    'load': {'admitted': 1, 'skipped_non_eq': 0, 'failed': 0}, 'rules': [{'placement': 'cbo'}]}
+        good = subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')
+        failed = subprocess.CompletedProcess([], 1, '', 'unknown rule')
+        with patch('run_workload_comparison.run', side_effect=[good, failed]) as execute:
+            result = collect_policy_context(Path('audit'), Path('rules'), {'default': None, 'off': Path('off.policy')}, 60)
+            self.assertEqual(execute.call_args_list[0].args[0], ['audit', '--policy-snapshot', 'rules'])
+            self.assertEqual(execute.call_args_list[1].args[0][-1], 'off.policy')
+            self.assertEqual(result['default']['snapshot'], snapshot)
+            self.assertEqual(result['off']['status'], 'error')
+            self.assertIsNone(result['off']['snapshot'])
+        snapshot['load']['failed'] = 1
+        with patch('run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')):
+            self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'partial')
+        for invalid in ('{}', 'null', 'invalid'):
+            with patch('run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, invalid, '')):
+                self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'error')
+        with patch('run_workload_comparison.run', side_effect=subprocess.TimeoutExpired('audit', 60)):
+            self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'error')
+
+    def test_policy_learning_records_separate_features_labels_and_failures(self) -> None:
+        from copy import deepcopy
+        import zlib
+        from export_policy_learning_samples import policy_samples, read_snapshot
+        identity = 'a'*16
+        receipt = {'capture': 'before_server_start', 'frozen_at_utc': '2026-09-12T00:00:00+00:00',
+                   'snapshot': {'path': 'graph.json', 'size': 1, 'crc32': 'x'}}
+        graph = {'nodes': [{'rule_hash': identity}]}
+        sql = 'SELECT 1'
+        rows = [{'rule_hash': identity, 'enabled': True, 'placement': 'cbo'}]
+        context = {'status': 'ok', 'capture_input_endpoints_equal': True, 'feature_graph': receipt,
+                   'catalog': {'captured_at': '2026-09-12T00:00:01+00:00'},
+                   'resolved_policies': {a: {'status': 'ok', 'snapshot': {'rules': rows}}
+                                         for a in ('default', 'bounded')}}
+        arms = ['default', 'bounded']
+        samples = [{'phase': phase, 'block': block, 'scenario': scenario, 'arm': arm, 'status': 'ok',
+                    'optimizer': 'pg_orca', 'comparison_exclusions': [], 'planning_ms': 2., 'execution_ms': 3.}
+                   for phase, block, scenario, arm in timing_schedule(1, 2, 1, 13, arms)]
+        result = {'workload': 'w', 'query': 'q.sql', 'query_crc32': f'{zlib.crc32(sql.encode()):08x}',
+                  'feature_graph': receipt, 'pre_workload_context': {'input_endpoints_equal': True},
+                  'artifact_provenance': {'endpoints_equal': True},
+                  'postgres_oracle': {'mode_result_equal': {'policy:0:' + a: True for a in arms}},
+                  'policy_comparison': {'scope': 'complete_policy_not_individual_rule_effect', 'arms': arms,
+                      'scenarios': [{'stats_experiment': None, 'arms': {
+                          a: {'plan_rc': 0, 'rows_rc': 0, 'optimizer': 'pg_orca'} for a in arms}}],
+                      'timing': {'repeats': 2, 'warmups': 1, 'seed': 13, 'samples': samples}}}
+        records = policy_samples(result, context, sql, graph)
+        self.assertEqual(len(records), 2)
+        self.assertTrue(all(r['admission']['feature_integrity_verified'] for r in records))
+        self.assertFalse(any(r['admission']['model_training_eligible'] for r in records))
+        self.assertEqual([r['response']['planning_ms_median'] for r in records], [2., 2.])
+        self.assertNotIn('timing_samples', records[0]['inputs'])
+        changed = deepcopy(result)
+        changed['policy_comparison']['scenarios'][0]['arms']['default']['future_memo_groups'] = 999
+        self.assertEqual(policy_samples(changed, context, sql, graph), records)
+        failed = deepcopy(result)
+        sample = failed['policy_comparison']['timing']['samples'][0]
+        sample.update(status='timeout', planning_ms=None, execution_ms=None)
+        failed_records = policy_samples(failed, context, sql, graph)
+        bad = next(r for r in failed_records if r['unit']['policy'] == sample['arm'])
+        self.assertEqual(len(failed_records), 2)
+        self.assertEqual(bad['response']['status'], 'incomplete')
+        self.assertIsNone(bad['response']['planning_ms_median'])
+        self.assertTrue(bad['response']['timing_samples'])
+        self.assertEqual([r['inputs'] for r in failed_records], [r['inputs'] for r in records])
+        for bad_result, bad_context, bad_sql, bad_graph in (
+                ({**result, 'artifact_provenance': {'endpoints_equal': False}}, context, sql, graph),
+                (result, {**context, 'feature_graph': {}}, sql, graph),
+                (result, context, 'SELECT 2', graph), (result, context, sql, {'nodes': []}),
+                (result, {**context, 'catalog': {'captured_at': '2026-09-11T00:00:00+00:00'}}, sql, graph)):
+            bad_records = policy_samples(bad_result, bad_context, bad_sql, bad_graph)
+            self.assertFalse(any(r['admission']['feature_integrity_verified'] for r in bad_records))
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'snapshot'
+            path.write_bytes(b'original')
+            snapshot = artifact_snapshot({'input': path})['input']
+            self.assertEqual(read_snapshot(snapshot), b'original')
+            path.write_bytes(b'modified')
+            with self.assertRaises(ValueError):
+                read_snapshot(snapshot)
+
+    def test_complete_policy_cli_and_result_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'policy'
+            path.write_text('# native defaults\n')
+            specs = [f'baseline={path}', f'candidate={path}']
+            self.assertEqual(list(parse_comparison_policies(specs)), ['baseline', 'candidate'])
+            copies = write_profile_policies(Path(temporary), SimpleNamespace(
+                comparison_policies=parse_comparison_policies(specs)))
+            path.write_text('# changed after capture\n')
+            self.assertTrue(all(p.read_text() == '# native defaults\n' for p in copies.values()))
+            for invalid in (specs[:1], [*specs, specs[0]], [f'../bad={path}', specs[0]],
+                            [f'native={path}', specs[0]], ['missing=/missing', specs[0]]):
+                with self.assertRaises(ValueError):
+                    parse_comparison_policies(invalid)
+            argv = ['runner', '--pg-config', 'pg_config', '--audit-bin', 'audit',
+                    '--compare-policy', specs[0], '--compare-policy', specs[1], '--timing-repeats', '2']
+            with patch.object(sys, 'argv', argv):
+                self.assertIsNone(parse_workload_args().profile_rule)
+            for extra in (['--profile-rule', '0'*16], ['--jobs', '2'], ['--dro-describe']):
+                with patch.object(sys, 'argv', argv + extra), patch('sys.stderr'), self.assertRaises(SystemExit):
+                    parse_workload_args()
+        failed = {'plan_rc': 124}
+        profile = {'scenarios': [{'arms': {'baseline': {}, 'candidate': failed}}]}
+        result = {'modes': {}, 'stats_experiments': [], 'rule_profile': None, 'policy_comparison': profile}
+        self.assertIs(policy_experiment(result), profile)
+        self.assertIn(failed, all_mode_results(result))
 
     def test_sweep_plot_does_not_turn_invalid_samples_into_zero(self) -> None:
         manifest = {"targets": [{"fingerprint": "f", "operator": "CLogicalGet"}], "points": [
@@ -1775,12 +2264,72 @@ class TraceFrameworkTest(unittest.TestCase):
                 self.assertIn(error, evidence["exclusions"])
             self.assertFalse(binding_origin_evidence({**run, "rule_edges": []})["complete"])
             self.assertFalse(binding_origin_evidence({**run, "experiment_outcomes": [{}]})["complete"])
+            # One bound position may have several observed generators; a
+            # duplicate generator is not the inserter and is not a new node.
+            multi = [{**edge, "producer_outcome": "memo_inserted"},
+                     {**edge, "src_rule": "c", "producer_outcome": "memo_duplicate",
+                      "binding_edge_sequence": 2}]
+            extended = {"experiment_outcomes": [{"binding_edge_trace_version": 2,
+                                                  "binding_origin_edges": 2}], "rule_edges": multi}
+            evidence = binding_origin_evidence(extended)
+            self.assertTrue(evidence["complete"], evidence)
+            self.assertNotIn("duplicate_candidate_producers", evidence["not_included"])
+            multi[1]["src_rule"] = "a"
+            self.assertTrue(binding_origin_evidence(extended)["complete"])
+            multi[1]["producer_outcome"] = "memo_inserted"
+            self.assertIn("duplicate_binding_position", binding_origin_evidence(extended)["exclusions"])
+            multi[1]["producer_outcome"] = "unknown"
+            self.assertIn("invalid_binding_producer_outcome", binding_origin_evidence(extended)["exclusions"])
+            multi[1]["producer_outcome"] = "memo_rehashed"
+            self.assertIn("invalid_binding_producer_outcome", binding_origin_evidence(extended)["exclusions"])
+            extended["experiment_outcomes"][0]["binding_edge_trace_version"] = 3
+            inherited = binding_origin_evidence(extended)
+            self.assertTrue(inherited["complete"], inherited)
+            self.assertNotIn("origins_coalesced_by_later_group_rehash", inherited["not_included"])
         base = {"nodes": [{"rule_hash": "a"}, {"rule_hash": "b"}], "edges": []}
         graph = merge_graph(base, [edge, edge, {**edge, "dst_binding_path": "r/1"}])
         self.assertEqual(len(graph["edges"]), 2)
         self.assertEqual(graph["edges"][0]["candidate_status_counts"], {"match_rejected": 2})
         self.assertIsNone(graph["edges"][0]["dst_source_path"])
         self.assertIn("r->r/0 x2", render_dot(graph))
+        graph = merge_graph(base, [{**edge, "producer_outcome": "memo_inserted"},
+                                   {**edge, "producer_outcome": "memo_duplicate"}])
+        self.assertEqual(len(graph["edges"]), 2)
+        inherited_graph = merge_graph(graph, [{**edge, "producer_outcome": "memo_rehashed"}])
+        self.assertEqual(len(inherited_graph["edges"]), 3)
+        self.assertIn("memo_rehashed", render_dot(inherited_graph))
+        inherited_graph['nodes'].append({'rule_hash': 'isolated'})
+        counts = graph_counts(inherited_graph)
+        self.assertEqual(counts['rules'], 3)
+        self.assertEqual(counts['position_evidence_edges'], 3)
+        self.assertEqual(counts['directed_rule_pairs'], 1)
+        with self.assertRaisesRegex(ValueError, 'known edge endpoints'):
+            graph_counts({**inherited_graph, 'nodes': [{'rule_hash': 'a'}]})
+
+    def test_query_edge_support_does_not_duplicate_query_credit(self) -> None:
+        edge = {'engine': 'pgorca', 'kind': 'rule_edge', 'src_rule': 'a', 'dst_rule': 'b'}
+        runs = [('x', {'case_id': '1', 'complete': True,
+                       'edges': [edge] * 100 + [{**edge, 'dst_binding_path': 'r/1'}]}),
+                ('x', {'case_id': '2', 'complete': False,
+                       'edges': [{**edge, 'candidate_status': 'ready_cbo',
+                                  'dst_memo_outcome': 'memo_duplicate'}] * 2}),
+                ('y', {'case_id': '1', 'complete': True, 'edges': []})]
+        report = query_edge_support(runs)
+        row = report['pairs'][0]
+        self.assertEqual((report['query_units'], report['complete_query_units']), (3, 2))
+        self.assertEqual((row['query_support'], row['complete_query_support']), (2, 1))
+        self.assertEqual((row['event_count'], row['max_events_per_query']), (103, 101))
+        self.assertEqual(row['dataset_query_support'], {'x': 2})
+        self.assertEqual(row['events_without_candidate_status'], 101)
+        self.assertEqual(row['candidate_status_query_support'], {'ready_cbo': 1})
+        self.assertEqual(row['candidate_status_event_counts'], {'ready_cbo': 2})
+        self.assertEqual(row['dst_memo_outcome_query_support'], {'memo_duplicate': 1})
+        self.assertEqual(row['dst_memo_outcome_event_counts'], {'memo_duplicate': 2})
+        self.assertEqual(query_edge_support([])['pairs'], [])
+        with self.assertRaisesRegex(ValueError, 'duplicate discovery query'):
+            query_edge_support(runs + [runs[0]])
+        # Position and producer variants remain in the original records/graph.
+        self.assertEqual(len(runs[0][1]['edges']), 101)
 
     def test_runtime_rule_edges_merge_as_multigraph_evidence(self) -> None:
         base = {
@@ -2051,6 +2600,17 @@ class TraceFrameworkTest(unittest.TestCase):
             },
         ]
         observed = dsl_observability(records)
+        aliases = [{"kind": "rule_summary", "rule_hash": "same", "rule_id": 1,
+                    "binding_attempts": 3, "match_us": 4},
+                   {"kind": "rule_summary", "rule_hash": "same", "rule_id": 2,
+                    "binding_attempts": 5, "match_us": 8}]
+        snapshots = aliases + [{**aliases[0], "binding_attempts": 7, "match_us": 9}]
+        combined = dsl_observability(snapshots)["rules"]["same"]
+        self.assertEqual(combined["binding_attempts"], 12)
+        self.assertEqual(combined["match_us"], 17)
+        self.assertEqual(combined["rule_ids"], [1, 2])
+        self.assertNotIn("rule_id", combined)
+        self.assertEqual(aliases[0]["binding_attempts"], 3)
         run = {
             "workload": "tpch",
             "query": "q01.sql",

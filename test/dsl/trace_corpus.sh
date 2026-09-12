@@ -23,6 +23,9 @@ DPHYPER_SHADOW=${DSL_TRACE_DPHYPER_SHADOW:-on}
 DPHYPER_PAIR_BUDGET=${DSL_TRACE_DPHYPER_PAIR_BUDGET:-100}
 DPHYPER_EDGE_BUDGET=${DSL_TRACE_DPHYPER_EDGE_BUDGET:-100000}
 TRACE_DETAILS=off
+COMPRESS_LOGS=${DSL_TRACE_COMPRESS_LOGS:-0}
+CAPTURE_CONTEXT=${DSL_TRACE_CAPTURE_CONTEXT:-0}
+MIN_FREE_KB=${DSL_TRACE_MIN_FREE_KB:-0}
 if [[ ${DSL_TRACE_VERBOSE:-0} = 1 ]]; then
     TRACE_DETAILS=on
 fi
@@ -66,6 +69,9 @@ fail()
 [[ -r "$SCHEMA_FILE" ]] || fail "schema file is not readable: $SCHEMA_FILE"
 [[ -d "$QUERY_DIR" ]] || fail "query directory is not readable: $QUERY_DIR"
 [[ "$PORT" =~ ^[0-9]+$ ]] || fail "DSL_TRACE_PORT must be numeric"
+[[ "$COMPRESS_LOGS" = 0 || "$COMPRESS_LOGS" = 1 ]] || fail "invalid DSL_TRACE_COMPRESS_LOGS"
+[[ "$CAPTURE_CONTEXT" = 0 || "$CAPTURE_CONTEXT" = 1 ]] || fail "invalid DSL_TRACE_CAPTURE_CONTEXT"
+[[ "$MIN_FREE_KB" =~ ^[0-9]+$ ]] || fail "invalid DSL_TRACE_MIN_FREE_KB"
 [[ "$STATEMENT_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || \
     fail "DSL_TRACE_STATEMENT_TIMEOUT must be a positive integer"
 [[ "$MAX_ALTERNATIVES" =~ ^[0-9]+$ ]] || \
@@ -117,9 +123,15 @@ cleanup()
 trap cleanup EXIT
 
 "$PG_BINDIR/initdb" -D "$DATA_DIR" --no-locale --encoding=UTF8 --auth=trust >/dev/null
+SERVER_LOG_OPTIONS=""
+if [[ "$COMPRESS_LOGS" = 1 ]]; then
+    # The client archive retains all diagnostics. Do not duplicate unbounded
+    # LOG-level rule traces in the temporary server's uncompressed stderr file.
+    SERVER_LOG_OPTIONS="-c log_min_messages=fatal -c log_min_error_statement=panic"
+fi
 MONSOON_DSL_RULES="$RULES_FILE" \
     "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
-    -o "-c listen_addresses='' -c logging_collector=off -k $SOCKET_DIR -p $PORT" \
+    -o "-c listen_addresses='' -c logging_collector=off $SERVER_LOG_OPTIONS -k $SOCKET_DIR -p $PORT" \
     start >/dev/null || {
         tail -n 40 "$SERVER_LOG" >&2 || true
         fail "temporary PostgreSQL server did not start"
@@ -129,6 +141,16 @@ SERVER_STARTED=1
 PSQL=("$PG_BINDIR/psql" -X -v ON_ERROR_STOP=1 -h "$SOCKET_DIR" -p "$PORT" -d postgres)
 "${PSQL[@]}" -q -c "CREATE EXTENSION pg_orca;"
 "${PSQL[@]}" -q -f "$SCHEMA_FILE"
+if [[ "$CAPTURE_CONTEXT" = 1 ]]; then
+    SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+    CONTEXT_ARGS=(--psql "$PG_BINDIR/psql" --socket "$SOCKET_DIR" --port "$PORT"
+        --audit-bin "${DSL_TRACE_AUDIT_BIN:?context capture requires audit binary}"
+        --rules "$RULES_FILE" --schema "$SCHEMA_FILE" --output "$OUTPUT_DIR/pre-workload-context.json")
+    if [[ -n "$POLICY_PATH" ]]; then
+        CONTEXT_ARGS+=(--policy "$POLICY_PATH")
+    fi
+    python3 "$SCRIPT_DIR/capture_rule_history_context.py" "${CONTEXT_ARGS[@]}"
+fi
 
 : >"$STATUS_FILE"
 shopt -s nullglob
@@ -136,6 +158,10 @@ QUERY_FILES=("$QUERY_DIR"/*.sql)
 [[ ${#QUERY_FILES[@]} -gt 0 ]] || fail "query directory contains no .sql files"
 
 for QUERY_FILE in "${QUERY_FILES[@]}"; do
+    if [[ "$MIN_FREE_KB" -gt 0 ]]; then
+        FREE_KB=$(df -Pk "$OUTPUT_DIR" | awk 'NR==2 {print $4}')
+        [[ "$FREE_KB" =~ ^[0-9]+$ && "$FREE_KB" -ge "$MIN_FREE_KB" ]] || fail "insufficient free disk; remaining queries not run"
+    fi
     STEM=$(basename "$QUERY_FILE" .sql)
     OUTPUT_LOG=$OUTPUT_DIR/logs/$STEM.log
     {
@@ -170,7 +196,14 @@ for QUERY_FILE in "${QUERY_FILES[@]}"; do
         cat "$QUERY_FILE"
     } >"$RUN_SQL"
 
-    if "${PSQL[@]}" -q -f "$RUN_SQL" >"$OUTPUT_LOG" 2>&1; then
+    if [[ "$COMPRESS_LOGS" = 1 ]]; then
+        set +e
+        "${PSQL[@]}" -q -f "$RUN_SQL" 2>&1 | gzip -c >"$OUTPUT_LOG.gz"
+        PIPE_RESULTS=("${PIPESTATUS[@]}")
+        set -e
+        [[ "${PIPE_RESULTS[1]}" = 0 ]] || fail "query trace compression failed"
+        RETURN_CODE=${PIPE_RESULTS[0]}
+    elif "${PSQL[@]}" -q -f "$RUN_SQL" >"$OUTPUT_LOG" 2>&1; then
         RETURN_CODE=0
     else
         RETURN_CODE=$?

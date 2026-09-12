@@ -7,6 +7,7 @@ import argparse
 from collections import defaultdict
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
 import csv
 import difflib
 import fnmatch
@@ -94,6 +95,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--profile-cbo-only", action="store_true",
                         help="profile only OFF/CBO; never construct or execute an RBO policy")
+    parser.add_argument("--compare-policy", action="append", default=[], metavar="NAME=FILE",
+                        help="compare complete policies (repeatable); first is baseline, excludes --profile-rule")
     parser.add_argument("--profile-companion-rule", action="append", default=[],
                         help="toggle another rule with --profile-rule as one OFF/CBO bundle (repeatable)")
     parser.add_argument(
@@ -119,6 +122,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--postgres-oracle", action="store_true",
                         help="also check result bags against PostgreSQL with ORCA disabled")
     parser.add_argument("--setup-sql", type=Path, help="load data after schema, in the isolated test database")
+    parser.add_argument("--capture-pre-context", action="store_true",
+                        help="capture read-only catalog/context before workload arms; outside measured timings")
+    parser.add_argument("--feature-graph", type=Path,
+                        help="freeze an existing rule graph before collection; requires --capture-pre-context")
     parser.add_argument("--cardinality-probes", type=Path,
                         help="JSON targets with operator/fingerprint and row-producing SQL to count")
     parser.add_argument("--input-stats-reference", type=Path,
@@ -128,14 +135,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dro-describe", action="store_true",
                         help="write acquisition descriptor only; do not initialize or start PostgreSQL")
     args = parser.parse_args()
+    try:
+        args.comparison_policies = parse_comparison_policies(args.compare_policy)
+    except ValueError as error:
+        parser.error(str(error))
+    if args.comparison_policies and (args.profile_rule or args.profile_companion_rule or args.profile_cbo_only
+                                     or args.dro_contract or args.dro_describe or args.input_stats_reference):
+        parser.error('--compare-policy cannot mix with rule profiling or the existing OFF/CBO DRO contract')
+    if args.feature_graph and (not args.capture_pre_context or args.dro_contract or args.dro_describe):
+        parser.error('--feature-graph requires --capture-pre-context and is outside the legacy DRO contract')
+    if args.feature_graph and not args.feature_graph.is_file():
+        parser.error('feature graph must be an existing JSON file')
     if any(not re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_-]*", name) for name in (args.workload or [])):
         parser.error("workload must be a directory name, not a path")
     if args.profile_cbo_only and not args.profile_rule:
         parser.error("--profile-cbo-only requires --profile-rule")
     if args.timing_repeats < 0 or args.timing_warmups < 0:
         parser.error("timing repeats/warmups must be nonnegative")
-    if args.timing_repeats and (not args.profile_rule or args.jobs != 1):
-        parser.error("timing requires --profile-rule and --jobs 1")
+    if args.timing_repeats and (not (args.profile_rule or args.comparison_policies) or args.jobs != 1):
+        parser.error("timing requires --profile-rule or --compare-policy, and --jobs 1")
     if bool(args.dro_contract) != bool(args.dro_unit) or (args.dro_describe and args.dro_contract):
         parser.error("pair --dro-contract with --dro-unit; --dro-describe is a separate preflight")
     if (args.dro_contract or args.dro_describe) and not (
@@ -170,6 +188,19 @@ def run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
     return subprocess.run(command, check=False, text=True, **kwargs)
 
 
+def parse_comparison_policies(specifications: list[str]) -> dict[str, Path]:
+    policies = {}
+    for specification in specifications:
+        name, separator, filename = specification.partition('=')
+        if (not separator or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', name)
+                or name in {'native', 'replacement'} or name in policies or not Path(filename).is_file()):
+            raise ValueError('policy requires a unique safe NAME=existing-file; native/replacement are reserved')
+        policies[name] = Path(filename).resolve()
+    if len(policies) == 1:
+        raise ValueError('complete-policy comparison requires at least two policies')
+    return policies
+
+
 def artifact_snapshot(paths: dict[str, Path]) -> dict:
     """Content provenance, not a cryptographic identity or a lock against concurrent installs."""
     snapshot = {}
@@ -186,6 +217,47 @@ def artifact_snapshot(paths: dict[str, Path]) -> dict:
             item["error"] = str(error)
         snapshot[name] = item
     return snapshot
+
+
+def freeze_feature_graph(source: Path, output: Path) -> dict:
+    """Freeze bytes before collection, not a certificate of historical/test independence."""
+    if source.resolve().is_relative_to(output.resolve()):
+        raise ValueError('feature graph must be outside the new output directory')
+    raw = source.read_bytes()
+    graph = json.loads(raw)
+    if (not isinstance(graph, dict) or graph.get('schema_version') != 2
+            or not isinstance(graph.get('nodes'), list) or not isinstance(graph.get('edges'), list)):
+        raise ValueError('expected a version 2 rule graph with nodes and edges')
+    json.dumps(graph, allow_nan=False)
+    hashes = []
+    for node in graph['nodes']:
+        identity = node.get('rule_hash') if isinstance(node, dict) else None
+        if not isinstance(identity, str) or not re.fullmatch(r'[0-9a-f]{16}', identity):
+            raise ValueError('graph nodes require canonical rule hashes')
+        hashes.append(identity)
+    known = set(hashes)
+    if len(known) != len(hashes):
+        raise ValueError('duplicate rule node in feature graph')
+    if any(not isinstance(edge, dict) or not isinstance(edge.get('src_rule'), str)
+           or not isinstance(edge.get('dst_rule'), str)
+           or edge['src_rule'] not in known or edge['dst_rule'] not in known for edge in graph['edges']):
+        raise ValueError('feature graph edge references an unknown rule')
+    path = output / 'feature-graph.json'
+    with path.open('xb') as stream:
+        stream.write(raw)  # Keep all parallel positions, counts and original provenance.
+    snapshot = artifact_snapshot({'graph': path})['graph']
+    if snapshot.get('size') != len(raw) or snapshot.get('crc32') != f'{zlib.crc32(raw):08x}':
+        raise ValueError('feature graph copy changed during capture')
+    receipt = {'schema_version': 1, 'capture': 'before_server_start',
+               'frozen_at_utc': datetime.now(timezone.utc).isoformat(),
+               'scope': 'pre_run_graph_copy_not_historical_split_certificate',
+               'source': {**snapshot, 'path': str(source.resolve())}, 'snapshot': snapshot,
+               'nodes': len(hashes), 'edges': len(graph['edges']),
+               'historical_split_verified': False}
+    with (output / 'feature-graph-snapshot.json').open('x') as stream:
+        json.dump(receipt, stream, indent=2)
+        stream.write('\n')
+    return receipt
 
 
 def psql(
@@ -280,6 +352,111 @@ SET pg_orca.dsl_only_xforms='';
 SET pg_orca.trace_fallback=on;
 {disabled}
 """
+
+
+def collect_policy_context(binary: Path, rules: Path, policies: dict, timeout: int) -> dict:
+    """Use the native loader/compiler, preserving failures instead of assuming CBO."""
+    snapshots = {}
+    for name, path in policies.items():
+        command = [str(binary), '--policy-snapshot', str(rules)]
+        if path is not None:
+            command.append(str(path))
+        start = time.perf_counter()
+        data, error, rc = None, '', None
+        try:
+            result = run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+            rc = result.returncode
+            if rc:
+                error = result.stderr
+            else:
+                data = json.loads(result.stdout)
+                if (not isinstance(data, dict) or data.get('schema_version') != 1
+                        or data.get('scope') != 'native_policy_snapshot_not_runtime_applicability'
+                        or not isinstance(data.get('load'), dict)
+                        or not isinstance(data.get('rules'), list)
+                        or data['load'].get('admitted') != len(data['rules'])
+                        or any(type(data['load'].get(k)) is not int or data['load'][k] < 0
+                               for k in ('admitted', 'skipped_non_eq', 'failed'))):
+                    raise ValueError('invalid native policy snapshot structure')
+        except (OSError, subprocess.TimeoutExpired, ValueError, TypeError) as failure:
+            data, error = None, str(failure)
+        snapshots[name] = {'status': 'error' if data is None else 'partial' if data['load']['failed'] else 'ok',
+                           'returncode': rc, 'elapsed_ms': 1000 * (time.perf_counter() - start),
+                           'error': error, 'snapshot': data}
+    return snapshots
+
+
+def collect_catalog_context(binary: Path, socket: Path, port: int, database: str, timeout: int) -> dict:
+    """Existing catalog estimates, never actual counts or forced ANALYZE/ORCA derivation."""
+    sql = """
+LOAD 'pg_orca';
+BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
+SET LOCAL pg_orca.enable_orca=off;
+WITH relations AS (
+  SELECT c.oid, n.nspname AS schema, c.relname AS name, c.relkind,
+         CASE WHEN c.reltuples >= 0 THEN c.reltuples END AS estimated_rows,
+         c.relpages AS pages, c.relispartition AS is_partition
+  FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+  WHERE c.relkind IN ('r','p','m','f') AND n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+), columns AS (
+  SELECT a.attrelid AS relation_oid, a.attnum AS position, a.attname AS name,
+         pg_catalog.format_type(a.atttypid,a.atttypmod) AS type,
+         a.attnotnull AS not_null, a.attstattarget AS statistics_target,
+         a.attcollation AS collation_oid
+  FROM pg_catalog.pg_attribute a JOIN relations r ON r.oid=a.attrelid
+  WHERE a.attnum > 0 AND NOT a.attisdropped
+), statistics AS (
+  SELECT r.oid AS relation_oid, a.attnum AS position, s.inherited,
+         s.null_frac, s.avg_width, s.n_distinct, s.correlation, s.most_common_freqs
+  FROM relations r JOIN pg_catalog.pg_stats s ON s.schemaname=r.schema AND s.tablename=r.name
+  JOIN pg_catalog.pg_attribute a ON a.attrelid=r.oid AND a.attname=s.attname
+), constraints AS (
+  SELECT c.conrelid AS relation_oid, c.conname AS name, c.contype AS kind,
+         c.conkey AS column_positions, c.confrelid AS referenced_relation_oid,
+         c.confkey AS referenced_column_positions, c.convalidated AS validated,
+         c.condeferrable AS deferrable, c.condeferred AS initially_deferred,
+         pg_catalog.pg_get_constraintdef(c.oid) AS definition
+  FROM pg_catalog.pg_constraint c JOIN relations r ON r.oid=c.conrelid
+), indexes AS (
+  SELECT i.indrelid AS relation_oid, i.indexrelid AS index_oid,
+         i.indisunique AS is_unique, i.indisvalid AS is_valid, i.indisready AS is_ready,
+         pg_catalog.pg_get_indexdef(i.indexrelid) AS definition
+  FROM pg_catalog.pg_index i JOIN relations r ON r.oid=i.indrelid
+)
+SELECT json_build_object(
+  'captured_at', statement_timestamp(), 'database', current_database(),
+  'server_version', current_setting('server_version'),
+  'relations', COALESCE((SELECT json_agg(r ORDER BY r.oid) FROM relations r), '[]'::json),
+  'columns', COALESCE((SELECT json_agg(c ORDER BY c.relation_oid,c.position) FROM columns c), '[]'::json),
+  'statistics', COALESCE((SELECT json_agg(s ORDER BY s.relation_oid,s.position,s.inherited) FROM statistics s), '[]'::json),
+  'constraints', COALESCE((SELECT json_agg(c ORDER BY c.relation_oid,c.name) FROM constraints c), '[]'::json),
+  'indexes', COALESCE((SELECT json_agg(i ORDER BY i.relation_oid,i.index_oid) FROM indexes i), '[]'::json),
+  'settings', (SELECT json_object_agg(name,setting) FROM pg_catalog.pg_settings
+    WHERE name LIKE 'pg_orca.%' OR category LIKE 'Query Tuning%' OR
+      name IN ('work_mem','effective_cache_size','max_parallel_workers','search_path')));
+ROLLBACK;
+"""
+    stdout, stderr, rc, elapsed = psql(binary, socket, port, database, sql, timeout,
+                                     retry_on_server_failure=False)
+    error, data = stderr if rc else "", None
+    if not rc:
+        try:
+            data = json.loads(stdout)
+            if (not isinstance(data, dict) or not data.get('captured_at')
+                    or not isinstance(data.get('settings'), dict)
+                    or any(not isinstance(data.get(k), list) for k in
+                           ('relations', 'columns', 'statistics', 'constraints', 'indexes'))):
+                raise ValueError('invalid catalog snapshot structure')
+        except (ValueError, TypeError) as failure:
+            data, error = None, str(failure)
+    return {'schema_version': 1, 'status': 'ok' if data is not None else 'error',
+            'returncode': rc, 'elapsed_ms': elapsed, 'error': error, 'catalog': data,
+            'capture': 'after_fixture_before_workload_arms',
+            'scope': 'existing_catalog_estimates_not_candidate_group_statistics',
+            'settings_scope': 'collector_backend_with_orca_disabled_not_arm_effective_settings',
+            'ndistinct_encoding': 'pg_stats_raw_negative_fraction_of_relation_rows',
+            'not_collected': ['histogram_bounds', 'most_common_values', 'extended_statistics',
+                              'candidate_group_estimates', 'continuous_catalog_change_monitoring']}
 
 
 def trace_settings(
@@ -481,6 +658,7 @@ def distribution(values: list[float | int]) -> dict[str, Any]:
 
 def dsl_observability(records: list[dict[str, Any]]) -> dict[str, Any]:
     rules: dict[str, dict[str, Any]] = {}
+    registrations: dict[tuple[str, Any], dict[str, Any]] = {}
     candidates: dict[str, dict[str, Any]] = {}
     outcomes: dict[str, dict[str, Any]] = {}
     memo = pipeline = None
@@ -492,7 +670,9 @@ def dsl_observability(records: list[dict[str, Any]]) -> dict[str, Any]:
             pipeline = record
         elif kind == "rule_summary":
             key = str(record.get("rule_hash", record.get("rule_id")))
-            rules[key] = record
+            # Summaries are cumulative across stages. Keep the last snapshot
+            # per registration, then combine aliases of one canonical rule.
+            registrations[key, record.get("rule_id")] = record
         elif kind == "rule_candidate":
             key = str(record.get("rule_hash"))
             candidate = candidates.setdefault(key, {"statuses": {}, "timing_us": {}})
@@ -509,6 +689,23 @@ def dsl_observability(records: list[dict[str, Any]]) -> dict[str, Any]:
             after = record.get("memo_version_after")
             if isinstance(before, int) and isinstance(after, int):
                 outcome["memo_version_deltas"].append(after - before)
+    counter_fields = (
+        "binding_attempts", "bound_symbols", "match_us", "constraint_us", "instantiate_us",
+        "match_rejected", "constraint_rejected", "instantiate_rejected", "generated_alternatives",
+        "duplicate_alternatives", "budget_exhausted", "budget_skipped",
+    )
+    for (key, _), record in registrations.items():
+        if key not in rules:
+            rules[key] = dict(record)
+            continue
+        total = rules[key]
+        total["rule_ids"] = sorted(set(total.get("rule_ids", [total.get("rule_id")])) | {record["rule_id"]})
+        total.pop("rule_id", None)
+        for field in counter_fields:
+            if type(total.get(field)) is int and type(record.get(field)) is int:
+                total[field] += record[field]
+            else:
+                total.pop(field, None)  # Missing counters must still fail the trace audit.
     return {
         "memo": memo,
         "pipeline": pipeline,
@@ -744,7 +941,7 @@ def run_mode(
     base = settings(mode, semantic_xforms, policy_file, stats_experiment)
     # Experimental failures are observations, not disposable retry attempts.
     retry_failures = not (stats_experiment or getattr(args, "stats_experiment", None)
-                         or getattr(args, "profile_rule", None))
+                         or getattr(args, "profile_rule", None) or getattr(args, 'comparison_policies', None))
     plan_out, plan_err, plan_rc, plan_ms = psql(
         psql_bin, socket, args.port, database,
         trace_settings(mode, semantic_xforms, policy_file, stats_experiment)
@@ -822,6 +1019,7 @@ def run_mode(
         "candidate_events": [record for record in records
                              if record.get("kind") in {"rule_candidate", "rule_candidate_outcome"}],
         "cost_events": [record for record in records if record.get("kind") == "cost_candidate"],
+        "stats_lifecycle_events": [record for record in records if record.get("kind") == "group_stats_lifecycle"],
         "cost_lifecycle_events": [record for record in records if record.get("kind") == "cost_lifecycle"],
         "search_checks": [record for record in records if record.get("kind") == "search_check"],
         "rule_edges": [record for record in records if record.get("kind") == "rule_edge"],
@@ -854,8 +1052,9 @@ def timing_plan(plan: Any) -> Any:
 
 def timing_schedule(scenarios: int, repeats: int, warmups: int, seed: int,
                     arms=("off", "rbo", "cbo")):
-    if tuple(arms) not in (("off", "rbo", "cbo"), ("off", "cbo")):
-        raise ValueError("timing requires OFF/CBO or OFF/RBO/CBO arms in canonical order")
+    if (len(arms) < 2 or len(set(arms)) != len(arms)
+            or any(not isinstance(arm, str) or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', arm) for arm in arms)):
+        raise ValueError("timing requires at least two distinct safe arm names")
     rng = random.Random(seed)
     for phase, rounds in (("warmup", warmups), ("measurement", repeats)):
         for block in range(rounds):
@@ -868,6 +1067,7 @@ def timing_schedule(scenarios: int, repeats: int, warmups: int, seed: int,
 def run_profile_timing(args: argparse.Namespace, binary: Path, socket: Path, database: str,
                        query: str, artifact: Path, semantic_xforms: list[str], scenarios: list[dict]) -> dict:
     samples = []
+    baseline = next(iter(args.profile_policies))
     # New backends per sample: warm shared buffers, not a persistent-session cache.
     with (artifact / "timing-samples.jsonl").open("w", encoding="utf-8") as log:
         for sequence, (phase, block, index, arm) in enumerate(timing_schedule(
@@ -907,7 +1107,7 @@ SET client_min_messages=warning;
                 status = "trace_enabled"
             else:
                 status = "ok"
-            comparable = profile_comparability(scenario["arms"]["off"], diagnostic, stats_path is not None)
+            comparable = profile_comparability(scenario["arms"][baseline], diagnostic, stats_path is not None, baseline)
             reasons = list(comparable["exclusions"])
             if status != "ok":
                 reasons.append(status)
@@ -992,7 +1192,8 @@ def compare_query(
         })
 
     rule_profile = None
-    if args.profile_rule:
+    if args.profile_rule or getattr(args, 'comparison_policies', None):
+        baseline = next(iter(args.profile_policies))
         scenarios = []
         for index, stats_path in enumerate([None, *args.stats_experiment]):
             arms = {
@@ -1010,18 +1211,18 @@ def compare_query(
                 "arms": arms,
                 "comparisons": {
                     arm: {
-                        **profile_comparability(arms["off"], arms[arm], stats_path is not None),
+                        **profile_comparability(arms[baseline], arms[arm], stats_path is not None, baseline),
                         "outcome_equal": all(
-                            arms[arm][key] == arms["off"][key]
+                            arms[arm][key] == arms[baseline][key]
                             for key in ("plan_rc", "rows_rc")
                         ),
-                        "rows_equal": results_equal(arms["off"], arms[arm]),
+                        "rows_equal": results_equal(arms[baseline], arms[arm]),
                         "plan_comparison": plan_difference(
-                            arms["off"]["plan"], arms[arm]["plan"]
+                            arms[baseline]["plan"], arms[arm]["plan"]
                         ),
-                        "target_statuses": arms[arm]["profile_rule_statuses"],
+                        **({"target_statuses": arms[arm]["profile_rule_statuses"]} if args.profile_rule else {}),
                     }
-                    for arm in arms if arm != "off"
+                    for arm in arms if arm != baseline
                 },
             })
         rule_profile = {
@@ -1041,6 +1242,10 @@ def compare_query(
         if args.timing_repeats:
             rule_profile["timing"] = run_profile_timing(
                 args, psql_bin, socket, database, query, artifact, semantic_xforms, scenarios)
+        if getattr(args, 'comparison_policies', None):
+            rule_profile = {key: value for key, value in rule_profile.items()
+                            if key in {'arms', 'policy_snapshots', 'scenarios', 'timing'}}
+            rule_profile.update(scope='complete_policy_not_individual_rule_effect', baseline=baseline)
 
     produced = modes["native"]["produced_xforms"]
     native_sequence = [name for name in produced if name in semantic_xform_set]
@@ -1121,11 +1326,25 @@ def compare_query(
         "stats_experiments": stats_experiments,
         "rule_profile": rule_profile,
     }
+    if getattr(args, 'comparison_policies', None):
+        result['policy_comparison'] = result['rule_profile']
+        result['rule_profile'] = None
     if reference:
         annotate_input_stats_reference(result, reference)
+    if getattr(args, 'capture_pre_context', False):
+        result['pre_workload_context'] = {
+            'snapshot': args.pre_context_path,
+            'input_endpoints_equal': artifact_snapshot(args.pre_context_inputs) == args.pre_context_start,
+            'scope': 'file_endpoints_not_catalog_lock_or_resolved_policy_validation'}
+    if getattr(args, 'feature_graph_snapshot', None) is not None:
+        result['feature_graph'] = args.feature_graph_snapshot
     if getattr(args, 'postgres_oracle', False):
+        oracle_modes = dict(modes)
+        if result.get('policy_comparison'):
+            oracle_modes.update({f'policy:{i}:{name}': mode
+                for i, scenario in enumerate(rule_profile['scenarios']) for name, mode in scenario['arms'].items()})
         result['postgres_oracle'] = collect_postgres_oracle(
-            args, psql_bin, socket, database, query, artifact, modes)
+            args, psql_bin, socket, database, query, artifact, oracle_modes)
     if getattr(args, "artifact_start", None) is not None:
         end = artifact_snapshot(args.artifact_paths)
         result["artifact_provenance"] = {
@@ -1163,6 +1382,10 @@ def select_workload_queries(root: Path, workloads: list[str], patterns: list[str
     return queries
 
 
+def policy_experiment(result: dict) -> dict:
+    return result.get('rule_profile') or result.get('policy_comparison') or {}
+
+
 def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         *result["modes"].values(),
@@ -1174,8 +1397,7 @@ def all_mode_results(result: dict[str, Any]) -> list[dict[str, Any]]:
         *(
             mode
             for scenario in (
-                [] if result["rule_profile"] is None
-                else result["rule_profile"]["scenarios"]
+                policy_experiment(result).get('scenarios', [])
             )
             for mode in scenario["arms"].values()
         ),
@@ -1189,13 +1411,13 @@ def experiment_observations(results: list[dict[str, Any]]) -> list[dict[str, Any
         for experiment in result["stats_experiments"]:
             for mode, run_result in experiment["modes"].items():
                 runs.append((experiment["path"], mode, None, None, run_result, None))
-        profile = result["rule_profile"]
+        profile = policy_experiment(result)
         for scenario in profile["scenarios"] if profile else []:
             for arm, run_result in scenario["arms"].items():
                 runs.append((scenario["stats_experiment"], "replacement", arm,
-                    profile["rule_hash"], run_result, profile_comparability(
-                        scenario["arms"]["off"], run_result,
-                        scenario["stats_experiment"] is not None)))
+                    profile.get("rule_hash"), run_result, profile_comparability(
+                        scenario["arms"][profile.get('baseline', 'off')], run_result,
+                        scenario["stats_experiment"] is not None, profile.get('baseline', 'off'))))
         for path, mode, arm, rule, run_result, comparison in runs:
             outcomes = run_result["experiment_outcomes"]
             outcome = outcomes[0] if len(outcomes) == 1 else {}
@@ -1208,6 +1430,7 @@ def experiment_observations(results: list[dict[str, Any]]) -> list[dict[str, Any
                 "mode": mode,
                 "arm": arm,
                 "profile_rule_hash": rule,
+                **({'policy_scope': profile['scope']} if arm is not None and 'scope' in profile else {}),
                 **({"intervention_rule_hashes": profile["intervention_rule_hashes"]}
                    if arm is not None and profile.get("intervention_rule_hashes") else {}),
                 "status": status,
@@ -1483,6 +1706,12 @@ def profile_targets(args: argparse.Namespace) -> list[str]:
 
 def write_profile_policies(root: Path, args: argparse.Namespace) -> dict[str, Path]:
     policies = {}
+    for name, source in getattr(args, 'comparison_policies', {}).items():
+        path = root / f'profile-{name}.policy'
+        path.write_bytes(source.read_bytes())
+        policies[name] = path
+    if policies:
+        return policies  # Freeze external documents before any backend reads them.
     targets = profile_targets(args)
     entries = {
         "off": "  enabled: false\n",
@@ -1535,8 +1764,9 @@ def collection_descriptor(args, query_selection, semantic_xforms):
                                                 'background': 'engine_defaults_not_policy_file'})
                          for arm, path in args.profile_policies.items()},
             'inputs': content(args.dro_input_start), 'workload': workload,
-            'protocol': {key: getattr(args, key) for key in ('timeout', 'jobs', 'timing_repeats',
+            'protocol': {**{key: getattr(args, key) for key in ('timeout', 'jobs', 'timing_repeats',
                          'timing_warmups', 'timing_seed', 'profile_rule', 'profile_effect', 'postgres_oracle')},
+                         **({'capture_pre_context': True} if getattr(args, 'capture_pre_context', False) else {})},
             'semantic_xforms': semantic_xforms,
             'scope': 'actual_runner_acquisition_descriptor_not_sampling_justification'}
 
@@ -1551,6 +1781,11 @@ def main() -> int:
     args.artifact_paths = {"postgres": pg_bindir / "postgres", "pg_orca": pg_libdir / "pg_orca.so",
                            "rule_audit": Path(args.audit_bin), "rules": args.rule_file,
                            "runner": Path(__file__)}
+    args.feature_graph_snapshot = None
+    if args.feature_graph:
+        args.feature_graph_snapshot = freeze_feature_graph(args.feature_graph, args.output)
+        args.artifact_paths.update(feature_graph=args.output / 'feature-graph.json',
+                                   feature_graph_receipt=args.output / 'feature-graph-snapshot.json')
     if args.dro_contract or args.dro_describe:
         args.artifact_paths.update(dro_calibration=SCRIPT_DIR / 'calibrate_rule_dro.py',
                                    dro_math=SCRIPT_DIR / 'rule_dro.py')
@@ -1575,7 +1810,7 @@ def main() -> int:
         socket = root / "socket"
         socket.mkdir()
         args.profile_policies = (
-            write_profile_policies(root, args) if args.profile_rule else {}
+            write_profile_policies(root, args) if args.profile_rule or args.comparison_policies else {}
         )
         if args.dro_contract or args.dro_describe:
             from calibrate_rule_dro import bind_collection
@@ -1633,6 +1868,36 @@ def main() -> int:
                         fixture_context["schema_crc32"] != reference["fixture"]["schema_crc32"]
                         or fixture_context["setup"]["crc32"] != reference["fixture"]["setup"]["crc32"]):
                     raise ValueError("fixture changed since input statistics reference was loaded")
+                if args.capture_pre_context:
+                    args.pre_context_inputs = {
+                        'schema': schema, 'rules': args.rule_file,
+                        **{f'query:{q.name}': q for q in queries},
+                        **{f'profile:{arm}': path for arm, path in args.profile_policies.items()},
+                        **{f'stats:{i}': path for i, path in enumerate(args.stats_experiment)}}
+                    args.pre_context_inputs.update({key: path for key in ('policy_file', 'setup_sql')
+                                                   if (path := getattr(args, key)) is not None})
+                    args.pre_context_start = artifact_snapshot(args.pre_context_inputs)
+                    policies = {'replacement': args.policy_file, **args.profile_policies}
+                    policy_text = {name: path.read_text() if path is not None else None
+                                   for name, path in policies.items()}
+                    context = collect_catalog_context(pg_bindir / 'psql', socket, args.port, database, args.timeout)
+                    context.update(fixture=fixture_context, input_files=args.pre_context_start,
+                        policy_documents=policy_text,
+                        policy_resolution='native_loader_snapshot_in_audit_binary_not_live_backend',
+                        resolved_policies=collect_policy_context(Path(args.audit_bin), args.rule_file, policies, args.timeout),
+                        settings_sql={'native': settings('native', semantic_xforms, None),
+                            **{name: settings('replacement', semantic_xforms, path) for name, path in policies.items()}},
+                        stats_experiment_documents={str(i): path.read_text() for i, path in enumerate(args.stats_experiment)},
+                        capture_input_endpoints_equal=artifact_snapshot(args.pre_context_inputs) == args.pre_context_start)
+                    if args.feature_graph_snapshot is not None:
+                        context['feature_graph'] = args.feature_graph_snapshot
+                    directory = args.output / workload
+                    directory.mkdir(parents=True, exist_ok=True)
+                    snapshot_path = directory / 'pre-workload-context.json'
+                    with snapshot_path.open('x') as stream:
+                        json.dump(context, stream, indent=2)
+                        stream.write('\n')
+                    args.pre_context_path = artifact_snapshot({'catalog_context': snapshot_path})['catalog_context']
                 if args.cardinality_probes:
                     probes = json.loads(args.cardinality_probes.read_text(encoding="utf-8"))
                     measured = collect_cardinalities(pg_bindir / "psql", socket, args.port,
@@ -1663,7 +1928,7 @@ def main() -> int:
                     )
                 query_by_name = {query.name: query for query in queries}
                 for index, result in enumerate(workload_results):
-                    if args.timing_repeats or args.stats_experiment or args.profile_rule:
+                    if args.timing_repeats or args.stats_experiment or args.profile_rule or args.comparison_policies:
                         continue  # Preserve experimental failures, including the first crash.
                     if not any(mode["server_failure"] for mode in all_mode_results(result)):
                         continue
@@ -1794,9 +2059,17 @@ def main() -> int:
                                          for result in results)
                                for mode in ('native', 'replacement')},
         }
+    if args.comparison_policies:
+        comparisons = [c for r in results for s in r['policy_comparison']['scenarios']
+                       for c in s['comparisons'].values()]
+        summary['policy_comparison'] = {
+            'scope': 'complete_policy_not_individual_rule_effect',
+            'arms': list(args.comparison_policies), 'baseline': next(iter(args.comparison_policies)),
+            'comparisons': len(comparisons),
+            'result_comparable': sum(c['result_comparable'] for c in comparisons)}
     if args.timing_repeats:
         samples = [sample for result in results
-                   for sample in (result["rule_profile"] or {}).get("timing", {}).get("samples", [])]
+                   for sample in policy_experiment(result).get("timing", {}).get("samples", [])]
         summary["profile_timing"] = {}
         for phase in ("warmup", "measurement"):
             subset = [s for s in samples if s["phase"] == phase]
@@ -1835,14 +2108,13 @@ def main() -> int:
         or any(
             not comparison["result_comparable"]
             for scenario in (
-                [] if result["rule_profile"] is None
-                else result["rule_profile"]["scenarios"]
+                policy_experiment(result).get('scenarios', [])
             )
             for comparison in scenario["comparisons"].values()
         )
         or (args.strict and (not result["trigger_set_equal"] or not result["trigger_order_equal"] or result["plan_comparison"] != "identical"))
         or any(sample["comparison_exclusions"]
-               for sample in (result["rule_profile"] or {}).get("timing", {}).get("samples", []))
+               for sample in policy_experiment(result).get("timing", {}).get("samples", []))
         for result in results
     )
     return 1 if failed else 0

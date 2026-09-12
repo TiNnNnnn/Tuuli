@@ -63,4 +63,4 @@ SELECT "id", "user_id", "code", "in_time", "expire_time", "email", "mobile", "us
 
 
 SELECT COUNT(1) FROM "notification" WHERE "target_user_id" = 3 AND "read" = 0
-SELECT COUNT(1) FROM "user" WHERE "in_time" BETWEEN CURDATE() AND CURDATE() + INTERVAL '1 DAY' - INTERVAL '1 SECOND'
+SELECT COUNT(1) FROM "user" WHERE "in_time" BETWEEN CAST(STATEMENT_TIMESTAMP() AS DATE) AND CAST(STATEMENT_TIMESTAMP() AS DATE) + INTERVAL '1 DAY' - INTERVAL '1 SECOND'

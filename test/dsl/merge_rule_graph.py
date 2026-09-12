@@ -25,6 +25,7 @@ EDGE_FIELDS = (
     "evidence",
     "relation",
     "producer_relation",
+    "producer_outcome",
 )
 
 TRACE_SUFFIXES = {".plan", ".trace"}
@@ -194,7 +195,7 @@ def merge_graph(
             "evidence": "runtime_observed",
             "relation": record.get("relation", "followed_by"),
         }
-        for field in ("dst_binding_path", "producer_relation"):
+        for field in ("dst_binding_path", "producer_relation", "producer_outcome"):
             if field in record:
                 observed[field] = record[field]
         observe(observed, record.get("binding_path"), record.get("candidate_status"))
@@ -229,6 +230,8 @@ def render_dot(graph: dict[str, Any]) -> str:
                 f'{edge.get("src_target_path", label)}->'
                 f'{edge.get("dst_binding_path", edge.get("dst_source_path", "r"))}{count}'
             )
+            if edge.get("producer_outcome"):
+                label += f'\\n{edge["producer_outcome"]}'
         lines.append(
             f'  "{dot_escape(edge["src_rule"])}" -> '
             f'"{dot_escape(edge["dst_rule"])}" '

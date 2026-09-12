@@ -49,6 +49,8 @@ def candidate_state(row: dict) -> dict:
                 "stats_source": source, "rows_available": available,
                 "rows": rows if available else None,
                 "memo_group_expressions": expressions if type(expressions) is int and expressions >= 0 else None,
+                "memo_state": {k: (value.get("memo_state") or {}).get(k) for k in (
+                    "group_explored", "group_implemented", "expression_explored", "expression_implemented")},
                 "logical_properties": {k: props[k] for k in fields} if properties_known else None,
                 "empty": value.get("empty") if source in {"expression", "memo_group"} else None}
 
@@ -57,6 +59,7 @@ def candidate_state(row: dict) -> dict:
             "features": {"root": node(context.get("root", {})),
                          "children": [{"position": c["position"], "node": node(c["node"])} for c in children],
                          "source_shape": context.get("source_shape"),
+                         "source_tree": context.get("source_tree"),
                          "relational_children": context.get("relational_children"),
                          "omitted_children": context.get("omitted_children")},
             # Run identity is supplied by the surrounding report. Never pool these IDs as features.
@@ -64,6 +67,11 @@ def candidate_state(row: dict) -> dict:
                 "experiment", "sequence", "rule_hash", "group", "group_expression", "memo_version",
                 "state_fingerprint", "source_fingerprint", "binding_fingerprint")},
                 "root_reference": context.get("root", {}).get("reference_key"),
+                "stats_lifecycle_sequence": context.get("stats_lifecycle_sequence"),
+                "root_memo": {k: (context.get("root", {}).get("memo_state") or {}).get(k)
+                              for k in ("group", "group_expression", "statistics_owner_group")},
+                "child_memo": [{"position": c["position"], **{k: (c["node"].get("memo_state") or {}).get(k)
+                                for k in ("group", "group_expression", "statistics_owner_group")}} for c in children],
                 "child_references": [{"position": c["position"], "reference_key": c["node"].get("reference_key")}
                                      for c in children]}}
 
@@ -71,7 +79,19 @@ def candidate_state(row: dict) -> dict:
 def state_coverage(rows: list[dict]) -> dict:
     states = [candidate_state(row) for row in rows]
     features = [s["features"] for s in states if s["captured"]]
+
+    def availability(nodes):
+        # Count observed slots, not distinct Memo groups or independent samples.
+        return {"observed_nodes": len(nodes),
+                "rows_available": sum(n["rows_available"] for n in nodes),
+                "logical_properties_available": sum(n["logical_properties"] is not None for n in nodes),
+                "memo_group_expressions_available": sum(n["memo_group_expressions"] is not None for n in nodes),
+                "stats_sources": dict(sorted(Counter(n["stats_source"] for n in nodes).items()))}
+
     return {"attempts": len(rows), "captured": len(features),
+            "node_availability": {
+                "root": availability([f["root"] for f in features]),
+                "observed_relational_children": availability([c["node"] for f in features for c in f["children"]])},
             "root_rows_available": sum(f["root"]["rows_available"] for f in features),
             "any_child_rows_available": sum(any(c["node"]["rows_available"] for c in f["children"]) for f in features),
             "all_relational_child_rows_available": sum(
@@ -219,7 +239,8 @@ def binding_origin_evidence(run: dict) -> dict:
     problems = list(audit["exclusions"])
     finals = run.get("experiment_outcomes", [])
     final = finals[0] if len(finals) == 1 else {}
-    if final.get("binding_edge_trace_version") != 1:
+    version = final.get("binding_edge_trace_version")
+    if version not in (1, 2, 3):
         problems.append("binding_edge_trace_version_missing")
     edges = run.get("rule_edges")
     if not isinstance(edges, list):
@@ -233,6 +254,8 @@ def binding_origin_evidence(run: dict) -> dict:
     candidates = {r["sequence"]: r for r in audit["rows"]}
     observed = set()
     for edge in edges:
+        if 'experiment' in edge and edge['experiment'] != final.get('experiment'):
+            problems.append('binding_edge_experiment_mismatch')
         candidate = candidates.get(edge.get("dst_candidate_sequence"), {})
         if (candidate.get("evaluated") is not True or candidate.get("rule_hash") != edge.get("dst_rule")
                 or candidate.get("status") != edge.get("candidate_status")):
@@ -248,14 +271,27 @@ def binding_origin_evidence(run: dict) -> dict:
         if (relation not in {"memo_consumes", "input_exposes"} or not edge.get("src_rule")
                 or edge.get("relation") != (relation if candidate.get("status") == "ready_cbo" else "binding_observed")):
             problems.append("invalid_binding_edge_relation")
+        producer_outcomes = {"memo_inserted", "memo_duplicate"}
+        if version == 3:
+            producer_outcomes.add("memo_rehashed")
+        if version in (2, 3) and edge.get("producer_outcome") not in producer_outcomes:
+            problems.append("invalid_binding_producer_outcome")
         identity = (edge.get("dst_candidate_sequence"), path)
+        if version in (2, 3):
+            identity += (edge.get("src_rule"), edge.get("src_target_path"), relation,
+                         edge.get("producer_outcome"))
         if identity in observed:
             problems.append("duplicate_binding_position")
         observed.add(identity)
     return {"complete": not problems, "exclusions": sorted(set(problems)), "edges": edges,
+            "producer_coverage": ("observed_before_binding_including_memo_duplicates_and_rehash" if version == 3 else
+                                  "observed_before_binding_including_memo_duplicates" if version == 2 else "first_inserter_only"),
             "scope": "direct_DSL_origins_in_extracted_CBO_bindings_including_failed_evaluations",
             "not_included": ["unbound_memo_alternatives", "template_path_mapping", "all_causal_enablers",
-                             "transitive_native_xform_origins", "duplicate_candidate_producers"]}
+                             "transitive_native_xform_origins",
+                             "producers_observed_after_binding"] +
+                            (["origins_coalesced_by_later_group_rehash"] if version != 3 else []) +
+                            (["duplicate_candidate_producers"] if version not in (2, 3) else [])}
 
 
 def cost_evidence(run: dict) -> dict:
@@ -1035,6 +1071,36 @@ def target_root_costs(run: dict, target: list[dict], include_ancestors: bool = F
                 if include_ancestors else "same_run_inserted_root_direct_physical_origin_not_all_descendants_or_causal_benefit"}
 
 
+def post_search_evidence(run: dict) -> dict:
+    """Observed physical descendants of inserted roots, never pre-decision features."""
+    candidates = candidate_evidence(run)
+    lifecycle = cost_lifecycle_evidence(run)
+    problems = set(candidates['exclusions'] + lifecycle['exclusions'])
+    if any('origin_chain' not in e for e in run.get('cost_events', [])):
+        problems.add('missing_origin_chain')
+    rules, union = {}, set()
+    if not problems:
+        inserted = defaultdict(list)
+        for row in candidates['rows']:
+            if (row.get('memo_outcome') or {}).get('status') == 'memo_inserted':
+                inserted[row['rule_hash']].append(row)
+        for rule, rows in sorted(inserted.items()):
+            direct = target_root_costs(run, rows)
+            descendants = target_root_costs(run, rows, include_ancestors=True)
+            union.update(descendants['cost_sequences'])
+            rules[rule] = {'direct': direct, 'recorded_descendants': descendants}
+    return {'complete': not problems, 'exclusions': sorted(problems),
+            'scope': 'post_search_recorded_origin_ancestry_nonexclusive_not_causal_benefit',
+            'usable_as_pre_evaluation_features': False,
+            'rules': rules if not problems else None,
+            'cost_events': len(run.get('cost_events', [])),
+            'attributed_distinct_cost_events': len(union) if not problems else None,
+            'unattributed_cost_sequences': sorted(e['sequence'] for e in run.get('cost_events', [])
+                                                 if e['sequence'] not in union) if not problems else None,
+            'not_included': ['duplicate_producer_credit', 'unrecorded_rehash_ancestry',
+                             'child_dependency_closure', 'causal_rule_benefit']}
+
+
 def search_contribution(arms: dict, exclusions: list[str]) -> dict:
     """Compare audited stage counts, never match run-local candidate IDs across arms."""
     summaries, problems = {}, list(exclusions)
@@ -1509,7 +1575,7 @@ def parameter_candidate_evidence(manifest: dict, results: Path, contribution_rul
             "parameter_design": manifest["parameter_design"],
             "state_observation": {"capture": "before_evaluation", "scope": "source_before_match_view",
                 "identity": "run_and_attempt_sequence_not_expression_fingerprint",
-                "not_observed": ["column_distributions", "logical_properties", "required_physical_properties",
+                "not_observed": ["column_distributions", "column_types_and_key_membership", "required_physical_properties",
                                  "incumbent_and_search_budget", "complete_memo_alternatives",
                                  "full_predicates_and_ordered_tree_topology"],
                 "excluded_from_pre_features": ["post_evaluation_bindings", "later_derived_statistics",

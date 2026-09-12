@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import re
@@ -299,7 +300,8 @@ def orca_fallback_reason(path: Path) -> str | None:
     used_orca = False
     internal_error: str | None = None
     try:
-        with path.open(encoding="utf-8", errors="replace") as stream:
+        opener = gzip.open if path.suffix == '.gz' else open
+        with opener(path, 'rt', encoding="utf-8", errors="replace") as stream:
             for line in stream:
                 used_orca = used_orca or "Optimizer: pg_orca" in line
                 position = line.find(marker)

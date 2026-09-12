@@ -92,7 +92,21 @@ def normalize_mysql_functions(expression: exp.Expression) -> exp.Expression:
     # Walk bottom-up so generated replacements retain already-normalized arguments.
     for node in reversed(list(expression.walk())):
         replacement = None
-        if isinstance(node, exp.DateDiff) and (
+        if isinstance(node, exp.CurrentDate) or (
+                isinstance(node, exp.Anonymous) and node.name.upper() == "CURDATE"):
+            if (isinstance(node, exp.CurrentDate) and node.args.get('this')) or node.expressions:
+                raise ValueError('current date requires no arguments')
+            parent = node.parent
+            while isinstance(parent, exp.Paren):
+                parent = parent.parent
+            if isinstance(parent, (exp.Add, exp.Sub, exp.Mul, exp.Div, exp.Mod)) and not (
+                    isinstance(parent, (exp.Add, exp.Sub)) and isinstance(parent.expression, exp.Interval)
+                    or isinstance(parent, exp.Add) and isinstance(parent.this, exp.Interval)):
+                raise ValueError('current date numeric coercion requires explicit MySQL typing')
+            # MySQL current-date functions use statement time; PG CURRENT_DATE uses
+            # transaction time. Preserve the date domain and session time zone.
+            replacement = exp.cast(exp.Anonymous(this='statement_timestamp'), 'DATE')
+        elif isinstance(node, exp.DateDiff) and (
                 node.args.get("unit") is None or node.args["unit"].name.upper() == "DAY"):
             # MySQL DATEDIFF ignores time of day; AGE returns an interval, not days.
             replacement = exp.Paren(this=exp.Sub(
