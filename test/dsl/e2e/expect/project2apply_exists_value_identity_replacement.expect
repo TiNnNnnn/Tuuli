@@ -40,7 +40,8 @@
       "dsl": false,
       "disable_xforms": [
         "CXformProject2Apply",
-        "CXformSimplifyProjectWithSubquery"
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -51,7 +52,8 @@
       "trace": true,
       "disable_xforms": [
         "CXformProject2Apply",
-        "CXformSimplifyProjectWithSubquery"
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
@@ -69,7 +71,8 @@
         "required_origins": [],
         "forbidden_origins": [
           "CXformProject2Apply",
-          "CXformSimplifyProjectWithSubquery"
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -77,7 +80,8 @@
   "rows": {
     "disable_xforms": [
       "CXformProject2Apply",
-      "CXformSimplifyProjectWithSubquery"
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [

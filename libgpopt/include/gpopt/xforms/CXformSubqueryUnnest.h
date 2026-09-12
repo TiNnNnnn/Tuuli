@@ -33,7 +33,8 @@ private:
 protected:
 	// helper for subquery unnesting
 	static CExpression *PexprSubqueryUnnest(CMemoryPool *mp, CExpression *pexpr,
-											BOOL fEnforceCorrelatedApply);
+											BOOL fEnforceCorrelatedApply,
+											BOOL fNormalize = true);
 
 	// actual transform
 	virtual void Transform(CXformContext *pxfctxt, CXformResult *pxfres,

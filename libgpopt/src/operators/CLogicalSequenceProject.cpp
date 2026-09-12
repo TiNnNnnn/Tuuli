@@ -368,6 +368,7 @@ CLogicalSequenceProject::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfSequenceProject2Apply);
+	(void) xform_set->ExchangeSet(CXform::ExfSubquery2CorrelatedApply);
 	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleWindow);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementSequenceProject);
 

@@ -9,7 +9,11 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
         "\"rows\":1.000000,\"changed\":true",
-        "Filter: (status = 1)"
+        "Filter: (status = 1)",
+        "\"binding_edge_trace_version\":3",
+        "\"producer_outcome\":\"memo_inserted\"",
+        "\"producer_outcome\":\"memo_duplicate\"",
+        "\"status\":\"memo_duplicate\",\"memo_version_before\":"
       ],
       "not_contains": [
         "Falling back to Postgres"

@@ -1,0 +1,52 @@
+{
+  "description": "Correlated execution remains available without optional unnesting or DSL",
+  "plans": [
+    {
+      "name": "native_unchanged",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Xform: CXformSubquery2CorrelatedApply\n"
+      ]
+    },
+    {
+      "name": "execution_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformProject2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformSubquery2CorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformProject2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}

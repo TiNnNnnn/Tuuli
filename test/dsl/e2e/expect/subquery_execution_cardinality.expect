@@ -1,0 +1,38 @@
+{
+  "description": "Execution lowering must preserve scalar subquery cardinality errors",
+  "plans": [
+    {
+      "name": "execution_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformProject2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformSubquery2CorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformProject2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "disable_all.policy",
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}

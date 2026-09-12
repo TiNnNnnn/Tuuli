@@ -56,7 +56,8 @@ CXformSubqueryUnnest::Exfp(CExpressionHandle &exprhdl) const
 //---------------------------------------------------------------------------
 CExpression *
 CXformSubqueryUnnest::PexprSubqueryUnnest(CMemoryPool *mp, CExpression *pexpr,
-										  BOOL fEnforceCorrelatedApply)
+										  BOOL fEnforceCorrelatedApply,
+										  BOOL fNormalize)
 {
 	GPOS_ASSERT(nullptr != pexpr);
 
@@ -89,6 +90,14 @@ CXformSubqueryUnnest::PexprSubqueryUnnest(CMemoryPool *mp, CExpression *pexpr,
 		CRefCount::SafeRelease(pexprResidualScalar);
 
 		return nullptr;
+	}
+
+	if (!fNormalize)
+	{
+		// Execution lowering preserves every property of the owning operator;
+		// it does not normalize the tree or pull projections across boundaries.
+		pexpr->Pop()->AddRef();
+		return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pexprNewOuter, pexprResidualScalar);
 	}
 
 	// create a new alternative using the new logical and scalar expressions

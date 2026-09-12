@@ -324,6 +324,7 @@ CLogicalProject::PxfsCandidates(CMemoryPool *mp) const
 
 	(void) xform_set->ExchangeSet(CXform::ExfSimplifyProjectWithSubquery);
 	(void) xform_set->ExchangeSet(CXform::ExfProject2Apply);
+	(void) xform_set->ExchangeSet(CXform::ExfSubquery2CorrelatedApply);
 	(void) xform_set->ExchangeSet(CXform::ExfProject2ComputeScalar);
 	(void) xform_set->ExchangeSet(CXform::ExfCollapseProject);
 	// MONSOON DSL-rule shell rooted at Project

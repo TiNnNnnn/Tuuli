@@ -273,6 +273,7 @@ public:
 		ExfImplementSetOp,
 		ExfImplementApply,
 		ExfImplementMaxOneRow,
+		ExfSubquery2CorrelatedApply,
 		ExfInvalid,
 		ExfSentinel = ExfInvalid
 	};

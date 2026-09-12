@@ -1,0 +1,37 @@
+{
+  "description": "Aggregate input scalar subqueries retain executable correlated plans",
+  "plans": [
+    {
+      "name": "execution_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformProject2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformSubquery2CorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformProject2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "6"
+    ],
+    "postgres_output": [
+      "6"
+    ]
+  }
+}

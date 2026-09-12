@@ -54,7 +54,8 @@
         "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
         "CXformSimplifySelectWithSubquery",
         "CXformLeftSemiJoin2InnerJoinUnderGb",
-        "CXformInnerJoinCommutativity"
+        "CXformInnerJoinCommutativity",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_remove_subq_distinct_exists_pipeline.policy",
       "contains": [
@@ -78,7 +79,8 @@
           "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
           "CXformSimplifySelectWithSubquery",
           "CXformLeftSemiJoin2InnerJoinUnderGb",
-          "CXformInnerJoinCommutativity"
+          "CXformInnerJoinCommutativity",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -91,7 +93,8 @@
       "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
       "CXformSimplifySelectWithSubquery",
       "CXformLeftSemiJoin2InnerJoinUnderGb",
-      "CXformInnerJoinCommutativity"
+      "CXformInnerJoinCommutativity",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_remove_subq_distinct_exists_pipeline.policy",
     "output": [

@@ -40,7 +40,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -51,7 +52,8 @@
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "contains": [
         "Optimizer: pg_orca",
@@ -67,7 +69,8 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformSelect2Apply"
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     },
@@ -75,7 +78,8 @@
       "name": "all-rules-bottom-up-rbo",
       "trace": true,
       "disable_xforms": [
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
@@ -89,7 +93,8 @@
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSelect2Apply"
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "wetune_bottom_up_rbo.policy",
     "output": [

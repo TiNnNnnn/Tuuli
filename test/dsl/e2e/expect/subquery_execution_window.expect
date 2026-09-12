@@ -1,0 +1,43 @@
+{
+  "description": "Window input scalar subqueries preserve frame and input multiplicity",
+  "plans": [
+    {
+      "name": "execution_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformProject2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformSubquery2CorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformProject2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,1",
+      "1,2",
+      "2,4",
+      "3,6"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,2",
+      "2,4",
+      "3,6"
+    ]
+  }
+}

@@ -610,6 +610,7 @@ CLogicalGbAgg::PxfsCandidates(CMemoryPool *mp) const
 	}
 	(void) xform_set->ExchangeSet(CXform::ExfSplitDQA);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAgg2Apply);
+	(void) xform_set->ExchangeSet(CXform::ExfSubquery2CorrelatedApply);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAgg2HashAgg);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAgg2StreamAgg);
 	(void) xform_set->ExchangeSet(CXform::ExfGbAgg2ScalarAgg);

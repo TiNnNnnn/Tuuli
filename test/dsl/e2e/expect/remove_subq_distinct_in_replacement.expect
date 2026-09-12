@@ -54,7 +54,8 @@
         "CXformReduceAggInputViaCTE",
         "CXformCTEAnchor2Sequence",
         "CXformInnerJoinCommutativity",
-        "CXformJoinAssociativity"
+        "CXformJoinAssociativity",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
       "contains": [
@@ -80,7 +81,8 @@
           "CXformReduceAggInputViaCTE",
           "CXformCTEAnchor2Sequence",
           "CXformInnerJoinCommutativity",
-          "CXformJoinAssociativity"
+          "CXformJoinAssociativity",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -96,7 +98,8 @@
       "CXformReduceAggInputViaCTE",
       "CXformCTEAnchor2Sequence",
       "CXformInnerJoinCommutativity",
-      "CXformJoinAssociativity"
+      "CXformJoinAssociativity",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
     "output": [

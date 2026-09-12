@@ -1,0 +1,43 @@
+{
+  "description": "Subquery value contexts preserve EXISTS, NOT EXISTS, ANY, ALL and scalar NULL semantics",
+  "plans": [
+    {
+      "name": "execution_only",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformProject2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformSubquery2CorrelatedApply"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformProject2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply"
+    ],
+    "policy": "disable_all.policy",
+    "output": [
+      "1,t,f,t,f,1",
+      "1,t,f,t,f,1",
+      "2,t,f,t,f,2",
+      "3,f,t,,,2"
+    ],
+    "postgres_output": [
+      "1,t,f,t,f,1",
+      "1,t,f,t,f,1",
+      "2,t,f,t,f,2",
+      "3,f,t,,,2"
+    ]
+  }
+}

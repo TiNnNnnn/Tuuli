@@ -38,7 +38,8 @@
       "trace": true,
       "disable_xforms": [
         "CXformRemoveSubqDistinct",
-        "CXformSelect2Apply"
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Xform: CXformRemoveSubqDistinct"
@@ -50,7 +51,8 @@
       "disable_xforms": [
         "CXformRemoveSubqDistinct",
         "CXformSelect2Apply",
-        "CXformSimplifySelectWithSubquery"
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
       "contains": [
@@ -68,7 +70,8 @@
         "forbidden_origins": [
           "CXformRemoveSubqDistinct",
           "CXformSelect2Apply",
-          "CXformSimplifySelectWithSubquery"
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -77,7 +80,8 @@
     "disable_xforms": [
       "CXformRemoveSubqDistinct",
       "CXformSelect2Apply",
-      "CXformSimplifySelectWithSubquery"
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
     "output": [

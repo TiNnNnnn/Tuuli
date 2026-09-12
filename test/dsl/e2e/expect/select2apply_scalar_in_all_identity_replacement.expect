@@ -41,7 +41,8 @@
       "dsl": false,
       "disable_xforms": [
         "CXformSelect2Apply",
-        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -54,7 +55,8 @@
         "CXformSelect2Apply",
         "CXformSimplifySelectWithSubquery",
         "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
-        "CXformLeftJoin2RightJoin"
+        "CXformLeftJoin2RightJoin",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_select2apply_scalar_in_all_pipeline.policy",
       "contains": [
@@ -73,7 +75,8 @@
           "CXformSelect2Apply",
           "CXformSimplifySelectWithSubquery",
           "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
-          "CXformLeftJoin2RightJoin"
+          "CXformLeftJoin2RightJoin",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -83,7 +86,8 @@
       "CXformSelect2Apply",
       "CXformSimplifySelectWithSubquery",
       "CXformLeftOuterApply2LeftOuterJoinNoCorrelations",
-      "CXformLeftJoin2RightJoin"
+      "CXformLeftJoin2RightJoin",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_select2apply_scalar_in_all_pipeline.policy",
     "output": [

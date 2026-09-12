@@ -38,6 +38,7 @@ public:
 		EmtMatchJoinApply,
 		EmtMatchIntersectOrDifference,
 		EmtMatchRegularApply,
+		EmtMatchUnarySubquery,
 		EmtSentinel
 	};
 
@@ -99,6 +100,9 @@ public:
 	{
 		switch (m_match)
 		{
+			case EmtMatchUnarySubquery:
+				return EopLogicalSelect == opid || EopLogicalProject == opid ||
+					EopLogicalGbAgg == opid || EopLogicalSequenceProject == opid;
 			case EmtMatchRegularApply:
 				return EopLogicalInnerApply == opid ||
 					   EopLogicalLeftOuterApply == opid ||

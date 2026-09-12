@@ -37,7 +37,8 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSequenceProject2Apply"
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -47,7 +48,8 @@
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSequenceProject2Apply"
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_sequence_project2apply_bounded.policy",
       "contains": [
@@ -61,14 +63,16 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformSequenceProject2Apply"
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSequenceProject2Apply"
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_sequence_project2apply_bounded.policy",
     "output": [

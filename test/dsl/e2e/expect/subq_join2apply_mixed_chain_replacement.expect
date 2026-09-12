@@ -40,7 +40,8 @@
       "disable_xforms": [
         "CXformSubqJoin2Apply",
         "CXformSelect2Apply",
-        "CXformSimplifySelectWithSubquery"
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": []
     },
@@ -50,7 +51,8 @@
       "disable_xforms": [
         "CXformSubqJoin2Apply",
         "CXformSelect2Apply",
-        "CXformSimplifySelectWithSubquery"
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_subq_join2apply_mixed_direct.policy",
       "contains": [
@@ -67,7 +69,8 @@
         "forbidden_origins": [
           "CXformSubqJoin2Apply",
           "CXformSelect2Apply",
-          "CXformSimplifySelectWithSubquery"
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -76,7 +79,8 @@
     "disable_xforms": [
       "CXformSubqJoin2Apply",
       "CXformSelect2Apply",
-      "CXformSimplifySelectWithSubquery"
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_subq_join2apply_mixed_direct.policy",
     "output": [

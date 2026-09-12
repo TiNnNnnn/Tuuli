@@ -39,7 +39,8 @@
       "dsl": false,
       "disable_xforms": [
         "CXformSelect2Apply",
-        "CXformSimplifySelectWithSubquery"
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "not_contains": [
         "Optimizer: pg_orca"
@@ -50,7 +51,8 @@
       "trace": true,
       "disable_xforms": [
         "CXformSelect2Apply",
-        "CXformSimplifySelectWithSubquery"
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_select2apply_identity.policy",
       "contains": [
@@ -67,7 +69,8 @@
         "required_origins": [],
         "forbidden_origins": [
           "CXformSelect2Apply",
-          "CXformSimplifySelectWithSubquery"
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -75,7 +78,8 @@
   "rows": {
     "disable_xforms": [
       "CXformSelect2Apply",
-      "CXformSimplifySelectWithSubquery"
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_select2apply_identity.policy",
     "output": [

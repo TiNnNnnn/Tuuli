@@ -91,6 +91,7 @@ CLogicalSelect::PxfsCandidates(CMemoryPool *mp) const
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 
 	(void) xform_set->ExchangeSet(CXform::ExfSelect2Apply);
+	(void) xform_set->ExchangeSet(CXform::ExfSubquery2CorrelatedApply);
 	(void) xform_set->ExchangeSet(CXform::ExfRemoveSubqDistinct);
 	(void) xform_set->ExchangeSet(CXform::ExfInlineCTEConsumerUnderSelect);
 	(void) xform_set->ExchangeSet(CXform::ExfPushGbWithHavingBelowJoin);
