@@ -1,5 +1,5 @@
 {
-  "description": "Native rewrites introducing joins below wrappers re-enter DPHyper without changing the disabled or shadow paths",
+  "description": "Native rewrites introducing joins below wrappers re-enter DPHyper; native enumeration runs only in the separate disabled baseline",
   "plans": [
     {
       "name": "disabled",
@@ -38,25 +38,6 @@
           "CXformInnerJoinCommutativity",
           "CXformJoinAssociativity"
         ]
-      }
-    },
-    {
-      "name": "shadow",
-      "dsl": false,
-      "dphyper": true,
-      "dphyper_shadow": true,
-      "trace": true,
-      "contains": [
-        "DPHyper: status=applied",
-        "mode=shadow"
-      ],
-      "provenance": {
-        "required_sources": [],
-        "required_origins": [
-          "CXformReduceAggInputViaCTE",
-          "CXformInnerJoinCommutativity"
-        ],
-        "forbidden_origins": []
       }
     }
   ],

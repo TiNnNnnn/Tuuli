@@ -347,6 +347,34 @@ FNullScalarConst(const CExpression *pexpr)
 		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
 }
 
+// Remap predicate dependencies without detaching unchanged subquery inputs
+// from Memo. Deep-copying a Global(Local(...)) input loses its xform history
+// and lets native splitting add another Local stage on every DSL rewrite.
+CExpression *
+PexprRemapPredicate(CMemoryPool *mp, CExpression *pexpr,
+				   UlongToColRefMap *mapping)
+{
+	GPOS_CHECK_STACK_SIZE;
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	BOOL unchanged = true;
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		CExpression *child = PexprRemapPredicate(mp, (*pexpr)[ul], mapping);
+		unchanged = unchanged && child == (*pexpr)[ul];
+		children->Append(child);
+	}
+	COperator *pop = pexpr->Pop()->PopCopyWithRemappedColumns(
+		mp, mapping, false /*must_exist*/);
+	if (unchanged && pop->Matches(pexpr->Pop()))
+	{
+		pop->Release();
+		children->Release();
+		pexpr->AddRef();
+		return pexpr;
+	}
+	return GPOS_NEW(mp) CExpression(mp, pop, children);
+}
+
 // Re-resolve comparison operators after a column remap changes operand types.
 // PexprCopyWithRemappedColumns replaces CScalarIdent nodes but intentionally
 // preserves the original CScalarCmp operator mdid, which is invalid for (for
@@ -355,6 +383,13 @@ FNullScalarConst(const CExpression *pexpr)
 CExpression *
 PexprRebuildComparisons(CMemoryPool *mp, CExpression *pexpr)
 {
+	// An unchanged relational input retained by PexprRemapPredicate already
+	// has valid operators. Keep its Memo identity during type repair as well.
+	if (nullptr != pexpr->Pgexpr())
+	{
+		pexpr->AddRef();
+		return pexpr;
+	}
 	if (COperator::EopScalarCmp == pexpr->Pop()->Eopid())
 	{
 		if (2 != pexpr->Arity())
@@ -488,8 +523,7 @@ PexprRemapInSubPredicate(CMemoryPool *mp, CExpression *pexprPred,
 		pexprPred->AddRef();
 		return pexprPred;
 	}
-	CExpression *pexprRemapped = pexprPred->PexprCopyWithRemappedColumns(
-		mp, phm, false /*must_exist*/);
+	CExpression *pexprRemapped = PexprRemapPredicate(mp, pexprPred, phm);
 	phm->Release();
 	if (fTypeChange)
 	{
@@ -555,14 +589,54 @@ PexprRemapProjectListInputs(CMemoryPool *mp, CExpression *pexprList,
 			return nullptr;
 		}
 		CExpression *pexprScalar =
-			(*pexprElem)[0]->PexprCopyWithRemappedColumns(
-				mp, colref_mapping, false /*must_exist*/);
+			PexprRemapPredicate(mp, (*pexprElem)[0], colref_mapping);
 		pexprElem->Pop()->AddRef();
 		pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
 			mp, pexprElem->Pop(), pexprScalar));
 	}
 	return GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
+}
+
+// Column substitution can turn an alias into x := x. Project is compute-scalar
+// in ORCA: x already passes through from the child and must not be redefined.
+// Consume both arguments, preserving the original list when no alias changes.
+CExpression *
+PexprProjectWithoutSelfAliases(CMemoryPool *mp, CExpression *child,
+								 CExpression *list)
+{
+	CExpressionArray *elements = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < list->Arity(); ul++)
+	{
+		CExpression *element = (*list)[ul];
+		CColRef *output = CScalarProjectElement::PopConvert(element->Pop())->Pcr();
+		if (COperator::EopScalarIdent == (*element)[0]->Pop()->Eopid() &&
+			output == CScalarIdent::PopConvert((*element)[0]->Pop())->Pcr())
+		{
+			if (!child->DeriveOutputColumns()->FMember(output))
+			{
+				elements->Release();
+				list->Release();
+				child->Release();
+				return nullptr;
+			}
+			continue;
+		}
+		element->AddRef();
+		elements->Append(element);
+	}
+	if (elements->Size() != list->Arity())
+	{
+		list->Release();
+		list = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp), elements);
+	}
+	else
+	{
+		elements->Release();
+	}
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), child, list);
 }
 
 // A GbAgg grouping CColRef is both an input identity and an output identity.
@@ -2271,8 +2345,7 @@ CDSLInstantiator::PexprRemapProjectList(
 				return nullptr;
 			}
 			CExpression *pexprScalar =
-				(*pexprSourceElem)[0]->PexprCopyWithRemappedColumns(
-					m_mp, colref_mapping, false /*must_exist*/);
+				PexprRemapPredicate(m_mp, (*pexprSourceElem)[0], colref_mapping);
 			pexprSourceElem->Pop()->AddRef();
 			pdrgpexprTargetElems->Append(GPOS_NEW(m_mp) CExpression(
 				m_mp, pexprSourceElem->Pop(), pexprScalar));
@@ -2430,8 +2503,7 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 		pexprBound->AddRef();
 		return pexprBound;
 	}
-	CExpression *pexprRemapped = pexprBound->PexprCopyWithRemappedColumns(
-		m_mp, phm, false /*must_exist*/);
+	CExpression *pexprRemapped = PexprRemapPredicate(m_mp, pexprBound, phm);
 	phm->Release();
 	if (fTypeChange)
 	{
@@ -2781,8 +2853,7 @@ CDSLInstantiator::PexprRemapPredicateToChildren(
 	if (fRemapPred)
 	{
 		CExpression *pexprCopied =
-			pexprSourcePred->PexprCopyWithRemappedColumns(
-				m_mp, phmPred, false /*must_exist*/);
+			PexprRemapPredicate(m_mp, pexprSourcePred, phmPred);
 		pexprTargetPred = PexprRebuildComparisons(m_mp, pexprCopied);
 		pexprCopied->Release();
 	}
@@ -3613,8 +3684,7 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 	{
 		pdrgpcrSchema->Release();
 	}
-	return GPOS_NEW(m_mp) CExpression(
-		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, pexprList);
+	return PexprProjectWithoutSelfAliases(m_mp, pexprChild, pexprList);
 }
 
 //---------------------------------------------------------------------------
@@ -3822,9 +3892,12 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 				return nullptr;
 			}
 
-			CExpression *pexprProject = GPOS_NEW(m_mp) CExpression(
-				m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild,
-				pexprTargetProjList);
+			CExpression *pexprProject = PexprProjectWithoutSelfAliases(
+				m_mp, pexprChild, pexprTargetProjList);
+			if (nullptr == pexprProject)
+			{
+				return nullptr;
+			}
 			CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
 			pcrsSchema->Include(pdrgpcrSchema);
 			const BOOL fSchemaProduced =
@@ -4006,9 +4079,7 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		return nullptr;
 	}
 
-	return GPOS_NEW(m_mp) CExpression(
-		m_mp, GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild,
-		pexprTargetProjList);
+	return PexprProjectWithoutSelfAliases(m_mp, pexprChild, pexprTargetProjList);
 }
 
 //---------------------------------------------------------------------------
@@ -5049,13 +5120,8 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
 			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy));
 	}
-	CExpression *pexprNormalized =
-		CNormalizer::PexprNormalize(m_mp, pexprResult);
-	pexprResult->Release();
-	CExpression *pexprCanonical =
-		CNormalizer::PexprPullUpProjections(m_mp, pexprNormalized);
-	pexprNormalized->Release();
-	return pexprCanonical;
+	// Only the target operators declared by the rule are new.
+	return pexprResult;
 }
 
 //---------------------------------------------------------------------------

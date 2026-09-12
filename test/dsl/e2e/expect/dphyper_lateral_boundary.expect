@@ -8,6 +8,8 @@
       "dphyper_shadow": false,
       "trace": true,
       "contains": [
+        "Optimizer: pg_orca",
+        "Nested Loop",
         "DPHyper: status=applied",
         "root=CLogicalInnerJoin nodes=3",
         "dependencies=1",
@@ -19,6 +21,20 @@
         "Xform: CXformExpandNAryJoinDPv2",
         "Xform: CXformInnerJoinCommutativity",
         "Xform: CXformJoinAssociativity"
+      ],
+      "joins": 2
+    },
+    {
+      "name": "native",
+      "dsl": false,
+      "dphyper": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Nested Loop"
+      ],
+      "not_contains": [
+        "DPHyper: status=applied"
       ],
       "joins": 2
     }

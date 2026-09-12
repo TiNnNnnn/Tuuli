@@ -253,7 +253,8 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 	{
 		return false;
 	}
-	if (!m_pmatcher->FMatch((*popAgg)[0], (*pexprAgg)[0], pmodel))
+	if (!m_pmatcher->FMatch((*popAgg)[0],
+						  CDSLMatchView::PexprDedupInput(pexprAgg), pmodel))
 	{
 		return false;
 	}

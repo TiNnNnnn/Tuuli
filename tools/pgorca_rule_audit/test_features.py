@@ -127,6 +127,25 @@ def check_policy_snapshot(binary, directory):
     assert partial['load_errors'] and partial['rules'] == rows
 
 
+def check_e2e_policies(binary, directory):
+    dsl = Path(__file__).resolve().parents[2] / 'test/dsl'
+    library = directory / 'e2e.rules'
+    library.write_text('\n'.join((dsl / 'rules' / name).read_text()
+                                for name in ('framework.rules', 'orca_replacements.rules')))
+    policies = set()
+    for path in (dsl / 'e2e/expect').glob('*.expect'):
+        case = json.loads(path.read_text())
+        for state in [*case.get('plans', []), case.get('rows', {})]:
+            if state.get('policy'):
+                policies.add(state['policy'])
+    for policy in sorted(policies):
+        result = subprocess.run([binary, '--policy-snapshot', str(library),
+                                 str(dsl / 'rules' / policy)], capture_output=True, text=True)
+        assert result.returncode == 0, f'{policy}: {result.stderr}'
+        snapshot = json.loads(result.stdout)
+        assert snapshot['load']['failed'] == 0, snapshot.get('load_errors')
+
+
 def main():
     with tempfile.TemporaryDirectory(prefix='pgorca-template-features.') as directory:
         subprocess.run([sys.argv[1], str(Path(__file__).resolve().parents[2] / 'test/dsl/audit'), directory], check=True)
@@ -155,6 +174,7 @@ def main():
             assert f['constraint_kinds'] == len(n['constraints'])
         check_alpha_and_binding(sys.argv[1], Path(directory))
         check_policy_snapshot(sys.argv[1], Path(directory))
+        check_e2e_policies(sys.argv[1], Path(directory))
     print('production RuleIR features, alpha-normalized bindings and native policy snapshots: OK')
 
 

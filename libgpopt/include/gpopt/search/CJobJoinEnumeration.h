@@ -64,8 +64,8 @@ public:
 	// replaced by this whole-region job after successful DPHyper enumeration.
 	static BOOL FReplacesNativeXform(CXform::EXformId exfid);
 
-	// True for the complete native join-order exploration family, including
-	// null-aware NOT IN swaps that DPHyper deliberately does not yet own.
+	// Complete native join-order exploration family. PostgreSQL disables this
+	// family task-wide when DPHyper is enabled, including null-aware NOT IN swaps.
 	static BOOL FNativeJoinEnumerationXform(CXform::EXformId exfid);
 
 	BOOL FExecute(CSchedulerContext *psc) override;

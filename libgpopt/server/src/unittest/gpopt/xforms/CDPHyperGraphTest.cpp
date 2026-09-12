@@ -23,6 +23,9 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPatternTree.h"
+#include "gpopt/operators/CPhysicalInnerHashJoin.h"
+#include "gpopt/operators/CPhysicalInnerMergeJoin.h"
+#include "gpopt/operators/CPhysicalInnerNLJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -37,6 +40,9 @@
 #include "gpopt/xforms/CDPHyperOrderConstraints.h"
 #include "gpopt/xforms/CDPHyperPlan.h"
 #include "gpopt/xforms/CJoinRegionSpec.h"
+#include "gpopt/xforms/CXformContext.h"
+#include "gpopt/xforms/CXformResult.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -1556,6 +1562,24 @@ CDPHyperGraphTest::EresUnittest_BinaryJoinRegionSpec()
 		fix.PexprLogicalSelect(get1, pred01);
 	CExpression *lateral_join =
 		fix.PexprLogicalInnerJoin(get0, correlated_get1, true_pred);
+	// A predicate inferred across the lateral boundary can be hashable, but
+	// only NLJ can pass the provider's values into the dependent input.
+	{
+		CAutoRef<CExpression> join(
+			fix.PexprLogicalInnerJoin(get0, correlated_get1, pred01));
+		GPOS_UNITTEST_ASSERT(!CUtils::HasOuterRefs(join.Value()));
+		GPOS_UNITTEST_ASSERT(CUtils::HasOuterRefs((*join)[1]));
+		CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		CXformUtils::ImplementHashJoin<CPhysicalInnerHashJoin>(
+			context.Value(), result.Value(), join.Value());
+		CXformUtils::ImplementMergeJoin<CPhysicalInnerMergeJoin>(
+			context.Value(), result.Value(), join.Value());
+		GPOS_UNITTEST_ASSERT(0 == result->Size());
+		CXformUtils::ImplementNLJoin<CPhysicalInnerNLJoin>(
+			context.Value(), result.Value(), join.Value());
+		GPOS_UNITTEST_ASSERT(1 == result->Size());
+	}
 	CExpression *lateral_root =
 		fix.PexprLogicalInnerJoin(lateral_join, get2, pred02);
 	CJoinRegionSpec lateral_spec(mp);

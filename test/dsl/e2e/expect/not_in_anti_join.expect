@@ -1,5 +1,5 @@
 {
-  "description": "PG18 executes uncorrelated NOT IN through a NULL-aware NL anti join",
+  "description": "PG18 executes NOT IN through a NULL-aware anti join or the DSL's ALL SubPlan",
   "plans": [
     {
       "name": "off",
@@ -19,8 +19,8 @@
         "CXformImplementLeftAntiSemiCorrelatedApplyNotIn"
       ],
       "contains": [
-        "Nested Loop Anti Join",
-        "IS NOT FALSE",
+        "Filter: (ALL (",
+        "SubPlan 1",
         "Optimizer: pg_orca"
       ]
     }

@@ -13,7 +13,9 @@ import subprocess
 import sys
 
 
-REPLACEMENT_XFORMS = "CXformSelect2Apply, CXformProject2Apply"
+REPLACEMENT_XFORMS = (
+    "CXformSelect2Apply, CXformProject2Apply, CXformSubquery2CorrelatedApply"
+)
 JOIN_RE = re.compile(
     r"^\s*(?:->\s*)?(?:(?:(?:Hash|Merge)(?:\s+(?:Left|Right|Full|Semi|Anti))?\s+Join)"
     r"|(?:Nested Loop(?:\s+(?:Left|Right|Full|Semi|Anti)\s+Join)?))",
@@ -113,7 +115,7 @@ def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False,
         ):
             return f"SQLSTATE {error_sqlstate}"
         raise RuntimeError(f"Expected SQLSTATE {error_sqlstate}, got:\n{process.stdout}")
-    if process.returncode != 0:
+    if process.returncode != 0 or "Failed assertion:" in process.stdout:
         raise RuntimeError(process.stdout.rstrip())
     return process.stdout.rstrip("\n")
 
@@ -291,7 +293,7 @@ SET pg_orca.enable_dsl_rule={enabled};
 {experiment_setting(args, plan)}
 {bool_guc_setting('pg_orca.enable_assert_maxonerow', plan.get('assert_maxonerow'), False)}
 {bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
-{bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), True)}
+{bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), False)}
 SET pg_orca.dphyper_edge_budget={edge_budget};
 SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}
@@ -394,12 +396,12 @@ def actual_rows(
         f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule=on;
+SET pg_orca.enable_dsl_rule={'on' if expected.get('dsl', True) else 'off'};
 {policy_setting(args, expected)}
 {experiment_setting(args, expected)}
 SET pg_orca.enable_assert_maxonerow={'on' if expected.get('assert_maxonerow', False) else 'off'};
 SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
-SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', True) else 'off'};
+SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', False) else 'off'};
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
 SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {native_setting(bool(expected.get('native', True)))}
@@ -422,7 +424,7 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
     actual = {
         key: expected[key]
         for key in (
-            "dphyper", "dphyper_shadow", "dphyper_edge_budget",
+            "dsl", "dphyper", "dphyper_shadow", "dphyper_edge_budget",
             "dphyper_pair_budget", "native", "disable_xforms", "policy",
             "assert_maxonerow", "stats_experiment", "error_sqlstate"
         )

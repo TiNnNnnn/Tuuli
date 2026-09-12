@@ -266,6 +266,39 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_e2e_sql(args, "SELECT 1", error_sqlstate=".*")
 
+    def test_e2e_rejects_assertion_hidden_by_planner_fallback(self) -> None:
+        args = SimpleNamespace(psql="psql", host="socket", port="1")
+        with patch("run_e2e_cases.subprocess.run", return_value=SimpleNamespace(
+            returncode=0, stdout='ERROR,"Failed assertion: invalid column\nSeq Scan'
+        )):
+            with self.assertRaisesRegex(RuntimeError, "Failed assertion"):
+                run_e2e_sql(args, "EXPLAIN SELECT 1")
+
+    def test_e2e_result_rows_honor_dsl_switch(self) -> None:
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for expected in ({}, {"dsl": True}, {"dsl": False}):
+            with self.subTest(expected=expected), patch(
+                "run_e2e_cases.run_sql", return_value="1\n"
+            ) as run:
+                result = actual_rows(args, "SELECT 1", expected)
+            enabled = "on" if expected.get("dsl", True) else "off"
+            self.assertIn(f"SET pg_orca.enable_dsl_rule={enabled};",
+                          run.call_args_list[0].args[1])
+            self.assertEqual(result.get("dsl"), expected.get("dsl"))
+            self.assertIn("SET pg_orca.enable_orca=off;", run.call_args_list[1].args[1])
+            self.assertEqual(result["output"], result["postgres_output"])
+
+    def test_e2e_dphyper_does_not_implicitly_enable_shadow(self) -> None:
+        from run_e2e_cases import run_plan
+
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        with patch("run_e2e_cases.run_sql", return_value="1") as run:
+            run_plan(args, "SELECT 1", {"dphyper": True})
+            actual_rows(args, "SELECT 1", {"dphyper": True})
+        for call in run.call_args_list[:2]:
+            self.assertIn("SET pg_orca.enable_dphyper=on;", call.args[1])
+            self.assertIn("SET pg_orca.dphyper_shadow=off;", call.args[1])
+
     def test_e2e_result_rows_use_the_requested_cardinality_experiment(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
         expected = {"stats_experiment": "stats_noop_experiment.yaml"}

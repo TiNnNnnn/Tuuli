@@ -224,6 +224,18 @@ CXformJoinAssociativity::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 
 	CMemoryPool *mp = pxfctxt->Pmp();
 
+	// A Memo alternative can expose columns hidden by its group's original
+	// projection/dedup. Such a binding is not three independent range variables:
+	// reassociation must not move a hidden identity into another input's scope.
+	CColRefSet *left = (*(*pexpr)[0])[0]->DeriveOutputColumns();
+	CColRefSet *middle = (*(*pexpr)[0])[1]->DeriveOutputColumns();
+	CColRefSet *right = (*pexpr)[1]->DeriveOutputColumns();
+	if (!left->IsDisjoint(middle) || !left->IsDisjoint(right) ||
+		!middle->IsDisjoint(right))
+	{
+		return;
+	}
+
 	// create new predicates
 	CExpressionArray *pdrgpexprLower = GPOS_NEW(mp) CExpressionArray(mp);
 	CExpressionArray *pdrgpexprUpper = GPOS_NEW(mp) CExpressionArray(mp);

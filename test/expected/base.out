@@ -498,38 +498,28 @@ EXPLAIN (COSTS OFF, VERBOSE) SELECT * FROM nation UNION ALL SELECT * FROM nation
 (11 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM nation EXCEPT SELECT * FROM nation ORDER BY 3 LIMIT 10;
-                                                                                                                                             QUERY PLAN                                                                                                                                             
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                  QUERY PLAN
+-----------------------------------------------
  Limit
    ->  Sort
          Sort Key: nation.n_regionkey
-         ->  HashAggregate
-               Group Key: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
-               ->  Hash Anti Join
-                     Hash Cond: ((NOT (nation.n_nationkey IS DISTINCT FROM nation_1.n_nationkey)) AND (NOT (nation.n_name IS DISTINCT FROM nation_1.n_name)) AND (NOT (nation.n_regionkey IS DISTINCT FROM nation_1.n_regionkey)) AND (NOT (nation.n_comment IS DISTINCT FROM nation_1.n_comment)))
-                     ->  Seq Scan on nation
-                     ->  Hash
-                           ->  Seq Scan on nation nation_1
+         ->  HashSetOp Except
+               ->  Seq Scan on nation
+               ->  Seq Scan on nation nation_1
  Optimizer: pg_orca
-(11 rows)
+(7 rows)
 
 EXPLAIN (COSTS OFF) SELECT * FROM nation INTERSECT SELECT * FROM nation ORDER BY 3 LIMIT 10;
-                                                                                                                                          QUERY PLAN                                                                                                                                          
-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                  QUERY PLAN
+-----------------------------------------------
  Limit
    ->  Sort
          Sort Key: nation.n_regionkey
-         ->  Hash Join
-               Hash Cond: ((NOT (nation.n_nationkey IS DISTINCT FROM nation_1.n_nationkey)) AND (NOT (nation.n_name IS DISTINCT FROM nation_1.n_name)) AND (NOT (nation.n_regionkey IS DISTINCT FROM nation_1.n_regionkey)) AND (NOT (nation.n_comment IS DISTINCT FROM nation_1.n_comment)))
-               ->  HashAggregate
-                     Group Key: nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
-                     ->  Seq Scan on nation
-               ->  Hash
-                     ->  HashAggregate
-                           Group Key: nation_1.n_nationkey, nation_1.n_name, nation_1.n_regionkey, nation_1.n_comment
-                           ->  Seq Scan on nation nation_1
+         ->  HashSetOp Intersect
+               ->  Seq Scan on nation
+               ->  Seq Scan on nation nation_1
  Optimizer: pg_orca
-(13 rows)
+(7 rows)
 
 -- JOINs
 EXPLAIN (COSTS OFF) SELECT * FROM orders JOIN nation ON orders.o_custkey = nation.n_regionkey;
@@ -873,8 +863,8 @@ EXPLAIN (COSTS OFF, VERBOSE) SELECT * FROM customer WHERE EXISTS(SELECT n_nation
 
 -- Nested EXISTS
 EXPLAIN (COSTS OFF, VERBOSE) SELECT pn, cn, vn FROM sale s WHERE EXISTS (SELECT * FROM customer WHERE EXISTS (SELECT * FROM product WHERE pn = s.pn));
-                           QUERY PLAN                           
-----------------------------------------------------------------
+                             QUERY PLAN
+---------------------------------------------------------------------
  Result
    Output: s.pn, s.cn, s.vn
    Filter: (COALESCE(((SubPlan 1)), '0'::bigint) > '0'::bigint)
@@ -888,32 +878,33 @@ EXPLAIN (COSTS OFF, VERBOSE) SELECT pn, cn, vn FROM sale s WHERE EXISTS (SELECT 
                        ->  Nested Loop
                              Output: customer.ctid
                              Join Filter: true
-                             ->  Seq Scan on public.product
-                                   Filter: (product.pn = s.pn)
                              ->  Seq Scan on public.customer
                                    Output: customer.ctid
+                             ->  Materialize
+                                   ->  Seq Scan on public.product
+                                         Filter: (product.pn = s.pn)
  Optimizer: pg_orca
-(18 rows)
+(19 rows)
 
 EXPLAIN (COSTS OFF) SELECT pn, cn, vn FROM sale s WHERE cn IN (SELECT s.pn FROM customer WHERE cn NOT IN (SELECT pn FROM product WHERE pn = s.pn));
-                                                                                                                                                                                      QUERY PLAN                                                                                                                                                                                       
----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+                                                                                                                                                                                       QUERY PLAN
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
  Result
-   Filter: (COALESCE(((SubPlan 1)), '0'::bigint) > '0'::bigint)
+   Filter: (COALESCE(((SubPlan 2)), '0'::bigint) > '0'::bigint)
    ->  Seq Scan on sale s
          Filter: (cn = pn)
-         SubPlan 1
+         SubPlan 2
            ->  Aggregate
-                 ->  Nested Loop
-                       Join Filter: true
-                       ->  Result
-                             Filter: ((CASE WHEN ((sum((CASE WHEN (s.cn = product.pn) THEN 1 ELSE 0 END))) IS NULL) THEN true WHEN ((sum((CASE WHEN (product.pn IS NULL) THEN 1 ELSE 0 END))) > '0'::bigint) THEN NULL::boolean WHEN (s.cn IS NULL) THEN NULL::boolean WHEN ((sum((CASE WHEN (s.cn = product.pn) THEN 1 ELSE 0 END))) = '0'::bigint) THEN true ELSE false END) = true)
-                             ->  Result
-                                   ->  Aggregate
-                                         ->  Result
-                                               ->  Seq Scan on product
-                                                     Filter: (pn = s.pn)
-                       ->  Seq Scan on customer
+                 ->  Seq Scan on customer
+                       Filter: (SubPlan 1)
+                       SubPlan 1
+                         ->  Result
+                               Filter: ((CASE WHEN ((sum((CASE WHEN (s.cn = product.pn) THEN 1 ELSE 0 END))) IS NULL) THEN true WHEN ((sum((CASE WHEN (product.pn IS NULL) THEN 1 ELSE 0 END))) > '0'::bigint) THEN NULL::boolean WHEN (s.cn IS NULL) THEN NULL::boolean WHEN ((sum((CASE WHEN (s.cn = product.pn) THEN 1 ELSE 0 END))) = '0'::bigint) THEN true ELSE false END) = true)
+                               ->  Result
+                                     ->  Aggregate
+                                           ->  Result
+                                                 ->  Seq Scan on product
+                                                       Filter: (pn = s.pn)
  Optimizer: pg_orca
 (17 rows)
 

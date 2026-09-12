@@ -179,7 +179,9 @@ jobs:
         with:
           name: dsl-e2e-results
           path: |
-            build/dsl-e2e/
+            output/dsl-e2e/
+            test/dsl/e2e/output/
+            test/dsl/e2e/diff/
             build/dsl-corpus/
             output/cte-execution-contract/
 

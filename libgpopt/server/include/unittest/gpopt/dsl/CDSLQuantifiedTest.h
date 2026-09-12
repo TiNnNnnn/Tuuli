@@ -22,6 +22,7 @@ public:
 	static GPOS_RESULT EresUnittest_ConstantOuterDependencies();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedQuantified();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedProjectQuantified();
+	static GPOS_RESULT EresUnittest_PredicateRemapPreservesInput();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedScalarSubquery();
 };
 }  // namespace gpopt

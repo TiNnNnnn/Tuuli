@@ -78,6 +78,43 @@ CountSubqueryKinds(CExpression *pexpr, ULONG *pulScalar,
 }  // namespace
 
 CExpression *
+CDSLMatchView::PexprDedupInput(CExpression *pexprDedup)
+{
+	GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprDedup->Pop()->Eopid() ||
+				COperator::EopLogicalGbAggDeduplicate ==
+					pexprDedup->Pop()->Eopid());
+	GPOS_ASSERT(2 == pexprDedup->Arity());
+	GPOS_ASSERT(0 == (*pexprDedup)[1]->Arity());
+	CLogicalGbAgg *popGlobal = CLogicalGbAgg::PopConvert(pexprDedup->Pop());
+	GPOS_ASSERT(popGlobal->FGlobal());
+	CColRefArray *pdrgpcrGroup = popGlobal->Pdrgpcr();
+	CExpression *pexprInput = (*pexprDedup)[0];
+	while (0 < pdrgpcrGroup->Size() &&
+		   COperator::EopLogicalGbAgg == pexprInput->Pop()->Eopid() &&
+		   2 == pexprInput->Arity() && 0 == (*pexprInput)[1]->Arity())
+	{
+		CLogicalGbAgg *popLocal = CLogicalGbAgg::PopConvert(pexprInput->Pop());
+		if (COperator::EgbaggtypeLocal != popLocal->Egbaggtype())
+		{
+			break;
+		}
+		for (ULONG ul = 0; ul < pdrgpcrGroup->Size(); ul++)
+		{
+			if (gpos::ulong_max ==
+				popLocal->Pdrgpcr()->IndexOf((*pdrgpcrGroup)[ul]))
+			{
+				return pexprInput;
+			}
+		}
+		// DISTINCT A (partial DISTINCT B (R)) = DISTINCT A (R), A subset B.
+		// Binding Local as Input would let DSL rebuild Global(Local(...)) and
+		// native aggregate splitting add another Local on every rewrite cycle.
+		pexprInput = (*pexprInput)[0];
+	}
+	return pexprInput;
+}
+
+CExpression *
 CDSLMatchView::PexprInverseComparison(CMemoryPool *mp,
 									  CExpression *pexprCmp)
 {

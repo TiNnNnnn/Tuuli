@@ -189,6 +189,28 @@ bool  pg_orca_dphyper_shadow = false;
 int   pg_orca_dphyper_edge_budget = 100000;
 int   pg_orca_dphyper_pair_budget = 100;
 
+static bool
+check_enable_dphyper(bool *newval, void **extra, GucSource source)
+{
+    if (*newval && pg_orca_dphyper_shadow)
+    {
+        GUC_check_errdetail("DPHyper and native join enumeration cannot run together; disable pg_orca.dphyper_shadow first.");
+        return false;
+    }
+    return true;
+}
+
+static bool
+check_dphyper_shadow(bool *newval, void **extra, GucSource source)
+{
+    if (*newval && pg_orca_enable_dphyper)
+    {
+        GUC_check_errdetail("DPHyper and native join enumeration cannot run together; disable pg_orca.enable_dphyper first.");
+        return false;
+    }
+    return true;
+}
+
 /* Query-level search-space guard for DSL-generated logical alternatives. */
 int   pg_orca_dsl_rule_max_alternatives = 0;
 int   pg_orca_dsl_rule_max_alternatives_per_rule = 0;
@@ -894,7 +916,7 @@ void _PG_init(void)
         &pg_orca_enable_dphyper,
         true,
         PGC_USERSET,
-        0, NULL, NULL, NULL);
+        0, check_enable_dphyper, NULL, NULL);
 
     DefineCustomIntVariable(
         "pg_orca.dphyper_edge_budget",
@@ -908,14 +930,13 @@ void _PG_init(void)
 
     DefineCustomBoolVariable(
         "pg_orca.dphyper_shadow",
-        "Keep native ORCA join enumerators alongside DPHyper for differential "
-        "testing. When off, DPHyper owns supported join regions and budget "
-        "fallbacks materialize a binary greedy plan.",
+        "Legacy native comparison switch; may only be enabled with DPHyper "
+        "disabled. Compare native and DPHyper enumeration in separate runs.",
         NULL,
         &pg_orca_dphyper_shadow,
         false,
         PGC_USERSET,
-        0, NULL, NULL, NULL);
+        0, check_dphyper_shadow, NULL, NULL);
 
     DefineCustomIntVariable(
         "pg_orca.dphyper_pair_budget",

@@ -674,8 +674,10 @@ CXformUtils::ImplementHashJoin(CXformContext *pxfctxt, CXformResult *pxfres,
 {
 	GPOS_ASSERT(nullptr != pxfctxt);
 
-	// if there are outer references, then we cannot build a hash join
-	if (CUtils::HasOuterRefs(pexpr))
+	// A sibling dependency disappears from the join's outer-reference set,
+	// but still requires parameterized NLJ execution, not hash/merge execution.
+	if (CUtils::HasOuterRefs(pexpr) || CUtils::HasOuterRefs((*pexpr)[0]) ||
+		CUtils::HasOuterRefs((*pexpr)[1]))
 	{
 		return;
 	}
@@ -835,8 +837,9 @@ CXformUtils::ImplementMergeJoin(CXformContext *pxfctxt, CXformResult *pxfres,
 {
 	GPOS_ASSERT(nullptr != pxfctxt);
 
-	// if there are outer references, then we cannot build a merge join
-	if (CUtils::HasOuterRefs(pexpr))
+	// Check children too: the parent may have satisfied a lateral dependency.
+	if (CUtils::HasOuterRefs(pexpr) || CUtils::HasOuterRefs((*pexpr)[0]) ||
+		CUtils::HasOuterRefs((*pexpr)[1]))
 	{
 		return;
 	}

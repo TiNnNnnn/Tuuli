@@ -91,6 +91,10 @@ public:
 								 CColRefArray *pdrgpcrRight,
 								 CExpressionArray *pdrgpexprResidual);
 
+	// Return the borrowed logical input of a pure Global dedup, skipping only
+	// compatible, function-free Local dedup stages. Never changes memo members.
+	static CExpression *PexprDedupInput(CExpression *pexprDedup);
+
 	// Recognize the memo-safe identity marker Select(pure-global-dedup, TRUE).
 	// The returned expression and grouping array are non-owning.
 	static BOOL FDedupIdentity(CExpression *pexpr,

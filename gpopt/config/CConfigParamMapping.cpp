@@ -25,12 +25,12 @@ extern bool pg_orca_enable_dynamic_tablescan;
 extern bool pg_orca_enable_dsl_rule;
 extern bool pg_orca_enable_assert_maxonerow;
 extern bool pg_orca_enable_dphyper;
-extern bool pg_orca_dphyper_shadow;
 // pg_orca.dsl_only_xforms / pg_orca.trace_dsl_rule (pg_orca.cpp): scoped
 // native-xform suppression and per-rule attribution for replacement tests.
 extern char *pg_orca_dsl_only_xforms;
 extern bool pg_orca_trace_dsl_rule;
 #include "gpopt/config/CConfigParamMapping.h"
+#include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/xforms/CXform.h"
 #include "gpopt/xforms/CXformFactory.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -352,9 +352,8 @@ CConfigParamMapping::SConfigMappingElem CConfigParamMapping::m_elements[] = {
 	 false, GPOS_WSZ_LIT(
 		 "Explore pure inner-join regions with DPHyper inside Cascades.")},
 
-	{EopttraceDPHyperShadow, &pg_orca_dphyper_shadow,
-	 false, GPOS_WSZ_LIT(
-		 "Keep native join enumerators alongside DPHyper for differential tests.")},
+	// Never enable shadow enumeration in PostgreSQL tasks. In particular,
+	// transaction restoration can restore GUC values without running check hooks.
 };
 
 //---------------------------------------------------------------------------
@@ -404,7 +403,13 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 		GPOS_ASSERT(!traceflag_bitset->Get(EopttraceDisableXformBase + ul) &&
 					"xform trace flag already set");
 
-		if (optimizer_xforms[ul])
+		// DPHyper owns join enumeration for the whole optimization, including
+		// joins introduced later by DSL/native rewrites and fallback regions.
+		// Keep physical implementations and semantic join rewrites available.
+		if (optimizer_xforms[ul] ||
+			(pg_orca_enable_dphyper &&
+			 CJobJoinEnumeration::FNativeJoinEnumerationXform(
+				 static_cast<CXform::EXformId>(ul))))
 		{
 			BOOL is_traceflag_set GPOS_ASSERTS_ONLY =
 				traceflag_bitset->ExchangeSet(EopttraceDisableXformBase + ul);
@@ -599,9 +604,9 @@ CConfigParamMapping::PackConfigParamInBitset(CMemoryPool *mp, ULONG xform_id)
 	}
 
 	// Native join-order search policy, controlled by GUC optimizer_join_order
-	// (definition lives in pg_orca.cpp). DPHyper owns supported join regions
-	// when enabled; this policy remains relevant to explicit DPHyper-off and
-	// shadow-mode comparisons. Users can select a policy per session, e.g.
+	// (definition lives in pg_orca.cpp). This policy controls native search
+	// only when DPHyper is disabled. Compare enumerators in separate runs.
+	// Users can select a policy per session, e.g.
 	//   SET optimizer_join_order = exhaustive;
 	CBitSet *join_heuristic_bitset = nullptr;
 	switch (optimizer_join_order)

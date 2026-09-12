@@ -1261,6 +1261,24 @@ CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs()
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprProject->Release();
+
+	// A preceding key substitution may already use the other key's output
+	// identity. Rebinding it back must yield pass-through, not right := right.
+	pexprProject = PexprProjectWithScalar(
+		mp, pexprJoin, (*pdrgpcrRight)[0],
+		CUtils::PexprScalarIdent(mp, (*pdrgpcrLeft)[0]));
+	pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel));
+	GPOS_ASSERT(checker.FCheck(prule, pmodel));
+	CDSLInstantiator instantiator(mp);
+	pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+	GPOS_ASSERT(nullptr != pexprTarget);
+	GPOS_ASSERT(COperator::EopLogicalProject == pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(0 == (*pexprTarget)[1]->Arity());
+	GPOS_ASSERT(pexprTarget->DeriveOutputColumns()->FMember((*pdrgpcrRight)[0]));
+	pexprTarget->Release();
+	pmodel->Release();
+	pexprProject->Release();
 	pexprJoin->Release();
 	pexprLeft->Release();
 	pexprRight->Release();

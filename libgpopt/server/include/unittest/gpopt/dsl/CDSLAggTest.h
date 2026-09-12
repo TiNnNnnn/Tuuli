@@ -48,6 +48,7 @@ public:
 	// the dedup rule matches a live dedup GbAgg over a Get whose grouping column
 	// is the unique key, and flags the model for a dedup drop.
 	static GPOS_RESULT EresUnittest_MatchBindsDedupGbAgg();
+	static GPOS_RESULT EresUnittest_MatchSplitDedupInput();
 
 	// end-to-end fire: match + check + instantiate produce Select(Get) — the GbAgg
 	// is gone, the child Get is reused (pointer identity), output cols preserved.

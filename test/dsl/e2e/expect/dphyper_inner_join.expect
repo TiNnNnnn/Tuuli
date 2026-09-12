@@ -12,7 +12,25 @@
         "mode=replacement"
       ],
       "not_contains": [
-        "Xform: CXformExpandNAryJoinDPv2"
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity",
+        "Xform: CXformInnerJoinSemiJoinSwap",
+        "Xform: CXformInnerJoinAntiSemiJoinSwap",
+        "Xform: CXformInnerJoinAntiSemiJoinNotInSwap",
+        "Xform: CXformLeftJoin2RightJoin",
+        "Xform: CXformSemiJoinSemiJoinSwap",
+        "Xform: CXformSemiJoinAntiSemiJoinSwap",
+        "Xform: CXformSemiJoinAntiSemiJoinNotInSwap",
+        "Xform: CXformSemiJoinInnerJoinSwap",
+        "Xform: CXformAntiSemiJoinAntiSemiJoinSwap",
+        "Xform: CXformAntiSemiJoinAntiSemiJoinNotInSwap",
+        "Xform: CXformAntiSemiJoinSemiJoinSwap",
+        "Xform: CXformAntiSemiJoinInnerJoinSwap",
+        "Xform: CXformAntiSemiJoinNotInAntiSemiJoinSwap",
+        "Xform: CXformAntiSemiJoinNotInAntiSemiJoinNotInSwap",
+        "Xform: CXformAntiSemiJoinNotInSemiJoinSwap",
+        "Xform: CXformAntiSemiJoinNotInInnerJoinSwap",
+        "Xform: CXformFullJoinCommutativity"
       ],
       "joins": 2
     },
@@ -21,6 +39,9 @@
       "dsl": false,
       "dphyper": false,
       "trace": true,
+      "contains": [
+        "Xform: CXformInnerJoinCommutativity"
+      ],
       "not_contains": [
         "DPHyper: status=applied"
       ]

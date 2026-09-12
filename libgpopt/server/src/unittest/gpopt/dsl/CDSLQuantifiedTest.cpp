@@ -194,6 +194,8 @@ CDSLQuantifiedTest::EresUnittest()
 			CDSLQuantifiedTest::EresUnittest_ConstantOuterDependencies),
 		GPOS_UNITTEST_FUNC(
 			CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified),
+		GPOS_UNITTEST_FUNC(
+			CDSLQuantifiedTest::EresUnittest_PredicateRemapPreservesInput),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::
 			EresUnittest_ExpressionDefinedProjectQuantified),
 		GPOS_UNITTEST_FUNC(
@@ -444,6 +446,9 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		CExpression *pexprTarget =
 			instantiator.PexprInstantiate(prule, pmodel);
 		GPOS_ASSERT(nullptr != pexprTarget);
+		// PredicateAny/All exposes the complete relational operand as Input.
+		// Re-normalizing that input would detach a split aggregate from Memo.
+		GPOS_ASSERT((*pexprTarget)[1] == (*(*pexprSource)[1])[0]);
 		GPOS_ASSERT((fAll ? COperator::EopLogicalLeftAntiSemiApplyNotIn
 						   : COperator::EopLogicalLeftSemiApplyIn) ==
 					pexprTarget->Pop()->Eopid());
@@ -456,6 +461,53 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		prule->Release();
 		pexprSource->Release();
 		pexprInnerGet->Release();
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLQuantifiedTest::EresUnittest_PredicateRemapPreservesInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	{
+		CColRefArray *leftCols = nullptr, *rightCols = nullptr, *innerCols = nullptr;
+		CExpression *left = fix.PexprLogicalGet("remap_left", 1, &leftCols);
+		CExpression *right = fix.PexprLogicalGet("remap_right", 1, &rightCols);
+		CExpression *inner = fix.PexprLogicalGet("remap_inner", 1, &innerCols);
+		CExpression *eq = fix.PexprEqPred((*leftCols)[0], (*rightCols)[0]);
+		CExpression *join = fix.PexprLogicalInnerJoin(left, right, eq);
+		CExpression *predicate = PexprQuantified(
+			mp, fix, all, inner, (*rightCols)[0], (*innerCols)[0]);
+		CExpression *source = fix.PexprLogicalSelect(join, predicate);
+		CDSLRule *rule = PruleParse(mp,
+			"Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+			"Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|"
+			"AttrsEq(a1,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);"
+			"AttrsSub(a2,t1);AttrsSub(a5,t0);TableEq(t2,t0);TableEq(t3,t1);"
+			"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0)");
+		GPOS_ASSERT(nullptr != rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		GPOS_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(rule, model));
+		CDSLInstantiator instantiator(mp);
+		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		GPOS_ASSERT(nullptr != target);
+		GPOS_ASSERT((*(*target)[1])[0] == inner);
+		GPOS_ASSERT((*(*target)[1])[1]->Matches((*eq)[0]));
+		target->Release();
+		model->Release();
+		rule->Release();
+		source->Release();
+		predicate->Release();
+		join->Release();
+		eq->Release();
+		left->Release();
+		right->Release();
 	}
 	return GPOS_OK;
 }

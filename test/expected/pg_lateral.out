@@ -617,24 +617,25 @@ explain (verbose, costs off)
 select * from
   int8_tbl a left join
   lateral (select *, a.q2 as x from int8_tbl b) ss on a.q2 = ss.q1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 1 not found in project list
-                QUERY PLAN                
-------------------------------------------
+                   QUERY PLAN
+-------------------------------------------------
  Nested Loop Left Join
    Output: a.q1, a.q2, b.q1, b.q2, (a.q2)
+   Join Filter: (a.q2 = b.q1)
    ->  Seq Scan on public.int8_tbl a
          Output: a.q1, a.q2
-   ->  Seq Scan on public.int8_tbl b
-         Output: b.q1, b.q2, a.q2
-         Filter: (a.q2 = b.q1)
-(7 rows)
+   ->  Materialize
+         Output: (a.q2), b.q1, b.q2
+         ->  Result
+               Output: a.q2, b.q1, b.q2
+               ->  Seq Scan on public.int8_tbl b
+                     Output: b.q1, b.q2
+ Optimizer: pg_orca
+(12 rows)
 
 select * from
   int8_tbl a left join
   lateral (select *, a.q2 as x from int8_tbl b) ss on a.q2 = ss.q1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 1 not found in project list
         q1        |        q2         |        q1        |        q2         |        x         
 ------------------+-------------------+------------------+-------------------+------------------
               123 |               456 |                  |                   |                 
@@ -653,24 +654,25 @@ explain (verbose, costs off)
 select * from
   int8_tbl a left join
   lateral (select *, coalesce(a.q2, 42) as x from int8_tbl b) ss on a.q2 = ss.q1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 1 not found in project list
                             QUERY PLAN                            
 ------------------------------------------------------------------
  Nested Loop Left Join
    Output: a.q1, a.q2, b.q1, b.q2, (COALESCE(a.q2, '42'::bigint))
+   Join Filter: (a.q2 = b.q1)
    ->  Seq Scan on public.int8_tbl a
          Output: a.q1, a.q2
-   ->  Seq Scan on public.int8_tbl b
-         Output: b.q1, b.q2, COALESCE(a.q2, '42'::bigint)
-         Filter: (a.q2 = b.q1)
-(7 rows)
+   ->  Materialize
+         Output: (COALESCE(a.q2, '42'::bigint)), b.q1, b.q2
+         ->  Result
+               Output: COALESCE(a.q2, '42'::bigint), b.q1, b.q2
+               ->  Seq Scan on public.int8_tbl b
+                     Output: b.q1, b.q2
+ Optimizer: pg_orca
+(12 rows)
 
 select * from
   int8_tbl a left join
   lateral (select *, coalesce(a.q2, 42) as x from int8_tbl b) ss on a.q2 = ss.q1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 1 not found in project list
         q1        |        q2         |        q1        |        q2         |        x         
 ------------------+-------------------+------------------+-------------------+------------------
               123 |               456 |                  |                   |                 
@@ -806,30 +808,32 @@ select * from
   (select b.q1 as bq1, c.q1 as cq1, least(a.q1,b.q1,c.q1) from
    int8_tbl b cross join int8_tbl c) ss
   on a.q2 = ss.bq1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 0 not found in project list
                          QUERY PLAN                          
 -------------------------------------------------------------
  Nested Loop Left Join
    Output: a.q1, a.q2, b.q1, c.q1, (LEAST(a.q1, b.q1, c.q1))
+   Join Filter: (a.q2 = b.q1)
    ->  Seq Scan on public.int8_tbl a
          Output: a.q1, a.q2
-   ->  Nested Loop
-         Output: b.q1, c.q1, LEAST(a.q1, b.q1, c.q1)
-         ->  Seq Scan on public.int8_tbl b
-               Output: b.q1, b.q2
-               Filter: (a.q2 = b.q1)
-         ->  Seq Scan on public.int8_tbl c
-               Output: c.q1, c.q2
-(11 rows)
+   ->  Materialize
+         Output: (LEAST(a.q1, b.q1, c.q1)), b.q1, c.q1
+         ->  Result
+               Output: LEAST(a.q1, b.q1, c.q1), b.q1, c.q1
+               ->  Nested Loop
+                     Output: b.q1, c.q1
+                     Join Filter: true
+                     ->  Seq Scan on public.int8_tbl b
+                           Output: b.q1
+                     ->  Seq Scan on public.int8_tbl c
+                           Output: c.q1
+ Optimizer: pg_orca
+(17 rows)
 
 select * from
   int8_tbl a left join lateral
   (select b.q1 as bq1, c.q1 as cq1, least(a.q1,b.q1,c.q1) from
    int8_tbl b cross join int8_tbl c) ss
   on a.q2 = ss.bq1;
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  DXL-to-PlStmt Translation: Attribute number 0 not found in project list
         q1        |        q2         |       bq1        |       cq1        |      least       
 ------------------+-------------------+------------------+------------------+------------------
               123 |               456 |                  |                  |                 
@@ -976,7 +980,7 @@ select c.*,a.*,ss1.q1,ss2.q1,ss3.* from
 ---------------------------------------------------------------------------------------------------------
  Nested Loop
    Output: c.q1, c.q2, a.q1, a.q2, b.q1, d.q1, i.f1
-   Join Filter: ((COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2)) > i.f1)
+   Join Filter: true
    ->  Hash Left Join
          Output: c.q1, c.q2, a.q1, a.q2, b.q1, d.q1, (COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2))
          Hash Cond: (c.q2 = d.q1)
@@ -1007,10 +1011,13 @@ select c.*,a.*,ss1.q1,ss2.q1,ss3.* from
                                  Output: COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2), d.q1
                                  ->  Seq Scan on public.int8_tbl d
                                        Output: d.q1, d.q2
-   ->  Seq Scan on public.int4_tbl i
+   ->  Materialize
          Output: i.f1
+         ->  Seq Scan on public.int4_tbl i
+               Output: i.f1
+               Filter: ((COALESCE((COALESCE(b.q2, (b2.f1)::bigint)), d.q2)) > i.f1)
  Optimizer: pg_orca
-(36 rows)
+(39 rows)
 
 -- check processing of postponed quals (bug #9041)
 explain (verbose, costs off)

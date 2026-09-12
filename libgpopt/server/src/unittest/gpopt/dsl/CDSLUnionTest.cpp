@@ -1260,12 +1260,20 @@ EresCorpusProjectRule(BOOL fDistinctProjects)
 	CColRefArray *pdrgpcr0 = nullptr, *pdrgpcr1 = nullptr;
 	CExpression *pexprGet0 = fix.PexprLogicalGet("cp0", 1, &pdrgpcr0);
 	CExpression *pexprGet1 = fix.PexprLogicalGet("cp1", 1, &pdrgpcr1);
+	// Use real aliases: compute-scalar must not redefine a pass-through column.
+	if (!fDistinctProjects)
+	{
+		pexprGet0->AddRef();
+		pexprGet1->AddRef();
+	}
 	CExpression *pexprChild0 = fDistinctProjects
 		? fix.PexprLogicalGbAgg(pexprGet0, pdrgpcr0)
-		: fix.PexprLogicalProject(pexprGet0, pdrgpcr0);
+		: CUtils::PexprAddProjection(
+			mp, pexprGet0, CUtils::PexprScalarIdent(mp, (*pdrgpcr0)[0]));
 	CExpression *pexprChild1 = fDistinctProjects
 		? fix.PexprLogicalGbAgg(pexprGet1, pdrgpcr1)
-		: fix.PexprLogicalProject(pexprGet1, pdrgpcr1);
+		: CUtils::PexprAddProjection(
+			mp, pexprGet1, CUtils::PexprScalarIdent(mp, (*pdrgpcr1)[0]));
 	CExpression *pexprSource = PexprSetOp(
 		mp, false, pexprChild0, pdrgpcr0, pexprChild1, pdrgpcr1);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);

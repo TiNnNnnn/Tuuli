@@ -1,0 +1,15 @@
+{
+  "description": "Reject enabling native shadow enumeration while DPHyper is enabled",
+  "plans": [],
+  "rows": {
+    "dsl": false,
+    "dphyper": true,
+    "error_sqlstate": "22023",
+    "output": [
+      "SQLSTATE 22023"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22023"
+    ]
+  }
+}

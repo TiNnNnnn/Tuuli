@@ -25,6 +25,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -33,6 +34,7 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
@@ -236,6 +238,7 @@ CDSLAggTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchSplitDedupInput),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_InstantiateProducesSelectOverChild),
 		GPOS_UNITTEST_FUNC(
@@ -1303,8 +1306,113 @@ CDSLAggTest::EresUnittest_RejectsWrongAggFunction()
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg
+//		CDSLAggTest::EresUnittest_MatchSplitDedupInput
 //---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLAggTest::EresUnittest_MatchSplitDedupInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_DISTINCT_ELIM_RULE);
+	GPOS_ASSERT(nullptr != prule);
+	CDSLMatcher matcher(mp, prule);
+	GPOS_RESULT eres = GPOS_OK;
+	enum
+	{
+		NestedLocal,
+		WiderLocal,
+		GlobalChild,
+		IncompatibleKeys,
+		AggregateFunction,
+		ScalarGlobal,
+		Cases
+	};
+	for (ULONG test = 0; test < Cases; test++)
+	{
+		CColRefArray *pdrgpcrInput = nullptr;
+		CExpression *pexprGet =
+			fix.PexprLogicalGet("split_dedup", 2, &pdrgpcrInput);
+		CColRefArray *pdrgpcrGroup = GPOS_NEW(mp) CColRefArray(mp);
+		pdrgpcrGroup->Append((*pdrgpcrInput)[0]);
+		CColRefArray *pdrgpcrLocal = GPOS_NEW(mp) CColRefArray(mp);
+		if (IncompatibleKeys != test)
+		{
+			pdrgpcrLocal->Append((*pdrgpcrInput)[0]);
+		}
+		if (WiderLocal == test || IncompatibleKeys == test)
+		{
+			pdrgpcrLocal->Append((*pdrgpcrInput)[1]);
+		}
+		CExpression *pexprFunctions =
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp));
+		if (AggregateFunction == test)
+		{
+			CExpression *pexprReal = fix.PexprLogicalGbAgg(
+				pexprGet, pdrgpcrGroup, fix.PcrCreateInt4("max_value"),
+				(*pdrgpcrInput)[1]);
+			pexprFunctions->Release();
+			pexprFunctions = (*pexprReal)[1];
+			pexprFunctions->AddRef();
+			pexprReal->Release();
+		}
+		pexprGet->AddRef();
+		CExpression *pexprLocal = GPOS_NEW(mp) CExpression(
+			mp,
+			GPOS_NEW(mp)
+				CLogicalGbAgg(mp, pdrgpcrLocal,
+							  GlobalChild == test ? COperator::EgbaggtypeGlobal
+												  : COperator::EgbaggtypeLocal),
+			pexprGet, pexprFunctions);
+		if (NestedLocal == test)
+		{
+			pdrgpcrGroup->AddRef();
+			pexprLocal = GPOS_NEW(mp) CExpression(
+				mp,
+				GPOS_NEW(mp)
+					CLogicalGbAgg(mp, pdrgpcrGroup, COperator::EgbaggtypeLocal),
+				pexprLocal,
+				GPOS_NEW(mp)
+					CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
+		}
+		CColRefArray *pdrgpcrGlobal = pdrgpcrGroup;
+		if (ScalarGlobal == test)
+		{
+			pdrgpcrGlobal = GPOS_NEW(mp) CColRefArray(mp);
+		}
+		CExpression *pexprGlobal =
+			fix.PexprLogicalGbAgg(pexprLocal, pdrgpcrGlobal);
+		const BOOL fPeel = NestedLocal == test || WiderLocal == test;
+		CExpression *pexprExpected = fPeel ? pexprGet : pexprLocal;
+		if (pexprExpected != CDSLMatchView::PexprDedupInput(pexprGlobal))
+		{
+			eres = GPOS_FAILED;
+		}
+		if (fPeel)
+		{
+			CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+			const CDSLOp *popSource = prule->PfragSrc()->PopRoot();
+			if (!matcher.FMatch(popSource, pexprGlobal, pmodel) ||
+				pexprGet !=
+					pmodel->PexprTable((*(*popSource)[0]->Pdrgpsym())[0]))
+			{
+				eres = GPOS_FAILED;
+			}
+			pmodel->Release();
+		}
+		if (ScalarGlobal == test)
+		{
+			pdrgpcrGlobal->Release();
+		}
+		pdrgpcrGroup->Release();
+		pexprGlobal->Release();
+		pexprLocal->Release();
+		pexprGet->Release();
+	}
+	prule->Release();
+	return eres;
+}
+
 GPOS_RESULT
 CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg()
 {
