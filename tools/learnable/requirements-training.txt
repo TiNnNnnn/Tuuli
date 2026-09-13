@@ -1,3 +1,0 @@
--r requirements.txt
-# Use the CPU or CUDA PyTorch wheel index appropriate for the training host.
-torch>=2.2,<3
