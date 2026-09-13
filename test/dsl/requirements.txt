@@ -1,2 +1,2 @@
 # The optimizer integration tests use the production trace/import component.
--r ../../tools/learnable/requirements.txt
+-r ../../tools/ml-orca/requirements.txt

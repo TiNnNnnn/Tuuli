@@ -41,7 +41,7 @@ Merge workload-observed `rule_edge` records into a persistent graph and render
 them as blue DOT edges with:
 
 ```sh
-python3 -m tools.learnable.graph.merge_rule_graph build/rule-audit/rule_graph.json \
+python3 -m ml_orca.graph.merge_rule_graph build/rule-audit/rule_graph.json \
   build/workload.log --output build/rule_graph.merged.json \
   --dot build/rule_graph.merged.dot
 ```

@@ -13,3 +13,6 @@
 [submodule "third_party/antlr4"]
 	path = third_party/antlr4
 	url = https://github.com/antlr/antlr4
+[submodule "tools/ml-orca"]
+	path = tools/ml-orca
+	url = https://github.com/TiNnNnnn/ml-orca.git

@@ -3,8 +3,7 @@
 
 from __future__ import annotations
 
-import learnable_test_support
-from tools.learnable.common.replacement_contract import (validate_replacement_matrix, XFORM_RE, REPLACEMENT_STATES, PROVENANCE_SOURCES)
+from replacement_contract import (validate_replacement_matrix, XFORM_RE, REPLACEMENT_STATES, PROVENANCE_SOURCES)
 
 import argparse
 import difflib
