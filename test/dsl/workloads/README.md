@@ -34,7 +34,7 @@ Named value-parameter templates and finite validation cases are in
 `fixtures/parameters/`. Generate a separate workload without changing originals:
 
 ```sh
-python3 test/dsl/instantiate_query_workload.py \
+python3 -m tools.learnable.data.instantiate_query_workload \
   --spec test/dsl/workloads/fixtures/parameters/domain_cases.json \
   --output output/parameter-workload
 ```
@@ -62,7 +62,7 @@ causal performance pairs.
 Run one checked-in query with:
 
 ```sh
-python3 test/dsl/run_workload_comparison.py --pg-config /path/to/pg_config \
+python3 -m tools.learnable.collect.run_workload_comparison --pg-config /path/to/pg_config \
   --audit-bin build-ninja/pgorca_rule_audit -t tpch/q01
 ```
 
@@ -74,7 +74,7 @@ For broader **attempt coverage**, sample the locally imported WeTune application
 SQL without requiring a rule to appear in the final plan:
 
 ```sh
-python3 test/dsl/profile_corpus_attempts.py --pg-config /path/to/pg_config \
+python3 -m tools.learnable.collect.profile_corpus_attempts --pg-config /path/to/pg_config \
   --audit-bin build-ninja/pgorca_rule_audit \
   --output output/wetune-attempts --per-dataset 4 --jobs 4
 ```
@@ -101,7 +101,7 @@ bank or local imported corpus is added to CI by this command.
 Describe conditional responses from existing compressed traces without replaying SQL:
 
 ```sh
-python3 test/dsl/profile_rule_conditions.py \
+python3 -m tools.learnable.experiments.profile_rule_conditions \
   --results output/wetune-attempts --results output/wetune-attempts-next \
   --output output/wetune-conditions --rule '592029aaa72e88fb=过滤合并'
 ```
@@ -140,17 +140,17 @@ Export selected imported cases, without changing their SQL or schema, for a
 nonempty OFF/CBO experiment using the normal workload runner:
 
 ```sh
-python3 test/dsl/profile_corpus_attempts.py --pg-config /path/to/pg_config \
+python3 -m tools.learnable.collect.profile_corpus_attempts --pg-config /path/to/pg_config \
   --audit-bin build-ninja/pgorca_rule_audit --case pybbs:31 \
   --export-only --output output/selected-workload
-python3 test/dsl/run_workload_comparison.py --pg-config /path/to/pg_config \
+python3 -m tools.learnable.collect.run_workload_comparison --pg-config /path/to/pg_config \
   --audit-bin build-ninja/pgorca_rule_audit --workload-dir output/selected-workload \
   --workload pybbs --setup-sql test/dsl/workloads/fixtures/pybbs_profile_data.sql \
   --profile-rule 92983d6d3650ab0c --profile-cbo-only --unbounded \
   --stats-experiment test/dsl/rules/stats_input_observation.yaml \
   --timing-repeats 7 --timing-warmups 1 --timing-seed 7 --jobs 1 --timeout 60 \
   --output output/paired-run
-python3 test/dsl/profile_rule_pair.py \
+python3 -m tools.learnable.experiments.profile_rule_pair \
   --case '左连接计数=output/paired-run/pybbs/31/comparison.json' \
   --output output/paired-summary
 ```
@@ -169,7 +169,7 @@ To measure data-scale responses, use a setup SQL template with an explicit
 `${rows}` placeholder and freeze all scales before running:
 
 ```sh
-python3 test/dsl/profile_data_scale.py --pg-config /path/to/pg_config \
+python3 -m tools.learnable.experiments.profile_data_scale --pg-config /path/to/pg_config \
   --audit-bin build-ninja/pgorca_rule_audit --workload-dir output/selected-workload \
   --workload fatfreecrm --query 154 --rule a7d859279ffc7369 \
   --setup-template test/dsl/workloads/fixtures/fatfreecrm_profile_scale.template.sql \
@@ -190,7 +190,7 @@ threshold. Unavailable observations stay missing rather than becoming zero benef
 Compare several completed scale responses without assigning curve families:
 
 ```sh
-python3 test/dsl/compare_rule_curves.py \
+python3 -m tools.learnable.experiments.compare_rule_curves \
   --case '去重／计数=output/dedup-data-scale/响应.json' \
   --case '去重／另一查询=output/other-query-scale/响应.json' \
   --output output/curve-validation
@@ -219,7 +219,7 @@ For rule-independent dimension evaluation, reuse frozen corpus traces without SQ
 replay or selecting rule hashes:
 
 ```sh
-python3 test/dsl/evaluate_rule_dimensions.py \
+python3 -m tools.learnable.experiments.evaluate_rule_dimensions \
   --results output/orchestration-wetune-attempts-v1 \
   --results output/orchestration-wetune-attempts-v2 \
   --output output/generic-dimensions
@@ -246,7 +246,7 @@ Add generic RuleIR features without rule-specific selection:
 ```sh
 ninja -C build-ninja -j16 pgorca_rule_audit
 build-ninja/pgorca_rule_audit test/dsl/rules output/template-audit
-python3 test/dsl/evaluate_rule_dimensions.py \
+python3 -m tools.learnable.experiments.evaluate_rule_dimensions \
   --results output/orchestration-wetune-attempts-v1 \
   --results output/orchestration-wetune-attempts-v2 \
   --rule-graph output/template-audit/rule_graph.json \
@@ -264,7 +264,7 @@ for later comparisons, not claimed as evaluated predictors in this experiment.
 ### Rule-driven example pilot
 
 `../export_rule_examples.py` reuses the local WeTune parser and plan-to-SQL
-example translator through `../ExportRuleExamples.java`. Supply
+example translator through `../../../tools/learnable/experiments/ExportRuleExamples.java`. Supply
 `--wetune-classpath` (current compiled `superopt`, `sql`, `common` directories,
 then dependency jars) and a new `--output` directory. No downloads or WeTune
 prover changes are required; this optional local experiment is not a CI job.
@@ -281,7 +281,7 @@ with `--stats-experiment test/dsl/rules/stats_input_observation.yaml`, `--postgr
 and `--unbounded`. Analyze with:
 
 ```sh
-python3 test/dsl/export_rule_examples.py --output output/example-export \
+python3 -m tools.learnable.experiments.export_rule_examples --output output/example-export \
   --results output/example-comparison --report-output output/example-comparison
 ```
 
@@ -324,7 +324,7 @@ requests silently. Keep failed old designs separate from revised experiments.
 Audit a single-query, possibly multi-input sweep with:
 
 ```sh
-python3 test/dsl/profile_rule_candidates.py \
+python3 -m tools.learnable.trace.profile_rule_candidates \
   --sweep-manifest output/sweep/manifest.json \
   --comparison output/run/workload/query/comparison.json \
   --output output/response/基数响应

@@ -1,2 +1,2 @@
-# WeTune workload SQL/schema translation used by test_trace_framework.py.
-sqlglot==23.12.1
+# The optimizer integration tests use the production trace/import component.
+-r ../../tools/learnable/requirements.txt

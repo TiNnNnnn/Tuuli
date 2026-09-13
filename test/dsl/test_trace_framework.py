@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import learnable_test_support
 import json
 import math
 import subprocess
@@ -17,46 +18,47 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from test_rule_policy_encoding import EncodingTest
-from test_rule_policy_model import SequenceEncoderTest
-from test_rule_tree_model import RuleTreeLayoutTest, RuleTreeModelTest
-from test_rule_history_encoding import RuleHistoryEncodingTest, RuleHistoryModelTest
-from test_query_policy_encoding import QueryEncodingTest
-from test_group_expression_encoding import GroupExpressionEncodingTest
+from tools.learnable.tests.test_rule_policy_encoding import EncodingTest
+from tools.learnable.tests.test_rule_policy_model import SequenceEncoderTest
+from tools.learnable.tests.test_rule_tree_model import RuleTreeLayoutTest, RuleTreeModelTest
+from tools.learnable.tests.test_rule_history_encoding import RuleHistoryEncodingTest, RuleHistoryModelTest
+from tools.learnable.tests.test_query_policy_encoding import QueryEncodingTest
+from tools.learnable.tests.test_group_expression_encoding import GroupExpressionEncodingTest
+from tools.learnable.tests.test_context_fragments import ContextFragmentsTest
 
-from build_reference_manifest import build_manifest
-from expand_rule_neighborhoods import propose as propose_rule_neighborhoods
-from instantiate_query_workload import instantiate, instantiate_relations, write_workload as write_parameter_workload
-from generate_stats_sweep import discovery_targets, geometric_factors, sweep_points, write_sweep, sampled_input_target, write_cohort_sweeps
-from plot_stats_sweep import measured_points, timing_points
-from profile_rule_candidates import (candidate_evidence, STAGES, binding_shape_features, cohort_candidate_evidence,
+from tools.learnable.data.build_reference_manifest import build_manifest
+from tools.learnable.graph.expand_rule_neighborhoods import propose as propose_rule_neighborhoods
+from tools.learnable.data.instantiate_query_workload import instantiate, instantiate_relations, write_workload as write_parameter_workload
+from tools.learnable.experiments.generate_stats_sweep import discovery_targets, geometric_factors, sweep_points, write_sweep, sampled_input_target, write_cohort_sweeps
+from tools.learnable.experiments.plot_stats_sweep import measured_points, timing_points
+from tools.learnable.trace.profile_rule_candidates import (candidate_evidence, STAGES, binding_shape_features, cohort_candidate_evidence,
                                      family_design_weights, injection_order, sweep_candidate_evidence, cbo_contribution,
                                      parameter_candidate_evidence, candidate_state, state_coverage, cost_evidence,
                                      cost_lifecycle_evidence, search_check_evidence, search_contribution, target_root_costs,
                                      observed_rule_edges, binding_origin_evidence, post_search_evidence)
-from profile_query_cohort import (build_cohort, cohort_results, query_features, rule_distribution,
+from tools.learnable.experiments.profile_query_cohort import (build_cohort, cohort_results, query_features, rule_distribution,
                                   local_input_records, placement_evidence, incremental_cohort, stratified_cohort)
-from profile_corpus_attempts import select_cases, summarize_trace, coverage, export_workload, partition_history
-from run_workload_comparison import parse_args as parse_workload_args
-from profile_rule_conditions import condition_bins, query_cells, aggregate_cells, rule_effects
-from profile_rule_pair import paired_evidence
-from profile_data_scale import scale_setups
-from compare_rule_curves import model_check, transport_check, additive_response_check, clipped_affine_check, summarize as summarize_curve
-from evaluate_rule_dimensions import (fit_dimensions, score_dimensions, pooled_cells,
+from tools.learnable.collect.profile_corpus_attempts import select_cases, summarize_trace, coverage, export_workload, partition_history
+from tools.learnable.collect.run_workload_comparison import parse_args as parse_workload_args
+from tools.learnable.experiments.profile_rule_conditions import condition_bins, query_cells, aggregate_cells, rule_effects
+from tools.learnable.experiments.profile_rule_pair import paired_evidence
+from tools.learnable.experiments.profile_data_scale import scale_setups
+from tools.learnable.experiments.compare_rule_curves import model_check, transport_check, additive_response_check, clipped_affine_check, summarize as summarize_curve
+from tools.learnable.experiments.evaluate_rule_dimensions import (fit_dimensions, score_dimensions, pooled_cells,
                                       template_cells, validate as validate_dimensions)
-from rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget, tv_shift_bounds
-from calibrate_rule_dro import calibrate, validate_contract, contract_identity, audit_timing_input, bind_collection, timing_records
-from export_rule_examples import render_example, decode_records as decode_rule_examples, summarize_examples
-from build_xform_replacement_inventory import (
+from tools.learnable.objectives.rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget, tv_shift_bounds
+from tools.learnable.experiments.calibrate_rule_dro import calibrate, validate_contract, contract_identity, audit_timing_input, bind_collection, timing_records
+from tools.learnable.experiments.export_rule_examples import render_example, decode_records as decode_rule_examples, summarize_examples
+from tools.learnable.trace.build_xform_replacement_inventory import (
     audit_memo_provenance,
     merge_inventory,
 )
-from compare_rule_traces import compare, read_records
-from import_wetune_workloads import postgres_schema, schema_catalog, translate_query
-from merge_rule_graph import merge_graph, read_trace_inputs, render_dot
-from render_rule_dependency_graph import graph_counts, query_edge_support
-from replacement_rule_classification import audit_rule_file, audit_rule_text
-from run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
+from tools.learnable.trace.compare_rule_traces import compare, read_records
+from tools.learnable.data.import_wetune_workloads import postgres_schema, schema_catalog, translate_query
+from tools.learnable.graph.merge_rule_graph import merge_graph, read_trace_inputs, render_dot
+from tools.learnable.graph.render_rule_dependency_graph import graph_counts, query_edge_support
+from tools.learnable.trace.replacement_rule_classification import audit_rule_file, audit_rule_text
+from tools.learnable.collect.run_dphyper_stability import imported_cases, parse_dphyper_events, summarize
 from run_e2e_cases import (
     run_sql as run_e2e_sql,
     actual_rows,
@@ -69,7 +71,7 @@ from run_e2e_cases import (
     semantic_xforms_from_audit,
     validate_execution_trace,
 )
-from run_trace_corpus import (
+from tools.learnable.collect.run_trace_corpus import (
     alignment_summary,
     failed_query_status,
     orca_fallback_reason,
@@ -82,7 +84,7 @@ from run_trace_corpus import (
     trace_metrics,
     validate_rule_ids,
 )
-from run_workload_comparison import (
+from tools.learnable.collect.run_workload_comparison import (
     artifact_snapshot,
     freeze_feature_graph,
     select_workload_queries,
@@ -434,12 +436,12 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertIsNone(result['search_constant'])
         self.assertEqual(len(result['points']), 4)
         # Plotting remains optional for framework CI; verify the failed-data domain directly.
-        from profile_data_scale import render
+        from tools.learnable.experiments.profile_data_scale import render
         axes = MagicMock()
         axes.flat = [MagicMock() for _ in range(4)]
         plotting = MagicMock()
         plotting.subplots.return_value = (MagicMock(), axes)
-        with tempfile.TemporaryDirectory() as directory, patch('profile_data_scale.chinese_plotting', return_value=plotting):
+        with tempfile.TemporaryDirectory() as directory, patch('tools.learnable.experiments.profile_data_scale.chinese_plotting', return_value=plotting):
             render(report, Path(directory), None)
         for ax in axes.flat:
             ax.set_xlim.assert_called_once_with(min(xs)/1.2, max(xs)*1.2)
@@ -489,7 +491,7 @@ class TraceFrameworkTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'comparison.json'
             path.write_text(json.dumps(comparison))
-            with patch('profile_rule_pair.cbo_contribution', return_value=rows) as audit:
+            with patch('tools.learnable.experiments.profile_rule_pair.cbo_contribution', return_value=rows) as audit:
                 result = paired_evidence(path)
                 manifest = audit.call_args.args[0]
                 self.assertEqual(manifest['targets'], [])
@@ -650,7 +652,7 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_whole_policy_pilot_keeps_failures_and_excludes_unencoded_domains(self) -> None:
         from copy import deepcopy
-        from train_policy_baseline import baseline_exclusions
+        from tools.learnable.training.train_policy_baseline import baseline_exclusions
         record = {'admission': {'feature_integrity_verified': True, 'feature_exclusions': [],
                                 'model_training_eligible': False},
                   'inputs': {'stats_experiment_document': None, 'candidate_policy': [{'placement': 'cbo'}]},
@@ -675,7 +677,7 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_policy_training_catalogs_can_vary_but_unencoded_environment_cannot(self) -> None:
         from copy import deepcopy
-        from train_policy_baseline import measurement_environment
+        from tools.learnable.training.train_policy_baseline import measurement_environment
         artifacts = {k: {'size': 17, 'crc32': '1234abcd', 'path': '/old/' + k}
                      for k in ('postgres', 'pg_orca', 'rule_audit', 'rules', 'runner')}
         comparison = {'artifact_provenance': {'before_server_start': artifacts}}
@@ -703,7 +705,7 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_whole_policy_selection_uses_predictions_and_keeps_failed_denominator(self) -> None:
         from copy import deepcopy
-        from train_policy_baseline import selection_metrics
+        from tools.learnable.training.train_policy_baseline import selection_metrics
         records, predictions = [], []
         for query, observed in (('q1', (10., 20.)), ('q2', (100., 20.)), ('failed', (1., 1.))):
             for arm, time in zip(('a', 'b'), observed):
@@ -743,6 +745,20 @@ class TraceFrameworkTest(unittest.TestCase):
                       for p, e in ((0., 10.), (10., 0.), (11., 11.))]
         joint = selection_metrics(predictions[:2], [record, records[1]], 'validation')
         self.assertEqual(joint['policy_totals']['a']['observed_ms'], 10.)
+        planning = selection_metrics(predictions, records, 'validation', 'planning')
+        changed = deepcopy(records)
+        changed_predictions = deepcopy(predictions)
+        for item in changed:
+            for sample in item['response']['timing_samples']:
+                sample['execution_ms'] = 1000000.
+        for item in changed_predictions:
+            item['predicted_log1p_ms'][1] = 100.
+            item['training_policy_constant'][1] = 100.
+        self.assertEqual(planning, selection_metrics(changed_predictions, changed, 'validation', 'planning'))
+        self.assertEqual(planning['policy_totals']['a']['observed_ms'], 110.)
+        self.assertEqual(planning['objective'], 'equal_query_sum_of_median_planning_ms')
+        with self.assertRaisesRegex(ValueError, 'unknown prediction objective'):
+            selection_metrics(predictions, records, 'validation', 'other')
 
     def test_plan_comparison_ignores_execution_metrics_but_keeps_optimizer_choices(self) -> None:
         baseline = {"Node Type": "Hash Join", "Actual Rows": 20, "Shared Hit Blocks": 3,
@@ -1086,7 +1102,7 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_fallback_audit_reads_lossless_compressed_trace(self) -> None:
         import gzip
-        from run_trace_corpus import orca_fallback_reason
+        from tools.learnable.collect.run_trace_corpus import orca_fallback_reason
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'q.log.gz'
             with gzip.open(path, 'wt') as stream:
@@ -1098,7 +1114,7 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_history_graph_gate_rejects_missing_roots_and_counts_queries_not_edges(self) -> None:
         from copy import deepcopy
-        from audit_history_corpus import graph_exclusions, audit_corpus
+        from tools.learnable.data.audit_history_corpus import graph_exclusions, audit_corpus
         graph = {'trees': [{'nodes': [{'path': 'r'}], 'root': 0}],
                  'contexts': [{'attempts': 3, 'rule_hash': 'a', 'tree': 0}],
                  'edges': [{'src_rule': 'a', 'dst_rule': 'a', 'tree': 0,
@@ -1135,7 +1151,7 @@ class TraceFrameworkTest(unittest.TestCase):
         records = [application, {**application, "kind": "rule_candidate"}, application, cost, lifecycle, check, edge]
         trace = "\n".join("DSL_TRACE " + json.dumps(r) for r in records)
         args = SimpleNamespace(profile_rule="target", port=1, timeout=60)
-        with tempfile.TemporaryDirectory() as temporary, patch("run_workload_comparison.psql") as execute:
+        with tempfile.TemporaryDirectory() as temporary, patch("tools.learnable.collect.run_workload_comparison.psql") as execute:
             execute.side_effect = [("[]", trace, 0, 1), ("1\n", "", 0, 1)]
             result = run_mode(args, Path("psql"), Path("/tmp"), "db", "SELECT 1", Path(temporary),
                               "cbo", "replacement", [], None)
@@ -1154,7 +1170,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 ('"' + 'x' * 150000 + '"\n', 0, 0, 1),
                 ("\n", 0, 0, 1), ("partial", 0, 1, None), ("", 1, 1, None)):
             with self.subTest(output=output, plan_rc=plan_rc, rows_rc=rows_rc), \
-                    tempfile.TemporaryDirectory() as temporary, patch("run_workload_comparison.psql") as execute:
+                    tempfile.TemporaryDirectory() as temporary, patch("tools.learnable.collect.run_workload_comparison.psql") as execute:
                 message = "COPY ERROR" if rows_rc else ""
                 execute.side_effect = [("[]", "", plan_rc, 1), (output, message, rows_rc, 1)]
                 result = run_mode(args, Path("psql"), Path("/tmp"), "db", "SELECT 1",
@@ -1222,12 +1238,12 @@ class TraceFrameworkTest(unittest.TestCase):
                 path = root / query["query"] / "comparison.json"
                 path.parent.mkdir(parents=True)
                 path.write_text(json.dumps(comparison))
-            with patch("profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
+            with patch("tools.learnable.trace.profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
                     "complete": r["plan_rc"] == 0, "exclusions": [] if r["plan_rc"] == 0 else ["plan_timeout"],
                     "attempts": r["fake_count"], "rows": [rejected] * r["fake_count"]}):
                 rows = parameter_candidate_evidence(manifest, root)["runs"]
                 contribution = {"delta": None, "target_states": [{"predicate_structure": "unknown"}]}
-                with patch("profile_rule_candidates.cbo_contribution", return_value=[contribution]) as contrast:
+                with patch("tools.learnable.trace.profile_rule_candidates.cbo_contribution", return_value=[contribution]) as contrast:
                     profiled = parameter_candidate_evidence(manifest, root, "r")
                     self.assertEqual(profiled["runs"][0]["contribution"], contribution)
                     self.assertNotIn("contribution", profiled["runs"][3])
@@ -1505,7 +1521,7 @@ class TraceFrameworkTest(unittest.TestCase):
                                             "rows_equal": False, "rows_bag_equal": True,
                                             "forbidden_native_origins": ["native_origin"],
                                             "modes": {"replacement": baseline}}))
-            with patch("profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
+            with patch("tools.learnable.trace.profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
                 "complete": not r["partial"], "exclusions": ["incomplete"] if r["partial"] else [],
                 "rows": r["fake_rows"], "attempts": len(r["fake_rows"])}):
                 report = cohort_candidate_evidence(cohort, root)
@@ -1606,7 +1622,7 @@ class TraceFrameworkTest(unittest.TestCase):
                       "arms": {arm: diagnostic for arm in ("off", "rbo", "cbo")}}]
         stdout = json.dumps([{"Plan": plan, "Optimizer": "pg_orca", "Planning Time": 2,
                               "Execution Time": 3}])
-        with tempfile.TemporaryDirectory() as temporary, patch("run_workload_comparison.psql") as execute:
+        with tempfile.TemporaryDirectory() as temporary, patch("tools.learnable.collect.run_workload_comparison.psql") as execute:
             execute.side_effect = [("", "TIMEOUT", 124, 60000), *[(stdout, "", 0, 8)] * 8]
             result = run_profile_timing(args, Path("psql"), Path("/tmp"), "db", "SELECT 1",
                                         Path(temporary), [], scenarios)
@@ -1651,10 +1667,10 @@ class TraceFrameworkTest(unittest.TestCase):
         lifecycle = {"complete": True, "exclusions": [], "status_counts": {"best_updated": 1},
                      "materialized_candidates": 1, "ever_best_candidates": 1, "selected_distinct_candidates": 1}
         checks = {"complete": True, "exclusions": [], "status_counts": {"prune": {"pruned": 3}}}
-        with patch("profile_rule_candidates.cost_evidence", side_effect=lambda run: {
+        with patch("tools.learnable.trace.profile_rule_candidates.cost_evidence", side_effect=lambda run: {
                 "complete": True, "exclusions": [], "status_counts": {"costed": run["n"]}}), \
-             patch("profile_rule_candidates.cost_lifecycle_evidence", return_value=lifecycle), \
-             patch("profile_rule_candidates.search_check_evidence", return_value=checks):
+             patch("tools.learnable.trace.profile_rule_candidates.cost_lifecycle_evidence", return_value=lifecycle), \
+             patch("tools.learnable.trace.profile_rule_candidates.search_check_evidence", return_value=checks):
             report = search_contribution(arms, [])
             self.assertTrue(report["complete"])
             self.assertEqual(report["delta"]["cost:costed"], 3)
@@ -1728,8 +1744,8 @@ class TraceFrameworkTest(unittest.TestCase):
                  'status': 'costed', 'origin_chain': [{'group': 3, 'group_expression': 2},
                                                      {'group': 3, 'group_expression': 1}]}],
                'cost_lifecycle_events': []}
-        with patch('profile_rule_candidates.candidate_evidence', return_value={'rows': rows, 'exclusions': []}), \
-             patch('profile_rule_candidates.cost_lifecycle_evidence', return_value={'exclusions': []}):
+        with patch('tools.learnable.trace.profile_rule_candidates.candidate_evidence', return_value={'rows': rows, 'exclusions': []}), \
+             patch('tools.learnable.trace.profile_rule_candidates.cost_lifecycle_evidence', return_value={'exclusions': []}):
             report = post_search_evidence(run)
             self.assertTrue(report['complete'])
             self.assertFalse(report['usable_as_pre_evaluation_features'])
@@ -1768,9 +1784,9 @@ class TraceFrameworkTest(unittest.TestCase):
         samples = [{"file": "card.yaml", "arm": "cbo", "exclusions": [], "planning_ms": 2,
                     "execution_ms": 3, "delta_planning_ms": 1, "delta_execution_ms": -1}]
         comparison["rule_profile"]["timing"] = {}  # Parsed timing is mocked below.
-        with patch("profile_rule_candidates.profile_points", return_value=diagnostics), \
-             patch("profile_rule_candidates.timing_points", return_value=samples), \
-             patch("profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
+        with patch("tools.learnable.trace.profile_rule_candidates.profile_points", return_value=diagnostics), \
+             patch("tools.learnable.trace.profile_rule_candidates.timing_points", return_value=samples), \
+             patch("tools.learnable.trace.profile_rule_candidates.candidate_evidence", side_effect=lambda r: {
                  "complete": True, "exclusions": [], "attempts": len(cbo_rows if r is cbo else off_rows),
                  "rows": cbo_rows if r is cbo else off_rows}):
             row = cbo_contribution(manifest, comparison, Path("/tmp"))[0]
@@ -1816,8 +1832,8 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "OFF/CBO"):
             cbo_contribution(manifest, comparison, Path("/tmp"))
 
-    @patch("run_workload_comparison.wait_ready")
-    @patch("run_workload_comparison.run")
+    @patch("tools.learnable.collect.run_workload_comparison.wait_ready")
+    @patch("tools.learnable.collect.run_workload_comparison.run")
     def test_timing_psql_never_retries(self, run, ready) -> None:
         run.return_value = subprocess.CompletedProcess([], 2, "", "database system is in recovery mode")
         result = psql(Path("psql"), Path("/tmp"), 1, "db", "SELECT 1", 1,
@@ -1826,7 +1842,7 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(run.call_count, 1)
         ready.assert_not_called()
 
-    @patch("plot_stats_sweep.profile_points", return_value={
+    @patch("tools.learnable.experiments.plot_stats_sweep.profile_points", return_value={
         arm: [{"status": "ok"}] for arm in ("off", "rbo", "cbo")})
     def test_timing_plot_retains_failed_pairs_and_rejects_missing_samples(self, diagnostics) -> None:
         path = str(Path("/tmp/test-card.yaml"))
@@ -1868,14 +1884,14 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_cardinality_probes_use_count_and_retain_failures(self) -> None:
         probes = [{"fingerprint": "0123456789abcdef", "operator": "CLogicalGet", "sql": "SELECT * FROM t;"}]
-        with patch("run_workload_comparison.psql", return_value=("17\n", "", 0, 2.0)) as execute:
+        with patch("tools.learnable.collect.run_workload_comparison.psql", return_value=("17\n", "", 0, 2.0)) as execute:
             result = collect_cardinalities(Path("psql"), Path("/tmp"), 1, "db", probes, 60)
             self.assertEqual(result[0]["actual_rows"], 17)
             sql = execute.call_args.args[4]
             self.assertIn("READ ONLY", sql)
             self.assertIn("SELECT COUNT(*) FROM (SELECT * FROM t)", sql)
         for stdout, rc in (("", 124), ("1\n2\n", 0), ("-1", 0)):
-            with patch("run_workload_comparison.psql", return_value=(stdout, "failure", rc, 2.0)):
+            with patch("tools.learnable.collect.run_workload_comparison.psql", return_value=(stdout, "failure", rc, 2.0)):
                 result = collect_cardinalities(Path("psql"), Path("/tmp"), 1, "db", probes, 60)
                 self.assertEqual(result[0]["status"], "error")
                 self.assertIsNone(result[0]["actual_rows"])
@@ -1886,7 +1902,7 @@ class TraceFrameworkTest(unittest.TestCase):
         catalog = {'captured_at': '2026-09-12T00:00:00Z', 'settings': {},
                    'relations': [{'oid': 1, 'estimated_rows': None}, {'oid': 2, 'estimated_rows': 0}],
                    'columns': [], 'statistics': [{'n_distinct': -0.5}], 'constraints': [], 'indexes': []}
-        with patch('run_workload_comparison.psql', return_value=(json.dumps(catalog), '', 0, 3.0)) as execute:
+        with patch('tools.learnable.collect.run_workload_comparison.psql', return_value=(json.dumps(catalog), '', 0, 3.0)) as execute:
             result = collect_catalog_context(Path('psql'), Path('/tmp'), 1, 'db', 60)
             self.assertEqual(result['status'], 'ok')
             self.assertEqual(result['catalog'], catalog)
@@ -1897,7 +1913,7 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertNotIn('ANALYZE', sql)
             self.assertFalse(execute.call_args.kwargs['retry_on_server_failure'])
         for stdout, rc in (('', 124), ('null', 0), ('{}', 0), ('[]', 0), ('invalid', 0)):
-            with patch('run_workload_comparison.psql', return_value=(stdout, 'failed', rc, 1.0)):
+            with patch('tools.learnable.collect.run_workload_comparison.psql', return_value=(stdout, 'failed', rc, 1.0)):
                 result = collect_catalog_context(Path('psql'), Path('/tmp'), 1, 'db', 60)
                 self.assertEqual(result['status'], 'error')
                 self.assertIsNone(result['catalog'])
@@ -1949,7 +1965,7 @@ class TraceFrameworkTest(unittest.TestCase):
                     'load': {'admitted': 1, 'skipped_non_eq': 0, 'failed': 0}, 'rules': [{'placement': 'cbo'}]}
         good = subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')
         failed = subprocess.CompletedProcess([], 1, '', 'unknown rule')
-        with patch('run_workload_comparison.run', side_effect=[good, failed]) as execute:
+        with patch('tools.learnable.collect.run_workload_comparison.run', side_effect=[good, failed]) as execute:
             result = collect_policy_context(Path('audit'), Path('rules'), {'default': None, 'off': Path('off.policy')}, 60)
             self.assertEqual(execute.call_args_list[0].args[0], ['audit', '--policy-snapshot', 'rules'])
             self.assertEqual(execute.call_args_list[1].args[0][-1], 'off.policy')
@@ -1957,18 +1973,18 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertEqual(result['off']['status'], 'error')
             self.assertIsNone(result['off']['snapshot'])
         snapshot['load']['failed'] = 1
-        with patch('run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')):
+        with patch('tools.learnable.collect.run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')):
             self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'partial')
         for invalid in ('{}', 'null', 'invalid'):
-            with patch('run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, invalid, '')):
+            with patch('tools.learnable.collect.run_workload_comparison.run', return_value=subprocess.CompletedProcess([], 0, invalid, '')):
                 self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'error')
-        with patch('run_workload_comparison.run', side_effect=subprocess.TimeoutExpired('audit', 60)):
+        with patch('tools.learnable.collect.run_workload_comparison.run', side_effect=subprocess.TimeoutExpired('audit', 60)):
             self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'error')
 
     def test_policy_learning_records_separate_features_labels_and_failures(self) -> None:
         from copy import deepcopy
         import zlib
-        from export_policy_learning_samples import policy_samples, read_snapshot
+        from tools.learnable.data.export_policy_learning_samples import policy_samples, read_snapshot
         identity = 'a'*16
         receipt = {'capture': 'before_server_start', 'frozen_at_utc': '2026-09-12T00:00:00+00:00',
                    'snapshot': {'path': 'graph.json', 'size': 1, 'crc32': 'x'}}
@@ -2234,7 +2250,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 experiments.append({"path": str(root / f"{factor}.yaml"), "modes": {"replacement": run},
                                     "comparisons": {"replacement": {"plan_comparison": "identical"}}})
             comparison = {"stats_experiments": experiments, "modes": {"replacement": run}}
-            with patch("profile_rule_candidates.candidate_evidence", return_value=audit) as evaluator:
+            with patch("tools.learnable.trace.profile_rule_candidates.candidate_evidence", return_value=audit) as evaluator:
                 points = sweep_candidate_evidence(manifest, comparison, root, root)
                 self.assertEqual([p["status"] for p in points], ["ok", "ok", "missing"])
                 self.assertEqual(points[1]["rule_deltas"]["r"]["attempts"], 0)
@@ -2285,7 +2301,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 "producer_relation": "memo_consumes"}
         final = {"binding_edge_trace_version": 1, "binding_origin_edges": 1}
         run = {"experiment_outcomes": [final], "rule_edges": [edge]}
-        with patch("profile_rule_candidates.candidate_evidence", return_value={
+        with patch("tools.learnable.trace.profile_rule_candidates.candidate_evidence", return_value={
                 "complete": True, "exclusions": [], "rows": [candidate]}):
             self.assertTrue(binding_origin_evidence(run)["complete"])
             for change, error in (({"dst_candidate_sequence": 2}, "unresolved_binding_edge_candidate"),
@@ -2517,8 +2533,8 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no matching candidate"):
             merge_graph(base, [outcome])
 
-    @patch("run_workload_comparison.wait_ready", return_value=True)
-    @patch("run_workload_comparison.run")
+    @patch("tools.learnable.collect.run_workload_comparison.wait_ready", return_value=True)
+    @patch("tools.learnable.collect.run_workload_comparison.run")
     def test_workload_psql_retries_after_server_recovery(self, run, _ready) -> None:
         run.side_effect = [
             subprocess.CompletedProcess([], 2, "", "database system is in recovery mode"),
@@ -2859,7 +2875,7 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "joint rule bundle"):
             cbo_contribution({}, {"rule_profile": {
                 "intervention_rule_hashes": ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"]}}, Path("/tmp"))
-        from run_workload_comparison import profile_targets
+        from tools.learnable.collect.run_workload_comparison import profile_targets
         args = SimpleNamespace(profile_rule='a'*16, profile_companion_rule=['C'*16, 'b'*16],
                                profile_cbo_only=True, profile_rbo_phase='pre_join',
                                profile_effect='preserves_join_graph')
@@ -3771,7 +3787,7 @@ class RuleExampleExportTest(unittest.TestCase):
         # Both ORCA modes agree on an incorrect duplicate NULL. PG deduplicates it.
         wrong = {'rows_rc': 0, **copy_result_summary('\n\n1\n')}
         with tempfile.TemporaryDirectory() as temporary, patch(
-                'run_workload_comparison.psql', return_value=('\n1\n', '', 0, 1.0)) as run:
+                'tools.learnable.collect.run_workload_comparison.psql', return_value=('\n1\n', '', 0, 1.0)) as run:
             result = collect_postgres_oracle(args, Path('psql'), Path('/tmp'), 'db',
                 'SELECT DISTINCT a FROM t', Path(temporary), {'native': wrong, 'replacement': wrong})
             self.assertFalse(result['valid'])
@@ -3815,8 +3831,8 @@ class RuleExampleExportTest(unittest.TestCase):
                 (folder / 'comparison.json').write_text(json.dumps(case))
             plotting = MagicMock()
             plotting.subplots.return_value = (MagicMock(), [MagicMock(), MagicMock()])
-            with patch('plot_stats_sweep.chinese_plotting', return_value=plotting), patch(
-                    'profile_rule_candidates.candidate_evidence', return_value={
+            with patch('tools.learnable.experiments.plot_stats_sweep.chinese_plotting', return_value=plotting), patch(
+                    'tools.learnable.trace.profile_rule_candidates.candidate_evidence', return_value={
                         'complete': True, 'exclusions': [], 'rows': [row]}):
                 destination = output / 'new-audit'
                 report = summarize_examples(output, output, None, destination)
@@ -3832,8 +3848,8 @@ class RuleExampleExportTest(unittest.TestCase):
                 case.update(forbidden_native_origins=[], join_enumeration_replaced=True,
                             artifact_provenance={'endpoints_equal': False})
                 path.write_text(json.dumps(case))
-            with patch('plot_stats_sweep.chinese_plotting', return_value=plotting), patch(
-                    'profile_rule_candidates.candidate_evidence', return_value={
+            with patch('tools.learnable.experiments.plot_stats_sweep.chinese_plotting', return_value=plotting), patch(
+                    'tools.learnable.trace.profile_rule_candidates.candidate_evidence', return_value={
                         'complete': True, 'exclusions': [], 'rows': [row]}):
                 report = summarize_examples(output, output, None, destination)
             self.assertFalse(report['valid'])
@@ -4125,7 +4141,7 @@ class RuleDROCalibrationTest(unittest.TestCase):
 
     def test_collection_binds_actual_inputs_and_protocol_before_sampling(self):
         from copy import deepcopy
-        from run_workload_comparison import collection_descriptor
+        from tools.learnable.collect.run_workload_comparison import collection_descriptor
         contract, _ = self.example()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -4257,7 +4273,7 @@ class RuleDROCalibrationTest(unittest.TestCase):
             source, frozen, observations, result = [root / name for name in ('input', 'contract', 'data', 'result')]
             source.write_text(json.dumps(contract))
             observations.write_text(json.dumps(data))
-            tool = [sys.executable, str(SCRIPT_DIR / 'calibrate_rule_dro.py')]
+            tool = [sys.executable, str(SCRIPT_DIR.parents[1] / 'tools/learnable'), 'calibrate-dro']
             freeze = [*tool, 'freeze', str(source), '--output', str(frozen)]
             self.assertEqual(subprocess.run(freeze, capture_output=True).returncode, 0)
             saved = frozen.read_bytes()

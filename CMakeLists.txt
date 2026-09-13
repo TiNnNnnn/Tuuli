@@ -554,6 +554,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 enable_testing()
+option(PGORCA_BUILD_LEARNABLE_TESTS "Enable optional Python learnable component tests" OFF)
+if(PGORCA_BUILD_LEARNABLE_TESTS)
+    add_subdirectory(tools/learnable)
+endif()
 add_test(NAME gpopt_dsl_test COMMAND gpopt_dsl_test)
 add_test(
     NAME pgorca_rule_audit_fixture
