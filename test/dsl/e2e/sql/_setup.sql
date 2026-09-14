@@ -37,6 +37,22 @@ CREATE OPERATOR #=# (
     LEFTARG = int, RIGHTARG = int, FUNCTION = dsl_next_flag
 );
 
+CREATE FUNCTION dsl_cast_token(int) RETURNS uuid
+LANGUAGE plpgsql VOLATILE STRICT AS $$
+BEGIN
+    RETURN lpad(nextval('dsl_compute_sequence')::text, 32, '0')::uuid;
+END
+$$;
+CREATE CAST (int AS uuid) WITH FUNCTION dsl_cast_token(int) AS IMPLICIT;
+
+CREATE FUNCTION dsl_cast_stable_token(bigint) RETURNS uuid
+LANGUAGE plpgsql STABLE STRICT AS $$
+BEGIN
+    RETURN lpad(pg_backend_pid()::text, 32, '0')::uuid;
+END
+$$;
+CREATE CAST (bigint AS uuid) WITH FUNCTION dsl_cast_stable_token(bigint) AS IMPLICIT;
+
 CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
 INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 

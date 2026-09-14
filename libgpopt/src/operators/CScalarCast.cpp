@@ -38,6 +38,7 @@ CScalarCast::CScalarCast(CMemoryPool *mp, IMDId *return_type_mdid,
 	  m_return_type_mdid(return_type_mdid),
 	  m_func_mdid(mdid_func),
 	  m_is_binary_coercible(is_binary_coercible),
+	  m_efs(IMDFunction::EfsImmutable),
 	  m_returns_null_on_null_input(false),
 	  m_fBoolReturnType(false)
 {
@@ -46,6 +47,7 @@ CScalarCast::CScalarCast(CMemoryPool *mp, IMDId *return_type_mdid,
 		CMDAccessor *md_accessor = COptCtxt::PoctxtFromTLS()->Pmda();
 		const IMDFunction *pmdfunc = md_accessor->RetrieveFunc(m_func_mdid);
 
+		m_efs = pmdfunc->GetFuncStability();
 		m_returns_null_on_null_input = pmdfunc->IsStrict();
 		m_fBoolReturnType =
 			CMDAccessorUtils::FBoolType(md_accessor, m_return_type_mdid);
