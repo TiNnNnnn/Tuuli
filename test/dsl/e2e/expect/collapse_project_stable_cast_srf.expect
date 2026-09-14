@@ -1,0 +1,35 @@
+{
+  "description": "Stable cast functions remain eligible for Compute composition",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCast",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "CScalarFunc (dsl_cast_stable_token)"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "6,1"
+    ],
+    "postgres_output": [
+      "6,1"
+    ],
+    "off_output": [
+      "6,1"
+    ]
+  }
+}

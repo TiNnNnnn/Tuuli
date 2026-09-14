@@ -40,6 +40,9 @@ private:
 	// whether or not this cast is binary coercible
 	BOOL m_is_binary_coercible;
 
+	// stability of the cast implementation (relabels have no function)
+	IMDFunction::EFuncStbl m_efs;
+
 	// does operator return NULL on NULL input?
 	BOOL m_returns_null_on_null_input;
 
@@ -92,6 +95,15 @@ public:
 
 	// match function
 	BOOL Matches(COperator *) const override;
+
+	CFunctionProp *
+	DeriveFunctionProperties(CMemoryPool *mp,
+							 CExpressionHandle &exprhdl) const override
+	{
+		return PfpDeriveFromChildren(mp, exprhdl, m_efs,
+									 false /*fHasVolatileFunctionScan*/,
+									 false /*fScan*/);
+	}
 
 	// sensitivity to order of inputs
 	BOOL
