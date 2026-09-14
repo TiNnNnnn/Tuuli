@@ -1,12 +1,13 @@
 {
-  "description": "The proved Compute split rule replaces partial Project collapse with a residual",
+  "description": "Existing CBO concat and split rules both apply to a three-layer Compute chain",
   "replacement": {
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "Nonvolatile partial Project collapse; volatile list movement is conservatively rejected",
+    "scope": "Three nested Projects with independent and dependent expressions; not full preprocessing replacement",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
+      "8dcdd8a3308b3054",
       "984eec66d5bc3f5d"
     ]
   },
@@ -23,6 +24,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
         "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
       ],
       "alternative": [
@@ -48,7 +50,9 @@
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\"",
+        "\"scheduler\":\"cbo\",\"src_rule\":\"8dcdd8a3308b3054\",\"dst_rule\":\"984eec66d5bc3f5d\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\",\"dst_binding_path\":\"r\",\"path_kind\":\"instantiated_expression\",\"candidate_status\":\"ready_cbo\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -69,14 +73,14 @@
       "CXformCollapseProject"
     ],
     "output": [
-      "1,12,110",
-      "2,22,120",
-      "3,32,130"
+      "1,11,12,110,1010",
+      "2,21,22,120,1020",
+      "3,31,32,130,1030"
     ],
     "postgres_output": [
-      "1,12,110",
-      "2,22,120",
-      "3,32,130"
+      "1,11,12,110,1010",
+      "2,21,22,120,1020",
+      "3,31,32,130,1030"
     ]
   }
 }

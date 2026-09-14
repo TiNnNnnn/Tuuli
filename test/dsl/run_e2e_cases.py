@@ -292,12 +292,14 @@ def actual_rows(
     expected: dict[str, object],
 ) -> dict[str, object]:
     query = query.rstrip().removesuffix(";")
-    dsl_rows = run_sql(
-        args,
-        f"""
+
+    def orca_rows(enabled: bool) -> str:
+        return run_sql(
+            args,
+            f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule={'on' if expected.get('dsl', True) else 'off'};
+SET pg_orca.enable_dsl_rule={'on' if enabled else 'off'};
 {policy_setting(args, expected)}
 {experiment_setting(args, expected)}
 SET pg_orca.enable_assert_maxonerow={'on' if expected.get('assert_maxonerow', False) else 'off'};
@@ -309,9 +311,11 @@ SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {disabled_xform_settings(expected, args.disable_xform)}
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
-        tuples_only=True,
-        error_sqlstate=expected.get("error_sqlstate"),
-    )
+            tuples_only=True,
+            error_sqlstate=expected.get("error_sqlstate"),
+        )
+
+    dsl_rows = orca_rows(bool(expected.get("dsl", True)))
     postgres_rows = run_sql(
         args,
         f"""
@@ -333,6 +337,8 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
     }
     actual["output"] = dsl_rows.splitlines()
     actual["postgres_output"] = postgres_rows.splitlines()
+    if "off_output" in expected:
+        actual["off_output"] = orca_rows(False).splitlines()
     return actual
 
 

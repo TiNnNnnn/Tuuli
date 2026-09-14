@@ -4,9 +4,22 @@
 #include "gpopt/dsl/CDSLExprListUtils.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CFunctionProp.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FReorderableProjectList(CExpression *pexpr)
+{
+	// Composition can reorder evaluation and move scalar work across an SRF.
+	// Column independence alone does not preserve volatile calls or their count.
+	return CDSLExprListUtils::FProjectList(pexpr) &&
+		IMDFunction::EfsVolatile > pexpr->DeriveScalarFunctionProperties()->Efs();
+}
+}  // namespace
 
 BOOL
 CDSLExprListUtils::FProjectList(const CExpression *pexpr)
@@ -19,7 +32,7 @@ BOOL
 CDSLExprListUtils::FConcatSafe(CExpression *pexprUpper,
 							   CExpression *pexprLower)
 {
-	return FProjectList(pexprUpper) && FProjectList(pexprLower) &&
+	return FReorderableProjectList(pexprUpper) && FReorderableProjectList(pexprLower) &&
 		!(pexprUpper->DeriveHasNonScalarFunction() &&
 		  pexprLower->DeriveHasNonScalarFunction());
 }
@@ -90,7 +103,7 @@ CDSLExprListUtils::FSplit(CMemoryPool *mp, CExpression *pexprUpper,
 	GPOS_ASSERT(nullptr != ppexprMerged && nullptr != ppexprResidual);
 	*ppexprMerged = nullptr;
 	*ppexprResidual = nullptr;
-	if (!FProjectList(pexprUpper) || !FProjectList(pexprLower))
+	if (!FReorderableProjectList(pexprUpper) || !FReorderableProjectList(pexprLower))
 	{
 		return false;
 	}

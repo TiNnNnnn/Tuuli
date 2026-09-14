@@ -145,6 +145,9 @@ public:
 	// cache lookup for the scalar operator.
 	CExpression *PexprEqConst(CColRef *pcrLeft, INT value);
 
+	// Metadata-backed generate_series(1, column), returning int4 rows.
+	CExpression *PexprGenerateSeries(CColRef *pcrEnd);
+
 	//------------------------------------------------------------------
 	// logical nodes
 	//------------------------------------------------------------------

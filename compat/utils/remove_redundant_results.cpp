@@ -21,6 +21,8 @@ extern "C" {
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/plannodes.h"
+#include "optimizer/clauses.h"
+#include "optimizer/optimizer.h"
 #include "optimizer/planmain.h"
 #include "optimizer/tlist.h"
 }
@@ -28,6 +30,15 @@ extern "C" {
 #include "compat/utils/remove_redundant_results.h"
 
 extern "C" {
+
+static bool
+tlist_has_effects(List *tlist)
+{
+	/* SubPlan bodies are not traversed by contain_volatile_functions. Keep
+	 * their evaluation boundary too: substitution may duplicate execution. */
+	return contain_volatile_functions((Node *) tlist) ||
+		contain_subplans((Node *) tlist);
+}
 
 /*
  * Fix up a target list, by replacing outer-Vars with the exprs from the
@@ -73,7 +84,8 @@ can_replace_tlist(Plan *plan)
 		return false;
 
 	/* SRFs in targetlists are quite funky; don't mess with them. */
-	if (expression_returns_set((Node *) plan->targetlist))
+	if (expression_returns_set((Node *) plan->targetlist) ||
+		tlist_has_effects(plan->targetlist))
 		return false;
 
 	if (!is_projection_capable_plan(plan))
@@ -98,8 +110,8 @@ can_replace_tlist(Plan *plan)
  *
  * Guard: refuse to collapse a Result whose tlist contains any Param, or any
  * Var that isn't a simple OUTER_VAR(attno>0) reference into the immediate
- * child.  We stop walking at SubPlan boundaries (their args are evaluated in
- * an outer scope, not by this node).
+ * child.  SubPlans are rejected separately by tlist_safe_to_push; this
+ * scope check does not descend into their separately planned bodies.
  */
 static bool
 tlist_unsafe_to_push_walker(Node *node, void *ctx)
@@ -123,6 +135,9 @@ tlist_unsafe_to_push_walker(Node *node, void *ctx)
 static bool
 tlist_safe_to_push(List *tlist)
 {
+	if (tlist_has_effects(tlist))
+		return false;
+
 	ListCell *lc;
 	foreach(lc, tlist)
 	{
@@ -208,13 +223,17 @@ recurse_plan_children(Plan *plan)
 
 /*
  * If this node is a redundant Result (no quals, no initPlan, projection-only)
- * whose child can absorb the projection, drop the Result.  Then recurse.
+ * whose already-cleaned child can absorb the projection, drop the Result.
  */
 static Plan *
 remove_redundant_results_walker(Plan *plan)
 {
 	if (plan == nullptr)
 		return nullptr;
+
+	/* Check the actual child after cleanup, not a targetlist that recursion
+	 * may replace before substitution. Each child is visited only once. */
+	recurse_plan_children(plan);
 
 	if (IsA(plan, Result))
 	{
@@ -230,9 +249,6 @@ remove_redundant_results_walker(Plan *plan)
 		{
 			List *tlist = result_plan->plan.targetlist;
 			ListCell *lc;
-
-			/* Recurse into the new child first. */
-			child_plan = remove_redundant_results_walker(child_plan);
 
 			foreach(lc, tlist)
 			{
@@ -256,7 +272,6 @@ remove_redundant_results_walker(Plan *plan)
 		}
 	}
 
-	recurse_plan_children(plan);
 	return plan;
 }
 

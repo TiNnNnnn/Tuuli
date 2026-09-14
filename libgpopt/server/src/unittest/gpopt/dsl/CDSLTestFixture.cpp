@@ -26,6 +26,7 @@
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -50,6 +51,24 @@ using namespace gpmd;
 
 // arbitrary starting oid for synthetic relations (well clear of built-in oids)
 #define GPOPT_DSL_TEST_REL_OID_BASE 100000
+
+// PostgreSQL's two-int4-argument generate_series overload.
+static constexpr OID generate_series_int4_oid = 1067;
+
+CExpression *
+CDSLTestFixture::PexprGenerateSeries(CColRef *pcrEnd)
+{
+	return GPOS_NEW(m_mp) CExpression(
+		m_mp, GPOS_NEW(m_mp) CScalarFunc(
+			m_mp, GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral,
+										 generate_series_int4_oid),
+			GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			default_type_modifier,
+			GPOS_NEW(m_mp) CWStringConst(GPOS_WSZ_LIT("generate_series")),
+			0 /*explicit call*/, false /*variadic*/),
+		CUtils::PexprScalarConstInt4(m_mp, 1),
+		GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarIdent(m_mp, pcrEnd)));
+}
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -92,6 +111,18 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
 			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
 			IMDFunction::EfsImmutable, false /*strict*/,
+			false /*ndv preserving*/, true /*allowed for PS*/));
+	}
+
+	{
+		CMDName *name = GPOS_NEW(mp) CMDName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("generate_series")), true);
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+			mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+									 generate_series_int4_oid), name,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), true /*returns set*/,
+			IMDFunction::EfsImmutable, true /*strict*/,
 			false /*ndv preserving*/, true /*allowed for PS*/));
 	}
 

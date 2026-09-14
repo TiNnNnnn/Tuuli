@@ -5,6 +5,8 @@ CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
 INSERT INTO dsl_insub_outer VALUES (1,10),(2,20),(3,30);
 INSERT INTO dsl_insub_inner VALUES (1),(3);
 
+CREATE SEQUENCE dsl_compute_sequence;
+
 CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
 INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 
