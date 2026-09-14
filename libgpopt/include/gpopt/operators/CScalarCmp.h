@@ -116,7 +116,7 @@ public:
 	const CWStringConst *Pstr() const;
 
 	// metadata id
-	IMDId *MdIdOp() const;
+	IMDId *MdIdOp() const override;
 
 	// the type of the scalar expression
 	IMDId *MdidType() const override;

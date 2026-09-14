@@ -132,16 +132,17 @@ public:
 		return PpartinfoDeriveCombineScalar(mp, exprhdl);
 	}
 
-	// derive function properties
-	virtual CFunctionProp *
-	DeriveFunctionProperties(CMemoryPool *mp, CExpressionHandle &exprhdl) const
+	// Catalog operator implemented by this scalar, if any. Its implementation
+	// function contributes stability just as an explicit scalar function does.
+	virtual IMDId *
+	MdIdOp() const
 	{
-		return PfpDeriveFromChildren(mp, exprhdl,
-									 IMDFunction::EfsImmutable,	 // efdaDefault
-									 false,	 // fHasVolatileFunctionScan
-									 false	 // fScan
-		);
+		return nullptr;
 	}
+
+	// derive function properties
+	virtual CFunctionProp *DeriveFunctionProperties(
+		CMemoryPool *mp, CExpressionHandle &exprhdl) const;
 
 	// derive subquery existence
 	virtual BOOL FHasSubquery(CExpressionHandle &exprhdl);

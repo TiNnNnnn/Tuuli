@@ -128,7 +128,7 @@ public:
 	const CWStringConst *Pstr() const;
 
 	// metadata id
-	IMDId *MdIdOp() const;
+	IMDId *MdIdOp() const override;
 
 	// print
 	IOstream &OsPrint(IOstream &os) const override;

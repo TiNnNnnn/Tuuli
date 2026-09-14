@@ -56,8 +56,8 @@ public:
 	}
 
 	// operator id
-	virtual IMDId *
-	MdIdOp() const
+	IMDId *
+	MdIdOp() const override
 	{
 		return m_mdid_op;
 	}

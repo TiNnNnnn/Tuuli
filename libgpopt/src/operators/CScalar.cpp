@@ -14,11 +14,29 @@
 #include "gpos/base.h"
 
 #include "gpopt/base/CDrvdPropScalar.h"
+#include "gpopt/base/COptCtxt.h"
+#include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CExpressionHandle.h"
+#include "naucrates/md/IMDScalarOp.h"
 
 
 using namespace gpopt;
+
+CFunctionProp *
+CScalar::DeriveFunctionProperties(CMemoryPool *mp, CExpressionHandle &exprhdl) const
+{
+	IMDFunction::EFuncStbl stability = IMDFunction::EfsImmutable;
+	IMDId *operator_id = MdIdOp();
+	if (nullptr != operator_id)
+	{
+		CMDAccessor *mda = COptCtxt::PoctxtFromTLS()->Pmda();
+		const IMDScalarOp *op = mda->RetrieveScOp(operator_id);
+		stability = mda->RetrieveFunc(op->FuncMdId())->GetFuncStability();
+	}
+	return PfpDeriveFromChildren(mp, exprhdl, stability,
+		false /*has volatile function scan*/, false /*scan*/);
+}
 
 
 //---------------------------------------------------------------------------
