@@ -47,6 +47,7 @@
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarIf.h"
+#include "gpopt/operators/CScalarNullIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -319,11 +320,21 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 		case COperator::EopScalarConst:
 			return true;
 		case COperator::EopScalarCmp:
+		case COperator::EopScalarIsDistinctFrom:
 			// Admit every comparison in ORCA's explicit built-in strict whitelist.
 			// This includes the <>/< <=/> >= operators used by quantified ALL, while
 			// still rejecting user-defined comparisons whose evaluation may throw.
 			if (!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
-					CScalarCmp::PopConvert(pexpr->Pop())->MdIdOp()))
+					static_cast<CScalarCmp *>(pexpr->Pop())->MdIdOp()))
+			{
+				return false;
+			}
+			break;
+		case COperator::EopScalarNullIf:
+			// NULL handling is total, but the underlying comparison need not
+			// be. Reuse the same built-in whitelist and check both operands.
+			if (!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					CScalarNullIf::PopConvert(pexpr->Pop())->MdIdOp()))
 			{
 				return false;
 			}
@@ -357,6 +368,11 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 			}
 			break;
 		case COperator::EopScalarNullTest:
+		case COperator::EopScalarBooleanTest:
+		case COperator::EopScalarIf:
+			// Boolean tests and searched CASE add no errors of their own.
+			// Check every child below, including both CASE branches: moving
+			// this expression may expose rows its original Filter excluded.
 		case COperator::EopScalarBoolOp:
 		case COperator::EopScalarCoalesce:
 		case COperator::EopScalarValuesList:

@@ -30,7 +30,11 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarIf.h"
+#include "gpopt/operators/CScalarNullTest.h"
+#include "gpopt/operators/CScalarNullIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -197,6 +201,7 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_ComputeConditionalSafety),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
@@ -615,6 +620,101 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 	pexprOuter->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeConditionalSafety()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp, GPOPT_DSL_COMPUTE_FILTER_COMMUTE_RULE);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("conditional_input", 1, &columns);
+	CExpression *predicate = fix.PexprEqConst((*columns)[0], 1);
+	CExpression *selected = fix.PexprLogicalSelect(input, predicate);
+	BOOL valid = true;
+	// All six BooleanTest operations are total, including on NULL. A searched
+	// CASE is total only when its condition and BOTH branches are error-free.
+	// Also check each operand of NULLIF and IS DISTINCT FROM independently.
+	for (ULONG test = 0; test < CScalarBooleanTest::EbtSentinel + 2; test++)
+	{
+		const BOOL conditional = test < CScalarBooleanTest::EbtSentinel;
+		for (ULONG unsafeChild = 0; unsafeChild < (conditional ? 4UL : 3UL); unsafeChild++)
+		{
+			CExpression *children[] = {
+				conditional ? fix.PexprEqConst((*columns)[0], 1)
+					: CUtils::PexprScalarIdent(mp, (*columns)[0]),
+				CUtils::PexprScalarConstInt4(mp, 1),
+				CUtils::PexprScalarConstNull(mp, (*columns)[0]->RetrieveType(),
+					default_type_modifier)};
+			if (0 != unsafeChild)
+			{
+				// A scalar subquery can fail with multiple rows. Wrapping it in
+				// a control/comparison node must not hide that obligation.
+				CColRefArray *innerCols = nullptr;
+				CExpression *inner = fix.PexprLogicalGet("conditional_subquery", 1, &innerCols);
+				CExpression *subquery = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, (*innerCols)[0], false, false), inner);
+				children[unsafeChild - 1]->Release();
+				children[unsafeChild - 1] = conditional && 1 == unsafeChild
+					? GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp), subquery)
+					: subquery;
+			}
+			IMDId *type = CScalar::PopConvert(children[1]->Pop())->MdidType();
+			type->AddRef();
+			CExpression *scalar = nullptr;
+			if (conditional)
+			{
+				CExpression *condition = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBooleanTest(mp,
+						static_cast<CScalarBooleanTest::EBoolTest>(test)), children[0]);
+				scalar = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+					condition, children[1], children[2]);
+			}
+			else if (test == CScalarBooleanTest::EbtSentinel)
+			{
+				IMDId *comparison = (*columns)[0]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
+				comparison->AddRef();
+				scalar = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarNullIf(mp, comparison, type), children[0], children[1]);
+				children[2]->Release();
+			}
+			else
+			{
+				scalar = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+					CUtils::PexprIDF(mp, children[0], children[1]),
+					CUtils::PexprScalarConstInt4(mp, 1), children[2]);
+			}
+			CExpression *source = PexprProjectWithScalar(mp, selected,
+				fix.PcrCreateInt4("conditional_value"), scalar);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			CDSLConstraintChecker checker(mp);
+			const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+			const BOOL accepted = matched && checker.FCheck(rule, model);
+			valid &= matched && accepted == (0 == unsafeChild);
+			if (accepted)
+			{
+				CDSLInstantiator instantiator(mp);
+				CExpression *target = instantiator.PexprInstantiate(rule, model);
+				valid &= nullptr != target &&
+					COperator::EopLogicalSelect == target->Pop()->Eopid() &&
+					COperator::EopLogicalProject == (*target)[0]->Pop()->Eopid() &&
+					(*target)[1]->Matches(predicate) &&
+					(*(*target)[0])[1]->Matches((*source)[1]) &&
+					target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+				CRefCount::SafeRelease(target);
+			}
+			model->Release();
+			source->Release();
+		}
+	}
+	selected->Release();
+	predicate->Release();
+	input->Release();
+	rule->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

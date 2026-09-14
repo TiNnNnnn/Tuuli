@@ -1,0 +1,30 @@
+{
+  "description": "Built-in NULLIF and null-aware comparisons preserve NULL outcomes through Compute/Filter movement",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,20,,t,t",
+      "3,,20,t,t"
+    ],
+    "postgres_output": [
+      "2,20,,t,t",
+      "3,,20,t,t"
+    ],
+    "off_output": [
+      "2,20,,t,t",
+      "3,,20,t,t"
+    ]
+  }
+}

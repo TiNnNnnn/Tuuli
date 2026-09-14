@@ -1,0 +1,35 @@
+{
+  "description": "Nested CASE preserves volatile count, NULLs and unreachable errors across a zipped SRF cohort",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "ProjectSet"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "9,6,2,6,9"
+    ],
+    "postgres_output": [
+      "9,6,2,6,9"
+    ],
+    "off_output": [
+      "9,6,2,6,9"
+    ]
+  }
+}

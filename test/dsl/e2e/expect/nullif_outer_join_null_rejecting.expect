@@ -1,0 +1,41 @@
+{
+  "description": "NULLIF with a NULL first operand remains null-rejecting and permits outer-join reduction",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Left Join",
+        "Right Join"
+      ]
+    },
+    {
+      "name": "dsl",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Left Join",
+        "Right Join"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,1"
+    ],
+    "postgres_output": [
+      "1,1"
+    ],
+    "off_output": [
+      "1,1"
+    ]
+  }
+}

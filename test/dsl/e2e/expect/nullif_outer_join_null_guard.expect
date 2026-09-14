@@ -1,0 +1,26 @@
+{
+  "description": "NULLIF with a NULL right operand must not make a predicate null-rejecting",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,"
+    ],
+    "postgres_output": [
+      "2,"
+    ],
+    "off_output": [
+      "2,"
+    ]
+  }
+}
