@@ -64,7 +64,7 @@ public:
 	CScalarSubqueryQuantified(const CScalarSubqueryQuantified &) = delete;
 
 	// operator mdid accessor
-	IMDId *MdIdOp() const;
+	IMDId *MdIdOp() const override;
 
 	// operator name accessor
 	const CWStringConst *PstrOp() const;

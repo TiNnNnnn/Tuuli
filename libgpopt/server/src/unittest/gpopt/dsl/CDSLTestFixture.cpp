@@ -158,9 +158,7 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
-			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
-								   GPDB_INT4_EQ_OP) /*func (dtor Releases it;
-													  unused by our checks)*/,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 65 /*int4eq*/),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
 								   GPDB_INT4_EQ_OP) /*commute = itself*/,
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
@@ -182,8 +180,7 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
-			GPOS_NEW(mp)
-				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 144 /*int4ne*/),
 			GPOS_NEW(mp)
 				CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_NEQ_OP),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
@@ -204,7 +201,7 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
-			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 467 /*int8eq*/),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
 			IMDType::EcmptEq, false /*returns null*/,
@@ -220,11 +217,28 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
-			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 468 /*int8ne*/),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_NEQ_OP),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
 			IMDType::EcmptNEq, false /*returns null*/,
 			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+	}
+
+	// Operator stability comes from its real implementation function, not
+	// from the operator OID or its children alone (PostgreSQL pg_proc.dat).
+	const OID comparisonFunctions[] = {65, 144, 467, 468};
+	const WCHAR *comparisonNames[] = {
+		GPOS_WSZ_LIT("int4eq"), GPOS_WSZ_LIT("int4ne"),
+		GPOS_WSZ_LIT("int8eq"), GPOS_WSZ_LIT("int8ne")};
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(comparisonFunctions); i++)
+	{
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+			mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, comparisonFunctions[i]),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(comparisonNames[i]), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
+			IMDFunction::EfsImmutable, true /*strict*/,
+			false /*ndv preserving*/, false /*allowed for PS*/));
 	}
 
 	m_pmdp = GPOS_NEW(mp) CMDProviderMemory(mp, m_pdrgpmdobj);
@@ -398,8 +412,8 @@ CDSLTestFixture::PexprConjunctionOfAtoms(CColRef **rgpcr, ULONG ulAtoms)
 //
 //	@doc:
 //		Equi-join key predicate pcrLeft = pcrRight, built as a CScalarCmp(EcmptEq)
-//		over two CScalarIdents directly (NOT via CUtils::PexprScalarEqCmp, which
-//		does a scalar-op cache lookup the programmatic md provider doesn't carry).
+//		over two CScalarIdents directly. Operator and implementation-function
+//		metadata are registered by the fixture above.
 //		The int4 '=' operator mdid comes straight from the int4 type-info. This is a
 //		plain-equality (both sides CScalarIdent) that CDSLJoinMatcher extracts as a
 //		join key — unlike PexprPredAtom's opaque IsNull.

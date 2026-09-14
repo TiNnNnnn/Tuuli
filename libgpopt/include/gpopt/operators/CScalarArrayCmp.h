@@ -132,7 +132,7 @@ public:
 	const CWStringConst *Pstr() const;
 
 	// operator mdid
-	IMDId *MdIdOp() const;
+	IMDId *MdIdOp() const override;
 
 	// the type of the scalar expression
 	IMDId *MdidType() const override;

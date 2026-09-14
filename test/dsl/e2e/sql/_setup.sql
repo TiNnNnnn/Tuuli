@@ -7,6 +7,36 @@ INSERT INTO dsl_insub_inner VALUES (1),(3);
 
 CREATE SEQUENCE dsl_compute_sequence;
 
+CREATE FUNCTION dsl_next_token(int, int) RETURNS bigint
+LANGUAGE plpgsql VOLATILE STRICT AS $$
+BEGIN
+    RETURN nextval('dsl_compute_sequence');
+END
+$$;
+CREATE OPERATOR <#> (
+    LEFTARG = int, RIGHTARG = int, FUNCTION = dsl_next_token
+);
+
+CREATE FUNCTION dsl_stable_token(int, int) RETURNS int
+LANGUAGE plpgsql STABLE STRICT AS $$
+BEGIN
+    RETURN pg_backend_pid();
+END
+$$;
+CREATE OPERATOR <##> (
+    LEFTARG = int, RIGHTARG = int, FUNCTION = dsl_stable_token
+);
+
+CREATE FUNCTION dsl_next_flag(int, int) RETURNS boolean
+LANGUAGE plpgsql VOLATILE STRICT AS $$
+BEGIN
+    RETURN nextval('dsl_compute_sequence') % 2 = 0;
+END
+$$;
+CREATE OPERATOR #=# (
+    LEFTARG = int, RIGHTARG = int, FUNCTION = dsl_next_flag
+);
+
 CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
 INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 

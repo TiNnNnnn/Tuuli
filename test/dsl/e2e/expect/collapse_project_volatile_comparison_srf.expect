@@ -1,0 +1,33 @@
+{
+  "description": "Boolean comparison operators preserve one volatile result per source row across SRFs",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCmp (#=#)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "t"
+    ],
+    "postgres_output": [
+      "t"
+    ],
+    "off_output": [
+      "t"
+    ]
+  }
+}
