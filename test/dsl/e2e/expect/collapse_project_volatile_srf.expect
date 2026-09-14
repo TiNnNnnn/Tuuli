@@ -1,0 +1,34 @@
+{
+  "description": "A lower volatile expression is evaluated once per input row, not once per SRF output",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "6,3"
+    ],
+    "postgres_output": [
+      "6,3"
+    ],
+    "off_output": [
+      "6,3"
+    ]
+  }
+}

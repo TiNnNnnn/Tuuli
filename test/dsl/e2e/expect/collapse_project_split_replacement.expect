@@ -4,8 +4,8 @@
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "Full native promise, together with independent, SRF and rejection companion cases",
-    "status": "verified_full_replacement",
+    "scope": "Nonvolatile partial Project collapse; volatile list movement is conservatively rejected",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "984eec66d5bc3f5d"
     ]

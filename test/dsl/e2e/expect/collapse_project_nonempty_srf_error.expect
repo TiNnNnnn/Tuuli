@@ -1,0 +1,35 @@
+{
+  "description": "A nonempty lower SRF retains an upper expression's division-by-zero error",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "Result\n   ->  ProjectSet",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

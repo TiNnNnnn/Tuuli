@@ -22,6 +22,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLRewriteProgram.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -200,6 +201,10 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ComputeSrfNativeDifferential),
+		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_ComputeRecursiveRewrite),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ConstructTypedNullExpressions),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_NoFireOnWrongRoot),
@@ -665,6 +670,15 @@ CDSLProjTest::EresUnittest_CollapseIndependentCompute()
 		}
 	}
 
+	// Compare the shared native kernel used by both preprocessing and xforms.
+	CExpression *pexprNative = CUtils::PexprCollapseProjects(mp, pexprOuter);
+	if (nullptr == pexprNative || nullptr == pexprTarget ||
+		!pexprNative->Matches(pexprTarget))
+	{
+		eres = GPOS_FAILED;
+	}
+	CRefCount::SafeRelease(pexprNative);
+
 	// The same generic rule must reject a parent expression that consumes the
 	// inner Compute's definition; flattening would create an invalid same-list
 	// dependency rather than an equivalent LET chain.
@@ -680,6 +694,13 @@ CDSLProjTest::EresUnittest_CollapseIndependentCompute()
 		eres = GPOS_FAILED;
 	}
 
+	CExpression *pexprNativeDependent =
+		CUtils::PexprCollapseProjects(mp, pexprDependent);
+	if (nullptr != pexprNativeDependent)
+	{
+		eres = GPOS_FAILED;
+	}
+	CRefCount::SafeRelease(pexprNativeDependent);
 	pmodelDependent->Release();
 	pexprDependent->Release();
 	CRefCount::SafeRelease(pexprTarget);
@@ -761,6 +782,14 @@ CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute()
 		}
 	}
 
+	// Partial movement must preserve the same residual layer as preprocessing.
+	CExpression *pexprNative = CUtils::PexprCollapseProjects(mp, pexprOuter);
+	if (nullptr == pexprNative || nullptr == pexprTarget ||
+		!pexprNative->Matches(pexprTarget))
+	{
+		eres = GPOS_FAILED;
+	}
+	CRefCount::SafeRelease(pexprNative);
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprOuter->Release();
@@ -768,6 +797,232 @@ CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeSrfNativeDifferential()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rules[] = {
+		PdslruleParseLocal(mp, GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE),
+		PdslruleParseLocal(mp, GPOPT_DSL_SPLIT_COMPUTE_RULE)};
+	GPOS_RESULT eres = GPOS_OK;
+	// Two upper elements independently vary SRF/scalar and base/lower-output
+	// dependency. A third ordinary element may move or stay. Cross this with
+	// lower SRF/scalar and an opaque Get/Join Input: 128 cases, both rules.
+	for (ULONG mask = 0; mask < 128; mask++)
+	{
+		CColRefArray *inputCols = nullptr;
+		CExpression *input = fix.PexprLogicalGet("srf_input", 1, &inputCols);
+		CColRef *baseCol = (*inputCols)[0];
+		if (mask & 64)
+		{
+			CExpression *right = fix.PexprLogicalGet("srf_right", 1);
+			CExpression *pred = CUtils::PexprScalarConstBool(mp, true);
+			CExpression *join = fix.PexprLogicalInnerJoin(input, right, pred);
+			input->Release();
+			right->Release();
+			pred->Release();
+			input = join;
+		}
+		CColRef *lowerCol = fix.PcrCreateInt4("lower_value");
+		CExpression *lowerScalar = (mask & 16)
+			? fix.PexprGenerateSeries(baseCol)
+			: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, baseCol));
+		CExpression *lower = PexprProjectWithScalar(mp, input, lowerCol, lowerScalar);
+		if (lowerScalar->DeriveHasNonScalarFunction() != (0 != (mask & 16)))
+		{
+			eres = GPOS_FAILED;
+		}
+		CExpressionArray *elements = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < 3; i++)
+		{
+			const BOOL srf = i < 2 && (mask & (1UL << (2 * i)));
+			const BOOL dependent = mask & (1UL << (i < 2 ? 2 * i + 1 : 5));
+			CColRef *arg = dependent ? lowerCol : baseCol;
+			CExpression *scalar = srf ? fix.PexprGenerateSeries(arg)
+				: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, arg));
+			if (scalar->DeriveHasNonScalarFunction() != srf)
+			{
+				eres = GPOS_FAILED;
+			}
+			elements->Append(GPOS_NEW(mp) CExpression(
+				mp, GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("upper_value")),
+				scalar));
+		}
+		lower->AddRef();
+		CExpression *source = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalProject(mp), lower,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), elements));
+		CExpression *native = CUtils::PexprCollapseProjects(mp, source);
+		ULONG accepted = 0;
+		for (CDSLRule *rule : rules)
+		{
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			CDSLConstraintChecker checker(mp);
+			if (!matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model))
+			{
+				eres = GPOS_FAILED;
+			}
+			else if (checker.FCheck(rule, model))
+			{
+				accepted++;
+				CDSLInstantiator instantiator(mp);
+				CExpression *target = instantiator.PexprInstantiate(rule, model);
+				if (nullptr == native || nullptr == target || !native->Matches(target) ||
+					!source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()))
+				{
+					eres = GPOS_FAILED;
+				}
+				CRefCount::SafeRelease(target);
+			}
+			model->Release();
+		}
+		// Exactly one of concat/split applies, or both reject when nothing moves.
+		if (accepted != (nullptr == native ? 0UL : 1UL))
+		{
+			eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(native);
+		source->Release();
+		lower->Release();
+		input->Release();
+		if (GPOS_OK != eres)
+		{
+			CWStringDynamic message(mp);
+			message.AppendFormat(GPOS_WSZ_LIT("Compute SRF differential failed: mask=%lu"), mask);
+			GPOS_TRACE(message.GetBuffer());
+			break;
+		}
+	}
+	for (CDSLRule *rule : rules)
+	{
+		rule->Release();
+	}
+	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeRecursiveRewrite()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRuleArray *rules = GPOS_NEW(mp) CDSLRuleArray(mp);
+	rules->Append(PdslruleParseLocal(mp, GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE));
+	rules->Append(PdslruleParseLocal(mp, GPOPT_DSL_SPLIT_COMPUTE_RULE));
+	CWStringDynamic errors(mp);
+	// Isolated test snapshot: do not change the production placement of either rule.
+	CDSLPolicy *policy = CDSLPolicyLoader::PpolicyLoadBuffer(mp,
+		"- rule: '*'\n  placement: rbo\n  phase: cleanup\n"
+		"  effect: preserves_join_graph\n  order: bottom_up\n  fixpoint: true\n",
+		&errors);
+	CDSLPolicySnapshot *snapshot = nullptr == policy ? nullptr :
+		CDSLPolicySnapshot::PsnapshotCompile(mp, rules, policy, &errors);
+	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
+	if (nullptr == snapshot || nullptr == engine)
+	{
+		GPOS_DELETE(snapshot);
+		CRefCount::SafeRelease(policy);
+		rules->Release();
+		return GPOS_FAILED;
+	}
+	BOOL valid = true;
+	for (ULONG depth : {3UL, 8UL, 32UL})
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("recursive_compute", 1, &columns);
+		CExpression *source = input;
+		CExpression *native = input;
+		input->AddRef();
+		// Construct the same chain and the result of the native bottom-up pass.
+		for (ULONG level = 0; level < depth; level++)
+		{
+			CColRef *output = fix.PcrCreateInt4("computed");
+			CExpression *scalar = GPOS_NEW(mp) CExpression(
+				mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[0]));
+			scalar->AddRef();
+			CExpression *next = PexprProjectWithScalar(mp, source, output, scalar);
+			source->Release();
+			source = next;
+			next = PexprProjectWithScalar(mp, native, output, scalar);
+			native->Release();
+			CExpression *collapsed = CUtils::PexprCollapseProjects(mp, next);
+			native = nullptr == collapsed ? next : collapsed;
+			if (nullptr != collapsed)
+			{
+				next->Release();
+			}
+		}
+		const ULONG fingerprint = CExpression::HashValue(source);
+		CDSLRewriteProgram program(mp, engine, snapshot, source->DeriveOutputColumns());
+		CExpression *target = program.PexprRewrite(source);
+		valid &= native->Matches(target) && depth - 1 == program.UlApplications() &&
+			!program.FHardBudgetExhausted() && fingerprint == CExpression::HashValue(source);
+		CDSLRewriteProgram again(mp, engine, snapshot, source->DeriveOutputColumns());
+		CExpression *stable = again.PexprRewrite(target);
+		valid &= target->Matches(stable) && 0 == again.UlApplications();
+		stable->Release();
+		target->Release();
+		native->Release();
+		source->Release();
+	}
+
+	// lower(x=base), middle(y=x,z=base), upper(w=base): split z, concat w,
+	// then split w. The final residual y must still reference the lower x.
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("split_chain", 1, &columns);
+	CColRef *x = fix.PcrCreateInt4("x");
+	CColRef *y = fix.PcrCreateInt4("y");
+	CColRef *z = fix.PcrCreateInt4("z");
+	CColRef *w = fix.PcrCreateInt4("w");
+	auto elem = [&](CColRef *out, CColRef *in) {
+		return GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarProjectElement(mp, out),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, in)));
+	};
+	CExpression *lower = PexprProjectWithScalar(mp, input, x,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[0])));
+	CExpressionArray *middleElems = GPOS_NEW(mp) CExpressionArray(mp);
+	middleElems->Append(elem(y, x));
+	middleElems->Append(elem(z, (*columns)[0]));
+	CExpression *middle = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalProject(mp), lower,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), middleElems));
+	CExpression *source = PexprProjectWithScalar(mp, middle, w,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[0])));
+	CExpressionArray *mergedElems = GPOS_NEW(mp) CExpressionArray(mp);
+	mergedElems->Append(elem(w, (*columns)[0]));
+	mergedElems->Append(elem(z, (*columns)[0]));
+	mergedElems->Append(elem(x, (*columns)[0]));
+	CExpression *merged = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalProject(mp), input,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), mergedElems));
+	CExpression *expected = PexprProjectWithScalar(mp, merged, y,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, x)));
+	const ULONG fingerprint = CExpression::HashValue(source);
+	{
+		CDSLRewriteProgram program(mp, engine, snapshot, source->DeriveOutputColumns());
+		CExpression *target = program.PexprRewrite(source);
+		valid &= expected->Matches(target) && 3 == program.UlApplications() &&
+			!program.FHardBudgetExhausted() && fingerprint == CExpression::HashValue(source);
+		CDSLRewriteProgram again(mp, engine, snapshot, source->DeriveOutputColumns());
+		CExpression *stable = again.PexprRewrite(target);
+		valid &= target->Matches(stable) && 0 == again.UlApplications();
+		stable->Release();
+		target->Release();
+	}
+	expected->Release();
+	merged->Release();
+	source->Release();
+	middle->Release();
+	GPOS_DELETE(snapshot);
+	policy->Release();
+	rules->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

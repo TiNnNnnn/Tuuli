@@ -1,0 +1,34 @@
+{
+  "description": "Adjacent scalar-only Compute layers retain volatile evaluation order",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "t"
+    ],
+    "postgres_output": [
+      "t"
+    ],
+    "off_output": [
+      "t"
+    ]
+  }
+}

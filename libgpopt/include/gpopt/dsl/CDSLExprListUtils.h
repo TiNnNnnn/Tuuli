@@ -19,6 +19,8 @@ public:
 	CDSLExprListUtils() = delete;
 
 	static BOOL FProjectList(const CExpression *pexpr);
+	// Volatile expression lists cannot be composed or partitioned: independent
+	// columns do not imply independent effects or invariant evaluation counts.
 	static BOOL FConcatSafe(CExpression *pexprUpper,
 							CExpression *pexprLower);
 	static BOOL FDepsDisjoint(CMemoryPool *mp, CExpression *pexprList,
