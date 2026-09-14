@@ -1,0 +1,27 @@
+{
+  "description": "CASE must not hide a partial branch when moving Compute below its filtering boundary",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "3,30"
+    ],
+    "postgres_output": [
+      "3,30"
+    ],
+    "off_output": [
+      "3,30"
+    ]
+  }
+}

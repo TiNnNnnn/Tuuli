@@ -35,16 +35,12 @@ CScalarNullIf::CScalarNullIf(CMemoryPool *mp, IMDId *mdid_op, IMDId *mdid_type)
 	: CScalar(mp),
 	  m_mdid_op(mdid_op),
 	  m_mdid_type(mdid_type),
-	  m_returns_null_on_null_input(false),
 	  m_fBoolReturnType(false)
 {
 	GPOS_ASSERT(mdid_op->IsValid());
 	GPOS_ASSERT(mdid_type->IsValid());
 
 	CMDAccessor *md_accessor = COptCtxt::PoctxtFromTLS()->Pmda();
-	m_returns_null_on_null_input =
-		CMDAccessorUtils::FScalarOpReturnsNullOnNullInput(md_accessor,
-														  m_mdid_op);
 	m_fBoolReturnType = CMDAccessorUtils::FBoolType(md_accessor, m_mdid_type);
 }
 
@@ -115,9 +111,14 @@ CScalarNullIf::Matches(COperator *pop) const
 CScalar::EBoolEvalResult
 CScalarNullIf::Eber(ULongPtrArray *pdrgpulChildren) const
 {
-	if (m_returns_null_on_null_input)
+	GPOS_ASSERT(2 == pdrgpulChildren->Size());
+	const EBoolEvalResult left = (EBoolEvalResult) * (*pdrgpulChildren)[0];
+	const EBoolEvalResult right = (EBoolEvalResult) * (*pdrgpulChildren)[1];
+	// NULLIF returns its first operand if either operand is NULL; the
+	// comparison function is not called. Its strictness is not NULLIF's.
+	if (EberNull == left || EberNull == right)
 	{
-		return EberNullOnAnyNullChild(pdrgpulChildren);
+		return left;
 	}
 
 	return EberAny;

@@ -1,0 +1,30 @@
+{
+  "description": "Safe CASE and BooleanTest expressions permit the existing Compute/Filter rule",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,20",
+      "3,"
+    ],
+    "postgres_output": [
+      "2,20",
+      "3,"
+    ],
+    "off_output": [
+      "2,20",
+      "3,"
+    ]
+  }
+}

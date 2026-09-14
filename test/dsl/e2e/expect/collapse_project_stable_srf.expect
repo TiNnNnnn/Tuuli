@@ -1,0 +1,34 @@
+{
+  "description": "Stable functions remain eligible for Compute composition across an SRF",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "ProjectSet",
+        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      "6,1"
+    ],
+    "postgres_output": [
+      "6,1"
+    ],
+    "off_output": [
+      "6,1"
+    ]
+  }
+}

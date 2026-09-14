@@ -1,0 +1,27 @@
+{
+  "description": "Null-aware comparison wrappers do not hide partial operands when moving across a Filter",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "3,,30,f,f"
+    ],
+    "postgres_output": [
+      "3,,30,f,f"
+    ],
+    "off_output": [
+      "3,,30,f,f"
+    ]
+  }
+}
