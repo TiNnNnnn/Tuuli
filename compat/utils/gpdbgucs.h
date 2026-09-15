@@ -39,6 +39,7 @@ extern int  pg_orca_dphyper_pair_budget;
 
 /* --- bool GUCs --- */
 extern bool pg_orca_enable_dphyper;
+extern bool pg_orca_trace_dsl_rule;
 
 /* --- double GUCs --- */
 extern double optimizer_sort_factor;

@@ -1,0 +1,45 @@
+{
+  "description": "Strict cast functions still permit null-rejecting outer-join reduction",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCast"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "CScalarFunc (dsl_cast_strict_flag)",
+        "Left Join",
+        "Right Join"
+      ]
+    },
+    {
+      "name": "dsl",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCast"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "CScalarFunc (dsl_cast_strict_flag)",
+        "Left Join",
+        "Right Join"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,1"
+    ],
+    "postgres_output": [
+      "1,1"
+    ],
+    "off_output": [
+      "1,1"
+    ]
+  }
+}

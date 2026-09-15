@@ -1,0 +1,46 @@
+{
+  "description": "I/O conversions preserve NULL and permit safe outer-join reduction",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCoerceViaIO"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Left Join",
+        "Right Join"
+      ]
+    },
+    {
+      "name": "dsl",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCoerceViaIO"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Left Join",
+        "Right Join"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,1",
+      "3,3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "3,3"
+    ],
+    "off_output": [
+      "1,1",
+      "3,3"
+    ]
+  }
+}

@@ -620,6 +620,33 @@ CDSLPolicySnapshot::Policy(const CDSLRule *prule) const
 	return *policy;
 }
 
+CDSLRuleArray *
+CDSLPolicySnapshot::PdrgpruleCBOCandidates(CMemoryPool *mp, const CDSLRuleArray *rules) const
+{
+	std::vector<CDSLRule *> ordered;
+	ordered.reserve(rules->Size());
+	for (ULONG i = 0; i < rules->Size(); ++i)
+	{
+		CDSLRule *rule = (*rules)[i];
+		const SDSLRulePolicy *policy = Ppolicy(rule);
+		if (nullptr != policy && policy->m_fEnabled && EdslplacementCBO == policy->m_edslplacement)
+			ordered.push_back(rule);
+	}
+	const auto higher = [this](const CDSLRule *left, const CDSLRule *right) {
+		return Policy(left).m_iPriority > Policy(right).m_iPriority;
+	};
+	// Equal/default priorities retain the trie's original ordering, without a sort.
+	if (!std::is_sorted(ordered.begin(), ordered.end(), higher))
+		std::stable_sort(ordered.begin(), ordered.end(), higher);
+	CDSLRuleArray *result = GPOS_NEW(mp) CDSLRuleArray(mp);
+	for (CDSLRule *rule : ordered)
+	{
+		rule->AddRef();
+		result->Append(rule);
+	}
+	return result;
+}
+
 const SDSLRulePolicy *
 CDSLPolicySnapshot::Ppolicy(const CDSLRule *prule) const
 {

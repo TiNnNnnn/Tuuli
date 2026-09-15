@@ -118,6 +118,8 @@ public:
 
 	const SDSLRulePolicy &Policy(const CDSLRule *prule) const;
 	const SDSLRulePolicy *Ppolicy(const CDSLRule *prule) const;
+	// Query-local filtering/order; never mutate the shared rule library or trie.
+	CDSLRuleArray *PdrgpruleCBOCandidates(CMemoryPool *mp, const CDSLRuleArray *rules) const;
 	BOOL FExplicitPolicy() const { return m_fExplicitPolicy; }
 	ULONG UlRules() const { return (ULONG) m_policies.size(); }
 	const std::vector<const CDSLRule *> &RboRules(EDslRulePhase phase) const;

@@ -172,7 +172,9 @@ jobs:
       - name: Run DSL OFF/ON end-to-end tests
         env:
           PG_CONFIG: /usr/lib/postgresql/18/bin/pg_config
-        run: test/dsl/e2e.sh
+        run: |
+          test/dsl/e2e.sh
+          test/dsl/e2e.sh --suite expression_bindings
 
       - name: Run public real-SQL trace corpus
         run: |

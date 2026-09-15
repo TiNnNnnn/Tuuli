@@ -88,7 +88,10 @@ COptimizationContext::SetBest(CCostContext *pcc)
 	GPOS_ASSERT(nullptr != pcc);
 
 	if (auto *opt = COptCtxt::PoctxtFromTLS())
+	{
 		opt->TraceDSLExperimentCostLifecycle("best_updated", pcc, m_pccBest, this);
+		opt->TraceDSLProgress(pcc, m_pccBest, this);
+	}
 	m_pccBest = pcc;
 
 	COperator *pop = pcc->Pgexpr()->Pop();

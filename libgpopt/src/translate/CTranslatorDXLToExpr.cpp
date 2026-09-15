@@ -3891,6 +3891,10 @@ CTranslatorDXLToExpr::PexprScalarCoerceViaIO(const CDXLNode *pdxlnCoerce)
 	CDXLScalarCoerceViaIO *dxl_op =
 		CDXLScalarCoerceViaIO::Cast(pdxlnCoerce->GetOperator());
 	GPOS_ASSERT(nullptr != dxl_op);
+	IMDId *input_func = dxl_op->InputFuncMdId();
+	IMDId *output_func = dxl_op->OutputFuncMdId();
+	if (nullptr != input_func) input_func->AddRef();
+	if (nullptr != output_func) output_func->AddRef();
 
 	// translate child expression
 	GPOS_ASSERT(1 == pdxlnCoerce->Arity());
@@ -3902,14 +3906,19 @@ CTranslatorDXLToExpr::PexprScalarCoerceViaIO(const CDXLNode *pdxlnCoerce)
 
 	EdxlCoercionForm dxl_coerce_format = dxl_op->GetDXLCoercionForm();
 
-	return GPOS_NEW(m_mp) CExpression(
+	CExpression *result = GPOS_NEW(m_mp) CExpression(
 		m_mp,
 		GPOS_NEW(m_mp) CScalarCoerceViaIO(
 			m_mp, mdid_type, dxl_op->TypeModifier(),
 			(COperator::ECoercionForm)
 				dxl_coerce_format,	// map Coercion Form directly based on position in enum
-			dxl_op->GetLocation()),
+			dxl_op->GetLocation(), input_func, output_func),
 		pexprChild);
+	if (IMDFunction::EfsVolatile <= result->DeriveScalarFunctionProperties()->Efs())
+	{
+		COptCtxt::PoctxtFromTLS()->SetHasVolatileFunc();
+	}
+	return result;
 }
 
 //---------------------------------------------------------------------------

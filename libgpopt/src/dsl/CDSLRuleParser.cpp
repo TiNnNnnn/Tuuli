@@ -35,12 +35,13 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 
-#include "antlr4-runtime.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include "DSLRuleLexer.h"
 #include "DSLRuleParser.h"
-#include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "antlr4-runtime.h"
 
 using namespace gpopt;
 
@@ -744,6 +745,218 @@ PdrgpconBuild(SBuildCtx &bctx,
 	}
 	return pdrgpcon;
 }
+
+// New expression bindings currently have a native NOT/reference runtime.
+// Input remains an arbitrary relational subtree; these are supported template
+// constructors, not a whitelist of rewrite identities.
+BOOL
+FBindingTree(const CDSLOp *op)
+{
+	return EdslopInput == op->Edslop() ||
+		   (EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size() &&
+			FBindingTree((*op)[0]));
+}
+
+BOOL
+FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
+				 CDSLFragment *source, CDSLFragment *target)
+{
+	if (nullptr == ctx || ctx->binding().empty())
+	{
+		return true;
+	}
+	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
+	{
+		bctx.Fail(
+			"expression bindings currently support Input/Filter templates");
+		return false;
+	}
+	// Declare source captures before target terms, independently of text order.
+	for (BOOL match : {true, false})
+	{
+		for (auto *binding : ctx->binding())
+		{
+			const BOOL isMatch =
+				binding->getStart()->getType() == dsl::DSLRuleParser::ID;
+			if (match != isMatch)
+			{
+				continue;
+			}
+			auto *call = binding->call();
+			if (nullptr != call &&
+				!("Not" == call->ID()->getText() && 1 == call->SYMBOL().size()) &&
+				!("And" == call->ID()->getText() && 2 == call->SYMBOL().size()))
+			{
+				bctx.Fail(
+					"unsupported expression constructor or arity (expected Not/And)");
+				return false;
+			}
+			auto symbols = binding->SYMBOL();
+			if (nullptr != call)
+			{
+				for (auto *operand : call->SYMBOL())
+					symbols.push_back(operand);
+			}
+			for (auto *node : symbols)
+			{
+				const std::string name = node->getText();
+				auto it = bctx.symtab.find(name);
+				if (bctx.symtab.end() == it)
+				{
+					if ('p' != name[0])
+					{
+						bctx.Fail(
+							"expression bindings require predicate symbols");
+						return false;
+					}
+					CDSLSymbol *symbol = GPOS_NEW(bctx.mp) CDSLSymbol(
+						bctx.mp, EdslsymPred, name.c_str(), bctx.next_id++,
+						match ? EdslsideSource : EdslsideTarget);
+					(match ? source : target)->Pdrgpsym()->Append(symbol);
+					it = bctx.symtab.emplace(name, symbol).first;
+				}
+				if (EdslsymPred != it->second->Esymkind() ||
+					(match && EdslsideSource != it->second->Eside()))
+				{
+					bctx.Fail(
+						"invalid predicate kind or source capture of target symbol");
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+BOOL
+FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
+			   CDSLFragment *source, CDSLFragment *target, ULONG sourceSymbols,
+			   const CDSLConstraintArray *constraints,
+			   CDSLExpressionDefinitions *definitions)
+{
+	if (nullptr == ctx || ctx->binding().empty())
+	{
+		return true;
+	}
+	using Definitions = CDSLExpressionDefinitions;
+	std::unordered_set<const CDSLSymbol *> available, aliases;
+	for (ULONG i = 0; i < sourceSymbols; i++)
+	{
+		available.insert((*source->Pdrgpsym())[i]);
+	}
+	// Cross-side aliases are bindings. Do not silently interpret constructive
+	// legacy constraints as premises for the new oriented expression language.
+	for (ULONG i = 0; i < constraints->Size(); i++)
+	{
+		const CDSLConstraint *con = (*constraints)[i];
+		const auto kind = con->Edslcon();
+		const EDslSymbolKind expected = EdslconTableEq == kind	 ? EdslsymTable
+										: EdslconAttrsEq == kind ? EdslsymAttrs
+										: EdslconPredicateEq == kind
+											? EdslsymPred
+											: EdslsymSentinel;
+		if (EdslsymSentinel == expected || 2 != con->Pdrgpsym()->Size())
+		{
+			bctx.Fail(
+				"expression bindings currently accept only cross-side aliases");
+			return false;
+		}
+		const CDSLSymbol *a = (*con->Pdrgpsym())[0], *b = (*con->Pdrgpsym())[1];
+		if (a->Esymkind() != expected || b->Esymkind() != expected ||
+			a->Eside() == b->Eside() ||
+			!aliases.insert(EdslsideTarget == a->Eside() ? a : b).second)
+		{
+			bctx.Fail("invalid or duplicate cross-side alias");
+			return false;
+		}
+	}
+	for (auto *binding : ctx->binding())
+	{
+		const BOOL match =
+			binding->getStart()->getType() == dsl::DSLRuleParser::ID;
+		const auto *output = bctx.symtab.at(binding->SYMBOL(0)->getText());
+		auto *call = binding->call();
+		const auto *input =
+			bctx.symtab.at(nullptr != call ? call->SYMBOL(0)->getText()
+										   : binding->SYMBOL(1)->getText());
+		if (!match &&
+			(EdslsideSource == output->Eside() || aliases.count(output)))
+		{
+			bctx.Fail(
+				"expression construction cannot overwrite a source or alias");
+			return false;
+		}
+		CDSLSymbolArray *symbols = GPOS_NEW(bctx.mp) CDSLSymbolArray(bctx.mp);
+		for (const CDSLSymbol *symbol : {output, input})
+		{
+			const_cast<CDSLSymbol *>(symbol)->AddRef();
+			symbols->Append(const_cast<CDSLSymbol *>(symbol));
+		}
+		if (nullptr != call && 2 == call->SYMBOL().size())
+		{
+			CDSLSymbol *right = bctx.symtab.at(call->SYMBOL(1)->getText());
+			right->AddRef();
+			symbols->Append(right);
+		}
+		const BOOL valid = definitions->FAppendBinding(
+			bctx.mp, nullptr == call ? EdslexprRef
+				: "And" == call->ID()->getText() ? EdslexprAnd : EdslexprNot,
+			match ? Definitions::EMatch : Definitions::EBuild, symbols);
+		symbols->Release();
+		if (!valid)
+		{
+			bctx.Fail("duplicate or cyclic expression binding");
+			return false;
+		}
+	}
+	// Dataflow, not declaration order, determines availability. Source matches
+	// produce captures; target constructions consume them. Reject disconnected
+	// patterns and undefined leaves instead of admitting non-executable rules.
+	size_t previous;
+	do
+	{
+		previous = available.size();
+		for (ULONG i = 0; i < constraints->Size(); i++)
+		{
+			const auto *symbols = (*constraints)[i]->Pdrgpsym();
+			const CDSLSymbol *a = (*symbols)[0], *b = (*symbols)[1];
+			if (EdslsideTarget == b->Eside())
+			{
+				std::swap(a, b);
+			}
+			if (available.count(b))
+				available.insert(a);
+		}
+		for (ULONG i = 0; i < definitions->UlDefinitions(); i++)
+		{
+			const auto *def = definitions->PdefAt(i);
+			const BOOL match = Definitions::EMatch == def->Binding();
+			BOOL inputsReady = true;
+			for (ULONG operand = 0; operand < def->Arity(); operand++)
+			{
+				const CDSLSymbol *input = def->PsymOperand(operand);
+				if (match && available.count(def->PsymOutput()))
+					available.insert(input);
+				inputsReady &= 0 != available.count(input);
+			}
+			if (!match && inputsReady)
+				available.insert(def->PsymOutput());
+		}
+	} while (previous != available.size());
+	for (const CDSLFragment *fragment : {source, target})
+	{
+		for (ULONG i = 0; i < fragment->Pdrgpsym()->Size(); i++)
+		{
+			if (!available.count((*fragment->Pdrgpsym())[i]))
+			{
+				bctx.Fail(
+					"unreachable source pattern or undefined expression input/target");
+				return false;
+			}
+		}
+	}
+	return true;
+}
 }  // namespace
 
 CDSLRule *
@@ -789,21 +1002,41 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 				PfragBuild(bctx, frags[0], EdslsideSource);
 			CDSLFragment *pfrag_tgt = nullptr;
 			CDSLConstraintArray *pdrgpcon = nullptr;
+			CDSLExpressionDefinitions *definitions = nullptr;
+			const ULONG sourceSymbols =
+				nullptr == pfrag_src ? 0 : pfrag_src->Pdrgpsym()->Size();
 
 			if (nullptr != pfrag_src)
 			{
 				pfrag_tgt = PfragBuild(bctx, frags[1], EdslsideTarget);
 			}
-			if (nullptr != pfrag_tgt)
+			if (nullptr != pfrag_tgt &&
+				FDeclareBindings(bctx, tree->constraints(), pfrag_src,
+								 pfrag_tgt))
 			{
-				pdrgpcon = PdrgpconBuild(
-					bctx, tree->constraints(), pfrag_tgt->Pdrgpsym());
+				pdrgpcon = PdrgpconBuild(bctx, tree->constraints(),
+										 pfrag_tgt->Pdrgpsym());
 			}
 
 			if (nullptr != pdrgpcon)
 			{
-				pdslrule = GPOS_NEW(mp)
-					CDSLRule(mp, pfrag_src, pfrag_tgt, pdrgpcon, sz_verdict);
+				definitions =
+					GPOS_NEW(mp) CDSLExpressionDefinitions(mp, pdrgpcon);
+				if (!FBuildBindings(bctx, tree->constraints(), pfrag_src,
+									pfrag_tgt, sourceSymbols, pdrgpcon,
+									definitions))
+				{
+					GPOS_DELETE(definitions);
+					definitions = nullptr;
+					pdrgpcon->Release();
+					pdrgpcon = nullptr;
+				}
+			}
+			if (nullptr != pdrgpcon)
+			{
+				pdslrule =
+					GPOS_NEW(mp) CDSLRule(mp, pfrag_src, pfrag_tgt, pdrgpcon,
+										  sz_verdict, definitions);
 			}
 			else
 			{

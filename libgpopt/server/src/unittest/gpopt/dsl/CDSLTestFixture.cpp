@@ -40,6 +40,7 @@
 #include "naucrates/md/CMDProviderMemory.h"
 #include "naucrates/md/CMDScalarOpGPDB.h"
 #include "naucrates/md/CMDTypeBoolGPDB.h"
+#include "naucrates/md/CMDTypeInt2GPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "naucrates/md/CMDTypeInt8GPDB.h"
 #include "naucrates/md/CMDTypeOidGPDB.h"
@@ -92,6 +93,7 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	// CMDProviderGeneric hands the accessor for these type-infos.
 	m_pdrgpmdobj = GPOS_NEW(mp) IMDCacheObjectArray(mp);
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt4GPDB(mp));
+	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt2GPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeInt8GPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeBoolGPDB(mp));
 	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDTypeOidGPDB(mp));
@@ -239,6 +241,39 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
 			IMDFunction::EfsImmutable, true /*strict*/,
 			false /*ndv preserving*/, false /*allowed for PS*/));
+	}
+
+	// Real integer cast functions plus a custom int4 -> int8 implementation.
+	// An immutable, strict signature alone does not establish error freedom.
+	const OID castFunctions[] = {313, 754, 481, 480, 100001};
+	const OID castResults[] = {GPDB_INT4_OID, GPDB_INT8_OID, GPDB_INT8_OID,
+		GPDB_INT4_OID, GPDB_INT8_OID};
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(castFunctions); i++)
+	{
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+			mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, castFunctions[i]),
+			GPOS_NEW(mp) CMDName(
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("cast_impl")), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, castResults[i]),
+			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
+			IMDFunction::EfsImmutable, true /*strict*/,
+			false /*ndv preserving*/, false /*allowed for PS*/));
+	}
+
+	// Synthetic input/output functions for the I/O stability cross product.
+	for (ULONG output = 0; output < 2; output++)
+	{
+		for (ULONG stability = 0; stability < IMDFunction::EfsSentinel; stability++)
+		{
+			m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+				mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+					100200 + output * 10 + stability),
+				GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("io_impl")), true),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, output ? 2275 /*cstring*/ : GPDB_INT4_OID),
+				GPOS_NEW(mp) IMdIdArray(mp), false,
+				static_cast<IMDFunction::EFuncStbl>(stability), false /*non-strict*/,
+				false, false));
+		}
 	}
 
 	m_pmdp = GPOS_NEW(mp) CMDProviderMemory(mp, m_pdrgpmdobj);

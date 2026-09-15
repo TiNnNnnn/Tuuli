@@ -6694,6 +6694,10 @@ CTranslatorExprToDXL::PdxlnScCoerceViaIO(CExpression *pexprCoerce)
 	GPOS_ASSERT(nullptr != pexprCoerce);
 	CScalarCoerceViaIO *popScCerce =
 		CScalarCoerceViaIO::PopConvert(pexprCoerce->Pop());
+	IMDId *input_func = popScCerce->InputFuncMdId();
+	IMDId *output_func = popScCerce->OutputFuncMdId();
+	if (nullptr != input_func) input_func->AddRef();
+	if (nullptr != output_func) output_func->AddRef();
 
 	IMDId *mdid = popScCerce->MdidType();
 	mdid->AddRef();
@@ -6705,7 +6709,7 @@ CTranslatorExprToDXL::PdxlnScCoerceViaIO(CExpression *pexprCoerce)
 			m_mp, mdid, popScCerce->TypeModifier(),
 			(EdxlCoercionForm) popScCerce
 				->Ecf(),  // map Coercion Form directly based on position in enum
-			popScCerce->Location()));
+			popScCerce->Location(), input_func, output_func));
 
 	// translate child
 	GPOS_ASSERT(1 == pexprCoerce->Arity());

@@ -56,6 +56,7 @@ CLogicalLeftSemiCorrelatedApply::PxfsCandidates(CMemoryPool *mp) const
 {
 	CXformSet *xform_set = GPOS_NEW(mp) CXformSet(mp);
 	(void) xform_set->ExchangeSet(CXform::ExfImplementLeftSemiCorrelatedApply);
+	(void) xform_set->ExchangeSet(CXform::ExfDSLRuleExists);
 
 	return xform_set;
 }

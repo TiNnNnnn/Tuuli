@@ -1,0 +1,56 @@
+{
+  "description": "Native scalar bindings preserve arithmetic predicates and duplicate rows with join inputs",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "xform_trace": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "construct-on",
+      "xform_trace": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "2,",
+      "2,",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      "2,",
+      "2,",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      "2,",
+      "2,",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

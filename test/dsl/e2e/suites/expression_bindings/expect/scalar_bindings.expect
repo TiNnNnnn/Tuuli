@@ -1,0 +1,93 @@
+{
+  "description": "Isolated native NOT bindings: construction is a DSL alternative, while SQL double negation is already preprocessed",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "xform_trace": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "construct-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "CScalarBoolOp (EboolopNot)",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    },
+    {
+      "name": "roundtrip-on",
+      "xform_trace": false,
+      "trace": true,
+      "policy": "roundtrip.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "\"status\":\"applied\",\"rule_hash\":\"42324fdc12011292\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "eliminate-only",
+      "xform_trace": false,
+      "trace": true,
+      "policy": "eliminate.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"42324fdc12011292\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

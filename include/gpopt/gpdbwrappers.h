@@ -260,6 +260,9 @@ bool IsFuncNDVPreserving(Oid funcid);
 // stability property of given function
 char FuncStability(Oid funcid);
 
+// Functions executed by a source -> text -> target I/O coercion.
+void CoerceViaIOFunctions(Oid source, Oid target, Oid *output, Oid *input);
+
 // support function of given function
 RegProcedure FuncSupport(Oid funcid);
 

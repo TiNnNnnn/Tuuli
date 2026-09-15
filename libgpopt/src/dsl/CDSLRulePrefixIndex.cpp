@@ -7,6 +7,7 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -180,10 +181,14 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == pop->Eopid();
 	// LeftSemiApplyIn is the tagged live form of DSL SemiApply. Mirror the
 	// shared Join matcher so the trie can keep inspecting its child groups.
-	const BOOL fSemiApplyInView =
+	const BOOL fSemiApplyView =
 		COperator::EopLogicalLeftSemiApply == pedge->m_eopid &&
-		(COperator::EopLogicalLeftSemiApplyIn == pop->Eopid() ||
+		(COperator::EopLogicalLeftSemiCorrelatedApply == pop->Eopid() ||
+		 COperator::EopLogicalLeftSemiApplyIn == pop->Eopid() ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == pop->Eopid());
+	const BOOL fAntiApplyView =
+		COperator::EopLogicalLeftAntiSemiApply == pedge->m_eopid &&
+		COperator::EopLogicalLeftAntiSemiCorrelatedApply == pop->Eopid();
 	const BOOL fCorrelatedJoinApplyView =
 		(COperator::EopLogicalInnerApply == pedge->m_eopid &&
 		 COperator::EopLogicalInnerCorrelatedApply == pop->Eopid()) ||
@@ -191,7 +196,7 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		 COperator::EopLogicalLeftOuterCorrelatedApply == pop->Eopid());
 	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
 		!fDedupAggView && !fCorrelatedNotInApplyView &&
-		!fSemiApplyInView && !fCorrelatedJoinApplyView)
+		!fSemiApplyView && !fAntiApplyView && !fCorrelatedJoinApplyView)
 	{
 		return false;
 	}
@@ -389,19 +394,37 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 	const BOOL fCorrelatedNotInApplyView =
 		EdslopAntiApplyNotIn == popRoot->Edslop() &&
 		COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopidBucket;
-	const BOOL fSemiApplyInView =
+	const BOOL fSemiApplyView =
 		EdslopSemiApply == popRoot->Edslop() &&
 		2 == popRoot->UlChildren() &&
 		EdslopFilter == (*popRoot)[1]->Edslop() &&
-		(COperator::EopLogicalLeftSemiApplyIn == eopidBucket ||
+		(COperator::EopLogicalLeftSemiCorrelatedApply == eopidBucket ||
+		 COperator::EopLogicalLeftSemiApplyIn == eopidBucket ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopidBucket);
+	const BOOL fAntiApplyView =
+		EdslopAntiApply == popRoot->Edslop() &&
+		2 == popRoot->UlChildren() &&
+		EdslopFilter == (*popRoot)[1]->Edslop() &&
+		COperator::EopLogicalLeftAntiSemiCorrelatedApply == eopidBucket;
 	m_fFollowDSLSelectAlternatives =
-		m_fFollowDSLSelectAlternatives || fSemiApplyInView;
-	if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
-		fCorrelatedNotInApplyView || fSemiApplyInView)
+		m_fFollowDSLSelectAlternatives || fSemiApplyView || fAntiApplyView;
+	if (popRoot->Eopid() == eopidBucket && prule->Pexprdefs()->FHasBindings())
 	{
-		pnodeTerminal =
-			PnodeInsertOp(m_pnodeRoot, popRoot, true, &fComplete);
+		// Oriented bindings use literal Filter/Input trees. Keep every Filter
+		// in the trie so memo binding visits each required relational level;
+		// the legacy collapsed-filter prefix must not truncate that search.
+		const CDSLOp *op = popRoot;
+		while (EdslopFilter == op->Edslop())
+		{
+			pnodeTerminal = PnodeExact(pnodeTerminal, op->Eopid(), 1);
+			op = (*op)[0];
+		}
+		pnodeTerminal = PnodeInsertOp(pnodeTerminal, op, false, &fComplete);
+	}
+	else if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
+			 fCorrelatedNotInApplyView || fSemiApplyView || fAntiApplyView)
+	{
+		pnodeTerminal = PnodeInsertOp(m_pnodeRoot, popRoot, true, &fComplete);
 	}
 
 	if (m_pnodeRoot == pnodeTerminal)

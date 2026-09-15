@@ -12,9 +12,14 @@
 
 #include "gpos/base.h"
 
-#include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
+#include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLAggMatcher.h"
+#include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExistsMatcher.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
 #include "gpopt/dsl/CDSLInSubMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
@@ -22,26 +27,59 @@
 #include "gpopt/dsl/CDSLProjMatcher.h"
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLUnionMatcher.h"
-#include "gpopt/base/COrderSpec.h"
-#include "gpopt/base/COptCtxt.h"
-#include "gpopt/optimizer/COptimizerConfig.h"
-#include "gpopt/base/CDistributionSpecHashed.h"
-#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalCTEAnchor.h"
 #include "gpopt/operators/CLogicalCTEConsumer.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
+#include "gpopt/optimizer/COptimizerConfig.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/IMDType.h"
 #include "naucrates/traceflags/traceflags.h"
-#include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
 
 namespace
 {
+BOOL
+FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
+					   const CDSLSymbol *symbol, CExpression *expression,
+					   CDSLModel *model, ULONG depth = 0)
+{
+	if (depth > definitions->UlDefinitions())
+	{
+		return false;
+	}
+	CExpression *existing = model->PexprPred(symbol);
+	if (nullptr != existing ? !existing->Matches(expression)
+							: !model->FBind(symbol, expression))
+	{
+		return false;
+	}
+	const auto *def = definitions->Pdef(symbol);
+	if (nullptr == def)
+	{
+		return true;
+	}
+	if (CDSLExpressionDefinitions::EMatch != def->Binding() ||
+		def->Arity() != expression->Arity() ||
+		!CUtils::FScalarBoolOp(expression, EdslexprAnd == def->Edslexpr()
+			? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopNot))
+	{
+		return false;
+	}
+	for (ULONG i = 0; i < def->Arity(); i++)
+	{
+		if (!FMatchPredicateBinding(definitions, def->PsymOperand(i),
+				(*expression)[i], model, depth + 1))
+			return false;
+	}
+	return true;
+}
+
 BOOL
 FDefaultOrderDirection(const COrderSpec *pos, EDslSortDir edslsort)
 {
@@ -417,6 +455,23 @@ BOOL
 CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 					CDSLModel *pmodel) const
 {
+	const ULONG ulDepth = m_ulMatchDepth++;
+	const BOOL fMatched = FMatchInternal(pop, pexpr, pmodel);
+	--m_ulMatchDepth;
+	if (!fMatched && (!m_fHasFailure || ulDepth > m_ulFailureDepth))
+	{
+		m_fHasFailure = true;
+		m_ulFailureDepth = ulDepth;
+		m_edslopFailureExpected = pop->Edslop();
+		m_szFailureActual = pexpr->Pop()->SzId();
+	}
+	return fMatched;
+}
+
+BOOL
+CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
+							CDSLModel *pmodel) const
+{
 	GPOS_ASSERT(nullptr != pop);
 	GPOS_ASSERT(nullptr != pexpr);
 	GPOS_ASSERT(nullptr != pmodel);
@@ -481,6 +536,29 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// (doc §2) and is why Filter does not go through the generic child recursion.
 	if (EdslopFilter == pop->Edslop())
 	{
+		if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+		{
+			// Oriented scalar patterns match the actual tree. In particular,
+			// do not split/reorder predicates through the legacy filter views.
+			if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
+				2 != pexpr->Arity() || 2 != pop->Pdrgpsym()->Size() ||
+				(*pexpr)[1]->DeriveHasSubquery() ||
+				!(*pexpr)[0]->DeriveOutputColumns()->ContainsAll(
+					(*pexpr)[1]->DeriveUsedColumns()))
+			{
+				return false;
+			}
+			CColRefArray *columns =
+				(*pexpr)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
+			const BOOL matched =
+				pmodel->FBind((*pop->Pdrgpsym())[1], columns) &&
+				FMatchPredicateBinding(m_prule->Pexprdefs(),
+									   (*pop->Pdrgpsym())[0], (*pexpr)[1],
+									   pmodel) &&
+				FMatch((*pop)[0], (*pexpr)[0], pmodel);
+			columns->Release();
+			return matched;
+		}
 		CDSLFilterMatcher fm(m_mp, this, m_prule);
 		return fm.FMatch(pop, pexpr, pmodel);
 	}

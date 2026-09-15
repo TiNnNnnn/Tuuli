@@ -83,8 +83,57 @@ CDSLPolicyTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_WildcardDefaults),
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_RewriteProgram),
 		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_CascadesBudgets),
+		GPOS_UNITTEST_FUNC(CDSLPolicyTest::EresUnittest_CBOPriority),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLPolicyTest::EresUnittest_CBOPriority()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLRuleArray *rules = GPOS_NEW(mp) CDSLRuleArray(mp);
+	for (const CHAR *text : {
+		"Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		"Proj<a0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)",
+		"Proj*<a0 s0>(Input<t0>)|Input<t1>|TableEq(t1,t0)"})
+	{
+		CDSLRule *rule = Parse(mp, text);
+		GPOS_ASSERT(nullptr != rule);
+		rules->Append(rule);
+	}
+	BOOL valid = true;
+	for (ULONG mode = 0; mode < 3; ++mode)
+	{
+		CDSLPolicy *policy = nullptr;
+		CWStringDynamic errors(mp);
+		if (mode > 0)
+		{
+			std::string text = "- rule: " + std::string((*rules)[1]->SzIdentity());
+			text += "\n  priority: 100\n- rule: " + std::string((*rules)[2]->SzIdentity());
+			text += "\n  priority: 100\n";
+			if (mode == 2)
+				text += "  enabled: false\n";
+			policy = CDSLPolicyLoader::PpolicyLoadBuffer(mp, text.c_str(), &errors);
+			GPOS_ASSERT(nullptr != policy);
+		}
+		CDSLPolicySnapshot *snapshot = CDSLPolicySnapshot::PsnapshotCompile(mp, rules, policy, &errors);
+		GPOS_ASSERT(nullptr != snapshot);
+		CDSLRuleArray *ordered = snapshot->PdrgpruleCBOCandidates(mp, rules);
+		valid = valid && ordered->Size() == (mode == 2 ? 2 : 3);
+		if (mode == 0)
+			valid = valid && (*ordered)[0] == (*rules)[0] && (*ordered)[1] == (*rules)[1];
+		else
+			valid = valid && (*ordered)[0] == (*rules)[1] &&
+				(*ordered)[1] == (*rules)[mode == 2 ? 0 : 2] &&
+				(mode == 2 || (*ordered)[2] == (*rules)[0]);
+		ordered->Release();
+		GPOS_DELETE(snapshot);
+		CRefCount::SafeRelease(policy);
+	}
+	rules->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

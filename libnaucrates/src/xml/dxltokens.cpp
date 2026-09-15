@@ -460,6 +460,8 @@ CDXLTokens::Init(CMemoryPool *mp)
 		{EdxltokenUnknown, GPOS_WSZ_LIT("Unknown")},
 
 		{EdxltokenFuncId, GPOS_WSZ_LIT("FuncId")},
+		{EdxltokenInputFuncId, GPOS_WSZ_LIT("InputFuncId")},
+		{EdxltokenOutputFuncId, GPOS_WSZ_LIT("OutputFuncId")},
 		{EdxltokenFuncRetSet, GPOS_WSZ_LIT("FuncRetSet")},
 		{EdxltokenFuncVariadic, GPOS_WSZ_LIT("FuncVariadic")},
 

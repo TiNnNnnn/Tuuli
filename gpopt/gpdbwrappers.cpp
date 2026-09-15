@@ -777,6 +777,19 @@ gpdb::ResolveAggregateTransType(Oid aggfnoid, Oid aggtranstype, Oid *inputTypes,
 }
 
 void
+gpdb::CoerceViaIOFunctions(Oid source, Oid target, Oid *output, Oid *input)
+{
+	GP_WRAP_START;
+	{
+		bool varlena;
+		Oid parameter;
+		getTypeOutputInfo(source, output, &varlena);
+		getTypeInputInfo(target, input, &parameter);
+	}
+	GP_WRAP_END;
+}
+
+void
 gpdb::TypLenByVal(Oid typid, int16 *typlen, bool *typbyval)
 {
 	GP_WRAP_START;

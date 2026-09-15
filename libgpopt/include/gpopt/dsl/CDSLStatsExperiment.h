@@ -39,6 +39,15 @@ struct SDSLStatsExperimentTarget
 	BOOL m_inject;
 };
 
+// An unbound request, not an observed or successfully injected statistic.
+struct SDSLStatsExperimentRequest
+{
+	std::vector<std::string> m_aliases;
+	std::string m_fingerprint;
+	std::string m_operator;
+	DOUBLE m_rows;
+};
+
 class CDSLStatsExperimentSnapshot
 {
 private:
@@ -56,6 +65,12 @@ private:
 public:
 	CDSLStatsExperimentSnapshot(const CDSLStatsExperimentSnapshot &) = delete;
 
+	// Same parser as runtime loading; no expression, metadata or statistics needed.
+	// Failed parses leave the output arguments unchanged.
+	static BOOL FParseRequests(const CHAR *content, std::string *id,
+		std::vector<SDSLStatsExperimentRequest> *requests, BOOL *discover,
+		CWStringDynamic *errors);
+
 	static CDSLStatsExperimentSnapshot *PsnapshotLoadBuffer(
 		CMemoryPool *mp, const CHAR *content, const CExpression *root,
 		CWStringDynamic *errors);
@@ -64,11 +79,19 @@ public:
 		CWStringDynamic *errors);
 	static std::string Fingerprint(CMemoryPool *mp, const CExpression *expr);
 	// Cached properties only: never derive statistics for instrumentation.
-	static std::string InputContext(const CExpression *expr, CMemoryPool *mp = nullptr);
+	static std::string InputContext(const CExpression *expr, CMemoryPool *mp = nullptr,
+		BOOL query_input = false);
+	// Lightweight lossless tree for every CBO routing occurrence.
+	static std::string RouteContext(const CExpression *expr);
 	static std::string ExpressionShape(const CExpression *expr);
 	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model);
+	// Bounded log records transport the entire JSON value, including large trees.
+	static std::vector<std::string> ContextRecords(ULONG id, const CHAR *field,
+		const std::string &value);
 
 	const SDSLStatsExperimentTarget *Ptarget(const COperator *pop) const;
+	// Original request ordinal for this resolved operator, excluding discovery.
+	BOOL FRequestIndex(const COperator *pop, ULONG *index) const;
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
 	ULONG UlTargets() const { return (ULONG) m_targets.size(); }

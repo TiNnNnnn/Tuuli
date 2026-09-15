@@ -13,6 +13,8 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLMatchTest.h"
 
+#include <cstring>
+
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -61,6 +63,7 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_IdentityGateRejects),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_DeepestFailure),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -290,6 +293,50 @@ CDSLMatchTest::EresUnittest_IdentityGateRejects()
 
 	pmodel->Release();
 	pexprGet->Release();
+	prule->Release();
+	return eres;
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_DeepestFailure()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *prule = PdslruleParseLocal(
+		mp, "InnerJoin<a0 a1>(Input<t0>,Filter<p0 a2>(Input<t1>))|"
+			"Input<t2>|TableEq(t2,t0)");
+	if (nullptr == prule)
+		return GPOS_FAILED;
+
+	CColRefArray *pdrgpcrLeft = nullptr;
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprLeft = fix.PexprLogicalGet("left", 2, &pdrgpcrLeft);
+	CExpression *pexprRight = fix.PexprLogicalGet("right", 2, &pdrgpcrRight);
+	CExpression *pexprProject =
+		fix.PexprLogicalProject(pexprRight, pdrgpcrRight);
+	CColRef *rgpcr[1] = {(*pdrgpcrLeft)[0]};
+	CExpression *pexprPred = fix.PexprConjunctionOfAtoms(rgpcr, 1);
+	CExpression *pexprJoin =
+		fix.PexprLogicalInnerJoin(pexprLeft, pexprProject, pexprPred);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, prule);
+
+	const BOOL fUnexpectedMatch = matcher.FMatch(
+		prule->PfragSrc()->PopRoot(), pexprJoin, pmodel);
+	const GPOS_RESULT eres = !fUnexpectedMatch && matcher.FHasFailure() &&
+		1 == matcher.UlFailureDepth() &&
+		EdslopFilter == matcher.EdslopFailureExpected() &&
+		0 == std::strcmp("CLogicalProject", matcher.SzFailureActual())
+		? GPOS_OK
+		: GPOS_FAILED;
+
+	pmodel->Release();
+	pexprPred->Release();
+	pexprLeft->Release();
+	pexprRight->Release();
+	pexprProject->Release();
+	pexprJoin->Release();
 	prule->Release();
 	return eres;
 }

@@ -19,6 +19,7 @@
 
 #include "gpos/base.h"
 #include "gpos/common/CHashMapIter.h"
+#include "gpos/common/CWallClock.h"
 #include "gpos/task/CTaskLocalStorageObject.h"
 
 #include "gpopt/base/CCTEInfo.h"
@@ -63,13 +64,31 @@ struct SDSLRuleTraceCounters
 	ULONG m_match_us;
 	ULONG m_constraint_us;
 	ULONG m_instantiate_us;
+	ULONG m_memo_inserted;
+	ULONG m_memo_duplicate;
+	ULONG m_memo_cycle_rejected;
+	BOOL m_has_match_failure;
+	ULONG m_match_failure_depth;
+	ULONG m_match_failure_bound_symbols;
+	ULONG m_match_failure_expected;
+	const CHAR *m_match_failure_actual;
+	ULONG m_match_failure_route_sequence;
 
 	SDSLRuleTraceCounters()
 		: m_stage_attempts{0, 0, 0, 0, 0, 0, 0},
 		  m_bound_symbols(0),
 		  m_match_us(0),
 		  m_constraint_us(0),
-		  m_instantiate_us(0)
+		  m_instantiate_us(0),
+		  m_memo_inserted(0),
+		  m_memo_duplicate(0),
+		  m_memo_cycle_rejected(0),
+		  m_has_match_failure(false),
+		  m_match_failure_depth(0),
+		  m_match_failure_bound_symbols(0),
+		  m_match_failure_expected(0),
+		  m_match_failure_actual(nullptr),
+		  m_match_failure_route_sequence(0)
 	{
 	}
 
@@ -91,6 +110,8 @@ struct SDSLGroupExpressionOrigin
 	std::string m_target_path;
 	std::string m_relation;
 	std::string m_outcome;
+	// Run-local producer attempt; zero outside detailed experiment tracing.
+	ULONG m_candidate_sequence;
 };
 
 struct SDSLPendingAlternative
@@ -233,11 +254,19 @@ private:
 	ULONG m_ulDSLCandidateCalls;
 	ULONG m_ulDSLCandidateLookupUs;
 	ULONG m_ulDSLCandidatesFound;
+	CWallClock m_dsl_progress_clock;
+	const COptimizationContext *m_pocDSLProgressRoot;
+	ULONG m_ulDSLProgressStage;
+	ULONG m_ulDSLProgressSequence;
 
 	ULONG m_ulDSLGeneratedAlternatives;
 	ULONG m_ulDSLExperimentSequence;
 	ULONG m_ulDSLExperimentCandidates;
 	ULONG m_ulDSLExperimentApplications;
+	ULONG m_ulDSLRouteInputs;
+	const CExpression *m_pexprDSLRouteInput;
+	ULONG m_ulDSLRouteSequence;
+	ULONG m_rgulDSLRouteOutcomes[7];
 	ULONG m_ulDSLExperimentCostEvents{0};
 	ULONG m_ulDSLStatsLifecycleEvents{0};
 	ULONG m_ulDSLExperimentCostLifecycleEvents{0};
@@ -283,6 +312,10 @@ public:
 						ULONG ulBoundSymbols);
 	void RecordDSLRuleTiming(ULONG ulRuleId, ULONG ulMatchUs,
 						 ULONG ulConstraintUs, ULONG ulInstantiateUs);
+	void RecordDSLMemoOutcome(const CDSLRule *prule, const CHAR *szOutcome);
+	void RecordDSLMatchFailure(ULONG ulRuleId, ULONG ulDepth,
+						   ULONG ulBoundSymbols, ULONG ulExpected,
+						   const CHAR *szActual, ULONG ulRouteSequence);
 	void RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings);
 	void RecordDSLCandidateTiming(ULONG ulElapsedUs, ULONG ulCandidates);
 	void RegisterDSLPendingAlternative(const CExpression *pexpr,
@@ -294,7 +327,8 @@ public:
 	void RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 									  const CDSLRule *prule,
 									  const CHAR *szTargetPath,
-									  const CHAR *szRelation, const CHAR *outcome);
+									  const CHAR *szRelation, const CHAR *outcome,
+									  ULONG candidateSequence = 0);
 	const std::vector<SDSLGroupExpressionOrigin> *DSLGroupExpressionOrigins(
 		const CGroupExpression *pgexpr) const;
 	void MergeDSLGroupExpressionOrigins(const CGroupExpression *from,
@@ -367,6 +401,10 @@ public:
 	{
 		return nullptr != m_pdslStatsExperimentSnapshot;
 	}
+	const CDSLStatsExperimentSnapshot *PDSLStatsExperimentSnapshot() const
+	{
+		return m_pdslStatsExperimentSnapshot;
+	}
 	void RegisterDSLStatsExperimentGroup(const COperator *pop,
 									 CGroup *group);
 	gpnaucrates::IStatistics *PstatsApplyDSLExperiment(
@@ -386,6 +424,13 @@ public:
 		const CExpression *pexprTarget, const CHAR *bindingPath,
 		ULONG matchUs, ULONG constraintUs, ULONG instantiateUs,
 		BOOL applied, const CDSLRewriteDecision *decision = nullptr);
+	void TraceDSLRouteInput(const CExpression *expr, ULONG candidateRules);
+	void RecordDSLRouteOutcome(const CExpression *expr, ULONG stage);
+	ULONG UlDSLRouteSequence(const CExpression *expr) const
+	{
+		return expr == m_pexprDSLRouteInput ? m_ulDSLRouteSequence : 0;
+	}
+	void FlushDSLRouteOutcome();
 	void TraceDSLExperimentCandidateOutcome(
 		const CDSLRule *prule, const CHAR *status, ULONG candidateSequence,
 		ULONG memoVersionBefore, const CGroup *group,
@@ -398,6 +443,10 @@ public:
 		CCostContext *cost = nullptr);
 	void TraceDSLExperimentCostLifecycle(const CHAR *status, const CCostContext *candidate,
 		const CCostContext *previous, const COptimizationContext *owner = nullptr);
+	void BeginDSLProgress(const COptimizationContext *root, ULONG stage);
+	void EndDSLProgress(const COptimizationContext *root);
+	void TraceDSLProgress(const CCostContext *candidate,
+		const CCostContext *previous, const COptimizationContext *owner);
 	void TraceDSLExperimentSelectedCost(const CExpression *expr, ULONG node, ULONG parent);
 	void TraceDSLExperimentSearchCheck(const CHAR *check, const CHAR *status,
 		const CGroupExpression *expr, const CReqdPropPlan *required, ULONG request,

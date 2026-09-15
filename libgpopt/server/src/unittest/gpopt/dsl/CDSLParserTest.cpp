@@ -13,13 +13,15 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLParserTest.h"
 
+#include <string>
+
 #include "gpos/io/COstreamString.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
-#include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleLoader.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 
@@ -55,12 +57,94 @@ FRoundTrips(CMemoryPool *mp, const CHAR *sz_dsl)
 	CWStringConst expected(mp, sz_dsl);
 	return str.Equals(&expected);
 }
+
+GPOS_RESULT
+EresExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	const std::string tree =
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
+	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
+	const CHAR *valid[] = {
+		"Not(p2) := p0;Not(p3) := p2;p1 := p3",
+		"p1 := p3;Not(p3) := p2;Not(p2) := p0",
+		"p1 := Not(p2);p2 := Not(p0)",
+		"p1 := p0",
+		"Not(p2) := p0;PredicateEq(p1,p2)",
+		"p1 := And(p0,p0)",
+		"And(p2,p3) := p0;p1 := And(p2,p3)",
+		"p1 := And(p2,p3);p3 := Not(p0);p2 := Not(p0)",
+		"Not(p2) := p0;And(p3,p4) := p2;p1 := Not(p2)",
+	};
+	for (const CHAR *bindings : valid)
+	{
+		CDSLRule *rule = Parse(mp, (tree + aliases + bindings).c_str());
+		if (nullptr == rule || !rule->Pexprdefs()->FHasBindings())
+		{
+			CRefCount::SafeRelease(rule);
+			return GPOS_FAILED;
+		}
+		CWStringDynamic canonical(mp);
+		COstreamString os(&canonical);
+		rule->OsPrint(os);
+		std::string printed;
+		for (ULONG i = 0; i < canonical.Length(); i++)
+			printed += (CHAR) canonical.GetBuffer()[i];
+		CDSLRule *again = Parse(mp, printed.c_str());
+		const BOOL stable =
+			nullptr != again &&
+			std::string(rule->SzIdentity()) == again->SzIdentity() &&
+			FRoundTrips(mp, printed.c_str());
+		CRefCount::SafeRelease(again);
+		rule->Release();
+		if (!stable)
+			return GPOS_FAILED;
+	}
+	const CHAR *invalid[] = {
+		"p1 := Not(p1)",
+		"p1 := p2;p2 := p1",
+		"p1 := p9",
+		"p1 := p0;p1 := Not(p0)",
+		"p0 := p1;p1 := p0",
+		"Not(p2) := p9;p1 := p2",
+		"Not(p2) := p0;Not(p0) := p2;p1 := p2",
+		"Not(p1) := p0;p1 := p0",
+		"Not(p2) := p1;p1 := p0",
+		"p1 := Not(a0)",
+		"p1 := Not(p0,p0)",
+		"p1 := And(p0)",
+		"p1 := And(p0,p0,p0)",
+		"p1 := And(p0,a0)",
+		"p1 := And(p0,p9)",
+		"p1 := And(p0,p2);p2 := Not(p1)",
+		"And(p2,p0) := p0;p1 := p2",
+		"And(p2,p3) := p0;Not(p0) := p3;p1 := p2",
+		"p1 := NotTrue(p0)",
+		"p1 := Not(Not(p0))",
+		"p1 := p0;PredicateEq(p1,p0)",
+		"p1 := p0;PredicateFalse(p0)",
+		"p1 := p0;PredicateNotTrue(p2,p0)",
+		"p1 := p0;AttrsEq(a1,t0)",
+	};
+	for (const CHAR *bindings : invalid)
+	{
+		CDSLRule *rule = Parse(mp, (tree + aliases + bindings).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
+}
 }  // namespace
 
 GPOS_RESULT
 CDSLParserTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Aliases),

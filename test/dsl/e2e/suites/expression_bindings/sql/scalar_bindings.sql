@@ -1,0 +1,3 @@
+SELECT i, j FROM binding_input
+WHERE NOT (NOT (i > 1 OR j > 1))
+ORDER BY i NULLS FIRST, j NULLS FIRST;

@@ -20,6 +20,7 @@ public:
 	static GPOS_RESULT EresUnittest_WildcardDefaults();
 	static GPOS_RESULT EresUnittest_RewriteProgram();
 	static GPOS_RESULT EresUnittest_CascadesBudgets();
+	static GPOS_RESULT EresUnittest_CBOPriority();
 };
 }  // namespace gpopt
 

@@ -38,6 +38,9 @@ public:
 
 	// operator-identity gate: a Select-rooted template rejects a bare Get
 	static GPOS_RESULT EresUnittest_IdentityGateRejects();
+
+	// a nested rejection reports the deepest expected/actual operator pair
+	static GPOS_RESULT EresUnittest_DeepestFailure();
 };	// class CDSLMatchTest
 }  // namespace gpopt
 

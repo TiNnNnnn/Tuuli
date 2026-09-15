@@ -133,7 +133,12 @@ public:
 	EBoolEvalResult
 	Eber(ULongPtrArray *pdrgpulChildren) const override
 	{
-		return EberNullOnAllNullChildren(pdrgpulChildren);
+		// Relabels preserve NULL; function casts do so only when strict.
+		if (m_is_binary_coercible || m_returns_null_on_null_input)
+		{
+			return EberNullOnAnyNullChild(pdrgpulChildren);
+		}
+		return EberAny;
 	}
 
 	// conversion function

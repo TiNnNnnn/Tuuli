@@ -220,7 +220,8 @@ CDSLFragment::~CDSLFragment()
 // ---------------------------------------------------------------------------
 CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 				   CDSLFragment *pfrag_tgt, CDSLConstraintArray *pdrgpcon,
-				   const CHAR *sz_verdict)
+				   const CHAR *sz_verdict,
+				   CDSLExpressionDefinitions *definitions)
 	: m_pfrag_src(pfrag_src),
 	  m_pfrag_tgt(pfrag_tgt),
 	  m_pdrgpcon(pdrgpcon),
@@ -232,7 +233,9 @@ CDSLRule::CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src,
 	GPOS_ASSERT(nullptr != pfrag_src);
 	GPOS_ASSERT(nullptr != pfrag_tgt);
 	GPOS_ASSERT(nullptr != pdrgpcon);
-	m_pexprdefs = GPOS_NEW(mp) CDSLExpressionDefinitions(mp, pdrgpcon);
+	m_pexprdefs = nullptr != definitions
+					  ? definitions
+					  : GPOS_NEW(mp) CDSLExpressionDefinitions(mp, pdrgpcon);
 	if (nullptr != sz_verdict)
 	{
 		m_pstr_verdict = GPOS_NEW(mp) CWStringConst(mp, sz_verdict);
@@ -284,4 +287,5 @@ CDSLRule::OsPrint(IOstream &os) const
 		}
 		(*m_pdrgpcon)[ul]->OsPrint(os);
 	}
+	m_pexprdefs->OsPrintBindings(os, 0 < ul_cons);
 }

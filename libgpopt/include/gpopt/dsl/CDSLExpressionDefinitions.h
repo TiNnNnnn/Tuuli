@@ -28,12 +28,20 @@ enum EDslExpressionKind
 	EdslexprExprListAll,
 	EdslexprNulls,
 	EdslexprNotTrue,
+	EdslexprNot,
+	EdslexprRef,
 	EdslexprSentinel
 };
 
 class CDSLExpressionDefinitions
 {
 public:
+	enum EBinding
+	{
+		ELegacy,
+		EMatch,
+		EBuild
+	};
 	class CDefinition
 	{
 	private:
@@ -41,6 +49,7 @@ public:
 			CDynamicPtrArray<const CDSLSymbol, CleanupNULL>;
 
 		EDslExpressionKind m_edslexpr;
+		EBinding m_binding;
 		const CDSLSymbol *m_psymOutput;
 		COperandArray *m_pdrgpsymOperands;
 
@@ -48,10 +57,12 @@ public:
 		CDefinition(const CDefinition &) = delete;
 		CDefinition(CMemoryPool *mp, EDslExpressionKind edslexpr,
 					const CDSLSymbol *psymOutput,
-					const CDSLSymbolArray *pdrgpsymDefinition);
+					const CDSLSymbolArray *pdrgpsymDefinition,
+					EBinding binding = ELegacy);
 		~CDefinition();
 
 		EDslExpressionKind Edslexpr() const { return m_edslexpr; }
+		EBinding Binding() const { return m_binding; }
 		const CDSLSymbol *PsymOutput() const { return m_psymOutput; }
 		ULONG Arity() const { return m_pdrgpsymOperands->Size(); }
 		const CDSLSymbol *PsymOperand(ULONG ul) const
@@ -92,6 +103,13 @@ public:
 	// True when operand occurs in output's transitive definition tree.
 	BOOL FUses(const CDSLSymbol *psymOutput,
 			   const CDSLSymbol *psymOperand) const;
+
+	// Parser-only construction, before the owning rule becomes immutable.
+	// Uses the same typed graph as legacy definitions, never a constraint.
+	BOOL FAppendBinding(CMemoryPool *mp, EDslExpressionKind kind,
+						EBinding binding, const CDSLSymbolArray *symbols);
+	BOOL FHasBindings() const;
+	void OsPrintBindings(IOstream &os, BOOL separator) const;
 
 	// Reject duplicate definitions and cycles before a rule is admitted.
 	static BOOL FValidate(const CDSLConstraintArray *pdrgpcon);

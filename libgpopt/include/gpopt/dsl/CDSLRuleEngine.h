@@ -189,7 +189,9 @@ public:
 
 	// ①: match rule's source template against pexpr, populating *pmodel.
 	BOOL FMatch(const CDSLRule *prule, CExpression *pexpr,
-				CDSLModel *pmodel) const;
+				CDSLModel *pmodel, ULONG *pulFailureDepth = nullptr,
+				EDslOpKind *pedslopFailureExpected = nullptr,
+				const CHAR **ppszFailureActual = nullptr) const;
 
 	// ②: check the rule's constraints against the bound model / live metadata.
 	BOOL FCheckConstraints(const CDSLRule *prule, CDSLModel *pmodel,

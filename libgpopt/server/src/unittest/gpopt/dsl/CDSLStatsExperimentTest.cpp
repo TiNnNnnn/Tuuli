@@ -2,8 +2,10 @@
 // Cardinality experiment tests.
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLStatsExperimentTest.h"
+#include "gpopt/operators/CLogicalGet.h"
 
 #include <sstream>
+#include <cstdlib>
 
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -18,6 +20,7 @@
 #include "gpopt/base/CUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/search/CGroup.h"
@@ -132,10 +135,15 @@ CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups()
 				parents[owner] = insert(filter, parents[owner], children, &parentExpr);
 				const std::string path = "r/" + std::to_string(i);
 				context->RegisterDSLGroupExpressionOrigin(parentExpr, rule,
-					path.c_str(), "memo_consumes", "memo_inserted");
+					path.c_str(), "memo_consumes", "memo_inserted", i + 1);
 				context->RegisterDSLGroupExpressionOrigin(parentExpr, alias,
-					path.c_str(), "memo_consumes", "memo_inserted");
+					path.c_str(), "memo_consumes", "memo_inserted", i + 1);
 				GPOS_ASSERT(context->DSLGroupExpressionOrigins(parentExpr)->size() == 1);
+				// Same rule/path, different producing attempt: retain both only
+				// while tracing. Canonical rule aliases of one attempt still dedup.
+				context->RegisterDSLGroupExpressionOrigin(parentExpr, alias,
+					path.c_str(), "memo_consumes", "memo_inserted", i + 5);
+				GPOS_ASSERT(context->DSLGroupExpressionOrigins(parentExpr)->size() == (dsl ? 2 : 1));
 				filter->Release();
 			}
 			for (ULONG i = 0; i < memo.UlpGroups(); ++i)
@@ -163,13 +171,21 @@ CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups()
 			const auto *origins = context->DSLGroupExpressionOrigins(root.PgexprFirst());
 			ULONG inserted = 0;
 			ULONG inherited = 0;
+			ULONG producers = 0;
 			if (nullptr != origins)
 				for (const auto &origin : *origins)
 				{
 					inserted += origin.m_outcome == "memo_inserted";
 					inherited += origin.m_outcome == "memo_rehashed";
+					if (dsl)
+					{
+						valid = valid && origin.m_candidate_sequence >= 1 && origin.m_candidate_sequence <= 8;
+						if (origin.m_candidate_sequence >= 1 && origin.m_candidate_sequence <= 8)
+							producers |= 1UL << (origin.m_candidate_sequence - 1);
+					}
 				}
-			valid = valid && inserted == 1 && inherited == (dsl ? 3 : 0);
+			valid = valid && inserted == (dsl ? 2 : 1) && inherited == (dsl ? 6 : 0) &&
+				(!dsl || producers == 255);
 			const auto originCount = nullptr == origins ? 0 : origins->size();
 			memo.GroupMerge();
 			valid = valid && memo.UlGrpExprs() == count && nullptr != origins &&
@@ -205,6 +221,19 @@ CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings()
 		std::string::npos != shape.find("\"depth\":3") &&
 		CDSLStatsExperimentSnapshot::ExpressionShape(pred) ==
 			CDSLStatsExperimentSnapshot::ExpressionShape(other);
+	const std::string select_route = CDSLStatsExperimentSnapshot::RouteContext(select);
+	valid = valid && std::string::npos != select_route.find(
+		"\"relational_tree\":{\"encoding\":\"preorder_operator_arity\","
+		"\"nodes\":\"CLogicalSelect/1 CLogicalGet/0\",\"complete\":true}");
+	CExpression *inner = fixture.PexprLogicalGet("private_inner", 1);
+	CExpression *exists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), inner);
+	CExpression *exists_select = fixture.PexprLogicalSelect(get, exists);
+	valid = valid && std::string::npos !=
+		CDSLStatsExperimentSnapshot::RouteContext(exists_select).find(
+			"\"nodes\":\"CLogicalSelect/2 CLogicalGet/0 CLogicalGet/0\"");
+	exists_select->Release();
+	exists->Release();
 	CExpression *pattern = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp));
 	valid = valid && std::string::npos !=
 		CDSLStatsExperimentSnapshot::ExpressionShape(pattern).find("\"pattern_nodes\":1");
@@ -224,6 +253,43 @@ CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings()
 	const std::string partial = CDSLStatsExperimentSnapshot::ExpressionShape(wide);
 	valid = valid && std::string::npos != partial.find("\"complete\":false") &&
 		std::string::npos != partial.find("\"nodes\":4096");
+	const std::string wide_context = CDSLStatsExperimentSnapshot::InputContext(wide);
+	valid = valid && wide_context.size() >= 19 &&
+		wide_context.substr(wide_context.size() - 19) == "],\"complete\":true}}";
+	const size_t tree_begin = wide_context.find("\"source_tree\":");
+	ULONG observed_gets = 0;
+	for (size_t pos = wide_context.find("CLogicalGet", tree_begin);
+		pos != std::string::npos; pos = wide_context.find("CLogicalGet", pos + 1))
+		++observed_gets;
+	valid = valid && observed_gets == 4100 && nullptr == wide->Pstats() && nullptr == get->Pstats();
+	const std::string route_context = CDSLStatsExperimentSnapshot::RouteContext(wide);
+	valid = valid && std::string::npos != route_context.find("\"encoding\":\"preorder_operator_arity\"") &&
+		std::string::npos == route_context.find("logical_properties") &&
+		std::string::npos == route_context.find("relation_oid");
+	observed_gets = 0;
+	for (size_t pos = route_context.find("CLogicalGet"); pos != std::string::npos;
+		 pos = route_context.find("CLogicalGet", pos + 1))
+		++observed_gets;
+	valid = valid && observed_gets == 8200;
+	const auto records = CDSLStatsExperimentSnapshot::ContextRecords(7, "input_context", wide_context);
+	std::string restored;
+	for (size_t i = 0; i < records.size(); ++i)
+	{
+		const std::string &record = records[i];
+		valid = valid && record.size() < 8192 && std::string::npos !=
+			record.find("\"part\":" + std::to_string(i) + ",\"parts\":" + std::to_string(records.size()));
+		const size_t begin = record.find("\"fragment\":\"") + 12;
+		const size_t end = record.find('"', begin);
+		for (size_t pos = begin; pos < end; pos += 2)
+			restored.push_back(static_cast<CHAR>(std::strtoul(record.substr(pos, 2).c_str(), nullptr, 16)));
+	}
+	valid = valid && records.size() > 1 && restored == wide_context;
+	const std::string small = "{\"empty\":true}";
+	const auto direct = CDSLStatsExperimentSnapshot::ContextRecords(8, "binding_context", small);
+	valid = valid && direct.size() == 1 && std::string::npos != direct[0].find("\"value\":" + small);
+	const auto route = CDSLStatsExperimentSnapshot::ContextRecords(9, "route_input_context", small);
+	valid = valid && route.size() == 1 && std::string::npos !=
+		route[0].find("\"field\":\"route_input_context\"");
 	wide->Release();
 	pred->Pop()->AddRef();
 	(*pred)[0]->AddRef();
@@ -276,15 +342,26 @@ CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats()
 	CDSLTestFixture fixture(mp);
 	CColRefArray *cols = nullptr;
 	CExpression *get = fixture.PexprLogicalGet("first", 1, &cols);
-	CExpression *other = fixture.PexprLogicalGet("renamed", 1);
+	CTableDescriptor *table = CLogicalGet::PopConvert(get->Pop())->Ptabdesc();
+	table->AddRef();
+	CExpression *other = fixture.PexprLogicalGet(table, "renamed");
 	const std::string context = CDSLStatsExperimentSnapshot::InputContext(get);
 	BOOL valid = nullptr == get->Pstats() &&
 		context == CDSLStatsExperimentSnapshot::InputContext(other) &&
 		std::string::npos != context.find("\"rows\":null") &&
 		std::string::npos != context.find("\"memo_state\":null") &&
-		std::string::npos != context.find("\"source_tree\":{\"nodes\":[{\"operator\":\"CLogicalGet\",\"arity\":0}],\"complete\":true}") &&
+		std::string::npos != context.find("\"source_tree\":{\"request_binding\":null,\"nodes\":[{\"operator\":\"CLogicalGet\",\"arity\":0,\"relation_oid\":") &&
+		std::string::npos != context.find("\"request_index\":null") &&
+		std::string::npos == context.find("\"relation_oid\":null") &&
 		std::string::npos != context.find("\"stats_source\":\"missing\"");
 	const std::string keyed = CDSLStatsExperimentSnapshot::InputContext(get, mp);
+	const std::string query_input = CDSLStatsExperimentSnapshot::InputContext(get, mp, true);
+	valid = valid && std::string::npos != query_input.find("\"capture\":\"before_memo_initialization\"") &&
+		std::string::npos != query_input.find("\"scope\":\"query_after_preprocessing\"") &&
+		std::string::npos != query_input.find("\"rows\":null") && nullptr == get->Pstats();
+	const auto query_records = CDSLStatsExperimentSnapshot::ContextRecords(1, "query_input_context", query_input);
+	valid = valid && !query_records.empty() &&
+		std::string::npos != query_records[0].find("\"field\":\"query_input_context\"");
 	valid = valid && nullptr == get->Pstats() &&
 		std::string::npos != keyed.find("\"reference_key\":\"" +
 			CDSLStatsExperimentSnapshot::Fingerprint(mp, get) + "\"") &&
@@ -428,6 +505,11 @@ CDSLStatsExperimentTest::EresUnittest_ResolveSPJBoundaries()
 		valid = nullptr != base && 7.0 == base->m_rows && nullptr != joined &&
 			11.5 == joined->m_rows && nullptr == snapshot->Ptarget(inner_select) &&
 			nullptr == snapshot->Ptarget(a);
+		ULONG index = 99;
+		valid = valid && snapshot->FRequestIndex(outer_select->Pop(), &index) && index == 0 &&
+			snapshot->FRequestIndex(join->Pop(), &index) && index == 1 &&
+			!snapshot->FRequestIndex(inner_select->Pop(), &index) && index == 1 &&
+			!snapshot->FRequestIndex(a->Pop(), &index) && nullptr == join->Pstats();
 	}
 
 	GPOS_DELETE(snapshot);
@@ -443,6 +525,12 @@ CDSLStatsExperimentTest::EresUnittest_ResolveSPJBoundaries()
 		nullptr != snapshot->Ptarget(b) && nullptr != snapshot->Ptarget(join) &&
 		nullptr != snapshot->Ptarget(inner_select) &&
 		nullptr != snapshot->Ptarget(a);
+	if (nullptr != snapshot)
+	{
+		ULONG index = 99;
+		valid = valid && !snapshot->FRequestIndex(join->Pop(), &index) &&
+			!snapshot->FRequestIndex(a->Pop(), &index) && index == 99;
+	}
 	GPOS_DELETE(snapshot);
 	join->Release();
 	b->Release();
@@ -519,6 +607,36 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 	BOOL valid = nullptr == snapshot && 0 < errors.Length();
 	GPOS_DELETE(snapshot);
 
+	// Parsing requests is independent of runtime target resolution. In
+	// particular, no metadata lookup or derived statistics are needed here.
+	std::string id;
+	std::vector<SDSLStatsExperimentRequest> requests;
+	BOOL discover = false;
+	const CHAR *unbound = "experiment: requested\ndiscover: true\ncardinalities:\n"
+		"- relations: [z, a]\n  rows: 12.25\n"
+		"- expression: ABCDEF0123456789\n  operator: CLogicalGet\n  rows: 96\n";
+	errors.Reset();
+	valid = valid && CDSLStatsExperimentSnapshot::FParseRequests(
+		unbound, &id, &requests, &discover, &errors);
+	valid = valid && id == "requested" && discover && requests.size() == 2 &&
+		requests[0].m_aliases == std::vector<std::string>({"a", "z"}) &&
+		requests[0].m_rows == 12.25 && requests[1].m_rows == 96 &&
+		requests[1].m_fingerprint == "abcdef0123456789" &&
+		requests[1].m_operator == "CLogicalGet" && 0 == errors.Length();
+	snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(mp, unbound, get, &errors);
+	valid = valid && nullptr == snapshot && 0 < errors.Length();
+	GPOS_DELETE(snapshot);
+	for (const CHAR *invalid : {duplicate,
+		"experiment: bad\ncardinalities:\n- expression: abcdef0123456789\n rows: 2\n",
+		"experiment: bad\ncardinalities:\n- relations: [a]\n rows: 2\n unknown: 3\n"})
+	{
+		errors.Reset();
+		valid = valid && !CDSLStatsExperimentSnapshot::FParseRequests(
+			invalid, &id, &requests, &discover, &errors) && 0 < errors.Length();
+		// Failed calls must not publish partial inputs or erase the last result.
+		valid = valid && id == "requested" && discover && requests.size() == 2;
+	}
+
 	// Positive fractional estimates below MinRows violate downstream join
 	// scale-factor invariants. Reject at the experiment boundary, never clamp.
 	for (const CHAR *rows : {"0", "0.5", "nan", "inf"})
@@ -531,7 +649,15 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 			mp, invalid_rows.str().c_str(), get, &errors);
 		valid = valid && nullptr == snapshot && 0 < errors.Length();
 		GPOS_DELETE(snapshot);
+		errors.Reset();
+		valid = valid && !CDSLStatsExperimentSnapshot::FParseRequests(
+			invalid_rows.str().c_str(), &id, &requests, &discover, &errors) &&
+			0 < errors.Length();
 	}
+	errors.Reset();
+	valid = valid && CDSLStatsExperimentSnapshot::FParseRequests(
+		"experiment: observe\ncardinalities:\n", &id, &requests, &discover, &errors) &&
+		id == "observe" && !discover && requests.empty();
 
 	CColRefArray *cols = nullptr;
 	CExpression *repeated = fixture.PexprLogicalGet("repeated", 1, &cols);

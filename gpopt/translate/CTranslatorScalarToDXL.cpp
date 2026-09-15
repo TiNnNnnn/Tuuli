@@ -1274,6 +1274,9 @@ CTranslatorScalarToDXL::TranslateCoerceViaIOToDXL(
 	GPOS_ASSERT(IsA(expr, CoerceViaIO));
 
 	const CoerceViaIO *coerce = (CoerceViaIO *) expr;
+	Oid output_func, input_func;
+	gpdb::CoerceViaIOFunctions(gpdb::ExprType((Node *) coerce->arg),
+		coerce->resulttype, &output_func, &input_func);
 
 	GPOS_ASSERT(nullptr != coerce->arg);
 
@@ -1287,7 +1290,9 @@ CTranslatorScalarToDXL::TranslateCoerceViaIOToDXL(
 		GPOS_NEW(m_mp) CDXLScalarCoerceViaIO(
 			m_mp,
 			GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, coerce->resulttype),
-			-1, (EdxlCoercionForm) coerce->coerceformat, coerce->location));
+			-1, (EdxlCoercionForm) coerce->coerceformat, coerce->location,
+			GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, input_func),
+			GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, output_func)));
 	dxlnode->AddChild(child_node);
 
 	return dxlnode;

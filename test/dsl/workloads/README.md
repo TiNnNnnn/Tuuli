@@ -67,8 +67,10 @@ python3 -m ml_orca.collect.run_workload_comparison --pg-config /path/to/pg_confi
 ```
 
 Run only the 1,000-query SQLStorm sample with `-t '*/s*'`.
-The empty-schema comparison uses `empty_workload_cbo.policy` by default; pass
-`--unbounded` when diagnosing the complete DSL search space.
+The checked-in replacement library uses `empty_workload_cbo.policy` by default;
+a custom `--rule-file` starts with no implicit policy. Pass `--policy-file` for
+an explicit custom policy or `--unbounded` when diagnosing the complete DSL
+search space.
 
 For broader **attempt coverage**, sample the locally imported WeTune application
 SQL without requiring a rule to appear in the final plan:

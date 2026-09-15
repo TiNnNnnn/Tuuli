@@ -1534,7 +1534,8 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 {
 	if (nullptr == psym || nullptr == m_prule ||
 		EdslsymPred != psym->Esymkind() ||
-		ulDepth > m_prule->Pdrgpcon()->Size())
+		ulDepth >
+			m_prule->Pdrgpcon()->Size() + m_prule->Pexprdefs()->UlDefinitions())
 	{
 		return nullptr;
 	}
@@ -1554,6 +1555,40 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 
 	const CDSLExpressionDefinitions::CDefinition *pdef =
 		m_prule->Pexprdefs()->Pdef(psym);
+	if (nullptr != pdef &&
+		CDSLExpressionDefinitions::ELegacy != pdef->Binding())
+	{
+		// A source pattern is a test/capture, never a recipe for
+		// manufacturing a missing source value. Only target definitions may
+		// construct values.
+		if (CDSLExpressionDefinitions::EBuild != pdef->Binding())
+		{
+			return nullptr;
+		}
+		CExpression *input =
+			PexprResolvePredicate(pdef->PsymOperand(0), pmodel, ulDepth + 1);
+		if (nullptr == input || EdslexprRef == pdef->Edslexpr())
+		{
+			return input;
+		}
+		if (EdslexprAnd == pdef->Edslexpr())
+		{
+			CExpression *right = PexprResolvePredicate(
+				pdef->PsymOperand(1), pmodel, ulDepth + 1);
+			if (nullptr == right)
+			{
+				input->Release();
+				return nullptr;
+			}
+			// Explicit bindings preserve operand order, duplicates and nesting.
+			return GPOS_NEW(m_mp) CExpression(
+				m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp, CScalarBoolOp::EboolopAnd),
+				input, right);
+		}
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp, CScalarBoolOp::EboolopNot),
+			input);
+	}
 	const CDSLConstraint *pconSplit = nullptr;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
@@ -2372,12 +2407,12 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 
 	const CDSLSymbol *psymSourcePred = PsymResolve((*pdrgpsymTarget)[0]);
 	CExpression *pexprBound = pmodel->PexprPred(psymSourcePred);
-	if (nullptr == pexprBound || pmodel->FDerivedBinding(psymSourcePred))
+	if (m_prule->Pexprdefs()->FHasBindings() || nullptr == pexprBound ||
+		pmodel->FDerivedBinding(psymSourcePred))
 	{
-		// PredicateAnd defines a target-only predicate rather than aliasing one
-		// source Filter. Join and Exists already resolve this form through the
-		// shared predicate resolver; Filter uses the same construction whenever
-		// its declared dependency partitions exactly describe the conjunction.
+		// Resolve constructed predicates and explicit captured terms without
+		// assuming they came from an entire source Filter. Validate the exact
+		// declared dependency partitions against the resulting expression.
 		CExpression *pexprDerived =
 			PexprResolvePredicate((*pdrgpsymTarget)[0], pmodel);
 		if (nullptr == pexprDerived)
@@ -2892,6 +2927,22 @@ CExpression *
 CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 								   const CDSLModel *pmodel) const
 {
+	if (m_prule->Pexprdefs()->FHasBindings())
+	{
+		CExpression *child = PexprBuild((*pop)[0], pmodel);
+		CExpression *predicate = PexprBuildFilterPredicate(pop, pmodel);
+		if (nullptr == child || nullptr == predicate ||
+			!child->DeriveOutputColumns()->ContainsAll(
+				predicate->DeriveUsedColumns()))
+		{
+			CRefCount::SafeRelease(child);
+			CRefCount::SafeRelease(predicate);
+			return nullptr;
+		}
+		// Preserve the proved target tree, including nested filters and NOTs.
+		return GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), child, predicate);
+	}
 	CExpressionArray *pdrgpexpr = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	const CDSLOp *popCurrent = pop;
 	const CDSLOp *popCarrierFilter = nullptr;

@@ -1,0 +1,28 @@
+{
+  "description": "A non-strict cast must not make a predicate reject outer-join NULL rows",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCast"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "CScalarFunc (dsl_cast_null_flag)"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,"
+    ],
+    "postgres_output": [
+      "2,"
+    ],
+    "off_output": [
+      "2,"
+    ]
+  }
+}

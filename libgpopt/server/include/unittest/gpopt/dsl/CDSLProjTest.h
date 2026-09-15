@@ -70,6 +70,8 @@ public:
 	static GPOS_RESULT EresUnittest_ExpressionDefinedSubqueryChain();
 	static GPOS_RESULT EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate();
 	static GPOS_RESULT EresUnittest_ComputeConditionalSafety();
+	static GPOS_RESULT EresUnittest_ComputeCastSafety();
+	static GPOS_RESULT EresUnittest_IOCoercePropertiesRoundTrip();
 	static GPOS_RESULT EresUnittest_CollapseIndependentCompute();
 	static GPOS_RESULT EresUnittest_SplitPartiallyIndependentCompute();
 	static GPOS_RESULT EresUnittest_ComputeSrfNativeDifferential();

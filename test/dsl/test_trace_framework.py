@@ -308,6 +308,21 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIn("SET pg_orca.enable_dphyper=on;", call.args[1])
             self.assertIn("SET pg_orca.dphyper_shadow=off;", call.args[1])
 
+    def test_e2e_optional_off_rows_keep_other_optimizer_settings(self) -> None:
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for output, expected in (("1\n", {"off_output": []}),
+                                 ("SQLSTATE 22012", {"off_output": [], "error_sqlstate": "22012"})):
+            with self.subTest(expected=expected), patch(
+                "run_e2e_cases.run_sql", return_value=output
+            ) as run:
+                result = actual_rows(args, "SELECT v FROM t", {**expected, "dphyper": True})
+            on_sql, pg_sql, off_sql = [call.args[1] for call in run.call_args_list]
+            self.assertIn("SET pg_orca.enable_orca=off;", pg_sql)
+            self.assertEqual(on_sql.replace("SET pg_orca.enable_dsl_rule=on;",
+                                           "SET pg_orca.enable_dsl_rule=off;", 1), off_sql)
+            self.assertEqual(result["output"], result["off_output"])
+            self.assertEqual(run.call_args_list[2].kwargs["error_sqlstate"], expected.get("error_sqlstate"))
+
     def test_e2e_result_rows_use_the_requested_cardinality_experiment(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
         expected = {"stats_experiment": "stats_noop_experiment.yaml"}
@@ -1090,6 +1105,22 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertEqual({c["case_id"] for c in full}, {"app:1", "app:3", "app:4"})
             self.assertEqual(sum(c["query"] == "SELECT 1" for c in full), 2)
 
+    def test_corpus_parameter_free_sampling_defines_eligible_population_before_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            app = root / "app"
+            app.mkdir()
+            (app / "schema.sql").write_text("CREATE TABLE t (a int);")
+            (app / "cases.sql").write_text("SELECT $1\nSELECT '$2'\nSELECT 2\n")
+            item = select_cases(root, 0, 7, parameter_free=True)[0]
+            self.assertEqual(item["source_population"], 3)
+            self.assertEqual(item["population"], 2)
+            self.assertEqual(item["excluded_parameterized"], 1)
+            self.assertEqual({case["case_id"] for case in item["cases"]}, {"app:2", "app:3"})
+            first = select_cases(root, 1, 7, parameter_free=True)[0]["cases"]
+            rest = select_cases(root, 1, 7, offset=1, parameter_free=True)[0]["cases"]
+            self.assertFalse({case["case_id"] for case in first} & {case["case_id"] for case in rest})
+
     def test_history_partition_deduplicates_without_splitting_literal_families(self) -> None:
         items = [{'dataset': 'app', 'cases': [
             {'case_id': 'app:1', 'query': 'SELECT x FROM t WHERE x = 1'},
@@ -1153,9 +1184,11 @@ class TraceFrameworkTest(unittest.TestCase):
         application = {"kind": "application", "status": "applied_rbo", "rule_hash": "target"}
         cost = {"kind": "cost_candidate", "status": "costed", "group": 7, "optimization_context": 2}
         lifecycle = {"kind": "cost_lifecycle", "status": "selected_plan", "candidate_sequence": 1}
+        progress = {"kind": "optimizer_progress", "sequence": 1, "elapsed_us": 2, "cost": 3.0}
         check = {"kind": "search_check", "check": "properties", "status": "accepted"}
         edge = {"kind": "rule_edge", "src_rule": "r", "dst_rule": "s"}
-        records = [application, {**application, "kind": "rule_candidate"}, application, cost, lifecycle, check, edge]
+        records = [application, {**application, "kind": "rule_candidate"}, application,
+                   cost, lifecycle, progress, check, edge]
         trace = "\n".join("DSL_TRACE " + json.dumps(r) for r in records)
         args = SimpleNamespace(profile_rule="target", port=1, timeout=60)
         with tempfile.TemporaryDirectory() as temporary, patch("ml_orca.collect.run_workload_comparison.psql") as execute:
@@ -1165,6 +1198,7 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(result["applied_rule_hashes"], ["target", "target"])
         self.assertEqual(result["cost_events"], [cost])
         self.assertEqual(result["cost_lifecycle_events"], [lifecycle])
+        self.assertEqual(result["optimizer_progress"], [progress])
         self.assertEqual(result["search_checks"], [check])
         self.assertEqual(result["rule_edges"], [edge])
         self.assertTrue(all(call.kwargs["retry_on_server_failure"] is False for call in execute.call_args_list))
@@ -1952,7 +1986,15 @@ class TraceFrameworkTest(unittest.TestCase):
             source.write_bytes(raw)
             with self.assertRaises(FileExistsError):
                 freeze_feature_graph(source, output)
+            native_raw = json.dumps({**graph, 'schema_version': 1}).encode()
+            source.write_bytes(native_raw)
+            native_output = root / 'native_collection'
+            native_output.mkdir()
+            native_receipt = freeze_feature_graph(source, native_output)
+            self.assertEqual((native_output / 'feature-graph.json').read_bytes(), native_raw)
+            self.assertEqual(native_receipt['edges'], 2)
             bad_graphs = [{}, {'schema_version': 2, 'nodes': [], 'edges': graph['edges']},
+                          *[{**graph, 'schema_version': version} for version in (True, 0, 3, None)],
                           {**graph, 'nodes': graph['nodes'] * 2},
                           {**graph, 'nodes': [None]}, {**graph, 'edges': [None]},
                           {**graph, 'edges': [{'src_rule': [], 'dst_rule': 'a'*16}]},
@@ -1988,6 +2030,31 @@ class TraceFrameworkTest(unittest.TestCase):
         with patch('ml_orca.collect.run_workload_comparison.run', side_effect=subprocess.TimeoutExpired('audit', 60)):
             self.assertEqual(collect_policy_context(Path('a'), Path('r'), {'x': None}, 60)['x']['status'], 'error')
 
+    def test_stats_requests_use_native_parser_and_retain_failures(self) -> None:
+        from ml_orca.collect.run_workload_comparison import collect_stats_requests
+        snapshot = {'schema_version': 1, 'scope': 'native_stats_requests_not_runtime_resolution',
+                    'experiment': 'input', 'discover': True, 'requests': [
+                        {'relations': [], 'expression': 'a'*16, 'operator': 'CLogicalGet', 'requested_rows': 12.25}]}
+        good = subprocess.CompletedProcess([], 0, json.dumps(snapshot), '')
+        failed = subprocess.CompletedProcess([], 1, '', 'invalid rows')
+        with patch('ml_orca.collect.run_workload_comparison.run', side_effect=[good, failed]) as execute:
+            result = collect_stats_requests(Path('audit'), [Path('a.yaml'), Path('bad.yaml')], 60)
+            self.assertEqual(execute.call_args_list[0].args[0], ['audit', '--stats-requests', 'a.yaml'])
+            self.assertEqual(result['0']['snapshot'], snapshot)
+            self.assertEqual(result['1']['status'], 'error')
+            self.assertEqual(result['1']['error'], 'invalid rows')
+            self.assertIsNone(result['1']['snapshot'])
+        for invalid in ({}, None, {**snapshot, 'scope': 'runtime_targets'},
+                        {**snapshot, 'schema_version': True}, {**snapshot, 'requests': [None]},
+                        *[{**snapshot, 'requests': [{**snapshot['requests'][0], 'requested_rows': rows}]}
+                          for rows in (None, True, 0, float('nan'), float('inf'))]):
+            with patch('ml_orca.collect.run_workload_comparison.run', return_value=
+                       subprocess.CompletedProcess([], 0, json.dumps(invalid), '')):
+                self.assertEqual(collect_stats_requests(Path('audit'), [Path('a')], 60)['0']['status'], 'error')
+        with patch('ml_orca.collect.run_workload_comparison.run', side_effect=subprocess.TimeoutExpired('audit', 60)):
+            self.assertEqual(collect_stats_requests(Path('audit'), [Path('a')], 60)['0']['status'], 'error')
+        self.assertEqual(collect_stats_requests(Path('audit'), [], 60), {})
+
     def test_policy_learning_records_separate_features_labels_and_failures(self) -> None:
         from copy import deepcopy
         import zlib
@@ -2020,9 +2087,67 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertFalse(any(r['admission']['model_training_eligible'] for r in records))
         self.assertEqual([r['response']['planning_ms_median'] for r in records], [2., 2.])
         self.assertNotIn('timing_samples', records[0]['inputs'])
+        self.assertNotIn('search', records[0]['response'])
+        injected, inputs = deepcopy(result), deepcopy(context)
+        injected['policy_comparison']['scenarios'][0]['stats_experiment'] = '/request.yaml'
+        inputs.update(input_files={'stats:0': {'path': '/request.yaml'}},
+                      stats_experiment_documents={'0': 'experiment: input\ncardinalities:\n'},
+                      stats_experiment_requests={'0': {'status': 'ok', 'snapshot': {
+                          'schema_version': 1, 'scope': 'native_stats_requests_not_runtime_resolution',
+                          'experiment': 'input', 'discover': False, 'requests': []}}})
+        parsed = policy_samples(injected, inputs, sql, graph)
+        self.assertTrue(all(r['admission']['feature_integrity_verified'] for r in parsed))
+        self.assertEqual(parsed[0]['inputs']['stats_experiment_requests'], inputs['stats_experiment_requests']['0']['snapshot'])
+        self.assertTrue(all(r['inputs']['graph_snapshot'] == receipt['snapshot'] for r in parsed))
+        inputs['stats_experiment_requests']['0']['status'] = 'error'
+        failed_requests = policy_samples(injected, inputs, sql, graph)
+        self.assertTrue(all('native_stats_requests_not_verified' in r['admission']['feature_exclusions']
+                            and r['inputs']['stats_experiment_requests'] is None for r in failed_requests))
+        with_search = policy_samples(result, context, sql, graph, include_search=True)
+        self.assertEqual([r['inputs'] for r in with_search], [r['inputs'] for r in records])
+        self.assertEqual([r['admission'] for r in with_search], [r['admission'] for r in records])
+        for row, original in zip(with_search, records):
+            search = row['response']['search']
+            self.assertFalse(search['terminal_quality']['available'])  # No trace is not zero cost.
+            self.assertFalse(search['work']['complete'])
+            self.assertIsNone(search['progress']['points'])
+            for name in ('cost_origin_audit', 'physical_plan_source_audit'):
+                self.assertFalse(search['trace_audits'][name]['complete'])
+                self.assertTrue(search['trace_audits'][name]['exclusions'])
+                self.assertEqual(set(search['trace_audits'][name]), {'complete', 'exclusions'})
+            self.assertEqual({k: v for k, v in row['response'].items() if k != 'search'}, original['response'])
+        settings = deepcopy(context)
+        settings['settings_sql'] = {a: "SET pg_orca.dsl_rule_policy_path='" + a + ".policy';\n" for a in arms}
+        untimed = deepcopy(result)
+        untimed['policy_comparison']['timing'] = {}
+        search_only = policy_samples(untimed, settings, sql, graph, include_search=True)
+        self.assertTrue(all(r['response']['search']['validation']['complete'] for r in search_only))
+        self.assertTrue(all(r['response']['status'] == 'incomplete' for r in search_only))
+        untimed['postgres_oracle']['mode_result_equal']['policy:0:default'] = False
+        invalid = policy_samples(untimed, settings, sql, graph, include_search=True)
+        self.assertIn('independent_postgres_check_failed', invalid[0]['response']['search']['validation']['exclusions'])
+        self.assertTrue(invalid[1]['response']['search']['validation']['complete'])
         changed = deepcopy(result)
         changed['policy_comparison']['scenarios'][0]['arms']['default']['future_memo_groups'] = 999
         self.assertEqual(policy_samples(changed, context, sql, graph), records)
+        reference_failed = deepcopy(result)
+        reference_failed['policy_comparison']['scenarios'][0]['arms']['default']['plan_rc'] = 124
+        for sample in reference_failed['policy_comparison']['timing']['samples']:
+            sample.update(comparison_exclusions=['default:plan_timeout'], diagnostic_plan_matches=True)
+        recovered = policy_samples(reference_failed, context, sql, graph)
+        self.assertEqual([r['response']['status'] for r in recovered], ['incomplete', 'complete'])
+        self.assertEqual(recovered[1]['response']['planning_ms_median'], 2.)
+        self.assertTrue(recovered[1]['response']['timing_samples'][0]['comparison_exclusions'])
+        for reason in ('arm:rows_error', 'diagnostic_plan_mismatch', 'injection_target_mismatch',
+                       'unknown_error', 'default:rows_error'):
+            bad = deepcopy(reference_failed)
+            sample = next(s for s in bad['policy_comparison']['timing']['samples'] if s['arm'] == 'bounded')
+            sample['comparison_exclusions'].append(reason)
+            self.assertEqual(policy_samples(bad, context, sql, graph)[1]['response']['status'], 'incomplete')
+        bad = deepcopy(reference_failed)
+        for sample in bad['policy_comparison']['timing']['samples']:
+            sample['diagnostic_plan_matches'] = False
+        self.assertEqual(policy_samples(bad, context, sql, graph)[1]['response']['status'], 'incomplete')
         failed = deepcopy(result)
         sample = failed['policy_comparison']['timing']['samples'][0]
         sample.update(status='timeout', planning_ms=None, execution_ms=None)
@@ -3229,6 +3354,9 @@ class TraceFrameworkTest(unittest.TestCase):
                 "binding_attempts": 5,
                 "generated_alternatives": 1,
                 "duplicate_alternatives": 2,
+                "memo_inserted_alternatives": 1,
+                "memo_duplicate_alternatives": 0,
+                "memo_cycle_rejected_alternatives": 0,
                 "budget_exhausted": 0,
                 "budget_skipped": 0,
             },
@@ -3244,6 +3372,9 @@ class TraceFrameworkTest(unittest.TestCase):
                 "binding_attempts": 8,
                 "generated_alternatives": 2,
                 "duplicate_alternatives": 2,
+                "memo_inserted_alternatives": 1,
+                "memo_duplicate_alternatives": 1,
+                "memo_cycle_rejected_alternatives": 2,
                 "budget_exhausted": 1,
                 "budget_skipped": 4,
             },
@@ -3253,6 +3384,9 @@ class TraceFrameworkTest(unittest.TestCase):
                 "binding_attempts": 3,
                 "generated_alternatives": 1,
                 "duplicate_alternatives": 0,
+                "memo_inserted_alternatives": 1,
+                "memo_duplicate_alternatives": 0,
+                "memo_cycle_rejected_alternatives": 0,
                 "budget_exhausted": 0,
                 "budget_skipped": 0,
             },
@@ -3269,6 +3403,9 @@ class TraceFrameworkTest(unittest.TestCase):
                 "binding_attempts": 11,
                 "generated_alternatives": 3,
                 "duplicate_alternatives": 2,
+                "memo_inserted_alternatives": 2,
+                "memo_duplicate_alternatives": 1,
+                "memo_cycle_rejected_alternatives": 2,
                 "budget_exhausted": 1,
                 "budget_skipped": 4,
             },

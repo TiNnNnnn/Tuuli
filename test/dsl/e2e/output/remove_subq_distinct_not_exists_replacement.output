@@ -48,7 +48,8 @@
         "CXformRemoveSubqDistinct",
         "CXformSelect2Apply",
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
-        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+        "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
@@ -68,7 +69,8 @@
           "CXformRemoveSubqDistinct",
           "CXformSelect2Apply",
           "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
-          "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
@@ -78,7 +80,8 @@
       "CXformRemoveSubqDistinct",
       "CXformSelect2Apply",
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
-      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations",
+      "CXformSubquery2CorrelatedApply"
     ],
     "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
     "output": [
