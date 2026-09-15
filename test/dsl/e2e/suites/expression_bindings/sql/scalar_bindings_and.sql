@@ -1,0 +1,3 @@
+SELECT i, j FROM binding_input
+WHERE i > 0 AND (j > 0 OR j IS NULL)
+ORDER BY i NULLS FIRST, j NULLS FIRST;

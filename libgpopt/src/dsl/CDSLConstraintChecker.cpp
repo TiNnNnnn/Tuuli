@@ -86,20 +86,27 @@ FScalarCastProvablyErrorFree(CExpression *pexpr)
 
 	IMDId *pmdidSource = CScalar::PopConvert((*pexpr)[0]->Pop())->MdidType();
 	IMDId *pmdidTarget = popCast->MdidType();
+	IMDId *pmdidFunction = popCast->FuncMdId();
 	if (IMDId::EmdidGeneral != pmdidSource->MdidType() ||
-		IMDId::EmdidGeneral != pmdidTarget->MdidType())
+		IMDId::EmdidGeneral != pmdidTarget->MdidType() ||
+		!IMDId::IsValid(pmdidFunction) ||
+		IMDId::EmdidGeneral != pmdidFunction->MdidType())
 	{
 		return false;
 	}
 	const OID oidSource = CMDIdGPDB::CastMdid(pmdidSource)->Oid();
 	const OID oidTarget = CMDIdGPDB::CastMdid(pmdidTarget)->Oid();
+	const OID oidFunction = CMDIdGPDB::CastMdid(pmdidFunction)->Oid();
 
 	// PostgreSQL's signed-integer widening casts are total over their source
-	// domains. Keep the whitelist directional so narrowing and parsing casts
-	// remain conservatively rejected.
-	return (GPDB_INT2 == oidSource &&
-		 (GPDB_INT4 == oidTarget || GPDB_INT8 == oidTarget)) ||
-		(GPDB_INT4 == oidSource && GPDB_INT8 == oidTarget);
+	// domains, but an arbitrary function with that signature need not be.
+	// Match implementation OIDs from pg_proc.dat as well as the direction.
+	return (GPDB_INT2 == oidSource && GPDB_INT4 == oidTarget &&
+			313 == oidFunction /*i2toi4*/) ||
+		(GPDB_INT2 == oidSource && GPDB_INT8 == oidTarget &&
+			754 == oidFunction /*int28*/) ||
+		(GPDB_INT4 == oidSource && GPDB_INT8 == oidTarget &&
+			481 == oidFunction /*int48*/);
 }
 
 BOOL

@@ -1,0 +1,45 @@
+{
+  "description": "Native scalar construction retains PostgreSQL division-by-zero behavior",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "xform_trace": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "construct-on",
+      "xform_trace": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

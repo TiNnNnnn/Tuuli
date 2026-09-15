@@ -1,0 +1,12 @@
+- rule: '*'
+  enabled: false
+- rule: fde0fe0c7aa5a359
+  enabled: true
+  placement: cbo
+  budget:
+    per_rule: 1
+- rule: fc7a32971ee1acdc
+  enabled: true
+  placement: cbo
+  budget:
+    per_rule: 1

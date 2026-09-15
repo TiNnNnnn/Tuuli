@@ -1,0 +1,31 @@
+{
+  "description": "All three built-in signed-integer widening casts remain error-free",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarCast",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,32767,32767,2",
+      "3,,,3"
+    ],
+    "postgres_output": [
+      "2,32767,32767,2",
+      "3,,,3"
+    ],
+    "off_output": [
+      "2,32767,32767,2",
+      "3,,,3"
+    ]
+  }
+}

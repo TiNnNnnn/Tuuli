@@ -193,9 +193,16 @@ CDSLRuleEngine::BucketByRoot()
 		if (EdslopSemiApply == prule->PfragSrc()->PopRoot()->Edslop())
 		{
 			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftSemiCorrelatedApply;
+			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiApplyIn;
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalLeftSemiCorrelatedApplyIn;
+		}
+		if (EdslopAntiApply == prule->PfragSrc()->PopRoot()->Edslop())
+		{
+			rgulOpid[ulBuckets++] =
+				(ULONG) COperator::EopLogicalLeftAntiSemiCorrelatedApply;
 		}
 		if (EdslopAny == prule->PfragSrc()->PopRoot()->Edslop())
 		{
@@ -505,26 +512,17 @@ CDSLRuleEngine::PdrgpruleCandidates(CMemoryPool *mp,
 			: poctxt->PdslPolicySnapshot();
 		if (nullptr != snapshot)
 		{
-			CDSLRuleArray *filtered = GPOS_NEW(mp) CDSLRuleArray(mp);
-			for (ULONG rule = 0; rule < pdrgprule->Size(); ++rule)
-			{
-				CDSLRule *candidate = (*pdrgprule)[rule];
-				const SDSLRulePolicy *policy = snapshot->Ppolicy(candidate);
-				if (nullptr != policy && policy->m_fEnabled &&
-					EdslplacementCBO == policy->m_edslplacement)
-				{
-					candidate->AddRef();
-					filtered->Append(candidate);
-				}
-			}
+			CDSLRuleArray *filtered = snapshot->PdrgpruleCBOCandidates(mp, pdrgprule);
 			pdrgprule->Release();
 			pdrgprule = filtered;
 		}
 	}
 	if (fTrace)
 	{
-		COptCtxt::PoctxtFromTLS()->RecordDSLCandidateTiming(
-			timer.ElapsedUS(), pdrgprule->Size());
+		COptCtxt *context = COptCtxt::PoctxtFromTLS();
+		context->RecordDSLCandidateTiming(timer.ElapsedUS(), pdrgprule->Size());
+		if (fFilterCBO)
+			context->TraceDSLRouteInput(pexpr, pdrgprule->Size());
 	}
 	return pdrgprule;
 }
@@ -685,6 +683,7 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 		poctxt->RecordDSLRuleTrace(
 			ulRuleId, (ULONG) edsltrace,
 			nullptr == pmodel ? 0 : pmodel->Size());
+		poctxt->RecordDSLRouteOutcome(pexprSrc, (ULONG) edsltrace);
 		poctxt->RecordDSLRuleTiming(ulRuleId, ulMatchUs, ulConstraintUs,
 								 ulInstantiateUs);
 		// The experiment stream retains every attempt; compact application events
@@ -757,6 +756,14 @@ TraceDSLRule(CMemoryPool *mp, ULONG ulRuleId, EDslTraceStage edsltrace,
 	{
 		os << ",\"binding_count\":"
 		   << (nullptr == pmodel ? 0 : pmodel->Size());
+	}
+	if (nullptr != poctxt)
+	{
+		const ULONG ulRouteSequence = poctxt->UlDSLRouteSequence(pexprSrc);
+		if (0 != ulRouteSequence)
+		{
+			os << ",\"route_sequence\":" << ulRouteSequence;
+		}
 	}
 	if (nullptr != decision && !decision->InputContext().empty())
 	{
@@ -1103,9 +1110,24 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	// every rejected Cascades binding would add work to the legacy CBO path.
 	const ULONG ulSourceFingerprint =
 		fFingerprint ? CExpression::HashValue(pexpr) : 0;
-	if (!FMatch(prule, pexpr, pmodel))
+	ULONG ulFailureDepth = 0;
+	EDslOpKind edslopFailureExpected = EdslopSentinel;
+	const CHAR *szFailureActual = nullptr;
+	if (!FMatch(prule, pexpr, pmodel,
+			fTrace ? &ulFailureDepth : nullptr,
+			fTrace ? &edslopFailureExpected : nullptr,
+			fTrace ? &szFailureActual : nullptr))
 	{
 		const ULONG ulMatchUs = fTrace ? stageTimer.ElapsedUS() : 0;
+		if (fTrace && EdslopSentinel != edslopFailureExpected &&
+			nullptr != szFailureActual)
+		{
+			COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+			poctxt->RecordDSLMatchFailure(
+				UlRuleId(prule), ulFailureDepth, pmodel->Size(),
+				(ULONG) edslopFailureExpected, szFailureActual,
+				poctxt->UlDSLRouteSequence(pexpr));
+		}
 		return GPOS_NEW(mp) CDSLRewriteDecision(
 			pmodel, nullptr, EdsldecisionMatchRejected, nullptr,
 			gpos::ulong_max, ulMatchUs, 0, 0, ulSourceFingerprint, 0);
@@ -1168,7 +1190,9 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 //---------------------------------------------------------------------------
 BOOL
 CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
-					   CDSLModel *pmodel) const
+					   CDSLModel *pmodel, ULONG *pulFailureDepth,
+					   EDslOpKind *pedslopFailureExpected,
+					   const CHAR **ppszFailureActual) const
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexpr);
@@ -1179,7 +1203,17 @@ CDSLRuleEngine::FMatch(const CDSLRule *prule, CExpression *pexpr,
 	// pool — NOT the engine's long-lived library pool.
 	CDSLMatcher matcher(pmodel->Pmp(), prule);
 	CDSLOp *pop_src_root = prule->PfragSrc()->PopRoot();
-	return matcher.FMatch(pop_src_root, pexpr, pmodel);
+	const BOOL fMatched = matcher.FMatch(pop_src_root, pexpr, pmodel);
+	if (!fMatched && matcher.FHasFailure())
+	{
+		if (nullptr != pulFailureDepth)
+			*pulFailureDepth = matcher.UlFailureDepth();
+		if (nullptr != pedslopFailureExpected)
+			*pedslopFailureExpected = matcher.EdslopFailureExpected();
+		if (nullptr != ppszFailureActual)
+			*ppszFailureActual = matcher.SzFailureActual();
+	}
+	return fMatched;
 }
 
 BOOL

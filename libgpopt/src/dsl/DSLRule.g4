@@ -33,8 +33,10 @@ rule_       : frag BAR frag ( BAR constraints? )? EOF ;
 frag        : op ;
 op          : ID STAR? symlist? ( LP op ( COMMA op )* RP )? ;
 symlist     : LT SYMBOL+ GT ;
-constraints : constraint ( SEMI constraint )* ;
+constraints : (constraint | binding) ( SEMI (constraint | binding) )* ;
 constraint  : ID LP SYMBOL ( COMMA SYMBOL )* RP ;
+binding     : call BIND SYMBOL | SYMBOL BIND (call | SYMBOL) ;
+call        : ID LP SYMBOL ( COMMA SYMBOL )* RP ;
 
 // ---- lexer rules -----------------------------------------------------------
 BAR    : '|' ;
@@ -45,6 +47,7 @@ LT     : '<' ;
 GT     : '>' ;
 COMMA  : ',' ;
 SEMI   : ';' ;
+BIND   : ':=' ;
 
 // SYMBOL must precede ID; both are tried but ANTLR takes the longest match,
 // and 't0' (len 2) beats 't' (len 1). Capitalised names ('Input') fail SYMBOL

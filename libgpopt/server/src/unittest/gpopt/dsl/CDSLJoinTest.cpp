@@ -44,11 +44,13 @@
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -506,12 +508,15 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		pdrgpexprOr);
 	CExpression *pexprFilteredInner =
 		fix.PexprLogicalSelect(pexprInner, pexprFilterPred);
+	CColRefArray *pdrgpcrApplyInner = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrApplyInner->Append((*pdrgpcrInner)[0]);
 	pexprOuter->AddRef();
 	pexprFilteredInner->AddRef();
 	pexprApplyPred->AddRef();
-	CExpression *pexprApply = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalLeftSemiApply(mp), pexprOuter,
-		pexprFilteredInner, pexprApplyPred);
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApply>(
+			mp, pexprOuter, pexprFilteredInner, pdrgpcrApplyInner,
+			COperator::EopScalarSubqueryExists, pexprApplyPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
@@ -585,12 +590,15 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
 		pdrgpexprOr);
 	CExpression *pexprFilteredInner =
 		fix.PexprLogicalSelect(pexprInner, pexprFilterPred);
+	CColRefArray *pdrgpcrApplyInner = GPOS_NEW(mp) CColRefArray(mp);
+	pdrgpcrApplyInner->Append((*pdrgpcrInner)[0]);
 	pexprOuter->AddRef();
 	pexprFilteredInner->AddRef();
 	pexprApplyPred->AddRef();
-	CExpression *pexprApply = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalLeftAntiSemiApply(mp), pexprOuter,
-		pexprFilteredInner, pexprApplyPred);
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApply>(
+			mp, pexprOuter, pexprFilteredInner, pdrgpcrApplyInner,
+			COperator::EopScalarSubqueryNotExists, pexprApplyPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);

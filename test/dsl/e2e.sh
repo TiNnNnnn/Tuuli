@@ -26,6 +26,7 @@ usage()
 Usage: $0 [-t CASE]...
 
   -t, --test CASE  Run one case name or pattern; may be repeated
+  --suite NAME    Run an isolated fixture library under e2e/suites/NAME
   -x, --disable-xform XFORM
                    Disable one native xform in every state; may be repeated
   --disable-semantic-xforms AUDIT_JSON
@@ -37,8 +38,16 @@ EOF
 SELECTED_CASES="${DSL_E2E_CASES:-}"
 DISABLED_XFORMS=()
 AUDIT_ARGS=()
+SUITE=""
 while (( $# > 0 )); do
     case "$1" in
+        --suite)
+            (( $# >= 2 )) || fail "$1 requires a suite name"
+            [[ "$2" =~ ^[a-zA-Z0-9_]+$ ]] || fail "invalid suite name: $2"
+            [[ -z "$SUITE" ]] || fail "only one suite can be selected"
+            SUITE="$2"
+            shift 2
+            ;;
         -t|--test)
             (( $# >= 2 )) || fail "$1 requires a case name or pattern"
             if [[ -n "$SELECTED_CASES" ]]; then
@@ -69,13 +78,25 @@ while (( $# > 0 )); do
     esac
 done
 
+if [[ -n "$SUITE" ]]; then
+    SUITE_DIR="$SCRIPT_DIR/e2e/suites/$SUITE"
+    RULE_FILE="$SUITE_DIR/rules"
+    REPLACEMENT_RULE_FILE=""
+    SQL_DIR="$SUITE_DIR/sql"
+    EXPECT_DIR="$SUITE_DIR/expect"
+    POLICY_DIR="$SUITE_DIR"
+    RESULT_DIR="$RESULT_DIR/$SUITE"
+    DIFF_DIR="$DIFF_DIR/$SUITE"
+    ARTIFACT_DIR="$ARTIFACT_DIR/$SUITE"
+fi
+
 if [[ -z "$PG_CONFIG" || ! -x "$PG_CONFIG" ]]; then
     fail "PG_CONFIG must point to an executable pg_config"
 fi
 if [[ ! -r "$RULE_FILE" ]]; then
     fail "rule fixture not found: $RULE_FILE"
 fi
-if [[ ! -r "$REPLACEMENT_RULE_FILE" ]]; then
+if [[ -n "$REPLACEMENT_RULE_FILE" && ! -r "$REPLACEMENT_RULE_FILE" ]]; then
     fail "ORCA replacement rule fixture not found: $REPLACEMENT_RULE_FILE"
 fi
 if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
@@ -102,8 +123,11 @@ mkdir -p "$SOCKET_DIR"
 # Keep engine-capability regression rules and proved ORCA replacement rules in
 # separate maintained files. The current engine accepts one library path, so
 # E2E presents their deterministic concatenation without changing either asset.
-awk 'FNR == 1 && NR != 1 { print "" } { print }' \
-    "$RULE_FILE" "$REPLACEMENT_RULE_FILE" >"$RULE_BUNDLE"
+RULE_FILES=("$RULE_FILE")
+if [[ -n "$REPLACEMENT_RULE_FILE" ]]; then
+    RULE_FILES+=("$REPLACEMENT_RULE_FILE")
+fi
+awk 'FNR == 1 && NR != 1 { print "" } { print }' "${RULE_FILES[@]}" >"$RULE_BUNDLE"
 
 cleanup()
 {

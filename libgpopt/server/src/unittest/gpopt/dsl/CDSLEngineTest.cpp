@@ -25,6 +25,8 @@
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiCorrelatedApply.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
@@ -912,6 +914,41 @@ CDSLEngineTest::EresUnittest_ShellRegistered()
 		pxfs->Get(CXform::ExfDSLRuleJoinApply);
 	pxfs->Release();
 	popLeftOuterCorrelated->Release();
+	if (!fDispatched)
+	{
+		return GPOS_FAILED;
+	}
+
+	CXform *pxformExists = pxff->Pxf("CXformDSLRule_Exists");
+	if (nullptr == pxformExists)
+	{
+		return GPOS_FAILED;
+	}
+	CPatternNode *popExistsPattern = CPatternNode::PopConvert(
+		pxformExists->PexprPattern()->Pop());
+	CLogicalLeftSemiCorrelatedApply *popCorrelatedExists =
+		GPOS_NEW(mp) CLogicalLeftSemiCorrelatedApply(mp);
+	pxfs = popCorrelatedExists->PxfsCandidates(mp);
+	fDispatched = popExistsPattern->MatchesOperator(
+			COperator::EopLogicalLeftSemiCorrelatedApply) &&
+		pxfs->Get(CXform::ExfDSLRuleExists);
+	pxfs->Release();
+	popCorrelatedExists->Release();
+	if (!fDispatched)
+	{
+		return GPOS_FAILED;
+	}
+	CLogicalLeftAntiSemiCorrelatedApply *popCorrelatedNotExists =
+		GPOS_NEW(mp) CLogicalLeftAntiSemiCorrelatedApply(mp);
+	pxfs = popCorrelatedNotExists->PxfsCandidates(mp);
+	CXform *pxformNotExists = pxff->Pxf("CXformDSLRule_NotExists");
+	fDispatched = nullptr != pxformNotExists &&
+		CPatternNode::PopConvert(pxformNotExists->PexprPattern()->Pop())
+			->MatchesOperator(
+				COperator::EopLogicalLeftAntiSemiCorrelatedApply) &&
+		pxfs->Get(CXform::ExfDSLRuleNotExists);
+	pxfs->Release();
+	popCorrelatedNotExists->Release();
 	if (!fDispatched)
 	{
 		return GPOS_FAILED;

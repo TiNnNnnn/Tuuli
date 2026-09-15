@@ -87,10 +87,18 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	  m_ulDSLCandidateCalls(0),
 	  m_ulDSLCandidateLookupUs(0),
 	  m_ulDSLCandidatesFound(0),
+	  m_dsl_progress_clock(false),
+	  m_pocDSLProgressRoot(nullptr),
+	  m_ulDSLProgressStage(0),
+	  m_ulDSLProgressSequence(0),
 	  m_ulDSLGeneratedAlternatives(0),
 	  m_ulDSLExperimentSequence(0),
 	  m_ulDSLExperimentCandidates(0),
 	  m_ulDSLExperimentApplications(0),
+	  m_ulDSLRouteInputs(0),
+	  m_pexprDSLRouteInput(nullptr),
+	  m_ulDSLRouteSequence(0),
+	  m_rgulDSLRouteOutcomes{0, 0, 0, 0, 0, 0, 0},
 	  m_ulDSLMemoVersion(0),
 	  m_dsl_generated_alternatives_by_rule(nullptr),
 	  m_pdslPolicySnapshot(nullptr),
@@ -193,6 +201,25 @@ COptCtxt::InitializeDSLStatsExperiment(const CExpression *root)
 							 suffix);
 	}
 	m_dsl_pending_experiment_candidates.clear();
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		// CEngine calls this after preprocessing, before InitLogicalExpression.
+		// Record existing input only, without deriving statistics or Memo state.
+		std::ostringstream value;
+		value << "{\"schema_version\":1,\"experiment\":\""
+			<< JsonEscape(m_pdslStatsExperimentSnapshot->SzId())
+			<< "\",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+			<< ",\"preceding_cost_candidates\":" << m_ulDSLExperimentCostEvents
+			<< ",\"preceding_search_checks\":" << m_ulDSLExperimentSearchChecks
+			<< ",\"input_context\":"
+			<< CDSLStatsExperimentSnapshot::InputContext(root, m_mp, true) << "}";
+		for (const std::string &record : CDSLStatsExperimentSnapshot::ContextRecords(
+			1, "query_input_context", value.str()))
+		{
+			CAutoTrace trace(m_mp);
+			trace.Os() << record.c_str() << std::endl;
+		}
+	}
 }
 
 void
@@ -419,6 +446,32 @@ COptCtxt::TraceDSLExperimentCost(const CGroupExpression *expr,
 			<< ",\"operator\":\"" << ancestor->Pop()->SzId() << "\"}";
 	}
 	out << "]";
+	// Snapshot known generators at this costing event, not after Memo mutation.
+	// Duplicates and exposed inputs are evidence, not exclusive/causal credit.
+	out << ",\"dsl_origin_instances\":[";
+	BOOL firstOrigin = true;
+	ULONG originDepth = 0;
+	for (const auto *ancestor = expr; nullptr != ancestor;
+		 ancestor = ancestor->PgexprOrigin(), ++originDepth)
+	{
+		const auto *producers = DSLGroupExpressionOrigins(ancestor);
+		if (nullptr == producers)
+			continue;
+		for (const auto &producer : *producers)
+		{
+			if (!firstOrigin) out << ",";
+			firstOrigin = false;
+			out << "{\"candidate_sequence\":" << producer.m_candidate_sequence
+				<< ",\"rule_hash\":\"" << producer.m_prule->SzIdentity()
+				<< "\",\"origin_depth\":" << originDepth
+				<< ",\"group\":" << ancestor->Pgroup()->Id()
+				<< ",\"group_expression\":" << ancestor->Id()
+				<< ",\"target_path\":\"" << producer.m_target_path.c_str()
+				<< "\",\"relation\":\"" << producer.m_relation.c_str()
+				<< "\",\"outcome\":\"" << producer.m_outcome.c_str() << "\"}";
+		}
+	}
+	out << "]";
 	if (nullptr != cost)
 	{
 		cost->SetDSLTraceCandidate(m_ulDSLExperimentCostEvents);
@@ -463,7 +516,48 @@ COptCtxt::TraceDSLExperimentCostLifecycle(const CHAR *status, const CCostContext
 		<< ",\"previous_candidate_sequence\":" << (nullptr == previous ? 0 : previous->UlDSLTraceCandidate())
 		<< ",\"group\":" << owner->Pgroup()->Id()
 		<< ",\"optimization_context\":" << owner->Id()
+		<< ",\"preceding_rule_candidates\":" << m_ulDSLExperimentCandidates
+		<< ",\"preceding_cost_candidates\":" << m_ulDSLExperimentCostEvents
+		<< ",\"preceding_search_checks\":" << m_ulDSLExperimentSearchChecks
+		<< ",\"stats_lifecycle_sequence\":" << m_ulDSLStatsLifecycleEvents
 		<< "}" << std::endl;
+}
+
+void
+COptCtxt::BeginDSLProgress(const COptimizationContext *root, ULONG stage)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	m_pocDSLProgressRoot = root;
+	m_ulDSLProgressStage = stage;
+	m_dsl_progress_clock.Restart();
+}
+
+void
+COptCtxt::EndDSLProgress(const COptimizationContext *root)
+{
+	if (m_pocDSLProgressRoot == root)
+		m_pocDSLProgressRoot = nullptr;
+}
+
+void
+COptCtxt::TraceDSLProgress(const CCostContext *candidate,
+	const CCostContext *previous, const COptimizationContext *owner)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule) || owner != m_pocDSLProgressRoot)
+		return;
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"optimizer_progress\","
+				   << "\"engine\":\"pgorca\",\"stage\":" << m_ulDSLProgressStage
+				   << ",\"sequence\":" << ++m_ulDSLProgressSequence
+				   << ",\"elapsed_us\":" << m_dsl_progress_clock.ElapsedUS()
+				   << ",\"cost\":" << candidate->Cost().Get();
+	if (nullptr != previous)
+		trace.Os() << ",\"previous_cost\":" << previous->Cost().Get();
+	trace.Os() << ",\"memo_version\":" << m_ulDSLMemoVersion
+				   << ",\"candidates_found\":" << m_ulDSLCandidatesFound
+				   << ",\"generated_alternatives\":" << m_ulDSLGeneratedAlternatives
+				   << "}" << std::endl;
 }
 
 void
@@ -534,6 +628,7 @@ COptCtxt::TraceDSLExperimentOutcome(
 		JsonEscape(m_pdslStatsExperimentSnapshot->SzId());
 	CAutoTrace trace(m_mp);
 	trace.Os() << "DSL_TRACE {\"kind\":\"experiment_outcome\","
+				   << "\"query_input_context_version\":1,"
 				   << "\"engine\":\"pgorca\",\"experiment\":\""
 				   << experiment.c_str() << "\",\"optimizer_cost\":"
 				   << optimizer_cost << ",\"selected_plan_nodes\":"
@@ -550,14 +645,18 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << ",\"rule_candidates\":"
 				   << m_ulDSLExperimentCandidates
 				   << ",\"candidate_trace_version\":2"
-				   << ",\"binding_edge_trace_version\":3,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
+				   << ",\"binding_edge_trace_version\":4,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
 				   << ",\"cost_trace_version\":1,\"cost_candidates\":" << m_ulDSLExperimentCostEvents
+				   << ",\"cost_origin_trace_version\":1"
 				   << ",\"stats_lifecycle_version\":1,\"stats_lifecycle_events\":" << m_ulDSLStatsLifecycleEvents
 				   << ",\"cost_lifecycle_version\":1,\"cost_lifecycle_events\":" << m_ulDSLExperimentCostLifecycleEvents
+				   << ",\"cost_progress_version\":1"
 				   << ",\"search_check_version\":1,\"search_checks\":" << m_ulDSLExperimentSearchChecks
-				   << ",\"candidate_context_encoding\":\"dictionary_v1\""
+				   << ",\"candidate_context_encoding\":\"dictionary_v2_hex_chunks\""
 				   << ",\"rule_applications\":"
 				   << m_ulDSLExperimentApplications
+				   << ",\"route_input_version\":2,\"route_inputs\":"
+				   << m_ulDSLRouteInputs
 				   << ",\"optimization_ms\":" << optimization_ms
 				   << ",\"optimizer_memory_bytes\":"
 				   << optimizer_memory_bytes
@@ -600,6 +699,91 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << "}";
 	}
 	trace.Os() << "]}" << std::endl;
+}
+
+void
+COptCtxt::TraceDSLRouteInput(const CExpression *expr, ULONG candidateRules)
+{
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		return;
+	}
+	GPOS_ASSERT(nullptr != expr);
+	FlushDSLRouteOutcome();
+	const std::string context =
+		CDSLStatsExperimentSnapshot::RouteContext(expr);
+	const std::string key = "route_input_context:" + context;
+	auto found = m_dsl_experiment_context_ids.find(key);
+	ULONG id;
+	if (m_dsl_experiment_context_ids.end() == found)
+	{
+		id = m_dsl_experiment_context_ids.size() + 1;
+		m_dsl_experiment_context_ids.emplace(key, id);
+		for (const std::string &record : CDSLStatsExperimentSnapshot::ContextRecords(
+				 id, "route_input_context", context))
+		{
+			CAutoTrace trace(m_mp);
+			trace.Os() << record.c_str() << std::endl;
+		}
+	}
+	else
+		id = found->second;
+
+	const CGroupExpression *gexpr = expr->Pgexpr();
+	m_pexprDSLRouteInput = expr;
+	m_ulDSLRouteSequence = ++m_ulDSLRouteInputs;
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"rule_route\",\"engine\":\"pgorca\",";
+	if (nullptr != m_pdslStatsExperimentSnapshot)
+	{
+		trace.Os() << "\"experiment\":\""
+				   << JsonEscape(m_pdslStatsExperimentSnapshot->SzId()).c_str()
+				   << "\",";
+	}
+	trace.Os() << "\"route_sequence\":" << m_ulDSLRouteSequence
+				   << ",\"route_input_context_id\":" << id
+				   << ",\"candidate_rules\":" << candidateRules
+				   << ",\"memo_version\":" << m_ulDSLMemoVersion;
+	if (nullptr != gexpr)
+	{
+		trace.Os() << ",\"group\":" << gexpr->Pgroup()->Id()
+				   << ",\"group_expression\":" << gexpr->Id();
+	}
+	trace.Os() << "}" << std::endl;
+}
+
+void
+COptCtxt::RecordDSLRouteOutcome(const CExpression *expr, ULONG stage)
+{
+	GPOS_ASSERT(stage < 7);
+	if (expr == m_pexprDSLRouteInput)
+		++m_rgulDSLRouteOutcomes[stage];
+}
+
+void
+COptCtxt::FlushDSLRouteOutcome()
+{
+	if (0 == m_ulDSLRouteSequence)
+		return;
+	ULONG evaluated = 0;
+	for (ULONG stage = 0; stage < 7; ++stage)
+		evaluated += m_rgulDSLRouteOutcomes[stage];
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"rule_route_outcome\","
+				   << "\"engine\":\"pgorca\",\"route_sequence\":"
+				   << m_ulDSLRouteSequence << ",\"evaluated_rules\":" << evaluated
+				   << ",\"match_rejected\":" << m_rgulDSLRouteOutcomes[0]
+				   << ",\"constraint_rejected\":" << m_rgulDSLRouteOutcomes[1]
+				   << ",\"instantiate_rejected\":" << m_rgulDSLRouteOutcomes[2]
+				   << ",\"target_ready\":" << m_rgulDSLRouteOutcomes[3]
+				   << ",\"duplicate_target\":" << m_rgulDSLRouteOutcomes[4]
+				   << ",\"budget_exhausted\":" << m_rgulDSLRouteOutcomes[5]
+				   << ",\"budget_skipped\":" << m_rgulDSLRouteOutcomes[6]
+				   << "}" << std::endl;
+	m_pexprDSLRouteInput = nullptr;
+	m_ulDSLRouteSequence = 0;
+	for (ULONG stage = 0; stage < 7; ++stage)
+		m_rgulDSLRouteOutcomes[stage] = 0;
 }
 
 void
@@ -692,10 +876,12 @@ COptCtxt::TraceDSLExperimentCandidate(
 			{
 				id = m_dsl_experiment_context_ids.size() + 1;
 				m_dsl_experiment_context_ids.emplace(key, id);
-				CAutoTrace context(m_mp);
-				context.Os() << "DSL_TRACE {\"kind\":\"candidate_context\",\"engine\":\"pgorca\","
-					<< "\"context_id\":" << id << ",\"field\":\"" << field
-					<< "\",\"value\":" << value.c_str() << "}" << std::endl;
+				for (const std::string &record :
+					 CDSLStatsExperimentSnapshot::ContextRecords(id, field, value))
+				{
+					CAutoTrace context(m_mp);
+					context.Os() << record.c_str() << std::endl;
+				}
 			}
 			else
 				id = found->second;
@@ -804,6 +990,54 @@ COptCtxt::RecordDSLRuleTiming(ULONG ulRuleId, ULONG ulMatchUs,
 }
 
 void
+COptCtxt::RecordDSLMemoOutcome(const CDSLRule *prule, const CHAR *szOutcome)
+{
+	if (nullptr == prule || !GPOS_FTRACE(EopttracePrintDSLRule))
+		return;
+	const ULONG ulRuleId = CDSLRuleEngine::Instance()->UlRuleId(prule);
+	SDSLRuleTraceCounters *pcounters = m_dsl_rule_trace_counters->Find(&ulRuleId);
+	if (nullptr == pcounters)
+	{
+		pcounters = GPOS_NEW(m_mp) SDSLRuleTraceCounters();
+		(void) m_dsl_rule_trace_counters->Insert(
+			GPOS_NEW(m_mp) ULONG(ulRuleId), pcounters);
+	}
+	if (0 == std::strcmp(szOutcome, "memo_inserted"))
+		++pcounters->m_memo_inserted;
+	else if (0 == std::strcmp(szOutcome, "memo_duplicate"))
+		++pcounters->m_memo_duplicate;
+	else if (0 == std::strcmp(szOutcome, "memo_cycle_rejected"))
+		++pcounters->m_memo_cycle_rejected;
+}
+
+void
+COptCtxt::RecordDSLMatchFailure(ULONG ulRuleId, ULONG ulDepth,
+							 ULONG ulBoundSymbols, ULONG ulExpected,
+							 const CHAR *szActual, ULONG ulRouteSequence)
+{
+	SDSLRuleTraceCounters *pcounters =
+		m_dsl_rule_trace_counters->Find(&ulRuleId);
+	if (nullptr == pcounters)
+	{
+		pcounters = GPOS_NEW(m_mp) SDSLRuleTraceCounters();
+		(void) m_dsl_rule_trace_counters->Insert(
+			GPOS_NEW(m_mp) ULONG(ulRuleId), pcounters);
+	}
+	if (!pcounters->m_has_match_failure ||
+		ulDepth > pcounters->m_match_failure_depth ||
+		(ulDepth == pcounters->m_match_failure_depth &&
+		 ulBoundSymbols > pcounters->m_match_failure_bound_symbols))
+	{
+		pcounters->m_has_match_failure = true;
+		pcounters->m_match_failure_depth = ulDepth;
+		pcounters->m_match_failure_bound_symbols = ulBoundSymbols;
+		pcounters->m_match_failure_expected = ulExpected;
+		pcounters->m_match_failure_actual = szActual;
+		pcounters->m_match_failure_route_sequence = ulRouteSequence;
+	}
+}
+
+void
 COptCtxt::RecordDSLBindingTiming(ULONG ulElapsedUs, ULONG ulBindings)
 {
 	++m_ulDSLBindingCalls;
@@ -855,7 +1089,8 @@ void
 COptCtxt::RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 										 const CDSLRule *prule,
 										 const CHAR *szTargetPath,
-										 const CHAR *szRelation, const CHAR *outcome)
+										 const CHAR *szRelation, const CHAR *outcome,
+										 ULONG candidateSequence)
 {
 	GPOS_ASSERT(nullptr != pgexpr);
 	GPOS_ASSERT(nullptr != prule);
@@ -871,14 +1106,17 @@ COptCtxt::RegisterDSLGroupExpressionOrigin(const CGroupExpression *pgexpr,
 		 (0 == std::strcmp(outcome, "memo_duplicate") && 0 == m_ulDSLExperimentSequence)))
 		return;
 	auto &origins = m_dsl_group_expression_origins[pgexpr];
+	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+		candidateSequence = 0;
 	for (const auto &origin : origins)
 	{
 		if (0 == std::strcmp(origin.m_prule->SzIdentity(), prule->SzIdentity()) &&
 			origin.m_target_path == szTargetPath &&
-			origin.m_relation == szRelation && origin.m_outcome == outcome)
+			origin.m_relation == szRelation && origin.m_outcome == outcome &&
+			origin.m_candidate_sequence == candidateSequence)
 			return;
 	}
-	origins.push_back({prule, szTargetPath, szRelation, outcome});
+	origins.push_back({prule, szTargetPath, szRelation, outcome, candidateSequence});
 }
 
 const std::vector<SDSLGroupExpressionOrigin> *
@@ -901,7 +1139,8 @@ COptCtxt::MergeDSLGroupExpressionOrigins(const CGroupExpression *from,
 	// for extracted bindings still referring to the duplicate expression.
 	for (const auto &origin : *origins)
 		RegisterDSLGroupExpressionOrigin(to, origin.m_prule,
-			origin.m_target_path.c_str(), origin.m_relation.c_str(), "memo_rehashed");
+			origin.m_target_path.c_str(), origin.m_relation.c_str(), "memo_rehashed",
+			origin.m_candidate_sequence);
 }
 
 void
@@ -971,6 +1210,7 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 			<< (bindingPath == "r" ? "instantiated_expression" : "source_binding_expression")
 			<< "\",\"candidate_status\":\"" << status
 			<< "\",\"dst_candidate_sequence\":" << m_ulDSLExperimentSequence
+			<< ",\"src_candidate_sequence\":" << producer.m_candidate_sequence
 			<< ",\"binding_edge_sequence\":" << ++m_ulDSLBindingOriginEdges
 			<< ",\"binding_group\":" << pgexpr->Pgroup()->Id()
 			<< ",\"binding_group_expression\":" << pgexpr->Id()

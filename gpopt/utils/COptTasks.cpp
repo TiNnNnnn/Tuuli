@@ -244,10 +244,12 @@ COptTasks::Execute(void *(*func)(void *), void *func_arg)
 {
 	Assert(func);
 
-	// Detailed experiments can emit arbitrarily many entries. Stream those
-	// entries without changing the ordinary query's buffered logging path.
-	const bool stream_log = nullptr != pg_orca_dsl_stats_experiment_path &&
-							'\0' != pg_orca_dsl_stats_experiment_path[0];
+	// Both detailed experiments and ordinary DSL diagnostics are unbounded in
+	// workload size. Stream them so the fixed wide-character error buffer cannot
+	// silently discard route occurrences or the authoritative final summaries.
+	const bool stream_log = pg_orca_trace_dsl_rule ||
+		(nullptr != pg_orca_dsl_stats_experiment_path &&
+		 '\0' != pg_orca_dsl_stats_experiment_path[0]);
 	CHAR *err_buf =
 		stream_log ? nullptr : (CHAR *) palloc(GPOPT_ERROR_BUFFER_SIZE);
 	if (nullptr != err_buf)

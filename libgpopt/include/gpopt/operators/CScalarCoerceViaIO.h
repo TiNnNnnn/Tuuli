@@ -39,15 +39,29 @@ using namespace gpos;
 class CScalarCoerceViaIO : public CScalarCoerceBase
 {
 private:
+	IMDId *m_input_func;
+	IMDId *m_output_func;
 public:
 	CScalarCoerceViaIO(const CScalarCoerceViaIO &) = delete;
 
 	// ctor
 	CScalarCoerceViaIO(CMemoryPool *mp, IMDId *mdid_type, INT type_modifier,
-					   ECoercionForm dxl_coerce_format, INT location);
+					   ECoercionForm dxl_coerce_format, INT location,
+					   IMDId *input_func = nullptr, IMDId *output_func = nullptr);
 
 	// dtor
-	~CScalarCoerceViaIO() override = default;
+	~CScalarCoerceViaIO() override;
+	IMDId *InputFuncMdId() const { return m_input_func; }
+	IMDId *OutputFuncMdId() const { return m_output_func; }
+	CFunctionProp *DeriveFunctionProperties(CMemoryPool *mp,
+		CExpressionHandle &exprhdl) const override;
+
+	EBoolEvalResult Eber(ULongPtrArray *children) const override
+	{
+		// PostgreSQL's I/O conversion protocol preserves NULL, independently
+		// of the implementation functions' strictness declarations.
+		return EberNullOnAnyNullChild(children);
+	}
 
 	EOperatorId
 	Eopid() const override

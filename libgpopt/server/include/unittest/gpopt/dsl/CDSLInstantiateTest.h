@@ -29,6 +29,7 @@ class CDSLInstantiateTest
 {
 public:
 	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_ExpressionBindings();
 
 	// identity-shaped Filter rule over a single-conjunct Select: instantiate
 	// yields a Select whose output columns == the source's.

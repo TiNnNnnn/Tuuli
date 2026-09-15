@@ -586,8 +586,13 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fExpectedSemiApply =
 		fSemiApply &&
 		(COperator::EopLogicalLeftSemiApply == eopid ||
+		 COperator::EopLogicalLeftSemiCorrelatedApply == eopid ||
 		 COperator::EopLogicalLeftSemiApplyIn == eopid ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopid);
+	const BOOL fExpectedAntiApply =
+		fAntiApply &&
+		(COperator::EopLogicalLeftAntiSemiApply == eopid ||
+		 COperator::EopLogicalLeftAntiSemiCorrelatedApply == eopid);
 	const BOOL fExpectedInnerApply =
 		fInnerApply &&
 		(COperator::EopLogicalInnerApply == eopid ||
@@ -600,7 +605,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		fAntiApplyNotIn &&
 		(COperator::EopLogicalLeftAntiSemiApplyNotIn == eopid ||
 		 COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn == eopid);
-	if ((!fExpectedSemiApply && !fExpectedInnerApply &&
+	if ((!fExpectedSemiApply && !fExpectedAntiApply && !fExpectedInnerApply &&
 		 !fExpectedLeftOuterApply && !fExpectedAntiApplyNotIn &&
 		 eopid != eopidExpected) ||
 		3 != pexprJoin->Arity())

@@ -3,11 +3,14 @@
 //
 // Usage: pgorca_rule_audit <rules-directory> [output-directory]
 //        pgorca_rule_audit --policy-snapshot <rules-file> [policy-file]
+//        pgorca_rule_audit --stats-requests <experiment-file>
 //---------------------------------------------------------------------------
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
+#include <limits>
 #include <map>
 #include <set>
 #include <sstream>
@@ -23,6 +26,7 @@
 
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLPolicy.h"
+#include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/init.h"
 #include "gpopt/search/CJobJoinEnumeration.h"
 #include "gpopt/xforms/CXformFactory.h"
@@ -151,6 +155,7 @@ FImplementationPropertyExploration(CXform::EXformId id)
 struct SAudit
 {
 	BOOL export_policy = false;
+	BOOL export_stats = false;
 	std::string policy_file;
 	std::string policy_json;
 	std::string rules_dir;
@@ -1197,6 +1202,56 @@ RunAudit(void *argument)
 {
 	SAudit *audit = static_cast<SAudit *>(argument);
 	CAutoMemoryPool amp;
+	if (audit->export_stats)
+	{
+		std::ifstream input(audit->rules_dir);
+		if (!input)
+		{
+			audit->fatal_error = "cannot open DSL stats experiment file: " + audit->rules_dir;
+			return nullptr;
+		}
+		std::ostringstream content;
+		content << input.rdbuf();
+		if (input.bad())
+		{
+			audit->fatal_error = "cannot read DSL stats experiment file: " + audit->rules_dir;
+			return nullptr;
+		}
+		CWStringDynamic errors(amp.Pmp());
+		std::string id;
+		std::vector<SDSLStatsExperimentRequest> requests;
+		BOOL discover = false;
+		if (!CDSLStatsExperimentSnapshot::FParseRequests(content.str().c_str(),
+			&id, &requests, &discover, &errors))
+		{
+			audit->fatal_error = Narrow(errors);
+			return nullptr;
+		}
+		std::ostringstream out;
+		out << std::boolalpha << std::setprecision(std::numeric_limits<DOUBLE>::max_digits10)
+			<< "{\"schema_version\":1,\"scope\":\"native_stats_requests_not_runtime_resolution\","
+			<< "\"experiment\":\"" << JsonEscape(id) << "\",\"discover\":" << discover
+			<< ",\"requests\":[";
+		for (size_t i = 0; i < requests.size(); ++i)
+		{
+			const auto &request = requests[i];
+			if (i > 0)
+				out << ',';
+			out << "{\"relations\":[";
+			for (size_t j = 0; j < request.m_aliases.size(); ++j)
+			{
+				if (j > 0)
+					out << ',';
+				out << '"' << JsonEscape(request.m_aliases[j]) << '"';
+			}
+			out << "],\"expression\":\"" << JsonEscape(request.m_fingerprint)
+				<< "\",\"operator\":\"" << JsonEscape(request.m_operator)
+				<< "\",\"requested_rows\":" << request.m_rows << '}';
+		}
+		out << "]}";
+		audit->policy_json = out.str();
+		return nullptr;
+	}
 	if (audit->export_policy)
 	{
 		ExportPolicy(amp.Pmp(), audit);
@@ -1215,16 +1270,20 @@ int
 main(int argc, char **argv)
 {
 	const BOOL export_policy = argc > 1 && std::string(argv[1]) == "--policy-snapshot";
-	if ((export_policy && (argc < 3 || argc > 4)) || (!export_policy && (argc < 2 || argc > 3)))
+	const BOOL export_stats = argc > 1 && std::string(argv[1]) == "--stats-requests";
+	if ((export_stats && argc != 3) || (export_policy && (argc < 3 || argc > 4)) ||
+		(!export_policy && !export_stats && (argc < 2 || argc > 3)))
 	{
 		std::cerr << "usage: pgorca_rule_audit <rules-directory> "
-					 "[output-directory]\n       pgorca_rule_audit --policy-snapshot <rules-file> [policy-file]" << std::endl;
+					 "[output-directory]\n       pgorca_rule_audit --policy-snapshot <rules-file> [policy-file]\n"
+					 "       pgorca_rule_audit --stats-requests <experiment-file>" << std::endl;
 		return 2;
 	}
 
 	SAudit audit;
 	audit.export_policy = export_policy;
-	audit.rules_dir = fs::absolute(argv[export_policy ? 2 : 1]).lexically_normal().string();
+	audit.export_stats = export_stats;
+	audit.rules_dir = fs::absolute(argv[export_policy || export_stats ? 2 : 1]).lexically_normal().string();
 	if (export_policy && argc == 4)
 		audit.policy_file = fs::absolute(argv[3]).lexically_normal().string();
 	audit.output_dir =
@@ -1260,7 +1319,7 @@ main(int argc, char **argv)
 		std::cerr << audit.fatal_error << std::endl;
 		return 1;
 	}
-	if (export_policy)
+	if (export_policy || export_stats)
 	{
 		std::cout << audit.policy_json << std::endl;
 		return 0;

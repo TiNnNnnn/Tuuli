@@ -28,6 +28,7 @@
 #include "gpopt/search/CGroupExpression.h"
 #include "naucrates/statistics/IStatistics.h"
 #include "naucrates/statistics/CStatistics.h"
+#include "naucrates/md/CMDIdGPDB.h"
 
 using namespace gpopt;
 
@@ -35,6 +36,28 @@ namespace
 {
 std::string Fingerprint(CMemoryPool *mp, const CExpression *expr,
 	std::unordered_map<const CExpression *, std::string> *cache);
+
+std::vector<const CExpression *>
+RelationalFrontier(const CExpression *expr)
+{
+	std::vector<const CExpression *> result;
+	std::vector<const CExpression *> pending;
+	for (ULONG child = expr->Arity(); child > 0; --child)
+		pending.push_back((*expr)[child - 1]);
+	while (!pending.empty())
+	{
+		const CExpression *input = pending.back();
+		pending.pop_back();
+		if (input->Pop()->FLogical())
+		{
+			result.push_back(input);
+			continue;
+		}
+		for (ULONG child = input->Arity(); child > 0; --child)
+			pending.push_back((*input)[child - 1]);
+	}
+	return result;
+}
 }
 
 std::string
@@ -117,7 +140,8 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 }
 
 std::string
-CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *mp)
+CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *mp,
+	BOOL query_input)
 {
 	std::ostringstream out;
 	out << std::setprecision(17);
@@ -192,8 +216,10 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 	COptCtxt *context = COptCtxt::PoctxtFromTLS();
 	if (nullptr != context && context->FHasDSLStatsExperiment())
 		out << "\"stats_lifecycle_sequence\":" << context->UlDSLStatsLifecycleEvents() << ",";
-	out << "\"capture\":\"before_evaluation\","
-		   "\"scope\":\"source_before_match_view\",\"source_shape\":"
+	out << (query_input
+		? "\"capture\":\"before_memo_initialization\",\"scope\":\"query_after_preprocessing\","
+		: "\"capture\":\"before_evaluation\",\"scope\":\"source_before_match_view\",")
+		<< "\"source_shape\":"
 		<< ExpressionShape(expr) << ",\"root\":";
 	node(expr);
 	out << ",\"children\":[";
@@ -218,23 +244,136 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 	out << "],\"relational_children\":" << total
 		<< ",\"omitted_children\":" << (total > limit ? total - limit : 0);
 	// Ordered operator/arity prefix distinguishes trees with the same histogram.
-	// Bound the diagnostic prefix; omitted paths remain explicitly unobserved.
-	out << ",\"source_tree\":{\"nodes\":[";
+	// The transport is chunked, not the tree: every consumed binding path must
+	// remain addressable. Still only read cached root/direct-child properties.
+	const CDSLStatsExperimentSnapshot *experiment = nullptr == context ? nullptr
+		: context->PDSLStatsExperimentSnapshot();
+	out << ",\"source_tree\":{\"request_binding\":";
+	if (nullptr != experiment)
+		out << "\"resolved_operator_only\"";
+	else
+		out << "null";
+	out << ",\"nodes\":[";
 	std::vector<const CExpression *> pending{expr};
 	ULONG retained = 0;
-	while (!pending.empty() && retained < 64)
+	while (!pending.empty())
 	{
+		if (0 == retained % 256)
+			GPOS_CHECK_ABORT;
 		const CExpression *input = pending.back();
 		pending.pop_back();
 		if (retained++)
 			out << ",";
 		out << "{\"operator\":\"" << input->Pop()->SzId()
-			<< "\",\"arity\":" << input->Arity() << "}";
+			<< "\",\"arity\":" << input->Arity() << ",\"relation_oid\":";
+		// Read the existing descriptor only. The OID joins a same-database
+		// catalog snapshot; it is neither a cardinality nor a model feature.
+		const CTableDescriptor *table = CLogical::PtabdescFromTableGet(input->Pop());
+		const CMDIdGPDB *mdid = nullptr == table ? nullptr
+			: dynamic_cast<const CMDIdGPDB *>(table->MDId());
+		if (nullptr != mdid &&
+			(IMDId::EmdidRel == mdid->MdidType() || IMDId::EmdidGeneral == mdid->MdidType()) &&
+			0 != mdid->Oid())
+			out << mdid->Oid();
+		else
+			out << "null";
+		// Lookup the already-resolved request; do not rebind, derive statistics,
+		// or infer absence of indirect effects through equivalent Memo groups.
+		ULONG request_index = 0;
+		out << ",\"request_index\":";
+		if (nullptr != experiment && experiment->FRequestIndex(input->Pop(), &request_index))
+			out << request_index;
+		else
+			out << "null";
+		out << "}";
 		for (ULONG i = input->Arity(); i > 0; --i)
 			pending.push_back((*input)[i - 1]);
 	}
 	out << "],\"complete\":" << (pending.empty() ? "true" : "false") << "}}";
 	return out.str();
+}
+
+std::string
+CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr)
+{
+	GPOS_ASSERT(nullptr != expr);
+	std::ostringstream out;
+	out << "{\"capture\":\"before_evaluation\","
+		   "\"scope\":\"source_before_match_view\","
+		   "\"source_tree\":{\"encoding\":\"preorder_operator_arity\",\"nodes\":\"";
+	std::vector<const CExpression *> pending{expr};
+	ULONG nodes = 0;
+	while (!pending.empty())
+	{
+		if (0 == nodes % 256)
+			GPOS_CHECK_ABORT;
+		const CExpression *input = pending.back();
+		pending.pop_back();
+		if (nodes++)
+			out << " ";
+		out << input->Pop()->SzId() << "/" << input->Arity();
+		for (ULONG child = input->Arity(); child > 0; --child)
+			pending.push_back((*input)[child - 1]);
+	}
+	out << "\",\"complete\":true},"
+		   "\"relational_tree\":{\"encoding\":\"preorder_operator_arity\",\"nodes\":\"";
+	pending = {expr};
+	nodes = 0;
+	while (!pending.empty())
+	{
+		if (0 == nodes % 256)
+			GPOS_CHECK_ABORT;
+		const CExpression *input = pending.back();
+		pending.pop_back();
+		const std::vector<const CExpression *> relational_children =
+			RelationalFrontier(input);
+		if (nodes++)
+			out << " ";
+		out << input->Pop()->SzId() << "/" << relational_children.size();
+		for (ULONG child = relational_children.size(); child > 0; --child)
+			pending.push_back(relational_children[child - 1]);
+	}
+	out << "\",\"complete\":true}}";
+	return out.str();
+}
+
+std::vector<std::string>
+CDSLStatsExperimentSnapshot::ContextRecords(ULONG id, const CHAR *field,
+	const std::string &value)
+{
+	GPOS_ASSERT(0 < id && nullptr != field && !value.empty());
+	GPOS_ASSERT(0 == std::strcmp(field, "input_context") ||
+		0 == std::strcmp(field, "binding_context") ||
+		0 == std::strcmp(field, "query_input_context") ||
+		0 == std::strcmp(field, "route_input_context"));
+	const std::string identity = ",\"engine\":\"pgorca\",\"context_id\":" +
+		std::to_string(id) + ",\"field\":\"" + field + "\"";
+	const size_t chunk_bytes = 2048;
+	if (value.size() <= chunk_bytes)
+		return {"DSL_TRACE {\"kind\":\"candidate_context\"" + identity +
+			",\"value\":" + value + "}"};
+	std::vector<std::string> records;
+	const size_t parts = (value.size() + chunk_bytes - 1) / chunk_bytes;
+	const CHAR *hex = "0123456789abcdef";
+	for (size_t part = 0; part < parts; ++part)
+	{
+		GPOS_CHECK_ABORT;
+		std::string fragment;
+		const size_t end = std::min(value.size(), (part + 1) * chunk_bytes);
+		for (size_t i = part * chunk_bytes; i < end; ++i)
+		{
+			const unsigned char byte = static_cast<unsigned char>(value[i]);
+			fragment.push_back(hex[byte >> 4]);
+			fragment.push_back(hex[byte & 15]);
+		}
+		// Hex transports arbitrary UTF-8 boundaries and quotes without relying on
+		// the logger's multibyte conversion or on an escaped fragment being JSON.
+		records.push_back("DSL_TRACE {\"kind\":\"candidate_context_fragment\"" + identity +
+			",\"encoding\":\"utf8_hex\",\"part\":" + std::to_string(part) +
+			",\"parts\":" + std::to_string(parts) + ",\"total_bytes\":" +
+			std::to_string(value.size()) + ",\"fragment\":\"" + fragment + "\"}");
+	}
+	return records;
 }
 
 namespace
@@ -750,6 +889,26 @@ Boundary(const COperator *pop)
 }
 }  // namespace
 
+BOOL
+CDSLStatsExperimentSnapshot::FParseRequests(const CHAR *content, std::string *id,
+	std::vector<SDSLStatsExperimentRequest> *requests, BOOL *discover,
+	CWStringDynamic *errors)
+{
+	std::string parsed_id;
+	std::vector<SParsedTarget> parsed;
+	BOOL parsed_discover = false;
+	if (!Parse(content, &parsed_id, &parsed, &parsed_discover, errors))
+		return false;
+	std::vector<SDSLStatsExperimentRequest> result;
+	for (const SParsedTarget &entry : parsed)
+		result.push_back({entry.m_aliases, entry.m_fingerprint,
+			entry.m_operator, entry.m_rows});
+	*id = std::move(parsed_id);
+	*requests = std::move(result);
+	*discover = parsed_discover;
+	return true;
+}
+
 CDSLStatsExperimentSnapshot *
 CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 											  const CHAR *content,
@@ -863,6 +1022,17 @@ CDSLStatsExperimentSnapshot::Ptarget(const COperator *pop) const
 {
 	const auto found = m_operator_targets.find(pop);
 	return m_operator_targets.end() == found ? nullptr : &m_targets[found->second];
+}
+
+BOOL
+CDSLStatsExperimentSnapshot::FRequestIndex(const COperator *pop, ULONG *index) const
+{
+	const auto found = m_operator_targets.find(pop);
+	if (found == m_operator_targets.end() || !m_targets[found->second].m_inject)
+		return false;
+	// Declared requests precede all entries appended by discovery.
+	*index = found->second;
+	return true;
 }
 
 std::string

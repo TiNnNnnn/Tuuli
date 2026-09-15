@@ -464,7 +464,8 @@ CEngine::InsertExpressionChildren(CExpression *pexpr,
 								  CGroupExpression *pgexprOrigin,
 								  const CDSLRule *pruleOrigin,
 								  const CHAR *szTargetPath,
-								  const CDSLTargetInputOriginArray *inputOrigins)
+								  const CDSLTargetInputOriginArray *inputOrigins,
+								  ULONG candidateSequence)
 {
 	GPOS_ASSERT(nullptr != pexpr);
 	GPOS_ASSERT(nullptr != pdrgpgroupChildren);
@@ -498,7 +499,7 @@ CEngine::InsertExpressionChildren(CExpression *pexpr,
 				pgroupChild = PgroupInsert(
 					nullptr /*pgroupTarget*/, (*pexpr)[i], exfidOrigin,
 					pgexprOrigin, true /*fIntermediate*/, pruleOrigin,
-					childPath.c_str(), inputOrigins);
+					childPath.c_str(), inputOrigins, candidateSequence);
 			}
 		}
 		pdrgpgroupChildren->Append(pgroupChild);
@@ -524,7 +525,10 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 					  const CDSLTargetInputOriginArray *inputOrigins,
 					  ULONG candidateSequence, ULONG memoVersionBefore)
 {
-	const ULONG insertionVersionBefore = 0 == candidateSequence
+	// Children retain the producer identity, but only the result root emits
+	// the attempt's single insertion outcome.
+	const ULONG outcomeSequence = fIntermediate ? 0 : candidateSequence;
+	const ULONG insertionVersionBefore = 0 == outcomeSequence
 		? 0 : COptCtxt::PoctxtFromTLS()->UlDSLMemoVersion();
 	// recursive function - check stack
 	GPOS_CHECK_STACK_SIZE;
@@ -558,7 +562,8 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 							 pgexprOrigin,
 							 nullptr == inputOrigin ? pruleOrigin : nullptr,
 							 szTargetPath,
-							 nullptr == inputOrigin ? inputOrigins : nullptr);
+							 nullptr == inputOrigin ? inputOrigins : nullptr,
+							 candidateSequence);
 
 	// A DSL target may contain fresh intermediate nodes which resolve to an
 	// existing Memo group only during recursive insertion. If such a resolved
@@ -578,8 +583,11 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 			if (!pgroupChild->FScalar() &&
 				CGroup::FReachable(m_mp, pgroupChild, pgroupTarget))
 			{
+				if (!fIntermediate)
+					COptCtxt::PoctxtFromTLS()->RecordDSLMemoOutcome(
+						pruleOrigin, "memo_cycle_rejected");
 				COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
-					pruleOrigin, "memo_cycle_rejected", candidateSequence,
+					pruleOrigin, "memo_cycle_rejected", outcomeSequence,
 					memoVersionBefore, pgroupTarget, nullptr, insertionVersionBefore);
 				if (GPOS_FTRACE(EopttracePrintDSLRule))
 				{
@@ -614,14 +622,17 @@ CEngine::PgroupInsert(CGroup *pgroupTarget, CExpression *pexpr,
 		pop, pgroupContainer);
 	if (nullptr != pruleOrigin)
 	{
+		if (!fIntermediate)
+			COptCtxt::PoctxtFromTLS()->RecordDSLMemoOutcome(
+				pruleOrigin, inserted ? "memo_inserted" : "memo_duplicate");
 		COptCtxt::PoctxtFromTLS()->RegisterDSLGroupExpressionOrigin(
 			canonical, pruleOrigin,
 			nullptr == inputOrigin ? szTargetPath
 								   : inputOrigin->m_template_path.c_str(),
 			nullptr == inputOrigin ? "memo_consumes" : "input_exposes",
-			inserted ? "memo_inserted" : "memo_duplicate");
+			inserted ? "memo_inserted" : "memo_duplicate", candidateSequence);
 	}
-	if (0 != candidateSequence)
+	if (0 != outcomeSequence)
 	{
 		COptCtxt::PoctxtFromTLS()->TraceDSLExperimentCandidateOutcome(
 			pruleOrigin, inserted ? "memo_inserted" : "memo_duplicate",
@@ -2421,6 +2432,7 @@ CEngine::ProcessTraceFlags()
 	if (GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		COptCtxt *poctxt = COptCtxt::PoctxtFromTLS();
+		poctxt->FlushDSLRouteOutcome();
 		m_pmemo->TraceLogicalProvenance(m_ulCurrSearchStage);
 		{
 			CAutoTrace at(m_mp);
@@ -2481,10 +2493,35 @@ CEngine::ProcessTraceFlags()
 					<< prule->m_stage_attempts[3]
 					<< ",\"duplicate_alternatives\":"
 					<< prule->m_stage_attempts[4]
+					<< ",\"memo_inserted_alternatives\":"
+					<< prule->m_memo_inserted
+					<< ",\"memo_duplicate_alternatives\":"
+					<< prule->m_memo_duplicate
+					<< ",\"memo_cycle_rejected_alternatives\":"
+					<< prule->m_memo_cycle_rejected
 					<< ",\"budget_exhausted\":"
 					<< prule->m_stage_attempts[5]
 					<< ",\"budget_skipped\":"
-					<< prule->m_stage_attempts[6] << "}" << std::endl;
+					<< prule->m_stage_attempts[6];
+			if (prule->m_has_match_failure)
+			{
+				at.Os() << ",\"closest_match_rejection\":{"
+						  "\"depth\":" << prule->m_match_failure_depth
+						<< ",\"bound_symbols\":"
+						<< prule->m_match_failure_bound_symbols
+						<< ",\"expected_operator\":\""
+						<< CDSLOpKindTable::SzName((EDslOpKind)
+							   prule->m_match_failure_expected)
+						<< "\",\"actual_operator\":\""
+						<< prule->m_match_failure_actual << "\"";
+				if (0 != prule->m_match_failure_route_sequence)
+				{
+					at.Os() << ",\"route_sequence\":"
+							<< prule->m_match_failure_route_sequence;
+				}
+				at.Os() << "}";
+			}
+			at.Os() << "}" << std::endl;
 		}
 	}
 
@@ -2579,6 +2616,7 @@ CEngine::Optimize()
 			GPOS_NEW(m_mp)
 				IStatisticsArray(m_mp),	 // pass empty stats context initially
 			m_ulCurrSearchStage);
+		poctxt->BeginDSLProgress(poc, m_ulCurrSearchStage);
 
 		// schedule main optimization job
 		ScheduleMainJob(&sc, poc);
@@ -2590,6 +2628,7 @@ CEngine::Optimize()
 			sched.PrintStats();
 		}
 
+		poctxt->EndDSLProgress(poc);
 		poc->Release();
 
 		// extract best plan found at the end of current search stage

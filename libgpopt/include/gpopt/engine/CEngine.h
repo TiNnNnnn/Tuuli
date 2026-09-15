@@ -167,7 +167,8 @@ private:
 								  CGroupExpression *pgexprOrigin,
 								  const CDSLRule *pruleOrigin = nullptr,
 								  const CHAR *szTargetPath = "r",
-								  const CDSLTargetInputOriginArray *inputOrigins = nullptr);
+								  const CDSLTargetInputOriginArray *inputOrigins = nullptr,
+								  ULONG candidateSequence = 0);
 
 	// create and schedule the main optimization job
 	void ScheduleMainJob(CSchedulerContext *psc,

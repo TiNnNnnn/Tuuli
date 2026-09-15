@@ -415,6 +415,8 @@ enum Edxltoken
 	EdxltokenUnknown,
 
 	EdxltokenFuncId,
+	EdxltokenInputFuncId,
+	EdxltokenOutputFuncId,
 	EdxltokenFuncRetSet,
 	EdxltokenFuncVariadic,
 

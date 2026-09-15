@@ -41,14 +41,20 @@ using namespace gpmd;
 class CDXLScalarCoerceViaIO : public CDXLScalarCoerceBase
 {
 private:
+	IMDId *m_input_func;
+	IMDId *m_output_func;
 public:
 	CDXLScalarCoerceViaIO(const CDXLScalarCoerceViaIO &) = delete;
 
 	// ctor/dtor
 	CDXLScalarCoerceViaIO(CMemoryPool *mp, IMDId *mdid_type, INT type_modifier,
-						  EdxlCoercionForm dxl_coerce_format, INT location);
+						  EdxlCoercionForm dxl_coerce_format, INT location,
+						  IMDId *input_func = nullptr, IMDId *output_func = nullptr);
 
-	~CDXLScalarCoerceViaIO() override = default;
+	~CDXLScalarCoerceViaIO() override;
+	IMDId *InputFuncMdId() const { return m_input_func; }
+	IMDId *OutputFuncMdId() const { return m_output_func; }
+	void SerializeToDXL(CXMLSerializer *serializer, const CDXLNode *node) const override;
 
 	// ident accessor
 	Edxlopid

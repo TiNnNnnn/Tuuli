@@ -1,0 +1,31 @@
+{
+  "description": "A narrowing cast must not be moved below a filter that excludes overflow",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarFunc (int4)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2,42",
+      "3,"
+    ],
+    "postgres_output": [
+      "2,42",
+      "3,"
+    ],
+    "off_output": [
+      "2,42",
+      "3,"
+    ]
+  }
+}

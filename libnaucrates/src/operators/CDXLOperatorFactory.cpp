@@ -911,7 +911,11 @@ CDXLOperatorFactory::MakeDXLCoerceViaIO(CDXLMemoryManager *dxl_memory_manager,
 
 	return GPOS_NEW(mp)
 		CDXLScalarCoerceViaIO(mp, mdid_type, type_modifier,
-							  (EdxlCoercionForm) coercion_form, location);
+							  (EdxlCoercionForm) coercion_form, location,
+			ExtractConvertAttrValueToMdId(dxl_memory_manager, attrs,
+				EdxltokenInputFuncId, EdxltokenScalarCoerceViaIO, true),
+			ExtractConvertAttrValueToMdId(dxl_memory_manager, attrs,
+				EdxltokenOutputFuncId, EdxltokenScalarCoerceViaIO, true));
 }
 
 //---------------------------------------------------------------------------

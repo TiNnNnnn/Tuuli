@@ -63,6 +63,14 @@ private:
 	// tests, but present in the rule engine so operator matchers can honor
 	// source-side constraints while exploring ambiguous bindings.
 	const CDSLRule *m_prule;
+	mutable ULONG m_ulMatchDepth;
+	mutable ULONG m_ulFailureDepth;
+	mutable EDslOpKind m_edslopFailureExpected;
+	mutable const CHAR *m_szFailureActual;
+	mutable BOOL m_fHasFailure;
+
+	BOOL FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
+						CDSLModel *pmodel) const;
 
 	// Input<t>: bind the single table symbol to the whole subtree (any
 	// relational subtree qualifies; no node-type check — WeTune INPUT branch).
@@ -106,7 +114,13 @@ public:
 	CDSLMatcher(const CDSLMatcher &) = delete;
 
 	explicit CDSLMatcher(CMemoryPool *mp, const CDSLRule *prule = nullptr)
-		: m_mp(mp), m_prule(prule)
+		: m_mp(mp),
+		  m_prule(prule),
+		  m_ulMatchDepth(0),
+		  m_ulFailureDepth(0),
+		  m_edslopFailureExpected(EdslopSentinel),
+		  m_szFailureActual(nullptr),
+		  m_fHasFailure(false)
 	{
 		GPOS_ASSERT(nullptr != mp);
 	}
@@ -121,6 +135,13 @@ public:
 	// Returns true iff the whole subtree matched and every symbol bound
 	// consistently (FBind rejects incompatible re-binds -> equality classes).
 	BOOL FMatch(const CDSLOp *pop, CExpression *pexpr, CDSLModel *pmodel) const;
+	BOOL FHasFailure() const { return m_fHasFailure; }
+	ULONG UlFailureDepth() const { return m_ulFailureDepth; }
+	EDslOpKind EdslopFailureExpected() const
+	{
+		return m_edslopFailureExpected;
+	}
+	const CHAR *SzFailureActual() const { return m_szFailureActual; }
 };
 }  // namespace gpopt
 

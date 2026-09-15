@@ -147,10 +147,10 @@ FHasCycle(const CDSLSymbol *psym,
 }  // namespace
 
 CDSLExpressionDefinitions::CDefinition::CDefinition(
-	CMemoryPool *mp, EDslExpressionKind edslexpr,
-	const CDSLSymbol *psymOutput,
-	const CDSLSymbolArray *pdrgpsymDefinition)
+	CMemoryPool *mp, EDslExpressionKind edslexpr, const CDSLSymbol *psymOutput,
+	const CDSLSymbolArray *pdrgpsymDefinition, EBinding binding)
 	: m_edslexpr(edslexpr),
+	  m_binding(binding),
 	  m_psymOutput(psymOutput),
 	  m_pdrgpsymOperands(GPOS_NEW(mp) COperandArray(mp))
 {
@@ -204,6 +204,96 @@ CDSLExpressionDefinitions::~CDSLExpressionDefinitions()
 {
 	m_pdrgpdefByOutput->Release();
 	m_pdrgpdefDefinitions->Release();
+}
+
+BOOL
+CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
+										  EDslExpressionKind kind,
+										  EBinding binding,
+										  const CDSLSymbolArray *symbols)
+{
+	if ((EdslexprNot != kind && EdslexprRef != kind && EdslexprAnd != kind) ||
+		(EMatch != binding && EBuild != binding) ||
+		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
+		(EdslexprAnd == kind ? 3 : 2) != symbols->Size())
+	{
+		return false;
+	}
+	const CDSLSymbol *output = (*symbols)[0];
+	if (EdslsymPred != output->Esymkind() || nullptr != Pdef(output))
+	{
+		return false;
+	}
+	for (ULONG i = 1; i < symbols->Size(); i++)
+	{
+		if (EdslsymPred != (*symbols)[i]->Esymkind() ||
+			FUses((*symbols)[i], output))
+		{
+			return false;
+		}
+	}
+	CDefinition *def =
+		GPOS_NEW(mp) CDefinition(mp, kind, output, symbols, binding);
+	m_pdrgpdefDefinitions->Append(def);
+	while (output->Id() >= m_pdrgpdefByOutput->Size())
+	{
+		m_pdrgpdefByOutput->Append(nullptr);
+	}
+	m_pdrgpdefByOutput->Replace(output->Id(), def);
+	return true;
+}
+
+BOOL
+CDSLExpressionDefinitions::FHasBindings() const
+{
+	for (ULONG i = 0; i < UlDefinitions(); i++)
+	{
+		if (ELegacy != PdefAt(i)->Binding())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void
+CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
+{
+	for (ULONG i = 0; i < UlDefinitions(); i++)
+	{
+		const CDefinition *def = PdefAt(i);
+		if (ELegacy == def->Binding())
+		{
+			continue;
+		}
+		if (separator)
+		{
+			os << ";";
+		}
+		separator = true;
+		if (EBuild == def->Binding())
+		{
+			os << def->PsymOutput()->PstrName()->GetBuffer() << " := ";
+		}
+		if (EdslexprRef != def->Edslexpr())
+		{
+			os << (EdslexprAnd == def->Edslexpr() ? "And(" : "Not(");
+		}
+		for (ULONG operand = 0; operand < def->Arity(); operand++)
+		{
+			if (0 != operand)
+				os << ",";
+			os << def->PsymOperand(operand)->PstrName()->GetBuffer();
+		}
+		if (EdslexprRef != def->Edslexpr())
+		{
+			os << ")";
+		}
+		if (EMatch == def->Binding())
+		{
+			os << " := " << def->PsymOutput()->PstrName()->GetBuffer();
+		}
+	}
 }
 
 const CDSLExpressionDefinitions::CDefinition *

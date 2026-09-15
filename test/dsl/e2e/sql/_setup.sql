@@ -53,6 +53,56 @@ END
 $$;
 CREATE CAST (bigint AS uuid) WITH FUNCTION dsl_cast_stable_token(bigint) AS IMPLICIT;
 
+CREATE FUNCTION dsl_cast_null_flag(bigint) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE CALLED ON NULL INPUT AS $$
+BEGIN
+    RETURN $1 IS NULL;
+END
+$$;
+CREATE CAST (bigint AS boolean) WITH FUNCTION dsl_cast_null_flag(bigint) AS IMPLICIT;
+
+CREATE FUNCTION dsl_cast_strict_flag(smallint) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE STRICT AS $$
+BEGIN
+    RETURN $1 = 1;
+END
+$$;
+CREATE CAST (smallint AS boolean) WITH FUNCTION dsl_cast_strict_flag(smallint) AS IMPLICIT;
+
+CREATE TABLE dsl_cast_text(id int PRIMARY KEY, value text NOT NULL);
+INSERT INTO dsl_cast_text VALUES (1,'one'),(3,'three');
+
+CREATE TABLE dsl_cast_safety(id int PRIMARY KEY, s smallint, v bigint, value text);
+INSERT INTO dsl_cast_safety VALUES
+    (1,-32768,9223372036854775807,'not an integer'),
+    (2,32767,42,'42'),
+    (3,NULL,NULL,NULL);
+
+-- Real type I/O metadata, without changing any built-in function or cast.
+-- The implementations are pure; volatility declarations test whether the
+-- optimizer respects the catalog contract, not an observed side effect.
+DO $$
+DECLARE spec record;
+BEGIN
+    FOR spec IN SELECT * FROM (VALUES
+        ('dsl_io_input','VOLATILE','IMMUTABLE'),
+        ('dsl_io_output','IMMUTABLE','VOLATILE'),
+        ('dsl_io_stable','STABLE','STABLE')
+    ) AS types(name, input_stability, output_stability)
+    LOOP
+        EXECUTE format('CREATE TYPE %I', spec.name);
+        EXECUTE format('CREATE FUNCTION %I(cstring) RETURNS %I LANGUAGE internal %s STRICT AS %L',
+            spec.name || '_in', spec.name, spec.input_stability, 'int4in');
+        EXECUTE format('CREATE FUNCTION %I(%I) RETURNS cstring LANGUAGE internal %s STRICT AS %L',
+            spec.name || '_out', spec.name, spec.output_stability, 'int4out');
+        EXECUTE format('CREATE TYPE %I (INPUT=%I, OUTPUT=%I, INTERNALLENGTH=4, PASSEDBYVALUE, ALIGNMENT=int4)',
+            spec.name, spec.name || '_in', spec.name || '_out');
+    END LOOP;
+END
+$$;
+CREATE TABLE dsl_io_values(source_text text, source_output dsl_io_output, source_stable dsl_io_stable);
+INSERT INTO dsl_io_values VALUES ('1','1','1'),('2','2','2'),('3','3','3');
+
 CREATE TABLE dsl_correlated_exists(k int, payload int NOT NULL);
 INSERT INTO dsl_correlated_exists VALUES (1,10),(NULL,20),(2,30);
 

@@ -1,0 +1,6 @@
+# Native FormalSQL/Rocq outcome-equivalence proofs; these exercise the
+# expression runtime, not optimization benefit. Keep expansion isolated.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);p2 := Not(p0);p1 := Not(p2)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);Not(p2) := p0;Not(p3) := p2;p1 := p3
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);And(p3,p4) := p0;p2 := Not(p0);p1 := Not(p2)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);Not(p2) := p0;Not(p3) := p2;And(p4,p5) := p3;p1 := p3

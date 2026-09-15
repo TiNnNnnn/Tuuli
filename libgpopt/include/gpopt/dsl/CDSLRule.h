@@ -210,7 +210,8 @@ public:
 	CDSLRule(const CDSLRule &) = delete;
 
 	CDSLRule(CMemoryPool *mp, CDSLFragment *pfrag_src, CDSLFragment *pfrag_tgt,
-			 CDSLConstraintArray *pdrgpcon, const CHAR *sz_verdict);
+			 CDSLConstraintArray *pdrgpcon, const CHAR *sz_verdict,
+			 CDSLExpressionDefinitions *definitions = nullptr);
 
 	~CDSLRule() override;
 

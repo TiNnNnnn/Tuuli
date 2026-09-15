@@ -17,6 +17,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
@@ -30,6 +31,12 @@
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarCast.h"
+#include "gpopt/operators/CScalarCoerceViaIO.h"
+#include "gpopt/translate/CTranslatorDXLToExpr.h"
+#include "gpopt/translate/CTranslatorExprToDXL.h"
+#include "naucrates/dxl/CDXLUtils.h"
+#include "naucrates/dxl/operators/CDXLNode.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarIf.h"
@@ -202,6 +209,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_ComputeConditionalSafety),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_ComputeCastSafety),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_IOCoercePropertiesRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
@@ -714,6 +723,132 @@ CDSLProjTest::EresUnittest_ComputeConditionalSafety()
 	predicate->Release();
 	input->Release();
 	rule->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeCastSafety()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp, GPOPT_DSL_COMPUTE_IDENTITY_RULE);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("cast_input", 1, &columns);
+	struct CastCase
+	{
+		OID source, target, function;
+		BOOL binary, subquery, accepted;
+	};
+	const CastCase cases[] = {
+		{21, 23, 313, false, false, true},
+		{21, 20, 754, false, false, true},
+		{23, 20, 481, false, false, true},
+		{20, 23, 480, false, false, false},
+		{23, 20, 100001, false, false, false},
+		{23, 20, 0, false, false, false},
+		{23, 23, 0, true, false, true},
+		{23, 23, 0, true, true, false}};
+	BOOL valid = true;
+	for (const CastCase &test : cases)
+	{
+		IMDId *sourceType = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, test.source);
+		IMDId *targetType = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, test.target);
+		CExpression *child = nullptr;
+		if (test.subquery)
+		{
+			input->AddRef();
+			child = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubquery(mp, (*columns)[0], false, false), input);
+		}
+		else
+		{
+			child = CUtils::PexprScalarConstNull(mp,
+				fix.Pmda()->RetrieveType(sourceType), default_type_modifier);
+		}
+		CExpression *cast = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarCast(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, test.target),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, test.function), test.binary), child);
+		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			fix.Pmda()->RetrieveType(targetType), default_type_modifier);
+		CExpression *source = PexprProjectWithScalar(mp, input, output, cast);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		CDSLConstraintChecker checker(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		const BOOL accepted = matched && checker.FCheck(rule, model);
+		valid &= matched && accepted == test.accepted;
+		if (accepted)
+		{
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			valid &= nullptr != target && target->Matches(source);
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+		source->Release();
+		sourceType->Release();
+		targetType->Release();
+	}
+	input->Release();
+	rule->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_IOCoercePropertiesRoundTrip()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const IMDType *type = fix.PcrCreateInt4("io_value")->RetrieveType();
+	BOOL valid = true;
+	// Both implementation functions and the value subtree contribute. A
+	// missing function identity (including legacy DXL) is conservatively volatile.
+	for (ULONG in = 0; in <= IMDFunction::EfsSentinel; in++)
+	for (ULONG out = 0; out <= IMDFunction::EfsSentinel; out++)
+	for (ULONG nested = 0; nested < 2; nested++)
+	{
+		CExpression *child = CUtils::PexprScalarConstNull(mp, type, default_type_modifier);
+		if (nested)
+		{
+			child = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarCoerceViaIO(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4),
+					-1, COperator::EcfExplicitCast, -1,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100202),
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100210)), child);
+		}
+		CExpression *expr = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarCoerceViaIO(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4),
+				-1, COperator::EcfExplicitCast, -1,
+				in == IMDFunction::EfsSentinel ? nullptr :
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100200 + in),
+				out == IMDFunction::EfsSentinel ? nullptr :
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100210 + out)), child);
+		const ULONG expected = nested || in == IMDFunction::EfsSentinel ||
+			out == IMDFunction::EfsSentinel ? IMDFunction::EfsVolatile : (in > out ? in : out);
+		valid &= expr->DeriveScalarFunctionProperties()->Efs() == expected &&
+			CScalar::EberNull == CScalar::EberEvaluate(mp, expr);
+		CTranslatorExprToDXL toDXL(mp, fix.Pmda(), nullptr);
+		CDXLNode *node = toDXL.PdxlnScalar(expr);
+		CWStringDynamic *xml = CDXLUtils::SerializeScalarExpr(mp, node, true, false);
+		CHAR *bytes = CDXLUtils::CreateMultiByteCharStringFromWCString(mp, xml->GetBuffer());
+		CDXLNode *parsed = CDXLUtils::ParseDXLToScalarExprDXLNode(mp, bytes, nullptr);
+		CTranslatorDXLToExpr fromDXL(mp, fix.Pmda());
+		CExpression *restored = fromDXL.PexprTranslateScalar(parsed, nullptr);
+		valid &= expr->Matches(restored) &&
+			restored->DeriveScalarFunctionProperties()->Efs() == expected &&
+			CScalar::EberNull == CScalar::EberEvaluate(mp, restored);
+		restored->Release();
+		parsed->Release();
+		GPOS_DELETE_ARRAY(bytes);
+		GPOS_DELETE(xml);
+		node->Release();
+		expr->Release();
+	}
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
