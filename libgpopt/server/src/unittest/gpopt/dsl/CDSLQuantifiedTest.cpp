@@ -13,6 +13,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
@@ -146,6 +147,13 @@ EresPreUnnest(BOOL fAll)
 	CExpression *pexprInnerGet = nullptr;
 	CExpression *pexprSource =
 		PexprPreUnnest(mp, fix, fAll, &pexprInnerGet);
+	std::string sourceTemplate;
+	std::string templateError;
+	GPOS_ASSERT(CDSLPlanTemplate::FSlice(mp, pexprSource, "r",
+		{"r/0", "r/1"}, &sourceTemplate, &templateError));
+	GPOS_ASSERT(sourceTemplate == (fAll
+		? "All<p0 a0>(Input<t0>,Input<t1>)"
+		: "Any<p0 a0>(Input<t0>,Input<t1>)"));
 	CDSLRule *prule = PruleParse(
 		mp, fAll ? GPOPT_DSL_ALL_DISTINCT_DROP_RULE
 				 : GPOPT_DSL_ANY_DISTINCT_DROP_RULE);

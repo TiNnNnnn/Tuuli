@@ -37,7 +37,6 @@
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/xforms/CXformUtils.h"
-#include "naucrates/md/IMDType.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
@@ -80,32 +79,6 @@ FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
 	return true;
 }
 
-BOOL
-FDefaultOrderDirection(const COrderSpec *pos, EDslSortDir edslsort)
-{
-	if (nullptr == pos || pos->IsEmpty() || EdslsortNone == edslsort)
-	{
-		return false;
-	}
-
-	const IMDType::ECmpType ecmpt =
-		(EdslsortAsc == edslsort) ? IMDType::EcmptL : IMDType::EcmptG;
-	const COrderSpec::ENullTreatment ent =
-		(EdslsortAsc == edslsort) ? COrderSpec::EntLast
-								  : COrderSpec::EntFirst;
-	for (ULONG ul = 0; ul < pos->UlSortColumns(); ul++)
-	{
-		const CColRef *pcr = pos->Pcr(ul);
-		IMDId *pmdid = pcr->RetrieveType()->GetMdidForCmpType(ecmpt);
-		if (!IMDId::IsValid(pmdid) ||
-			!pmdid->Equals(pos->GetMdIdSortOp(ul)) || ent != pos->Ent(ul))
-		{
-			return false;
-		}
-	}
-	return true;
-}
-
 }  // namespace
 
 BOOL
@@ -116,7 +89,7 @@ CDSLMatcher::FMatchSortView(const CDSLOp *popSort,
 	GPOS_ASSERT(EdslopSort == popSort->Edslop());
 	if (1 != popSort->UlChildren() || nullptr == popSort->Pdrgpsym() ||
 		1 != popSort->Pdrgpsym()->Size() ||
-		!FDefaultOrderDirection(pos, popSort->Edslsort()))
+		popSort->Edslsort() != CDSLMatchView::EdslsortDefault(pos))
 	{
 		return false;
 	}

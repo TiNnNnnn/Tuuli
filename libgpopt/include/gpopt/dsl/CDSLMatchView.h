@@ -17,6 +17,7 @@
 #include "gpos/base.h"
 #include "gpos/common/CDynamicPtrArray.h"
 
+#include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/operators/CExpression.h"
 
 namespace gpopt
@@ -82,6 +83,11 @@ public:
 
 	// Decode one safe global LogicalLimit, including its fused order property.
 	static BOOL FOrderLimit(CExpression *pexpr, SOrderLimit *pview);
+
+	// Return the DSL direction for an ORCA order that uses the metadata default
+	// comparator and NULL placement on every key. Mixed/custom orders have no
+	// lossless DSL view.
+	static EDslSortDir EdslsortDefault(const COrderSpec *pos);
 
 	// Split a join/semi-join predicate into ordered cross-child equality keys
 	// and the exact remaining conjuncts. The caller owns appended refs.

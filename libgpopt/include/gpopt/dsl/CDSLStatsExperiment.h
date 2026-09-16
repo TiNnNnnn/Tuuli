@@ -56,6 +56,8 @@ private:
 	std::vector<SDSLStatsExperimentTarget> m_targets;
 	std::unordered_map<const COperator *, ULONG> m_operator_targets;
 	BOOL m_fDiscover;
+	std::string m_template_root;
+	std::vector<std::string> m_template_cuts;
 
 	explicit CDSLStatsExperimentSnapshot(CMemoryPool *mp)
 		: m_mp(mp), m_fDiscover(false)
@@ -94,6 +96,8 @@ public:
 	BOOL FRequestIndex(const COperator *pop, ULONG *index) const;
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
+	BOOL FHasTemplateSelection() const { return !m_template_root.empty(); }
+	std::string TemplateSelectionArtifact(CExpression *root) const;
 	ULONG UlTargets() const { return (ULONG) m_targets.size(); }
 	const std::vector<SDSLStatsExperimentTarget> &Targets() const
 	{

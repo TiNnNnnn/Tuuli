@@ -13,6 +13,7 @@
 #include "gpos/task/CAutoTraceFlag.h"
 
 #include "gpopt/dsl/CDSLStatsExperiment.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPatternLeaf.h"
@@ -44,9 +45,130 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("outer", 1, &cols);
+	CExpression *inner = fixture.PexprLogicalGet("inner", 1);
+	CExpression *exists = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), inner);
+	CExpression *select = fixture.PexprLogicalSelect(get, exists);
+	const std::string artifact =
+		CDSLPlanTemplate::Serialize(mp, select);
+	const std::string query_context =
+		CDSLStatsExperimentSnapshot::InputContext(select, mp, true);
+	const std::string candidate_context =
+		CDSLStatsExperimentSnapshot::InputContext(select, mp, false);
+	std::string selection_error;
+	const BOOL selection_valid =
+		CDSLPlanTemplate::FValidateSelection(
+			select, "r", {"r/0", "r/1"}, &selection_error);
+	std::string exists_slice;
+	std::string exists_error;
+	const BOOL exists_sliced = CDSLPlanTemplate::FSlice(
+		mp, select, "r", {"r/0", "r/1"}, &exists_slice, &exists_error);
+	CExpression *predicate = fixture.PexprEqConst((*cols)[0], 7);
+	CExpression *plain_select = fixture.PexprLogicalSelect(get, predicate);
+	CExpression *outer_predicate = fixture.PexprEqConst((*cols)[0], 8);
+	CExpression *nested_select =
+		fixture.PexprLogicalSelect(plain_select, outer_predicate);
+	std::string sliced;
+	std::string slice_error;
+	const BOOL sliced_ok = CDSLPlanTemplate::FSlice(
+		mp, plain_select, "r", {"r/0"}, &sliced, &slice_error);
+	CColRefArray *right_cols = nullptr;
+	CExpression *right = fixture.PexprLogicalGet("right", 1, &right_cols);
+	CExpression *join_predicate =
+		fixture.PexprEqPred((*cols)[0], (*right_cols)[0]);
+	CExpression *join =
+		fixture.PexprLogicalInnerJoin(get, right, join_predicate);
+	std::string join_slice;
+	std::string join_error;
+	const BOOL join_sliced = CDSLPlanTemplate::FSlice(
+		mp, join, "r", {"r/0", "r/1"}, &join_slice, &join_error);
+	CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+	grouping->Append((*cols)[0]);
+	CExpression *dedup = fixture.PexprLogicalGbAgg(get, grouping);
+	grouping->Release();
+	std::string dedup_slice;
+	std::string dedup_error;
+	const BOOL dedup_sliced = CDSLPlanTemplate::FSlice(
+		mp, dedup, "r", {"r/0"}, &dedup_slice, &dedup_error);
+	CWStringDynamic request_errors(mp);
+	CDSLStatsExperimentSnapshot *request =
+		CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(mp,
+			"experiment: template-selection\n"
+			"discover: false\n"
+			"template_root: r\n"
+			"template_cuts: [r/0]\n"
+			"cardinalities:\n",
+			plain_select, &request_errors);
+	const std::string requested_slice = nullptr == request ? "" :
+		request->TemplateSelectionArtifact(plain_select);
+	const BOOL valid = std::string::npos != artifact.find(
+		"\"schema\":\"pgorca.dsl.plan-template.v1\"") &&
+		std::string::npos != artifact.find(
+			"\"path\":\"r\",\"orca_operator\":\"CLogicalSelect\"") &&
+		std::string::npos != artifact.find("\"Exists\"") &&
+		std::string::npos != artifact.find(
+			"\"relational_children\":[\"r/0\",\"r/1\"]") &&
+		std::string::npos != artifact.find(
+			"\"path\":\"r/0\",\"orca_operator\":\"CLogicalGet\"") &&
+		std::string::npos != artifact.find(
+			"\"dsl_views\":[\"Input\"],\"requires_cut\":false") &&
+		std::string::npos != artifact.find(
+			"\"path\":\"r/1\",\"orca_operator\":\"CLogicalGet\"") &&
+		std::string::npos != artifact.find("\"tree\":[{\"path\":\"s1\"") &&
+		std::string::npos != artifact.find("\"operator_text\":\"CScalarSubqueryExists\"") &&
+		std::string::npos != artifact.find("\"complete\":true}") &&
+		std::string::npos != query_context.find("\"plan_template\":" + artifact) &&
+		std::string::npos == candidate_context.find("\"plan_template\"") &&
+		selection_valid && selection_error.empty() && exists_sliced &&
+		exists_slice == "Exists(Input<t0>,Input<t1>)" &&
+		exists_error.empty() &&
+		!CDSLPlanTemplate::FValidateSelection(
+			select, "r/0", {"r/1"}, &selection_error) &&
+		selection_error == "cut path is outside selected root: r/1" &&
+		!CDSLPlanTemplate::FValidateSelection(
+			select, "r", {"r/0", "r/0"}, &selection_error) &&
+		selection_error == "duplicate cut path: r/0" && sliced_ok &&
+		sliced == "Filter<p0 a0 a1>(Input<t0>)" && slice_error.empty() &&
+		join_sliced &&
+		join_slice == "InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)" &&
+		join_error.empty() &&
+		dedup_sliced && dedup_slice == "Proj*<a0 s0>(Input<t0>)" &&
+		dedup_error.empty() &&
+		nullptr != request && request->FHasTemplateSelection() &&
+		requested_slice ==
+			"{\"schema\":\"pgorca.dsl.plan-slice.v1\",\"root_path\":\"r\","
+			"\"cut_paths\":[\"r/0\"],\"status\":\"ok\","
+			"\"source_template\":\"Filter<p0 a0 a1>(Input<t0>)\",\"error\":null}" &&
+		!CDSLPlanTemplate::FValidateSelection(
+			nested_select, "r", {"r/0", "r/0/0"}, &selection_error) &&
+		selection_error == "cut paths must form an antichain";
+	GPOS_DELETE(request);
+	dedup->Release();
+	join->Release();
+	join_predicate->Release();
+	right->Release();
+	nested_select->Release();
+	outer_predicate->Release();
+	plain_select->Release();
+	predicate->Release();
+	select->Release();
+	exists->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -321,6 +443,8 @@ CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings()
 		valid = valid && std::string::npos != bound.find("after_evaluation") &&
 			std::string::npos == bound.find("\"bound\":false") &&
 			std::string::npos != bound.find("\"CLogicalSelect\":1") &&
+			std::string::npos != bound.find("\"memo_group\":null") &&
+			std::string::npos != bound.find("\"stats_source\":\"missing\",\"rows\":null") &&
 			std::string::npos != bound.find("\"omitted_symbols\":0") && nullptr == select->Pstats();
 		model->Release();
 		rule->Release();

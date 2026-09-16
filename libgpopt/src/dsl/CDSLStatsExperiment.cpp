@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
-#include <map>
 #include <sstream>
 #include <unordered_set>
 
@@ -19,6 +18,7 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpos/io/COstreamString.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalDynamicGetBase.h"
@@ -36,69 +36,12 @@ namespace
 {
 std::string Fingerprint(CMemoryPool *mp, const CExpression *expr,
 	std::unordered_map<const CExpression *, std::string> *cache);
-
-std::vector<const CExpression *>
-RelationalFrontier(const CExpression *expr)
-{
-	std::vector<const CExpression *> result;
-	std::vector<const CExpression *> pending;
-	for (ULONG child = expr->Arity(); child > 0; --child)
-		pending.push_back((*expr)[child - 1]);
-	while (!pending.empty())
-	{
-		const CExpression *input = pending.back();
-		pending.pop_back();
-		if (input->Pop()->FLogical())
-		{
-			result.push_back(input);
-			continue;
-		}
-		for (ULONG child = input->Arity(); child > 0; --child)
-			pending.push_back((*input)[child - 1]);
-	}
-	return result;
-}
 }
 
 std::string
 CDSLStatsExperimentSnapshot::ExpressionShape(const CExpression *expr)
 {
-	std::map<std::string, ULONG> operators;
-	std::vector<std::pair<const CExpression *, ULONG>> pending{{expr, 1}};
-	ULONG nodes = 0, scalar = 0, patterns = 0, depth = 0;
-	// Bound diagnostic work and JSON size, not matching or search. Counts are
-	// prefix counts when incomplete; consumers must not infer absent operators.
-	while (!pending.empty() && nodes < 4096)
-	{
-		const auto entry = pending.back();
-		const CExpression *input = entry.first;
-		const std::string name(input->Pop()->SzId());
-		if (16 == operators.size() && operators.end() == operators.find(name))
-			break;
-		pending.pop_back();
-		++operators[name];
-		++nodes;
-		scalar += input->Pop()->FScalar() ? 1 : 0;
-		patterns += input->Pop()->FPattern() ? 1 : 0;
-		depth = std::max(depth, entry.second);
-		for (ULONG i = input->Arity(); i > 0; --i)
-			pending.emplace_back((*input)[i - 1], entry.second + 1);
-	}
-	std::ostringstream out;
-	out << "{\"complete\":" << (pending.empty() ? "true" : "false")
-		<< ",\"nodes\":" << nodes << ",\"scalar_nodes\":" << scalar
-		<< ",\"pattern_nodes\":" << patterns << ",\"depth\":" << depth
-		<< ",\"operators\":{";
-	BOOL first = true;
-	for (const auto &entry : operators)
-	{
-		if (!first)
-			out << ",";
-		first = false;
-		out << "\"" << entry.first << "\":" << entry.second;
-	}
-	out << "}}";
-	return out.str();
+	return CDSLPlanTemplate::ExpressionShape(expr);
 }
 
 std::string
@@ -120,11 +63,41 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 		const CExpression *bound = nullptr == model ? nullptr
 			: table ? model->PexprTable(symbol) : model->PexprPred(symbol);
 		std::ostringstream entry;
+		entry << std::setprecision(17);
 		entry << "{\"symbol_index\":" << i << ",\"kind\":\""
 			<< (table ? "table" : "predicate") << "\",\"bound\":"
 			<< (nullptr == bound ? "false" : "true")
 			<< ",\"derived\":" << (nullptr != model && model->FDerivedBinding(symbol) ? "true" : "false")
-			<< ",\"shape\":" << (nullptr == bound ? "null" : ExpressionShape(bound)) << "}";
+			<< ",\"shape\":" << (nullptr == bound ? "null" : ExpressionShape(bound));
+		if (table)
+		{
+			const CGroupExpression *gexpr =
+				nullptr == bound ? nullptr : bound->Pgexpr();
+			entry << ",\"memo_group\":";
+			if (nullptr != gexpr)
+				entry << gexpr->Pgroup()->Id();
+			else
+				entry << "null";
+			entry << ",\"memo_group_expression\":";
+			if (nullptr != gexpr)
+				entry << gexpr->Id();
+			else
+				entry << "null";
+			const gpnaucrates::IStatistics *stats = nullptr == bound ? nullptr : bound->Pstats();
+			const CHAR *origin = nullptr == stats ? "missing" : "expression";
+			if (nullptr == stats && nullptr != gexpr)
+			{
+				stats = gexpr->Pgroup()->Pstats();
+				if (nullptr != stats)
+					origin = "memo_group";
+			}
+			entry << ",\"stats_source\":\"" << origin << "\",\"rows\":";
+			if (nullptr != stats && std::isfinite(stats->Rows().Get()))
+				entry << stats->Rows().Get();
+			else
+				entry << "null";
+		}
+		entry << "}";
 		if (entries.size() + entry.str().size() + 1 > 2048)
 		{
 			full = true;
@@ -243,6 +216,15 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 	}
 	out << "],\"relational_children\":" << total
 		<< ",\"omitted_children\":" << (total > limit ? total - limit : 0);
+	if (query_input)
+	{
+		out << ",\"plan_template\":" << CDSLPlanTemplate::Serialize(mp, expr);
+		const CDSLStatsExperimentSnapshot *snapshot = nullptr == context ? nullptr
+			: context->PDSLStatsExperimentSnapshot();
+		if (nullptr != snapshot && snapshot->FHasTemplateSelection())
+			out << ",\"plan_slice\":"
+				<< snapshot->TemplateSelectionArtifact(const_cast<CExpression *>(expr));
+	}
 	// Ordered operator/arity prefix distinguishes trees with the same histogram.
 	// The transport is chunked, not the tree: every consumed binding path must
 	// remain addressable. Still only read cached root/direct-child properties.
@@ -326,7 +308,7 @@ CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr)
 		const CExpression *input = pending.back();
 		pending.pop_back();
 		const std::vector<const CExpression *> relational_children =
-			RelationalFrontier(input);
+			CDSLPlanTemplate::RelationalChildren(input);
 		if (nodes++)
 			out << " ";
 		out << input->Pop()->SzId() << "/" << relational_children.size();
@@ -460,6 +442,26 @@ ParseRelations(const std::string &value, std::vector<std::string> *aliases)
 }
 
 BOOL
+ParsePaths(const std::string &value, std::vector<std::string> *paths)
+{
+	if (2 > value.size() || '[' != value.front() || ']' != value.back())
+		return false;
+	std::unordered_set<std::string> seen;
+	std::stringstream input(value.substr(1, value.size() - 2));
+	std::string item;
+	while (std::getline(input, item, ','))
+	{
+		item = Unquote(Trim(item));
+		if (item.empty())
+			continue;
+		if (!seen.insert(item).second)
+			return false;
+		paths->push_back(item);
+	}
+	return true;
+}
+
+BOOL
 ParseFingerprint(std::string value, std::string *fingerprint)
 {
 	value = Unquote(value);
@@ -513,6 +515,7 @@ ParseRows(const std::string &value, DOUBLE *rows)
 BOOL
 Parse(const CHAR *content, std::string *id,
 	  std::vector<SParsedTarget> *targets, BOOL *discover,
+	  std::string *template_root, std::vector<std::string> *template_cuts,
 	  CWStringDynamic *errors)
 {
 	std::istringstream input(nullptr == content ? "" : content);
@@ -522,6 +525,7 @@ Parse(const CHAR *content, std::string *id,
 	BOOL has_current = false;
 	BOOL valid = true;
 	BOOL has_discover = false;
+	BOOL has_template_cuts = false;
 	ULONG line_no = 0;
 	std::unordered_set<std::string> keys;
 
@@ -615,6 +619,26 @@ Parse(const CHAR *content, std::string *id,
 				valid = false;
 			}
 		}
+		else if (!in_cardinalities && "template_root" == key &&
+				 template_root->empty())
+		{
+			*template_root = Unquote(value);
+			if (template_root->empty())
+			{
+				Error(errors, line_no, "template_root cannot be empty");
+				valid = false;
+			}
+		}
+		else if (!in_cardinalities && "template_cuts" == key &&
+				 !has_template_cuts)
+		{
+			has_template_cuts = true;
+			if (!ParsePaths(value, template_cuts))
+			{
+				Error(errors, line_no, "template_cuts must be a list of unique paths");
+				valid = false;
+			}
+		}
 		else if (!in_cardinalities && "cardinalities" == key && value.empty())
 		{
 			in_cardinalities = true;
@@ -654,6 +678,11 @@ Parse(const CHAR *content, std::string *id,
 	if (!in_cardinalities)
 	{
 		Error(errors, 0, "missing cardinalities section");
+		valid = false;
+	}
+	if (has_template_cuts && template_root->empty())
+	{
+		Error(errors, 0, "template_cuts requires template_root");
 		valid = false;
 	}
 	return valid;
@@ -897,7 +926,10 @@ CDSLStatsExperimentSnapshot::FParseRequests(const CHAR *content, std::string *id
 	std::string parsed_id;
 	std::vector<SParsedTarget> parsed;
 	BOOL parsed_discover = false;
-	if (!Parse(content, &parsed_id, &parsed, &parsed_discover, errors))
+	std::string template_root;
+	std::vector<std::string> template_cuts;
+	if (!Parse(content, &parsed_id, &parsed, &parsed_discover,
+			   &template_root, &template_cuts, errors))
 		return false;
 	std::vector<SDSLStatsExperimentRequest> result;
 	for (const SParsedTarget &entry : parsed)
@@ -918,7 +950,10 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	std::string id;
 	std::vector<SParsedTarget> parsed;
 	BOOL discover = false;
-	if (nullptr == root || !Parse(content, &id, &parsed, &discover, errors))
+	std::string template_root;
+	std::vector<std::string> template_cuts;
+	if (nullptr == root || !Parse(content, &id, &parsed, &discover,
+							 &template_root, &template_cuts, errors))
 	{
 		return nullptr;
 	}
@@ -927,6 +962,19 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 		GPOS_NEW(mp) CDSLStatsExperimentSnapshot(mp);
 	snapshot->m_id = id;
 	snapshot->m_fDiscover = discover;
+	if (!template_root.empty())
+	{
+		std::string selection_error;
+		if (!CDSLPlanTemplate::FValidateSelection(
+				root, template_root, template_cuts, &selection_error))
+		{
+			Error(errors, 0, selection_error);
+			GPOS_DELETE(snapshot);
+			return nullptr;
+		}
+		snapshot->m_template_root = std::move(template_root);
+		snapshot->m_template_cuts = std::move(template_cuts);
+	}
 	std::unordered_map<std::string, ULONG> target_by_key;
 	std::unordered_map<std::string, ULONG> target_by_expression;
 	for (const SParsedTarget &entry : parsed)
@@ -993,6 +1041,14 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 		}
 	}
 	return snapshot;
+}
+
+std::string
+CDSLStatsExperimentSnapshot::TemplateSelectionArtifact(CExpression *root) const
+{
+	GPOS_ASSERT(FHasTemplateSelection() && nullptr != root);
+	return CDSLPlanTemplate::SliceArtifact(
+		m_mp, root, m_template_root, m_template_cuts);
 }
 
 CDSLStatsExperimentSnapshot *
