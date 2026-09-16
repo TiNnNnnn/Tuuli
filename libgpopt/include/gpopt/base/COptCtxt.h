@@ -12,6 +12,7 @@
 #ifndef GPOPT_COptCtxt_H
 #define GPOPT_COptCtxt_H
 
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -272,6 +273,8 @@ private:
 	ULONG m_ulDSLExperimentCostLifecycleEvents{0};
 	ULONG m_ulDSLExperimentSearchChecks{0};
 	ULONG m_ulDSLBindingOriginEdges{0};
+	std::ostringstream m_dsl_pending_binding_edges;
+	ULONG m_ulDSLPendingBindingEdges{0};
 	ULONG m_ulDSLMemoVersion;
 	std::vector<std::string> m_dsl_pending_experiment_candidates;
 	// Lossless trace encoding only; never consulted by matching or costing.
@@ -295,6 +298,7 @@ private:
 		m_dsl_stats_group_targets;
 	std::unordered_set<const CGroup *> m_dsl_stats_traced_groups;
 	std::unordered_set<const SDSLStatsExperimentTarget *> m_dsl_stats_consumed_targets;
+	void FlushDSLCBOEdges(ULONG schema_version);
 
 public:
 	COptCtxt(COptCtxt &) = delete;
@@ -417,7 +421,7 @@ public:
 		DOUBLE optimizer_cost, ULONG selected_plan_nodes,
 		ULONG selected_plan_cbo_dsl_nodes, ULONG memo_groups,
 		ULONG memo_group_expressions, ULONG optimization_ms,
-		ULLONG optimizer_memory_bytes) const;
+		ULLONG optimizer_memory_bytes);
 	void TraceDSLExperimentCandidate(
 		const CDSLRule *prule, const CHAR *placement, const CHAR *status,
 		const CExpression *pexprState, const CExpression *pexprSource,

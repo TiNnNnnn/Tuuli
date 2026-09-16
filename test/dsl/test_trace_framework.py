@@ -35,14 +35,17 @@ from ml_orca.tests.test_context_fragments import ContextFragmentsTest
 
 from ml_orca.data.build_reference_manifest import build_manifest
 from ml_orca.graph.expand_rule_neighborhoods import propose as propose_rule_neighborhoods
-from ml_orca.data.instantiate_query_workload import instantiate, instantiate_relations, write_workload as write_parameter_workload
+from ml_orca.data.instantiate_query_workload import (
+    instantiate, instantiate_relations, write_relation_workload,
+    write_workload as write_parameter_workload,
+)
 from ml_orca.experiments.generate_stats_sweep import discovery_targets, geometric_factors, sweep_points, write_sweep, sampled_input_target, write_cohort_sweeps
 from ml_orca.experiments.plot_stats_sweep import measured_points, timing_points
 from ml_orca.trace.profile_rule_candidates import (candidate_evidence, STAGES, binding_shape_features, cohort_candidate_evidence,
                                      family_design_weights, injection_order, sweep_candidate_evidence, cbo_contribution,
                                      parameter_candidate_evidence, candidate_state, state_coverage, cost_evidence,
                                      cost_lifecycle_evidence, search_check_evidence, search_contribution, target_root_costs,
-                                     observed_rule_edges, binding_origin_evidence, post_search_evidence)
+                                     target_generated_costs, observed_rule_edges, binding_origin_evidence, post_search_evidence)
 from ml_orca.experiments.profile_query_cohort import (build_cohort, cohort_results, query_features, rule_distribution,
                                   local_input_records, placement_evidence, incremental_cohort, stratified_cohort)
 from ml_orca.collect.profile_corpus_attempts import select_cases, summarize_trace, coverage, export_workload, partition_history
@@ -51,6 +54,7 @@ from ml_orca.experiments.profile_rule_conditions import condition_bins, query_ce
 from ml_orca.experiments.profile_rule_pair import paired_evidence
 from ml_orca.experiments.profile_data_scale import scale_setups
 from ml_orca.experiments.compare_rule_curves import model_check, transport_check, additive_response_check, clipped_affine_check, summarize as summarize_curve
+from ml_orca.experiments.validate_local_cost_model import validate as validate_local_cost_model
 from ml_orca.experiments.evaluate_rule_dimensions import (fit_dimensions, score_dimensions, pooled_cells,
                                       template_cells, validate as validate_dimensions)
 from ml_orca.objectives.rule_dro import dkw_w1_radius, metric_bounds, cdf_metric_bounds, sample_budget, tv_shift_bounds
@@ -128,6 +132,7 @@ from ml_orca.collect.run_workload_comparison import (
     timing_plan,
     timing_schedule,
     trace_records,
+    trace_kind_count,
     trace_settings,
     write_profile_policies,
 )
@@ -903,12 +908,15 @@ class TraceFrameworkTest(unittest.TestCase):
         node = {"operator": "CLogicalGet", "arity": 0, "stats_source": "memo_group",
                 "rows": 0, "empty": True, "reference_key": "query-local"}
         row = {"evaluated": True, "group": 5, "memo_version": 10, "status": "ready_cbo",
-               "binding_context": {"symbols": ["post-evaluation"]},
+               "binding_context": {"symbols": [{"kind": "table", "symbol_index": 4,
+                                                   "memo_group": 2, "memo_group_expression": 1}]},
                "input_context": {"capture": "before_evaluation", "scope": "source_before_match_view",
                    "root": node, "children": [{"position": 1, "node": node}],
                    "relational_children": 1, "omitted_children": 0,
                    "source_shape": {"complete": True, "pattern_nodes": 0}}}
         state = candidate_state(row)
+        self.assertEqual(state["provenance"]["bound_table_memo"], [{"symbol_index": 4,
+            "memo_group": 2, "memo_group_expression": 1}])
         self.assertTrue(state["features"]["root"]["rows_available"])
         self.assertEqual(state["features"]["root"]["rows"], 0)
         self.assertNotIn("reference_key", state["features"]["root"])
@@ -965,13 +973,16 @@ class TraceFrameworkTest(unittest.TestCase):
                  "operators": {"CScalarSubqueryExists": 1}}
         predicate = {"kind": "predicate", "bound": True, "derived": False,
                      "shape": {**shape, "operators": {"CScalarCmp": 1}}}
-        table = {"kind": "table", "bound": True, "derived": False, "shape": shape}
+        table = {"symbol_index": 3, "kind": "table", "bound": True, "derived": False,
+                 "shape": shape, "stats_source": "memo_group", "rows": 42}
         row = {"input_context": {"capture": "before_evaluation", "source_shape": shape},
                "binding_context": {"capture": "after_evaluation", "scope": "source_table_predicate_symbols",
                                    "omitted_symbols": 0, "symbols": [predicate, table]}}
         self.assertEqual(binding_shape_features(row), {"source_subqueries": "CScalarSubqueryExists",
             "bound_predicate_subqueries": "no_subquery", "bound_predicate_structure": "nonconstant_shape",
-            "bound_table_nodes": 3, "bound_table_depth": 2})
+            "bound_table_nodes": 3, "bound_table_depth": 2,
+            "bound_table_statistics": [{"symbol_index": 3,
+                                         "stats_source": "memo_group", "rows": 42}]})
         predicate["shape"]["operators"] = {"CScalarConst": 1}
         self.assertEqual(binding_shape_features(row)["bound_predicate_structure"], "constant_only")
         predicate["shape"]["complete"] = False
@@ -1013,6 +1024,65 @@ class TraceFrameworkTest(unittest.TestCase):
             trace_records(encode([definition, changed]))
         decoded = trace_records(encode([definition, candidate, {"kind": "experiment_outcome"}, changed, candidate]))
         self.assertEqual(decoded[-1]["input_context"]["root"]["rows"], 42)
+        edge = {"kind": "rule_edge", "src_rule": "a", "dst_rule": "b"}
+        mixed = encode([candidate, edge, edge])
+        self.assertEqual(trace_kind_count(mixed, "rule_edge"), 2)
+        self.assertEqual(trace_records(mixed, {"rule_edge"}), [
+            {**candidate, "context_resolution_errors": ["input_context"]}])
+        batch = {"kind": "rule_edge_batch", "engine": "pgorca", "scheduler": "cbo",
+                 "schema_version": 1, "dst_rule": "b", "candidate_status": "ready_cbo",
+                 "dst_candidate_sequence": 3, "edges": [
+                     ["a", "r/0", "r", 1, 1, 2, 4, "memo_consumes", "memo_inserted"],
+                     ["c", "r", "r/1", 2, 2, 5, 6, "input_exposes", "memo_rehashed"]]}
+        batched = encode([batch])
+        edges = trace_records(batched)
+        self.assertEqual(trace_kind_count(batched, "rule_edge"), 2)
+        self.assertEqual(trace_records(batched, {"rule_edge"}), [])
+        self.assertEqual([edge["binding_edge_sequence"] for edge in edges], [1, 2])
+        self.assertEqual(edges[0]["relation"], "memo_consumes")
+        self.assertEqual(edges[1]["relation"], "input_exposes")
+        self.assertEqual(edges[0]["dst_source_path"], "r")
+        self.assertIsNone(edges[1]["dst_source_path"])
+        batch2 = {"kind": "rule_edge_batch", "engine": "pgorca", "scheduler": "cbo",
+                  "schema_version": 2, "edges": [
+                      ["a", "b", "r/0", "r", "ready_cbo", 3, 1, 1, 2, 4,
+                       "memo_consumes", "memo_inserted"],
+                      ["c", "d", "r", "r/1", "match_rejected", 4, 2, 2, 5, 6,
+                       "input_exposes", "memo_rehashed"]]}
+        edges2 = trace_records(encode([batch2]))
+        self.assertEqual(trace_kind_count(encode([batch2]), "rule_edge"), 2)
+        self.assertEqual([edge["dst_rule"] for edge in edges2], ["b", "d"])
+        self.assertEqual(edges2[1]["relation"], "binding_observed")
+        dictionary = [{"kind": "rule_candidate", "rule_id": 7, "rule_hash": "a"},
+                      {"kind": "rule_candidate", "rule_id": 8, "rule_hash": "b"}]
+        batch3 = {"kind": "rule_edge_batch", "engine": "pgorca", "scheduler": "cbo",
+                  "schema_version": 3, "edges": [
+                      [7, 8, "r", "r/1", 1, 3, 1, 1, 2, 4, 0, 2]]}
+        edge3 = trace_records(encode([*dictionary, batch3]))[-1]
+        self.assertEqual(trace_kind_count(encode([batch3]), "rule_edge"), 1)
+        self.assertEqual((edge3["src_rule"], edge3["dst_rule"], edge3["candidate_status"],
+                          edge3["producer_relation"], edge3["producer_outcome"]),
+                         ("a", "b", "constraint_rejected", "memo_consumes", "memo_rehashed"))
+        budget = trace_records(encode([*dictionary, {**batch3, "edges": [
+            [7, 8, "r", "r", 6, 3, 1, 2, 2, 4, 1, 0]]}]))[-1]
+        self.assertEqual((budget["candidate_status"], budget["relation"]),
+                         ("budget_skipped", "binding_observed"))
+        candidate_dictionary = [
+            {"kind": "rule_candidate", "sequence": 3, "rule_hash": "b", "status": "ready_cbo"},
+            {"kind": "rule_candidate", "sequence": 1, "rule_hash": "a", "status": "duplicate"}]
+        batch4 = {"kind": "rule_edge_batch", "engine": "pgorca", "scheduler": "cbo",
+                  "schema_version": 4, "first_edge_sequence": 9,
+                  "edges": [[3, 1, "r/0", "r", 2, 4, 1, 0]]}
+        edge4 = trace_records(encode([*candidate_dictionary, batch4]))[-1]
+        self.assertEqual((edge4["src_rule"], edge4["dst_rule"], edge4["candidate_status"],
+                          edge4["binding_edge_sequence"], edge4["producer_relation"]),
+                         ("a", "b", "ready_cbo", 9, "input_exposes"))
+        with self.assertRaisesRegex(ValueError, "unresolved rule edge batch candidate"):
+            trace_records(encode([batch4]))
+        with self.assertRaisesRegex(ValueError, "unresolved rule edge batch dictionary"):
+            trace_records(encode([batch3]))
+        with self.assertRaisesRegex(ValueError, "batch row"):
+            trace_records(encode([{**batch, "edges": [["short"]]}]))
 
     def test_candidate_audit_checks_full_denominators_and_exact_insertion_interval(self) -> None:
         rejected = {"kind": "rule_candidate", "experiment": "e", "sequence": 1,
@@ -1187,8 +1257,9 @@ class TraceFrameworkTest(unittest.TestCase):
         progress = {"kind": "optimizer_progress", "sequence": 1, "elapsed_us": 2, "cost": 3.0}
         check = {"kind": "search_check", "check": "properties", "status": "accepted"}
         edge = {"kind": "rule_edge", "src_rule": "r", "dst_rule": "s"}
+        outcome = {"kind": "experiment_outcome", "binding_origin_edges": 1}
         records = [application, {**application, "kind": "rule_candidate"}, application,
-                   cost, lifecycle, progress, check, edge]
+                   cost, lifecycle, progress, check, edge, outcome]
         trace = "\n".join("DSL_TRACE " + json.dumps(r) for r in records)
         args = SimpleNamespace(profile_rule="target", port=1, timeout=60)
         with tempfile.TemporaryDirectory() as temporary, patch("ml_orca.collect.run_workload_comparison.psql") as execute:
@@ -1200,8 +1271,27 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(result["cost_lifecycle_events"], [lifecycle])
         self.assertEqual(result["optimizer_progress"], [progress])
         self.assertEqual(result["search_checks"], [check])
-        self.assertEqual(result["rule_edges"], [edge])
+        self.assertNotIn("rule_edges", result)
+        self.assertEqual(result["rule_edges_source"]["count"], 1)
+        self.assertEqual(result["rule_edges_source"]["artifact"], "cbo.trace")
+        self.assertTrue(result["rule_edges_source"]["count_complete"])
         self.assertTrue(all(call.kwargs["retry_on_server_failure"] is False for call in execute.call_args_list))
+
+    def test_failed_workload_keeps_partial_candidates_only_in_raw_trace(self) -> None:
+        candidate = {"kind": "rule_candidate", "sequence": 1, "rule_hash": "a",
+                     "status": "match_rejected"}
+        trace = "DSL_TRACE " + json.dumps(candidate) + "\nERROR: timeout"
+        args = SimpleNamespace(profile_rule="a", port=1, timeout=60)
+        with tempfile.TemporaryDirectory() as temporary, patch(
+                "ml_orca.collect.run_workload_comparison.psql",
+                return_value=("", trace, 124, 60000)):
+            result = run_mode(args, Path("psql"), Path("/tmp"), "db", "SELECT 1",
+                              Path(temporary), "cbo", "replacement", [], None)
+            self.assertEqual(result["candidate_events"], [])
+            self.assertEqual(result["candidate_events_source"], {
+                "artifact": "cbo.trace", "format": "dsl_trace_jsonl", "candidate_count": 1,
+                "expected_count": None, "count_complete": False, "embedded": False})
+            self.assertIn(json.dumps(candidate), (Path(temporary) / "cbo.trace").read_text())
 
     def test_workload_result_count_uses_csv_records_and_preserves_failures(self) -> None:
         args = SimpleNamespace(profile_rule="target", port=1, timeout=60)
@@ -1283,10 +1373,15 @@ class TraceFrameworkTest(unittest.TestCase):
                     "complete": r["plan_rc"] == 0, "exclusions": [] if r["plan_rc"] == 0 else ["plan_timeout"],
                     "attempts": r["fake_count"], "rows": [rejected] * r["fake_count"]}):
                 rows = parameter_candidate_evidence(manifest, root)["runs"]
-                contribution = {"delta": None, "target_states": [{"predicate_structure": "unknown"}]}
+                contribution = {"delta": None, "target_states": [{"predicate_structure": "unknown"}],
+                                "dependencies": {"arms": {"off": {"edges": None}, "cbo": {"edges": []}}}}
                 with patch("ml_orca.trace.profile_rule_candidates.cbo_contribution", return_value=[contribution]) as contrast:
                     profiled = parameter_candidate_evidence(manifest, root, "r")
                     self.assertEqual(profiled["runs"][0]["contribution"], contribution)
+                    dependency = profiled["runs"][0]["contribution"]["dependencies"]["arms"]["cbo"]
+                    self.assertNotIn("edges", dependency)
+                    self.assertEqual(dependency["edge_count"], 0)
+                    self.assertIn("comparison.json", dependency["source"])
                     self.assertNotIn("contribution", profiled["runs"][3])
                     self.assertEqual(contrast.call_args.args[0]["points"][0]["factors"], [])
                     self.assertEqual(profiled["runs"][0]["target_states"][0]["predicate_structure"], "unknown")
@@ -1777,6 +1872,36 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertTrue(cost_evidence(run)['complete'])  # Old direct-only logs remain usable.
         with self.assertRaisesRegex(ValueError, 'missing_origin_chain'):
             target_root_costs(run, target, True)
+
+    def test_generated_cost_observations_follow_inserted_candidate_provenance(self) -> None:
+        target = [{"sequence": 7, "memo_outcome": {"status": "memo_inserted"},
+                   "pre_evaluation_state": {"provenance": {"root_memo": {"group": 3},
+                       "child_memo": [{"position": 0, "group": 2}]}}}]
+        run = {"stats_events": [{"site": "memo_group", "group": 3,
+                                  "operator": "CLogicalGbAgg", "native_rows": 4},
+                                 {"site": "memo_group", "group": 2,
+                                  "operator": "CLogicalUnionAll", "native_rows": 100}],
+               "cost_events": [
+                   {"sequence": 10, "status": "costed", "operator": "CPhysicalScan", "rows": 100},
+                   {"sequence": 11, "status": "costed", "operator": "CPhysicalHashAgg", "rows": 4,
+                    "cost": 3, "child_contexts": [{"cost_candidate_sequence": 10}],
+                    "dsl_origin_instances": [{"candidate_sequence": 7, "relation": "memo_consumes",
+                                               "target_path": "r/0/0"}]},
+                   {"sequence": 12, "status": "costed", "operator": "CPhysicalHashAgg", "rows": 9,
+                    "dsl_origin_instances": [{"candidate_sequence": 8, "relation": "memo_consumes",
+                                               "target_path": "r/0/1"}]}]}
+        result = target_generated_costs(run, target)
+        self.assertEqual(result["source_roots"][0]["rows"], 4)
+        self.assertEqual(result["source_children"][0]["rows"], 100)
+        self.assertEqual(result["physical_observations"], [{"sequence": 11,
+            "target_paths": ["r/0/0"], "operator": "CPhysicalHashAgg", "rows": 4, "cost": 3,
+            "children": [{"sequence": 10, "operator": "CPhysicalScan", "rows": 100}]}])
+        report = validate_local_cost_model([{"runs": [{"case": "x", "parameters": {}, "status": "ok",
+            "native_rows_equal": True, "contribution": {"delta": {"optimizer_cost": -0.43,
+            "memo_expressions": 1}, "pairs": [], "target_generated_costs": result}}]}],
+            "CLogicalUnionAll", "CPhysicalHashAgg", "r/0/0", -.005, .0175)
+        self.assertAlmostEqual(report["rows"][0]["predicted_cost_delta"], -.43)
+        self.assertAlmostEqual(report["mean_absolute_error"], 0)
 
     def test_post_search_attribution_is_nonexclusive_and_not_pre_features(self) -> None:
         rows = [{'rule_hash': rule, 'memo_outcome': {'status': 'memo_inserted',
@@ -3878,6 +4003,36 @@ class TraceFrameworkTest(unittest.TestCase):
 
 
 class RuleExampleExportTest(unittest.TestCase):
+    def test_relation_workload_freezes_exact_holdout_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / 'source.sql').write_text('SELECT * FROM l UNION ALL SELECT * FROM r')
+            (root / 'target.sql').write_text('SELECT * FROM l UNION SELECT * FROM r')
+            (root / 'schema.sql').write_text('CREATE TABLE data(k int);')
+            (root / 'setup.sql').write_text('INSERT INTO data VALUES (1);')
+            (root / 'left.sql').write_text('SELECT k FROM data WHERE k > 0')
+            (root / 'right.sql').write_text('SELECT k FROM data WHERE k < 2')
+            spec = {'schema_version': 1, 'workload': 'held_app', 'template': 'setop_rule',
+                    'parameter_design': {'axis': 'shape'},
+                    'source_sql': 'source.sql', 'target_sql': 'target.sql',
+                    'schema_sql': 'schema.sql', 'setup_sql': ['setup.sql'],
+                    'cases': [{'id': 'filters', 'split': 'holdout',
+                               'parameters': {'shape': 'filter'},
+                               'relations': {'l': 'left.sql', 'r': 'right.sql'}}]}
+            path = root / 'design.json'
+            path.write_text(json.dumps(spec))
+            manifest = write_relation_workload(path, root / 'out')
+            self.assertEqual('predeclared_application_case', manifest['sampling_unit'])
+            self.assertEqual('holdout', manifest['cases'][0]['split'])
+            self.assertEqual({'shape': 'filter'}, manifest['cases'][0]['parameters'])
+            self.assertIn('k > 0', (root / 'out/held_app/sql/filters.sql').read_text())
+            self.assertIn('UNION', (root / 'out/checks/filters_target.sql').read_text())
+            self.assertIn('EXCEPT ALL', (root / 'out/checks/filters_equivalence.sql').read_text())
+            spec['cases'][0]['relations'].pop('r')
+            path.write_text(json.dumps(spec))
+            with self.assertRaisesRegex(ValueError, 'every relation'):
+                write_relation_workload(path, root / 'bad')
+
     def test_wide_example_keeps_union_row_and_projects_a_proper_subset(self):
         import sqlglot
         from sqlglot import exp
