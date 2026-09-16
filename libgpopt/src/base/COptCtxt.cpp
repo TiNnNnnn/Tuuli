@@ -12,6 +12,7 @@
 #include "gpopt/base/COptCtxt.h"
 
 #include <cstring>
+#include <functional>
 #include <iomanip>
 #include <map>
 #include <sstream>
@@ -616,13 +617,14 @@ COptCtxt::TraceDSLExperimentOutcome(
 	DOUBLE optimizer_cost, ULONG selected_plan_nodes,
 	ULONG selected_plan_cbo_dsl_nodes, ULONG memo_groups,
 	ULONG memo_group_expressions, ULONG optimization_ms,
-	ULLONG optimizer_memory_bytes) const
+	ULLONG optimizer_memory_bytes)
 {
 	if (nullptr == m_pdslStatsExperimentSnapshot ||
 		!GPOS_FTRACE(EopttracePrintDSLRule))
 	{
 		return;
 	}
+	FlushDSLCBOEdges(4);
 
 	const std::string experiment =
 		JsonEscape(m_pdslStatsExperimentSnapshot->SzId());
@@ -645,7 +647,7 @@ COptCtxt::TraceDSLExperimentOutcome(
 				   << ",\"rule_candidates\":"
 				   << m_ulDSLExperimentCandidates
 				   << ",\"candidate_trace_version\":2"
-				   << ",\"binding_edge_trace_version\":4,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
+				   << ",\"binding_edge_trace_version\":6,\"binding_origin_edges\":" << m_ulDSLBindingOriginEdges
 				   << ",\"cost_trace_version\":1,\"cost_candidates\":" << m_ulDSLExperimentCostEvents
 				   << ",\"cost_origin_trace_version\":1"
 				   << ",\"stats_lifecycle_version\":1,\"stats_lifecycle_events\":" << m_ulDSLStatsLifecycleEvents
@@ -1165,6 +1167,28 @@ COptCtxt::RecordDSLSelectedPlanRule(const CGroupExpression *pgexpr)
 }
 
 void
+COptCtxt::FlushDSLCBOEdges(ULONG schema_version)
+{
+	if (0 == m_ulDSLPendingBindingEdges)
+		return;
+	GPOS_ASSERT(2 == schema_version || 4 == schema_version);
+	// Positional rows are restored to canonical edge dictionaries at the reader
+	// boundary. Buffer across candidates so the logger does not synchronously
+	// flush one record for every provenance edge.
+	CAutoTrace trace(m_mp);
+	trace.Os() << "DSL_TRACE {\"kind\":\"rule_edge_batch\",\"engine\":\"pgorca\","
+		<< "\"scheduler\":\"cbo\",\"schema_version\":" << schema_version;
+	if (4 == schema_version)
+		trace.Os() << ",\"first_edge_sequence\":"
+			<< m_ulDSLBindingOriginEdges - m_ulDSLPendingBindingEdges + 1;
+	trace.Os() << ",\"edges\":[" << m_dsl_pending_binding_edges.str().c_str()
+		<< "]}" << std::endl;
+	m_dsl_pending_binding_edges.str("");
+	m_dsl_pending_binding_edges.clear();
+	m_ulDSLPendingBindingEdges = 0;
+}
+
+void
 COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 							 const CExpression *pexprSource, const CHAR *status,
 							 const std::string &bindingPath)
@@ -1177,51 +1201,70 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 	const BOOL full = 0 != m_ulDSLExperimentSequence;
 	if (!full && 0 != std::strcmp(status, "ready_cbo"))
 		return;
-	GPOS_CHECK_STACK_SIZE;
-	GPOS_CHECK_ABORT;
-	// Walk the extracted binding, never other alternatives of its Memo groups.
-	// An original root may consume a DSL-produced child. Binding paths are not
-	// positions in an adapted DSL template, so keep these coordinate spaces apart.
-	for (ULONG i = 0; full && i < pexprSource->Arity(); ++i)
-	{
-		TraceDSLCBOEdge(prule, (*pexprSource)[i], status,
-			bindingPath + "/" + std::to_string(i));
-	}
-	const auto *origins = DSLGroupExpressionOrigins(pexprSource->Pgexpr());
-	if (nullptr == origins)
-		return;
-
-	const CGroupExpression *pgexpr = pexprSource->Pgexpr();
-	for (const auto &producer : *origins)
-	{
-		if (!full && producer.m_outcome != "memo_inserted")
-			continue;
-		CAutoTrace trace(m_mp);
-		trace.Os() << "DSL_TRACE {\"kind\":\"rule_edge\",\"engine\":\"pgorca\","
-			<< "\"scheduler\":\"cbo\",\"src_rule\":\""
-			<< producer.m_prule->SzIdentity()
-			<< "\",\"dst_rule\":\"" << prule->SzIdentity()
-			<< "\",\"target_path\":\"" << producer.m_target_path.c_str()
-			<< "\",\"src_target_path\":\"" << producer.m_target_path.c_str()
-			<< "\",\"dst_source_path\":"
-			<< (bindingPath == "r" ? "\"r\"" : "null")
-			<< ",\"dst_binding_path\":\"" << bindingPath.c_str()
-			<< "\",\"path_kind\":\""
-			<< (bindingPath == "r" ? "instantiated_expression" : "source_binding_expression")
-			<< "\",\"candidate_status\":\"" << status
-			<< "\",\"dst_candidate_sequence\":" << m_ulDSLExperimentSequence
-			<< ",\"src_candidate_sequence\":" << producer.m_candidate_sequence
-			<< ",\"binding_edge_sequence\":" << ++m_ulDSLBindingOriginEdges
-			<< ",\"binding_group\":" << pgexpr->Pgroup()->Id()
-			<< ",\"binding_group_expression\":" << pgexpr->Id()
-			<< ",\"evidence\":\"runtime_observed\",\"relation\":\""
-			<< (0 == std::strcmp(status, "ready_cbo")
-				? producer.m_relation.c_str() : "binding_observed")
-			<< "\",\"producer_relation\":\"" << producer.m_relation.c_str()
-			<< "\",\"producer_outcome\":\""
-			<< producer.m_outcome.c_str()
-			<< "\"}" << std::endl;
-	}
+	std::function<void(const CExpression *, const std::string &)> collect =
+		[&](const CExpression *pexpr, const std::string &path) {
+			GPOS_CHECK_STACK_SIZE;
+			GPOS_CHECK_ABORT;
+			// Walk only the extracted binding. Paths remain binding coordinates,
+			// not positions in an adapted DSL template.
+			for (ULONG i = 0; full && i < pexpr->Arity(); ++i)
+				collect((*pexpr)[i], path + "/" + std::to_string(i));
+			const auto *origins = DSLGroupExpressionOrigins(pexpr->Pgexpr());
+			if (nullptr == origins)
+				return;
+			const CGroupExpression *pgexpr = pexpr->Pgexpr();
+			for (const auto &producer : *origins)
+			{
+				if (!full && producer.m_outcome != "memo_inserted")
+					continue;
+				std::ostringstream &row = m_dsl_pending_binding_edges;
+				if (0 != m_ulDSLPendingBindingEdges)
+					row << ",";
+				if (full)
+				{
+					GPOS_ASSERT(0 == std::strcmp(status, "match_rejected") ||
+						0 == std::strcmp(status, "constraint_rejected") ||
+						0 == std::strcmp(status, "instantiate_rejected") ||
+						0 == std::strcmp(status, "ready_cbo") ||
+						0 == std::strcmp(status, "duplicate") ||
+						0 == std::strcmp(status, "budget_exhausted") ||
+						0 == std::strcmp(status, "budget_skipped"));
+					GPOS_ASSERT(producer.m_relation == "memo_consumes" ||
+						producer.m_relation == "input_exposes");
+					GPOS_ASSERT(producer.m_outcome == "memo_inserted" ||
+						producer.m_outcome == "memo_duplicate" ||
+						producer.m_outcome == "memo_rehashed");
+					const ULONG relation_id = producer.m_relation == "memo_consumes" ? 0 : 1;
+					const ULONG outcome_id = producer.m_outcome == "memo_inserted" ? 0 :
+						producer.m_outcome == "memo_duplicate" ? 1 : 2;
+					GPOS_ASSERT(0 < m_ulDSLExperimentSequence &&
+						0 < producer.m_candidate_sequence);
+					row << "[" << m_ulDSLExperimentSequence << ","
+						<< producer.m_candidate_sequence << ",\""
+						<< producer.m_target_path.c_str() << "\",\"" << path.c_str()
+						<< "\"," << pgexpr->Pgroup()->Id()
+						<< "," << pgexpr->Id() << "," << relation_id << ","
+						<< outcome_id << "]";
+					++m_ulDSLBindingOriginEdges;
+				}
+				else
+				{
+					row << "[\"" << producer.m_prule->SzIdentity() << "\",\""
+						<< prule->SzIdentity() << "\",\"" << producer.m_target_path.c_str()
+						<< "\",\"" << path.c_str() << "\",\"" << status << "\","
+						<< m_ulDSLExperimentSequence << "," << producer.m_candidate_sequence << ","
+						<< ++m_ulDSLBindingOriginEdges << "," << pgexpr->Pgroup()->Id()
+						<< "," << pgexpr->Id() << ",\"" << producer.m_relation.c_str()
+						<< "\",\"" << producer.m_outcome.c_str() << "\"]";
+				}
+				++m_ulDSLPendingBindingEdges;
+				if (4096 == m_ulDSLPendingBindingEdges)
+					FlushDSLCBOEdges(full ? 4 : 2);
+			}
+		};
+	collect(pexprSource, bindingPath);
+	if (!full)
+		FlushDSLCBOEdges(2);
 }
 
 void
