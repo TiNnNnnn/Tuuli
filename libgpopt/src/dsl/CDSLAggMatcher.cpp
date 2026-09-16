@@ -219,7 +219,9 @@ CDSLAggMatcher::FMatchDedup(const CDSLOp *popAgg, CExpression *pexprAgg,
 	const CDSLRule *prule = m_pmatcher->Prule();
 	const BOOL fSourceRoot =
 		nullptr == prule || popAgg == prule->PfragSrc()->PopRoot();
-	const BOOL fDropsDistinct = nullptr == prule ||
+	// Without a complete rule this is a structural probe, so no target-side
+	// DISTINCT drop can be inferred.  The rule engine always supplies prule.
+	const BOOL fDropsDistinct = nullptr != prule &&
 		!prule->PfragTgt()->PopRoot()->FDistinct();
 	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
 		(fSourceRoot && fDropsDistinct &&

@@ -15,6 +15,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalCTEAnchor.h"
 #include "gpopt/operators/CLogicalCTEConsumer.h"
@@ -1026,10 +1027,15 @@ CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView()
 	CDSLMatcher matcher(mp);
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
+	std::string slice;
+	std::string sliceError;
 	GPOS_RESULT eres = GPOS_FAILED;
 	if (nullptr != prule &&
 		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprNary, pmodel) &&
-		checker.FCheck(prule, pmodel))
+		checker.FCheck(prule, pmodel) &&
+		CDSLPlanTemplate::FSlice(mp, pexprNary, "r",
+			{"r/0", "r/1", "r/2"}, &slice, &sliceError) &&
+		slice == "Union*<a3 s1 a4 a5>(Input<t0>,Union<a0 s0 a1 a2>(Input<t1>,Input<t2>))")
 	{
 		CDSLInstantiator inst(mp);
 		pexprTarget = inst.PexprInstantiate(prule, pmodel);

@@ -11,6 +11,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalAssert.h"
@@ -101,6 +102,8 @@ CDSLOrderLimitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_FusedLimitSortRoundTrip),
 		GPOS_UNITTEST_FUNC(
+			CDSLOrderLimitTest::EresUnittest_PlanTemplateSlice),
+		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_SortOverLimitStaysNested),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_PlainLimitRejectsHiddenOrder),
@@ -118,6 +121,32 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_PlanTemplateSlice()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *pdrgpcr = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("template_limit", 1, &pdrgpcr);
+	CExpression *pexprLimit = PexprLimit(
+		mp, pexprGet, PosOne(mp, (*pdrgpcr)[0], EdslsortAsc), true, 0, 7);
+	std::string dsl;
+	std::string error;
+	BOOL valid = CDSLPlanTemplate::FSlice(
+		mp, pexprLimit, "r", {"r/0"}, &dsl, &error) &&
+		dsl == "Limit<n0 n1>(SortAsc<a0>(Input<t0>))" && error.empty();
+	CExpression *pexprWindow = PexprWindowRows(
+		mp, fix, pexprGet, (*pdrgpcr)[0], (*pdrgpcr)[0]);
+	valid = valid && CDSLPlanTemplate::FSlice(
+		mp, pexprWindow, "r", {"r/0"}, &dsl, &error) &&
+		dsl == "WindowRows<a0 o0 w0>(Input<t0>)" && error.empty();
+	pexprWindow->Release();
+	pexprLimit->Release();
+	pexprGet->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

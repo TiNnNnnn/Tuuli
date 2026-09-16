@@ -449,6 +449,41 @@ CDSLMatchView::FOrderLimit(CExpression *pexpr, SOrderLimit *pview)
 	return true;
 }
 
+EDslSortDir
+CDSLMatchView::EdslsortDefault(const COrderSpec *pos)
+{
+	if (nullptr == pos || pos->IsEmpty())
+		return EdslsortNone;
+
+	EDslSortDir direction = EdslsortNone;
+	for (ULONG ul = 0; ul < pos->UlSortColumns(); ++ul)
+	{
+		const CColRef *pcr = pos->Pcr(ul);
+		EDslSortDir key_direction = EdslsortNone;
+		for (const EDslSortDir candidate : {EdslsortAsc, EdslsortDesc})
+		{
+			const IMDType::ECmpType cmp = EdslsortAsc == candidate
+				? IMDType::EcmptL
+				: IMDType::EcmptG;
+			const COrderSpec::ENullTreatment nulls = EdslsortAsc == candidate
+				? COrderSpec::EntLast
+				: COrderSpec::EntFirst;
+			IMDId *sort_op = pcr->RetrieveType()->GetMdidForCmpType(cmp);
+			if (IMDId::IsValid(sort_op) &&
+				sort_op->Equals(pos->GetMdIdSortOp(ul)) && nulls == pos->Ent(ul))
+			{
+				key_direction = candidate;
+				break;
+			}
+		}
+		if (EdslsortNone == key_direction ||
+			(EdslsortNone != direction && direction != key_direction))
+			return EdslsortNone;
+		direction = key_direction;
+	}
+	return direction;
+}
+
 BOOL
 CDSLMatchView::FDedupIdentity(CExpression *pexpr,
 							CExpression **ppexprDedup,
