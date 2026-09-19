@@ -104,7 +104,8 @@ enum EDslSortDir
 {
 	EdslsortNone = 0,	 // bare "Sort"
 	EdslsortAsc,
-	EdslsortDesc
+	EdslsortDesc,
+	EdslsortSpec		 // SortBy<o>: exact per-key direction/null ordering
 };
 
 // Optional aggregate-function kind encoded by newer SQLSolver spellings such

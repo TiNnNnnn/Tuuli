@@ -5186,15 +5186,33 @@ CDSLInstantiator::PosBuildSort(const CDSLOp *pop,
 {
 	GPOS_ASSERT(nullptr != pop);
 	GPOS_ASSERT(EdslopSort == pop->Edslop());
-	if (nullptr == pop->Pdrgpsym() || 1 != pop->Pdrgpsym()->Size() ||
-		(EdslsortAsc != pop->Edslsort() &&
-		 EdslsortDesc != pop->Edslsort()))
+	if (nullptr == pop->Pdrgpsym() || 1 != pop->Pdrgpsym()->Size())
 	{
 		return nullptr;
 	}
+	const CDSLSymbol *symbol = PsymResolve((*pop->Pdrgpsym())[0]);
+	if (EdslsortSpec == pop->Edslsort())
+	{
+		if (EdslsymOrder != symbol->Esymkind())
+			return nullptr;
+		COrderSpecArray *orders = pmodel->PdrgposOrder(symbol);
+		if (nullptr == orders || 1 != orders->Size())
+			return nullptr;
+		COrderSpec *pos = (*orders)[0];
+		CColRefSet *output = pexprChild->DeriveOutputColumns();
+		CColRefSet *required = pos->PcrsUsed(m_mp);
+		const BOOL valid = output->ContainsAll(required);
+		required->Release();
+		if (!valid)
+			return nullptr;
+		pos->AddRef();
+		return pos;
+	}
+	if (EdslsortAsc != pop->Edslsort() &&
+		EdslsortDesc != pop->Edslsort())
+		return nullptr;
 
-	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
-	CColRefArray *pdrgpcr = PdrgpcrResolveCols(psymAttrs, pmodel);
+	CColRefArray *pdrgpcr = PdrgpcrResolveCols(symbol, pmodel);
 	if (nullptr == pdrgpcr || 0 == pdrgpcr->Size())
 	{
 		return nullptr;

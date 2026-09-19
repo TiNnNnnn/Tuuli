@@ -88,11 +88,24 @@ CDSLMatcher::FMatchSortView(const CDSLOp *popSort,
 {
 	GPOS_ASSERT(EdslopSort == popSort->Edslop());
 	if (1 != popSort->UlChildren() || nullptr == popSort->Pdrgpsym() ||
-		1 != popSort->Pdrgpsym()->Size() ||
-		popSort->Edslsort() != CDSLMatchView::EdslsortDefault(pos))
+		1 != popSort->Pdrgpsym()->Size())
 	{
 		return false;
 	}
+	if (EdslsortSpec == popSort->Edslsort())
+	{
+		if (EdslsymOrder != (*popSort->Pdrgpsym())[0]->Esymkind())
+			return false;
+		COrderSpecArray *orders = GPOS_NEW(m_mp) COrderSpecArray(m_mp);
+		const_cast<COrderSpec *>(pos)->AddRef();
+		orders->Append(const_cast<COrderSpec *>(pos));
+		const BOOL bound = pmodel->FBind((*popSort->Pdrgpsym())[0], orders);
+		orders->Release();
+		return bound && FMatch((*popSort)[0], pexprChild, pmodel);
+	}
+	if (popSort->Edslsort() != CDSLMatchView::EdslsortDefault(pos) ||
+		EdslsymAttrs != (*popSort->Pdrgpsym())[0]->Esymkind())
+		return false;
 
 	CColRefArray *pdrgpcr = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	for (ULONG ul = 0; ul < pos->UlSortColumns(); ul++)
