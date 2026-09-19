@@ -101,6 +101,7 @@ CDSLOp *PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx,
 // (rc=1) and additionally AddRef'd into pdrgpsym_frag and registered in symtab.
 CDSLSymbolArray *
 PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
+				   EDslSortDir edslsort,
 				   dsl::DSLRuleParser::SymlistContext *symlist_ctx,
 				   EDslSide eside, CDSLSymbolArray *pdrgpsym_frag)
 {
@@ -204,7 +205,11 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			return nullptr;
 		}
 		EDslSymbolKind esymk;
-		if (fLegacyAgg && 2 <= ul)
+		if (EdslopSort == edslop && EdslsortSpec == edslsort)
+		{
+			esymk = EdslsymOrder;
+		}
+		else if (fLegacyAgg && 2 <= ul)
 		{
 			// Current schema is [a,a,a,f,s,p]; removing aggregateOutputAttrs
 			// yields the legacy [a,a,f,s,p] layout.
@@ -265,7 +270,7 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 
 	// symbols (declarations)
 	CDSLSymbolArray *pdrgpsym = PdrgpsymBuildDecls(
-		bctx, edslop, op_ctx->symlist(), eside, pdrgpsym_frag);
+		bctx, edslop, edslsort, op_ctx->symlist(), eside, pdrgpsym_frag);
 	if (nullptr == pdrgpsym)
 	{
 		return nullptr;

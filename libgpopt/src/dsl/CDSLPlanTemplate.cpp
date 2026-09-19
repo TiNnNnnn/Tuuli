@@ -279,7 +279,9 @@ PopOperator(CMemoryPool *mp, EDslOpKind kind, BOOL distinct,
 	{
 		const EDslSymbolKind symbol_kind = predicate_join
 			? join_symbols[i]
-			: CDSLOpKindTable::EsymkindAt(kind, i);
+			: (EdslopSort == kind && EdslsortSpec == sort
+				? EdslsymOrder
+				: CDSLOpKindTable::EsymkindAt(kind, i));
 		const std::string name(1, CDSLOpKindTable::WcSymPrefix(symbol_kind));
 		const std::string indexed = name + std::to_string(symbol_counts[symbol_kind]++);
 		symbols->Append(GPOS_NEW(mp) CDSLSymbol(mp, symbol_kind,
@@ -320,14 +322,10 @@ PopSlice(CMemoryPool *mp, const CExpression *expr, const std::string &path,
 
 		if (!view.m_pos->IsEmpty())
 		{
-			const EDslSortDir direction =
+			EDslSortDir direction =
 				CDSLMatchView::EdslsortDefault(view.m_pos);
 			if (EdslsortNone == direction)
-			{
-				child->Release();
-				*error = "order has no lossless DSL direction at " + path;
-				return nullptr;
-			}
+				direction = EdslsortSpec;
 			CDSLOpArray *sort_children = GPOS_NEW(mp) CDSLOpArray(mp);
 			sort_children->Append(child);
 			child = PopOperator(mp, EdslopSort, false, direction,

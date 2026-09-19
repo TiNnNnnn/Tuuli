@@ -110,7 +110,7 @@ CDSLOrderLimitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_OffsetOnlyLimitRoundTrip),
 		GPOS_UNITTEST_FUNC(
-			CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects),
+			CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_TargetScalarConstants),
 		GPOS_UNITTEST_FUNC(
@@ -482,7 +482,7 @@ CDSLOrderLimitTest::EresUnittest_OffsetOnlyLimitRoundTrip()
 }
 
 GPOS_RESULT
-CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects()
+CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -496,16 +496,25 @@ CDSLOrderLimitTest::EresUnittest_NonDefaultNullOrderRejects()
 	pos->Append(pmdid, (*pdrgpcr)[0], COrderSpec::EntFirst);
 	CExpression *pexprLive = PexprLimit(mp, pexprGet, pos, false, 0, 0);
 	CDSLRule *prule = Prule(mp,
-		"SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|"
-		"TableEq(t1,t0);AttrsEq(a1,a0)");
+		"SortBy<o0>(Input<t0>)|SortBy<o1>(Input<t1>)|"
+		"TableEq(t1,t0);OrderEq(o1,o0)");
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
-	GPOS_RESULT eres = (nullptr != prule
-						   && !matcher.FMatch(
-							   prule->PfragSrc()->PopRoot(), pexprLive, pmodel))
-		? GPOS_OK
-		: GPOS_FAILED;
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *pexprTarget = nullptr;
+	std::string dsl;
+	std::string error;
+	GPOS_RESULT eres = (nullptr != prule &&
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel) &&
+		checker.FCheck(prule, pmodel) &&
+		nullptr != (pexprTarget = instantiator.PexprInstantiate(prule, pmodel)) &&
+		pexprTarget->Matches(pexprLive) &&
+		CDSLPlanTemplate::FSlice(mp, pexprLive, "r", {"r/0"}, &dsl, &error) &&
+		dsl == "SortBy<o0>(Input<t0>)" && error.empty())
+		? GPOS_OK : GPOS_FAILED;
 
+	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
 	pexprLive->Release();

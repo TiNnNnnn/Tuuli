@@ -114,6 +114,10 @@ CDSLOp::OsPrint(IOstream &os) const
 	{
 		os << "SortDesc";
 	}
+	else if (EdslopSort == m_edslop && EdslsortSpec == m_edslsort)
+	{
+		os << "SortBy";
+	}
 	else if (EdslopAgg == m_edslop &&
 			 EdslaggfuncUnknown != m_edslaggfunc)
 	{
