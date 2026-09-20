@@ -318,6 +318,12 @@ public:
 
 	~CDSLInstantiator();
 
+	// Resolve a predicate for constraint checking using the same aliases and
+	// definitions as target construction. Caller owns the result; no model writes.
+	CExpression *PexprInstantiatePredicate(const CDSLRule *prule,
+										 const CDSLSymbol *psym,
+										 const CDSLModel *pmodel);
+
 	// Evaluate every constructive output of one already-validated constraint and
 	// bind it into the match model. This gives constraint checking and target
 	// construction one implementation of restricted LET chains.

@@ -1528,6 +1528,25 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 }
 
 CExpression *
+CDSLInstantiator::PexprInstantiatePredicate(const CDSLRule *prule,
+										  const CDSLSymbol *psym,
+										  const CDSLModel *pmodel)
+{
+	GPOS_ASSERT(nullptr != prule);
+	GPOS_ASSERT(nullptr != pmodel);
+	if (nullptr == m_prule)
+	{
+		m_prule = prule;
+		BuildAliasMap(prule);
+	}
+	else if (m_prule != prule)
+	{
+		return nullptr;
+	}
+	return PexprResolvePredicate(psym, pmodel);
+}
+
+CExpression *
 CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 									   const CDSLModel *pmodel,
 									   ULONG ulDepth) const
