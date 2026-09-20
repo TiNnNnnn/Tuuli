@@ -1,0 +1,65 @@
+{
+  "description": "Certified full-ON expression construction preserves unmatched left rows, NULL and duplicates",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7006106e23d1d18e\"",
+        "CScalarBoolOp (EboolopNot)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

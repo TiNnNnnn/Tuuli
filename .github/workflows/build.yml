@@ -175,6 +175,7 @@ jobs:
         run: |
           test/dsl/e2e.sh
           test/dsl/e2e.sh --suite expression_bindings
+          test/dsl/e2e.sh --suite join_expression_bindings
 
       - name: Run public real-SQL trace corpus
         run: |
