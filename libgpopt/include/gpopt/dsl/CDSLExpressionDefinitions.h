@@ -30,6 +30,7 @@ enum EDslExpressionKind
 	EdslexprNotTrue,
 	EdslexprNot,
 	EdslexprRef,
+	EdslexprOr,
 	EdslexprSentinel
 };
 

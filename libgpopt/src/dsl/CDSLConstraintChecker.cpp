@@ -1719,7 +1719,7 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 }
 
 BOOL
-CDSLConstraintChecker::FCheckPredicateNotTrue(
+CDSLConstraintChecker::FCheckPredicateNegation(
 	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
@@ -1740,7 +1740,9 @@ CDSLConstraintChecker::FCheckPredicateNotTrue(
 		return EdslsideTarget == (*pdrgpsym)[0]->Eside();
 	}
 	pexprInput->AddRef();
-	CExpression *pexprExpected = GPOS_NEW(m_mp) CExpression(
+	CExpression *pexprExpected = EdslconPredicateNot == pcon->Edslcon()
+		? CUtils::PexprNegate(m_mp, pexprInput)
+		: GPOS_NEW(m_mp) CExpression(
 		m_mp,
 		GPOS_NEW(m_mp) CScalarBooleanTest(
 			m_mp, CScalarBooleanTest::EbtIsNotTrue),
@@ -3688,7 +3690,8 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateAnd:
 			return FCheckPredicateAnd(pcon, pmodel);
 		case EdslconPredicateNotTrue:
-			return FCheckPredicateNotTrue(pcon, pmodel);
+		case EdslconPredicateNot:
+			return FCheckPredicateNegation(pcon, pmodel);
 		case EdslconPredicateNullRejecting:
 			return FCheckPredicateNullRejecting(pcon, pmodel);
 		case EdslconPredicateNullSafeEq:

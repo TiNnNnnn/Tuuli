@@ -30,6 +30,7 @@ class CDSLInstantiateTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_ExpressionBindings();
+	static GPOS_RESULT EresUnittest_JoinExpressionBindings();
 
 	// identity-shaped Filter rule over a single-conjunct Select: instantiate
 	// yields a Select whose output columns == the source's.
@@ -49,6 +50,7 @@ public:
 
 	// PredicateNotTrue builds SQL's two-valued IS NOT TRUE predicate.
 	static GPOS_RESULT EresUnittest_DerivedPredicateNotTrue();
+	static GPOS_RESULT EresUnittest_PredicateNegationNullSemantics();
 
 	// A Filter pushed through a nested InnerJoin input is exposed as the
 	// equivalent source view; target attrs remap it to the opposite root key.

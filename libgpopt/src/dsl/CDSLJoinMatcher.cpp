@@ -775,7 +775,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		BOOL fMatched = fDependenciesExact &&
 			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
 			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel) &&
-			pmodel->FBind((*pdrgpsym)[0], pexprPred) &&
+			m_pmatcher->FMatchPredicate((*pdrgpsym)[0], pexprPred, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[1], pdrgpcrLeftDeps) &&
 			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps) &&
 			(!fPredicateApply ||

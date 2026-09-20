@@ -1590,7 +1590,7 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		{
 			return input;
 		}
-		if (EdslexprAnd == pdef->Edslexpr())
+		if (EdslexprAnd == pdef->Edslexpr() || EdslexprOr == pdef->Edslexpr())
 		{
 			CExpression *right = PexprResolvePredicate(
 				pdef->PsymOperand(1), pmodel, ulDepth + 1);
@@ -1601,7 +1601,9 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 			}
 			// Explicit bindings preserve operand order, duplicates and nesting.
 			return GPOS_NEW(m_mp) CExpression(
-				m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp, CScalarBoolOp::EboolopAnd),
+				m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp,
+					EdslexprAnd == pdef->Edslexpr() ? CScalarBoolOp::EboolopAnd
+						: CScalarBoolOp::EboolopOr),
 				input, right);
 		}
 		return GPOS_NEW(m_mp) CExpression(
@@ -1655,13 +1657,18 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		return CPredicateUtils::PexprINDFConjunction(
 			m_mp, pdrgpcrLeft, pdrgpcrRight);
 	}
-	if (nullptr != pdef && EdslexprNotTrue == pdef->Edslexpr())
+	if (nullptr != pdef &&
+		(EdslexprNotTrue == pdef->Edslexpr() || EdslexprNot == pdef->Edslexpr()))
 	{
 		CExpression *pexprInput = PexprResolvePredicate(
 			pdef->PsymOperand(0), pmodel, ulDepth + 1);
 		if (nullptr == pexprInput)
 		{
 			return nullptr;
+		}
+		if (EdslexprNot == pdef->Edslexpr())
+		{
+			return CUtils::PexprNegate(m_mp, pexprInput);
 		}
 		return GPOS_NEW(m_mp) CExpression(
 			m_mp,

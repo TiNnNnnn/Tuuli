@@ -59,6 +59,79 @@ FRoundTrips(CMemoryPool *mp, const CHAR *sz_dsl)
 }
 
 GPOS_RESULT
+EresInlineExpressions()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	const CHAR *valid[] = {
+		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := p0",
+		"Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0)",
+		"Filter<And(Not(p0),Not(p1)) a0>(Input<t0>)|"
+		"Filter<And(Not(p0),Not(p1)) a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0)",
+		"Filter<Or(Not(Not(p0)),p1) a0>(Input<t0>)|"
+		"Filter<Or(p2,p3) a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p2 := p0;p3 := p1",
+		"Filter<Not(p0) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p2 := Not(p0);p1 := p2",
+	};
+	for (const CHAR *text : valid)
+	{
+		CDSLRule *rule = Parse(mp, text);
+		if (nullptr == rule)
+			return GPOS_FAILED;
+		CWStringDynamic canonical(mp);
+		COstreamString os(&canonical);
+		rule->OsPrint(os);
+		std::string printed;
+		for (ULONG i = 0; i < canonical.Length(); i++)
+			printed += (CHAR) canonical.GetBuffer()[i];
+		CDSLRule *again = Parse(mp, printed.c_str());
+		const BOOL stable = nullptr != again && rule->Pexprdefs()->FHasBindings() &&
+			std::string(rule->SzIdentity()) == again->SzIdentity() &&
+			FRoundTrips(mp, printed.c_str());
+		CRefCount::SafeRelease(again);
+		rule->Release();
+		if (!stable)
+			return GPOS_FAILED;
+	}
+	// Existing policy IDs must survive the inline spelling of these fixtures.
+	CDSLRule *eliminate = Parse(mp,
+		"Filter<Not(Not(p3)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := p3");
+	const BOOL identity = nullptr != eliminate &&
+		std::string(eliminate->SzIdentity()) == "42324fdc12011292";
+	CRefCount::SafeRelease(eliminate);
+	if (!identity)
+		return GPOS_FAILED;
+	for (const CHAR *term : {"Not()", "Not(p0,p0)", "And(p0)",
+						   "And(p0,p0,p0)", "Not(a0)", "Not(p9)",
+						   "Or(p0)", "Or(p0,p0,p0)", "Or(p0,a0)", "Xor(p0,p0)",
+						   "Not(Not(p0)", "Not(p0,)", "Not(,p0)"})
+	{
+		const std::string text = "Filter<p0 a0>(Input<t0>)|Filter<" +
+			std::string(term) + " a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)";
+		CDSLRule *rule = Parse(mp, text.c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
+	CDSLRule *wrongSlot = Parse(mp,
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 Not(p0)>(Input<t1>)|"
+		"TableEq(t1,t0);PredicateEq(p1,p0)");
+	if (nullptr != wrongSlot)
+	{
+		wrongSlot->Release();
+		return GPOS_FAILED;
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
 EresExpressionBindings()
 {
 	CAutoMemoryPool amp;
@@ -144,6 +217,7 @@ GPOS_RESULT
 CDSLParserTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresInlineExpressions),
 		GPOS_UNITTEST_FUNC(EresExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),

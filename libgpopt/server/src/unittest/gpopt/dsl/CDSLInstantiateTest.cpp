@@ -12,12 +12,15 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLInstantiateTest.h"
 
+#include <string>
+
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
@@ -29,6 +32,11 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CExpressionUtils.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -78,6 +86,8 @@ CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_JoinExpressionBindings),
+		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_ExpressionBindings),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_FilterIdentityPreservesOutput),
@@ -90,6 +100,8 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue),
 		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_PredicateNegationNullSemantics),
+		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PredicateDomainSplit),
@@ -99,6 +111,180 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	auto input = [&](CColRefArray **columns) {
+		*columns = GPOS_NEW(mp) CColRefArray(mp);
+		(*columns)->Append(fix.PcrCreateInt4("first"));
+		(*columns)->Append(fix.PcrCreateInt4("second"));
+		// Memo property derivation needs real metadata; constant relations keep
+		// this structural regression independent of fabricated catalog stats.
+		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
+			mp, *columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+	};
+	auto negate = [mp](CExpression *input) {
+		input->AddRef();
+		return GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), input);
+	};
+	const CHAR *kinds[] = {"InnerJoin", "LeftJoin", "FullJoin", "SemiJoin", "AntiJoin"};
+	BOOL ok = true;
+	for (ULONG kind = 0; kind < GPOS_ARRAY_SIZE(kinds); kind++)
+	{
+		const std::string name(kinds[kind]);
+		const std::string text = name +
+			"<Not(Not(p0)) a0 a1>(Filter<Not(Not(p1)) a2>(Input<t0>),"
+			"Filter<Not(Not(p2)) a3>(Input<t1>))|" + name +
+			"<p3 a4 a5>(Filter<p4 a6>(Input<t2>),Filter<p5 a7>(Input<t3>))|"
+			"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"
+			"AttrsEq(a6,a2);AttrsEq(a7,a3);p3 := p0;p4 := p1;p5 := p2";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		if (nullptr == rule)
+		{
+			ok = false;
+			continue;
+		}
+		auto join = [mp, kind](CExpression *l, CExpression *r, CExpression *p) {
+			COperator *op = nullptr;
+			switch (kind)
+			{
+				case 0: op = GPOS_NEW(mp) CLogicalInnerJoin(mp); break;
+				case 1: op = GPOS_NEW(mp) CLogicalLeftOuterJoin(mp); break;
+				case 2: op = GPOS_NEW(mp) CLogicalFullOuterJoin(mp); break;
+				case 3: op = GPOS_NEW(mp) CLogicalLeftSemiJoin(mp); break;
+				default: op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoin(mp); break;
+			}
+			l->AddRef(); r->AddRef(); p->AddRef();
+			return GPOS_NEW(mp) CExpression(mp, op, l, r, p);
+		};
+		for (ULONG shape = 0; shape < 3; shape++)
+		{
+			auto check = [&](BOOL valid, const CHAR *step) {
+				if (!valid)
+					GPOS_TRACE_FORMAT("join binding kind=%s shape=%lu check=%s", kinds[kind], shape, step);
+				ok &= valid;
+			};
+			CColRefArray *lc = nullptr, *rc = nullptr;
+			CExpression *l = input(&lc);
+			CExpression *r = input(&rc);
+			CExpression *lp = fix.PexprPredAtom((*lc)[0]);
+			CExpression *rp = fix.PexprPredAtom((*rc)[0]);
+			CExpression *ln = negate(lp), *rn = negate(rp);
+			CExpression *lnn = negate(ln), *rnn = negate(rn);
+			CExpression *ls = fix.PexprLogicalSelect(l, lnn);
+			CExpression *rs = fix.PexprLogicalSelect(r, rnn);
+			CExpression *on = nullptr;
+			if (2 == shape)
+				on = CUtils::PexprScalarConstBool(mp, false, true /*is_null*/);
+			else
+			{
+				lp->AddRef(); rp->AddRef();
+				on = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBoolOp(mp,
+					0 == shape ? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr), lp, rp);
+			}
+			CExpression *pn = negate(on), *pnn = negate(pn);
+			CExpression *source = join(ls, rs, pnn);
+			CDSLRulePrefixIndex index(mp);
+			index.Insert(rule, 0, source->Pop()->Eopid());
+			CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+			check(1 == candidates->Size(), "literal source candidate");
+			candidates->Release();
+			CExpression *missingChild = join(l, rs, pnn);
+			candidates = index.PdrgpruleCandidates(mp, missingChild);
+			check(0 == candidates->Size(), "missing child candidate");
+			candidates->Release();
+			missingChild->Release();
+			if (0 == kind && 0 == shape)
+			{
+				CMemo memo(mp);
+				const auto insert = [&](const auto &self, CExpression *expr) -> CGroupExpression * {
+					CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+					for (ULONG i = 0; i < expr->Arity(); i++)
+						children->Append(self(self, (*expr)[i])->Pgroup());
+					expr->Pop()->AddRef();
+					CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+						expr->Pop(), children, CXform::ExfInvalid, nullptr, false);
+					CGroupExpression *canonical = nullptr;
+					memo.PgroupInsert(nullptr, expr, entry, &canonical);
+					if (canonical != entry)
+						entry->Release();
+					return canonical;
+				};
+				CExpressionArray *bindings = index.PdrgpexprBindings(mp, insert(insert, source));
+				check(0 < bindings->Size(), "memo bindings");
+				for (ULONG i = 0; i < bindings->Size(); i++)
+				{
+					CDSLRewriteDecision *bound = CDSLRuleEngine::Instance()->PdecisionEvaluate(
+						mp, rule, (*bindings)[i]);
+					check(EdsldecisionReady == bound->Status(), "memo rewrite");
+					GPOS_DELETE(bound);
+				}
+				bindings->Release();
+			}
+			CDSLRewriteDecision *decision =
+				CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+			CExpression *target = decision->PexprTarget();
+			check(EdsldecisionReady == decision->Status() && nullptr != target, "direct rewrite");
+			if (nullptr != target)
+			{
+				check(target->Pop()->Eopid() == source->Pop()->Eopid(), "join kind");
+				check((*target)[2]->Matches(on), "ON target");
+				check((*(*target)[0])[1]->Matches(lp), "left predicate");
+				check((*(*target)[1])[1]->Matches(rp), "right predicate");
+				check((*(*target)[0])[0] == l && (*(*target)[1])[0] == r, "input identity");
+				check(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()), "schema");
+				check((*source)[2] == pnn, "source unchanged");
+			}
+			GPOS_DELETE(decision);
+			if (1 == kind)
+			{
+				ls->AddRef(); rs->AddRef(); pnn->AddRef();
+				CExpression *full = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalFullOuterJoin(mp), ls, rs, pnn);
+				CExpression *rejectNull = fix.PexprEqConst((*lc)[0], 1);
+				CExpression *wrapped = fix.PexprLogicalSelect(full, rejectNull);
+				decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, wrapped);
+				check(EdsldecisionMatchRejected == decision->Status(), "view isolation");
+				GPOS_DELETE(decision);
+				wrapped->Release(); rejectNull->Release(); full->Release();
+			}
+			// The ON pattern is a structural test, not an assumed definition.
+			CExpression *wrong = join(ls, rs, pn);
+			decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, wrong);
+			check(EdsldecisionMatchRejected == decision->Status(), "wrong ON shape");
+			GPOS_DELETE(decision);
+			wrong->Release(); source->Release(); pn->Release(); pnn->Release(); on->Release();
+			ls->Release(); rs->Release(); ln->Release(); rn->Release(); lnn->Release(); rnn->Release();
+			// Column arrays are borrowed from the input operators.
+			lp->Release(); rp->Release(); l->Release(); r->Release();
+		}
+			rule->Release();
+	}
+	// Dependent Apply and NOT IN need their own evaluation certificates;
+	// keyed/residual forms must not masquerade as one complete ON expression.
+	for (const CHAR *text : {
+		"LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
+		"LeftApply<p1 a3 a4 a5>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);p1 := Not(p0)",
+		"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"
+		"AntiJoinNotIn<p1 a2 a3>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);p1 := Not(p0)",
+		"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a4 a5 p1 a6 a7>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"
+		"AttrsEq(a6,a2);AttrsEq(a7,a3);p1 := Not(p0)"})
+	{
+		CDSLRule *unsupported = PdslruleParseLocal(mp, text);
+		ok &= nullptr == unsupported;
+		CRefCount::SafeRelease(unsupported);
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -116,12 +302,12 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 	// Same text as the native FormalSQL proof and WeTune runtime test.
 	CDSLRule *rule = PdslruleParseLocal(
 		mp,
-		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
-		"TableEq(t1,t0);AttrsEq(a1,a0);Not(p2) := p0;Not(p3) := p2;p1 := p3");
+		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := p0");
 	CDSLRule *inverse = PdslruleParseLocal(
 		mp,
-		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
-		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := Not(p2);p2 := Not(p0)");
+		"Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0)");
 	if (nullptr == rule || nullptr == inverse)
 	{
 		CRefCount::SafeRelease(rule);
@@ -255,6 +441,58 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 		base->Release();
 		baseSelect->Release();
 		get->Release();
+	}
+	// The same mixed expression rule is proved by the shared FormalSQL
+	// constructor certificates; no AND/OR reassociation is implicit here.
+	CDSLRule *orRule = PdslruleParseLocal(mp,
+		"Filter<Or(Not(Not(p0)),p1) a0>(Input<t0>)|Filter<Or(p2,p3) a1>(Input<t1>)|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);p2 := p0;p3 := p1");
+	ok &= nullptr != orRule;
+	if (nullptr != orRule)
+	{
+		CColRefArray *cols = nullptr;
+		CExpression *get = fix.PexprLogicalGet("disjunction", 2, &cols);
+		for (ULONG trial = 0; trial < 4; ++trial)
+		{
+			CExpression *left = fix.PexprEqConst((*cols)[0], 1);
+			CExpression *right = 3 == trial
+				? CUtils::PexprScalarConstBool(mp, false, true /*is_null*/)
+				: fix.PexprEqConst((*cols)[1], 2);
+			CExpression *once = negate(left), *twice = negate(once);
+			CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+			twice->AddRef();
+			children->Append(twice);
+			right->AddRef();
+			children->Append(right);
+			if (2 == trial)
+				children->Append(fix.PexprEqConst((*cols)[0], 3));
+			CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, 1 == trial
+					? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr), children);
+			CExpression *source = fix.PexprLogicalSelect(get, predicate);
+			CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, orRule, source);
+			if (0 == trial || 3 == trial)
+			{
+				CExpression *target = decision->PexprTarget();
+				ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+				if (nullptr != target)
+					ok &= (*target)[0] == get && 2 == (*target)[1]->Arity() &&
+						CUtils::FScalarBoolOp((*target)[1], CScalarBoolOp::EboolopOr) &&
+						(*(*target)[1])[0]->Matches(left) && (*(*target)[1])[1]->Matches(right);
+			}
+			else
+				ok &= EdsldecisionMatchRejected == decision->Status();
+			ok &= (*predicate)[0] == twice && (*twice)[0] == once;
+			GPOS_DELETE(decision);
+			source->Release();
+			predicate->Release();
+			twice->Release();
+			once->Release();
+			right->Release();
+			left->Release();
+		}
+		get->Release();
+		orRule->Release();
 	}
 	CDSLRule *sharedAnd = PdslruleParseLocal(
 		mp, "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
@@ -391,6 +629,61 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 //	@function:
 //		CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue
 //---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_PredicateNegationNullSemantics()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const CHAR *constraints[] = {"PredicateNot(p1,p0)", "PredicateNotTrue(p1,p0)"};
+	for (ULONG kind = 0; kind < 2; ++kind)
+	{
+		const std::string dsl =
+			std::string("Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|") +
+			"Deterministic(p1);ErrorFree(p1);" + constraints[kind];
+		CDSLRule *rule = PdslruleParseLocal(mp, dsl.c_str());
+		GPOS_ASSERT(nullptr != rule);
+		const CDSLSymbol *input = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+		const CDSLSymbol *output = (*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0];
+		for (ULONG value = 0; value < 3; ++value)
+		{
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLConstraintChecker checker(mp);
+			GPOS_ASSERT(!checker.FCheck(rule, model));
+			CExpression *leaf = CUtils::PexprScalarConstBool(mp, value == 1, value == 2);
+			model->FBind(input, leaf);
+			const BOOL checked = checker.FCheck(rule, model);
+			CExpression *result = model->PexprPred(output);
+			const CScalar::EBoolEvalResult expected = value == 1 ? CScalar::EberFalse
+				: value == 2 && kind == 0 ? CScalar::EberNull : CScalar::EberTrue;
+			const BOOL valid = checked && nullptr != result &&
+				CScalar::EberEvaluate(mp, result) == expected &&
+				(*result)[0]->Matches(leaf);
+			// A bound NOT output cannot pass the IS NOT TRUE contract, or vice versa.
+			CDSLModel *wrong = GPOS_NEW(mp) CDSLModel(mp);
+			wrong->FBind(input, leaf);
+			CExpression *other = nullptr;
+			leaf->AddRef();
+			other = kind == 0 ? GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBooleanTest(mp, CScalarBooleanTest::EbtIsNotTrue), leaf)
+				: CUtils::PexprNegate(mp, leaf);
+			wrong->FBind(output, other);
+			const BOOL rejected = !checker.FCheck(rule, wrong);
+			other->Release();
+			wrong->Release();
+			leaf->Release();
+			model->Release();
+			if (!valid || !rejected)
+			{
+				rule->Release();
+				return GPOS_FAILED;
+			}
+		}
+		rule->Release();
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue()
 {

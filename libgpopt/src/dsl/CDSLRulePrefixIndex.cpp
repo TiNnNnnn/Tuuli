@@ -222,7 +222,7 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 CDSLRulePrefixIndex::SNode *
 CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 								   BOOL fSourceRoot, BOOL *pfComplete,
-								   ULONG ulAdapterFlags)
+								   ULONG ulAdapterFlags, BOOL fLiteral)
 {
 	GPOS_ASSERT(nullptr != pnode);
 	GPOS_ASSERT(nullptr != pop);
@@ -338,7 +338,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return PnodeInsertOp(pnodeCurrent, (*pop)[0], false, pfComplete);
 	}
 
-	if (!FStructurallyExact(pop))
+	if (!fLiteral && !FStructurallyExact(pop))
 	{
 		*pfComplete = false;
 		return pnode;
@@ -363,7 +363,8 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	{
 		BOOL fChildComplete = false;
 		pnodeCurrent =
-			PnodeInsertOp(pnodeCurrent, (*pop)[ul], false, &fChildComplete);
+			PnodeInsertOp(pnodeCurrent, (*pop)[ul], false, &fChildComplete,
+						 0, fLiteral);
 		if (!fChildComplete)
 		{
 			*pfComplete = false;
@@ -410,16 +411,10 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		m_fFollowDSLSelectAlternatives || fSemiApplyView || fAntiApplyView;
 	if (popRoot->Eopid() == eopidBucket && prule->Pexprdefs()->FHasBindings())
 	{
-		// Oriented bindings use literal Filter/Input trees. Keep every Filter
-		// in the trie so memo binding visits each required relational level;
-		// the legacy collapsed-filter prefix must not truncate that search.
-		const CDSLOp *op = popRoot;
-		while (EdslopFilter == op->Edslop())
-		{
-			pnodeTerminal = PnodeExact(pnodeTerminal, op->Eopid(), 1);
-			op = (*op)[0];
-		}
-		pnodeTerminal = PnodeInsertOp(pnodeTerminal, op, false, &fComplete);
+		// Retain every literal relational level, including Filters below both
+		// Join branches. Adapter boundaries must not truncate memo extraction.
+		pnodeTerminal = PnodeInsertOp(pnodeTerminal, popRoot, false,
+			&fComplete, 0, true /*literal*/);
 	}
 	else if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
 			 fCorrelatedNotInApplyView || fSemiApplyView || fAntiApplyView)

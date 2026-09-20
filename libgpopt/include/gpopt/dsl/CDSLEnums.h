@@ -264,6 +264,8 @@ enum EDslConstraintKind
 	// PredicateNullRejecting(predicate,attrs): predicate cannot be TRUE when
 	// every referenced column in attrs is NULL.
 	EdslconPredicateNullRejecting,
+	// PredicateNot(out,input): SQL three-valued NOT, distinct from IS NOT TRUE.
+	EdslconPredicateNot,
 	EdslconSentinel
 };
 
