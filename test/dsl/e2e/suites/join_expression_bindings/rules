@@ -1,0 +1,4 @@
+# Expression construction regressions, not optimization benefit claims.
+# FormalSQL certifies the complete predicate under native outer-join semantics.
+LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<Not(Not(p0)) a2 a3>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)
+FullJoin<p0 a0 a1>(Input<t0>,Input<t1>)|FullJoin<Not(Not(p0)) a2 a3>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)

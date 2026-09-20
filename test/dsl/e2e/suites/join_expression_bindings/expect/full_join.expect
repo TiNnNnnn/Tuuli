@@ -1,0 +1,71 @@
+{
+  "description": "Certified full-ON expression construction preserves both unmatched domains of FullJoin",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8f60ff5aab335e96\"",
+        "CScalarBoolOp (EboolopNot)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_FullJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      ",",
+      ",",
+      ",3",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      ",",
+      ",",
+      ",3",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      ",",
+      ",",
+      ",3",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ]
+  }
+}
