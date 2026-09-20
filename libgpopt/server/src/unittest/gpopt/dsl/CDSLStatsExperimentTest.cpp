@@ -15,12 +15,14 @@
 #include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/base/CUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
@@ -46,9 +48,96 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("expressions", 1, &cols);
+	BOOL ok = true;
+	for (ULONG trial = 0; trial < 5; ++trial)
+	{
+		const ULONG arity = 0 == trial ? 1 : 2 == trial || 4 == trial ? 3 : 2;
+		CExpressionArray *operands = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < arity; ++i)
+			operands->Append(fixture.PexprEqConst((*cols)[0], 7));
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, 0 == trial ? CScalarBoolOp::EboolopNot
+				: 3 <= trial ? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopAnd), operands);
+		CExpression *select = fixture.PexprLogicalSelect(get, predicate);
+		std::string text, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, select, "r", {"r/0"}, &text, &error);
+		ok &= error.empty();
+		if (trial < 2 || 3 == trial)
+		{
+			// Equal leaf values are separate occurrences, not an inferred equality
+			// requirement. N-ary AND/OR must not be reassociated by the exporter.
+			ok &= text == (0 == trial ? "Filter<Not(p1) a0>(Input<t0>)"
+				: 3 == trial ? "Filter<Or(p1,p2) a0>(Input<t0>)"
+				: "Filter<And(p1,p2) a0>(Input<t0>)");
+			CWStringDynamic parse_error(mp);
+			CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
+				(text + "|Input<t1>|TableEq(t1,t0)").c_str(), nullptr, &parse_error);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= nullptr != rule && CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), select, model);
+			model->Release();
+			// Relational shape alone is insufficient: a plain atom is rejected.
+			CExpression *atom = fixture.PexprEqConst((*cols)[0], 7);
+			CExpression *plain = fixture.PexprLogicalSelect(get, atom);
+			model = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= nullptr != rule && !CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), plain, model);
+			model->Release();
+			plain->Release();
+			atom->Release();
+			CRefCount::SafeRelease(rule);
+			ok &= std::string::npos != CDSLPlanTemplate::SliceArtifact(
+				mp, select, "r", {"r/0"}).find("\"source_template\":\"" + text + "\"");
+		}
+		else
+			ok &= text == "Filter<p0 a0 a1>(Input<t0>)";
+		ok &= CDSLPlanTemplate::FSlice(mp, select, "r", {"r"}, &text, &error) &&
+			text == "Input<t0>";
+		select->Release();
+		predicate->Release();
+	}
+	CColRefArray *right_cols = nullptr;
+	CExpression *right = fixture.PexprLogicalGet("right", 1, &right_cols);
+	CExpression *join_predicate = fixture.PexprEqPred((*cols)[0], (*right_cols)[0]);
+	CExpression *join = fixture.PexprLogicalInnerJoin(get, right, join_predicate);
+	CExpression *negated = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot),
+		fixture.PexprEqConst((*cols)[0], 7));
+	CExpression *select_join = fixture.PexprLogicalSelect(join, negated);
+	CExpression *nested = fixture.PexprLogicalSelect(select_join, negated);
+	std::string text, error;
+	// Input can capture a join. Cutting there must not expose either join leaf.
+	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r", {"r/0/0"}, &text, &error) &&
+		text == "Filter<Not(p3) a2>(Filter<Not(p2) a0>(Input<t0>))";
+	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r/0", {"r/0/0"}, &text, &error) &&
+		text == "Filter<Not(p1) a0>(Input<t0>)";
+	// Keeping a Join no longer hides expressions above or inside either branch.
+	ok &= CDSLPlanTemplate::FSlice(mp, select_join, "r", {}, &text, &error) &&
+		std::string::npos != text.find("Not(") &&
+		std::string::npos != text.find("InnerJoin<");
+	nested->Release();
+	select_join->Release();
+	negated->Release();
+	join->Release();
+	join_predicate->Release();
+	right->Release();
+	get->Release();
+	GPOS_ASSERT(ok);
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

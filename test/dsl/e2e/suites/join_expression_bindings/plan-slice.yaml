@@ -1,0 +1,5 @@
+experiment: join-expression-plan-slice
+discover: true
+template_root: r
+template_cuts: [r/0,r/1]
+cardinalities:

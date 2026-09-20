@@ -18,9 +18,11 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
+#include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CScalarBoolOp.h"
 
 using namespace gpopt;
 
@@ -469,6 +471,87 @@ PopSlice(CMemoryPool *mp, const CExpression *expr, const std::string &path,
 	return PopOperator(mp, kind, distinct, EdslsortNone, children,
 		symbol_counts, symbol_id);
 }
+
+std::string
+SymbolText(CMemoryPool *mp, const CDSLSymbol *symbol)
+{
+	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
+		mp, const_cast<WCHAR *>(symbol->PstrName()->GetBuffer()));
+	const std::string result(text);
+	GPOS_DELETE_ARRAY(text);
+	return result;
+}
+
+std::string
+PredicateTemplate(const CExpression *expr, ULONG *next, BOOL *expanded)
+{
+	GPOS_CHECK_STACK_SIZE;
+	const BOOL is_not = 1 == expr->Arity() &&
+		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopNot);
+	const BOOL is_and = 2 == expr->Arity() &&
+		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopAnd);
+	const BOOL is_or = 2 == expr->Arity() &&
+		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopOr);
+	if (!is_not && !is_and && !is_or)
+		return "p" + std::to_string((*next)++);
+	*expanded = true;
+	std::string result = is_not ? "Not(" : is_and ? "And(" : "Or(";
+	for (ULONG i = 0; i < expr->Arity(); ++i)
+	{
+		if (i)
+			result += ',';
+		result += PredicateTemplate((*expr)[i], next, expanded);
+	}
+	return result + ')';
+}
+
+// Follow the selected relational frontier, never inspect inside an Input cut.
+// Unsupported scalar subtrees stay opaque occurrences, not guessed semantics.
+BOOL
+FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
+	const CExpression *expr, ULONG *next, BOOL *expanded, std::string *text,
+	std::string *input)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (EdslopInput == op->Edslop())
+	{
+		*input = SymbolText(mp, (*op->Pdrgpsym())[0]);
+		*text = "Input<" + *input + ">";
+		return true;
+	}
+	const EDslOpKind kind = op->Edslop();
+	const BOOL join = EdslopInnerJoin == kind || EdslopLeftJoin == kind ||
+		EdslopFullJoin == kind || EdslopSemiJoin == kind || EdslopAntiJoin == kind;
+	BOOL distinct = false;
+	if ((!join && EdslopFilter != kind) || CanonicalKind(expr, &distinct) != kind)
+		return false;
+	const ULONG children = join ? 2 : 1;
+	if (children + 1 != expr->Arity() || (*expr)[children]->DeriveHasSubquery())
+		return false;
+	CColRefSet *available = GPOS_NEW(mp) CColRefSet(mp);
+	for (ULONG i = 0; i < children; ++i)
+		available->Union((*expr)[i]->DeriveOutputColumns());
+	const BOOL local = available->ContainsAll((*expr)[children]->DeriveUsedColumns());
+	available->Release();
+	if (!local)
+		return false;
+	std::string inputs;
+	for (ULONG i = 0; i < children; ++i)
+	{
+		std::string child;
+		if (!FExpressionTemplate(mp, (*op)[i], (*expr)[i], next, expanded, &child, input))
+			return false;
+		if (i)
+			inputs += ',';
+		inputs += child;
+	}
+	*text = std::string(CDSLOpKindTable::SzName(kind)) + "<" +
+		PredicateTemplate((*expr)[children], next, expanded);
+	for (ULONG i = 1; i <= children; ++i)
+		*text += " " + SymbolText(mp, (*op->Pdrgpsym())[i]);
+	*text += ">(" + inputs + ")";
+	return true;
+}
 }  // namespace
 
 std::vector<const CExpression *>
@@ -667,6 +750,34 @@ CDSLPlanTemplate::FSlice(
 		source->Release();
 		*error = "a cut path is not represented by the canonical DSL view";
 		return false;
+	}
+	std::string expression_template, input;
+	BOOL expanded = false;
+	if (FExpressionTemplate(mp, source, root, &symbol_counts[EdslsymPred],
+		&expanded, &expression_template, &input) && expanded)
+	{
+		// A temporary carrier rule exercises the real parser and matcher. It is
+		// not an equivalence claim, is never registered and is never instantiated.
+		const std::string target = "t" + std::to_string(symbol_counts[EdslsymTable]);
+		const std::string carrier = expression_template + "|Input<" + target +
+			">|TableEq(" + target + "," + input + ")";
+		CWStringDynamic parse_error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, carrier.c_str(), nullptr, &parse_error);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		const BOOL matched = nullptr != rule &&
+			matcher.FMatch(rule->PfragSrc()->PopRoot(), root, model);
+		model->Release();
+		CRefCount::SafeRelease(rule);
+		source->Release();
+		if (!matched)
+		{
+			*error = "expression template failed production parser/matcher validation";
+			return false;
+		}
+		*dsl = expression_template;
+		error->clear();
+		return true;
 	}
 	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);

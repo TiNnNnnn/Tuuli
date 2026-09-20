@@ -261,6 +261,14 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         ]
     if "joins" in expected:
         actual["joins"] = len(JOIN_RE.findall(output))
+    if "plan_slice" in expected:
+        import ml_orca_test_support  # Locate the maintained trace reader.
+        from ml_orca.collect.run_workload_comparison import trace_records
+        contexts = [row["value"]["input_context"] for row in trace_records(output)
+                    if row.get("kind") == "candidate_context" and row.get("field") == "query_input_context"]
+        if len(contexts) != 1:
+            raise ValueError("plan-slice check requires exactly one complete query input context")
+        actual["plan_slice"] = contexts[0].get("plan_slice")
     if "provenance" in expected:
         records = memo_provenance(output)
         sources = {record.get("source") for record in records}

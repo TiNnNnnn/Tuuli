@@ -1,0 +1,39 @@
+{
+  "description": "Export an actual predicate tree as a parser- and matcher-validated mining source",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Filter<And(p1,p2) a0>(Input<t0>)",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "3,2"
+    ],
+    "postgres_output": [
+      "3,2"
+    ],
+    "off_output": [
+      "3,2"
+    ]
+  }
+}
