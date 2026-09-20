@@ -340,6 +340,17 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertNotIn("dsl_stats_experiment_path", run.call_args_list[1].args[1])
         self.assertEqual(result["output"], result["postgres_output"])
 
+    def test_e2e_plan_slice_requires_a_unique_decoded_context(self) -> None:
+        expected = {"plan_slice": {"status": "ok", "source_template": "Filter<Not(p1) a0>(Input<t0>)"}}
+        row = {"kind": "candidate_context", "field": "query_input_context",
+               "value": {"input_context": expected}}
+        with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[row]):
+            self.assertEqual(actual_plan(expected, "chunked trace"), expected)
+        for records in ([], [row, row]):
+            with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=records):
+                with self.assertRaises(ValueError):
+                    actual_plan(expected, "invalid trace")
+
     def test_transfer_models_are_frozen_before_target_observations(self) -> None:
         result = transport_check([1, 2, 4], [3, 5, 9], [1, 3, 8], [3, 7, 17])
         self.assertEqual(result['mae']['affine_rows'], 0)

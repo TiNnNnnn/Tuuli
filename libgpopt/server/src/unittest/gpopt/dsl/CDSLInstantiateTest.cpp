@@ -26,6 +26,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -190,6 +191,17 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 			}
 			CExpression *pn = negate(on), *pnn = negate(pn);
 			CExpression *source = join(ls, rs, pnn);
+			std::string exported, export_error;
+			check(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0/0", "r/1/0"},
+				&exported, &export_error), "export branch expressions");
+			const std::string on_template = 2 == shape ? "p5"
+				: 0 == shape ? "And(p5,p6)" : "Or(p5,p6)";
+			check(exported == name + "<Not(Not(" + on_template + ")) a4 a5>("
+				"Filter<Not(Not(p3)) a0>(Input<t0>),Filter<Not(Not(p4)) a2>(Input<t1>))",
+				"lossless ON and two independent child templates");
+			check(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0", "r/1"},
+				&exported, &export_error) && std::string::npos == exported.find("Filter<"),
+				"arbitrary input cuts hide child expression structure");
 			CDSLRulePrefixIndex index(mp);
 			index.Insert(rule, 0, source->Pop()->Eopid());
 			CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);

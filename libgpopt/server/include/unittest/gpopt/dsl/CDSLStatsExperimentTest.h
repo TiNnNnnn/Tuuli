@@ -21,6 +21,7 @@ public:
 	static GPOS_RESULT EresUnittest_CachedLogicalContext();
 	static GPOS_RESULT EresUnittest_ShapesAndBindings();
 	static GPOS_RESULT EresUnittest_PlanTemplateContext();
+	static GPOS_RESULT EresUnittest_PlanTemplateExpressions();
 	static GPOS_RESULT EresUnittest_RehashAlreadyEquivalentGroups();
 };
 }  // namespace gpopt

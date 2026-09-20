@@ -1,0 +1,28 @@
+{
+  "description": "Export real complete-ON Boolean structure for model-selected Join templates",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0",
+          "r/1"
+        ],
+        "status": "ok",
+        "source_template": "LeftJoin<Or(p1,p2) a0 a1>(Input<t0>,Input<t1>)",
+        "error": null
+      }
+    }
+  ]
+}
