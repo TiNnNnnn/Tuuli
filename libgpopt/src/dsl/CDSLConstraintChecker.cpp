@@ -402,6 +402,18 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 	return true;
 }
 
+BOOL
+FScalarTreeProvablyDeterministic(CExpression *pexpr)
+{
+	// Immutable functions do not establish repeatable subquery results (e.g.
+	// an unordered LIMIT). Require a separate query-level proof before admitting
+	// such trees; use the same guard for captured and constructed expressions.
+	return !pexpr->DeriveHasSubquery() &&
+		!pexpr->DeriveHasNonScalarFunction() &&
+		IMDFunction::EfsImmutable ==
+			pexpr->DeriveScalarFunctionProperties()->Efs();
+}
+
 CTableDescriptor *
 PtabdescBaseAccess(CExpression *pexpr)
 {
@@ -3263,7 +3275,8 @@ CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
 //		Project attrs bind only their dependency columns, so recover the exact
 //		captured project list before checking it. Error freedom is intentionally
 //		conservative until ORCA metadata exposes operator/function error behavior;
-//		determinism additionally excludes stable/volatile and set-returning trees.
+//		determinism additionally excludes stable/volatile, set-returning and
+//		subquery-bearing trees without a query-level repeatability proof.
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
@@ -3279,40 +3292,22 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 	const CDSLSymbol *psymBound = psym;
 	if (nullptr == pmodel->PvalLookup(psymBound))
 	{
-		// A target predicate synthesized by PredicateAnd inherits both scalar
-		// properties from its bound operands. This is construction semantics, not
-		// an assumption about an arbitrary unbound target symbol.
+		// Inspect exactly what target construction would build, including nested
+		// definitions and aliases. Do not manufacture missing source captures.
 		if (EdslsymPred == psym->Esymkind())
 		{
-			const CDSLExpressionDefinitions::CDefinition *pdef =
-				prule->Pexprdefs()->Pdef(psym);
-			if (nullptr != pdef && EdslexprAnd == pdef->Edslexpr())
+			CDSLInstantiator instantiator(m_mp);
+			CExpression *pexpr =
+				instantiator.PexprInstantiatePredicate(prule, psym, pmodel);
+			if (nullptr == pexpr)
 			{
-				CExpression *pexprLeft =
-					pmodel->PexprPred(pdef->PsymOperand(0));
-				CExpression *pexprRight =
-					pmodel->PexprPred(pdef->PsymOperand(1));
-				if (nullptr == pexprLeft || nullptr == pexprRight)
-				{
-					return false;
-				}
-				if (EdslconErrorFree == pcon->Edslcon())
-				{
-					return FScalarTreeProvablyErrorFree(pexprLeft) &&
-						FScalarTreeProvablyErrorFree(pexprRight);
-				}
-				const BOOL fLeftHasNonScalar =
-					pexprLeft->DeriveHasNonScalarFunction();
-				const BOOL fRightHasNonScalar =
-					pexprRight->DeriveHasNonScalarFunction();
-				const IMDFunction::EFuncStbl efsLeft =
-					pexprLeft->DeriveScalarFunctionProperties()->Efs();
-				const IMDFunction::EFuncStbl efsRight =
-					pexprRight->DeriveScalarFunctionProperties()->Efs();
-				return !fLeftHasNonScalar && !fRightHasNonScalar &&
-					IMDFunction::EfsImmutable == efsLeft &&
-					IMDFunction::EfsImmutable == efsRight;
+				return false;
 			}
+			const BOOL safe = EdslconErrorFree == pcon->Edslcon()
+				? FScalarTreeProvablyErrorFree(pexpr)
+				: FScalarTreeProvablyDeterministic(pexpr);
+			pexpr->Release();
+			return safe;
 		}
 		// Resolve a target annotation only through an explicit equality to an
 		// already-bound source artifact. Treating an arbitrary unbound target as
@@ -3384,9 +3379,7 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 						return false;
 					}
 				}
-				else if (pexprFunc->DeriveHasNonScalarFunction() ||
-						 IMDFunction::EfsImmutable !=
-							 pexprFunc->DeriveScalarFunctionProperties()->Efs())
+				else if (!FScalarTreeProvablyDeterministic(pexprFunc))
 				{
 					return false;
 				}
@@ -3423,9 +3416,7 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		return FScalarTreeProvablyErrorFree(pexpr);
 	}
 	GPOS_ASSERT(EdslconDeterministic == pcon->Edslcon());
-	return !pexpr->DeriveHasNonScalarFunction() &&
-		IMDFunction::EfsImmutable ==
-			pexpr->DeriveScalarFunctionProperties()->Efs();
+	return FScalarTreeProvablyDeterministic(pexpr);
 }
 
 BOOL

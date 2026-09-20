@@ -21,6 +21,11 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CUtils.h"
+#include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CScalarNullTest.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -95,6 +100,7 @@ GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubAdmit),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubReject),
 		GPOS_UNITTEST_FUNC(
@@ -117,6 +123,83 @@ CDSLConstraintTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Checker fixtures, not asserted rewrite equivalences. Property annotations
+	// precede constructors so the target predicate is not already materialized.
+	const CHAR *rules[] = {
+		"Filter<p0 a0>(Input<t0>)|Input<t1>|TableEq(t1,t0);Deterministic(p0)",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Deterministic(p1);TableEq(t1,t0);PredicateEq(p1,p0);AttrsEq(a1,a0)",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Deterministic(p1);TableEq(t1,t0);PredicateNotTrue(p2,p0);"
+		"PredicateAnd(p1,p2,p0);AttrsEq(a1,a0)",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"ErrorFree(p1);TableEq(t1,t0);PredicateNotTrue(p2,p0);"
+		"PredicateAnd(p1,p2,p0);AttrsEq(a1,a0)",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Deterministic(p1);ErrorFree(p1);TableEq(t1,t0);"
+		"PredicateAnd(p2,p0,p0);PredicateNotTrue(p1,p2);AttrsEq(a1,a0)",
+	};
+	CColRefArray *pdrgpcr = nullptr;
+	CExpression *pexprGet = fix.PexprLogicalGet("deterministic_input", 1, &pdrgpcr);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT eres = GPOS_OK;
+	for (ULONG has_subquery = 0; has_subquery < 2; ++has_subquery)
+	{
+		CExpression *pexprPredicate = nullptr;
+		if (has_subquery)
+		{
+			pexprGet->AddRef();
+			CExpression *pexprLimit = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp),
+					true, true, false), pexprGet,
+				CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
+			CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubquery(mp, (*pdrgpcr)[0], false, false), pexprLimit);
+			pexprPredicate = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarNullTest(mp), pexprSubquery);
+		}
+		else
+		{
+			pexprPredicate = fix.PexprEqPred((*pdrgpcr)[0], (*pdrgpcr)[0]);
+		}
+		// Both trees pass the former function-only guard. Only the second
+		// can pick a different row on a repeated unordered subquery scan.
+		GPOS_ASSERT(!pexprPredicate->DeriveHasNonScalarFunction());
+		GPOS_ASSERT(IMDFunction::EfsImmutable ==
+			pexprPredicate->DeriveScalarFunctionProperties()->Efs());
+		for (const CHAR *rule : rules)
+		{
+			CDSLRule *prule = PdslruleParseLocal(mp, rule);
+			GPOS_ASSERT(nullptr != prule);
+			for (ULONG bound = 0; bound < 2; ++bound)
+			{
+				CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+				BindTableAndAttr(pmodel, PsymByName(prule, "t0"), pexprGet,
+					PsymByName(prule, "a0"), (*pdrgpcr)[0], mp);
+				if (bound)
+				{
+					pmodel->FBind(PsymByName(prule, "p0"), pexprPredicate);
+				}
+				if (checker.FCheck(prule, pmodel) != (bound && !has_subquery))
+				{
+					eres = GPOS_FAILED;
+				}
+				pmodel->Release();
+			}
+			prule->Release();
+		}
+		pexprPredicate->Release();
+	}
+	pexprGet->Release();
+	return eres;
 }
 
 static GPOS_RESULT
