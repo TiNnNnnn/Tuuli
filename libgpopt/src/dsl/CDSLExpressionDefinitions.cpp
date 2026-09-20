@@ -48,6 +48,8 @@ EdslexprKind(const CDSLConstraint *pcon)
 			return EdslexprNulls;
 		case EdslconPredicateNotTrue:
 			return EdslexprNotTrue;
+		case EdslconPredicateNot:
+			return EdslexprNot;
 		default:
 			return EdslexprSentinel;
 	}
@@ -62,7 +64,8 @@ PsymOutput(const CDSLConstraint *pcon)
 		 3 != pcon->Pdrgpsym()->Size()) ||
 		((EdslexprExists == edslexpr || EdslexprNotExists == edslexpr) &&
 		 2 != pcon->Pdrgpsym()->Size()) ||
-		(EdslexprNotTrue == edslexpr && 2 != pcon->Pdrgpsym()->Size()) ||
+		((EdslexprNotTrue == edslexpr || EdslexprNot == edslexpr) &&
+		 2 != pcon->Pdrgpsym()->Size()) ||
 		((EdslexprAny == edslexpr || EdslexprAll == edslexpr) &&
 		 4 != pcon->Pdrgpsym()->Size()) ||
 		(EdslexprScalarSubquery == edslexpr &&
@@ -212,10 +215,11 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 										  EBinding binding,
 										  const CDSLSymbolArray *symbols)
 {
-	if ((EdslexprNot != kind && EdslexprRef != kind && EdslexprAnd != kind) ||
+	if ((EdslexprNot != kind && EdslexprRef != kind && EdslexprAnd != kind &&
+		 EdslexprOr != kind) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(EdslexprAnd == kind ? 3 : 2) != symbols->Size())
+		(EdslexprAnd == kind || EdslexprOr == kind ? 3 : 2) != symbols->Size())
 	{
 		return false;
 	}
@@ -277,7 +281,8 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 		}
 		if (EdslexprRef != def->Edslexpr())
 		{
-			os << (EdslexprAnd == def->Edslexpr() ? "And(" : "Not(");
+			os << (EdslexprAnd == def->Edslexpr() ? "And("
+				: EdslexprOr == def->Edslexpr() ? "Or(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)
 		{

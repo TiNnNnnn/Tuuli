@@ -66,7 +66,8 @@ FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
 	if (CDSLExpressionDefinitions::EMatch != def->Binding() ||
 		def->Arity() != expression->Arity() ||
 		!CUtils::FScalarBoolOp(expression, EdslexprAnd == def->Edslexpr()
-			? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopNot))
+			? CScalarBoolOp::EboolopAnd : EdslexprOr == def->Edslexpr()
+			? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopNot))
 	{
 		return false;
 	}
@@ -80,6 +81,18 @@ FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
 }
 
 }  // namespace
+
+BOOL
+CDSLMatcher::FMatchPredicate(const CDSLSymbol *symbol, CExpression *expression,
+							CDSLModel *model) const
+{
+	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+	{
+		return !expression->DeriveHasSubquery() &&
+			FMatchPredicateBinding(m_prule->Pexprdefs(), symbol, expression, model);
+	}
+	return model->FBind(symbol, expression);
+}
 
 BOOL
 CDSLMatcher::FMatchSortView(const CDSLOp *popSort,
@@ -538,9 +551,7 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 				(*pexpr)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
 			const BOOL matched =
 				pmodel->FBind((*pop->Pdrgpsym())[1], columns) &&
-				FMatchPredicateBinding(m_prule->Pexprdefs(),
-									   (*pop->Pdrgpsym())[0], (*pexpr)[1],
-									   pmodel) &&
+				FMatchPredicate((*pop->Pdrgpsym())[0], (*pexpr)[1], pmodel) &&
 				FMatch((*pop)[0], (*pexpr)[0], pmodel);
 			columns->Release();
 			return matched;

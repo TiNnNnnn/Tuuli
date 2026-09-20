@@ -135,6 +135,9 @@ public:
 	// Returns true iff the whole subtree matched and every symbol bound
 	// consistently (FBind rejects incompatible re-binds -> equality classes).
 	BOOL FMatch(const CDSLOp *pop, CExpression *pexpr, CDSLModel *pmodel) const;
+	// Match one complete native predicate; binding rules retain its scalar tree.
+	BOOL FMatchPredicate(const CDSLSymbol *symbol, CExpression *expression,
+						 CDSLModel *model) const;
 	BOOL FHasFailure() const { return m_fHasFailure; }
 	ULONG UlFailureDepth() const { return m_ulFailureDepth; }
 	EDslOpKind EdslopFailureExpected() const

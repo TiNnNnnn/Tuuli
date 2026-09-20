@@ -19,6 +19,7 @@
 #include "gpos/string/CWStringDynamic.h"
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -1015,7 +1016,9 @@ CDSLRuleEngine::PdecisionEvaluateWithViews(CMemoryPool *mp, const CDSLRule *prul
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexpr);
 	const CDSLOp *popSource = prule->PfragSrc()->PopRoot();
-	if (EdslopLeftJoin != popSource->Edslop())
+	// Explicit scalar patterns describe the actual tree, not an equivalent
+	// null-rejection view with a different join kind and evaluation context.
+	if (prule->Pexprdefs()->FHasBindings() || EdslopLeftJoin != popSource->Edslop())
 	{
 		return PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
 	}

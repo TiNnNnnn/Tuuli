@@ -108,7 +108,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	CMemoryPool *mp = bctx.mp;
 	const ULONG ul_expected = CDSLOpKindTable::UlSyms(edslop);
 	const ULONG ul_given =
-		(nullptr == symlist_ctx) ? 0 : (ULONG) symlist_ctx->SYMBOL().size();
+		(nullptr == symlist_ctx) ? 0 : (ULONG) symlist_ctx->term().size();
 
 	// MONSOON's checked-in rule corpus predates aggregateOutputAttrs and uses
 	// Agg<groupByAttrs aggregateAttrs aggFunc schema havingPred> (5 symbols).
@@ -178,7 +178,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	CDSLSymbolArray *pdrgpsym = GPOS_NEW(mp) CDSLSymbolArray(mp);
 	for (ULONG ul = 0; ul < ul_given; ul++)
 	{
-		std::string name = symlist_ctx->SYMBOL(ul)->getText();
+		std::string name = symlist_ctx->term(ul)->SYMBOL()->getText();
 		const BOOL fValidNotInSymbol = !fAntiJoinNotIn ||
 			(3 == ul_given ? (0 == ul ? 'p' : 'a')
 						   : ((0 == ul || 3 == ul) ? 'p' : 'a')) == name[0];
@@ -425,13 +425,13 @@ PdrgpconBuild(SBuildCtx &bctx,
 				}
 			}
 		}
-		if (EdslconPredicateNotTrue == edslcon)
+		if (EdslconPredicateNotTrue == edslcon || EdslconPredicateNot == edslcon)
 		{
 			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
 			{
 				if (EdslsymPred != (*pdrgpsym)[ul]->Esymkind())
 				{
-					bctx.Fail("PredicateNotTrue expects predicate symbols");
+					bctx.Fail("predicate negation expects predicate symbols");
 					pdrgpsym->Release();
 					pdrgpcon->Release();
 					return nullptr;
@@ -751,15 +751,32 @@ PdrgpconBuild(SBuildCtx &bctx,
 	return pdrgpcon;
 }
 
-// New expression bindings currently have a native NOT/reference runtime.
+// Expression bindings match native Boolean trees and complete ON slots.
 // Input remains an arbitrary relational subtree; these are supported template
 // constructors, not a whitelist of rewrite identities.
 BOOL
 FBindingTree(const CDSLOp *op)
 {
-	return EdslopInput == op->Edslop() ||
-		   (EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size() &&
-			FBindingTree((*op)[0]));
+	if (EdslopInput == op->Edslop())
+	{
+		return true;
+	}
+	const BOOL join = EdslopInnerJoin == op->Edslop() ||
+		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
+		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
+	if (nullptr == op->Pdrgpsym() ||
+		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : EdslopFilter == op->Edslop() &&
+				 2 == op->Pdrgpsym()->Size() && 1 == op->UlChildren()))
+	{
+		return false;
+	}
+	for (ULONG i = 0; i < op->UlChildren(); i++)
+	{
+		if (!FBindingTree((*op)[i]))
+			return false;
+	}
+	return true;
 }
 
 BOOL
@@ -773,7 +790,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings currently support Input/Filter templates");
+			"expression bindings support Input/Filter and complete-predicate Join templates");
 		return false;
 	}
 	// Declare source captures before target terms, independently of text order.
@@ -790,10 +807,11 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			auto *call = binding->call();
 			if (nullptr != call &&
 				!("Not" == call->ID()->getText() && 1 == call->SYMBOL().size()) &&
-				!("And" == call->ID()->getText() && 2 == call->SYMBOL().size()))
+				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText()) &&
+				  2 == call->SYMBOL().size()))
 			{
 				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/And)");
+					"unsupported expression constructor or arity (expected Not/And/Or)");
 				return false;
 			}
 			auto symbols = binding->SYMBOL();
@@ -905,7 +923,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		}
 		const BOOL valid = definitions->FAppendBinding(
 			bctx.mp, nullptr == call ? EdslexprRef
-				: "And" == call->ID()->getText() ? EdslexprAnd : EdslexprNot,
+				: "And" == call->ID()->getText() ? EdslexprAnd
+				: "Or" == call->ID()->getText() ? EdslexprOr : EdslexprNot,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();
 		if (!valid)
@@ -962,6 +981,72 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	}
 	return true;
 }
+// Lower surface syntax only. Matching direction, types, scope, constructor
+// support and proof/runtime semantics remain owned by the binding pipeline.
+std::string
+LowerInlineTerm(dsl::DSLRuleParser::TermContext *term, BOOL source,
+				std::unordered_set<std::string> &names, ULONG &next,
+				std::vector<std::string> &bindings)
+{
+	if (nullptr != term->SYMBOL())
+		return term->SYMBOL()->getText();
+	std::string output;
+	do
+	{
+		output = "p" + std::to_string(next++);
+	} while (!names.insert(output).second);
+	// Source capture declarations follow the pattern root before its children;
+	// target definitions follow their operands. Preserve existing named-rule IDs.
+	const size_t slot = bindings.size();
+	if (source)
+		bindings.emplace_back();
+	std::string call = term->ID()->getText() + "(";
+	for (auto *operand : term->term())
+	{
+		if (call.back() != '(')
+			call += ',';
+		call += LowerInlineTerm(operand, source, names, next, bindings);
+	}
+	call += ')';
+	if (source)
+		bindings[slot] = call + " := " + output;
+	else
+		bindings.push_back(output + " := " + call);
+	return output;
+}
+
+std::string
+LowerInlineOp(dsl::DSLRuleParser::OpContext *op, BOOL source,
+			  std::unordered_set<std::string> &names, ULONG &next,
+			  std::vector<std::string> &bindings)
+{
+	std::string result = op->ID()->getText();
+	if (nullptr != op->STAR())
+		result += '*';
+	if (nullptr != op->symlist())
+	{
+		result += '<';
+		for (auto *term : op->symlist()->term())
+		{
+			if (result.back() != '<')
+				result += ' ';
+			result += LowerInlineTerm(term, source, names, next, bindings);
+		}
+		result += '>';
+	}
+	if (!op->op().empty())
+	{
+		result += '(';
+		for (auto *child : op->op())
+		{
+			if (result.back() != '(')
+				result += ',';
+			result += LowerInlineOp(child, source, names, next, bindings);
+		}
+		result += ')';
+	}
+	return result;
+}
 }  // namespace
 
 CDSLRule *
@@ -999,6 +1084,36 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 		}
 		else
 		{
+			std::unordered_set<std::string> names;
+			for (auto *token : tokens.getTokens())
+				if (dsl::DSLRuleParser::SYMBOL == token->getType())
+					names.insert(token->getText());
+			ULONG next = 0;
+			std::vector<std::string> bindings;
+			const std::string source = LowerInlineOp(
+				tree->frag(0)->op(), true, names, next, bindings);
+			const size_t sourceBindings = bindings.size();
+			const std::string target = LowerInlineOp(
+				tree->frag(1)->op(), false, names, next, bindings);
+			if (!bindings.empty())
+			{
+				std::string lowered = source + "|" + target + "|";
+				for (size_t i = 0; i <= bindings.size(); i++)
+				{
+					if (i == sourceBindings && nullptr != tree->constraints())
+					{
+						if (lowered.back() != '|')
+							lowered += ';';
+						lowered += tree->constraints()->getText();
+					}
+					if (i == bindings.size())
+						break;
+					if (lowered.back() != '|')
+						lowered += ';';
+					lowered += bindings[i];
+				}
+				return PdslruleParse(mp, lowered.c_str(), sz_verdict, pstrErr);
+			}
 			// grammar guarantees exactly two fragments (source, target)
 			std::vector<dsl::DSLRuleParser::FragContext *> frags = tree->frag();
 			GPOS_ASSERT(2 == frags.size());
