@@ -40,6 +40,7 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CMemo.h"
 
@@ -509,8 +510,13 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 	CDSLRule *sharedAnd = PdslruleParseLocal(
 		mp, "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 			"TableEq(t1,t0);AttrsEq(a1,a0);And(p2,p2) := p0;p1 := p0");
-	ok &= nullptr != sharedAnd;
-	if (nullptr != sharedAnd)
+	// Unlike a repeated capture, these are independent source symbols with an
+	// explicit premise. Equal trees may occupy distinct expression objects.
+	CDSLRule *equalAnd = PdslruleParseLocal(
+		mp, "Filter<And(p2,p3) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"TableEq(t1,t0);AttrsEq(a1,a0);p1 := And(p2,p3);PredicateEq(p2,p3)");
+	ok &= nullptr != sharedAnd && nullptr != equalAnd;
+	if (nullptr != sharedAnd && nullptr != equalAnd)
 	{
 		CExpression *get = nullptr, *baseSelect = nullptr;
 		CColRefArray *columns = nullptr;
@@ -531,12 +537,62 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 			ok &= (0 == trial) == CDSLMatcher(mp, sharedAnd).FMatch(
 				sharedAnd->PfragSrc()->PopRoot(), source, model);
 			model->Release();
+			CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, equalAnd, source);
+			ok &= (0 == trial ? EdsldecisionDuplicate :
+				1 == trial ? EdsldecisionConstraintRejected : EdsldecisionMatchRejected)
+				== decision->Status();
+			if (0 == trial)
+				ok &= nullptr != decision->PexprTarget() &&
+					source->Matches(decision->PexprTarget());
+			GPOS_DELETE(decision);
 			source->Release();
 			predicate->Release();
 		}
 		baseSelect->Release();
 		get->Release();
-		sharedAnd->Release();
+	}
+	CRefCount::SafeRelease(sharedAnd);
+	CRefCount::SafeRelease(equalAnd);
+	// Unary source premises must check the captured subtree, not act as
+	// construction aliases. A set-returning function has neither property.
+	for (const CHAR *property : {"ErrorFree", "Deterministic"})
+	{
+		const std::string text =
+			std::string("Filter<Not(Not(p0)) a0>(Input<t0>)|") +
+			"Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);"
+			"p1 := p0;" + property + "(p0)";
+		CDSLRule *guarded = PdslruleParseLocal(mp, text.c_str());
+		ok &= nullptr != guarded;
+		if (nullptr == guarded)
+			continue;
+		CColRefArray *cols = nullptr;
+		CExpression *get = fix.PexprLogicalGet("guarded_capture", 1, &cols);
+		for (ULONG setReturning = 0; setReturning < 2; ++setReturning)
+		{
+			CExpression *atom = nullptr;
+			if (setReturning)
+			{
+				atom = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp),
+					fix.PexprGenerateSeries((*cols)[0]));
+			}
+			else
+				atom = fix.PexprPredAtom((*cols)[0]);
+			CExpression *once = negate(atom), *twice = negate(once);
+			CExpression *source = fix.PexprLogicalSelect(get, twice);
+			CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, guarded, source);
+			ok &= (setReturning ? EdsldecisionConstraintRejected : EdsldecisionReady)
+				== decision->Status();
+			if (!setReturning)
+				ok &= nullptr != decision->PexprTarget() &&
+					(*decision->PexprTarget())[1]->Matches(atom);
+			GPOS_DELETE(decision);
+			source->Release();
+			twice->Release();
+			once->Release();
+			atom->Release();
+		}
+		get->Release();
+		guarded->Release();
 	}
 	CDSLRule *chain = PdslruleParseLocal(
 		mp,

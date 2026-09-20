@@ -862,7 +862,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		return true;
 	}
 	using Definitions = CDSLExpressionDefinitions;
-	std::unordered_set<const CDSLSymbol *> available, aliases;
+	std::unordered_set<const CDSLSymbol *> available;
+	std::unordered_map<const CDSLSymbol *, const CDSLSymbol *> aliases;
 	for (ULONG i = 0; i < sourceSymbols; i++)
 	{
 		available.insert((*source->Pdrgpsym())[i]);
@@ -873,6 +874,16 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	{
 		const CDSLConstraint *con = (*constraints)[i];
 		const auto kind = con->Edslcon();
+		BOOL sourcePremise = true;
+		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
+		{
+			sourcePremise &=
+				EdslsideSource == (*con->Pdrgpsym())[slot]->Eside() &&
+				EdslsymSentinel ==
+					CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot);
+		}
+		if (sourcePremise)
+			continue;  // Checked after capture matching; never produces a value.
 		const EDslSymbolKind expected = EdslconTableEq == kind	 ? EdslsymTable
 										: EdslconAttrsEq == kind ? EdslsymAttrs
 										: EdslconPredicateEq == kind
@@ -881,13 +892,14 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		if (EdslsymSentinel == expected || 2 != con->Pdrgpsym()->Size())
 		{
 			bctx.Fail(
-				"expression bindings currently accept only cross-side aliases");
+				"expression bindings accept source premises and cross-side aliases");
 			return false;
 		}
 		const CDSLSymbol *a = (*con->Pdrgpsym())[0], *b = (*con->Pdrgpsym())[1];
 		if (a->Esymkind() != expected || b->Esymkind() != expected ||
 			a->Eside() == b->Eside() ||
-			!aliases.insert(EdslsideTarget == a->Eside() ? a : b).second)
+			!aliases.emplace(EdslsideTarget == a->Eside() ? a : b,
+				EdslsideTarget == a->Eside() ? b : a).second)
 		{
 			bctx.Fail("invalid or duplicate cross-side alias");
 			return false;
@@ -940,16 +952,10 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	do
 	{
 		previous = available.size();
-		for (ULONG i = 0; i < constraints->Size(); i++)
+		for (const auto &alias : aliases)
 		{
-			const auto *symbols = (*constraints)[i]->Pdrgpsym();
-			const CDSLSymbol *a = (*symbols)[0], *b = (*symbols)[1];
-			if (EdslsideTarget == b->Eside())
-			{
-				std::swap(a, b);
-			}
-			if (available.count(b))
-				available.insert(a);
+			if (available.count(alias.second))
+				available.insert(alias.first);
 		}
 		for (ULONG i = 0; i < definitions->UlDefinitions(); i++)
 		{
