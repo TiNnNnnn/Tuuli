@@ -111,6 +111,9 @@ CREATE TABLE dsl_exists_inner(x int);
 INSERT INTO dsl_agg_outer VALUES (1,10),(1,20),(2,NULL),(3,5);
 INSERT INTO dsl_exists_inner VALUES (5),(20);
 
+CREATE TABLE dsl_compute_group(label varchar(10) NOT NULL);
+INSERT INTO dsl_compute_group VALUES ('a'),('delta'),('delta');
+
 CREATE TABLE dsl_dqa(empno int PRIMARY KEY, deptno int NOT NULL);
 INSERT INTO dsl_dqa VALUES (1,10),(2,10),(3,20);
 

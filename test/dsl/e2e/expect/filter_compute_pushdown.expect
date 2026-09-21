@@ -1,0 +1,27 @@
+{
+  "description": "Safe Filter/Compute pushdown composes with aggregate rewrites on nonempty input",
+  "plans": [
+    {
+      "name": "enabled",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"75cf2193e89d4afe\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "delta"
+    ],
+    "postgres_output": [
+      "delta"
+    ],
+    "off_output": [
+      "delta"
+    ]
+  }
+}
