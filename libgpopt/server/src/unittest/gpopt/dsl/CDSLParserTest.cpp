@@ -59,11 +59,75 @@ FRoundTrips(CMemoryPool *mp, const CHAR *sz_dsl)
 }
 
 GPOS_RESULT
+EresSurfaceEquality()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	const CHAR *templates[] = {
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|",
+		"Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|",
+		"Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|",
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|",
+		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|",
+		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|",
+		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|",
+	};
+	const CHAR *constraints[] = {
+		"TableEq(t1,t0);AttrsEq(a1,a0);PredicateEq(p1,p0)",
+		"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)",
+		"TableEq(t1,t0);ScalarEq(n2,n0);ScalarEq(n3,n1)",
+		"TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);WindowEq(w1,w0)",
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);WindowEq(w1,w0);FrameEq(m1,m0)",
+		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0)",
+		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := p0",
+	};
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(templates); i++)
+	{
+		std::string compact = constraints[i];
+		for (const CHAR *name : {"TableEq", "AttrsEq", "PredicateEq", "SchemaEq",
+				"FuncEq", "ScalarEq", "ExprListEq", "OrderEq", "WindowEq", "FrameEq", "RankEq"})
+		{
+			std::string::size_type pos = 0;
+			while ((pos = compact.find(name, pos)) != std::string::npos)
+				compact.replace(pos, std::string(name).size(), "Eq");
+		}
+		const std::string typed = std::string(templates[i]) + constraints[i];
+		CDSLRule *legacy = Parse(mp, typed.c_str());
+		CDSLRule *surface = Parse(mp, (std::string(templates[i]) + compact).c_str());
+		const BOOL same = nullptr != legacy && nullptr != surface &&
+			std::string(legacy->SzIdentity()) == surface->SzIdentity();
+		CRefCount::SafeRelease(legacy);
+		CRefCount::SafeRelease(surface);
+		if (!same) return GPOS_FAILED;
+	}
+	for (const CHAR *invalid : {"Eq(t0,a0)", "Eq(t0,p9)", "Eq(p8,p9)",
+			"Eq(t0)", "Eq(t0,t1,t0)", "Eq(t0,,t1)"})
+	{
+		CDSLRule *rule = Parse(mp, (std::string(templates[0]) + invalid).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
+	// A misleading symbol prefix does not change the declared table type.
+	CDSLRule *misnamed = Parse(mp, "Input<a0>|Input<a1>|Eq(a1,a0)");
+	const BOOL typed = nullptr != misnamed &&
+		EdslconTableEq == (*misnamed->Pdrgpcon())[0]->Edslcon();
+	CRefCount::SafeRelease(misnamed);
+	return typed ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
 EresInlineExpressions()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Filter<NotTrue(Not(p0)) a0>(Input<t0>)|Filter<NotTrue(p1) a1>(Input<t1>)|"
+		"Eq(t1,t0);Eq(a1,a0);p1 := p0",
 		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);p1 := p0",
 		"Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|"
@@ -106,7 +170,8 @@ EresInlineExpressions()
 	CRefCount::SafeRelease(eliminate);
 	if (!identity)
 		return GPOS_FAILED;
-	for (const CHAR *term : {"Not()", "Not(p0,p0)", "And(p0)",
+	for (const CHAR *term : {"NotTrue()", "NotTrue(p0,p0)", "NotTrue(a0)",
+						   "Not()", "Not(p0,p0)", "And(p0)",
 						   "And(p0,p0,p0)", "Not(a0)", "Not(p9)",
 						   "Or(p0)", "Or(p0,p0,p0)", "Or(p0,a0)", "Xor(p0,p0)",
 						   "Not(Not(p0)", "Not(p0,)", "Not(,p0)"})
@@ -140,6 +205,12 @@ EresExpressionBindings()
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
 	const CHAR *valid[] = {
+		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a2,a3)",
+		"a8 := a2;a9 := a3;NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a9)",
+		"a8 := a9;a9 := a2;NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a3)",
+		"NullSafeEq(p8,p9) := p0;p1 := NullSafeEq(p8,p9)",
+		"p1 := NotTrue(p0)",
+		"NotTrue(p2) := p0;p1 := NotTrue(p2)",
 		"Not(p2) := p0;Not(p3) := p2;p1 := p3",
 		"p1 := p3;Not(p3) := p2;Not(p2) := p0",
 		"p1 := Not(p2);p2 := Not(p0)",
@@ -179,6 +250,13 @@ EresExpressionBindings()
 			return GPOS_FAILED;
 	}
 	const CHAR *invalid[] = {
+		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(p0,a3)",
+		"NullSafeEq(a2) := p0;p1 := p0",
+		"NullSafeEq(a2,a3,a4) := p0;p1 := p0",
+		"p1 := NullSafeEq(a8,a9)",
+		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a3);a8 := p0",
+		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a3);a8 := a9;a9 := a8",
+		"NullSafeEq(a1,a3) := p0;p1 := p0",
 		"p1 := Not(p1)",
 		"p1 := p2;p2 := p1",
 		"p1 := p9",
@@ -197,7 +275,6 @@ EresExpressionBindings()
 		"p1 := And(p0,p2);p2 := Not(p1)",
 		"And(p2,p0) := p0;p1 := p2",
 		"And(p2,p3) := p0;Not(p0) := p3;p1 := p2",
-		"p1 := NotTrue(p0)",
 		"p1 := Not(Not(p0))",
 		"p1 := p0;PredicateEq(p1,p0)",
 		"p1 := p0;PredicateFalse(p1)",
@@ -224,6 +301,7 @@ GPOS_RESULT
 CDSLParserTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresSurfaceEquality),
 		GPOS_UNITTEST_FUNC(EresInlineExpressions),
 		GPOS_UNITTEST_FUNC(EresExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
@@ -308,6 +386,8 @@ CDSLParserTest::EresUnittest_RoundTrip()
 	CMemoryPool *mp = amp.Pmp();
 
 	const CHAR *rgsz[] = {
+		"Limit<n0 n1>(Limit<n2 n3>(Input<t0>))|Limit<n4 n5>(Input<t1>)|"
+		"TableEq(t1,t0);SliceCompose(n0,n1,n2,n3,n4,n5)",
 		// Proj*/Unique
 		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);"
 		"Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)",
@@ -725,6 +805,17 @@ CDSLParserTest::EresUnittest_Constraints()
 	CMemoryPool *mp = amp.Pmp();
 
 	// Reference with 2 args (needs 4) -> error.
+	for (const CHAR *invalid : {
+		"Input<t0>|Input<t1>|SliceCompose(t0,t0,t0,t0,t1,t1)",
+		"Limit<n0 n1>(Input<t0>)|Input<t1>|SliceCompose(n0,n1,n0,n1,n0)"})
+	{
+		CDSLRule *rule = Parse(mp, invalid);
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	CDSLRule *bad = Parse(mp, "Input<t0>|Input<t1>|Reference(t1,t0)");
 	if (nullptr != bad)
 	{

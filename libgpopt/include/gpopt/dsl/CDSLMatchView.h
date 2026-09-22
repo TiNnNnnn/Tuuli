@@ -97,6 +97,12 @@ public:
 								 CColRefArray *pdrgpcrRight,
 								 CExpressionArray *pdrgpexprResidual);
 
+	// Decode exactly the column-vector NullSafeEq constructor, including its
+	// default comparison metadata. No flattening, deduplication or reordering.
+	// On success the caller owns both arrays; on failure both outputs are NULL.
+	static BOOL FNullSafeEqColumns(CMemoryPool *mp, const CExpression *pexpr,
+								 CColRefArray **left, CColRefArray **right);
+
 	// Return the borrowed logical input of a pure Global dedup, skipping only
 	// compatible, function-free Local dedup stages. Never changes memo members.
 	static CExpression *PexprDedupInput(CExpression *pexprDedup);

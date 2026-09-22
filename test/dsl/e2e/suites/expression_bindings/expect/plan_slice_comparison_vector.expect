@@ -1,0 +1,52 @@
+{
+  "description": "Export a flat three-pair NULL-safe comparison as ordered ATTRS vectors, checked by the production matcher; no mixed-type rule is registered",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Filter<NullSafeEq(a2,a3) a0>(Input<t0>)",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "off_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}

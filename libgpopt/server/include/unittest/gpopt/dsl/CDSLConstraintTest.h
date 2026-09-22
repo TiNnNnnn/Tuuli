@@ -35,6 +35,7 @@ class CDSLConstraintTest
 {
 public:
 	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_SliceCompose();
 	static GPOS_RESULT EresUnittest_DeterministicSubqueryBoundary();
 
 	// AttrsSub(a,t): admit when a's columns ⊆ t's output; reject otherwise

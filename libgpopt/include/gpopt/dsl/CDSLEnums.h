@@ -266,6 +266,9 @@ enum EDslConstraintKind
 	EdslconPredicateNullRejecting,
 	// PredicateNot(out,input): SQL three-valued NOT, distinct from IS NOT TRUE.
 	EdslconPredicateNot,
+	// SliceCompose(outer_count, outer_offset, inner_count, inner_offset,
+	//              result_count, result_offset): composition of finite slices.
+	EdslconSliceCompose,
 	EdslconSentinel
 };
 
@@ -347,6 +350,9 @@ public:
 
 	// number of symbol arguments (TableEq..NotNull = 2, Reference = 4)
 	static ULONG UlArity(EDslConstraintKind edslcon);
+
+	// Lower the author-facing Eq by declared type. Unsupported types fail closed.
+	static EDslConstraintKind EdslconEquality(EDslSymbolKind esymkind);
 
 	// Fixed type of a constructively defined output position. Sentinel means
 	// the position is an input/premise and cannot introduce a local symbol.

@@ -14,6 +14,7 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,6 +26,7 @@
 #include "gpos/string/CWStringDynamic.h"
 
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/init.h"
@@ -455,7 +457,9 @@ LearningIR(const CDSLRule *rule)
 {
 	LearningSymbols symbols;
 	std::ostringstream out;
-	out << "{\"schema_version\":1,\"source\":";
+	const auto *definitions = rule->Pexprdefs();
+	const BOOL bindings = definitions->FHasBindings();
+	out << "{\"schema_version\":" << (bindings ? 2 : 1) << ",\"source\":";
 	WriteLearningOp(out, rule->PfragSrc()->PopRoot(), &symbols);
 	out << ",\"target\":";
 	WriteLearningOp(out, rule->PfragTgt()->PopRoot(), &symbols);
@@ -470,7 +474,40 @@ LearningIR(const CDSLRule *rule)
 		WriteLearningSymbols(out, constraint->Pdrgpsym(), &symbols);
 		out << '}';
 	}
-	out << "],\"symbols\":[";
+	out << ']';
+	if (bindings)
+	{
+		out << ",\"bindings\":[";
+		BOOL first = true;
+		for (ULONG i = 0; i < definitions->UlDefinitions(); ++i)
+		{
+			const auto *def = definitions->PdefAt(i);
+			if (CDSLExpressionDefinitions::ELegacy == def->Binding())
+				continue;
+			const CHAR *kind = nullptr;
+			switch (def->Edslexpr())
+			{
+				case EdslexprNot: kind = "Not"; break;
+				case EdslexprNotTrue: kind = "NotTrue"; break;
+				case EdslexprNullSafeEq: kind = "NullSafeEq"; break;
+				case EdslexprAnd: kind = "And"; break;
+				case EdslexprOr: kind = "Or"; break;
+				case EdslexprRef: kind = "Ref"; break;
+				default: throw std::runtime_error("unsupported learning expression kind");
+			}
+			out << (first ? "" : ",") << "{\"kind\":\"" << kind
+				<< "\",\"mode\":\""
+				<< (CDSLExpressionDefinitions::EMatch == def->Binding() ? "match" : "build")
+				<< "\",\"symbols\":["
+				<< symbols.emplace(def->PsymOutput(), symbols.size()).first->second;
+			for (ULONG j = 0; j < def->Arity(); ++j)
+				out << ',' << symbols.emplace(def->PsymOperand(j), symbols.size()).first->second;
+			out << "]}";
+			first = false;
+		}
+		out << ']';
+	}
+	out << ",\"symbols\":[";
 	std::vector<const CDSLSymbol *> ordered(symbols.size());
 	for (const auto &entry : symbols)
 	{

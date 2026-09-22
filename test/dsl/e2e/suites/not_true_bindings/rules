@@ -1,0 +1,3 @@
+# Constructor regression, not a newly mined optimization benefit.
+# Native FormalSQL truth-map/NOT congruence; expansion bounded by test policy.
+Filter<NotTrue(p0) a0>(Input<t0>)|Filter<NotTrue(Not(Not(p0))) a1>(Input<t1>)|Eq(t1,t0);Eq(a1,a0)

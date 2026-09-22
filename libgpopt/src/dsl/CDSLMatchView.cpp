@@ -568,6 +568,52 @@ CDSLMatchView::PexprPeelOrderLimit(CExpression *pexpr,
 }
 
 BOOL
+CDSLMatchView::FNullSafeEqColumns(CMemoryPool *mp, const CExpression *pexpr,
+								CColRefArray **left, CColRefArray **right)
+{
+	GPOS_ASSERT(nullptr != pexpr && nullptr != left && nullptr != right && left != right);
+	*left = nullptr;
+	*right = nullptr;
+	CExpression *expression = const_cast<CExpression *>(pexpr);
+	const BOOL conjunction = CPredicateUtils::FAnd(expression);
+	const ULONG count = conjunction ? expression->Arity() : 1;
+	if (conjunction && count < 2)
+		return false;
+	CColRefArray *lhs = GPOS_NEW(mp) CColRefArray(mp);
+	CColRefArray *rhs = GPOS_NEW(mp) CColRefArray(mp);
+	BOOL matched = true;
+	for (ULONG i = 0; matched && i < count; ++i)
+	{
+		CExpression *pair = conjunction ? (*expression)[i] : expression;
+		matched = CPredicateUtils::FINDFScalarIdents(pair);
+		if (!matched)
+			break;
+		const CColRef *l = CScalarIdent::PopConvert((*(*pair)[0])[0]->Pop())->Pcr();
+		const CColRef *r = CScalarIdent::PopConvert((*(*pair)[0])[1]->Pop())->Pcr();
+		// A column-only template cannot represent casts or custom comparison
+		// operators. Require an exact round trip through the native constructor.
+		matched = l->RetrieveType()->MDId()->Equals(r->RetrieveType()->MDId()) &&
+			IMDId::IsValid(l->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq));
+		if (!matched)
+			break;
+		CExpression *expected = CUtils::PexprINDF(mp, l, r);
+		matched = pair->Matches(expected);
+		expected->Release();
+		lhs->Append(const_cast<CColRef *>(l));
+		rhs->Append(const_cast<CColRef *>(r));
+	}
+	if (!matched)
+	{
+		lhs->Release();
+		rhs->Release();
+		return false;
+	}
+	*left = lhs;
+	*right = rhs;
+	return true;
+}
+
+BOOL
 CDSLMatchView::FDirectExists(CExpression *pexpr)
 {
 	return nullptr != pexpr &&

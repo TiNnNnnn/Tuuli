@@ -1,0 +1,31 @@
+{
+  "description": "Input ErrorFree guard preserves errors that LIMIT 0 would skip",
+  "plans": [
+    {
+      "name": "guarded",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"92b7ac87f3c43a78\""
+      ]
+    }
+  ],
+  "rows": {
+    "native": false,
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

@@ -23,7 +23,8 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"fde0fe0c7aa5a359\"",
         "\"status\":\"applied\",\"rule_hash\":\"fc7a32971ee1acdc\"",
-        "\"src_rule\":\"fde0fe0c7aa5a359\",\"dst_rule\":\"fc7a32971ee1acdc\"",
+        "\"kind\":\"rule_edge_batch\"",
+        "[\"fde0fe0c7aa5a359\",\"fc7a32971ee1acdc\",\"r\",\"r\",\"ready_cbo\"",
         "CScalarBoolOp (EboolopAnd)",
         "CScalarBoolOp (EboolopNot)",
         "Optimizer: pg_orca"

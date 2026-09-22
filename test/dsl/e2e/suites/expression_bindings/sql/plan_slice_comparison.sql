@@ -1,0 +1,1 @@
+SELECT * FROM comparison_input WHERE i IS NOT DISTINCT FROM j;

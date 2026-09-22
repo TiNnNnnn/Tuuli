@@ -189,6 +189,7 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconPredicateNotTrue, "PredicateNotTrue", 2},
 	{EdslconPredicateNullRejecting, "PredicateNullRejecting", 2},
 	{EdslconPredicateNot, "PredicateNot", 2},
+	{EdslconSliceCompose, "SliceCompose", 6},
 };
 
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
@@ -643,6 +644,9 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconScalarOne:
 		case EdslconScalarZero:
 			return 0 == ulPosition ? EdslsymScalar : EdslsymSentinel;
+		case EdslconSliceCompose:
+			return 4 == ulPosition || 5 == ulPosition ? EdslsymScalar
+													  : EdslsymSentinel;
 		case EdslconOrderEmpty:
 			return 0 == ulPosition ? EdslsymOrder : EdslsymSentinel;
 		case EdslconBoundedRowsFrame:
@@ -666,6 +670,26 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 													 : EdslsymSentinel;
 		default:
 			return EdslsymSentinel;
+	}
+}
+
+EDslConstraintKind
+CDSLConstraintKindTable::EdslconEquality(EDslSymbolKind esymkind)
+{
+	switch (esymkind)
+	{
+		case EdslsymTable: return EdslconTableEq;
+		case EdslsymAttrs: return EdslconAttrsEq;
+		case EdslsymPred: return EdslconPredicateEq;
+		case EdslsymSchema: return EdslconSchemaEq;
+		case EdslsymFunc: return EdslconFuncEq;
+		case EdslsymScalar: return EdslconScalarEq;
+		case EdslsymExpr: return EdslconExprListEq;
+		case EdslsymOrder: return EdslconOrderEq;
+		case EdslsymWindow: return EdslconWindowEq;
+		case EdslsymFrame: return EdslconFrameEq;
+		case EdslsymRank: return EdslconRankEq;
+		default: return EdslconSentinel;
 	}
 }
 
@@ -729,6 +753,7 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconAttrsIntersect:
 		case EdslconPredicateFalse:
 		case EdslconScalarOne:
+		case EdslconSliceCompose:
 		case EdslconScalarZero:
 		case EdslconAttrsEmpty:
 		case EdslconAttrsNonEmpty:

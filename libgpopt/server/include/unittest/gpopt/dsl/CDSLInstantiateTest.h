@@ -51,6 +51,8 @@ public:
 	// PredicateNotTrue builds SQL's two-valued IS NOT TRUE predicate.
 	static GPOS_RESULT EresUnittest_DerivedPredicateNotTrue();
 	static GPOS_RESULT EresUnittest_PredicateNegationNullSemantics();
+	static GPOS_RESULT EresUnittest_NotTrueBindings();
+	static GPOS_RESULT EresUnittest_NullSafeEqBindings();
 
 	// A Filter pushed through a nested InnerJoin input is exposed as the
 	// equivalent source view; target attrs remap it to the opposite root key.

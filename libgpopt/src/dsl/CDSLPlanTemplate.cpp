@@ -23,6 +23,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 
 using namespace gpopt;
 
@@ -483,24 +484,40 @@ SymbolText(CMemoryPool *mp, const CDSLSymbol *symbol)
 }
 
 std::string
-PredicateTemplate(const CExpression *expr, ULONG *next, BOOL *expanded)
+PredicateTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
+	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
+	CColRefArray *left = nullptr;
+	CColRefArray *right = nullptr;
+	if (CDSLMatchView::FNullSafeEqColumns(mp, expr, &left, &right))
+	{
+		left->Release();
+		right->Release();
+		*expanded = true;
+		const ULONG first = symbol_counts[EdslsymAttrs]++;
+		const ULONG second = symbol_counts[EdslsymAttrs]++;
+		return "NullSafeEq(a" + std::to_string(first) + ",a" +
+			std::to_string(second) + ')';
+	}
 	const BOOL is_not = 1 == expr->Arity() &&
 		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopNot);
+	const BOOL is_not_true = 1 == expr->Arity() &&
+		COperator::EopScalarBooleanTest == expr->Pop()->Eopid() &&
+		CScalarBooleanTest::EbtIsNotTrue == CScalarBooleanTest::PopConvert(expr->Pop())->Ebt();
 	const BOOL is_and = 2 == expr->Arity() &&
 		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopAnd);
 	const BOOL is_or = 2 == expr->Arity() &&
 		CUtils::FScalarBoolOp(const_cast<CExpression *>(expr), CScalarBoolOp::EboolopOr);
-	if (!is_not && !is_and && !is_or)
-		return "p" + std::to_string((*next)++);
+	if (!is_not && !is_not_true && !is_and && !is_or)
+		return "p" + std::to_string(symbol_counts[EdslsymPred]++);
 	*expanded = true;
-	std::string result = is_not ? "Not(" : is_and ? "And(" : "Or(";
+	std::string result = is_not ? "Not(" : is_not_true ? "NotTrue(" : is_and ? "And(" : "Or(";
 	for (ULONG i = 0; i < expr->Arity(); ++i)
 	{
 		if (i)
 			result += ',';
-		result += PredicateTemplate((*expr)[i], next, expanded);
+		result += PredicateTemplate(mp, (*expr)[i], symbol_counts, expanded);
 	}
 	return result + ')';
 }
@@ -509,7 +526,7 @@ PredicateTemplate(const CExpression *expr, ULONG *next, BOOL *expanded)
 // Unsupported scalar subtrees stay opaque occurrences, not guessed semantics.
 BOOL
 FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
-	const CExpression *expr, ULONG *next, BOOL *expanded, std::string *text,
+	const CExpression *expr, ULONG *symbol_counts, BOOL *expanded, std::string *text,
 	std::string *input)
 {
 	GPOS_CHECK_STACK_SIZE;
@@ -539,14 +556,14 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	for (ULONG i = 0; i < children; ++i)
 	{
 		std::string child;
-		if (!FExpressionTemplate(mp, (*op)[i], (*expr)[i], next, expanded, &child, input))
+		if (!FExpressionTemplate(mp, (*op)[i], (*expr)[i], symbol_counts, expanded, &child, input))
 			return false;
 		if (i)
 			inputs += ',';
 		inputs += child;
 	}
 	*text = std::string(CDSLOpKindTable::SzName(kind)) + "<" +
-		PredicateTemplate((*expr)[children], next, expanded);
+		PredicateTemplate(mp, (*expr)[children], symbol_counts, expanded);
 	for (ULONG i = 1; i <= children; ++i)
 		*text += " " + SymbolText(mp, (*op->Pdrgpsym())[i]);
 	*text += ">(" + inputs + ")";
@@ -753,7 +770,7 @@ CDSLPlanTemplate::FSlice(
 	}
 	std::string expression_template, input;
 	BOOL expanded = false;
-	if (FExpressionTemplate(mp, source, root, &symbol_counts[EdslsymPred],
+	if (FExpressionTemplate(mp, source, root, symbol_counts,
 		&expanded, &expression_template, &input) && expanded)
 	{
 		// A temporary carrier rule exercises the real parser and matcher. It is

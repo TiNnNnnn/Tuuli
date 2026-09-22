@@ -31,6 +31,7 @@
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -44,7 +45,7 @@ using namespace gpopt;
 namespace
 {
 BOOL
-FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
+FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
 					   const CDSLSymbol *symbol, CExpression *expression,
 					   CDSLModel *model, ULONG depth = 0)
 {
@@ -63,17 +64,40 @@ FMatchPredicateBinding(const CDSLExpressionDefinitions *definitions,
 	{
 		return true;
 	}
+	if (CDSLExpressionDefinitions::EMatch == def->Binding() &&
+		EdslexprNullSafeEq == def->Edslexpr())
+	{
+		CColRefArray *left = nullptr;
+		CColRefArray *right = nullptr;
+		if (!CDSLMatchView::FNullSafeEqColumns(mp, expression, &left, &right))
+			return false;
+		BOOL matched = true;
+		for (ULONG i = 0; matched && i < 2; ++i)
+		{
+			CColRefArray *columns = 0 == i ? left : right;
+			CColRefArray *bound = model->PdrgpcrAttrs(def->PsymOperand(i));
+			matched = nullptr != bound ? bound->Equals(columns)
+				: model->FBind(def->PsymOperand(i), columns);
+		}
+		left->Release();
+		right->Release();
+		return matched;
+	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding() ||
 		def->Arity() != expression->Arity() ||
-		!CUtils::FScalarBoolOp(expression, EdslexprAnd == def->Edslexpr()
+		!(EdslexprNotTrue == def->Edslexpr()
+			? COperator::EopScalarBooleanTest == expression->Pop()->Eopid() &&
+				CScalarBooleanTest::EbtIsNotTrue ==
+					CScalarBooleanTest::PopConvert(expression->Pop())->Ebt()
+			: CUtils::FScalarBoolOp(expression, EdslexprAnd == def->Edslexpr()
 			? CScalarBoolOp::EboolopAnd : EdslexprOr == def->Edslexpr()
-			? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopNot))
+			? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopNot)))
 	{
 		return false;
 	}
 	for (ULONG i = 0; i < def->Arity(); i++)
 	{
-		if (!FMatchPredicateBinding(definitions, def->PsymOperand(i),
+		if (!FMatchPredicateBinding(mp, definitions, def->PsymOperand(i),
 				(*expression)[i], model, depth + 1))
 			return false;
 	}
@@ -89,7 +113,7 @@ CDSLMatcher::FMatchPredicate(const CDSLSymbol *symbol, CExpression *expression,
 	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
 	{
 		return !expression->DeriveHasSubquery() &&
-			FMatchPredicateBinding(m_prule->Pexprdefs(), symbol, expression, model);
+			FMatchPredicateBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
 	}
 	return model->FBind(symbol, expression);
 }

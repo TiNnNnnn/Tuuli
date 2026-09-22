@@ -1,0 +1,4 @@
+# FormalSQL ORDERED_EQ; safe refinement of the original candidate.
+# Certificate: 3968c40de3cb4cb17291ee1cb3d2e7f8591bf3b26f1eb2b8427c8be19c0d317e
+# ErrorFree checks the actual placeholder subtree, not merely its table symbol.
+Limit<n0 n1>(Limit<n2 n3>(Input<t0>))|Limit<n4 n5>(Input<t1>)|TableEq(t1,t0);SliceCompose(n0,n1,n2,n3,n4,n5);ErrorFree(t0)
