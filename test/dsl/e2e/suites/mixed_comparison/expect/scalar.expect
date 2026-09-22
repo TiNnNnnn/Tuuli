@@ -1,0 +1,72 @@
+{
+  "description": "已证明的类型化比较构造：单列、NULL 与重复行；不代表优化收益",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "native": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "native": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2cd26dca89c161b6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "native": false,
+    "policy": "construct.policy",
+    "output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "1,1,2",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "1,1,2",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "off_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "1,1,2",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}

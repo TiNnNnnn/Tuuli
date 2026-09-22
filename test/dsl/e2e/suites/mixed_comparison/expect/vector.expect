@@ -1,0 +1,69 @@
+{
+  "description": "同一条已证明规则捕获三对有序列；DSL 插入及独立 PostgreSQL 结果一致",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "native": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "native": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2cd26dca89c161b6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "native": false,
+    "policy": "construct.policy",
+    "output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "off_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}
