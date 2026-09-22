@@ -1,0 +1,4 @@
+# Same proved projection/limit rules as projection_limit, authored with typed Eq.
+# Their normalized identities must remain 99cbe26978f97e47 and c9ec34e0d2b51aff.
+Proj<a0 s0>(Limit<n0 n1>(Input<t0>))|Limit<n2 n3>(Proj<a1 s1>(Input<t1>))|Eq(t1,t0);Eq(a1,a0);Eq(s1,s0);Eq(n2,n0);Eq(n3,n1);ErrorFree(a0);ErrorFree(a1);Deterministic(a0)
+Limit<n0 n1>(Proj<a0 s0>(Input<t0>))|Proj<a1 s1>(Limit<n2 n3>(Input<t1>))|Eq(t1,t0);Eq(a1,a0);Eq(s1,s0);Eq(n2,n0);Eq(n3,n1);ErrorFree(a0);ErrorFree(a1);Deterministic(a0)

@@ -18,6 +18,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -25,6 +26,8 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarNullTest.h"
+#include "gpopt/operators/CScalarConst.h"
+#include "naucrates/base/IDatumInt8.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
@@ -100,6 +103,7 @@ GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubAdmit),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_AttrsSubReject),
@@ -123,6 +127,124 @@ CDSLConstraintTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_SliceCompose()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Limit<n0 n1>(Limit<n2 n3>(Input<t0>))|Limit<n4 n5>(Input<t1>)|"
+		"TableEq(t1,t0);SliceCompose(n0,n1,n2,n3,n4,n5)");
+	if (nullptr == rule)
+	{
+		return GPOS_FAILED;
+	}
+	CDSLSymbolArray *syms = (*rule->Pdrgpcon())[1]->Pdrgpsym();
+	CColRefArray *cols = nullptr;
+	CExpression *input = fix.PexprLogicalGet("slice_input", 1, &cols);
+	CDSLConstraintChecker checker(mp);
+	GPOS_RESULT status = GPOS_OK;
+	// Exhaustive small slices, including zero counts and offsets past the
+	// inner end. Compare membership directly, not just the arithmetic formula.
+	for (ULONG code = 0; code < 256; code++)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		model->FBind(PsymByName(rule, "t0"), input);
+		LINT values[4];
+		for (ULONG i = 0; i < 4; i++)
+		{
+			values[i] = (code >> (2 * i)) & 3;
+			CExpression *value = CUtils::PexprScalarConstInt8(mp, values[i]);
+			model->FBind((*syms)[i], value);
+			value->Release();
+		}
+		if (!checker.FCheck(rule, model) || !checker.FCheck(rule, model))
+		{
+			model->Release();
+			status = GPOS_FAILED;
+			break;
+		}
+		CDSLInstantiator instantiator(mp);
+		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		if (nullptr == target || COperator::EopLogicalLimit != target->Pop()->Eopid())
+		{
+			CRefCount::SafeRelease(target);
+			model->Release();
+			status = GPOS_FAILED;
+			break;
+		}
+		auto number = [](CExpression *expr) {
+			return dynamic_cast<gpnaucrates::IDatumInt8 *>(
+				CScalarConst::PopConvert(expr->Pop())->GetDatum())->Value();
+		};
+		const LINT offset = number((*target)[1]);
+		const LINT count = number((*target)[2]);
+		for (LINT row = 0; row < 12; row++)
+		{
+			const BOOL nested = row >= values[3] && row < values[3] + values[2] &&
+				row >= values[3] + values[1] && row < values[3] + values[1] + values[0];
+			if (nested != (row >= offset && row < offset + count))
+			{
+				status = GPOS_FAILED;
+			}
+		}
+		target->Release();
+		model->Release();
+	}
+	// Invalid inputs never manufacture a result. Validate already-bound
+	// outputs too: a constructive constraint cannot overwrite a source fact.
+	for (ULONG kind = 0; kind < 8; kind++)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		for (ULONG i = 0; i < 4; i++)
+		{
+			if (kind == 4 && i == 0)
+			{
+				continue;
+			}
+			LINT value = 2;
+			if (kind == 0 && i == 0) value = -1;
+			if (kind == 3 && i == 3) value = gpos::lint_max;
+			CExpression *expr = kind == 2 && i == 0
+				? CUtils::PexprScalarIdent(mp, (*cols)[0])
+				: (kind == 7 && i == 0
+					? CUtils::PexprScalarConstInt4(mp, 2)
+					: CUtils::PexprScalarConstInt8(mp, value, kind == 1 && i == 0));
+			model->FBind((*syms)[i], expr);
+			expr->Release();
+		}
+		if (kind == 5 || kind == 6)
+		{
+			CExpression *wrong = CUtils::PexprScalarConstInt8(mp, 99);
+			model->FBind((*syms)[kind - 1], wrong);
+			wrong->Release();
+		}
+		if (checker.FCheck(rule, model)) status = GPOS_FAILED;
+		model->Release();
+	}
+	const LINT boundaries[][6] = {
+		{gpos::lint_max, 0, gpos::lint_max, 0, gpos::lint_max, 0},
+		{3, 5, 10, gpos::lint_max - 5, 3, gpos::lint_max},
+		{4, gpos::lint_max, 3, 0, 0, gpos::lint_max},
+	};
+	for (const auto &values : boundaries)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		for (ULONG i = 0; i < 6; i++)
+		{
+			CExpression *value = CUtils::PexprScalarConstInt8(mp, values[i]);
+			model->FBind((*syms)[i], value);
+			value->Release();
+		}
+		if (!checker.FCheck(rule, model)) status = GPOS_FAILED;
+		model->Release();
+	}
+	input->Release();
+	rule->Release();
+	return status;
 }
 
 GPOS_RESULT

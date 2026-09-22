@@ -1,0 +1,2 @@
+SELECT * FROM (SELECT * FROM slice_input LIMIT 5 OFFSET 2) AS input
+LIMIT 4 OFFSET 3;

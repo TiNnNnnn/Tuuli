@@ -1,0 +1,39 @@
+{
+  "description": "Finite SliceCompose rejects SQL NULL/unbounded counts",
+  "plans": [
+    {
+      "name": "guarded",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"failed_constraint\":\"SliceCompose\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"92b7ac87f3c43a78\""
+      ]
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "7",
+      "7",
+      "7",
+      "7"
+    ],
+    "postgres_output": [
+      "7",
+      "7",
+      "7",
+      "7"
+    ],
+    "off_output": [
+      "7",
+      "7",
+      "7",
+      "7"
+    ]
+  }
+}

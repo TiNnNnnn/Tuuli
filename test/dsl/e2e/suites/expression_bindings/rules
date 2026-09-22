@@ -1,6 +1,14 @@
 # Native FormalSQL/Rocq outcome-equivalence proofs; these exercise the
 # expression runtime, not optimization benefit. Keep expansion isolated.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);p2 := Not(p0);p1 := Not(p2)
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);Not(p2) := p0;Not(p3) := p2;p1 := p3
+# Inline source/target syntax lowers to the original bindings and policy identities.
+Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0)
+Filter<Not(Not(p3)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);p1 := p3
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);And(p3,p4) := p0;p2 := Not(p0);p1 := Not(p2)
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);Not(p2) := p0;Not(p3) := p2;And(p4,p5) := p3;p1 := p3
+# Same native NOT semantics through the constraint spelling shared with RuleSolver.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);PredicateNot(p2,p0);PredicateNot(p1,p2)
+# Binary OR capture/reconstruction shares the native Boolean occurrence proof.
+Filter<Or(p0,p1) a0>(Input<t0>)|Filter<Not(Not(Or(p2,p3))) a1>(Input<t1>)|TableEq(t1,t0);AttrsEq(a1,a0);p2 := p0;p3 := p1
+# Typed metadata references share the native predicate proof; this is a
+# constructor regression, not a newly mined optimization rule.
+Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|Eq(t1,t0);a1 := a2;a2 := a0

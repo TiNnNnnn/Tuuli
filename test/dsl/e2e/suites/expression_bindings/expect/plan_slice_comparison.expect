@@ -1,0 +1,79 @@
+{
+  "description": "Export typed NULL-safe comparison operands; reuse only the already-proved generic double-NOT rule for OFF/ON execution, not a mixed-type proof claim",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Filter<NullSafeEq(a2,a3) a0>(Input<t0>)",
+        "error": null
+      }
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "1,1,2"
+    ],
+    "postgres_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "1,1,2"
+    ],
+    "off_output": [
+      ",,",
+      ",,",
+      "1,1,1",
+      "2,2,2",
+      "2,2,2",
+      "1,1,2"
+    ]
+  }
+}

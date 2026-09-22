@@ -1,0 +1,77 @@
+{
+  "description": "Proved OR reconstruction: actual DSL CBO application and mining-template export, not an optimization benefit claim",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "or.policy",
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Filter<Or(p1,p2) a0>(Input<t0>)",
+        "error": null
+      }
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "or.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"9b85b5e0d4ad94a6\"",
+        "CScalarBoolOp (EboolopOr)",
+        "CScalarBoolOp (EboolopNot)",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "or.policy",
+    "output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

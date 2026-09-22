@@ -1,0 +1,65 @@
+{
+  "description": "Proved PredicateNot definitions construct a DSL candidate while preserving NULL and duplicate rows",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "predicate-not.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "predicate-not-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "predicate-not.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"654a37b8b7dde10e\"",
+        "CScalarBoolOp (EboolopNot)",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "predicate-not.policy",
+    "output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

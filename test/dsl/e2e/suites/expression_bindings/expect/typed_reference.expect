@@ -1,0 +1,63 @@
+{
+  "description": "Proved native predicate construction with typed ATTRS reference chains; an interface regression, not a new optimization rule",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "typed-reference.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "typed-reference.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"ffd6d898a80f833c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "typed-reference.policy",
+    "output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      ",2",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

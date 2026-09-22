@@ -1,0 +1,3 @@
+SELECT i, j FROM truth_input
+WHERE NOT (i > 1)
+ORDER BY i NULLS FIRST, j NULLS FIRST;

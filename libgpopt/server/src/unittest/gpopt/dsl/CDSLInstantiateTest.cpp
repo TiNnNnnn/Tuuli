@@ -24,6 +24,7 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
@@ -103,6 +104,8 @@ CDSLInstantiateTest::EresUnittest()
 			CDSLInstantiateTest::EresUnittest_DerivedPredicateNotTrue),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PredicateNegationNullSemantics),
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_NotTrueBindings),
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_NullSafeEqBindings),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_PushedFilterPredicateRemapped),
 		GPOS_UNITTEST_FUNC(
@@ -511,10 +514,11 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 		mp, "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 			"TableEq(t1,t0);AttrsEq(a1,a0);And(p2,p2) := p0;p1 := p0");
 	// Unlike a repeated capture, these are independent source symbols with an
-	// explicit premise. Equal trees may occupy distinct expression objects.
+	// explicit premise. Reusing the first capture in both target operands is
+	// valid only after that premise passes; distinct objects may have equal trees.
 	CDSLRule *equalAnd = PdslruleParseLocal(
 		mp, "Filter<And(p2,p3) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
-			"TableEq(t1,t0);AttrsEq(a1,a0);p1 := And(p2,p3);PredicateEq(p2,p3)");
+			"TableEq(t1,t0);AttrsEq(a1,a0);p1 := And(p2,p2);PredicateEq(p2,p3)");
 	ok &= nullptr != sharedAnd && nullptr != equalAnd;
 	if (nullptr != sharedAnd && nullptr != equalAnd)
 	{
@@ -750,6 +754,285 @@ CDSLInstantiateTest::EresUnittest_PredicateNegationNullSemantics()
 		rule->Release();
 	}
 	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_NotTrueBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Constructor/matcher checks only, not proofs or registered rewrite rules.
+	CDSLRule *build = PdslruleParseLocal(mp,
+		"Filter<p0 a0>(Input<t0>)|Filter<NotTrue(p0) a1>(Input<t1>)|"
+		"Eq(t1,t0);Eq(a1,a0)");
+	CDSLRule *capture = PdslruleParseLocal(mp,
+		"Filter<NotTrue(p0) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Eq(t1,t0);Eq(a1,a0);p1 := p0");
+	if (nullptr == build || nullptr == capture)
+	{
+		CRefCount::SafeRelease(build);
+		CRefCount::SafeRelease(capture);
+		return GPOS_FAILED;
+	}
+	BOOL ok = true;
+	for (ULONG shape = 0; shape < 2; ++shape)
+	{
+		CExpression *get = nullptr, *base_select = nullptr;
+		CColRefArray *columns = nullptr;
+		BuildSelectOverAtoms(fix, 1, 1, &get, &base_select, &columns);
+		CExpression *base = get;
+		base->AddRef();
+		if (1 == shape)
+		{
+			CExpression *other = fix.PexprLogicalGet("other", 1, nullptr);
+			base->Release();
+			base = fix.PexprLogicalInnerJoin(get, other, (*base_select)[1]);
+			other->Release();
+		}
+		for (ULONG value = 0; value < 4; ++value)
+		{
+			CExpression *leaf = value < 3
+				? CUtils::PexprScalarConstBool(mp, value == 1, value == 2)
+				: (*base_select)[1];
+			if (3 == value)
+				leaf->AddRef();
+			CExpression *source = fix.PexprLogicalSelect(base, leaf);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLConstraintChecker checker(mp);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = nullptr;
+			if (CDSLMatcher(mp, build).FMatch(build->PfragSrc()->PopRoot(), source, model) &&
+				checker.FCheck(build, model))
+				target = instantiator.PexprInstantiate(build, model);
+			const BOOL built = nullptr != target && target->Arity() == 2 &&
+				COperator::EopScalarBooleanTest == (*target)[1]->Pop()->Eopid() &&
+				CScalarBooleanTest::EbtIsNotTrue == CScalarBooleanTest::PopConvert((*target)[1]->Pop())->Ebt();
+			ok = ok && built;
+			if (built)
+			{
+				// Do not erase/re-evaluate the child, including opaque/error-bearing expressions.
+				ok = ok && (*(*target)[1])[0]->Matches(leaf);
+				if (value < 3)
+					ok = ok && CScalar::EberEvaluate(mp, (*target)[1]) ==
+						(value == 1 ? CScalar::EberFalse : CScalar::EberTrue);
+				CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
+				ok = ok && CDSLMatcher(mp, capture).FMatch(capture->PfragSrc()->PopRoot(), target, captured);
+				const auto *operand = capture->Pexprdefs()->PdefAt(0)->PsymOperand(0);
+				ok = ok && nullptr != captured->PexprPred(operand) && captured->PexprPred(operand)->Matches(leaf);
+				captured->Release();
+				std::string exported, error;
+				ok = ok && CDSLPlanTemplate::FSlice(mp, target, "r", {"r/0"}, &exported, &error) &&
+					exported.find("Filter<NotTrue(") == 0;
+			}
+			// No other SQL Boolean test, nor NOT itself, may satisfy NotTrue.
+			for (ULONG test = 0; test <= CScalarBooleanTest::EbtSentinel; ++test)
+			{
+				if (test == CScalarBooleanTest::EbtIsNotTrue)
+					continue;
+				leaf->AddRef();
+				CExpression *predicate = test == CScalarBooleanTest::EbtSentinel
+					? GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), leaf)
+					: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBooleanTest(mp,
+						static_cast<CScalarBooleanTest::EBoolTest>(test)), leaf);
+				CExpression *wrong = fix.PexprLogicalSelect(base, predicate);
+				CDSLModel *rejected = GPOS_NEW(mp) CDSLModel(mp);
+				ok = ok && !CDSLMatcher(mp, capture).FMatch(capture->PfragSrc()->PopRoot(), wrong, rejected);
+				rejected->Release();
+				wrong->Release();
+				predicate->Release();
+			}
+			CRefCount::SafeRelease(target);
+			model->Release();
+			source->Release();
+			leaf->Release();
+		}
+		base->Release();
+		base_select->Release();
+		get->Release();
+	}
+	build->Release();
+	capture->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Structural constructor tests, not proved or registered production rules.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Filter<NullSafeEq(a2,a3) a0>(Input<t0>)|"
+		"Filter<NullSafeEq(a8,a9) a1>(Input<t1>)|"
+		"Eq(t1,t0);a1 := a0;a8 := a7;a7 := a2;a9 := a3");
+	CDSLRule *repeated = PdslruleParseLocal(mp,
+		"Filter<And(NullSafeEq(a2,a3),NullSafeEq(a2,a4)) a0>(Input<t0>)|"
+		"Filter<And(NullSafeEq(a2,a3),NullSafeEq(a2,a4)) a1>(Input<t1>)|"
+		"Eq(t1,t0);Eq(a1,a0)");
+	if (nullptr == rule || nullptr == repeated)
+	{
+		CRefCount::SafeRelease(rule);
+		CRefCount::SafeRelease(repeated);
+		return GPOS_FAILED;
+	}
+	BOOL ok = true;
+	CColRefArray *columns = nullptr;
+	CExpression *get = fix.PexprLogicalGet("pairs", 3, &columns);
+	for (ULONG count : {1U, 2U, 3U})
+	{
+		CColRefArray *left = GPOS_NEW(mp) CColRefArray(mp);
+		CColRefArray *right = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < count; ++i)
+		{
+			left->Append((*columns)[i % 2]);
+			right->Append((*columns)[1 + i % 2]);
+		}
+		CExpression *predicate = CPredicateUtils::PexprINDFConjunction(mp, left, right);
+		CExpression *base = get;
+		base->AddRef();
+		if (3 == count)
+		{
+			CExpression *other = fix.PexprLogicalGet("opaque", 1);
+			CExpression *truth = CUtils::PexprScalarConstBool(mp, true);
+			base->Release();
+			base = fix.PexprLogicalInnerJoin(get, other, truth);
+			other->Release();
+			truth->Release();
+		}
+		CExpression *source = fix.PexprLogicalSelect(base, predicate);
+		base->Release();
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const auto *capture = rule->Pexprdefs()->PdefAt(0);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		ok = ok && matched;
+		if (matched)
+		{
+			ok = ok && model->PdrgpcrAttrs(capture->PsymOperand(0))->Equals(left) &&
+				model->PdrgpcrAttrs(capture->PsymOperand(1))->Equals(right);
+			CDSLConstraintChecker checker(mp);
+			ok = ok && checker.FCheck(rule, model);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			ok = ok && nullptr != target && (*target)[1]->Matches(predicate);
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+
+		// The mining interface exposes the same typed operands the production
+		// matcher captures, not a generic NOT(IS DISTINCT FROM) placeholder.
+		std::string text, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &text, &error) &&
+			error.empty() && text == "Filter<NullSafeEq(a2,a3) a0>(Input<t0>)";
+		CWStringDynamic parse_error(mp);
+		CDSLRule *exported = CDSLRuleParser::PdslruleParse(mp,
+			(text + "|Input<t1>|Eq(t1,t0)").c_str(), nullptr, &parse_error);
+		CDSLModel *export_model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL export_match = nullptr != exported && CDSLMatcher(mp, exported).FMatch(
+			exported->PfragSrc()->PopRoot(), source, export_model);
+		ok &= export_match;
+		if (export_match)
+		{
+			const auto *definition = exported->Pexprdefs()->PdefAt(0);
+			ok &= EdslexprNullSafeEq == definition->Edslexpr() &&
+				export_model->PdrgpcrAttrs(definition->PsymOperand(0))->Equals(left) &&
+				export_model->PdrgpcrAttrs(definition->PsymOperand(1))->Equals(right);
+		}
+		export_model->Release();
+		CRefCount::SafeRelease(exported);
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r"}, &text, &error) &&
+			text == "Input<t0>";
+
+		// Mixed Boolean trees keep their nesting and independent occurrences;
+		// neither partial comparisons nor relation cuts are flattened away.
+		predicate->AddRef();
+		CExpression *nested_predicate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopOr), predicate,
+			CUtils::PexprScalarEqCmp(mp, (*columns)[0], (*columns)[1]));
+		CExpression *nested_source = fix.PexprLogicalSelect(source, nested_predicate);
+		ok &= CDSLPlanTemplate::FSlice(mp, nested_source, "r", {"r/0/0"}, &text, &error) &&
+			text == "Filter<Or(NullSafeEq(a6,a7),p2) a2>(Filter<NullSafeEq(a4,a5) a0>(Input<t0>))";
+		nested_source->Release();
+		nested_predicate->Release();
+
+		// A shared capture means equal ordered content, not equal allocation.
+		// Reordering a vector must fail even when the column set is unchanged.
+		CColRefArray *permuted = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < count; ++i)
+			permuted->Append(1 == count ? (*right)[0] : (*left)[(i + 1) % count]);
+		for (ULONG variant = 0; variant < 2; ++variant)
+		{
+			CExpression *second = CPredicateUtils::PexprINDFConjunction(mp,
+				0 == variant ? left : permuted, right);
+			predicate->AddRef();
+			CExpression *both = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), predicate, second);
+			CExpression *query = fix.PexprLogicalSelect(get, both);
+			CDSLModel *bound = GPOS_NEW(mp) CDSLModel(mp);
+			ok = ok && CDSLMatcher(mp, repeated).FMatch(repeated->PfragSrc()->PopRoot(), query, bound) ==
+				(0 == variant);
+			bound->Release();
+			query->Release();
+			both->Release();
+		}
+		permuted->Release();
+
+		// Bad column-vector values cannot produce an empty/truncated target.
+		for (ULONG invalidSize : {0U, 4U})
+		{
+			CDSLModel *invalid = GPOS_NEW(mp) CDSLModel(mp);
+			CColRefArray *bad = GPOS_NEW(mp) CColRefArray(mp);
+			for (ULONG i = 0; i < invalidSize; ++i)
+				bad->Append((*columns)[0]);
+			ok = ok && invalid->FBind((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[1], columns) &&
+				invalid->FBind((*(*rule->PfragSrc()->PopRoot())[0]->Pdrgpsym())[0], get) &&
+				invalid->FBind(capture->PsymOperand(0), left) &&
+				invalid->FBind(capture->PsymOperand(1), bad);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, invalid);
+			ok = ok && nullptr == target;
+			CRefCount::SafeRelease(target);
+			invalid->Release();
+			bad->Release();
+		}
+		source->Release();
+		predicate->Release();
+		left->Release();
+		right->Release();
+	}
+	// Ordinary equality and IS DISTINCT FROM are not NULL-safe equality.
+	CExpression *wrong[] = {
+		CUtils::PexprScalarEqCmp(mp, (*columns)[0], (*columns)[1]),
+		CUtils::PexprINDF(mp, CUtils::PexprScalarIdent(mp, (*columns)[0]),
+			CUtils::PexprScalarIdent(mp, (*columns)[1]),
+			(*columns)[0]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptNEq)),
+		CUtils::PexprIDF(mp, CUtils::PexprScalarIdent(mp, (*columns)[0]),
+			CUtils::PexprScalarIdent(mp, (*columns)[1])),
+		CUtils::PexprINDF(mp, CUtils::PexprScalarIdent(mp, (*columns)[0]),
+			CUtils::PexprScalarConstInt4(mp, 1))};
+	for (CExpression *predicate : wrong)
+	{
+		CExpression *source = fix.PexprLogicalSelect(get, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		ok = ok && !CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		CColRefArray *left = nullptr;
+		CColRefArray *right = nullptr;
+		ok &= !CDSLMatchView::FNullSafeEqColumns(mp, predicate, &left, &right) &&
+			nullptr == left && nullptr == right;
+		CRefCount::SafeRelease(left);
+		CRefCount::SafeRelease(right);
+		std::string text, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &text, &error) &&
+			std::string::npos == text.find("NullSafeEq(");
+		model->Release();
+		source->Release();
+		predicate->Release();
+	}
+	get->Release();
+	rule->Release();
+	repeated->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -215,22 +215,27 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 										  EBinding binding,
 										  const CDSLSymbolArray *symbols)
 {
-	if ((EdslexprNot != kind && EdslexprRef != kind && EdslexprAnd != kind &&
-		 EdslexprOr != kind) ||
+	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
+		EdslexprNullSafeEq == kind;
+	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind && !binary) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(EdslexprAnd == kind || EdslexprOr == kind ? 3 : 2) != symbols->Size())
+		(binary ? 3 : 2) != symbols->Size())
 	{
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
-	if (EdslsymPred != output->Esymkind() || nullptr != Pdef(output))
+	if ((EdslsymPred != output->Esymkind() &&
+		 !(EdslexprRef == kind && EdslsymAttrs == output->Esymkind())) ||
+		nullptr != Pdef(output))
 	{
 		return false;
 	}
 	for (ULONG i = 1; i < symbols->Size(); i++)
 	{
-		if (EdslsymPred != (*symbols)[i]->Esymkind() ||
+		const auto expected = EdslexprNullSafeEq == kind
+			? EdslsymAttrs : output->Esymkind();
+		if (expected != (*symbols)[i]->Esymkind() ||
 			FUses((*symbols)[i], output))
 		{
 			return false;
@@ -282,7 +287,9 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 		if (EdslexprRef != def->Edslexpr())
 		{
 			os << (EdslexprAnd == def->Edslexpr() ? "And("
-				: EdslexprOr == def->Edslexpr() ? "Or(" : "Not(");
+				: EdslexprOr == def->Edslexpr() ? "Or("
+				: EdslexprNullSafeEq == def->Edslexpr() ? "NullSafeEq("
+				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)
 		{

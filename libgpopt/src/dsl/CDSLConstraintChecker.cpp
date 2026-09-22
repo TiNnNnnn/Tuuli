@@ -403,6 +403,38 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 }
 
 BOOL
+FRelationalTreeProvablyErrorFree(CExpression *pexpr)
+{
+	if (nullptr == pexpr) return false;
+	if (pexpr->Pop()->FScalar()) return FScalarTreeProvablyErrorFree(pexpr);
+	switch (pexpr->Pop()->Eopid())
+	{
+		case COperator::EopLogicalGet:
+		case COperator::EopLogicalConstTableGet:
+		case COperator::EopLogicalSelect:
+		case COperator::EopLogicalProject:
+		case COperator::EopLogicalInnerJoin:
+		case COperator::EopLogicalLeftOuterJoin:
+		case COperator::EopLogicalFullOuterJoin:
+		case COperator::EopLogicalLeftSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoinNotIn:
+		case COperator::EopLogicalUnionAll:
+			break;
+		default:
+			// Cardinality assertions, dynamic LIMITs, aggregates, window frames,
+			// and opaque/CTE inputs need their own totality contracts. A table
+			// placeholder is not evidence that an arbitrary subtree cannot err.
+			return false;
+	}
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		if (!FRelationalTreeProvablyErrorFree((*pexpr)[ul])) return false;
+	}
+	return true;
+}
+
+BOOL
 FScalarTreeProvablyDeterministic(CExpression *pexpr)
 {
 	// Immutable functions do not establish repeatable subquery results (e.g.
@@ -3394,6 +3426,9 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		case EdslsymScalar:
 			pexpr = pmodel->PexprScalar(psymBound);
 			break;
+		case EdslsymTable:
+			return EdslconErrorFree == pcon->Edslcon() &&
+				FRelationalTreeProvablyErrorFree(pmodel->PexprTable(psymBound));
 		case EdslsymExpr:
 			pexpr = pmodel->PexprExpr(psymBound);
 			break;
@@ -3662,6 +3697,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckAttrsNonEmpty(pcon, pmodel);
 		case EdslconOrderEmpty:
 			return FCheckOrderEmpty(pcon, pmodel);
+		case EdslconSliceCompose:
+			// The shared materializer resolves aliases, checks all six values,
+			// and binds constructive outputs before FCheck can succeed.
+			return true;
 		case EdslconRankAttrs:
 			return FCheckRankAttrs(pcon, pmodel);
 		case EdslconOutputAttrs:

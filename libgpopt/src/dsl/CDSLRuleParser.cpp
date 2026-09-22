@@ -341,14 +341,40 @@ PdrgpconBuild(SBuildCtx &bctx,
 	for (auto *con_ctx : cons_ctx->constraint())
 	{
 		std::string cname = con_ctx->ID()->getText();
+		std::vector<antlr4::tree::TerminalNode *> syms = con_ctx->SYMBOL();
 		EDslConstraintKind edslcon = CDSLConstraintKindTable::Parse(cname.c_str());
+		if ("Eq" == cname)
+		{
+			if (2 != syms.size())
+			{
+				bctx.Fail("Eq expects two symbols");
+				pdrgpcon->Release();
+				return nullptr;
+			}
+			const auto left = bctx.symtab.find(syms[0]->getText());
+			const auto right = bctx.symtab.find(syms[1]->getText());
+			if (left == bctx.symtab.end() || right == bctx.symtab.end() ||
+				left->second->Esymkind() != right->second->Esymkind())
+			{
+				bctx.Fail("Eq expects two declared symbols of the same type");
+				pdrgpcon->Release();
+				return nullptr;
+			}
+			edslcon = CDSLConstraintKindTable::EdslconEquality(
+				left->second->Esymkind());
+			if (EdslconSentinel == edslcon)
+			{
+				bctx.Fail("Eq is not implemented for this symbol type");
+				pdrgpcon->Release();
+				return nullptr;
+			}
+		}
 		if (EdslconSentinel == edslcon)
 		{
 			bctx.Fail("unknown constraint: " + cname);
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		std::vector<antlr4::tree::TerminalNode *> syms = con_ctx->SYMBOL();
 		const ULONG ul_arity = CDSLConstraintKindTable::UlArity(edslcon);
 		if ((ULONG) syms.size() != ul_arity)
 		{
@@ -630,6 +656,19 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if (EdslconSliceCompose == edslcon)
+		{
+			for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
+			{
+				if (EdslsymScalar != (*pdrgpsym)[ul]->Esymkind())
+				{
+					bctx.Fail("SliceCompose expects six scalar symbols");
+					pdrgpsym->Release();
+					pdrgpcon->Release();
+					return nullptr;
+				}
+			}
+		}
 		if ((EdslconScalarOne == edslcon || EdslconScalarZero == edslcon) &&
 			EdslsymScalar != (*pdrgpsym)[0]->Esymkind())
 		{
@@ -793,7 +832,27 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			"expression bindings support Input/Filter and complete-predicate Join templates");
 		return false;
 	}
-	// Declare source captures before target terms, independently of text order.
+	// Constructor signatures declare types, not symbol-name prefixes. Source
+	// captures precede target terms; references propagate types afterwards.
+	std::vector<dsl::DSLRuleParser::BindingContext *> references;
+	auto declare = [&](const std::string &name, EDslSymbolKind kind, BOOL match) {
+		auto it = bctx.symtab.find(name);
+		if (bctx.symtab.end() == it)
+		{
+			CDSLSymbol *symbol = GPOS_NEW(bctx.mp) CDSLSymbol(
+				bctx.mp, kind, name.c_str(), bctx.next_id++,
+				match ? EdslsideSource : EdslsideTarget);
+			(match ? source : target)->Pdrgpsym()->Append(symbol);
+			it = bctx.symtab.emplace(name, symbol).first;
+		}
+		if (kind != it->second->Esymkind() ||
+			(match && EdslsideSource != it->second->Eside()))
+		{
+			bctx.Fail("invalid expression operand type or source capture of target symbol");
+			return false;
+		}
+		return true;
+	};
 	for (BOOL match : {true, false})
 	{
 		for (auto *binding : ctx->binding())
@@ -805,47 +864,63 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				continue;
 			}
 			auto *call = binding->call();
-			if (nullptr != call &&
-				!("Not" == call->ID()->getText() && 1 == call->SYMBOL().size()) &&
-				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText()) &&
+			if (nullptr == call)
+			{
+				references.push_back(binding);
+				continue;
+			}
+			const BOOL comparison = "NullSafeEq" == call->ID()->getText();
+			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText()) &&
+				  1 == call->SYMBOL().size()) &&
+				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison) &&
 				  2 == call->SYMBOL().size()))
 			{
 				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/And/Or)");
+					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq)");
 				return false;
 			}
-			auto symbols = binding->SYMBOL();
-			if (nullptr != call)
+			if (!declare(binding->SYMBOL(0)->getText(), EdslsymPred, match))
 			{
-				for (auto *operand : call->SYMBOL())
-					symbols.push_back(operand);
+				return false;
 			}
-			for (auto *node : symbols)
+			for (auto *operand : call->SYMBOL())
 			{
-				const std::string name = node->getText();
-				auto it = bctx.symtab.find(name);
-				if (bctx.symtab.end() == it)
+				if (!declare(operand->getText(), comparison ? EdslsymAttrs : EdslsymPred, match))
 				{
-					if ('p' != name[0])
-					{
-						bctx.Fail(
-							"expression bindings require predicate symbols");
-						return false;
-					}
-					CDSLSymbol *symbol = GPOS_NEW(bctx.mp) CDSLSymbol(
-						bctx.mp, EdslsymPred, name.c_str(), bctx.next_id++,
-						match ? EdslsideSource : EdslsideTarget);
-					(match ? source : target)->Pdrgpsym()->Append(symbol);
-					it = bctx.symtab.emplace(name, symbol).first;
-				}
-				if (EdslsymPred != it->second->Esymkind() ||
-					(match && EdslsideSource != it->second->Eside()))
-				{
-					bctx.Fail(
-						"invalid predicate kind or source capture of target symbol");
 					return false;
 				}
 			}
+		}
+	}
+	// A reference without a declared endpoint is not implicitly a predicate.
+	while (!references.empty())
+	{
+		const auto before = references.size();
+		for (auto it = references.begin(); it != references.end();)
+		{
+			const auto output = (*it)->SYMBOL(0)->getText();
+			const auto input = (*it)->SYMBOL(1)->getText();
+			auto known = bctx.symtab.find(output);
+			if (bctx.symtab.end() == known)
+				known = bctx.symtab.find(input);
+			if (bctx.symtab.end() == known)
+			{
+				++it;
+				continue;
+			}
+			const auto kind = known->second->Esymkind();
+			if ((EdslsymPred != kind && EdslsymAttrs != kind) ||
+				!declare(output, kind, false) || !declare(input, kind, false))
+			{
+				bctx.Fail("expression reference requires matching predicate or attrs types");
+				return false;
+			}
+			it = references.erase(it);
+		}
+		if (before == references.size())
+		{
+			bctx.Fail("expression reference has no declared type");
+			return false;
 		}
 	}
 	return true;
@@ -936,7 +1011,9 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		const BOOL valid = definitions->FAppendBinding(
 			bctx.mp, nullptr == call ? EdslexprRef
 				: "And" == call->ID()->getText() ? EdslexprAnd
-				: "Or" == call->ID()->getText() ? EdslexprOr : EdslexprNot,
+				: "Or" == call->ID()->getText() ? EdslexprOr
+				: "NullSafeEq" == call->ID()->getText() ? EdslexprNullSafeEq
+				: "NotTrue" == call->ID()->getText() ? EdslexprNotTrue : EdslexprNot,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();
 		if (!valid)

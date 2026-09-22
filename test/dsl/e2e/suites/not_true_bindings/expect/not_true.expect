@@ -1,0 +1,64 @@
+{
+  "description": "Proved truth-map construction preserves FALSE/NULL and duplicates with actual DSL provenance",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ee412d84021943ea\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2",
+      ",2",
+      "0,1",
+      "1,1"
+    ],
+    "postgres_output": [
+      ",2",
+      ",2",
+      "0,1",
+      "1,1"
+    ],
+    "off_output": [
+      ",2",
+      ",2",
+      "0,1",
+      "1,1"
+    ]
+  }
+}

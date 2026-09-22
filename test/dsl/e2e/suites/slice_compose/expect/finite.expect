@@ -1,0 +1,41 @@
+{
+  "description": "Compose finite counts and offsets with duplicate input rows",
+  "plans": [
+    {
+      "name": "enabled",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"92b7ac87f3c43a78\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Limit"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "7",
+      "7"
+    ],
+    "postgres_output": [
+      "7",
+      "7"
+    ],
+    "off_output": [
+      "7",
+      "7"
+    ]
+  }
+}

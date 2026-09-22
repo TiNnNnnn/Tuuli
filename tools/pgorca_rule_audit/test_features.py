@@ -10,7 +10,7 @@ import tempfile
 
 def check_learning_ir(node):
     ir = node['learning_ir']
-    assert ir['schema_version'] == 1
+    assert ir['schema_version'] in (1, 2)
     seen = []
 
     def symbols(refs):
@@ -32,6 +32,11 @@ def check_learning_ir(node):
         symbols(constraint['symbols'])
     assert len(ir['constraints']) == node['template_features']['constraint_count']
     assert {c['kind'] for c in ir['constraints']} == set(node['constraints'])
+    for binding in ir.get('bindings', []):
+        assert set(binding) == {'kind', 'mode', 'symbols'}
+        assert binding['kind'] in ('Not', 'NotTrue', 'And', 'Or', 'Ref', 'NullSafeEq')
+        assert binding['mode'] in ('match', 'build')
+        symbols(binding['symbols'])
     assert seen == list(range(len(ir['symbols'])))
     assert all(set(s) == {'kind', 'side'} and s['side'] in ('source', 'target')
                and len(s['kind']) == 1 for s in ir['symbols'])
@@ -74,6 +79,86 @@ def check_alpha_and_binding(binary, directory):
     assert ir[0] != ir[3]  # Repeated symbol is not two independent symbols.
     assert ir[4] != ir[5]  # Ordered children, including a non-scan Input placeholder.
     assert ir[6] == ir[7]  # Constraint-only LET symbols are normalized too.
+
+
+def check_expression_bindings(binary, directory):
+    inline = ('Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|'
+              'TableEq(t1,t0);AttrsEq(a1,a0)')
+    named = ('Filter<p0 a0>(Input<t0>)|Filter<p7 a1>(Input<t1>)|'
+             'TableEq(t1,t0);AttrsEq(a1,a0);p8 := Not(p0);p7 := Not(p8)')
+    capture = ('Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|'
+               'TableEq(t1,t0);AttrsEq(a1,a0);p1 := p0')
+    disjunction = ('Filter<Or(Not(Not(p0)),p1) a0>(Input<t0>)|Filter<Or(p2,p3) a1>(Input<t1>)|'
+                   'TableEq(t1,t0);AttrsEq(a1,a0);p2 := p0;p3 := p1')
+    source = directory / 'expression-input'
+    source.mkdir()
+    compact = inline.replace('TableEq(', 'Eq(').replace('AttrsEq(', 'Eq(')
+    not_true = inline.replace('Not(', 'NotTrue(')
+    comparison = ('Filter<NullSafeEq(a2,a3) a0>(Input<t0>)|'
+                  'Filter<NullSafeEq(a8,a9) a1>(Input<t1>)|'
+                  'Eq(t1,t0);Eq(a1,a0);a8 := a2;a9 := a3')
+    (source / 'cases.rules').write_text('\n'.join([inline, named, capture, disjunction, compact, not_true, comparison]) + '\n')
+    output = directory / 'expression-output'
+    subprocess.run([binary, str(source), str(output)], check=True)
+    nodes = json.loads((output / 'rule_graph.json').read_text())['nodes']
+    assert len(nodes) == 6  # Surface Eq must not add a duplicate rule-graph node.
+    for node in nodes:
+        check_learning_ir(node)
+        assert node['learning_ir']['schema_version'] == 2
+    assert nodes[0]['learning_ir'] == nodes[1]['learning_ir']
+    compact_source = directory / 'compact-expression-input'
+    compact_source.mkdir()
+    (compact_source / 'cases.rules').write_text(compact + '\n')
+    compact_output = directory / 'compact-expression-output'
+    subprocess.run([binary, str(compact_source), str(compact_output)], check=True)
+    compact_nodes = json.loads((compact_output / 'rule_graph.json').read_text())['nodes']
+    assert len(compact_nodes) == 1
+    for key in ('learning_ir', 'rule_hash', 'template_features'):
+        assert nodes[0][key] == compact_nodes[0][key], key
+    assert [b['mode'] for b in nodes[2]['learning_ir']['bindings']] == ['match', 'match', 'build']
+    assert sum(b['kind'] == 'Or' for b in nodes[3]['learning_ir']['bindings']) == 2
+    assert all(b['kind'] == 'NotTrue' for b in nodes[4]['learning_ir']['bindings'])
+    assert nodes[0]['learning_ir'] != nodes[4]['learning_ir']
+    mixed = nodes[5]['learning_ir']
+    assert sum(b['kind'] == 'NullSafeEq' for b in mixed['bindings']) == 2
+    for binding in mixed['bindings']:
+        types = [mixed['symbols'][ref]['kind'] for ref in binding['symbols']]
+        assert types == (['a', 'a'] if binding['kind'] == 'Ref' else ['p', 'a', 'a'])
+    # Exercise the actual exported IR, not just hand-written Python fixtures.
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'ml-orca'))
+    from ml_orca.encoding.rule_policy_encoding import rule_sequence, rule_structure, rule_root_index
+    for node in nodes:
+        ir = node['learning_ir']
+        rule_sequence(ir)
+        structure = rule_structure(ir)
+        assert any('Expression:' in token for seq in structure['sequences']['rule_node'] for token, _ in seq)
+        for side in ('source', 'target'):
+            rule_root_index(structure, side, 'r/0')
+            try:
+                rule_root_index(structure, side, 'r/1')
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('scalar child admitted as a relational dependency root')
+
+
+def check_surface_equalities(binary, directory):
+    """The full public replacement bank keeps its policy keys and schedule."""
+    rules = Path(__file__).resolve().parents[2] / 'test/dsl/rules'
+    original = rules / 'orca_replacements.rules'
+    compact = directory / 'surface-equality.rules'
+    compact.write_text(re.sub(
+        r'\b(?:Table|Attrs|Predicate|Schema|Func|Scalar|ExprList|Order|Window|Frame|FrameBound|Rank)Eq\(',
+        'Eq(', original.read_text()))
+    snapshots = []
+    for library in (original, compact):
+        result = subprocess.run([binary, '--policy-snapshot', str(library),
+                                 str(rules / 'empty_workload_cbo.policy')],
+                                capture_output=True, text=True, check=True)
+        snapshots.append(json.loads(result.stdout))
+    assert snapshots[0]['load']['failed'] == 0
+    assert snapshots[0]['load']['admitted'] > 0
+    assert snapshots[0] == snapshots[1]
 
 
 def check_policy_snapshot(binary, directory):
@@ -173,6 +258,8 @@ def main():
             assert f['constraint_count'] == (5 if nested else 3 if n['source_root'] == 'Filter' else 2)
             assert f['constraint_kinds'] == len(n['constraints'])
         check_alpha_and_binding(sys.argv[1], Path(directory))
+        check_expression_bindings(sys.argv[1], Path(directory))
+        check_surface_equalities(sys.argv[1], Path(directory))
         check_policy_snapshot(sys.argv[1], Path(directory))
         check_e2e_policies(sys.argv[1], Path(directory))
     print('production RuleIR features, alpha-normalized bindings and native policy snapshots: OK')

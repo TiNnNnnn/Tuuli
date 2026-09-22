@@ -69,6 +69,7 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
 #include "naucrates/traceflags/traceflags.h"
+#include "naucrates/base/IDatumInt8.h"
 #include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/xforms/CXformUtils.h"
 
@@ -1026,6 +1027,87 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 		return false;
 	}
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
+	if (EdslconSliceCompose == pcon->Edslcon())
+	{
+		if (6 != pdrgpsym->Size())
+		{
+			return false;
+		}
+		LINT values[6] = {};
+		BOOL bound[6] = {};
+		for (ULONG ul = 0; ul < 6; ul++)
+		{
+			const CDSLSymbol *psym = (*pdrgpsym)[ul];
+			if (EdslsymScalar != psym->Esymkind())
+			{
+				return false;
+			}
+			CExpression *pexpr = PexprResolveScalar(psym, pmodel);
+			if (nullptr == pexpr)
+			{
+				if (ul < 4 || EdslsideTarget != psym->Eside())
+				{
+					return false;
+				}
+				continue;
+			}
+			// PostgreSQL LIMIT/OFFSET are int8. NULL is unbounded/default,
+			// not a natural-number slice; dynamic or negative values may err.
+			gpnaucrates::IDatumInt8 *datum =
+				COperator::EopScalarConst == pexpr->Pop()->Eopid()
+					? dynamic_cast<gpnaucrates::IDatumInt8 *>(
+						  CScalarConst::PopConvert(pexpr->Pop())->GetDatum())
+					: nullptr;
+			const BOOL valid = nullptr != datum && !datum->IsNull() &&
+				0 <= datum->Value();
+			if (valid)
+			{
+				values[ul] = datum->Value();
+				bound[ul] = true;
+			}
+			pexpr->Release();
+			if (!valid)
+			{
+				return false;
+			}
+		}
+		if (values[3] > gpos::lint_max - values[1])
+		{
+			return false;
+		}
+		const LINT remaining = values[2] > values[1] ? values[2] - values[1] : 0;
+		const LINT result[2] = {
+			values[0] < remaining ? values[0] : remaining, values[3] + values[1]};
+		// Validate both outputs before adding either constructive binding.
+		for (ULONG ul = 0; ul < 2; ul++)
+		{
+			if (bound[ul + 4] && values[ul + 4] != result[ul])
+			{
+				return false;
+			}
+		}
+		for (ULONG ul = 0; ul < 2; ul++)
+		{
+			CExpression *pexpr = PexprResolveScalar((*pdrgpsym)[ul + 4], pmodel);
+			if (nullptr == pexpr)
+			{
+				pexpr = CUtils::PexprScalarConstInt8(m_mp, result[ul]);
+			}
+			else if (dynamic_cast<gpnaucrates::IDatumInt8 *>(
+				CScalarConst::PopConvert(pexpr->Pop())->GetDatum())->Value() != result[ul])
+			{
+				pexpr->Release();
+				return false;
+			}
+			const BOOL ok = pmodel->FBindDerived((*pdrgpsym)[ul + 4], pexpr);
+			pexpr->Release();
+			if (!ok)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
 	if (EdslconOrderEmpty == pcon->Edslcon())
 	{
 		const CDSLSymbol *psymOrder = (*pdrgpsym)[0];
@@ -1584,6 +1666,25 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
+		if (EdslexprNullSafeEq == pdef->Edslexpr())
+		{
+			CColRefArray *left = PdrgpcrResolveCols(pdef->PsymOperand(0), pmodel);
+			CColRefArray *right = PdrgpcrResolveCols(pdef->PsymOperand(1), pmodel);
+			if (nullptr == left || nullptr == right || 0 == left->Size() ||
+				left->Size() != right->Size())
+				return nullptr;
+			for (ULONG i = 0; i < left->Size(); ++i)
+			{
+				if (!(*left)[i]->RetrieveType()->MDId()->Equals((*right)[i]->RetrieveType()->MDId()) ||
+					!IMDId::IsValid((*left)[i]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq)))
+				{
+					return nullptr;
+				}
+			}
+			// The existing constructor retains these non-constant comparison
+			// leaves in order, including duplicates; no conjunct extraction.
+			return CPredicateUtils::PexprINDFConjunction(m_mp, left, right);
+		}
 		CExpression *input =
 			PexprResolvePredicate(pdef->PsymOperand(0), pmodel, ulDepth + 1);
 		if (nullptr == input || EdslexprRef == pdef->Edslexpr())
@@ -1605,6 +1706,12 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 					EdslexprAnd == pdef->Edslexpr() ? CScalarBoolOp::EboolopAnd
 						: CScalarBoolOp::EboolopOr),
 				input, right);
+		}
+		if (EdslexprNotTrue == pdef->Edslexpr())
+		{
+			return GPOS_NEW(m_mp) CExpression(m_mp,
+				GPOS_NEW(m_mp) CScalarBooleanTest(m_mp, CScalarBooleanTest::EbtIsNotTrue),
+				input);
 		}
 		return GPOS_NEW(m_mp) CExpression(
 			m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp, CScalarBoolOp::EboolopNot),
@@ -1704,7 +1811,7 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 									ULONG ulDepth) const
 {
 	if (nullptr == psym || nullptr == m_prule ||
-		ulDepth > m_prule->Pdrgpcon()->Size())
+		ulDepth > m_prule->Pdrgpcon()->Size() + m_prule->Pexprdefs()->UlDefinitions())
 	{
 		return nullptr;
 	}
@@ -1724,6 +1831,14 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 	if (nullptr != pvalDerived)
 	{
 		return dynamic_cast<CColRefArray *>(pvalDerived);
+	}
+	const auto *binding = m_prule->Pexprdefs()->Pdef(psym);
+	if (nullptr != binding && CDSLExpressionDefinitions::ELegacy != binding->Binding())
+	{
+		return CDSLExpressionDefinitions::EBuild == binding->Binding() &&
+			EdslexprRef == binding->Edslexpr()
+			? PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1)
+			: nullptr;
 	}
 
 	const CDSLConstraint *pconDef = nullptr;

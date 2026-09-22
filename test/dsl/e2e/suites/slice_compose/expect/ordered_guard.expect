@@ -1,0 +1,32 @@
+{
+  "description": "Unordered slice template does not discard the inner sort",
+  "plans": [
+    {
+      "name": "guarded",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"92b7ac87f3c43a78\""
+      ]
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "7",
+      "7"
+    ],
+    "postgres_output": [
+      "7",
+      "7"
+    ],
+    "off_output": [
+      "7",
+      "7"
+    ]
+  }
+}
