@@ -1,0 +1,3 @@
+# Construction regression, not a mined optimization. FormalSQL OUTCOME_EQ:
+# 4bb6a369a444872aad4121b7ca67b2d2b72b4d5766982374f31ea60a84773fe5
+Proj<a0 s0 Item(BoolValue(p0),a2,e2)>(Input<t0>)|Proj<a1 s1 Item(BoolValue(Not(Not(p0))),a2,e2)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0

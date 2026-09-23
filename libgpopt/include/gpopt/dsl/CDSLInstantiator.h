@@ -136,10 +136,10 @@ private:
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
 
-	// Resolve a scalar alias to an owned expression, or materialize a target
-	// symbol declared by ScalarOne/ScalarZero.
+	// Resolve typed scalar references/BoolValue to an owned expression, or
+	// materialize the legacy ScalarOne/ScalarZero constants.
 	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
-								 const CDSLModel *pmodel) const;
+								 const CDSLModel *pmodel, ULONG depth = 0) const;
 
 	// Resolve a bound/aliased predicate to an owned expression, or lazily build
 	// a target predicate declared by PredicateAnd.

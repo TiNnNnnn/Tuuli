@@ -433,7 +433,8 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 
 	BOOL fBound = pmodel->FBind(psymAttrs, pdrgpcrAttrs) &&
 				  pmodel->FBind(psymSchema, pdrgpcrSchema) &&
-				  (3 != pdrgpsym->Size() || pmodel->FBind((*pdrgpsym)[2], (*pexprProject)[1]));
+				  (3 != pdrgpsym->Size() || m_pmatcher->FMatchExpression(
+					  (*pdrgpsym)[2], (*pexprProject)[1], pmodel));
 	pdrgpcrAttrs->Release();
 	pdrgpcrSchema->Release();
 	if (!fBound)

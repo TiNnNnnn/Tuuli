@@ -45,7 +45,7 @@ using namespace gpopt;
 namespace
 {
 BOOL
-FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
 					   const CDSLSymbol *symbol, CExpression *expression,
 					   CDSLModel *model, ULONG depth = 0)
 {
@@ -53,7 +53,7 @@ FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definit
 	{
 		return false;
 	}
-	CExpression *existing = model->PexprPred(symbol);
+	CExpression *existing = static_cast<CExpression *>(model->PvalLookup(symbol));
 	if (nullptr != existing ? !existing->Matches(expression)
 							: !model->FBind(symbol, expression))
 	{
@@ -64,8 +64,44 @@ FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definit
 	{
 		return true;
 	}
-	if (CDSLExpressionDefinitions::EMatch == def->Binding() &&
-		EdslexprNullSafeEq == def->Edslexpr())
+	if (CDSLExpressionDefinitions::EMatch != def->Binding())
+		return false;
+	if (EdslexprBoolValue == def->Edslexpr())
+	{
+		// PostgreSQL Boolean values already are nullable scalar expressions.
+		// Do not turn UNKNOWN into the filter-only "not true" interpretation.
+		return IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+			CScalar::PopConvert(expression->Pop())->MdidType())->GetDatumType() &&
+			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0), expression, model, depth + 1);
+	}
+	if (EdslexprItem == def->Edslexpr())
+	{
+		if (COperator::EopScalarProjectList != expression->Pop()->Eopid() ||
+			0 == expression->Arity() ||
+			COperator::EopScalarProjectElement != (*expression)[0]->Pop()->Eopid() ||
+			1 != (*expression)[0]->Arity())
+			return false;
+		CExpression *head = (*expression)[0];
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append(CScalarProjectElement::PopConvert(head->Pop())->Pcr());
+		CColRefArray *bound = model->PdrgpcrAttrs(def->PsymOperand(1));
+		BOOL matched = nullptr != bound ? bound->Equals(columns)
+			: model->FBind(def->PsymOperand(1), columns);
+		columns->Release();
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 1; i < expression->Arity(); ++i)
+		{
+			(*expression)[i]->AddRef();
+			items->Append((*expression)[i]);
+		}
+		CExpression *tail = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
+		matched = matched &&
+			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0), (*head)[0], model, depth + 1) &&
+			FMatchExpressionBinding(mp, definitions, def->PsymOperand(2), tail, model, depth + 1);
+		tail->Release();
+		return matched;
+	}
+	if (EdslexprNullSafeEq == def->Edslexpr())
 	{
 		CColRefArray *left = nullptr;
 		CColRefArray *right = nullptr;
@@ -83,8 +119,7 @@ FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definit
 		right->Release();
 		return matched;
 	}
-	if (CDSLExpressionDefinitions::EMatch != def->Binding() ||
-		def->Arity() != expression->Arity() ||
+	if (def->Arity() != expression->Arity() ||
 		!(EdslexprNotTrue == def->Edslexpr()
 			? COperator::EopScalarBooleanTest == expression->Pop()->Eopid() &&
 				CScalarBooleanTest::EbtIsNotTrue ==
@@ -97,7 +132,7 @@ FMatchPredicateBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definit
 	}
 	for (ULONG i = 0; i < def->Arity(); i++)
 	{
-		if (!FMatchPredicateBinding(mp, definitions, def->PsymOperand(i),
+		if (!FMatchExpressionBinding(mp, definitions, def->PsymOperand(i),
 				(*expression)[i], model, depth + 1))
 			return false;
 	}
@@ -110,10 +145,17 @@ BOOL
 CDSLMatcher::FMatchPredicate(const CDSLSymbol *symbol, CExpression *expression,
 							CDSLModel *model) const
 {
+	return FMatchExpression(symbol, expression, model);
+}
+
+BOOL
+CDSLMatcher::FMatchExpression(const CDSLSymbol *symbol, CExpression *expression,
+							 CDSLModel *model) const
+{
 	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
 	{
 		return !expression->DeriveHasSubquery() &&
-			FMatchPredicateBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
+			FMatchExpressionBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
 	}
 	return model->FBind(symbol, expression);
 }

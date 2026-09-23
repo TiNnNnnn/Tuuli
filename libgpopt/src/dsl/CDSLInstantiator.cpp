@@ -1416,9 +1416,10 @@ CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 
 CExpression *
 CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
-									const CDSLModel *pmodel) const
+									const CDSLModel *pmodel, ULONG depth) const
 {
-	if (nullptr == psym || EdslsymScalar != psym->Esymkind())
+	if (nullptr == psym || EdslsymScalar != psym->Esymkind() ||
+		(nullptr != m_prule && depth > m_prule->Pexprdefs()->UlDefinitions()))
 	{
 		return nullptr;
 	}
@@ -1432,6 +1433,25 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 	if (nullptr == m_prule)
 	{
 		return nullptr;
+	}
+	const auto *binding = m_prule->Pexprdefs()->Pdef(psymResolved);
+	if (nullptr != binding && CDSLExpressionDefinitions::ELegacy != binding->Binding())
+	{
+		if (CDSLExpressionDefinitions::EBuild != binding->Binding())
+			return nullptr;
+		if (EdslexprRef == binding->Edslexpr())
+			return PexprResolveScalar(binding->PsymOperand(0), pmodel, depth + 1);
+		if (EdslexprBoolValue != binding->Edslexpr())
+			return nullptr;
+		CExpression *value = PexprResolvePredicate(binding->PsymOperand(0), pmodel);
+		if (nullptr != value && IMDType::EtiBool !=
+			COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+				CScalar::PopConvert(value->Pop())->MdidType())->GetDatumType())
+		{
+			value->Release();
+			return nullptr;
+		}
+		return value;
 	}
 
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
@@ -2290,7 +2310,7 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 								   ULONG ulDepth) const
 {
 	if (nullptr == psym || EdslsymExpr != psym->Esymkind() ||
-		ulDepth > m_prule->Pdrgpcon()->Size())
+		ulDepth > m_prule->Pdrgpcon()->Size() + m_prule->Pexprdefs()->UlDefinitions())
 	{
 		return nullptr;
 	}
@@ -2300,6 +2320,38 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 	{
 		pexprBound->AddRef();
 		return pexprBound;
+	}
+	const auto *binding = m_prule->Pexprdefs()->Pdef(psym);
+	if (nullptr != binding && CDSLExpressionDefinitions::ELegacy != binding->Binding())
+	{
+		if (CDSLExpressionDefinitions::EBuild != binding->Binding())
+			return nullptr;
+		if (EdslexprRef == binding->Edslexpr())
+			return PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
+		if (EdslexprItem != binding->Edslexpr())
+			return nullptr;
+		CExpression *value = PexprResolveScalar(binding->PsymOperand(0), pmodel);
+		CColRefArray *output = PdrgpcrResolveCols(binding->PsymOperand(1), pmodel);
+		CExpression *tail = PexprResolveExpr(binding->PsymOperand(2), pmodel, ulDepth + 1);
+		if (nullptr == value || nullptr == output || 1 != output->Size() ||
+			nullptr == tail || COperator::EopScalarProjectList != tail->Pop()->Eopid() ||
+			!(*output)[0]->RetrieveType()->MDId()->Equals(CScalar::PopConvert(value->Pop())->MdidType()) ||
+			(*output)[0]->TypeModifier() != CScalar::PopConvert(value->Pop())->TypeModifier())
+		{
+			CRefCount::SafeRelease(value);
+			CRefCount::SafeRelease(tail);
+			return nullptr;
+		}
+		CExpressionArray *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		items->Append(GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CScalarProjectElement(m_mp, (*output)[0]), value));
+		for (ULONG i = 0; i < tail->Arity(); ++i)
+		{
+			(*tail)[i]->AddRef();
+			items->Append((*tail)[i]);
+		}
+		tail->Release();
+		return GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
 	}
 
 	const CDSLConstraint *pconDef = nullptr;
@@ -3943,25 +3995,30 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
 	if (m_prule->Pexprdefs()->FHasBindings())
 	{
-		// The expression proof domain reuses a complete source SELECT capture.
-		// Do not synthesize a projection or remap it from an unrelated attrs pair.
+		// Keep the source schema/dependency context, whether reusing a whole
+		// capture or constructing independently typed SELECT items.
 		const CDSLOp *source = PopSourceProjForSchema(
 			m_prule->PfragSrc()->PopRoot(), psymSchema);
 		CExpression *list = pmodel->PexprProjList(psymSchema);
+		if (3 == pop->Pdrgpsym()->Size())
+			list = PexprResolveExpr((*pop->Pdrgpsym())[2], pmodel);
+		else if (nullptr != list)
+			list->AddRef();
+		CColRefArray *schema = PdrgpcrResolveCols(psymSchema, pmodel);
 		CColRefArray *attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
 		CColRefArray *source_attrs = nullptr == source ? nullptr :
 			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
-		if (nullptr == list || nullptr == attrs || nullptr == source_attrs ||
-			(3 == pop->Pdrgpsym()->Size() &&
-			 (3 != source->Pdrgpsym()->Size() ||
-			  PsymResolve((*pop->Pdrgpsym())[2]) != (*source->Pdrgpsym())[2])) ||
+		BOOL outputs_match = nullptr != list && nullptr != schema && list->Arity() == schema->Size();
+		for (ULONG i = 0; outputs_match && i < schema->Size(); ++i)
+			outputs_match = CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() == (*schema)[i];
+		if (!outputs_match || nullptr == attrs || nullptr == source_attrs ||
 			!CColRef::Equals(attrs, source_attrs) ||
 			!pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns()))
 		{
+			CRefCount::SafeRelease(list);
 			pexprChild->Release();
 			return nullptr;
 		}
-		list->AddRef();
 		return GPOS_NEW(m_mp) CExpression(m_mp,
 			GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, list);
 	}

@@ -14,7 +14,7 @@
 //		  pred   symbol -> CExpression*      (a single conjunct predicate subtree)
 //		  schema symbol -> CColRefArray*     (ordered output columns; Proj/Agg)
 //		  func   symbol -> CExpressionArray* (aggregate expressions)
-//		  scalar symbol -> CExpression*      (LIMIT count / offset expression)
+//		  scalar symbol -> CExpression*      (typed value; includes LIMIT scalars)
 //		  expr   symbol -> CExpression*      (exact scalar expression list)
 //
 //		Design notes (see docs/WETUNE_ORCA_PER_OP_THREESTAGE.md):
