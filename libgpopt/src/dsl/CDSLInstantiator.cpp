@@ -1736,6 +1736,19 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
+		if (EdslexprValueBool == pdef->Edslexpr())
+		{
+			CExpression *value = PexprResolveScalar(pdef->PsymOperand(0), pmodel, ulDepth + 1);
+			if (nullptr != value && IMDType::EtiBool !=
+				COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+					CScalar::PopConvert(value->Pop())->MdidType())->GetDatumType())
+			{
+				value->Release();
+				return nullptr;
+			}
+			// Boolean value and predicate share the same native scalar; no cast.
+			return value;
+		}
 		if (EdslexprNullSafeEq == pdef->Edslexpr())
 		{
 			CColRefArray *left = PdrgpcrResolveCols(pdef->PsymOperand(0), pmodel);

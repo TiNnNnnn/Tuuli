@@ -1,0 +1,78 @@
+{
+  "description": "Boolean CASE values in native predicate contexts preserve NULL, lazy evaluation and branch order",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"1ca15e30432747ea\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_LeftJoin"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "null,",
+      "one,one",
+      "one,zero",
+      "three,three",
+      "two,two",
+      "two,two",
+      "two,two",
+      "two,two",
+      "zero,"
+    ],
+    "postgres_output": [
+      "null,",
+      "one,one",
+      "one,zero",
+      "three,three",
+      "two,two",
+      "two,two",
+      "two,two",
+      "two,two",
+      "zero,"
+    ],
+    "off_output": [
+      "null,",
+      "one,one",
+      "one,zero",
+      "three,three",
+      "two,two",
+      "two,two",
+      "two,two",
+      "two,two",
+      "zero,"
+    ]
+  }
+}

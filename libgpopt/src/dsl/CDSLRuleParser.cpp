@@ -894,14 +894,15 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			const BOOL comparison = "NullSafeEq" == call->ID()->getText();
 			const BOOL item = "Item" == call->ID()->getText();
 			const BOOL bool_value = "BoolValue" == call->ID()->getText();
+			const BOOL value_bool = "ValueBool" == call->ID()->getText();
 			const BOOL case_value = "Case" == call->ID()->getText();
-			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText() || bool_value) &&
+			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText() || bool_value || value_bool) &&
 				  1 == call->SYMBOL().size()) &&
 				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison) &&
 				  2 == call->SYMBOL().size()) && !((item || case_value) && 3 == call->SYMBOL().size()))
 			{
 				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue/Case)");
+					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue/Case/ValueBool)");
 				return false;
 			}
 			if (!declare(binding->SYMBOL(0)->getText(),
@@ -914,6 +915,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				const auto kind = item
 					? (0 == i ? EdslsymScalar : 1 == i ? EdslsymAttrs : EdslsymExpr)
 					: case_value ? (0 == i ? EdslsymPred : EdslsymScalar)
+					: value_bool ? EdslsymScalar
 					: comparison ? EdslsymAttrs : EdslsymPred;
 				if (!declare(call->SYMBOL(i)->getText(), kind, match))
 				{
@@ -1050,6 +1052,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				: "Item" == call->ID()->getText() ? EdslexprItem
 				: "BoolValue" == call->ID()->getText() ? EdslexprBoolValue
 				: "Case" == call->ID()->getText() ? EdslexprCase
+				: "ValueBool" == call->ID()->getText() ? EdslexprValueBool
 				: "NotTrue" == call->ID()->getText() ? EdslexprNotTrue : EdslexprNot,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();

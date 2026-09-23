@@ -126,6 +126,8 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Filter<ValueBool(Case(p0,n0,n1)) a0>(Input<t0>)|"
+		"Filter<ValueBool(Case(Not(Not(p0)),n0,n1)) a1>(Input<t1>)|t1 := t0;a1 := a0",
 		"Proj<a0 s0 Item(Case(p0,n0,n1),a2,e2)>(Input<t0>)|"
 		"Proj<a1 s1 Item(Case(Not(Not(p0)),n0,n1),a2,e2)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0",
 		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
@@ -314,6 +316,8 @@ EresExpressionBindings()
 		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|";
 	for (const CHAR *bindings : {
 		"Item(n0,a2) := e0;e1 := e0",
+		"Item(n0,a2,e2) := e0;n1 := BoolValue(ValueBool(a2));e1 := Item(n1,a2,e2)",
+		"Item(n0,a2,e2) := e0;ValueBool(n0,n0) := p0;e1 := e0",
 		"Item(n0,a2,e2) := e0;Case(p0,n1) := n0;e1 := e0",
 		"Item(n0,a2,e2) := e0;Case(p0,p0,n1) := n0;e1 := e0",
 		"Item(n0,a2,e2) := e0;Case(n1,n1,n2) := n0;e1 := e0",

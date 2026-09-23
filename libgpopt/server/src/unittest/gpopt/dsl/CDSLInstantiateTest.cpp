@@ -100,6 +100,7 @@ CDSLInstantiateTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CaseValues),
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ValueBool),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings),
 		GPOS_UNITTEST_FUNC(
@@ -130,6 +131,74 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_ValueBool()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Filter<ValueBool(Case(p0,n0,n1)) a0>(Input<t0>)|"
+		"Filter<ValueBool(Case(Not(Not(p0)),n0,n1)) a1>(Input<t1>)|t1 := t0;a1 := a0");
+	if (nullptr == rule)
+		return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG truth = 0; truth < 3; ++truth)
+	{
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeBool>()->MDId();
+		type->AddRef();
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+			CUtils::PexprScalarConstBool(mp, 1 == truth, 2 == truth),
+			CUtils::PexprScalarConstBool(mp, true), CUtils::PexprScalarConstBool(mp, false, true));
+		CExpression *input = fix.PexprLogicalGet("value_bool", 1);
+		CExpression *source = fix.PexprLogicalSelect(input, predicate);
+		input->Release();
+		std::string exported, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+			exported == "Filter<ValueBool(Case(p1,BoolValue(p2),BoolValue(p3))) a0>(Input<t0>)";
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		CExpression *target = decision->PexprTarget();
+		ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+		if (nullptr != target)
+		{
+			CExpression *rewritten = (*target)[1];
+			ok &= COperator::EopScalarIf == rewritten->Pop()->Eopid() && 3 == rewritten->Arity() &&
+				(*rewritten)[1]->Matches((*predicate)[1]) && (*rewritten)[2]->Matches((*predicate)[2]) &&
+				(*(*(*rewritten)[0])[0])[0]->Matches((*predicate)[0]);
+		}
+		GPOS_DELETE(decision);
+		// The source adapter cannot capture a numeric value as a predicate.
+		CExpression *number = CUtils::PexprScalarConstInt4(mp, 7);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		ok &= !CDSLMatcher(mp, rule).FMatchPredicate((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], number, model);
+		model->Release();
+		number->Release();
+		source->Release();
+		predicate->Release();
+	}
+	rule->Release();
+	// An arbitrary SCALAR captured from SELECT must also be type-checked when
+	// a target tries to use it as a predicate. Preserve the projection schema
+	// here, so rejection cannot be attributed to a dropped output column.
+	rule = PdslruleParseLocal(mp,
+		"Proj<a0 s0 Item(n0,a2,e0)>(Input<t0>)|"
+		"Proj<a1 s1 Item(n0,a2,e0)>(Filter<ValueBool(n0) a3>(Input<t1>))|"
+		"t1 := t0;a1 := a0;s1 := s0;a3 := a0");
+	if (nullptr == rule)
+		return GPOS_FAILED;
+	CExpression *numeric = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+		fix.PexprLogicalGet("numeric_value", 1),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("number")),
+				CUtils::PexprScalarConstInt4(mp, 7))));
+	CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, numeric);
+	ok &= EdsldecisionInstantiateRejected == decision->Status();
+	GPOS_DELETE(decision);
+	numeric->Release();
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

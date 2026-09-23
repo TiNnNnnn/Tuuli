@@ -34,6 +34,7 @@ enum EDslExpressionKind
 	EdslexprItem,
 	EdslexprBoolValue,
 	EdslexprCase,
+	EdslexprValueBool,
 	EdslexprSentinel
 };
 
