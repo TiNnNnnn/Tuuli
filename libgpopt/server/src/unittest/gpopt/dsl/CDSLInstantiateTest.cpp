@@ -147,6 +147,8 @@ CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings()
 			return GPOS_FAILED;
 		std::string reference_text = text;
 		reference_text.replace(reference_text.find("Eq(a2,a0)"), 9, "a2 := a4;a4 := a0");
+		reference_text.replace(reference_text.find("Eq(t1,t0)"), 9, "t1 := t2;t2 := t0");
+		reference_text.replace(reference_text.find("Eq(s1,s0)"), 9, "s1 := s2;s2 := s0");
 		CDSLRule *reference = PdslruleParseLocal(mp, reference_text.c_str());
 		if (nullptr == reference)
 		{

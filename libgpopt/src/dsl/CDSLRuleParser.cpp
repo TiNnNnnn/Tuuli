@@ -910,10 +910,11 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				continue;
 			}
 			const auto kind = known->second->Esymkind();
-			if ((EdslsymPred != kind && EdslsymAttrs != kind) ||
+			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
+				 EdslsymTable != kind && EdslsymSchema != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
-				bctx.Fail("expression reference requires matching predicate or attrs types");
+				bctx.Fail("expression reference requires matching predicate, attrs, table or schema types");
 				return false;
 			}
 			it = references.erase(it);

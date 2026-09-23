@@ -1240,6 +1240,7 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 //		source-side symbol whose binding it reuses. Both symbols share a kind
 //		(the DSL guarantees *Eq relates same-kind symbols), so we only need the
 //		side to orient the alias.
+//		Typed metadata references also resolve to their original source capture.
 //---------------------------------------------------------------------------
 void
 CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
@@ -1295,6 +1296,34 @@ CDSLInstantiator::BuildAliasMap(const CDSLRule *prule)
 					(void) fOk;
 					fChanged = true;
 				}
+			}
+		}
+		// Metadata references select the original capture, including the full
+		// projection artifact keyed by its schema. Resolve chains here so every
+		// consumer sees the same source; do not turn constructed predicates into aliases.
+		const auto *definitions = prule->Pexprdefs();
+		for (ULONG i = 0; i < definitions->UlDefinitions(); ++i)
+		{
+			const auto *def = definitions->PdefAt(i);
+			if (CDSLExpressionDefinitions::EBuild != def->Binding() ||
+				EdslexprRef != def->Edslexpr() ||
+				EdslsymPred == def->PsymOutput()->Esymkind())
+			{
+				continue;
+			}
+			CDSLSymbol *target = const_cast<CDSLSymbol *>(def->PsymOutput());
+			CDSLSymbol *input = const_cast<CDSLSymbol *>(def->PsymOperand(0));
+			if (nullptr != m_phmAlias->Find(target))
+			{
+				continue;
+			}
+			CDSLSymbol *source = EdslsideSource == input->Eside()
+				? input : m_phmAlias->Find(input);
+			if (nullptr != source && EdslsideSource == source->Eside())
+			{
+				BOOL inserted GPOS_ASSERTS_ONLY = m_phmAlias->Insert(target, source);
+				GPOS_ASSERT(inserted);
+				fChanged = true;
 			}
 		}
 	}

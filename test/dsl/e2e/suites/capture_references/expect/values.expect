@@ -1,0 +1,63 @@
+{
+  "description": "Typed TABLE/SCHEMA/ATTRS references reuse captured subtrees and computed projections through chains, preserving NULLs, duplicates and ordered outputs",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a1f22c59fe8a7fe4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ],
+    "postgres_output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ],
+    "off_output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ]
+  }
+}
