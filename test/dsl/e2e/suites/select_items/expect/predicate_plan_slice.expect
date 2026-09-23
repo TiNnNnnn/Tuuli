@@ -1,0 +1,27 @@
+{
+  "description": "Export a Boolean CASE under a native filter without flattening its value tree",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "predicate-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r/0",
+        "cut_paths": [
+          "r/0/0"
+        ],
+        "status": "ok",
+        "source_template": "Filter<ValueBool(Case(p1,BoolValue(p2),BoolValue(p3))) a0>(Input<t0>)",
+        "error": null
+      }
+    }
+  ]
+}

@@ -66,7 +66,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
 		return false;
-	if (EdslexprBoolValue == def->Edslexpr())
+	if (EdslexprBoolValue == def->Edslexpr() || EdslexprValueBool == def->Edslexpr())
 	{
 		// PostgreSQL Boolean values already are nullable scalar expressions.
 		// Do not turn UNKNOWN into the filter-only "not true" interpretation.

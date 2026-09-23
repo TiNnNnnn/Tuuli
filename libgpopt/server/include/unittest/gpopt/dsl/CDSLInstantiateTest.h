@@ -34,6 +34,7 @@ public:
 	static GPOS_RESULT EresUnittest_ProjectExpressionBindings();
 	static GPOS_RESULT EresUnittest_SelectItems();
 	static GPOS_RESULT EresUnittest_CaseValues();
+	static GPOS_RESULT EresUnittest_ValueBool();
 
 	// identity-shaped Filter rule over a single-conjunct Select: instantiate
 	// yields a Select whose output columns == the source's.

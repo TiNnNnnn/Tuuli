@@ -1,0 +1,5 @@
+experiment: boolean-case-predicate-slice
+discover: true
+template_root: r/0
+template_cuts: [r/0/0]
+cardinalities:

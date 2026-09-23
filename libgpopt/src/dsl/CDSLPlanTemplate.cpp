@@ -486,10 +486,21 @@ SymbolText(CMemoryPool *mp, const CDSLSymbol *symbol)
 }
 
 std::string
+ValueTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
+	BOOL *expanded);
+
+std::string
 PredicateTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
 	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
+	if (COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity() &&
+		IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+			CScalar::PopConvert(expr->Pop())->MdidType())->GetDatumType())
+	{
+		*expanded = true;
+		return "ValueBool(" + ValueTemplate(mp, expr, symbol_counts, expanded) + ')';
+	}
 	CColRefArray *left = nullptr;
 	CColRefArray *right = nullptr;
 	if (CDSLMatchView::FNullSafeEqColumns(mp, expr, &left, &right))

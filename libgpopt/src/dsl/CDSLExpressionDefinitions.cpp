@@ -218,7 +218,8 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
 		EdslexprNullSafeEq == kind;
 	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind &&
-		 EdslexprItem != kind && EdslexprBoolValue != kind && EdslexprCase != kind && !binary) ||
+		 EdslexprItem != kind && EdslexprBoolValue != kind && EdslexprCase != kind &&
+		 EdslexprValueBool != kind && !binary) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
 		(EdslexprItem == kind || EdslexprCase == kind ? 4 : binary ? 3 : 2) != symbols->Size())
@@ -241,6 +242,7 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 		const auto expected = EdslexprItem == kind
 			? (1 == i ? EdslsymScalar : 2 == i ? EdslsymAttrs : EdslsymExpr)
 			: EdslexprBoolValue == kind ? EdslsymPred
+			: EdslexprValueBool == kind ? EdslsymScalar
 			: EdslexprCase == kind ? (1 == i ? EdslsymPred : EdslsymScalar)
 			: EdslexprNullSafeEq == kind ? EdslsymAttrs : output->Esymkind();
 		if (expected != (*symbols)[i]->Esymkind() ||
@@ -300,6 +302,7 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 				: EdslexprItem == def->Edslexpr() ? "Item("
 				: EdslexprBoolValue == def->Edslexpr() ? "BoolValue("
 				: EdslexprCase == def->Edslexpr() ? "Case("
+				: EdslexprValueBool == def->Edslexpr() ? "ValueBool("
 				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)
