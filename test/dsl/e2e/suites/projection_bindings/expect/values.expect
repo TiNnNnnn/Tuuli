@@ -1,0 +1,63 @@
+{
+  "description": "Captured projection preserves computed expressions, ordered outputs, duplicates and NULLs; the Project DSL xform produces a real Memo alternative",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"199617fa02b3359f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ],
+    "postgres_output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ],
+    "off_output": [
+      ",2,102",
+      "12,,",
+      "12,,",
+      "13,2,102"
+    ]
+  }
+}

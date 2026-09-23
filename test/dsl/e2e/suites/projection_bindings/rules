@@ -1,0 +1,2 @@
+# Construction regression certified by FormalSQL OUTCOME_EQ; not a mined optimization.
+Proj<a0 s0>(Filter<p0 a1>(Input<t0>))|Proj<a2 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1)

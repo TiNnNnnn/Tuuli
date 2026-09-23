@@ -3910,6 +3910,27 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
+	if (m_prule->Pexprdefs()->FHasBindings())
+	{
+		// The expression proof domain reuses a complete source SELECT capture.
+		// Do not synthesize a projection or remap it from an unrelated attrs pair.
+		const CDSLOp *source = PopSourceProjForSchema(
+			m_prule->PfragSrc()->PopRoot(), psymSchema);
+		CExpression *list = pmodel->PexprProjList(psymSchema);
+		CColRefArray *attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
+		CColRefArray *source_attrs = nullptr == source ? nullptr :
+			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
+		if (nullptr == list || nullptr == attrs || nullptr == source_attrs ||
+			!CColRef::Equals(attrs, source_attrs) ||
+			!pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns()))
+		{
+			pexprChild->Release();
+			return nullptr;
+		}
+		list->AddRef();
+		return GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, list);
+	}
 	if (pmodel->FVirtualIdentityProj(psymSchema) && !pop->FDistinct())
 	{
 		CColRefArray *pdrgpcrAttrs =

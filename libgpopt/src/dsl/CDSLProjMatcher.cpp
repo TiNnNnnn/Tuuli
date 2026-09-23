@@ -16,6 +16,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -366,11 +367,22 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	GPOS_ASSERT(EdslopProj == popProj->Edslop());
 	GPOS_ASSERT(nullptr != pexprProject);
 
+	const BOOL exact = nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
+	// Native expression certificates describe the actual Project and its child,
+	// not the legacy compatibility views. Set-returning items are not scalar values.
+	if (exact && (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
+		2 != pexprProject->Arity() ||
+		COperator::EopScalarProjectList != (*pexprProject)[1]->Pop()->Eopid() ||
+		(*pexprProject)[1]->DeriveHasNonScalarFunction()))
+	{
+		return false;
+	}
 	if (COperator::EopLogicalSelect == pexprProject->Pop()->Eopid())
 	{
 		return FMatchTrivialSelectOverDedup(popProj, pexprProject, pmodel);
 	}
-	if (COperator::EopLogicalProject == pexprProject->Pop()->Eopid() &&
+	if (!exact && COperator::EopLogicalProject == pexprProject->Pop()->Eopid() &&
 		2 == pexprProject->Arity() &&
 		(*pexprProject)[1]->DeriveHasSubquery())
 	{
@@ -385,7 +397,7 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 				   pexprProject->Pop()->Eopid() &&
 			   FMatchIdentityOverInSub(popProj, pexprProject, pmodel);
 	}
-	if (1 == popProj->UlChildren() &&
+	if (!exact && 1 == popProj->UlChildren() &&
 		EdslopInput != (*popProj)[0]->Edslop() &&
 		EdslopProj != (*popProj)[0]->Edslop() &&
 		EdslopAgg != (*popProj)[0]->Edslop() &&
@@ -437,7 +449,7 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	}
 	CExpression *pexprRel = (*pexprProject)[0];
 	CExpression *pexprLimitShell = nullptr;
-	if (EdslopLimit != (*popProj)[0]->Edslop() &&
+	if (!exact && EdslopLimit != (*popProj)[0]->Edslop() &&
 		EdslopSort != (*popProj)[0]->Edslop())
 	{
 		pexprRel = CDSLMatchView::PexprPeelOrderLimit(
