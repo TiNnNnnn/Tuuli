@@ -406,9 +406,10 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		return FMatchProjectOverAgg(popProj, pexprProject, pmodel);
 	}
 
-	// Proj schema is <a s> — attrs first, schema second (validated at parse).
+	// Proj<a s [e]> exposes an optional exact, ordered SELECT capture.
 	CDSLSymbolArray *pdrgpsym = popProj->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size())
+	if (nullptr == pdrgpsym ||
+		(2 != pdrgpsym->Size() && !(exact && 3 == pdrgpsym->Size())))
 	{
 		return false;
 	}
@@ -431,7 +432,8 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	}
 
 	BOOL fBound = pmodel->FBind(psymAttrs, pdrgpcrAttrs) &&
-				  pmodel->FBind(psymSchema, pdrgpcrSchema);
+				  pmodel->FBind(psymSchema, pdrgpcrSchema) &&
+				  (3 != pdrgpsym->Size() || pmodel->FBind((*pdrgpsym)[2], (*pexprProject)[1]));
 	pdrgpcrAttrs->Release();
 	pdrgpcrSchema->Release();
 	if (!fBound)

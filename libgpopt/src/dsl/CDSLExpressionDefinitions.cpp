@@ -227,7 +227,8 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 	const CDSLSymbol *output = (*symbols)[0];
 	if ((EdslsymPred != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
-			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind()))) ||
+			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
+			EdslsymExpr == output->Esymkind()))) ||
 		nullptr != Pdef(output))
 	{
 		return false;

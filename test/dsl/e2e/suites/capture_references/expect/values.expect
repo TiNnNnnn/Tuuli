@@ -1,5 +1,5 @@
 {
-  "description": "Typed TABLE/SCHEMA/ATTRS references reuse captured subtrees and computed projections through chains, preserving NULLs, duplicates and ordered outputs",
+  "description": "Typed TABLE/SCHEMA/ATTRS/EXPR_LIST references reuse captured subtrees and explicit computed SELECT lists through chains, preserving NULLs, duplicates and ordered outputs",
   "plans": [
     {
       "name": "dsl-off",
@@ -20,7 +20,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"a1f22c59fe8a7fe4\""
+        "\"status\":\"applied\",\"rule_hash\":\"5c1ba948c85690b2\""
       ],
       "not_contains": [
         "Falling back to Postgres"

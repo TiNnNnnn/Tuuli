@@ -298,6 +298,26 @@ EresExpressionBindings()
 	}
 	const std::string project =
 		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|";
+	const std::string select =
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|";
+	if (!FRoundTrips(mp, (select + "a1 := a0;s1 := s0;t1 := t0;e1 := e2;e2 := e0").c_str()))
+		return GPOS_FAILED;
+	if (!FRoundTrips(mp, (select + "ExprListEq(e1,e0);a1 := a0;s1 := s0;t1 := t0").c_str()))
+		return GPOS_FAILED;
+	for (const CHAR *refs : {
+		"a1 := a0;s1 := s0;t1 := t0;e1 := s0",
+		"a1 := a0;s1 := s0;t1 := t0;e1 := e2;e2 := e1",
+		"a1 := a0;s1 := s0;t1 := t0;e1 := e9",
+		"a1 := a0;s1 := s0;t1 := t0;e1 := e0;Eq(e1,e0)",
+		"Eq(a1,a0);Eq(s1,s0);Eq(t1,t0);Eq(e1,e0)"})
+	{
+		CDSLRule *rule = Parse(mp, (select + refs).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	if (!FRoundTrips(mp, (project + "a1 := a0;s1 := s2;s2 := s0;t1 := t2;t2 := t0").c_str()))
 		return GPOS_FAILED;
 	for (const CHAR *refs : {
