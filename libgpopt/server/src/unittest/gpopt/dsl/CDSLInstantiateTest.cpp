@@ -20,6 +20,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -34,6 +35,11 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CExpressionUtils.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
@@ -89,6 +95,8 @@ CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(
+			CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings),
+		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_JoinExpressionBindings),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_ExpressionBindings),
@@ -116,6 +124,117 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL expand : {false, true})
+	{
+		const std::string text = expand
+			? "Proj<a0 s0>(Filter<p0 a1>(Input<t0>))|"
+			  "Proj<a2 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
+			  "Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1)"
+			: "Proj<a0 s0>(Filter<Not(Not(p0)) a1>(Input<t0>))|"
+			  "Proj<a2 s1>(Filter<p1 a3>(Input<t1>))|"
+			  "Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1);p1 := p0";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		if (nullptr == rule)
+			return GPOS_FAILED;
+		std::string reference_text = text;
+		reference_text.replace(reference_text.find("Eq(a2,a0)"), 9, "a2 := a4;a4 := a0");
+		CDSLRule *reference = PdslruleParseLocal(mp, reference_text.c_str());
+		if (nullptr == reference)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+		for (ULONG shape = 0; shape < 3; ++shape)
+		{
+			CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+			columns->Append(fix.PcrCreateInt4("predicate_input"));
+			columns->Append(fix.PcrCreateInt4("projection_input"));
+			CExpression *input = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+			CExpression *predicate = 2 == shape ? CUtils::PexprScalarConstBool(mp, false, true)
+				: fix.PexprPredAtom((*columns)[0]);
+			if (1 == shape)
+				predicate = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopOr), predicate,
+					CUtils::PexprScalarConstBool(mp, false, true));
+			predicate->AddRef();
+			CExpression *twice = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot),
+				GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate));
+			CExpression *select = fix.PexprLogicalSelect(input, expand ? predicate : twice);
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			for (ULONG i = 0; i < 3; ++i)
+				items->Append(GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("output")),
+					1 == i ? CUtils::PexprScalarConstInt4(mp, 7) :
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[1]))));
+			CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
+			select->AddRef();
+			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), select, list);
+			CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(
+				mp, 1 == shape ? reference : rule, source);
+			CExpression *target = decision->PexprTarget();
+			ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+			if (nullptr != target)
+			{
+				ok &= COperator::EopLogicalProject == target->Pop()->Eopid() &&
+					(*target)[1]->Matches(list) &&
+					(*(*target)[0])[1]->Matches(expand ? twice : predicate) &&
+					source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns());
+			}
+			GPOS_DELETE(decision);
+			// A schema capture must not be paired with the filter's unrelated columns.
+			std::string bad_text = text;
+			bad_text.replace(bad_text.find("Eq(a2,a0)"), 9, "Eq(a2,a1)");
+			CDSLRule *bad = PdslruleParseLocal(mp, bad_text.c_str());
+			if (nullptr == bad)
+				ok = false;
+			else
+			{
+				decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, bad, source);
+				ok &= EdsldecisionReady != decision->Status();
+				GPOS_DELETE(decision);
+				bad->Release();
+			}
+			if (0 == shape)
+			{
+				// An unmentioned Limit must not disappear into the legacy Proj view.
+				select->AddRef(); list->AddRef();
+				CExpression *limited = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),
+					select, CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
+				CExpression *hidden = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalProject(mp), limited, list);
+				decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, hidden);
+				ok &= EdsldecisionReady != decision->Status();
+				GPOS_DELETE(decision); hidden->Release();
+				CExpression *srf = fix.PexprGenerateSeries((*columns)[1]);
+				CExpression *srf_list = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarProjectList(mp), GPOS_NEW(mp) CExpression(mp,
+						GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("series")), srf));
+				select->AddRef();
+				CExpression *set_project = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalProject(mp), select, srf_list);
+				decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, set_project);
+				ok &= EdsldecisionReady != decision->Status();
+				GPOS_DELETE(decision); set_project->Release();
+			}
+			source->Release(); select->Release(); twice->Release(); predicate->Release(); input->Release();
+		}
+		reference->Release();
+		rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

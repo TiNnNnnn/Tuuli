@@ -805,7 +805,8 @@ FBindingTree(const CDSLOp *op)
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
 	if (nullptr == op->Pdrgpsym() ||
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
-			   : EdslopFilter == op->Edslop() &&
+			   : (EdslopFilter == op->Edslop() ||
+				  (EdslopProj == op->Edslop() && !op->FDistinct())) &&
 				 2 == op->Pdrgpsym()->Size() && 1 == op->UlChildren()))
 	{
 		return false;
@@ -829,7 +830,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter and complete-predicate Join templates");
+			"expression bindings support Input/Filter/plain Proj and complete-predicate Join templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -961,6 +962,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			continue;  // Checked after capture matching; never produces a value.
 		const EDslSymbolKind expected = EdslconTableEq == kind	 ? EdslsymTable
 										: EdslconAttrsEq == kind ? EdslsymAttrs
+										: EdslconSchemaEq == kind ? EdslsymSchema
 										: EdslconPredicateEq == kind
 											? EdslsymPred
 											: EdslsymSentinel;

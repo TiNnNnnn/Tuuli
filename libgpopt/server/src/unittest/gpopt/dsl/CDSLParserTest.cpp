@@ -126,6 +126,9 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Proj<a0 s0>(Filter<Not(Not(p0)) a1>(Input<t0>))|"
+		"Proj<a2 s1>(Filter<p1 a3>(Input<t1>))|"
+		"Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1);p1 := p0",
 		"Filter<NotTrue(Not(p0)) a0>(Input<t0>)|Filter<NotTrue(p1) a1>(Input<t1>)|"
 		"Eq(t1,t0);Eq(a1,a0);p1 := p0",
 		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
