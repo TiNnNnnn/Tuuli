@@ -20,6 +20,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
@@ -50,6 +51,7 @@
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CMemo.h"
+#include "naucrates/md/IMDTypeBool.h"
 
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
@@ -94,6 +96,7 @@ GPOS_RESULT
 CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings),
 		GPOS_UNITTEST_FUNC(
@@ -124,6 +127,113 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_SelectItems()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string source_rule =
+		"Proj<a0 s0 Item(BoolValue(Not(Not(p0))),a2,Item(n0,a3,e2))>(Input<t0>)|";
+	const std::string aliases = "|t1 := t0;a1 := a0;s1 := s0;n1 := n2;n2 := n0";
+	const std::string target_rule =
+		"Proj<a1 s1 Item(BoolValue(p0),a2,Item(n1,a3,e2))>(Input<t1>)";
+	CDSLRule *rule = PdslruleParseLocal(mp, (source_rule + target_rule + aliases).c_str());
+	if (nullptr == rule)
+		return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG tail_size : {0UL, 1UL, 4UL})
+	{
+		for (ULONG truth = 0; truth < 3; ++truth)
+		{
+			CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+			columns->Append(fix.PcrCreateInt4("input"));
+			CExpression *input = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+			CWStringConst name(GPOS_WSZ_LIT("boolean_output"));
+			CColRef *boolean_output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier, CName(&name));
+			CExpression *predicate = CUtils::PexprScalarConstBool(mp, 1 == truth, 2 == truth);
+			predicate->AddRef();
+			CExpression *twice = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot),
+				GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate));
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, boolean_output), twice));
+			for (ULONG i = 0; i <= tail_size; ++i)
+			{
+				// SCALAR references preserve arbitrary values, not only numbers.
+				const BOOL boolean = 0 == i && 0 == truth;
+				CColRef *output = boolean ? COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier, CName(&name))
+					: fix.PcrCreateInt4("output");
+				items->Append(GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarProjectElement(mp, output),
+					boolean ? CUtils::PexprScalarConstBool(mp, true) :
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[0]))));
+			}
+			CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
+			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input, list);
+			CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+			CExpression *target = decision->PexprTarget();
+			ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+			if (nullptr != target)
+			{
+				CExpression *target_list = (*target)[1];
+				ok &= target_list->Arity() == list->Arity() &&
+					(*(*target_list)[0])[0]->Matches(predicate) &&
+					!target_list->Matches(list) &&
+					target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+				for (ULONG i = 1; i < list->Arity(); ++i)
+					ok &= (*target_list)[i]->Matches((*list)[i]);
+				// Native scalar trees re-enter the matcher, not only the builder.
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= !CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), target, model);
+				model->Release();
+			}
+			GPOS_DELETE(decision);
+			if (1 == truth)
+			{
+				// BoolValue is not a cast from a numeric value to a predicate.
+				(*list)[1]->AddRef();
+				input->AddRef();
+				CExpression *numeric = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalProject(mp), input,
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), (*list)[1]));
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= !CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), numeric, model);
+				model->Release();
+				numeric->Release();
+			}
+			for (const CHAR *bad_target : {
+				// Type mismatch, swapped output positions, lost item, duplicate output.
+				"Item(BoolValue(p0),a3,Item(n1,a2,e2))",
+				"Item(n1,a3,Item(BoolValue(p0),a2,e2))",
+				"Item(BoolValue(p0),a2,e2)",
+				"Item(BoolValue(p0),a2,Item(n1,a3,Item(n1,a3,e2)))"})
+			{
+				CDSLRule *bad = PdslruleParseLocal(mp, (source_rule + "Proj<a1 s1 " + bad_target +
+					">(Input<t1>)" + aliases).c_str());
+				if (nullptr == bad)
+					ok = false;
+				else
+				{
+					decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, bad, source);
+					ok &= EdsldecisionReady != decision->Status();
+					GPOS_DELETE(decision);
+					bad->Release();
+				}
+			}
+			source->Release();
+			predicate->Release();
+		}
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -126,6 +126,16 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"a1 := a0;s1 := s0;t1 := t0;Item(n0,a2,e2) := e0;BoolValue(p0) := n0;"
+		"n1 := BoolValue(p0);e1 := Item(n1,a2,e2)",
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"a1 := a0;s1 := s0;t1 := t0;Item(n0,a2,e2) := e0;n1 := n2;n2 := n0;e1 := Item(n1,a2,e2)",
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"a1 := a0;s1 := s0;t1 := t0;Item(n0,a2,e2) := e0;ScalarEq(n1,n0);e1 := Item(n1,a2,e2)",
+		"Proj<a0 s0 Item(BoolValue(Not(Not(p0))),a2,Item(n0,a3,e2))>(Input<t0>)|"
+		"Proj<a1 s1 Item(BoolValue(p0),a2,Item(n1,a3,e2))>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;n1 := n2;n2 := n0",
 		"Proj<a0 s0>(Filter<Not(Not(p0)) a1>(Input<t0>))|"
 		"Proj<a2 s1>(Filter<p1 a3>(Input<t1>))|"
 		"Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1);p1 := p0",
@@ -300,6 +310,21 @@ EresExpressionBindings()
 		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|";
 	const std::string select =
 		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|";
+	for (const CHAR *bindings : {
+		"Item(n0,a2) := e0;e1 := e0",
+		"Item(n0,a2,e2,n1) := e0;e1 := e0",
+		"BoolValue(p0) := e0;e1 := e0",
+		"Item(n0,a2,e2) := e0;e1 := Item(a2,n0,e2)",
+		"Item(n0,a2,e2) := e0;e1 := Item(n0,a2,e1)",
+		"Item(n0,a2,e2) := e0;n1 := BoolValue(n0);e1 := Item(n1,a2,e2)"})
+	{
+		CDSLRule *rule = Parse(mp, (select + "a1 := a0;s1 := s0;t1 := t0;" + bindings).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	if (!FRoundTrips(mp, (select + "a1 := a0;s1 := s0;t1 := t0;e1 := e2;e2 := e0").c_str()))
 		return GPOS_FAILED;
 	if (!FRoundTrips(mp, (select + "ExprListEq(e1,e0);a1 := a0;s1 := s0;t1 := t0").c_str()))

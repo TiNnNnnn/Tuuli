@@ -138,6 +138,9 @@ public:
 	// Match one complete native predicate; binding rules retain its scalar tree.
 	BOOL FMatchPredicate(const CDSLSymbol *symbol, CExpression *expression,
 						 CDSLModel *model) const;
+	// Typed SELECT lists and scalar values use the same recursive bindings.
+	BOOL FMatchExpression(const CDSLSymbol *symbol, CExpression *expression,
+						  CDSLModel *model) const;
 	BOOL FHasFailure() const { return m_fHasFailure; }
 	ULONG UlFailureDepth() const { return m_ulFailureDepth; }
 	EDslOpKind EdslopFailureExpected() const

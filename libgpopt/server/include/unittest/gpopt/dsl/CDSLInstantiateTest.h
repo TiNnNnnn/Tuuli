@@ -32,6 +32,7 @@ public:
 	static GPOS_RESULT EresUnittest_ExpressionBindings();
 	static GPOS_RESULT EresUnittest_JoinExpressionBindings();
 	static GPOS_RESULT EresUnittest_ProjectExpressionBindings();
+	static GPOS_RESULT EresUnittest_SelectItems();
 
 	// identity-shaped Filter rule over a single-conjunct Select: instantiate
 	// yields a Select whose output columns == the source's.

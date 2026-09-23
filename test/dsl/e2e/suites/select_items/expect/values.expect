@@ -1,0 +1,69 @@
+{
+  "description": "Typed SELECT item construction preserves SQL UNKNOWN, ordered mixed-type tails and duplicates; the DSL inserts an actual alternative",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"1a1334b1cfce1a28\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",,null,t",
+      "f,10,zero,f",
+      "f,11,one,f",
+      "t,12,two,",
+      "t,12,two,",
+      "t,13,three,t"
+    ],
+    "postgres_output": [
+      ",,null,t",
+      "f,10,zero,f",
+      "f,11,one,f",
+      "t,12,two,",
+      "t,12,two,",
+      "t,13,three,t"
+    ],
+    "off_output": [
+      ",,null,t",
+      "f,10,zero,f",
+      "f,11,one,f",
+      "t,12,two,",
+      "t,12,two,",
+      "t,13,three,t"
+    ]
+  }
+}

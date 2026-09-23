@@ -31,6 +31,8 @@ enum EDslExpressionKind
 	EdslexprNot,
 	EdslexprRef,
 	EdslexprOr,
+	EdslexprItem,
+	EdslexprBoolValue,
 	EdslexprSentinel
 };
 

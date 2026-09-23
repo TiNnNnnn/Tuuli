@@ -217,26 +217,31 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 {
 	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
 		EdslexprNullSafeEq == kind;
-	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind && !binary) ||
+	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind &&
+		 EdslexprItem != kind && EdslexprBoolValue != kind && !binary) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(binary ? 3 : 2) != symbols->Size())
+		(EdslexprItem == kind ? 4 : binary ? 3 : 2) != symbols->Size())
 	{
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
-	if ((EdslsymPred != output->Esymkind() &&
+	const auto output_kind = EdslexprItem == kind ? EdslsymExpr :
+		EdslexprBoolValue == kind ? EdslsymScalar : EdslsymPred;
+	if ((output_kind != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
 			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
-			EdslsymExpr == output->Esymkind()))) ||
+			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind()))) ||
 		nullptr != Pdef(output))
 	{
 		return false;
 	}
 	for (ULONG i = 1; i < symbols->Size(); i++)
 	{
-		const auto expected = EdslexprNullSafeEq == kind
-			? EdslsymAttrs : output->Esymkind();
+		const auto expected = EdslexprItem == kind
+			? (1 == i ? EdslsymScalar : 2 == i ? EdslsymAttrs : EdslsymExpr)
+			: EdslexprBoolValue == kind ? EdslsymPred
+			: EdslexprNullSafeEq == kind ? EdslsymAttrs : output->Esymkind();
 		if (expected != (*symbols)[i]->Esymkind() ||
 			FUses((*symbols)[i], output))
 		{
@@ -291,6 +296,8 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 			os << (EdslexprAnd == def->Edslexpr() ? "And("
 				: EdslexprOr == def->Edslexpr() ? "Or("
 				: EdslexprNullSafeEq == def->Edslexpr() ? "NullSafeEq("
+				: EdslexprItem == def->Edslexpr() ? "Item("
+				: EdslexprBoolValue == def->Edslexpr() ? "BoolValue("
 				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)

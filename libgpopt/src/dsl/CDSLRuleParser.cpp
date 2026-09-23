@@ -805,7 +805,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 	return pdrgpcon;
 }
 
-// Expression bindings match native Boolean trees and complete ON slots.
+// Expression bindings match native Boolean trees, SELECT lists and ON slots.
 // Input remains an arbitrary relational subtree; these are supported template
 // constructors, not a whitelist of rewrite identities.
 BOOL
@@ -892,22 +892,28 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				continue;
 			}
 			const BOOL comparison = "NullSafeEq" == call->ID()->getText();
-			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText()) &&
+			const BOOL item = "Item" == call->ID()->getText();
+			const BOOL bool_value = "BoolValue" == call->ID()->getText();
+			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText() || bool_value) &&
 				  1 == call->SYMBOL().size()) &&
 				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison) &&
-				  2 == call->SYMBOL().size()))
+				  2 == call->SYMBOL().size()) && !(item && 3 == call->SYMBOL().size()))
 			{
 				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq)");
+					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue)");
 				return false;
 			}
-			if (!declare(binding->SYMBOL(0)->getText(), EdslsymPred, match))
+			if (!declare(binding->SYMBOL(0)->getText(),
+				item ? EdslsymExpr : bool_value ? EdslsymScalar : EdslsymPred, match))
 			{
 				return false;
 			}
-			for (auto *operand : call->SYMBOL())
+			for (ULONG i = 0; i < call->SYMBOL().size(); ++i)
 			{
-				if (!declare(operand->getText(), comparison ? EdslsymAttrs : EdslsymPred, match))
+				const auto kind = item
+					? (0 == i ? EdslsymScalar : 1 == i ? EdslsymAttrs : EdslsymExpr)
+					: comparison ? EdslsymAttrs : EdslsymPred;
+				if (!declare(call->SYMBOL(i)->getText(), kind, match))
 				{
 					return false;
 				}
@@ -932,10 +938,10 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			}
 			const auto kind = known->second->Esymkind();
 			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind) ||
+				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind && EdslsymScalar != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
-				bctx.Fail("expression reference requires matching predicate, attrs, table, schema or expression-list types");
+				bctx.Fail("expression reference requires matching predicate, scalar, attrs, table, schema or expression-list types");
 				return false;
 			}
 			it = references.erase(it);
@@ -986,6 +992,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 										: EdslconAttrsEq == kind ? EdslsymAttrs
 										: EdslconSchemaEq == kind ? EdslsymSchema
 										: EdslconExprListEq == kind ? EdslsymExpr
+										: EdslconScalarEq == kind ? EdslsymScalar
 										: EdslconPredicateEq == kind
 											? EdslsymPred
 											: EdslsymSentinel;
@@ -1027,9 +1034,9 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			const_cast<CDSLSymbol *>(symbol)->AddRef();
 			symbols->Append(const_cast<CDSLSymbol *>(symbol));
 		}
-		if (nullptr != call && 2 == call->SYMBOL().size())
+		for (ULONG i = 1; nullptr != call && i < call->SYMBOL().size(); ++i)
 		{
-			CDSLSymbol *right = bctx.symtab.at(call->SYMBOL(1)->getText());
+			CDSLSymbol *right = bctx.symtab.at(call->SYMBOL(i)->getText());
 			right->AddRef();
 			symbols->Append(right);
 		}
@@ -1038,6 +1045,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				: "And" == call->ID()->getText() ? EdslexprAnd
 				: "Or" == call->ID()->getText() ? EdslexprOr
 				: "NullSafeEq" == call->ID()->getText() ? EdslexprNullSafeEq
+				: "Item" == call->ID()->getText() ? EdslexprItem
+				: "BoolValue" == call->ID()->getText() ? EdslexprBoolValue
 				: "NotTrue" == call->ID()->getText() ? EdslexprNotTrue : EdslexprNot,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();

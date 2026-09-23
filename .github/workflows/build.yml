@@ -178,6 +178,7 @@ jobs:
           test/dsl/e2e.sh --suite mixed_comparison
           test/dsl/e2e.sh --suite projection_bindings
           test/dsl/e2e.sh --suite capture_references
+          test/dsl/e2e.sh --suite select_items
           test/dsl/e2e.sh --suite not_true_bindings
           test/dsl/e2e.sh --suite join_expression_bindings
           test/dsl/e2e.sh --suite surface_equality
