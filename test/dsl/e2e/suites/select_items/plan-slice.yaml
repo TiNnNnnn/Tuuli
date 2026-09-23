@@ -1,0 +1,5 @@
+experiment: select-item-plan-slice
+discover: true
+template_root: r
+template_cuts: [r/0]
+cardinalities:
