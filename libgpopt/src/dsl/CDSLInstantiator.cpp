@@ -65,6 +65,7 @@
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarValuesList.h"
@@ -1441,6 +1442,26 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveScalar(binding->PsymOperand(0), pmodel, depth + 1);
+		if (EdslexprCase == binding->Edslexpr())
+		{
+			CExpression *condition = PexprResolvePredicate(binding->PsymOperand(0), pmodel);
+			CExpression *yes = PexprResolveScalar(binding->PsymOperand(1), pmodel, depth + 1);
+			CExpression *no = PexprResolveScalar(binding->PsymOperand(2), pmodel, depth + 1);
+			if (nullptr == condition || nullptr == yes || nullptr == no ||
+				IMDType::EtiBool != COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+					CScalar::PopConvert(condition->Pop())->MdidType())->GetDatumType() ||
+				!CScalar::PopConvert(yes->Pop())->MdidType()->Equals(CScalar::PopConvert(no->Pop())->MdidType()))
+			{
+				CRefCount::SafeRelease(condition);
+				CRefCount::SafeRelease(yes);
+				CRefCount::SafeRelease(no);
+				return nullptr;
+			}
+			// Keep native CASE laziness; never lower the arms into eager calls.
+			IMDId *type = CScalar::PopConvert(yes->Pop())->MdidType();
+			type->AddRef();
+			return GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarIf(m_mp, type), condition, yes, no);
+		}
 		if (EdslexprBoolValue != binding->Edslexpr())
 			return nullptr;
 		CExpression *value = PexprResolvePredicate(binding->PsymOperand(0), pmodel);

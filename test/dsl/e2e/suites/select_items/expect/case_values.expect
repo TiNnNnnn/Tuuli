@@ -1,0 +1,69 @@
+{
+  "description": "Native lazy CASE rewrite preserves branch order, SQL UNKNOWN and selected-arm errors",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"db243da926c15102\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "-1,null",
+      "-1,one",
+      "13,three",
+      "12,two",
+      "12,two",
+      "-1,zero"
+    ],
+    "postgres_output": [
+      "-1,null",
+      "-1,one",
+      "13,three",
+      "12,two",
+      "12,two",
+      "-1,zero"
+    ],
+    "off_output": [
+      "-1,null",
+      "-1,one",
+      "13,three",
+      "12,two",
+      "12,two",
+      "-1,zero"
+    ]
+  }
+}

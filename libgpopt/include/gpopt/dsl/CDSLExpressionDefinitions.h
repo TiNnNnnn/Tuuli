@@ -33,6 +33,7 @@ enum EDslExpressionKind
 	EdslexprOr,
 	EdslexprItem,
 	EdslexprBoolValue,
+	EdslexprCase,
 	EdslexprSentinel
 };
 

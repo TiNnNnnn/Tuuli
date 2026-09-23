@@ -524,6 +524,26 @@ PredicateTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts
 	return result + ')';
 }
 
+std::string
+ValueTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
+	BOOL *expanded)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity())
+	{
+		// Keep the ordered, lazy arms explicit. Unknown leaves remain captures.
+		std::string result = "Case(" + PredicateTemplate(mp, (*expr)[0], symbol_counts, expanded);
+		for (ULONG i = 1; i < 3; ++i)
+			result += ',' + ValueTemplate(mp, (*expr)[i], symbol_counts, expanded);
+		return result + ')';
+	}
+	const auto *type = COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+		CScalar::PopConvert(expr->Pop())->MdidType());
+	if (IMDType::EtiBool == type->GetDatumType())
+		return "BoolValue(" + PredicateTemplate(mp, expr, symbol_counts, expanded) + ')';
+	return "n" + std::to_string(symbol_counts[EdslsymScalar]++);
+}
+
 // Follow the selected relational frontier, never inspect inside an Input cut.
 // Unsupported scalar subtrees stay opaque occurrences, not guessed semantics.
 BOOL
@@ -580,13 +600,7 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 			if (COperator::EopScalarProjectElement != item->Pop()->Eopid() || 1 != item->Arity())
 				return false;
 			const CExpression *value = (*item)[0];
-			const auto *type = COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
-				CScalar::PopConvert(value->Pop())->MdidType());
-			list += "Item(";
-			if (IMDType::EtiBool == type->GetDatumType())
-				list += "BoolValue(" + PredicateTemplate(mp, value, symbol_counts, expanded) + ')';
-			else
-				list += "n" + std::to_string(symbol_counts[EdslsymScalar]++);
+			list += "Item(" + ValueTemplate(mp, value, symbol_counts, expanded);
 			list += ",a" + std::to_string(symbol_counts[EdslsymAttrs]++) + ',';
 		}
 		// The last capture binds the remaining list (empty in this instance),
