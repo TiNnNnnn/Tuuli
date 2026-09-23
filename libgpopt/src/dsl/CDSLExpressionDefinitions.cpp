@@ -218,16 +218,16 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
 		EdslexprNullSafeEq == kind;
 	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind &&
-		 EdslexprItem != kind && EdslexprBoolValue != kind && !binary) ||
+		 EdslexprItem != kind && EdslexprBoolValue != kind && EdslexprCase != kind && !binary) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(EdslexprItem == kind ? 4 : binary ? 3 : 2) != symbols->Size())
+		(EdslexprItem == kind || EdslexprCase == kind ? 4 : binary ? 3 : 2) != symbols->Size())
 	{
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
 	const auto output_kind = EdslexprItem == kind ? EdslsymExpr :
-		EdslexprBoolValue == kind ? EdslsymScalar : EdslsymPred;
+		EdslexprBoolValue == kind || EdslexprCase == kind ? EdslsymScalar : EdslsymPred;
 	if ((output_kind != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
 			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
@@ -241,6 +241,7 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 		const auto expected = EdslexprItem == kind
 			? (1 == i ? EdslsymScalar : 2 == i ? EdslsymAttrs : EdslsymExpr)
 			: EdslexprBoolValue == kind ? EdslsymPred
+			: EdslexprCase == kind ? (1 == i ? EdslsymPred : EdslsymScalar)
 			: EdslexprNullSafeEq == kind ? EdslsymAttrs : output->Esymkind();
 		if (expected != (*symbols)[i]->Esymkind() ||
 			FUses((*symbols)[i], output))
@@ -298,6 +299,7 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 				: EdslexprNullSafeEq == def->Edslexpr() ? "NullSafeEq("
 				: EdslexprItem == def->Edslexpr() ? "Item("
 				: EdslexprBoolValue == def->Edslexpr() ? "BoolValue("
+				: EdslexprCase == def->Edslexpr() ? "Case("
 				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)

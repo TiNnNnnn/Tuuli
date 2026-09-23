@@ -74,6 +74,23 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 			CScalar::PopConvert(expression->Pop())->MdidType())->GetDatumType() &&
 			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0), expression, model, depth + 1);
 	}
+	if (EdslexprCase == def->Edslexpr())
+	{
+		if (COperator::EopScalarIf != expression->Pop()->Eopid() || 3 != expression->Arity())
+			return false;
+		const auto *result = CScalar::PopConvert(expression->Pop());
+		for (ULONG i = 1; i < 3; ++i)
+			if (!result->MdidType()->Equals(CScalar::PopConvert((*expression)[i]->Pop())->MdidType()))
+				return false;
+		if (IMDType::EtiBool != COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+			CScalar::PopConvert((*expression)[0]->Pop())->MdidType())->GetDatumType())
+			return false;
+		for (ULONG i = 0; i < 3; ++i)
+			if (!FMatchExpressionBinding(mp, definitions, def->PsymOperand(i),
+				(*expression)[i], model, depth + 1))
+				return false;
+		return true;
+	}
 	if (EdslexprItem == def->Edslexpr())
 	{
 		if (COperator::EopScalarProjectList != expression->Pop()->Eopid() ||

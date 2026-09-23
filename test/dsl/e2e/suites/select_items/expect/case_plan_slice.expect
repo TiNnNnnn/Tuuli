@@ -1,0 +1,27 @@
+{
+  "description": "Export lazy CASE structure from the native plan, retaining ordered opaque value captures",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Proj<a0 s0 Item(Case(p0,n0,n1),a1,e0)>(Input<t0>)",
+        "error": null
+      }
+    }
+  ]
+}

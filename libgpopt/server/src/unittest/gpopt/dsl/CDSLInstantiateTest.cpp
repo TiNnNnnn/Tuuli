@@ -41,6 +41,8 @@
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarIf.h"
+#include "naucrates/md/IMDTypeInt4.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
@@ -97,6 +99,7 @@ CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CaseValues),
 		GPOS_UNITTEST_FUNC(
 			CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings),
 		GPOS_UNITTEST_FUNC(
@@ -127,6 +130,62 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_CaseValues()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string source_text = "Proj<a0 s0 Item(Case(p0,n0,n1),a2,e2)>(Input<t0>)|";
+	const std::string aliases = "|t1 := t0;a1 := a0;s1 := s0";
+	CDSLRule *rule = PdslruleParseLocal(mp, (source_text +
+		"Proj<a1 s1 Item(Case(Not(Not(p0)),n0,n1),a2,e2)>(Input<t1>)" + aliases).c_str());
+	if (nullptr == rule)
+		return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG truth = 0; truth < 3; ++truth)
+	{
+		CExpression *input = fix.PexprLogicalGet("case_values", 1);
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+		type->AddRef();
+		CExpression *value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+			CUtils::PexprScalarConstBool(mp, 1 == truth, 2 == truth),
+			CUtils::PexprScalarConstInt4(mp, 7), CUtils::PexprScalarConstInt4(mp, 9));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")), value)));
+		std::string exported, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+			exported == "Proj<a0 s0 Item(Case(p0,n0,n1),a1,e0)>(Input<t0>)";
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		CExpression *target = decision->PexprTarget();
+		ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+		if (nullptr != target)
+		{
+			CExpression *result = (*(*(*target)[1])[0])[0];
+			ok &= COperator::EopScalarIf == result->Pop()->Eopid() && 3 == result->Arity() &&
+				(*result)[1]->Matches((*value)[1]) && (*result)[2]->Matches((*value)[2]) &&
+				(*(*(*result)[0])[0])[0]->Matches((*value)[0]) &&
+				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+		}
+		GPOS_DELETE(decision);
+		CDSLRule *bad = PdslruleParseLocal(mp, (source_text +
+			"Proj<a1 s1 Item(Case(p0,n0,BoolValue(p0)),a2,e2)>(Input<t1>)" + aliases).c_str());
+		if (nullptr == bad)
+			ok = false;
+		else
+		{
+			decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, bad, source);
+			ok &= EdsldecisionReady != decision->Status();
+			GPOS_DELETE(decision);
+			bad->Release();
+		}
+		source->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
