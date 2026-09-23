@@ -296,6 +296,24 @@ EresExpressionBindings()
 			return GPOS_FAILED;
 		}
 	}
+	const std::string project =
+		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|";
+	if (!FRoundTrips(mp, (project + "a1 := a0;s1 := s2;s2 := s0;t1 := t2;t2 := t0").c_str()))
+		return GPOS_FAILED;
+	for (const CHAR *refs : {
+		"a1 := a0;s1 := t0;t1 := t0",
+		"a1 := a0;s1 := s2;s2 := s1;t1 := t0",
+		"a1 := a0;s1 := s0;t1 := t9",
+		"a1 := a0;s1 := s0;t0 := t1;t1 := t0",
+		"a1 := a0;s1 := s0;t1 := t0;Eq(s1,s0)"})
+	{
+		CDSLRule *rule = Parse(mp, (project + refs).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	return GPOS_OK;
 }
 }  // namespace
