@@ -178,6 +178,25 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			}
 			CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
 			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input, list);
+			std::string exported, error;
+			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+				0 == exported.find("Proj<a0 s0 Item(BoolValue(Not(Not(p0))),a1,") &&
+				std::string::npos != exported.find(0 == truth ? "Item(BoolValue(p1),a2," : "Item(n0,a2,");
+			ULONG item_count = 0;
+			for (size_t pos = 0; (pos = exported.find("Item(", pos)) != std::string::npos; pos += 5)
+				++item_count;
+			ok &= item_count == list->Arity();
+			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r"}, &exported, &error) &&
+				exported == "Input<t0>";
+			CExpression *filtered = fix.PexprLogicalSelect(source, predicate);
+			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {"r/0/0"}, &exported, &error) &&
+				0 == exported.find("Filter<") && std::string::npos != exported.find("Proj<") &&
+				std::string::npos != exported.find("BoolValue(Not(Not(");
+			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r/0", {"r/0/0"}, &exported, &error) &&
+				0 == exported.find("Proj<");
+			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {"r/0"}, &exported, &error) &&
+				std::string::npos == exported.find("Item(");
+			filtered->Release();
 			CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
 			CExpression *target = decision->PexprTarget();
 			ok &= EdsldecisionReady == decision->Status() && nullptr != target;
@@ -231,6 +250,29 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			source->Release();
 			predicate->Release();
 		}
+	}
+	// Empty independent lists can be captured. Sequential LET and set-returning
+	// definitions must keep the existing Compute view, not claim SELECT semantics.
+	for (ULONG shape = 0; shape < 3; ++shape)
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("select_export", 1, &columns);
+		CColRef *output = fix.PcrCreateInt4("definition");
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		if (shape > 0)
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, output), 2 == shape
+					? fix.PexprGenerateSeries((*columns)[0]) : CUtils::PexprScalarConstInt4(mp, 7)));
+		if (1 == shape)
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("dependent")),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, output))));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		std::string exported, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+			exported == (0 == shape ? "Proj<a0 s0 e0>(Input<t0>)" : "Compute<e0 a0 s0>(Input<t0>)");
+		source->Release();
 	}
 	rule->Release();
 	return ok ? GPOS_OK : GPOS_FAILED;

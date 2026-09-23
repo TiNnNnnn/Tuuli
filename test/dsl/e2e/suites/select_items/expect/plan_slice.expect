@@ -1,0 +1,27 @@
+{
+  "description": "Export ordered SELECT item structure from the actual plan, validated by the production parser and matcher",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Proj<a0 s0 Item(BoolValue(p0),a1,Item(n0,a2,Item(BoolValue(p1),a3,e0)))>(Input<t0>)",
+        "error": null
+      }
+    }
+  ]
+}

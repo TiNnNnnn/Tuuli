@@ -12,6 +12,7 @@
 
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -24,6 +25,7 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarProjectElement.h"
 
 using namespace gpopt;
 
@@ -539,11 +541,15 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	const EDslOpKind kind = op->Edslop();
 	const BOOL join = EdslopInnerJoin == kind || EdslopLeftJoin == kind ||
 		EdslopFullJoin == kind || EdslopSemiJoin == kind || EdslopAntiJoin == kind;
+	const BOOL project = EdslopCompute == kind;
 	BOOL distinct = false;
-	if ((!join && EdslopFilter != kind) || CanonicalKind(expr, &distinct) != kind)
+	if ((!join && !project && EdslopFilter != kind) || CanonicalKind(expr, &distinct) != kind)
 		return false;
 	const ULONG children = join ? 2 : 1;
 	if (children + 1 != expr->Arity() || (*expr)[children]->DeriveHasSubquery())
+		return false;
+	if (project && (COperator::EopScalarProjectList != (*expr)[1]->Pop()->Eopid() ||
+		(*expr)[1]->DeriveHasNonScalarFunction()))
 		return false;
 	CColRefSet *available = GPOS_NEW(mp) CColRefSet(mp);
 	for (ULONG i = 0; i < children; ++i)
@@ -561,6 +567,36 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 		if (i)
 			inputs += ',';
 		inputs += child;
+	}
+	if (project)
+	{
+		// Only independent SELECT items belong to Proj: the local dependency
+		// check above excludes sequential LET references to earlier definitions.
+		// Unsupported value internals remain typed scalar captures, not guesses.
+		std::string list;
+		for (ULONG i = 0; i < (*expr)[1]->Arity(); ++i)
+		{
+			const CExpression *item = (*(*expr)[1])[i];
+			if (COperator::EopScalarProjectElement != item->Pop()->Eopid() || 1 != item->Arity())
+				return false;
+			const CExpression *value = (*item)[0];
+			const auto *type = COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+				CScalar::PopConvert(value->Pop())->MdidType());
+			list += "Item(";
+			if (IMDType::EtiBool == type->GetDatumType())
+				list += "BoolValue(" + PredicateTemplate(mp, value, symbol_counts, expanded) + ')';
+			else
+				list += "n" + std::to_string(symbol_counts[EdslsymScalar]++);
+			list += ",a" + std::to_string(symbol_counts[EdslsymAttrs]++) + ',';
+		}
+		// The last capture binds the remaining list (empty in this instance),
+		// rather than inventing an empty-list constructor or fixing query width.
+		list += SymbolText(mp, (*op->Pdrgpsym())[0]);
+		list.append((*expr)[1]->Arity(), ')');
+		*text = "Proj<" + SymbolText(mp, (*op->Pdrgpsym())[1]) + " " +
+			SymbolText(mp, (*op->Pdrgpsym())[2]) + " " + list + ">(" + inputs + ")";
+		*expanded = true;
+		return true;
 	}
 	*text = std::string(CDSLOpKindTable::SzName(kind)) + "<" +
 		PredicateTemplate(mp, (*expr)[children], symbol_counts, expanded);
@@ -777,7 +813,7 @@ CDSLPlanTemplate::FSlice(
 		// not an equivalence claim, is never registered and is never instantiated.
 		const std::string target = "t" + std::to_string(symbol_counts[EdslsymTable]);
 		const std::string carrier = expression_template + "|Input<" + target +
-			">|TableEq(" + target + "," + input + ")";
+			">|" + target + " := " + input;
 		CWStringDynamic parse_error(mp);
 		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, carrier.c_str(), nullptr, &parse_error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
