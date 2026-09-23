@@ -1,2 +1,2 @@
 # Construction regression, not a mined optimization; FormalSQL OUTCOME_EQ certified.
-Proj<a0 s0>(Filter<p0 a1>(Input<t0>))|Proj<a2 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|t1 := t2;t2 := t0;a2 := a0;s1 := s2;s2 := s0;a3 := a1
+Proj<a0 s0 e0>(Filter<p0 a1>(Input<t0>))|Proj<a2 s1 e1>(Filter<Not(Not(p0)) a3>(Input<t1>))|t1 := t2;t2 := t0;a2 := a0;s1 := s2;s2 := s0;a3 := a1;e1 := e2;e2 := e0

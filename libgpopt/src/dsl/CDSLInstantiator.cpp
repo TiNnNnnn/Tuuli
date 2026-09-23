@@ -2439,7 +2439,8 @@ CDSLInstantiator::PopSourceProjForSchema(
 	const CDSLOp *pop, const CDSLSymbol *psymSchema) const
 {
 	if (EdslopProj == pop->Edslop() && nullptr != pop->Pdrgpsym() &&
-		2 == pop->Pdrgpsym()->Size() && (*pop->Pdrgpsym())[1] == psymSchema)
+		(2 == pop->Pdrgpsym()->Size() || 3 == pop->Pdrgpsym()->Size()) &&
+		(*pop->Pdrgpsym())[1] == psymSchema)
 	{
 		return pop;
 	}
@@ -3926,7 +3927,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const
 {
 	if (1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		2 != pop->Pdrgpsym()->Size())
+		(2 != pop->Pdrgpsym()->Size() &&
+		 !(m_prule->Pexprdefs()->FHasBindings() && 3 == pop->Pdrgpsym()->Size())))
 	{
 		return nullptr;
 	}
@@ -3950,6 +3952,9 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		CColRefArray *source_attrs = nullptr == source ? nullptr :
 			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
 		if (nullptr == list || nullptr == attrs || nullptr == source_attrs ||
+			(3 == pop->Pdrgpsym()->Size() &&
+			 (3 != source->Pdrgpsym()->Size() ||
+			  PsymResolve((*pop->Pdrgpsym())[2]) != (*source->Pdrgpsym())[2])) ||
 			!CColRef::Equals(attrs, source_attrs) ||
 			!pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns()))
 		{

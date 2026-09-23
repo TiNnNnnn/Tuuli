@@ -75,6 +75,7 @@ struct SBuildCtx
 	// borrowed (owned by the op/fragment arrays), valid for the parse duration.
 	std::unordered_map<std::string, CDSLSymbol *> symtab;
 	ULONG next_id = 0;
+	BOOL has_select_list = false;
 	std::string err;
 
 	void
@@ -116,6 +117,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	// Accept both wire formats; the matcher/instantiator infer legacy aggregate
 	// output columns from schema - groupByAttrs.
 	const BOOL fLegacyAgg = EdslopAgg == edslop && 5 == ul_given;
+	const BOOL fSelectList = EdslopProj == edslop && 3 == ul_given;
+	bctx.has_select_list |= fSelectList;
 	// A Join may bind a complete predicate (<p a a>), or
 	// equality keys followed by optional output and/or residual bindings. Keep
 	// every historical form wire-compatible.
@@ -150,12 +153,14 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fCompatibleSetOp = fSetOp && (0 == ul_given || 2 == ul_given);
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
 		!fPredicateExists && !fLegacyInSub && !fCompatibleSetOp && !fLegacyFilter &&
-		!fLegacyAntiJoinNotIn)
+		!fLegacyAntiJoinNotIn && !fSelectList)
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects ";
 		if (EdslopAgg == edslop)
 			os << "5 or 6";
+		else if (EdslopProj == edslop)
+			os << "2 or 3";
 		else if (fJoin)
 			os << "2, 3, 4, 5, or 7";
 		else if (fExists)
@@ -205,7 +210,11 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			return nullptr;
 		}
 		EDslSymbolKind esymk;
-		if (EdslopSort == edslop && EdslsortSpec == edslsort)
+		if (fSelectList && 2 == ul)
+		{
+			esymk = EdslsymExpr;
+		}
+		else if (EdslopSort == edslop && EdslsortSpec == edslsort)
 		{
 			esymk = EdslsymOrder;
 		}
@@ -273,6 +282,12 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 		bctx, edslop, edslsort, op_ctx->symlist(), eside, pdrgpsym_frag);
 	if (nullptr == pdrgpsym)
 	{
+		return nullptr;
+	}
+	if (EdslopProj == edslop && fStar && 3 == pdrgpsym->Size())
+	{
+		bctx.Fail("Proj* does not expose a scalar SELECT list");
+		pdrgpsym->Release();
 		return nullptr;
 	}
 
@@ -805,9 +820,10 @@ FBindingTree(const CDSLOp *op)
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
 	if (nullptr == op->Pdrgpsym() ||
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
-			   : (EdslopFilter == op->Edslop() ||
-				  (EdslopProj == op->Edslop() && !op->FDistinct())) &&
-				 2 == op->Pdrgpsym()->Size() && 1 == op->UlChildren()))
+			   : 1 == op->UlChildren() &&
+				 ((EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
+				  (EdslopProj == op->Edslop() && !op->FDistinct() &&
+				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())))))
 	{
 		return false;
 	}
@@ -825,6 +841,11 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 {
 	if (nullptr == ctx || ctx->binding().empty())
 	{
+		if (bctx.has_select_list)
+		{
+			bctx.Fail("explicit Proj lists require typed expression bindings");
+			return false;
+		}
 		return true;
 	}
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
@@ -911,10 +932,10 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			}
 			const auto kind = known->second->Esymkind();
 			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind) ||
+				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
-				bctx.Fail("expression reference requires matching predicate, attrs, table or schema types");
+				bctx.Fail("expression reference requires matching predicate, attrs, table, schema or expression-list types");
 				return false;
 			}
 			it = references.erase(it);
@@ -964,6 +985,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		const EDslSymbolKind expected = EdslconTableEq == kind	 ? EdslsymTable
 										: EdslconAttrsEq == kind ? EdslsymAttrs
 										: EdslconSchemaEq == kind ? EdslsymSchema
+										: EdslconExprListEq == kind ? EdslsymExpr
 										: EdslconPredicateEq == kind
 											? EdslsymPred
 											: EdslsymSentinel;

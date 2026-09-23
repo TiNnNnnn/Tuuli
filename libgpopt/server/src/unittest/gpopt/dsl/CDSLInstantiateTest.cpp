@@ -149,6 +149,9 @@ CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings()
 		reference_text.replace(reference_text.find("Eq(a2,a0)"), 9, "a2 := a4;a4 := a0");
 		reference_text.replace(reference_text.find("Eq(t1,t0)"), 9, "t1 := t2;t2 := t0");
 		reference_text.replace(reference_text.find("Eq(s1,s0)"), 9, "s1 := s2;s2 := s0");
+		reference_text.replace(reference_text.find("a0 s0>"), 6, "a0 s0 e0>");
+		reference_text.replace(reference_text.find("a2 s1>"), 6, "a2 s1 e1>");
+		reference_text += ";e1 := e2;e2 := e0";
 		CDSLRule *reference = PdslruleParseLocal(mp, reference_text.c_str());
 		if (nullptr == reference)
 		{
@@ -195,6 +198,21 @@ CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings()
 					source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns());
 			}
 			GPOS_DELETE(decision);
+			if (1 == shape)
+			{
+				std::string alias_text = reference_text;
+				alias_text.replace(alias_text.find("e1 := e2;e2 := e0"), 18, "Eq(e1,e0)");
+				CDSLRule *alias = PdslruleParseLocal(mp, alias_text.c_str());
+				if (nullptr == alias)
+					ok = false;
+				else
+				{
+					decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, alias, source);
+					ok &= EdsldecisionReady == decision->Status() &&
+						nullptr != decision->PexprTarget() && (*decision->PexprTarget())[1]->Matches(list);
+					GPOS_DELETE(decision); alias->Release();
+				}
+			}
 			// A schema capture must not be paired with the filter's unrelated columns.
 			std::string bad_text = text;
 			bad_text.replace(bad_text.find("Eq(a2,a0)"), 9, "Eq(a2,a1)");
@@ -210,6 +228,24 @@ CDSLInstantiateTest::EresUnittest_ProjectExpressionBindings()
 			}
 			if (0 == shape)
 			{
+				// The target cannot combine an inner schema with an outer SELECT list.
+				std::string crossed = reference_text;
+				crossed.replace(crossed.find("e2 := e0"), 9, "e2 := e3");
+				const auto split = crossed.find('|');
+				crossed = "Proj<a5 s3 e3>(" + crossed.substr(0, split) + ")" + crossed.substr(split);
+				CDSLRule *wrong_list = PdslruleParseLocal(mp, crossed.c_str());
+				if (nullptr == wrong_list)
+					ok = false;
+				else
+				{
+					source->AddRef();
+					CExpression *nested = GPOS_NEW(mp) CExpression(mp,
+						GPOS_NEW(mp) CLogicalProject(mp), source,
+						GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
+					decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, wrong_list, nested);
+					ok &= EdsldecisionReady != decision->Status();
+					GPOS_DELETE(decision); nested->Release(); wrong_list->Release();
+				}
 				// An unmentioned Limit must not disappear into the legacy Proj view.
 				select->AddRef(); list->AddRef();
 				CExpression *limited = GPOS_NEW(mp) CExpression(mp,
