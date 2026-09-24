@@ -126,6 +126,11 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Proj<a0 s0 Item(Call(h0,Args()),a2,e0)>(Input<t0>)|"
+		"Proj<a1 s1 Item(Call(h1,v1),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;h1 := h0;v1 := Args()",
+		"Filter<ValueBool(Call(h0,Args(Case(p0,n0,n1),v0))) a0>(Input<t0>)|"
+		"Filter<ValueBool(Call(h1,Args(Case(Not(Not(p0)),n0,n1),v1))) a1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;h1 := h2;h2 := h0;v1 := v0",
 		"Filter<ValueBool(Case(p0,n0,n1)) a0>(Input<t0>)|"
 		"Filter<ValueBool(Case(Not(Not(p0)),n0,n1)) a1>(Input<t1>)|t1 := t0;a1 := a0",
 		"Proj<a0 s0 Item(Case(p0,n0,n1),a2,e2)>(Input<t0>)|"
@@ -315,6 +320,14 @@ EresExpressionBindings()
 	const std::string select =
 		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|";
 	for (const CHAR *bindings : {
+		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;Args(n1) := v0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Call(n0,v0) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Call(h0,e2) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;ErrorFree(h0);e1 := e0",
+		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;Eq(h0,h0);e1 := e0",
+		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;n1 := Call(h1,v0);e1 := Item(n1,a2,e2)",
+		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;Args(n1,v0) := v0;e1 := e0",
+		"Item(n0,a2,e2) := e0;BoolValue(p0) := n0;p1 := Not();e1 := e0",
 		"Item(n0,a2) := e0;e1 := e0",
 		"Item(n0,a2,e2) := e0;n1 := BoolValue(ValueBool(a2));e1 := Item(n1,a2,e2)",
 		"Item(n0,a2,e2) := e0;ValueBool(n0,n0) := p0;e1 := e0",

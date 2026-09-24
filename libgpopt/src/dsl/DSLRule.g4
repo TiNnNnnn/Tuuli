@@ -35,11 +35,11 @@ op          : ID STAR? symlist? ( LP op ( COMMA op )* RP )? ;
 symlist     : LT term+ GT ;
 // Inline expressions lower to the same oriented bindings as the third segment.
 // Constructor names/types are checked by the existing semantic builder.
-term        : SYMBOL | ID LP term ( COMMA term )* RP ;
+term        : SYMBOL | ID LP ( term ( COMMA term )* )? RP ;
 constraints : (constraint | binding) ( SEMI (constraint | binding) )* ;
 constraint  : ID LP SYMBOL ( COMMA SYMBOL )* RP ;
 binding     : call BIND SYMBOL | SYMBOL BIND (call | SYMBOL) ;
-call        : ID LP SYMBOL ( COMMA SYMBOL )* RP ;
+call        : ID LP ( SYMBOL ( COMMA SYMBOL )* )? RP ;
 
 // ---- lexer rules -----------------------------------------------------------
 BAR    : '|' ;

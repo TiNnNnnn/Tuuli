@@ -29,6 +29,13 @@ class COrderSpec;
 class CDSLMatchView
 {
 public:
+	// Native eager scalar calls only; no lazy, set-returning, volatile or
+	// subquery semantics. Reuse the resolved operator, never resolve by name.
+	static BOOL FScalarCall(const CExpression *expression);
+	static BOOL FCallArgumentTypes(const CExpression *source,
+		const CExpressionArray *arguments);
+	static BOOL FSameCallHead(const CExpression *left, const CExpression *right);
+
 	// Non-owning aggregate/HAVING projection of either GbAgg or
 	// Select(GbAgg, predicate).
 	struct SAggregate

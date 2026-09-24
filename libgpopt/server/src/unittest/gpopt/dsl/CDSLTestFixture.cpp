@@ -128,6 +128,17 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			false /*ndv preserving*/, true /*allowed for PS*/));
 	}
 
+	// Synthetic zero-argument int4 calls for native expression binding tests.
+	for (ULONG stability = 0; stability < IMDFunction::EfsSentinel; ++stability)
+	{
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+			mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300 + stability),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), false,
+			static_cast<IMDFunction::EFuncStbl>(stability), false, false, false));
+	}
+
 	// int4 MAX aggregate metadata, used to build a genuine CScalarAggFunc in
 	// the Agg DSL tests. The synthetic result/intermediate types are both int4;
 	// only structural optimizer behavior is under test here.

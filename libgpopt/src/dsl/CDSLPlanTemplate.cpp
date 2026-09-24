@@ -494,7 +494,8 @@ PredicateTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts
 	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
-	if (COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity() &&
+	if (((COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity()) ||
+		CDSLMatchView::FScalarCall(expr)) &&
 		IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
 			CScalar::PopConvert(expr->Pop())->MdidType())->GetDatumType())
 	{
@@ -540,6 +541,18 @@ ValueTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
 	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
+	if (CDSLMatchView::FScalarCall(expr))
+	{
+		*expanded = true;
+		const std::string head = "h" + std::to_string(symbol_counts[EdslsymCallHead]++);
+		std::vector<std::string> values;
+		for (ULONG i = 0; i < expr->Arity(); ++i)
+			values.push_back(ValueTemplate(mp, (*expr)[i], symbol_counts, expanded));
+		std::string arguments = "Args()";
+		for (auto it = values.rbegin(); it != values.rend(); ++it)
+			arguments = "Args(" + *it + ',' + arguments + ')';
+		return "Call(" + head + ',' + arguments + ')';
+	}
 	if (COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity())
 	{
 		// Keep the ordered, lazy arms explicit. Unknown leaves remain captures.

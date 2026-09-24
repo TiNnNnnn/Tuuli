@@ -140,6 +140,8 @@ private:
 	// materialize the legacy ScalarOne/ScalarZero constants.
 	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
 								 const CDSLModel *pmodel, ULONG depth = 0) const;
+	CExpressionArray *PdrgpexprResolveArguments(const CDSLSymbol *symbol,
+		const CDSLModel *model, ULONG depth) const;
 
 	// Resolve a bound/aliased predicate to an owned expression, or lazily build
 	// a target predicate declared by PredicateAnd.

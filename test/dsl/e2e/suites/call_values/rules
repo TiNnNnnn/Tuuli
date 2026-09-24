@@ -1,0 +1,5 @@
+# Generic expression-construction regressions, not mined optimization rules.
+# FormalSQL OUTCOME_EQ: fd4559bd409dc972ef462acbffb893d167e460d1d44c892ceaf34e335f5ba964
+Proj<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Input<t0>)|Proj<a1 s1 Item(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0)),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0
+# FormalSQL OUTCOME_EQ: 46b476b2317497fc22145729f9ad0d9b800100bc274618744cbb953b100054ce
+Filter<ValueBool(Call(h0,Args(Case(p0,n0,n1),v0))) a0>(Input<t0>)|Filter<ValueBool(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0))) a1>(Input<t1>)|t1 := t0;a1 := a0

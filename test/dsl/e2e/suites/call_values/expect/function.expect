@@ -1,0 +1,69 @@
+{
+  "description": "Captured native function retains metadata, nullable values and duplicate rows",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "0,zero"
+    ],
+    "postgres_output": [
+      ",null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "0,zero"
+    ],
+    "off_output": [
+      ",null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "0,zero"
+    ]
+  }
+}

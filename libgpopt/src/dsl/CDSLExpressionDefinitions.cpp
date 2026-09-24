@@ -216,23 +216,26 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 										  const CDSLSymbolArray *symbols)
 {
 	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
-		EdslexprNullSafeEq == kind;
+		EdslexprNullSafeEq == kind || EdslexprCall == kind;
 	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind &&
 		 EdslexprItem != kind && EdslexprBoolValue != kind && EdslexprCase != kind &&
-		 EdslexprValueBool != kind && !binary) ||
+		 EdslexprValueBool != kind && EdslexprArgs != kind && !binary) ||
 		(EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(EdslexprItem == kind || EdslexprCase == kind ? 4 : binary ? 3 : 2) != symbols->Size())
+		(EdslexprArgs == kind ? (1 != symbols->Size() && 3 != symbols->Size()) :
+		 (EdslexprItem == kind || EdslexprCase == kind ? 4 : binary ? 3 : 2) != symbols->Size()))
 	{
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
 	const auto output_kind = EdslexprItem == kind ? EdslsymExpr :
-		EdslexprBoolValue == kind || EdslexprCase == kind ? EdslsymScalar : EdslsymPred;
+		EdslexprArgs == kind ? EdslsymValueList :
+		EdslexprBoolValue == kind || EdslexprCase == kind || EdslexprCall == kind ? EdslsymScalar : EdslsymPred;
 	if ((output_kind != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
 			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
-			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind()))) ||
+			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind() ||
+			EdslsymCallHead == output->Esymkind() || EdslsymValueList == output->Esymkind()))) ||
 		nullptr != Pdef(output))
 	{
 		return false;
@@ -244,6 +247,8 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 			: EdslexprBoolValue == kind ? EdslsymPred
 			: EdslexprValueBool == kind ? EdslsymScalar
 			: EdslexprCase == kind ? (1 == i ? EdslsymPred : EdslsymScalar)
+			: EdslexprCall == kind ? (1 == i ? EdslsymCallHead : EdslsymValueList)
+			: EdslexprArgs == kind ? (1 == i ? EdslsymScalar : EdslsymValueList)
 			: EdslexprNullSafeEq == kind ? EdslsymAttrs : output->Esymkind();
 		if (expected != (*symbols)[i]->Esymkind() ||
 			FUses((*symbols)[i], output))
@@ -303,6 +308,8 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 				: EdslexprBoolValue == def->Edslexpr() ? "BoolValue("
 				: EdslexprCase == def->Edslexpr() ? "Case("
 				: EdslexprValueBool == def->Edslexpr() ? "ValueBool("
+				: EdslexprCall == def->Edslexpr() ? "Call("
+				: EdslexprArgs == def->Edslexpr() ? "Args("
 				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)

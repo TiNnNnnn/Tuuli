@@ -54,6 +54,8 @@ enum EDslSymbolKind
 	EdslsymFrame,		 // m (complete window-frame array)
 	EdslsymFrameBound,	 // b (one ROWS frame boundary and optional offset)
 	EdslsymRank,			 // r (rank output attribute and value embedding)
+	EdslsymCallHead,      // h (source call carrier: operator and argument types)
+	EdslsymValueList,     // v (ordered scalar values, no output columns)
 	EdslsymSentinel
 };
 

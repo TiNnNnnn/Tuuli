@@ -1415,6 +1415,42 @@ CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 	return (nullptr != psymSrc) ? psymSrc : psym;
 }
 
+CExpressionArray *
+CDSLInstantiator::PdrgpexprResolveArguments(const CDSLSymbol *symbol,
+	const CDSLModel *model, ULONG depth) const
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (nullptr == m_prule || EdslsymValueList != symbol->Esymkind() ||
+		depth > m_prule->Pexprdefs()->UlDefinitions()) return nullptr;
+	symbol = PsymResolve(symbol);
+	auto *bound = static_cast<CExpressionArray *>(model->PvalLookup(symbol));
+	if (nullptr != bound) { bound->AddRef(); return bound; }
+	const auto *def = m_prule->Pexprdefs()->Pdef(symbol);
+	if (nullptr == def || CDSLExpressionDefinitions::EBuild != def->Binding()) return nullptr;
+	if (EdslexprRef == def->Edslexpr())
+		return PdrgpexprResolveArguments(def->PsymOperand(0), model, depth + 1);
+	if (EdslexprArgs != def->Edslexpr()) return nullptr;
+	CExpressionArray *arguments = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	if (0 == def->Arity()) return arguments;
+	CExpression *value = PexprResolveScalar(def->PsymOperand(0), model, depth + 1);
+	CExpressionArray *tail = PdrgpexprResolveArguments(def->PsymOperand(1), model, depth + 1);
+	if (nullptr == value || nullptr == tail)
+	{
+		CRefCount::SafeRelease(value);
+		CRefCount::SafeRelease(tail);
+		arguments->Release();
+		return nullptr;
+	}
+	arguments->Append(value);
+	for (ULONG i = 0; i < tail->Size(); ++i)
+	{
+		(*tail)[i]->AddRef();
+		arguments->Append((*tail)[i]);
+	}
+	tail->Release();
+	return arguments;
+}
+
 CExpression *
 CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 									const CDSLModel *pmodel, ULONG depth) const
@@ -1442,6 +1478,20 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveScalar(binding->PsymOperand(0), pmodel, depth + 1);
+		if (EdslexprCall == binding->Edslexpr())
+		{
+			auto *head = static_cast<CExpression *>(pmodel->PvalLookup(PsymResolve(binding->PsymOperand(0))));
+			CExpressionArray *arguments = PdrgpexprResolveArguments(binding->PsymOperand(1), pmodel, depth + 1);
+			if (nullptr == head || !CDSLMatchView::FCallArgumentTypes(head, arguments))
+			{
+				CRefCount::SafeRelease(arguments);
+				return nullptr;
+			}
+			head->Pop()->AddRef();
+			CExpression *call = GPOS_NEW(m_mp) CExpression(m_mp, head->Pop(), arguments);
+			if (!CDSLMatchView::FScalarCall(call)) { call->Release(); return nullptr; }
+			return call;
+		}
 		if (EdslexprCase == binding->Edslexpr())
 		{
 			CExpression *condition = PexprResolvePredicate(binding->PsymOperand(0), pmodel);

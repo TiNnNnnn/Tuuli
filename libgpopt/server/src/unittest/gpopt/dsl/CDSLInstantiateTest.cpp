@@ -42,6 +42,10 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarIf.h"
+#include "gpopt/operators/CScalarFunc.h"
+#include "gpopt/operators/CScalarOp.h"
+#include "gpopt/operators/CScalarCmp.h"
+#include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/IMDTypeInt4.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
@@ -98,6 +102,7 @@ GPOS_RESULT
 CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CallValues),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CaseValues),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ValueBool),
@@ -131,6 +136,149 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_CallValues()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string lhs = "Filter<ValueBool(Call(h0,Args(Case(p0,n0,n1),v0))) a0>(Input<t0>)|";
+	const std::string aliases = "|t1 := t0;a1 := a0;h1 := h2;h2 := h0;v1 := v0";
+	CDSLRule *rule = PdslruleParseLocal(mp, (lhs +
+		"Filter<ValueBool(Call(h1,Args(Case(Not(Not(p0)),n0,n1),v1))) a1>(Input<t1>)" + aliases).c_str());
+	if (nullptr == rule) return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG kind = 0; kind < 3; ++kind)
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("call_values", 1, &columns);
+		CExpression *eq = fix.PexprEqConst((*columns)[0], 7);
+		COperator *op = eq->Pop();
+		if (0 == kind) op->AddRef();
+		else if (1 == kind)
+		{
+			IMDId *mdid = CScalarCmp::PopConvert(op)->MdIdOp();
+			mdid->AddRef();
+			op = GPOS_NEW(mp) CScalarOp(mp, mdid, nullptr,
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")));
+		}
+		else
+		{
+			IMDId *boolean_type = fix.Pmda()->PtMDType<IMDTypeBool>()->MDId();
+			boolean_type->AddRef();
+			op = GPOS_NEW(mp) CScalarFunc(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 65 /*int4eq*/),
+				boolean_type,
+				default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("int4eq")), 0, false);
+		}
+		eq->Release();
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+		type->AddRef();
+		CExpression *value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+			CUtils::PexprScalarConstBool(mp, true),
+			CUtils::PexprScalarConstInt4(mp, 7), CUtils::PexprScalarConstInt4(mp, 9));
+		CExpression *call = GPOS_NEW(mp) CExpression(mp, op, value, CUtils::PexprScalarConstInt4(mp, 7));
+		if (2 == kind)
+		{
+			CDSLRule *repeated = PdslruleParseLocal(mp,
+				"Filter<And(ValueBool(n0),ValueBool(n0)) a0>(Input<t0>)|"
+				"Filter<ValueBool(n0) a1>(Input<t1>)|t1 := t0;a1 := a0");
+			if (nullptr == repeated) return GPOS_FAILED;
+			// Native operator Matches ignores these fields; a captured Call head
+			// must not identify different signatures or invocation metadata.
+			for (ULONG variant = 0; variant < 4; ++variant)
+			{
+				IMDId *result_type = fix.Pmda()->PtMDType<IMDTypeBool>()->MDId();
+				result_type->AddRef();
+				COperator *other_op = GPOS_NEW(mp) CScalarFunc(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 65), result_type,
+					1 == variant ? 42 : default_type_modifier,
+					GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("int4eq")),
+					2 == variant ? 1 : 0, 3 == variant);
+				(*call)[0]->AddRef();
+				(*call)[1]->AddRef();
+				CExpression *other = GPOS_NEW(mp) CExpression(mp, other_op, (*call)[0], (*call)[1]);
+				ok &= call->Matches(other) &&
+					CDSLMatchView::FSameCallHead(call, other) == (0 == variant);
+				call->AddRef();
+				CExpression *both = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), call, other);
+				CExpression *selected = fix.PexprLogicalSelect(input, both);
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= CDSLMatcher(mp, repeated).FMatch(repeated->PfragSrc()->PopRoot(), selected, model)
+					== (0 == variant);
+				model->Release();
+				selected->Release();
+				both->Release();
+			}
+			repeated->Release();
+		}
+		CExpression *source = fix.PexprLogicalSelect(input, call);
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		CExpression *target = decision->PexprTarget();
+		ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+		if (nullptr != target)
+		{
+			CExpression *rewritten = (*target)[1];
+			ok &= rewritten->Pop() == call->Pop() && rewritten->Arity() == call->Arity() &&
+				CDSLMatchView::FSameCallHead(call, rewritten) &&
+				(*rewritten)[1]->Matches((*call)[1]) &&
+				(*(*(*(*rewritten)[0])[0])[0])[0]->Matches((*value)[0]);
+		}
+		GPOS_DELETE(decision);
+		std::string exported, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+			exported == "Filter<ValueBool(Call(h0,Args(Case(p1,n0,n1),Args(n2,Args())))) a0>(Input<t0>)";
+		for (const CHAR *bad_args : {"Args()", "Args(BoolValue(p0),v1)", "Args(n0,Args())"})
+		{
+			CDSLRule *bad = PdslruleParseLocal(mp, (lhs + "Filter<ValueBool(Call(h1," + bad_args +
+				")) a1>(Input<t1>)" + aliases).c_str());
+			if (nullptr == bad) { ok = false; continue; }
+			decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, bad, source);
+			ok &= EdsldecisionReady != decision->Status();
+			GPOS_DELETE(decision);
+			bad->Release();
+		}
+		CExpression *srf = fix.PexprGenerateSeries((*columns)[0]);
+		ok &= !CDSLMatchView::FScalarCall(srf);
+		srf->Release();
+		source->Release();
+		call->Release();
+		input->Release();
+	}
+	rule->Release();
+	rule = PdslruleParseLocal(mp,
+		"Proj<a0 s0 Item(Call(h0,Args()),a2,e0)>(Input<t0>)|"
+		"Proj<a1 s1 Item(Call(h1,Args()),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;h1 := h0");
+	if (nullptr == rule) return GPOS_FAILED;
+	for (ULONG stability = 0; stability < IMDFunction::EfsSentinel; ++stability)
+	{
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+		type->AddRef();
+		CExpression *call = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300 + stability), type,
+			default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+			fix.PexprLogicalGet("nullary_input", 1),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("value")), call)));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		ok &= matched == (IMDFunction::EfsImmutable == stability);
+		if (matched)
+		{
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			ok &= nullptr != target && target->Matches(source);
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+		source->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -1389,7 +1537,7 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 			CUtils::PexprScalarEqCmp(mp, (*columns)[0], (*columns)[1]));
 		CExpression *nested_source = fix.PexprLogicalSelect(source, nested_predicate);
 		ok &= CDSLPlanTemplate::FSlice(mp, nested_source, "r", {"r/0/0"}, &text, &error) &&
-			text == "Filter<Or(NullSafeEq(a6,a7),p2) a2>(Filter<NullSafeEq(a4,a5) a0>(Input<t0>))";
+			text == "Filter<Or(NullSafeEq(a6,a7),ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a2>(Filter<NullSafeEq(a4,a5) a0>(Input<t0>))";
 		nested_source->Release();
 		nested_predicate->Release();
 
