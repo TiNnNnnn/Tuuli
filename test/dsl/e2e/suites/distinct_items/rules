@@ -1,3 +1,5 @@
 # Generic construction regression; not counted as an optimization rule.
 # FormalSQL OUTCOME_EQ: 099727c8d6a69be301fec1e9fca2bfde6b93eaf9fb28b61d92d557145ff63340
 Proj*<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Input<t0>)|Proj*<a1 s1 Item(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0)),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0
+# FormalSQL OUTCOME_EQ: fc7b6b1d4b61da9f57c31f7ba77ece7b88efebf1ea24367df54edb11c82850d9
+Proj*<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Filter<p2 a3>(Input<t0>))|Proj*<a1 s1 Item(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0)),a2,e0)>(Filter<p4 a5>(Input<t1>))|t1 := t0;a1 := a0;s1 := s0;p4 := p2;a5 := a3

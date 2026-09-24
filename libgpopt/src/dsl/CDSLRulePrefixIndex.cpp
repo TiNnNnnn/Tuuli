@@ -357,6 +357,12 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return pnode;
 	}
 
+	if (fLiteral && EdslopProj == pop->Edslop() && pop->FDistinct())
+	{
+		ulAdapterFlags |= SExactEdge::EafGbAggGlobal;
+		if (3 == pop->Pdrgpsym()->Size() && EdslopInput != (*pop)[0]->Edslop())
+			ulAdapterFlags |= SExactEdge::EafGbAggPeelProject;
+	}
 	SNode *pnodeCurrent =
 		PnodeExact(pnode, eopid, pop->UlChildren(), ulAdapterFlags);
 	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
@@ -577,12 +583,13 @@ CDSLRulePrefixIndex::MatchOne(
 
 				// A Project directly over one canonical unsplit GbAgg may expose
 				// the aggregate's relational input to a non-Agg DSL child.
-				if (0 == ulChild &&
-					0 != (pedge->m_ulAdapterFlags &
-						  SExactEdge::EafProjectPeelAgg) &&
-					COperator::EopLogicalGbAgg ==
-						pexprChild->Pop()->Eopid() &&
-					2 == pexprChild->Arity())
+				// Exact Proj* similarly exposes a complete SELECT list from its
+				// immediate Project. Never discard that wrapper from the binding.
+				if (0 == ulChild && 2 == pexprChild->Arity() &&
+					((0 != (pedge->m_ulAdapterFlags & SExactEdge::EafProjectPeelAgg) &&
+					  COperator::EopLogicalGbAgg == pexprChild->Pop()->Eopid()) ||
+					 (0 != (pedge->m_ulAdapterFlags & SExactEdge::EafGbAggPeelProject) &&
+					  COperator::EopLogicalProject == pexprChild->Pop()->Eopid())))
 				{
 					MatchOne(mp, pnodeState, (*pexprChild)[0], pdrgpentry,
 							 pdrgpnodeNext);
@@ -968,7 +975,7 @@ CDSLRulePrefixIndex::AppendWrappedStates(
 }
 
 CDSLRulePrefixIndex::SBindingStateArray *
-CDSLRulePrefixIndex::PdrgpstateConsumeProjectChild(
+CDSLRulePrefixIndex::PdrgpstateConsumeAdaptedChild(
 	CMemoryPool *mp, const SNode *pnode, CGroup *pgroup,
 	ULONG ulAdapterFlags) const
 {
@@ -989,16 +996,18 @@ CDSLRulePrefixIndex::PdrgpstateConsumeProjectChild(
 			// Limit chains are one fused ORCA representation of nested DSL
 			// Sort/Limit views. Recurse so every peeled depth remains visible.
 			SBindingStateArray *pdrgpstateInner =
-				PdrgpstateConsumeProjectChild(mp, pnode, (*pgexpr)[0],
+				PdrgpstateConsumeAdaptedChild(mp, pnode, (*pgexpr)[0],
 					ulAdapterFlags);
 			AppendWrappedStates(mp, pgexpr, pdrgpstateInner,
 							pdrgpstateResult);
 			pdrgpstateInner->Release();
 		}
 
-		if (0 != (ulAdapterFlags & SExactEdge::EafProjectPeelAgg) &&
-			COperator::EopLogicalGbAgg == pgexpr->Pop()->Eopid() &&
-			2 == pgexpr->Arity())
+		if (2 == pgexpr->Arity() &&
+			((0 != (ulAdapterFlags & SExactEdge::EafProjectPeelAgg) &&
+			  COperator::EopLogicalGbAgg == pgexpr->Pop()->Eopid()) ||
+			 (0 != (ulAdapterFlags & SExactEdge::EafGbAggPeelProject) &&
+			  COperator::EopLogicalProject == pgexpr->Pop()->Eopid())))
 		{
 			SBindingStateArray *pdrgpstateInner =
 				PdrgpstateConsumeGroup(mp, pnode, (*pgexpr)[0]);
@@ -1060,11 +1069,12 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 				const ULONG ulProjectAdapterFlags =
 					pedge->m_ulAdapterFlags &
 					(SExactEdge::EafProjectPeelLimit |
-					 SExactEdge::EafProjectPeelAgg);
+					 SExactEdge::EafProjectPeelAgg |
+					 SExactEdge::EafGbAggPeelProject);
 				SBindingStateArray *pdrgpchild =
 					(0 == ulChild && SExactEdge::EafNone !=
 									 ulProjectAdapterFlags)
-						? PdrgpstateConsumeProjectChild(
+						? PdrgpstateConsumeAdaptedChild(
 							  mp, pstate->m_pnode, (*pgexpr)[ulChild],
 							  ulProjectAdapterFlags)
 						: PdrgpstateConsumeGroup(

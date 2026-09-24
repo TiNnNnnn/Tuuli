@@ -44,23 +44,6 @@ using namespace gpopt;
 
 namespace
 {
-BOOL
-FSameCapturedExpression(const CExpression *left, const CExpression *right)
-{
-	GPOS_CHECK_STACK_SIZE;
-	if (!left->Pop()->Matches(right->Pop()) || left->Arity() != right->Arity())
-		return false;
-	// Native Matches omits some function metadata. Repeated captures must
-	// preserve it, including calls nested inside scalar trees and argument lists.
-	const auto id = left->Pop()->Eopid();
-	if ((COperator::EopScalarFunc == id || COperator::EopScalarOp == id ||
-		 COperator::EopScalarCmp == id) && !CDSLMatchView::FSameCallHead(left, right))
-		return false;
-	for (ULONG i = 0; i < left->Arity(); ++i)
-		if (!FSameCapturedExpression((*left)[i], (*right)[i])) return false;
-	return true;
-}
-
 BOOL FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
 	const CDSLSymbol *symbol, CExpression *expression, CDSLModel *model, ULONG depth = 0);
 
@@ -76,7 +59,7 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitio
 	{
 		if (existing->Size() != arguments->Size()) return false;
 		for (ULONG i = 0; i < existing->Size(); ++i)
-			if (!FSameCapturedExpression((*existing)[i], (*arguments)[i])) return false;
+			if (!CDSLMatchView::FSameCapturedExpression((*existing)[i], (*arguments)[i])) return false;
 	}
 	else if (!model->FBind(symbol, arguments)) return false;
 	const auto *def = definitions->Pdef(symbol);
@@ -109,7 +92,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		return false;
 	}
 	CExpression *existing = static_cast<CExpression *>(model->PvalLookup(symbol));
-	if (nullptr != existing ? !FSameCapturedExpression(existing, expression)
+	if (nullptr != existing ? !CDSLMatchView::FSameCapturedExpression(existing, expression)
 							: !model->FBind(symbol, expression))
 	{
 		return false;

@@ -113,6 +113,23 @@ CDSLMatchView::FSameCallHead(const CExpression *left, const CExpression *right)
 	return 0 == right->Arity() || FCallArgumentTypes(left, right->PdrgPexpr());
 }
 
+BOOL
+CDSLMatchView::FSameCapturedExpression(const CExpression *left, const CExpression *right)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (left == right) return true;
+	if (!left->Pop()->Matches(right->Pop()) || left->Arity() != right->Arity())
+		return false;
+	// Native Matches omits some function metadata, also inside captured trees.
+	const auto id = left->Pop()->Eopid();
+	if ((COperator::EopScalarFunc == id || COperator::EopScalarOp == id ||
+		 COperator::EopScalarCmp == id) && !FSameCallHead(left, right))
+		return false;
+	for (ULONG i = 0; i < left->Arity(); ++i)
+		if (!FSameCapturedExpression((*left)[i], (*right)[i])) return false;
+	return true;
+}
+
 namespace
 {
 CColRef *

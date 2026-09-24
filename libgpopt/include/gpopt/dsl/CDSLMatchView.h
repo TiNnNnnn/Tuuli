@@ -35,6 +35,9 @@ public:
 	static BOOL FCallArgumentTypes(const CExpression *source,
 		const CExpressionArray *arguments);
 	static BOOL FSameCallHead(const CExpression *left, const CExpression *right);
+	// Exact captured-tree equality, including native call metadata omitted by
+	// CExpression::Matches. Shared by repeated bindings and explicit Eq.
+	static BOOL FSameCapturedExpression(const CExpression *left, const CExpression *right);
 
 	// Non-owning aggregate/HAVING projection of either GbAgg or
 	// Select(GbAgg, predicate).

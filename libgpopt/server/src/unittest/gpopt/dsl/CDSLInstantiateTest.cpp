@@ -104,6 +104,7 @@ CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings),
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_DistinctProjectionPrefix),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CallValues),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CaseValues),
@@ -261,6 +262,121 @@ CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings()
 }
 
 GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_DistinctProjectionPrefix()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL nested : {false, true})
+	{
+		const std::string source_pattern =
+			"Proj*<a0 s0 Item(Case(p0,n0,n1),a2,e0)>(Filter<p2 a3>(Input<t0>))";
+		const std::string target_pattern =
+			"Proj*<a1 s1 Item(Case(Not(Not(p0)),n0,n1),a2,e0)>(Filter<p4 a5>(Input<t1>))";
+		CDSLRule *rule = PdslruleParseLocal(mp, ((nested ? "Filter<p3 a4>(" + source_pattern + ")" : source_pattern) + "|" +
+			(nested ? "Filter<p5 a6>(" + target_pattern + ")" : target_pattern) +
+			"|t1 := t0;a1 := a0;s1 := s0;p4 := p2;a5 := a3" +
+			(nested ? ";p5 := p3;a6 := a4" : "")).c_str());
+		if (nullptr == rule) return GPOS_FAILED;
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append(fix.PcrCreateInt4("predicate_input"));
+		columns->Append(fix.PcrCreateInt4("other"));
+		CExpression *input = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+		CExpression *predicate = fix.PexprPredAtom((*columns)[0]);
+		CExpression *select = fix.PexprLogicalSelect(input, predicate);
+		CColRef *output = fix.PcrCreateInt4("computed");
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+		type->AddRef(); predicate->AddRef(); select->AddRef();
+		CExpression *project = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), select,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, output),
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type), predicate,
+						CUtils::PexprScalarConstInt4(mp, 7), CUtils::PexprScalarConstInt4(mp, 9)))));
+		CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+		keys->Append(output);
+		CExpression *source = fix.PexprLogicalGbAgg(project, keys);
+		if (nested)
+		{
+			CExpression *outer_predicate = fix.PexprPredAtom(output);
+			CExpression *outer = fix.PexprLogicalSelect(source, outer_predicate);
+			outer_predicate->Release(); source->Release(); source = outer;
+		}
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		const BOOL direct = EdsldecisionReady == decision->Status();
+		GPOS_DELETE(decision);
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(rule, 0, source->Pop()->Eopid());
+		CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+		const BOOL indexed = 1 == candidates->Size();
+		candidates->Release();
+		// The adapter exposes one Project; it does not erase a required Filter.
+		input->AddRef(); (*project)[1]->AddRef();
+		CExpression *bare_project = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), input, (*project)[1]);
+		CExpression *missing = fix.PexprLogicalGbAgg(bare_project, keys);
+		bare_project->Release();
+		if (nested)
+		{
+			CExpression *outer = fix.PexprLogicalSelect(missing, (*source)[1]);
+			missing->Release(); missing = outer;
+		}
+		candidates = index.PdrgpruleCandidates(mp, missing);
+		ok &= 0 == candidates->Size();
+		candidates->Release(); missing->Release();
+		CMemo memo(mp);
+		const auto insert = [&](const auto &self, CExpression *expr) -> CGroupExpression * {
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				children->Append(self(self, (*expr)[i])->Pgroup());
+			expr->Pop()->AddRef();
+			CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+				expr->Pop(), children, CXform::ExfInvalid, nullptr, false);
+			CGroupExpression *canonical = nullptr;
+			memo.PgroupInsert(nullptr, expr, entry, &canonical);
+			if (canonical != entry) entry->Release();
+			return canonical;
+		};
+		CGroupExpression *root = insert(insert, source);
+		// A second equivalent Filter must remain visible below the absorbed
+		// Project; retaining only a representative would miss rewrite chains.
+		predicate->AddRef();
+		CExpression *twice = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot),
+			GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate));
+		CExpression *alternative = fix.PexprLogicalSelect(input, twice);
+		CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+		children->Append(insert(insert, input)->Pgroup());
+		children->Append(insert(insert, twice)->Pgroup());
+		alternative->Pop()->AddRef();
+		CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+			alternative->Pop(), children, CXform::ExfInvalid, nullptr, false);
+		CGroupExpression *canonical = nullptr;
+		memo.PgroupInsert(insert(insert, select)->Pgroup(), alternative, entry, &canonical);
+		if (entry != canonical) entry->Release();
+		alternative->Release(); twice->Release();
+		CExpressionArray *bindings = index.PdrgpexprBindings(mp, root);
+		ULONG ready = 0;
+		for (ULONG i = 0; i < bindings->Size(); ++i)
+		{
+			decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, (*bindings)[i]);
+			ready += EdsldecisionReady == decision->Status();
+			GPOS_DELETE(decision);
+		}
+		if (!direct || !indexed || 2 != ready)
+			GPOS_TRACE_FORMAT("distinct prefix nested=%d direct=%d indexed=%d ready=%lu bindings=%lu",
+				nested, direct, indexed, ready, bindings->Size());
+		ok &= direct && indexed && 2 == ready;
+		bindings->Release();
+		source->Release(); keys->Release(); project->Release(); select->Release(); predicate->Release(); input->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
 CDSLInstantiateTest::EresUnittest_CallValues()
 {
 	CAutoMemoryPool amp;
@@ -332,6 +448,46 @@ CDSLInstantiateTest::EresUnittest_CallValues()
 				ok &= CDSLMatcher(mp, repeated).FMatch(repeated->PfragSrc()->PopRoot(), selected, model)
 					== (0 == variant);
 				model->Release();
+				// Explicit Eq must enforce the same capture identity as repetition.
+				for (const CHAR *text : {
+					"Filter<And(ValueBool(n0),ValueBool(n1)) a0>(Input<t0>)|"
+					"Filter<ValueBool(n0) a1>(Input<t1>)|t1 := t0;a1 := a0;Eq(n0,n1)",
+					"Filter<And(p2,p3) a0>(Input<t0>)|"
+					"Filter<p1 a1>(Input<t1>)|t1 := t0;a1 := a0;p1 := p2;Eq(p2,p3)"})
+				{
+					CDSLRule *equality = PdslruleParseLocal(mp, text);
+					if (nullptr == equality) return GPOS_FAILED;
+					CDSLRewriteDecision *checked = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, equality, selected);
+					const BOOL admitted = EdsldecisionReady == checked->Status();
+					if (admitted != (0 == variant))
+						GPOS_TRACE_FORMAT("capture Eq variant=%lu status=%d", variant, checked->Status());
+					ok &= 0 == variant ? admitted : EdsldecisionConstraintRejected == checked->Status();
+					GPOS_DELETE(checked); equality->Release();
+				}
+				// Check the same metadata recursively inside SELECT lists. This
+				// isolates Eq premises; it does not certify a projection rewrite.
+				CDSLRule *lists = PdslruleParseLocal(mp,
+					"Proj<a0 s0 e0>(Proj<a1 s1 e1>(Input<t0>))|"
+					"Input<t1>|t1 := t0;Eq(e0,e1)");
+				if (nullptr == lists) return GPOS_FAILED;
+				CDSLModel *list_model = GPOS_NEW(mp) CDSLModel(mp);
+				CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+				const auto *projection = lists->PfragSrc()->PopRoot();
+				for (ULONG side = 0; side < 2; ++side)
+				{
+					CExpression *value = 0 == side ? call : other;
+					value->AddRef();
+					CExpression *list = GPOS_NEW(mp) CExpression(mp,
+						GPOS_NEW(mp) CScalarProjectList(mp), GPOS_NEW(mp) CExpression(mp,
+							GPOS_NEW(mp) CScalarProjectElement(mp, output), value));
+					ok &= list_model->FBind((*projection->Pdrgpsym())[2], list);
+					list->Release();
+					if (0 == side) projection = (*projection)[0];
+				}
+				ok &= CDSLConstraintChecker(mp).FCheck(lists, list_model) == (0 == variant);
+				list_model->Release();
+				lists->Release();
 				selected->Release();
 				both->Release();
 			}
