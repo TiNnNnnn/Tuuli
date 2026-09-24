@@ -1,0 +1,106 @@
+{
+  "description": "Existing DSL rules remove self IN while preserving its filtered outer input; native subquery and semi-join rewrites are disabled",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "joins": 0,
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply",
+          "CXformLeftSemiJoin2InnerJoin",
+          "CXformLeftSemiJoin2InnerJoinUnderGb",
+          "CXformSimplifyGbAgg"
+        ]
+      }
+    },
+    {
+      "name": "without-membership",
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "without_membership.policy",
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "without-join-removal",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "without_join_removal.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
+        "Falling back to Postgres"
+      ],
+      "joins": 1
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb",
+      "CXformSimplifyGbAgg"
+    ],
+    "output": [
+      "2,20",
+      "3,30"
+    ],
+    "postgres_output": [
+      "2,20",
+      "3,30"
+    ]
+  }
+}

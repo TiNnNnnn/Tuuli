@@ -1,13 +1,14 @@
 {
-  "description": "Eliminating InSub target preserves a residual predicate",
+  "description": "A valid CBO rule chain preserves the residual; the original self-IN rule is rejected because its Input equality premise is false",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
-    "scope": "positive single-column IN under Select with a residual predicate",
+    "scope": "CBO: positive single-column IN under Select with a residual predicate, using membership-to-join and Reference-based join removal",
     "status": "verified_partial_replacement",
-    "dsl_rules": [
-      8
+    "dsl_rule_hashes": [
+      "9dc5c70cd1245677",
+      "083269c328fea89f"
     ]
   },
   "plans": [
@@ -28,7 +29,9 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_id\":8,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0d3437a13186f35\""
       ],
       "alternative": [
         "CXformSelect2Apply",
@@ -58,7 +61,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\"",
-        "\"rule_id\":8,\"status\":\"applied\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
         "\"rule_hash\":\"",
         "\"placement\":\"cbo\",\"phase\":\"explore\",\"priority\":0"
       ],
@@ -84,7 +88,10 @@
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_id\":8,\"status\":\"applied_rbo\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0d3437a13186f35\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"b1d9ece967912f1c\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"f0d3437a13186f35\"",
+        "\"src_rule\":\"b1d9ece967912f1c\",\"dst_rule\":\"f0d3437a13186f35\",\"target_path\":\"r/0\"",
         "\"placement\":\"rbo\"",
         "\"order\":\"bottom_up\""
       ],

@@ -1,0 +1,42 @@
+{
+  "description": "A filtered referred input does not cover the outer key domain; Reference rejects join removal",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"failed_constraint\":\"Reference\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
+        "Falling back to Postgres"
+      ],
+      "joins": 1
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb",
+      "CXformSimplifyGbAgg"
+    ],
+    "output": [
+      "2,20"
+    ],
+    "postgres_output": [
+      "2,20"
+    ]
+  }
+}

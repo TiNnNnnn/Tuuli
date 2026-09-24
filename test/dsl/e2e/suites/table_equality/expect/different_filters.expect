@@ -1,0 +1,32 @@
+{
+  "description": "TableEq must not erase distinct filters over aliases of the same table",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8c0ea513d6ad3223\"",
+        "\"failed_constraint\":\"TableEq\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "2",
+      "2"
+    ],
+    "off_output": [
+      "2",
+      "2"
+    ]
+  }
+}

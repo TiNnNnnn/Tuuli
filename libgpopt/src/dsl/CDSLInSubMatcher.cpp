@@ -52,7 +52,7 @@ PexprSelectWithNotNull(CMemoryPool *mp, CExpression *pexprRel,
 					   CExpressionArray *pdrgpexprConj,
 					   CColRef *pcrRequiredNotNull)
 {
-	if (!pexprRel->DeriveNotNullColumns()->FMember(pcrRequiredNotNull) &&
+	if (!CDSLConstraintChecker::FExpressionProvesNotNull(mp, pexprRel, pcrRequiredNotNull) &&
 		!FPredicateRejectsNull(mp, pdrgpexprConj, pcrRequiredNotNull))
 	{
 		pdrgpexprConj->Append(CUtils::PexprIsNotNull(

@@ -1,0 +1,4 @@
+# Unchanged public rules from orca_replacements.rules and framework.rules.
+# Exercise a valid chain instead of equating filtered and unfiltered Inputs.
+Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
+Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)
