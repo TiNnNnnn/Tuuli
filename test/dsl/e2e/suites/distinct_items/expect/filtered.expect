@@ -1,0 +1,63 @@
+{
+  "description": "A structured Filter below the DISTINCT SELECT capture survives trie lookup and memo extraction",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "structured.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "structured.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0623c687f4c50c20\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Agg"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "structured.policy",
+    "output": [
+      "0,zero",
+      "2,two",
+      "3,three",
+      ",null"
+    ],
+    "postgres_output": [
+      "0,zero",
+      "2,two",
+      "3,three",
+      ",null"
+    ],
+    "off_output": [
+      "0,zero",
+      "2,two",
+      "3,three",
+      ",null"
+    ]
+  }
+}

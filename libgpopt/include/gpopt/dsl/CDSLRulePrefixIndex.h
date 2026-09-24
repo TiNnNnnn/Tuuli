@@ -61,7 +61,10 @@ private:
 			EafNullRejectedInnerJoin = 16,
 			// A pre-unnest Agg(Apply) view exists only while the Global GbAgg's
 			// scalar project list still contains a subquery.
-			EafGbAggHasSubquery = 32
+			EafGbAggHasSubquery = 32,
+			// Exact Proj* SELECT captures may absorb one complete Project below
+			// the grouping. The matcher checks its keys, items and evaluation order.
+			EafGbAggPeelProject = 64
 		};
 
 		COperator::EOperatorId m_eopid;
@@ -197,10 +200,9 @@ private:
 		CMemoryPool *mp, const SNode *pnode,
 		CGroupExpression *pgexpr) const;
 
-	// Project's DSL view may look through fused Limit/Sort shells and one
-	// canonical GbAgg shell. Consume the exposed relation while rebuilding the
-	// exact memo wrappers around every selected binding.
-	SBindingStateArray *PdrgpstateConsumeProjectChild(
+	// Projection views may expose a relation below a native wrapper. Consume
+	// that relation while rebuilding exact memo wrappers around every binding.
+	SBindingStateArray *PdrgpstateConsumeAdaptedChild(
 		CMemoryPool *mp, const SNode *pnode, CGroup *pgroup,
 		ULONG ulAdapterFlags) const;
 	static void AppendWrappedStates(CMemoryPool *mp,

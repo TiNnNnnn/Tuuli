@@ -14,6 +14,7 @@
 #include <unordered_set>
 
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
@@ -583,6 +584,11 @@ FColArraysSemanticEqual(const CDSLRule *prule, const CDSLModel *pmodel,
 	{
 		return false;
 	}
+	// Native expression certificates share actual column identities. The
+	// legacy attribute-function view may equate columns from table aliases,
+	// but that does not establish identity in a captured native expression.
+	if (prule->Pexprdefs()->FHasBindings())
+		return CColRef::Equals(pdrgpcrFirst, pdrgpcrSecond);
 	for (ULONG ul = 0; ul < pdrgpcrFirst->Size(); ul++)
 	{
 		if (!FColRefSemanticEqual(prule, pmodel, (*pdrgpcrFirst)[ul],
@@ -3608,6 +3614,10 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 			{
 				return true;
 			}
+			// Input is an arbitrary captured query, not just its base relation.
+			// Two filters over the same table need not denote the same input.
+			if (prule->Pexprdefs()->FHasBindings())
+				return CDSLMatchView::FSameCapturedExpression(pexprFirst, pexprSecond);
 			BOOL fFirstAmbiguous = false;
 			BOOL fSecondAmbiguous = false;
 			CExpression *pexprFirstGet =
@@ -3634,7 +3644,7 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 				prule, pmodel, pmodel->PdrgpcrSchema(psymFirst),
 				pmodel->PdrgpcrSchema(psymSecond));
 		case EdslconPredicateEq:
-			return pmodel->PexprPred(psymFirst)->Matches(
+			return CDSLMatchView::FSameCapturedExpression(pmodel->PexprPred(psymFirst),
 				pmodel->PexprPred(psymSecond));
 		case EdslconFuncEq:
 		{
@@ -3656,10 +3666,10 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 			return true;
 		}
 		case EdslconScalarEq:
-			return pmodel->PexprScalar(psymFirst)->Matches(
+			return CDSLMatchView::FSameCapturedExpression(pmodel->PexprScalar(psymFirst),
 				pmodel->PexprScalar(psymSecond));
 		case EdslconExprListEq:
-			return pmodel->PexprExpr(psymFirst)->Matches(
+			return CDSLMatchView::FSameCapturedExpression(pmodel->PexprExpr(psymFirst),
 				pmodel->PexprExpr(psymSecond));
 		case EdslconOrderEq:
 			return COrderSpec::Equals(pmodel->PdrgposOrder(psymFirst),

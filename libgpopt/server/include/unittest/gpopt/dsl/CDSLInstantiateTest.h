@@ -33,6 +33,7 @@ public:
 	static GPOS_RESULT EresUnittest_JoinExpressionBindings();
 	static GPOS_RESULT EresUnittest_ProjectExpressionBindings();
 	static GPOS_RESULT EresUnittest_DistinctProjectionBindings();
+	static GPOS_RESULT EresUnittest_DistinctProjectionPrefix();
 	static GPOS_RESULT EresUnittest_SelectItems();
 	static GPOS_RESULT EresUnittest_CaseValues();
 	static GPOS_RESULT EresUnittest_ValueBool();
