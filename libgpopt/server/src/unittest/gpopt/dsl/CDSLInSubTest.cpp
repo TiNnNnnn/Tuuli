@@ -1114,6 +1114,21 @@ CDSLInSubTest::EresUnittest_PostApplyCorpusElimination()
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
 	CDSLConstraintChecker checker(mp);
+	// Same base table is insufficient: the outer Input includes a filter.
+	GPOS_ASSERT(!checker.FCheck(prule, pmodel));
+	pmodel->Release();
+	CExpression *pexprInnerResidual = fix.PexprPredAtom((*pdrgpcrInner)[1]);
+	CExpression *pexprFilteredInner = fix.PexprLogicalSelect((*pexprSource)[1], pexprInnerResidual);
+	pexprInnerResidual->Release();
+	(*pexprSource)[0]->AddRef();
+	(*pexprSource)[2]->AddRef();
+	CExpression *pexprEqualInputs = CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+		mp, (*pexprSource)[0], pexprFilteredInner, (*pdrgpcrInner)[0],
+		COperator::EopScalarSubqueryAny, (*pexprSource)[2]);
+	pexprSource->Release();
+	pexprSource = pexprEqualInputs;
+	pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
 	GPOS_ASSERT(checker.FCheck(prule, pmodel));
 	CDSLInstantiator instantiator(mp);
 	CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
@@ -1292,6 +1307,23 @@ CDSLInSubTest::EresUnittest_PreApplyCorpusElimination()
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
 	CDSLConstraintChecker checker(mp);
+	GPOS_ASSERT(!checker.FCheck(prule, pmodel));
+	pmodel->Release();
+	// Preserve the residual test with genuinely equal (alias-renamed) inputs.
+	CExpression *pexprInnerResidual = fix.PexprEqPred((*pdrgpcrInner)[1], (*pdrgpcrInner)[0]);
+	CExpression *pexprFilteredInner = fix.PexprLogicalSelect(pexprInnerGet, pexprInnerResidual);
+	pexprInnerResidual->Release();
+	CExpressionArray *pdrgpexprEqualConj = GPOS_NEW(mp) CExpressionArray(mp);
+	pdrgpexprEqualConj->Append(PexprScalarAny(mp, fix, pexprFilteredInner,
+		(*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]));
+	pdrgpexprEqualConj->Append(fix.PexprEqPred((*pdrgpcrOuter)[1], (*pdrgpcrOuter)[0]));
+	CExpression *pexprEqualPred = CPredicateUtils::PexprConjunction(mp, pdrgpexprEqualConj);
+	CExpression *pexprEqualInputs = fix.PexprLogicalSelect((*pexprSource)[0], pexprEqualPred);
+	pexprEqualPred->Release();
+	pexprSource->Release();
+	pexprSource = pexprEqualInputs;
+	pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
 	GPOS_ASSERT(checker.FCheck(prule, pmodel));
 
 	CDSLInstantiator instantiator(mp);

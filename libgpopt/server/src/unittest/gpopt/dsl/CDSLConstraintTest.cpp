@@ -139,16 +139,27 @@ CDSLConstraintTest::EresUnittest_ExactBindingEquality()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
-	CTableDescriptor *table = fix.PtabdescCreate("capture_identity", 1);
+	CTableDescriptor *table = fix.PtabdescCreate("capture_identity", 2);
 	CColRefArray *left_columns = nullptr, *right_columns = nullptr;
 	CExpression *left = fix.PexprLogicalGet(table, "left", &left_columns);
 	table->AddRef();
 	CExpression *right = fix.PexprLogicalGet(table, "right", &right_columns);
+	// Usage pruning is not a change of base relation or declared column identity.
+	(*right_columns)[1]->MarkAsUnused();
+	CColRefArray *compared_columns = GPOS_NEW(mp) CColRefArray(mp);
+	compared_columns->Append((*left_columns)[0]);
 	CExpression *one = fix.PexprEqConst((*left_columns)[0], 1);
 	CExpression *two = fix.PexprEqConst((*left_columns)[0], 2);
 	CExpression *first_filter = fix.PexprLogicalSelect(left, one);
 	CExpression *same_filter = fix.PexprLogicalSelect(left, one);
 	CExpression *different_filter = fix.PexprLogicalSelect(left, two);
+	CExpression *right_one = fix.PexprEqConst((*right_columns)[0], 1);
+	CExpression *right_two = fix.PexprEqConst((*right_columns)[0], 2);
+	CExpression *alias_filter = fix.PexprLogicalSelect(right, right_one);
+	CExpression *different_alias_filter = fix.PexprLogicalSelect(right, right_two);
+	CExpression *correlated_filter = fix.PexprLogicalSelect(right, one);
+	CExpression *relations[] = {first_filter, same_filter, different_filter,
+		alias_filter, different_alias_filter, left, correlated_filter};
 	for (BOOL exact : {false, true})
 	{
 		for (const CHAR *equality : {"Eq(t0,t1)", "Eq(a0,a1)", "Eq(s0,s1)"})
@@ -160,24 +171,25 @@ CDSLConstraintTest::EresUnittest_ExactBindingEquality()
 				"InnerJoin<p0 a0 a1>(Proj<a2 s0>(Input<t0>),Proj<a3 s1>(Input<t1>))|Input<t2>|") +
 				(exact ? "t2 := t0;" : "TableEq(t2,t0);") + equality).c_str());
 			if (nullptr == rule) return GPOS_FAILED;
-			for (ULONG shape = 0; shape < 3; ++shape)
+			for (ULONG shape = 0; shape < (relation ? GPOS_ARRAY_SIZE(relations) : 3); ++shape)
 			{
 				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 				model->FBind(PsymByName(rule, "t0"), relation ? first_filter : left);
 				model->FBind(PsymByName(rule, "t1"), relation
-					? (0 == shape ? first_filter : 1 == shape ? same_filter : different_filter)
+					? relations[shape]
 					: (2 == shape ? right : left));
 				if (!relation)
 				{
 					CColRefArray *other = GPOS_NEW(mp) CColRefArray(mp);
 					other->Append(2 == shape ? (*right_columns)[0] : (*left_columns)[0]);
-					model->FBind(PsymByName(rule, schema ? "s0" : "a0"), left_columns);
+					model->FBind(PsymByName(rule, schema ? "s0" : "a0"), compared_columns);
 					model->FBind(PsymByName(rule, schema ? "s1" : "a1"),
-						0 == shape ? left_columns : other);
+						0 == shape ? compared_columns : other);
 					other->Release();
 				}
 				const BOOL admitted = CDSLConstraintChecker(mp).FCheck(rule, model);
-				const BOOL expected = !exact || 2 != shape;
+				const BOOL expected = relation ? shape < 2 || (!exact && 3 == shape)
+					: !exact || 2 != shape;
 				if (admitted != expected)
 					GPOS_TRACE_FORMAT("capture %s exact=%d shape=%lu admitted=%d",
 						equality, exact, shape, admitted);
@@ -188,6 +200,10 @@ CDSLConstraintTest::EresUnittest_ExactBindingEquality()
 		}
 	}
 	first_filter->Release(); same_filter->Release(); different_filter->Release();
+	alias_filter->Release(); different_alias_filter->Release();
+	correlated_filter->Release();
+	compared_columns->Release();
+	right_one->Release(); right_two->Release();
 	one->Release(); two->Release(); left->Release(); right->Release();
 	return ok ? GPOS_OK : GPOS_FAILED;
 }

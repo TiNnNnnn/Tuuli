@@ -1,0 +1,44 @@
+{
+  "description": "Reference-based removal also preserves bag multiplicity without a base-table unique key; the first DSL rule keeps an explicit RHS dedup",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformSimplifyGbAgg"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "joins": 0
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb",
+      "CXformSimplifyGbAgg"
+    ],
+    "output": [
+      "2,20",
+      "2,25",
+      "3,30"
+    ],
+    "postgres_output": [
+      "2,20",
+      "2,25",
+      "3,30"
+    ]
+  }
+}

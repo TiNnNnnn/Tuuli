@@ -1,0 +1,3 @@
+# Existing repeated_insub.rules fixture, unchanged. This suite checks runtime
+# TableEq admission, not a newly mined rule or a new FormalSQL certificate.
+InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a2>(Input<t3>,Input<t4>)|TableEq(t1,t2);AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t3,t0);TableEq(t4,t1);AttrsEq(a2,a0)

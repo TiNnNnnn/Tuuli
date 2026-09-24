@@ -215,6 +215,9 @@ private:
 
 public:
 	CDSLConstraintChecker(const CDSLConstraintChecker &) = delete;
+	// Reuse the constraint's evidence when a match view needs a NULL guard.
+	static BOOL FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
+		const CColRef *pcr);
 
 	explicit CDSLConstraintChecker(CMemoryPool *mp) : m_mp(mp)
 	{

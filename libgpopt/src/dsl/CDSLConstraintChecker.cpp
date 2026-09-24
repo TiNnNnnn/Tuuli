@@ -11,6 +11,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 
+#include <unordered_map>
 #include <unordered_set>
 
 #include "gpopt/dsl/CDSLInstantiator.h"
@@ -39,6 +40,9 @@
 #include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalDynamicGetBase.h"
+#include "gpopt/operators/CLogicalIndexGet.h"
+#include "gpopt/operators/CLogicalBitmapTableGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -471,6 +475,19 @@ PtabdescBaseAccess(CExpression *pexpr)
 		default:
 			return nullptr;
 	}
+}
+
+CColRefArray *
+PdrgpcrBaseAccess(CExpression *pexpr)
+{
+	// Use declared scan columns, not usage-pruned derived output: two aliases
+	// can use different columns while still denoting the same base tuples.
+	COperator *op = pexpr->Pop();
+	if (auto *get = dynamic_cast<CLogicalGet *>(op)) return get->PdrgpcrOutput();
+	if (auto *get = dynamic_cast<CLogicalDynamicGetBase *>(op)) return get->PdrgpcrOutput();
+	if (auto *get = dynamic_cast<CLogicalIndexGet *>(op)) return get->PdrgpcrOutput();
+	if (auto *get = dynamic_cast<CLogicalBitmapTableGet *>(op)) return get->PdrgpcrOutput();
+	return nullptr;
 }
 
 CExpression *
@@ -916,8 +933,10 @@ FSelectionChainRejectsNull(CMemoryPool *mp, CExpression *pexpr,
 	return false;
 }
 
+}  // namespace
+
 BOOL
-FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
+CDSLConstraintChecker::FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
 						 const CColRef *pcr)
 {
 	if (nullptr == pexpr ||
@@ -970,8 +989,6 @@ FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
 			return false;
 	}
 }
-}  // namespace
-
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::PcrsFromAttrsSym
@@ -3610,30 +3627,67 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 		{
 			CExpression *pexprFirst = pmodel->PexprTable(psymFirst);
 			CExpression *pexprSecond = pmodel->PexprTable(psymSecond);
-			if (pexprFirst == pexprSecond)
+			if (CDSLMatchView::FSameCapturedExpression(pexprFirst, pexprSecond))
 			{
 				return true;
 			}
 			// Input is an arbitrary captured query, not just its base relation.
 			// Two filters over the same table need not denote the same input.
 			if (prule->Pexprdefs()->FHasBindings())
-				return CDSLMatchView::FSameCapturedExpression(pexprFirst, pexprSecond);
+				return false;
 			BOOL fFirstAmbiguous = false;
 			BOOL fSecondAmbiguous = false;
 			CExpression *pexprFirstGet =
 				PexprSingleBaseGet(pexprFirst, &fFirstAmbiguous);
 			CExpression *pexprSecondGet =
 				PexprSingleBaseGet(pexprSecond, &fSecondAmbiguous);
-			if (nullptr != pexprFirstGet && nullptr != pexprSecondGet)
+			if (nullptr == pexprFirstGet || nullptr == pexprSecondGet ||
+				!PtabdescBaseAccess(pexprFirstGet)->MDId()->Equals(
+					PtabdescBaseAccess(pexprSecondGet)->MDId()) ||
+				!pexprFirst->DeriveOuterReferences()->Equals(pexprSecond->DeriveOuterReferences()))
+				return false;
+
+			// Legacy attribute functions permit table aliases, but not dropping
+			// operators above the scan. Rename only the local base columns, then
+			// compare complete trees. Equal outer references prevent capture.
+			CColRefArray *first_columns = PdrgpcrBaseAccess(pexprFirstGet);
+			CColRefArray *second_columns = PdrgpcrBaseAccess(pexprSecondGet);
+			if (nullptr == first_columns || nullptr == second_columns ||
+				first_columns->Size() != second_columns->Size())
+				return false;
+			std::unordered_map<INT, CColRef *> attributes;
+			for (ULONG i = 0; i < first_columns->Size(); ++i)
 			{
-				CTableDescriptor *ptabdescFirst =
-					PtabdescBaseAccess(pexprFirstGet);
-				CTableDescriptor *ptabdescSecond =
-					PtabdescBaseAccess(pexprSecondGet);
-				return nullptr != ptabdescFirst && nullptr != ptabdescSecond &&
-					   ptabdescFirst->MDId()->Equals(ptabdescSecond->MDId());
+				CColRef *column = (*first_columns)[i];
+				if (CColRef::EcrtTable != column->Ecrt() ||
+					!attributes.emplace(CColRefTable::PcrConvert(column)->AttrNum(), column).second)
+					return false;
 			}
-			return pexprFirst->Matches(pexprSecond);
+			UlongToColRefMap *mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+			BOOL valid = true;
+			for (ULONG i = 0; valid && i < second_columns->Size(); ++i)
+			{
+				CColRef *column = (*second_columns)[i];
+				if (CColRef::EcrtTable != column->Ecrt()) { valid = false; break; }
+				auto found = attributes.find(CColRefTable::PcrConvert(column)->AttrNum());
+				valid = attributes.end() != found &&
+					column->RetrieveType()->MDId()->Equals(found->second->RetrieveType()->MDId()) &&
+					column->TypeModifier() == found->second->TypeModifier();
+				if (valid)
+				{
+					if (column != found->second)
+						valid = mapping->Insert(GPOS_NEW(m_mp) ULONG(column->Id()), found->second);
+					attributes.erase(found);
+				}
+			}
+			if (valid)
+			{
+				CExpression *renamed = pexprSecond->PexprCopyWithRemappedColumns(m_mp, mapping, false);
+				valid = CDSLMatchView::FSameCapturedExpression(pexprFirst, renamed);
+				renamed->Release();
+			}
+			mapping->Release();
+			return valid;
 		}
 		case EdslconAttrsEq:
 			return FColArraysSemanticEqual(
