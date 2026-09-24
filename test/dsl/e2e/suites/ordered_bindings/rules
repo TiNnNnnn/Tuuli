@@ -1,0 +1,3 @@
+# Generic construction probe, not a mined optimization or an order movement law.
+# The exact rule is checked by FormalSQLExpressionProjectTest through OUTCOME_EQ.
+SortBy<o0>(Proj<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Input<t0>))|SortBy<o1>(Proj<a1 s1 Item(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0)),a2,e0)>(Input<t1>))|t1 := t0;a1 := a0;s1 := s0;o1 := o0

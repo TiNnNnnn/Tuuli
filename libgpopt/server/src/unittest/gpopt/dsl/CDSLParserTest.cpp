@@ -128,6 +128,11 @@ EresInlineExpressions()
 	const CHAR *valid[] = {
 		"Proj<a0 s0 Item(Call(h0,Args()),a2,e0)>(Input<t0>)|"
 		"Proj<a1 s1 Item(Call(h1,v1),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;h1 := h0;v1 := Args()",
+		"SortBy<o0>(Filter<Not(Not(p0)) a0>(Input<t0>))|"
+		"SortBy<o1>(Filter<p1 a1>(Input<t1>))|t1 := t0;a1 := a0;p1 := p0;o1 := o2;o2 := o0",
+		"SortBy<o0>(Proj<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Input<t0>))|"
+		"SortBy<o1>(Proj<a1 s1 Item(Call(h0,Args(Case(Not(Not(p0)),n0,n1),v0)),a2,e0)>(Input<t1>))|"
+		"t1 := t0;a1 := a0;s1 := s0;o1 := o0",
 		"Filter<ValueBool(Call(h0,Args(Case(p0,n0,n1),v0))) a0>(Input<t0>)|"
 		"Filter<ValueBool(Call(h1,Args(Case(Not(Not(p0)),n0,n1),v1))) a1>(Input<t1>)|"
 		"t1 := t0;a1 := a0;h1 := h2;h2 := h0;v1 := v0",
@@ -214,6 +219,18 @@ EresInlineExpressions()
 	{
 		wrongSlot->Release();
 		return GPOS_FAILED;
+	}
+	for (const CHAR *binding : {"o1 := a0", "o1 := o2;o2 := o1"})
+	{
+		const std::string text =
+			"SortBy<o0>(Filter<p0 a0>(Input<t0>))|SortBy<o1>(Filter<Not(Not(p0)) a1>(Input<t1>))|"
+			"t1 := t0;a1 := a0;" + std::string(binding);
+		CDSLRule *rule = Parse(mp, text.c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
 	}
 	return GPOS_OK;
 }

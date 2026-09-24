@@ -825,6 +825,8 @@ FBindingTree(const CDSLOp *op)
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
 				 ((EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
+				  (EdslopSort == op->Edslop() && EdslsortSpec == op->Edslsort() &&
+				   1 == op->Pdrgpsym()->Size()) ||
 				  (EdslopProj == op->Edslop() &&
 				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())))))
 	{
@@ -854,7 +856,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj* and complete-predicate Join templates");
+			"expression bindings support Input/Filter/Proj/Proj*/SortBy and complete-predicate Join templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -951,11 +953,12 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			}
 			const auto kind = known->second->Esymkind();
 			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind && EdslsymScalar != kind &&
+				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymOrder != kind &&
+				 EdslsymExpr != kind && EdslsymScalar != kind &&
 				 EdslsymCallHead != kind && EdslsymValueList != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
-				bctx.Fail("expression reference requires matching predicate, scalar, attrs, table, schema or expression-list types");
+				bctx.Fail("expression reference requires matching supported symbol types");
 				return false;
 			}
 			it = references.erase(it);

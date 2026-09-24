@@ -234,6 +234,7 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 	if ((output_kind != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
 			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
+			EdslsymOrder == output->Esymkind() ||
 			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind() ||
 			EdslsymCallHead == output->Esymkind() || EdslsymValueList == output->Esymkind()))) ||
 		nullptr != Pdef(output))

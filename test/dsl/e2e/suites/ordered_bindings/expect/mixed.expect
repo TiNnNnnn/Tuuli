@@ -1,0 +1,72 @@
+{
+  "description": "Native SortBy expression bindings preserve mixed ordering, NULL placement, duplicates and ordered output columns",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9c477aa7873d6332\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Limit"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Limit"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "13,three",
+      "12,null",
+      "12,two",
+      "12,two",
+      "11,one",
+      "11,zero",
+      ",missing"
+    ],
+    "postgres_output": [
+      "13,three",
+      "12,null",
+      "12,two",
+      "12,two",
+      "11,one",
+      "11,zero",
+      ",missing"
+    ],
+    "off_output": [
+      "13,three",
+      "12,null",
+      "12,two",
+      "12,two",
+      "11,one",
+      "11,zero",
+      ",missing"
+    ]
+  }
+}
