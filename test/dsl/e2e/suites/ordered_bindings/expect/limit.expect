@@ -1,0 +1,32 @@
+{
+  "description": "A bounded ORDER BY is not a pure SortBy capture",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "13,three",
+      "12,null"
+    ],
+    "postgres_output": [
+      "13,three",
+      "12,null"
+    ],
+    "off_output": [
+      "13,three",
+      "12,null"
+    ]
+  }
+}
