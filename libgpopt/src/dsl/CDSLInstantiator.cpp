@@ -4094,7 +4094,13 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
 		BOOL outputs_match = nullptr != list && nullptr != schema && list->Arity() == schema->Size();
 		for (ULONG i = 0; outputs_match && i < schema->Size(); ++i)
-			outputs_match = CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() == (*schema)[i];
+		{
+			CExpression *value = (*(*list)[i])[0];
+			outputs_match = CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() == (*schema)[i] &&
+				(!pexprChild->DeriveOutputColumns()->FMember((*schema)[i]) ||
+				 (COperator::EopScalarIdent == value->Pop()->Eopid() &&
+				  CScalarIdent::PopConvert(value->Pop())->Pcr() == (*schema)[i]));
+		}
 		if (!outputs_match || nullptr == attrs || nullptr == source_attrs ||
 			!CColRef::Equals(attrs, source_attrs) ||
 			!pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns()))
@@ -4103,8 +4109,28 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			pexprChild->Release();
 			return nullptr;
 		}
+		if (pop->FDistinct() && 0 == schema->Size())
+		{
+			list->Release();
+			pexprChild->Release();
+			return nullptr;
+		}
+		CExpression *project = PexprProjectWithoutSelfAliases(m_mp, pexprChild, list);
+		if (nullptr == project || !pop->FDistinct())
+			return project;
+		if (0 == (*project)[1]->Arity())
+		{
+			pexprChild = (*project)[0];
+			pexprChild->AddRef();
+			project->Release();
+			project = pexprChild;
+		}
+		// Group by SELECT outputs, not its dependencies or pass-through columns.
+		schema->AddRef();
 		return GPOS_NEW(m_mp) CExpression(m_mp,
-			GPOS_NEW(m_mp) CLogicalProject(m_mp), pexprChild, list);
+			GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, schema, COperator::EgbaggtypeGlobal),
+			project, GPOS_NEW(m_mp) CExpression(m_mp,
+				GPOS_NEW(m_mp) CScalarProjectList(m_mp)));
 	}
 	if (pmodel->FVirtualIdentityProj(psymSchema) && !pop->FDistinct())
 	{

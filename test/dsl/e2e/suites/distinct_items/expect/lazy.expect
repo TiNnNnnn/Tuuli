@@ -1,0 +1,53 @@
+{
+  "description": "DISTINCT preserves lazy CASE inside Call",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"5fcdda802b1a5258\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Agg"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "0,zero",
+      "3,three",
+      "5,two",
+      "10,one",
+      ",null"
+    ],
+    "postgres_output": [
+      "0,zero",
+      "3,three",
+      "5,two",
+      "10,one",
+      ",null"
+    ],
+    "off_output": [
+      "0,zero",
+      "3,three",
+      "5,two",
+      "10,one",
+      ",null"
+    ]
+  }
+}

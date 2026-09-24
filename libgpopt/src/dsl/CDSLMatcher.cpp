@@ -724,11 +724,17 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 	//
 	// Proj* (deduplicated projection) has NO CLogicalProject counterpart in ORCA
 	// — SELECT DISTINCT becomes a CLogicalGbAgg (empty agg list). So a DISTINCT
-	// Proj routes to the Agg matcher instead; a plain Proj to the Proj matcher.
+	// Proj uses the Agg compatibility matcher for legacy rules; new expression
+	// bindings use the exact DISTINCT projection adapter instead.
 	if (EdslopProj == pop->Edslop())
 	{
 		if (pop->FDistinct())
 		{
+			if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+			{
+				CDSLProjMatcher pm(m_mp, this);
+				return pm.FMatchDistinct(pop, pexpr, pmodel);
+			}
 			CDSLAggMatcher am(m_mp, this);
 			return am.FMatch(pop, pexpr, pmodel);
 		}

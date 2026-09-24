@@ -21,6 +21,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
@@ -476,6 +477,71 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	CExpression *pexprProjList = (*pexprProject)[1];
 	pexprProjList->AddRef();
 	return pmodel->FSetProjList(psymSchema, pexprProjList);
+}
+
+BOOL
+CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
+								CDSLModel *pmodel) const
+{
+	if (COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() ||
+		2 != pexprAgg->Arity() ||
+		COperator::EopScalarProjectList != (*pexprAgg)[1]->Pop()->Eopid() ||
+		0 != (*pexprAgg)[1]->Arity())
+		return false;
+	CLogicalGbAgg *agg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	CColRefArray *keys = agg->Pdrgpcr();
+	// Global aggregation with no keys emits a row on empty input, unlike
+	// DISTINCT. Local/intermediate aggregation is not a relational DISTINCT.
+	if (COperator::EgbaggtypeGlobal != agg->Egbaggtype() || 0 == keys->Size())
+		return false;
+	CExpression *input = (*pexprAgg)[0];
+	CExpression *computed = nullptr;
+	if (3 == popProj->Pdrgpsym()->Size() &&
+		COperator::EopLogicalProject == input->Pop()->Eopid() &&
+		2 == input->Arity() &&
+		COperator::EopScalarProjectList == (*input)[1]->Pop()->Eopid() &&
+		!(*input)[1]->DeriveHasNonScalarFunction() &&
+		!(*input)[1]->DeriveHasSubquery() &&
+		(*input)[0]->DeriveOutputColumns()->ContainsAll(
+			(*input)[1]->DeriveUsedColumns()))
+	{
+		// Only absorb a complete SELECT list in its original evaluation order.
+		// Unselected expressions (including errors) must stay in the input.
+		ULONG next = 0;
+		for (ULONG i = 0; i < keys->Size() && next < (*input)[1]->Arity(); ++i)
+			if ((*keys)[i] == CScalarProjectElement::PopConvert(
+					(*(*input)[1])[next]->Pop())->Pcr())
+				++next;
+		if (next == (*input)[1]->Arity())
+		{
+			computed = (*input)[1];
+			input = (*input)[0];
+		}
+	}
+	CExpressionArray *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	ULONG next = 0;
+	for (ULONG i = 0; i < keys->Size(); ++i)
+	{
+		if (nullptr != computed && next < computed->Arity() &&
+			(*keys)[i] == CScalarProjectElement::PopConvert((*computed)[next]->Pop())->Pcr())
+		{
+			(*computed)[next]->AddRef();
+			items->Append((*computed)[next++]);
+		}
+		else
+			items->Append(GPOS_NEW(m_mp) CExpression(m_mp,
+				GPOS_NEW(m_mp) CScalarProjectElement(m_mp, (*keys)[i]),
+				GPOS_NEW(m_mp) CExpression(m_mp,
+					GPOS_NEW(m_mp) CScalarIdent(m_mp, (*keys)[i]))));
+	}
+	input->AddRef();
+	CExpression *projection = GPOS_NEW(m_mp) CExpression(m_mp,
+		GPOS_NEW(m_mp) CLogicalProject(m_mp), input,
+		GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CScalarProjectList(m_mp), items));
+	const BOOL matched = FMatch(popProj, projection, pmodel);
+	projection->Release();
+	return matched;
 }
 
 // EOF

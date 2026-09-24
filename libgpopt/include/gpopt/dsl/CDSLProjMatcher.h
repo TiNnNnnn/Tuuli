@@ -119,6 +119,11 @@ public:
 	BOOL FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 				CDSLModel *pmodel) const;
 
+	// Native expression bindings: a pure global grouping is DISTINCT over the
+	// ordered grouping columns, optionally computed by its immediate Project.
+	BOOL FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
+						CDSLModel *pmodel) const;
+
 	// Compute<e a s> is an exact ComputeScalar/LET view: e owns the complete
 	// CScalarProjectList, a its referenced columns and s its defined columns.
 	// Unlike Proj, it has no virtual shells, pruning semantics, or child peeling.
