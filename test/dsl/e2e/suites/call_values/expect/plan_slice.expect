@@ -1,0 +1,27 @@
+{
+  "description": "Export resolved function and comparison heads, ordered Args and nested CASE",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [
+          "r/0"
+        ],
+        "status": "ok",
+        "source_template": "Proj<a0 s0 Item(Call(h0,Args(Case(ValueBool(Call(h1,Args(n0,Args(n1,Args())))),n2,n3),Args())),a1,e0)>(Input<t0>)",
+        "error": null
+      }
+    }
+  ]
+}

@@ -445,6 +445,15 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
+		if ((EdslconErrorFree == edslcon || EdslconDeterministic == edslcon) &&
+			(EdslsymCallHead == (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymValueList == (*pdrgpsym)[0]->Esymkind()))
+		{
+			bctx.Fail("function heads and argument lists do not declare scalar safety premises");
+			pdrgpsym->Release();
+			pdrgpcon->Release();
+			return nullptr;
+		}
 		if (EdslconPredicateFalse == edslcon &&
 			EdslsymPred != (*pdrgpsym)[0]->Esymkind())
 		{
@@ -896,17 +905,21 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			const BOOL bool_value = "BoolValue" == call->ID()->getText();
 			const BOOL value_bool = "ValueBool" == call->ID()->getText();
 			const BOOL case_value = "Case" == call->ID()->getText();
+			const BOOL scalar_call = "Call" == call->ID()->getText();
+			const BOOL args = "Args" == call->ID()->getText();
 			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText() || bool_value || value_bool) &&
 				  1 == call->SYMBOL().size()) &&
-				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison) &&
-				  2 == call->SYMBOL().size()) && !((item || case_value) && 3 == call->SYMBOL().size()))
+				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison || scalar_call) &&
+				  2 == call->SYMBOL().size()) && !((item || case_value) && 3 == call->SYMBOL().size()) &&
+				!(args && (call->SYMBOL().empty() || 2 == call->SYMBOL().size())))
 			{
 				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue/Case/ValueBool)");
+					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue/Case/ValueBool/Call/Args)");
 				return false;
 			}
 			if (!declare(binding->SYMBOL(0)->getText(),
-				item ? EdslsymExpr : bool_value || case_value ? EdslsymScalar : EdslsymPred, match))
+				item ? EdslsymExpr : args ? EdslsymValueList :
+				bool_value || case_value || scalar_call ? EdslsymScalar : EdslsymPred, match))
 			{
 				return false;
 			}
@@ -915,6 +928,8 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				const auto kind = item
 					? (0 == i ? EdslsymScalar : 1 == i ? EdslsymAttrs : EdslsymExpr)
 					: case_value ? (0 == i ? EdslsymPred : EdslsymScalar)
+					: scalar_call ? (0 == i ? EdslsymCallHead : EdslsymValueList)
+					: args ? (0 == i ? EdslsymScalar : EdslsymValueList)
 					: value_bool ? EdslsymScalar
 					: comparison ? EdslsymAttrs : EdslsymPred;
 				if (!declare(call->SYMBOL(i)->getText(), kind, match))
@@ -942,7 +957,8 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			}
 			const auto kind = known->second->Esymkind();
 			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind && EdslsymScalar != kind) ||
+				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymExpr != kind && EdslsymScalar != kind &&
+				 EdslsymCallHead != kind && EdslsymValueList != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
 				bctx.Fail("expression reference requires matching predicate, scalar, attrs, table, schema or expression-list types");
@@ -1022,9 +1038,6 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			binding->getStart()->getType() == dsl::DSLRuleParser::ID;
 		const auto *output = bctx.symtab.at(binding->SYMBOL(0)->getText());
 		auto *call = binding->call();
-		const auto *input =
-			bctx.symtab.at(nullptr != call ? call->SYMBOL(0)->getText()
-										   : binding->SYMBOL(1)->getText());
 		if (!match &&
 			(EdslsideSource == output->Eside() || aliases.count(output)))
 		{
@@ -1033,14 +1046,13 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			return false;
 		}
 		CDSLSymbolArray *symbols = GPOS_NEW(bctx.mp) CDSLSymbolArray(bctx.mp);
-		for (const CDSLSymbol *symbol : {output, input})
+		const_cast<CDSLSymbol *>(output)->AddRef();
+		symbols->Append(const_cast<CDSLSymbol *>(output));
+		const auto operands = nullptr != call ? call->SYMBOL() :
+			std::vector<antlr4::tree::TerminalNode *>{binding->SYMBOL(1)};
+		for (auto *operand : operands)
 		{
-			const_cast<CDSLSymbol *>(symbol)->AddRef();
-			symbols->Append(const_cast<CDSLSymbol *>(symbol));
-		}
-		for (ULONG i = 1; nullptr != call && i < call->SYMBOL().size(); ++i)
-		{
-			CDSLSymbol *right = bctx.symtab.at(call->SYMBOL(i)->getText());
+			CDSLSymbol *right = bctx.symtab.at(operand->getText());
 			right->AddRef();
 			symbols->Append(right);
 		}
@@ -1053,6 +1065,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				: "BoolValue" == call->ID()->getText() ? EdslexprBoolValue
 				: "Case" == call->ID()->getText() ? EdslexprCase
 				: "ValueBool" == call->ID()->getText() ? EdslexprValueBool
+				: "Call" == call->ID()->getText() ? EdslexprCall
+				: "Args" == call->ID()->getText() ? EdslexprArgs
 				: "NotTrue" == call->ID()->getText() ? EdslexprNotTrue : EdslexprNot,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();

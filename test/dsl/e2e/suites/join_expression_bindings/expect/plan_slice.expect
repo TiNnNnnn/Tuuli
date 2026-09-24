@@ -20,7 +20,7 @@
           "r/1"
         ],
         "status": "ok",
-        "source_template": "LeftJoin<Or(p1,p2) a0 a1>(Input<t0>,Input<t1>)",
+        "source_template": "LeftJoin<Or(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(Call(h2,Args(n2,Args(n3,Args()))),Args(n4,Args()))))) a0 a1>(Input<t0>,Input<t1>)",
         "error": null
       }
     }

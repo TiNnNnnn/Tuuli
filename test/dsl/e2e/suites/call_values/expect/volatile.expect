@@ -1,0 +1,44 @@
+{
+  "description": "A volatile call is not admitted to the immutable native Call proof domain",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "2,null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "1,zero"
+    ],
+    "postgres_output": [
+      "2,null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "1,zero"
+    ],
+    "off_output": [
+      "2,null",
+      "1,one",
+      "3,three",
+      "2,two",
+      "2,two",
+      "1,zero"
+    ]
+  }
+}

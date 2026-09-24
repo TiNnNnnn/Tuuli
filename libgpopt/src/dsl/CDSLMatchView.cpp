@@ -25,6 +25,8 @@
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarFunc.h"
+#include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/xforms/CSubqueryHandler.h"
@@ -33,6 +35,83 @@
 #include "naucrates/md/IMDType.h"
 
 using namespace gpopt;
+
+namespace
+{
+BOOL
+FImmutableCallTree(const CExpression *expression)
+{
+	GPOS_CHECK_STACK_SIZE;
+	const auto id = expression->Pop()->Eopid();
+	IMDId *function = nullptr;
+	CMDAccessor *mda = COptCtxt::PoctxtFromTLS()->Pmda();
+	if (COperator::EopScalarFunc == id)
+		function = CScalarFunc::PopConvert(expression->Pop())->FuncMdId();
+	else if (COperator::EopScalarOp == id || COperator::EopScalarCmp == id)
+		function = mda->RetrieveScOp(COperator::EopScalarOp == id
+			? CScalarOp::PopConvert(expression->Pop())->MdIdOp()
+			: CScalarCmp::PopConvert(expression->Pop())->MdIdOp())->FuncMdId();
+	if (nullptr != function)
+	{
+		const IMDFunction *metadata = mda->RetrieveFunc(function);
+		if (metadata->ReturnsSet() || IMDFunction::EfsImmutable != metadata->GetFuncStability())
+			return false;
+	}
+	// ScalarOp/Cmp stability cannot be inferred solely from child properties.
+	// Check catalog-backed operators even below CASE and Boolean wrappers.
+	for (ULONG i = 0; i < expression->Arity(); ++i)
+		if (!FImmutableCallTree((*expression)[i])) return false;
+	return true;
+}
+}  // namespace
+
+BOOL
+CDSLMatchView::FScalarCall(const CExpression *expression)
+{
+	const auto id = expression->Pop()->Eopid();
+	if (COperator::EopScalarFunc != id && COperator::EopScalarOp != id &&
+		COperator::EopScalarCmp != id) return false;
+	// Property derivation only populates CExpression's existing property cache.
+	CExpression *derived = const_cast<CExpression *>(expression);
+	return !derived->DeriveHasSubquery() && !derived->DeriveHasNonScalarFunction() &&
+		IMDFunction::EfsImmutable == derived->DeriveScalarFunctionProperties()->Efs() &&
+		FImmutableCallTree(expression);
+}
+
+BOOL
+CDSLMatchView::FCallArgumentTypes(const CExpression *source,
+	const CExpressionArray *arguments)
+{
+	if (nullptr == arguments || source->Arity() != arguments->Size())
+		return false;
+	for (ULONG i = 0; i < source->Arity(); ++i)
+	{
+		const auto *before = CScalar::PopConvert((*source)[i]->Pop());
+		const auto *after = CScalar::PopConvert((*arguments)[i]->Pop());
+		if (!before->MdidType()->Equals(after->MdidType()) ||
+			before->TypeModifier() != after->TypeModifier())
+			return false;
+	}
+	return true;
+}
+
+BOOL
+CDSLMatchView::FSameCallHead(const CExpression *left, const CExpression *right)
+{
+	if (!left->Pop()->Matches(right->Pop()) ||
+		!CScalar::PopConvert(left->Pop())->MdidType()->Equals(CScalar::PopConvert(right->Pop())->MdidType()) ||
+		CScalar::PopConvert(left->Pop())->TypeModifier() != CScalar::PopConvert(right->Pop())->TypeModifier() ||
+		left->Arity() != right->Arity())
+		return false;
+	if (COperator::EopScalarFunc == left->Pop()->Eopid())
+	{
+		const auto *l = CScalarFunc::PopConvert(left->Pop());
+		const auto *r = CScalarFunc::PopConvert(right->Pop());
+		if (l->FuncFormat() != r->FuncFormat() || l->IsFuncVariadic() != r->IsFuncVariadic())
+			return false;
+	}
+	return 0 == right->Arity() || FCallArgumentTypes(left, right->PdrgPexpr());
+}
 
 namespace
 {

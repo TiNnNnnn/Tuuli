@@ -80,9 +80,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 		{
 			// Equal leaf values are separate occurrences, not an inferred equality
 			// requirement. N-ary AND/OR must not be reassociated by the exporter.
-			ok &= text == (0 == trial ? "Filter<Not(p1) a0>(Input<t0>)"
-				: 3 == trial ? "Filter<Or(p1,p2) a0>(Input<t0>)"
-				: "Filter<And(p1,p2) a0>(Input<t0>)");
+			ok &= text == (0 == trial ? "Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>)"
+				: 3 == trial ? "Filter<Or(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a0>(Input<t0>)"
+				: "Filter<And(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a0>(Input<t0>)");
 			CWStringDynamic parse_error(mp);
 			CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
 				(text + "|Input<t1>|TableEq(t1,t0)").c_str(), nullptr, &parse_error);
@@ -122,9 +122,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 	std::string text, error;
 	// Input can capture a join. Cutting there must not expose either join leaf.
 	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r", {"r/0/0"}, &text, &error) &&
-		text == "Filter<Not(p3) a2>(Filter<Not(p2) a0>(Input<t0>))";
+		text == "Filter<Not(ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a2>(Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>))";
 	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r/0", {"r/0/0"}, &text, &error) &&
-		text == "Filter<Not(p1) a0>(Input<t0>)";
+		text == "Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>)";
 	// Keeping a Join no longer hides expressions above or inside either branch.
 	ok &= CDSLPlanTemplate::FSlice(mp, select_join, "r", {}, &text, &error) &&
 		std::string::npos != text.find("Not(") &&
@@ -231,9 +231,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		!CDSLPlanTemplate::FValidateSelection(
 			select, "r", {"r/0", "r/0"}, &selection_error) &&
 		selection_error == "duplicate cut path: r/0" && sliced_ok &&
-		sliced == "Filter<p0 a0 a1>(Input<t0>)" && slice_error.empty() &&
+		sliced == "Filter<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0>(Input<t0>)" && slice_error.empty() &&
 		join_sliced &&
-		join_slice == "InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)" &&
+		join_slice == "InnerJoin<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0 a1>(Input<t0>,Input<t1>)" &&
 		join_error.empty() &&
 		dedup_sliced && dedup_slice == "Proj*<a0 s0>(Input<t0>)" &&
 		dedup_error.empty() &&
@@ -241,7 +241,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		requested_slice ==
 			"{\"schema\":\"pgorca.dsl.plan-slice.v1\",\"root_path\":\"r\","
 			"\"cut_paths\":[\"r/0\"],\"status\":\"ok\","
-			"\"source_template\":\"Filter<p0 a0 a1>(Input<t0>)\",\"error\":null}" &&
+			"\"source_template\":\"Filter<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0>(Input<t0>)\",\"error\":null}" &&
 		!CDSLPlanTemplate::FValidateSelection(
 			nested_select, "r", {"r/0", "r/0/0"}, &selection_error) &&
 		selection_error == "cut paths must form an antichain";

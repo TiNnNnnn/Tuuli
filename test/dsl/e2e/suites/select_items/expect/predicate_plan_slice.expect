@@ -19,7 +19,7 @@
           "r/0/0"
         ],
         "status": "ok",
-        "source_template": "Filter<ValueBool(Case(p1,BoolValue(p2),BoolValue(p3))) a0>(Input<t0>)",
+        "source_template": "Filter<ValueBool(Case(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),Call(h1,Args(n2,Args(n3,Args()))),Call(h2,Args(n4,Args(n5,Args()))))) a0>(Input<t0>)",
         "error": null
       }
     }

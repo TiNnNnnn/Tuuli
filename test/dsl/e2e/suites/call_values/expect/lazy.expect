@@ -1,0 +1,56 @@
+{
+  "description": "CASE remains lazy inside a native eager call; a dead division-by-zero arm stays unevaluated",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c6f4c53f49d925d2\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",null",
+      "10,one",
+      "3,three",
+      "5,two",
+      "5,two",
+      "0,zero"
+    ],
+    "postgres_output": [
+      ",null",
+      "10,one",
+      "3,three",
+      "5,two",
+      "5,two",
+      "0,zero"
+    ],
+    "off_output": [
+      ",null",
+      "10,one",
+      "3,three",
+      "5,two",
+      "5,two",
+      "0,zero"
+    ]
+  }
+}
