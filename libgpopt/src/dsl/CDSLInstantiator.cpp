@@ -4563,14 +4563,25 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		{
 			CColRefSet *pcrsTarget =
 				rgpexprTarget[ulTarget]->DeriveOutputColumns();
+			// Four-slot templates declare the positional input maps. Reuse a
+			// source map only if it is the declared map, not merely available
+			// in the target's unordered output set.
+			CColRefArray *declared = 4 == pop->Pdrgpsym()->Size()
+				? PdrgpcrResolveCols(PsymResolve((*pop->Pdrgpsym())[2 + ulTarget]), pmodel)
+				: nullptr;
+			CColRefArray *mapped = nullptr == declared ? nullptr
+				: PdrgpcrMapToTarget((*pop)[ulTarget], rgpexprTarget[ulTarget], declared, pmodel);
 			for (ULONG ulSource = 0; ulSource < 2; ulSource++)
 			{
 				CColRefArray *pdrgpcrInput =
 					(*pdrgpdrgpcrCandidateInput)[ulSource];
 				rgfFits[ulTarget][ulSource] =
 					pdrgpcrInput->Size() == pdrgpcrCandidateOutput->Size() &&
-					FColSetContainsArray(pcrsTarget, pdrgpcrInput);
+					FColSetContainsArray(pcrsTarget, pdrgpcrInput) &&
+					(4 != pop->Pdrgpsym()->Size() ||
+					 (nullptr != mapped && CColRef::Equals(mapped, pdrgpcrInput)));
 			}
+			CRefCount::SafeRelease(mapped);
 		}
 
 		if (rgfFits[0][0] && rgfFits[1][1])
@@ -4626,8 +4637,22 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 				? nullptr
 				: PdrgpcrMapToTarget((*pop)[1], pexprRight,
 								 pdrgpcrRightAttrs, pmodel);
-			if (nullptr != rgpdrgpcrInput[0] &&
-				nullptr != rgpdrgpcrInput[1])
+			BOOL valid = nullptr != rgpdrgpcrInput[0] && nullptr != rgpdrgpcrInput[1];
+			for (ULONG child = 0; valid && child < 2; ++child)
+			{
+				valid = rgpdrgpcrInput[child]->Size() == pdrgpcrAttrs->Size();
+				for (ULONG col = 0; valid && col < pdrgpcrAttrs->Size(); ++col)
+				{
+					CColRef *input = (*rgpdrgpcrInput[child])[col];
+					CColRef *output = (*pdrgpcrAttrs)[col];
+					valid = input->RetrieveType()->MDId()->Equals(output->RetrieveType()->MDId()) &&
+						input->TypeModifier() == output->TypeModifier();
+					// Non-first inputs cannot own a SetOp output identity.
+					for (ULONG i = 0; valid && child == 1 && i < pdrgpcrAttrs->Size(); ++i)
+						valid = input != (*pdrgpcrAttrs)[i];
+				}
+			}
+			if (valid)
 			{
 				pdrgpcrOutput = pdrgpcrAttrs;
 				fOwnsInputMappings = true;

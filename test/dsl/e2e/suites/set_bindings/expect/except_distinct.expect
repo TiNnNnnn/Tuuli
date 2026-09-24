@@ -1,0 +1,32 @@
+{
+  "description": "Except* expression construction preserves positional maps, duplicates and NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"37a72c7cbb79d4e6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Difference"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "4,40"
+    ],
+    "postgres_output": [
+      "4,40"
+    ],
+    "off_output": [
+      "4,40"
+    ]
+  }
+}

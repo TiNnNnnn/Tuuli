@@ -1,0 +1,43 @@
+{
+  "description": "SQL set multiplicities distinguish EXCEPT DISTINCT from DISTINCT(EXCEPT ALL), including NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "distinct_of_except_all,2",
+      "except_all,2",
+      "except_distinct,0"
+    ],
+    "postgres_output": [
+      "distinct_of_except_all,2",
+      "except_all,2",
+      "except_distinct,0"
+    ],
+    "off_output": [
+      "distinct_of_except_all,2",
+      "except_all,2",
+      "except_distinct,0"
+    ]
+  }
+}

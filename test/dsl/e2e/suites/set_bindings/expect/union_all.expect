@@ -1,0 +1,62 @@
+{
+  "description": "Union expression construction preserves positional maps, duplicates and NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7f86d0f5f65c902a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_UnionAll"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,-1",
+      "2,-1",
+      "2,99",
+      "3,30",
+      "3,30",
+      "4,40"
+    ],
+    "postgres_output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,-1",
+      "2,-1",
+      "2,99",
+      "3,30",
+      "3,30",
+      "4,40"
+    ],
+    "off_output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,-1",
+      "2,-1",
+      "2,99",
+      "3,30",
+      "3,30",
+      "4,40"
+    ]
+  }
+}
