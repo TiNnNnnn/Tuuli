@@ -1,5 +1,5 @@
 {
-  "description": "Mapping-aware UnionAll branch rewrite",
+  "description": "UnionAll branches with different filters must fail the fixture rule's TableEq premise",
   "plans": [
     {
       "name": "off",
@@ -16,10 +16,13 @@
       "name": "on",
       "trace": true,
       "contains": [
-        "Optimizer: pg_orca"
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"506a71e16cd43fdb\"",
+        "\"failed_constraint\":\"TableEq\""
       ],
-      "alternative": [
-        "CXformDSLRule_UnionAll"
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"506a71e16cd43fdb\"",
+        "Falling back to Postgres"
       ]
     }
   ],
@@ -31,6 +34,12 @@
       "3"
     ],
     "postgres_output": [
+      "1",
+      "2",
+      "2",
+      "3"
+    ],
+    "off_output": [
       "1",
       "2",
       "2",

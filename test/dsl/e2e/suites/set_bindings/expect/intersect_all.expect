@@ -1,0 +1,41 @@
+{
+  "description": "Intersect expression construction preserves positional maps, duplicates and NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"fc576330092721fe\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_IntersectAll"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,10",
+      "1,10",
+      "2,-1",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,10",
+      "1,10",
+      "2,-1",
+      "3,30"
+    ],
+    "off_output": [
+      "1,10",
+      "1,10",
+      "2,-1",
+      "3,30"
+    ]
+  }
+}

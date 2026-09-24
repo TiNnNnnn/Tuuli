@@ -17,6 +17,8 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/dsl/CDSLRewriteDecision.h"
 #include "gpopt/operators/CLogicalCTEAnchor.h"
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalGet.h"
@@ -304,10 +306,128 @@ EresGroupingSubsetPushesBelowUnion(BOOL fDistinct, const CHAR *szRule)
 	return eres;
 }
 
+// The same six construction probes are proved by FormalSQLExpressionSetTest.
+static GPOS_RESULT
+EresExpressionSetBindings()
+{
+	const CHAR *names[] = {"Union", "Union*", "Intersect", "Intersect*", "Except", "Except*"};
+	const COperator::EOperatorId kinds[] = {
+		COperator::EopLogicalUnionAll, COperator::EopLogicalUnion,
+		COperator::EopLogicalIntersectAll, COperator::EopLogicalIntersect,
+		COperator::EopLogicalDifferenceAll, COperator::EopLogicalDifference};
+	for (ULONG k = 0; k < GPOS_ARRAY_SIZE(kinds); ++k)
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		const std::string text = std::string(names[k]) +
+			"<a0 s0 a1 a2>(Filter<p0 a3>(Input<t0>),Filter<p1 a4>(Input<t1>))|" + names[k] +
+			"<a5 s1 a6 a7>(Filter<Not(Not(p0)) a8>(Input<t2>),Filter<Not(Not(p1)) a9>(Input<t3>))|"
+			"t2 := t0;t3 := t1;a5 := a0;s1 := s0;a6 := a1;a7 := a2;a8 := a3;a9 := a4";
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("set_bind_left", 2, &lc));
+		CAutoRef<CExpression> right(fix.PexprLogicalGet("set_bind_right", 2, &rc));
+		CAutoRef<CExpression> lp(fix.PexprPredAtom((*lc)[0]));
+		CAutoRef<CExpression> rp(fix.PexprPredAtom((*rc)[1]));
+		CAutoRef<CExpression> ls(fix.PexprLogicalSelect(left.Value(), lp.Value()));
+		CAutoRef<CExpression> rs(fix.PexprLogicalSelect(right.Value(), rp.Value()));
+		CAutoRef<CColRefArray> reversed(GPOS_NEW(mp) CColRefArray(mp));
+		reversed->Append((*rc)[1]); reversed->Append((*rc)[0]);
+		CAutoRef<CExpression> source(PexprSetOpById(mp, kinds[k], ls.Value(), lc, rs.Value(), reversed.Value()));
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule.Value(), source.Value());
+		CExpression *target = decision->PexprTarget();
+		BOOL valid = EdsldecisionReady == decision->Status() && nullptr != target;
+		if (valid)
+		{
+			auto *set = CLogicalSetOp::PopConvert(target->Pop());
+			valid = kinds[k] == set->Eopid() && CColRef::Equals(set->PdrgpcrOutput(), lc) &&
+				CColRef::Equals((*set->PdrgpdrgpcrInput())[0], lc) &&
+				CColRef::Equals((*set->PdrgpdrgpcrInput())[1], reversed.Value());
+			for (ULONG child = 0; valid && child < 2; ++child)
+			{
+				CExpression *predicate = (*(*target)[child])[1];
+				valid = COperator::EopScalarBoolOp == predicate->Pop()->Eopid() &&
+					1 == predicate->Arity() && 1 == (*predicate)[0]->Arity() &&
+					(*(*predicate)[0])[0]->Matches(child == 0 ? lp.Value() : rp.Value());
+			}
+		}
+		GPOS_DELETE(decision);
+		GPOS_UNITTEST_ASSERT(valid);
+	}
+	return GPOS_OK;
+}
+
+// These deliberately unproved templates test faithful construction, not rule
+// equivalence: an explicit target input map must never be replaced by inference.
+static GPOS_RESULT
+EresExplicitSetOpInputMaps()
+{
+	const CHAR *names[] = {"Union", "Union*", "Intersect", "Intersect*", "Except", "Except*"};
+	const COperator::EOperatorId kinds[] = {
+		COperator::EopLogicalUnionAll, COperator::EopLogicalUnion,
+		COperator::EopLogicalIntersectAll, COperator::EopLogicalIntersect,
+		COperator::EopLogicalDifferenceAll, COperator::EopLogicalDifference};
+	for (ULONG k = 0; k < GPOS_ARRAY_SIZE(kinds); ++k)
+		for (ULONG variant = 0; variant < 4; ++variant)
+		{
+			CAutoMemoryPool amp;
+			CMemoryPool *mp = amp.Pmp();
+			CDSLTestFixture fix(mp);
+			const std::string text = std::string(names[k]) +
+				"<a0 s0 a1 a2>(Input<t0>,Input<t1>)|" + names[k] +
+				"<a3 s1 a4 a5>(Input<t2>,Input<t3>)|AttrsEq(a3,a0);SchemaEq(s1,s0);" +
+				(variant == 3
+				 ? "TableEq(t2,t1);TableEq(t3,t0);AttrsEq(a4,a2);AttrsEq(a5,a1)"
+				 : "TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a1);OutputAttrs(a5,t1)");
+			CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+			GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+			CColRefArray *left_cols = nullptr, *right_cols = nullptr;
+			CAutoRef<CExpression> left(fix.PexprLogicalGet("set_left", 2, &left_cols));
+			CAutoRef<CExpression> right(fix.PexprLogicalGet("set_right", variant == 2 ? 3 : 2, &right_cols));
+			for (ULONG col = 0; col < right_cols->Size(); ++col)
+				(*right_cols)[col]->MarkAsUsed();
+			CAutoRef<CColRefArray> source_right(GPOS_NEW(mp) CColRefArray(mp));
+			source_right->Append((*right_cols)[variant == 1 ? 1 : 0]);
+			source_right->Append((*right_cols)[variant == 1 ? 0 : 1]);
+			CAutoRef<CExpression> source(PexprSetOpById(mp, kinds[k], left.Value(),
+				left_cols, right.Value(), source_right.Value()));
+			CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+			CDSLMatcher matcher(mp, rule.Value());
+			CDSLConstraintChecker checker(mp);
+			GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+			GPOS_UNITTEST_ASSERT(checker.FCheck(rule.Value(), model.Value()));
+			CDSLInstantiator instantiator(mp);
+			CAutoRef<CExpression> target(instantiator.PexprInstantiate(rule.Value(), model.Value()));
+			if (variant == 2)
+			{
+				GPOS_UNITTEST_ASSERT(nullptr == target.Value());
+				continue;
+			}
+			GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+			auto *op = CLogicalSetOp::PopConvert(target->Pop());
+			GPOS_UNITTEST_ASSERT(op->Eopid() == kinds[k]);
+			GPOS_UNITTEST_ASSERT(CColRef::Equals(op->PdrgpcrOutput(), left_cols));
+			GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[0], left_cols));
+			GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[1], right_cols));
+			if (variant == 3)
+			{
+				GPOS_UNITTEST_ASSERT(CLogicalGet::PopConvert((*target)[0]->Pop())->Ptabdesc()->MDId()->Equals(
+					CLogicalGet::PopConvert(right->Pop())->Ptabdesc()->MDId()));
+				GPOS_UNITTEST_ASSERT(CLogicalGet::PopConvert((*target)[1]->Pop())->Ptabdesc()->MDId()->Equals(
+					CLogicalGet::PopConvert(left->Pop())->Ptabdesc()->MDId()));
+			}
+		}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresExplicitSetOpInputMaps),
+		GPOS_UNITTEST_FUNC(EresExpressionSetBindings),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_PhysicalImplementation),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_PhysicalSetOpDXL),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),

@@ -821,8 +821,11 @@ FBindingTree(const CDSLOp *op)
 	const BOOL join = EdslopInnerJoin == op->Edslop() ||
 		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
+	const BOOL set = EdslopUnion == op->Edslop() ||
+		EdslopIntersect == op->Edslop() || EdslopExcept == op->Edslop();
 	if (nullptr == op->Pdrgpsym() ||
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : set ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
 				 ((EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
 				  (EdslopSort == op->Edslop() && EdslsortSpec == op->Edslsort() &&
@@ -856,7 +859,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/SortBy and complete-predicate Join templates");
+			"expression bindings support Input/Filter/Proj/Proj*/SortBy, complete-predicate Join and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

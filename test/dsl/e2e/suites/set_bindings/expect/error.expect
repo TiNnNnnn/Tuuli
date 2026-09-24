@@ -1,0 +1,33 @@
+{
+  "description": "Set child expression construction preserves division-by-zero errors",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7f86d0f5f65c902a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_UnionAll"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
