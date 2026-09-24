@@ -36,6 +36,7 @@
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CExpressionUtils.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -102,6 +103,7 @@ GPOS_RESULT
 CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CallValues),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_SelectItems),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CaseValues),
@@ -136,6 +138,126 @@ CDSLInstantiateTest::EresUnittest()
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0 Item(Case(p0,n0,n1),a2,e0)>(Input<t0>)|"
+		"Proj*<a1 s1 Item(Case(Not(Not(p0)),n0,n1),a2,e0)>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0");
+	CDSLRule *filter = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Filter<p0 a2>(Input<t0>))|"
+		"Proj*<a1 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
+		"t1 := t0;a1 := a0;s1 := s0;a3 := a2");
+	if (nullptr == rule || nullptr == filter)
+	{
+		CRefCount::SafeRelease(rule); CRefCount::SafeRelease(filter);
+		return GPOS_FAILED;
+	}
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("distinct_binding", 2, &columns);
+	CExpression *predicate = fix.PexprPredAtom((*columns)[0]);
+	CExpression *select = fix.PexprLogicalSelect(input, predicate);
+	CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+	keys->Append((*columns)[0]);
+	CExpression *dedup = fix.PexprLogicalGbAgg(select, keys);
+	CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, filter, dedup);
+	CExpression *target = decision->PexprTarget();
+	ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+	if (nullptr != target)
+		ok &= COperator::EopLogicalGbAgg == target->Pop()->Eopid() &&
+			CColRef::Equals(CLogicalGbAgg::PopConvert(target->Pop())->Pdrgpcr(), keys) &&
+			dedup->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()) &&
+			COperator::EopLogicalSelect == (*target)[0]->Pop()->Eopid();
+	GPOS_DELETE(decision); dedup->Release(); keys->Release();
+
+	CColRef *output = fix.PcrCreateInt4("computed");
+	for (ULONG shape = 0; shape < 8; ++shape)
+	{
+		IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+		type->AddRef(); predicate->AddRef();
+		CExpression *value = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarIf(mp, type), predicate,
+			CUtils::PexprScalarConstInt4(mp, 7), CUtils::PexprScalarConstInt4(mp, 9));
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		items->Append(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarProjectElement(mp, output), value));
+		CColRef *extra = fix.PcrCreateInt4("extra");
+		if (4 == shape || 7 == shape)
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, extra),
+				CUtils::PexprScalarConstInt4(mp, 42)));
+		input->AddRef();
+		CExpression *project = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		keys = GPOS_NEW(mp) CColRefArray(mp);
+		if (3 != shape)
+		{
+			// Group-key order must not silently reorder computed expressions.
+			if (7 == shape)
+				keys->Append(extra);
+			keys->Append(output);
+			keys->Append((*columns)[1]); // passthrough, not computed
+		}
+		dedup = fix.PexprLogicalGbAgg(project, keys,
+			1 == shape ? fix.PcrCreateInt4("aggregate") : nullptr,
+			(*columns)[0]);
+		if (2 == shape)
+		{
+			keys->AddRef(); project->AddRef(); (*dedup)[1]->AddRef();
+			CExpression *local = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalGbAgg(mp, keys, COperator::EgbaggtypeLocal), project, (*dedup)[1]);
+			dedup->Release(); dedup = local;
+		}
+		if (5 == shape)
+		{
+			dedup->Release(); project->AddRef(); dedup = project;
+		}
+		if (6 == shape)
+		{
+			// A hidden Limit remains part of the arbitrary input, not peeled away.
+			input->AddRef();
+			CExpression *limit = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),
+				input, CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
+			(*project)[1]->AddRef();
+			CExpression *limited_project = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalProject(mp), limit, (*project)[1]);
+			dedup->Release(); dedup = fix.PexprLogicalGbAgg(limited_project, keys);
+			limited_project->Release();
+		}
+		decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, dedup);
+		target = decision->PexprTarget();
+		if (0 == shape || 6 == shape)
+		{
+			ok &= EdsldecisionReady == decision->Status() && nullptr != target;
+			if (nullptr != target)
+			{
+				ok &= COperator::EopLogicalGbAgg == target->Pop()->Eopid() &&
+					CColRef::Equals(CLogicalGbAgg::PopConvert(target->Pop())->Pdrgpcr(), keys) &&
+					dedup->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()) &&
+					1 == (*(*target)[0])[1]->Arity();
+				CExpression *rewritten = (*(*(*(*target)[0])[1])[0])[0];
+				ok &= COperator::EopScalarIf == rewritten->Pop()->Eopid() &&
+					(*(*(*rewritten)[0])[0])[0]->Matches(predicate);
+				if (6 == shape)
+					ok &= COperator::EopLogicalLimit == (*(*target)[0])[0]->Pop()->Eopid();
+			}
+		}
+		else
+			ok &= EdsldecisionReady != decision->Status();
+		GPOS_DELETE(decision); dedup->Release(); project->Release(); keys->Release();
+	}
+	predicate->Release(); select->Release(); input->Release();
+	rule->Release(); filter->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

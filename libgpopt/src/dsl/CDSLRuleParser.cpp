@@ -284,12 +284,6 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 	{
 		return nullptr;
 	}
-	if (EdslopProj == edslop && fStar && 3 == pdrgpsym->Size())
-	{
-		bctx.Fail("Proj* does not expose a scalar SELECT list");
-		pdrgpsym->Release();
-		return nullptr;
-	}
 
 	// children
 	const ULONG ul_expected_children = CDSLOpKindTable::UlChildren(edslop);
@@ -831,7 +825,7 @@ FBindingTree(const CDSLOp *op)
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
 				 ((EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
-				  (EdslopProj == op->Edslop() && !op->FDistinct() &&
+				  (EdslopProj == op->Edslop() &&
 				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())))))
 	{
 		return false;
@@ -860,7 +854,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/plain Proj and complete-predicate Join templates");
+			"expression bindings support Input/Filter/Proj/Proj* and complete-predicate Join templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
