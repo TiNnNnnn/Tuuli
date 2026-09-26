@@ -19,7 +19,7 @@
           "r/0"
         ],
         "status": "ok",
-        "source_template": "Proj<a0 s0 Item(Case(ValueBool(Call(h0,Args(Column(a1),Args(n0,Args())))),Call(h1,Args(Column(a2),Args(n1,Args()))),n2),a3,e0)>(Input<t0>)",
+        "source_template": "Compute<Item(Case(ValueBool(Call(h0,Args(Column(a1),Args(n0,Args())))),Call(h1,Args(Column(a2),Args(n1,Args()))),n2),a3,e0) a0 s0>(Input<t0>)",
         "error": null
       }
     }

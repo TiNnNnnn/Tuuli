@@ -760,7 +760,7 @@ CDSLInstantiateTest::EresUnittest_CaseValues()
 				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")), value)));
 		std::string exported, error;
 		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
-			exported == "Proj<a0 s0 Item(Case(p0,n0,n1),a1,e0)>(Input<t0>)";
+			exported == "Compute<Item(Case(p0,n0,n1),a1,e0) a0 s0>(Input<t0>)";
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
 		CExpression *target = decision->PexprTarget();
 		ok &= EdsldecisionReady == decision->Status() && nullptr != target;
@@ -840,20 +840,40 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input, list);
 			std::string exported, error;
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
-				0 == exported.find("Proj<a0 s0 Item(BoolValue(Not(Not(p0))),a1,") &&
+				0 == exported.find("Compute<Item(BoolValue(Not(Not(p0))),a1,") &&
 				std::string::npos != exported.find(0 == truth ? "Item(BoolValue(p1),a2," : "Item(Column(a2),a3,");
 			ULONG item_count = 0;
 			for (size_t pos = 0; (pos = exported.find("Item(", pos)) != std::string::npos; pos += 5)
 				++item_count;
 			ok &= item_count == list->Arity();
+			// The exported template must reconstruct the native compute, including
+			// child columns that are not mentioned by any output definition.
+			std::string rebuilt = exported;
+			rebuilt.replace(rebuilt.rfind(" a0 s0>"), std::string::npos,
+				" a100 s100>(Input<t100>)");
+			CDSLRule *roundtrip = PdslruleParseLocal(mp, (exported + "|" + rebuilt +
+				"|a100 := a0;s100 := s0;t100 := t0").c_str());
+			if (nullptr == roundtrip)
+				ok = false;
+			else
+			{
+				CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, roundtrip, source);
+				CExpression *target = decision->PexprTarget();
+				ok &= EdsldecisionDuplicate == decision->Status() && nullptr != target;
+				if (nullptr != target)
+					ok &= target->Matches(source) &&
+						target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+				GPOS_DELETE(decision);
+				roundtrip->Release();
+			}
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r"}, &exported, &error) &&
 				exported == "Input<t0>";
 			CExpression *filtered = fix.PexprLogicalSelect(source, predicate);
 			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {"r/0/0"}, &exported, &error) &&
-				0 == exported.find("Filter<") && std::string::npos != exported.find("Proj<") &&
+				0 == exported.find("Filter<") && std::string::npos != exported.find("Compute<") &&
 				std::string::npos != exported.find("BoolValue(Not(Not(");
 			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r/0", {"r/0/0"}, &exported, &error) &&
-				0 == exported.find("Proj<");
+				0 == exported.find("Compute<");
 			ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {"r/0"}, &exported, &error) &&
 				std::string::npos == exported.find("Item(");
 			filtered->Release();
@@ -978,7 +998,9 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		std::string exported, error;
 		if (shape < 3)
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
-				exported == (0 == shape ? "Proj<a0 s0 e0>(Input<t0>)" : "Compute<e0 a0 s0>(Input<t0>)");
+				exported == "Compute<e0 a0 s0>(Input<t0>)";
+		else
+			ok &= !CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		ok &= CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) == (0 == shape);
 		model->Release();
