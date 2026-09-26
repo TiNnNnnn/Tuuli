@@ -163,13 +163,16 @@ EresColumnAliases()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	const std::string definitions = "Item(Column(a2),a3,Item(Column(a2),a4,Item()))";
-	const std::string text =
-		"Compute<Item(Column(a3),a5,Item()) a0 s0>(Compute<" + definitions + " a1 s1>(Input<t0>))|"
-		"Compute<Item(n0,a5,Item()) a6 s2>(Compute<" + definitions + " a7 s3>(Input<t1>))|"
-		"n0 := Column(a4);t1 := t0;s2 := s0;a7 := a1;s3 := s1;";
 	BOOL ok = true;
-	for (ULONG trial = 0; trial < 3; ++trial)
+	for (ULONG trial = 0; trial < 6; ++trial)
 	{
+		const BOOL in_case = 3 <= trial;
+		const std::string text =
+			"Compute<Item(" + std::string(in_case ? "Case(p0,Column(a3),n0)" : "Column(a3)") +
+			",a5,Item()) a0 s0>(Compute<" + definitions + " a1 s1>(Input<t0>))|"
+			"Compute<Item(n1,a5,Item()) a6 s2>(Compute<" + definitions + " a7 s3>(Input<t1>))|" +
+			(in_case ? "n2 := Column(a4);n1 := Case(p0,n2,n0);" : "n1 := Column(a4);") +
+			"t1 := t0;s2 := s0;a7 := a1;s3 := s1;";
 		CColRefArray *columns = nullptr;
 		CExpression *input = fix.PexprLogicalGet("column_aliases", 2, &columns);
 		CColRef *a = fix.PcrCreateInt4("a"), *b = fix.PcrCreateInt4("b");
@@ -180,23 +183,42 @@ EresColumnAliases()
 			CUtils::PexprScalarIdent(mp, (*columns)[2 == trial ? 1 : 0])));
 		CExpression *inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
 			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		CExpression *source_value = CUtils::PexprScalarIdent(mp, a);
+		if (in_case)
+		{
+			IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
+			type->AddRef();
+			source_value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+				CUtils::PexprScalarConstBool(mp, 4 == trial, 5 == trial), source_value,
+				CUtils::PexprScalarConstInt4(mp, 9));
+		}
 		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), inner,
 			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
 				GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")),
-					CUtils::PexprScalarIdent(mp, a))));
+					source_value)));
 		CDSLRule *rule = PdslruleParseLocal(mp,
-			(text + (1 == trial ? "a6 := a0" : "a6 := ScalarDeps(n0)")).c_str());
+			(text + (1 == trial ? "a6 := a0" : "a6 := ScalarDeps(n1)")).c_str());
 		if (nullptr == rule) { source->Release(); return GPOS_FAILED; }
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
-		ok &= (EdsldecisionReady == decision->Status()) == (0 == trial);
-		if (0 == trial)
+		ok &= (EdsldecisionReady == decision->Status()) == (0 == trial || in_case);
+		if (0 == trial || in_case)
 		{
 			CExpression *target = decision->PexprTarget();
 			ok &= nullptr != target;
 			if (nullptr != target)
 			{
 				CExpression *value = (*(*(*target)[1])[0])[0];
+				if (in_case)
+				{
+					if (COperator::EopScalarIf != value->Pop()->Eopid() || 3 != value->Arity())
+					{
+						GPOS_DELETE(decision); rule->Release(); source->Release(); return GPOS_FAILED;
+					}
+					ok &= value->Pop()->Matches(source_value->Pop()) &&
+						(*value)[0]->Matches((*source_value)[0]) && (*value)[2]->Matches((*source_value)[2]);
+					value = (*value)[1];
+				}
 				ok &= COperator::EopScalarIdent == value->Pop()->Eopid() &&
 					CScalarIdent::PopConvert(value->Pop())->Pcr() == b &&
 					(*target)[0]->Matches(inner) &&
