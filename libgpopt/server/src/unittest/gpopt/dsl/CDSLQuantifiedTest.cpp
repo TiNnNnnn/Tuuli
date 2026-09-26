@@ -26,6 +26,7 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -34,6 +35,7 @@
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "naucrates/md/IMDTypeBool.h"
 #include "naucrates/md/IMDTypeInt4.h"
+#include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -253,6 +255,61 @@ EresSharedComparisonHead()
 		rule->Release();
 	}
 	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresComparisonOutcomeDomain()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (ULONG trial = 0; trial < 3; ++trial)
+	{
+		CColRefArray *cols = nullptr;
+		CExpression *input = fix.PexprLogicalGet("comparison_domain", 1, &cols);
+		CExpression *left = CUtils::PexprScalarIdent(mp, (*cols)[0]);
+		if (1 == trial)
+		{
+			// Unknown error behavior in an argument must remain admissible:
+			// Compare preserves argument failures, unlike failures in its head.
+			left->Release();
+			left = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+				default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false));
+		}
+		CExpression *comparison = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarCmp(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 2 == trial ? 100400 : GPDB_INT4_EQ_OP),
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), IMDType::EcmptEq), left,
+			CUtils::PexprScalarConstInt4(mp, 7));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), input, comparison);
+		for (BOOL call : {false, true})
+		{
+			const std::string expression = call ? "ValueBool(Call(h0,v0))" : "Compare(c0,v0)";
+			CDSLRule *rule = PruleParse(mp, ("Filter<" + expression + " a0>(Input<t0>)|"
+				"Filter<Not(Not(" + expression + ")) a1>(Input<t1>)|t1 := t0;a1 := a0").c_str());
+			if (nullptr == rule) { source->Release(); return GPOS_FAILED; }
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+			ok &= matched == (call || 2 != trial);
+			if (matched)
+			{
+				ok &= CDSLConstraintChecker(mp).FCheck(rule, model);
+				CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+				ok &= nullptr != target &&
+					CDSLMatchView::FSameCapturedExpression(comparison, (*(*(*target)[1])[0])[0]);
+				CRefCount::SafeRelease(target);
+			}
+			model->Release(); rule->Release();
+		}
+		std::string exported, error;
+		ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
+			exported.find("ValueBool(Call(") != std::string::npos;
+		source->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 static GPOS_RESULT
@@ -666,6 +723,7 @@ CDSLQuantifiedTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
+		GPOS_UNITTEST_FUNC(EresComparisonOutcomeDomain),
 		GPOS_UNITTEST_FUNC(EresQuantifiedInnerFilterRewrite),
 		GPOS_UNITTEST_FUNC(EresRelationalToScalarQuantifier),
 		GPOS_UNITTEST_FUNC(EresSharedScalarAndQuantifiedComparison),

@@ -31,7 +31,9 @@
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -138,10 +140,15 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	}
 	if (EdslexprCall == def->Edslexpr() || EdslexprCompare == def->Edslexpr())
 	{
+		// Compare lowers to a total predicate head. Immutable alone does not
+		// establish error freedom; other heads use ValueBool(Call(...)).
+		// Do not require total arguments: their errors remain in the model.
 		if (!CDSLMatchView::FScalarCall(expression) ||
 			(EdslexprCompare == def->Edslexpr() &&
 				(COperator::EopScalarCmp != expression->Pop()->Eopid() ||
-				 2 != expression->Arity()))) return false;
+				 2 != expression->Arity() ||
+				 !CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					 CScalarCmp::PopConvert(expression->Pop())->MdIdOp())))) return false;
 		const CDSLSymbol *head = def->PsymOperand(0);
 		const auto *bound = static_cast<CExpression *>(model->PvalLookup(head));
 		if (nullptr != bound ? !CDSLMatchView::FSameCallHead(bound, expression)

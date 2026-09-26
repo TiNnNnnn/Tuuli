@@ -160,13 +160,16 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	// quantified ALL tests exercise their inverse relationship.
 	// (FScalarOpReturnsNullOnNullInput / FCommutativeScalarOp), so PexprEqPred —
 	// used to build equi-join keys — needs it registered. '=' is commutative
-	// (commute op is itself), result type bool, cmp type EcmptEq.
+	// (commute op is itself), result type bool, cmp type EcmptEq. Also register
+	// an unrecognized operator with the same immutable signature: signature
+	// matching alone must not grant the total-predicate contract.
+	for (OID oid : {GPDB_INT4_EQ_OP, 100400U})
 	{
 		CMDName *pmdnameEq = GPOS_NEW(mp) CMDName(
 			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true /*owns*/);
 		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
 			mp,
-			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_EQ_OP),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, oid),
 			pmdnameEq,
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
