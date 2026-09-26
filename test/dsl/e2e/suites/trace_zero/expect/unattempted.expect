@@ -1,0 +1,44 @@
+{
+  "description": "Unattempted and disabled rules have explicit zero counters without scheduling rewrites",
+  "plans": [
+    {
+      "name": "enabled",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_hash\":\"c9ec34e0d2b51aff\",\"binding_attempts\":0,\"bound_symbols\":0,\"match_us\":0,\"constraint_us\":0,\"instantiate_us\":0",
+        "\"memo_inserted_alternatives\":0,\"memo_duplicate_alternatives\":0,\"memo_cycle_rejected_alternatives\":0",
+        "\"policy_enabled\":true,\"placement\":\"cbo\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "disabled",
+      "trace": true,
+      "policy": "disabled.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_hash\":\"c9ec34e0d2b51aff\",\"binding_attempts\":0",
+        "\"policy_enabled\":false,\"placement\":\"cbo\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "42"
+    ],
+    "postgres_output": [
+      "42"
+    ],
+    "off_output": [
+      "42"
+    ]
+  }
+}

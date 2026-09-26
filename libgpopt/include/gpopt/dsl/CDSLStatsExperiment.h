@@ -56,6 +56,8 @@ private:
 	std::vector<SDSLStatsExperimentTarget> m_targets;
 	std::unordered_map<const COperator *, ULONG> m_operator_targets;
 	BOOL m_fDiscover;
+	ULONG m_template_route = 0;
+	std::string m_template_fingerprint;
 	std::string m_template_root;
 	std::vector<std::string> m_template_cuts;
 
@@ -84,7 +86,8 @@ public:
 	static std::string InputContext(const CExpression *expr, CMemoryPool *mp = nullptr,
 		BOOL query_input = false);
 	// Lightweight lossless tree for every CBO routing occurrence.
-	static std::string RouteContext(const CExpression *expr);
+	static std::string RouteContext(const CExpression *expr,
+		const CDSLStatsExperimentSnapshot *snapshot = nullptr, ULONG sequence = 0);
 	static std::string ExpressionShape(const CExpression *expr);
 	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model);
 	// Bounded log records transport the entire JSON value, including large trees.
@@ -97,6 +100,7 @@ public:
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
 	BOOL FHasTemplateSelection() const { return !m_template_root.empty(); }
+	ULONG UlTemplateRoute() const { return m_template_route; }
 	std::string TemplateSelectionArtifact(CExpression *root) const;
 	ULONG UlTargets() const { return (ULONG) m_targets.size(); }
 	const std::vector<SDSLStatsExperimentTarget> &Targets() const

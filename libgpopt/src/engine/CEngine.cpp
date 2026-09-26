@@ -32,6 +32,7 @@
 #include "gpopt/base/CQueryContext.h"
 #include "gpopt/base/CReqdPropPlan.h"
 #include "gpopt/base/CReqdPropRelational.h"
+#include "gpopt/dsl/CDSLPolicy.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/engine/CEnumeratorConfig.h"
 #include "gpopt/engine/CStatisticsConfig.h"
@@ -1999,18 +2000,24 @@ CEngine::ProcessTraceFlags()
 
 		UlongToDSLRuleTraceCountersMap *pcounters =
 			poctxt->PdrgDSLRuleTraceCounters();
-		UlongToDSLRuleTraceCountersMapIter iter(pcounters);
-		while (iter.Advance())
+		const CDSLRuleEngine *pengine = CDSLRuleEngine::Instance();
+		const CDSLRuleArray *prules = pengine->PdrgpruleAll();
+		const SDSLRuleTraceCounters zero;
+		// Emit the whole loaded library: an unattempted rule is an observed
+		// zero, not a missing/truncated counter. This does not schedule work.
+		for (ULONG ul = 0; ul < prules->Size(); ul++)
 		{
-			const ULONG *pulRuleId = iter.Key();
-			const SDSLRuleTraceCounters *prule = iter.Value();
-			GPOS_ASSERT(nullptr != pulRuleId && nullptr != prule);
-			const CDSLRule *pdslrule =
-				CDSLRuleEngine::Instance()->PdslruleById(*pulRuleId);
+			const CDSLRule *pdslrule = (*prules)[ul];
+			const ULONG ulRuleId = pengine->UlRuleId(pdslrule);
+			const SDSLRuleTraceCounters *prule = pcounters->Find(&ulRuleId);
+			if (nullptr == prule)
+			{
+				prule = &zero;
+			}
 			CAutoTrace at(m_mp);
 			at.Os() << "DSL_TRACE {\"kind\":\"rule_summary\","
 						  "\"engine\":\"pgorca\",\"stage\":"
-					<< m_ulCurrSearchStage << ",\"rule_id\":" << *pulRuleId;
+					<< m_ulCurrSearchStage << ",\"rule_id\":" << ulRuleId;
 			if (nullptr != pdslrule)
 			{
 				at.Os() << ",\"rule_hash\":\"" << pdslrule->SzIdentity()
@@ -2041,6 +2048,12 @@ CEngine::ProcessTraceFlags()
 					<< prule->m_stage_attempts[5]
 					<< ",\"budget_skipped\":"
 					<< prule->m_stage_attempts[6];
+			const SDSLRulePolicy &policy =
+				poctxt->PdslPolicySnapshot()->Policy(pdslrule);
+			at.Os() << ",\"policy_enabled\":"
+					<< (policy.m_fEnabled ? "true" : "false")
+					<< ",\"placement\":\""
+					<< SzDSLPlacement(policy.m_edslplacement) << "\"";
 			if (prule->m_has_match_failure)
 			{
 				at.Os() << ",\"closest_match_rejection\":{"

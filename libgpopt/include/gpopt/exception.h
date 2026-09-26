@@ -38,6 +38,7 @@ enum ExMinor
 	ExmiEvalUnsupportedScalarExpr,
 	ExmiCTEProducerConsumerMisAligned,
 	ExmiNoStats,
+	ExmiInvalidConfiguration,
 
 	ExmiSentinel
 };
