@@ -200,15 +200,17 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		outputs->Append(const_cast<CColRef *>(comparison->Pcr()));
 		const auto *bound_outputs = model->PdrgpcrAttrs(def->PsymOperand(2));
 		// The constructor selects ANY/ALL; c captures the comparison and
-		// its type signature. The selected column is an independent capture.
+		// its type signature in the same native form as Compare(c, args).
+		// The selected column and complete query are independent captures.
+		CExpression *comparison_head = CDSLQuantifiedMatcher::PexprComparison(mp, expression);
 		const BOOL matched = CDSLMatchView::FQuantifiedInputs(expression, (*expression)[0], arguments, comparison->Pcr()) &&
 			(nullptr != bound ?
-				CScalarSubqueryQuantified::PopConvert(bound->Pop())->MdIdOp()->Equals(comparison->MdIdOp()) &&
-				CDSLMatchView::FQuantifiedInputs(bound, (*expression)[0], arguments, comparison->Pcr())
-				: model->FBind(head, expression)) &&
+				CDSLMatchView::FSameCallHead(bound, comparison_head)
+				: model->FBind(head, comparison_head)) &&
 			(nullptr != bound_outputs ? bound_outputs->Equals(outputs) : model->FBind(def->PsymOperand(2), outputs)) &&
 			FMatchValueArguments(mp, definitions, def->PsymOperand(1), arguments, model, depth + 1) &&
 			FMatchExpressionBinding(mp, definitions, def->PsymOperand(3), (*expression)[0], model, depth + 1);
+		comparison_head->Release();
 		outputs->Release();
 		arguments->Release();
 		return matched;

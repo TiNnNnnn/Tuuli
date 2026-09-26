@@ -133,21 +133,28 @@ CDSLMatchView::FQuantifiedInputs(const CExpression *source, CExpression *query,
 	const CExpressionArray *arguments, const CColRef *output)
 {
 	if (nullptr == source || nullptr == query || nullptr == arguments || nullptr == output ||
-		(COperator::EopScalarSubqueryAny != source->Pop()->Eopid() &&
+		(COperator::EopScalarCmp != source->Pop()->Eopid() &&
+		 COperator::EopScalarSubqueryAny != source->Pop()->Eopid() &&
 		 COperator::EopScalarSubqueryAll != source->Pop()->Eopid()) ||
 		2 != source->Arity() || 1 != arguments->Size() || !query->Pop()->FLogical() ||
 		!(*source)[1]->Pop()->FScalar() || !(*arguments)[0]->Pop()->FScalar())
 		return false;
-	const auto *op = CScalarSubqueryQuantified::PopConvert(source->Pop());
-	const auto *before = CScalar::PopConvert((*source)[1]->Pop());
+	const BOOL scalar = COperator::EopScalarCmp == source->Pop()->Eopid();
+	if (scalar && !(*source)[0]->Pop()->FScalar()) return false;
+	const auto *before = CScalar::PopConvert((*source)[scalar ? 0 : 1]->Pop());
 	const auto *after = CScalar::PopConvert((*arguments)[0]->Pop());
+	const auto *quantified = scalar ? nullptr : CScalarSubqueryQuantified::PopConvert(source->Pop());
+	const auto *right = scalar ? CScalar::PopConvert((*source)[1]->Pop()) : nullptr;
+	const IMDId *right_type = scalar ? right->MdidType() : quantified->Pcr()->RetrieveType()->MDId();
+	const INT right_modifier = scalar ? right->TypeModifier() : quantified->Pcr()->TypeModifier();
+	IMDId *comparison = scalar ? CScalarCmp::PopConvert(source->Pop())->MdIdOp() : quantified->MdIdOp();
 	// The head fixes the comparison's input types, not a column identity.
 	// Selection is an explicit ATTRS operand; never infer a first column.
 	return before->MdidType()->Equals(after->MdidType()) &&
 		before->TypeModifier() == after->TypeModifier() &&
-		op->Pcr()->RetrieveType()->MDId()->Equals(output->RetrieveType()->MDId()) &&
-		op->Pcr()->TypeModifier() == output->TypeModifier() &&
-		CPredicateUtils::FBuiltInComparisonIsVeryStrict(op->MdIdOp()) &&
+		right_type->Equals(output->RetrieveType()->MDId()) &&
+		right_modifier == output->TypeModifier() &&
+		CPredicateUtils::FBuiltInComparisonIsVeryStrict(comparison) &&
 		FSelectedSubqueryInput(query, output) &&
 		CDSLConstraintChecker::FQueryDemandInsensitive((*arguments)[0]);
 }

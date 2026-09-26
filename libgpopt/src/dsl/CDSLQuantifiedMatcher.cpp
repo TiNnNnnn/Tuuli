@@ -130,7 +130,7 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		CExpression *pexprOuter = CUtils::PexprSafeSelect(
 			m_mp, (*pexpr)[0],
 			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprResidual));
-		BOOL fMatched = pmodel->FBind((*pop->Pdrgpsym())[0], pexprCmp) &&
+		BOOL fMatched = m_pmatcher->FMatchPredicate((*pop->Pdrgpsym())[0], pexprCmp, pmodel) &&
 			pmodel->FBind((*pop->Pdrgpsym())[1], pdrgpcrOuter) &&
 			m_pmatcher->FMatch((*pop)[0], pexprOuter, pmodel) &&
 			FMatchInner((*pop)[1], (*pexprQuantified)[0], pdrgpcrInner,
@@ -186,7 +186,7 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	pcrsOuterUsed->Exclude((*pexpr)[1]->DeriveOutputColumns());
 	CColRefArray *pdrgpcrOuter = pcrsOuterUsed->Pdrgpcr(m_mp);
 	pcrsOuterUsed->Release();
-	BOOL fMatched = pmodel->FBind((*pop->Pdrgpsym())[0], pexprCmp) &&
+	BOOL fMatched = m_pmatcher->FMatchPredicate((*pop->Pdrgpsym())[0], pexprCmp, pmodel) &&
 		pmodel->FBind((*pop->Pdrgpsym())[1], pdrgpcrOuter) &&
 		m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
 		FMatchInner((*pop)[1], (*pexpr)[1], pdrgpcrInner, pmodel);

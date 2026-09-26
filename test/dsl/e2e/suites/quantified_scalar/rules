@@ -1,0 +1,3 @@
+# Comparison-head construction regressions, not optimization-benefit claims.
+Any<p0 a0>(Input<t0>,Input<t1>)|Filter<Not(Not(Any(c0,Args(n0,Args()),a2,t3))) a1>(Input<t2>)|Compare(c0,v0) := p0;Args(n0,v1) := v0;Args(n1,v2) := v1;Column(a2) := n1;Args() := v2;t2 := t0;t3 := t1;a1 := a0
+All<p0 a0>(Input<t0>,Input<t1>)|Filter<Not(Not(All(c0,Args(n0,Args()),a2,t3))) a1>(Input<t2>)|Compare(c0,v0) := p0;Args(n0,v1) := v0;Args(n1,v2) := v1;Column(a2) := n1;Args() := v2;t2 := t0;t3 := t1;a1 := a0

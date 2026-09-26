@@ -15,11 +15,13 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
+#include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
+#include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
@@ -383,6 +385,142 @@ EresQuantifiedInnerFilterRewrite()
 }
 
 static GPOS_RESULT
+EresRelationalToScalarQuantifier()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL correlated : {false, true})
+	for (BOOL post_apply : {false, true})
+	{
+		const std::string quant = all ? "All" : "Any";
+		const std::string text = quant + "<p0 a0>(Input<t0>,Input<t1>)|Filter<" + quant +
+			"(c0,Args(n0,Args()),a2,t3) a1>(Input<t2>)|"
+			"Compare(c0,v0) := p0;Args(n0,v1) := v0;Args(n1,v2) := v1;"
+			"Column(a2) := n1;Args() := v2;t2 := t0;t3 := t1;a1 := a0";
+		CDSLRule *rule = PruleParse(mp, text.c_str());
+		GPOS_ASSERT(nullptr != rule);
+		CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("scalar_outer", 1, &outer_cols);
+		CExpression *inner = fix.PexprLogicalGet("scalar_inner", 2, &inner_cols);
+		if (correlated)
+			inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), inner,
+				fix.PexprEqPred((*inner_cols)[0], (*outer_cols)[0]));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), outer,
+			PexprQuantified(mp, fix, all, inner, (*outer_cols)[0], (*inner_cols)[1]));
+		CExpression *expected = source;
+		expected->AddRef();
+		if (post_apply)
+		{
+			CExpression *comparison = CDSLQuantifiedMatcher::PexprComparison(mp, (*source)[1]);
+			if (all && !correlated)
+			{
+				CExpression *inverse = CDSLMatchView::PexprInverseComparison(mp, comparison);
+				comparison->Release();
+				comparison = inverse;
+			}
+			outer->AddRef();
+			inner->AddRef();
+			source->Release();
+			if (all)
+				source = correlated
+					? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(mp, outer, inner,
+						(*inner_cols)[1], COperator::EopScalarSubqueryAll, comparison)
+					: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(mp, outer, inner,
+						(*inner_cols)[1], COperator::EopScalarSubqueryAll, comparison);
+			else
+				source = correlated
+					? CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(mp, outer, inner,
+						(*inner_cols)[1], COperator::EopScalarSubqueryAny, comparison)
+					: CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, outer, inner,
+						(*inner_cols)[1], COperator::EopScalarSubqueryAny, comparison);
+		}
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		GPOS_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(rule, model));
+		CDSLInstantiator inst(mp);
+		CExpression *target = inst.PexprInstantiate(rule, model);
+		GPOS_ASSERT(nullptr != target);
+		GPOS_ASSERT(CDSLMatchView::FSameCapturedExpression(expected, target));
+		target->Release();
+		std::string bad_text = text;
+		bad_text.replace(bad_text.find("Args() := v2"), 12,
+			"Args(n2,v3) := v2;Args() := v3");
+		CDSLRule *bad_rule = PruleParse(mp, bad_text.c_str());
+		GPOS_ASSERT(nullptr != bad_rule);
+		CDSLModel *bad_model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher bad_matcher(mp, bad_rule);
+		GPOS_ASSERT(!bad_matcher.FMatch(bad_rule->PfragSrc()->PopRoot(), source, bad_model));
+		bad_model->Release();
+		bad_rule->Release();
+		model->Release();
+		source->Release();
+		expected->Release();
+		rule->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresSharedScalarAndQuantifiedComparison()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL scalar_first : {false, true})
+	for (BOOL same_head : {false, true})
+	{
+		const std::string quant = std::string(all ? "All" : "Any") + "(c0,v0,a2,t1)";
+		const std::string predicate = scalar_first ? "And(p0," + quant + ")"
+			: "And(" + quant + ",p0)";
+		const std::string text = "Filter<" + predicate + " a0>(Input<t0>)|"
+			"Filter<Not(Not(" + predicate + ")) a1>(Input<t2>)|"
+			"Compare(c0,v1) := p0;t2 := t0;a1 := a0";
+		CDSLRule *rule = PruleParse(mp, text.c_str());
+		GPOS_ASSERT(nullptr != rule);
+		CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("shared_scalar_outer", 2, &outer_cols);
+		CExpression *inner = fix.PexprLogicalGet("shared_scalar_inner", 1, &inner_cols);
+		CExpression *scalar = fix.PexprEqPred((*outer_cols)[0], (*outer_cols)[1]);
+		if (!same_head)
+		{
+			CExpression *different = CDSLMatchView::PexprInverseComparison(mp, scalar);
+			scalar->Release();
+			scalar = different;
+		}
+		CExpression *quantified = PexprQuantified(mp, fix, all, inner,
+			(*outer_cols)[0], (*inner_cols)[0]);
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), outer, GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
+				scalar_first ? scalar : quantified, scalar_first ? quantified : scalar));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		GPOS_ASSERT(matched == same_head);
+		if (matched)
+		{
+			CDSLConstraintChecker checker(mp);
+			GPOS_ASSERT(checker.FCheck(rule, model));
+			CDSLInstantiator inst(mp);
+			CExpression *target = inst.PexprInstantiate(rule, model);
+			GPOS_ASSERT(nullptr != target);
+			GPOS_ASSERT(CDSLMatchView::FSameCapturedExpression((*source)[1], (*(*(*target)[1])[0])[0]));
+			target->Release();
+		}
+		model->Release();
+		source->Release();
+		rule->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresQuantifiedInnerBooleanConstruction()
 {
 	CAutoMemoryPool amp;
@@ -515,6 +653,8 @@ CDSLQuantifiedTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
 		GPOS_UNITTEST_FUNC(EresQuantifiedInnerFilterRewrite),
+		GPOS_UNITTEST_FUNC(EresRelationalToScalarQuantifier),
+		GPOS_UNITTEST_FUNC(EresSharedScalarAndQuantifiedComparison),
 		GPOS_UNITTEST_FUNC(EresQuantifiedInnerBooleanConstruction),
 		GPOS_UNITTEST_FUNC(EresConstructedQuantifiedPredicate),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings),
@@ -579,13 +719,16 @@ CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings()
 				GPOS_ASSERT(checker.FCheck(rule, model));
 				CDSLInstantiator inst(mp);
 				CExpression *target = inst.PexprInstantiate(rule, model);
-				GPOS_ASSERT(nullptr != target && (*target)[1]->Pop() == quantified->Pop());
+				GPOS_ASSERT(nullptr != target &&
+					CDSLMatchView::FSameCapturedExpression((*target)[1], quantified));
 				GPOS_ASSERT((*(*target)[1])[0] == query && (*(*target)[1])[1] == (*quantified)[1]);
 				// The target may retain extra columns, but may not lose Pcr().
 				CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
 				(*quantified)[1]->AddRef();
 				arguments->Append((*quantified)[1]);
+				CExpression *head = CDSLQuantifiedMatcher::PexprComparison(mp, quantified);
 				GPOS_ASSERT(!CDSLMatchView::FQuantifiedInputs(quantified, outer, arguments, CScalarSubqueryQuantified::PopConvert(quantified->Pop())->Pcr()));
+				GPOS_ASSERT(!CDSLMatchView::FQuantifiedInputs(head, outer, arguments, CScalarSubqueryQuantified::PopConvert(quantified->Pop())->Pcr()));
 				// Even an available output cannot be substituted at another type
 				// or typmod into the source-resolved comparison signature.
 				for (ULONG different = 0; different < 2; ++different)
@@ -598,9 +741,11 @@ CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings()
 						: CUtils::PexprScalarIdent(mp, (*inner_cols)[0]);
 					CExpression *project = PexprProjectScalar(mp, query, output, value);
 					GPOS_ASSERT(!CDSLMatchView::FQuantifiedInputs(quantified, project, arguments, output));
+					GPOS_ASSERT(!CDSLMatchView::FQuantifiedInputs(head, project, arguments, output));
 					project->Release();
 				}
 				arguments->Release();
+				head->Release();
 				GPOS_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
 				std::string text, error;
 				GPOS_ASSERT(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &text, &error));

@@ -14,6 +14,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -573,28 +574,21 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 			if (nullptr == outputs || 1 != outputs->Size()) return nullptr;
 			const CColRef *output = (*outputs)[0];
 			CExpressionArray *arguments = PdrgpexprResolveArguments(pdef->PsymOperand(1), pmodel, ulDepth + 1);
-			const auto expected = EdslexprAny == pdef->Edslexpr()
-				? COperator::EopScalarSubqueryAny : COperator::EopScalarSubqueryAll;
-			// Quantifier and selection belong to the template; retain the
-			// captured comparison's OID and types, without operator lookup.
-			if (!CDSLMatchView::FQuantifiedInputs(head, query, arguments, output))
+			// Every c capture is a native binary comparison, independent of the
+			// quantifier and selected column specified by this target template.
+			if (nullptr == head || COperator::EopScalarCmp != head->Pop()->Eopid() ||
+				!CDSLMatchView::FQuantifiedInputs(head, query, arguments, output))
 			{
 				CRefCount::SafeRelease(arguments);
 				return nullptr;
 			}
-			COperator *op = head->Pop();
-			const auto *comparison = CScalarSubqueryQuantified::PopConvert(op);
-			if (op->Eopid() == expected && comparison->Pcr() == output)
-				op->AddRef();
-			else
-			{
-				IMDId *id = comparison->MdIdOp();
-				id->AddRef();
-				auto *name = GPOS_NEW(m_mp) CWStringConst(m_mp, comparison->PstrOp()->GetBuffer());
-				op = EdslexprAny == pdef->Edslexpr()
-					? static_cast<COperator *>(GPOS_NEW(m_mp) CScalarSubqueryAny(m_mp, id, name, output))
-					: static_cast<COperator *>(GPOS_NEW(m_mp) CScalarSubqueryAll(m_mp, id, name, output));
-			}
+			const auto *comparison = CScalarCmp::PopConvert(head->Pop());
+			IMDId *id = comparison->MdIdOp();
+			id->AddRef();
+			auto *name = GPOS_NEW(m_mp) CWStringConst(m_mp, comparison->Pstr()->GetBuffer());
+			COperator *op = EdslexprAny == pdef->Edslexpr()
+				? static_cast<COperator *>(GPOS_NEW(m_mp) CScalarSubqueryAny(m_mp, id, name, output))
+				: static_cast<COperator *>(GPOS_NEW(m_mp) CScalarSubqueryAll(m_mp, id, name, output));
 			query->AddRef();
 			(*arguments)[0]->AddRef();
 			CExpression *result = GPOS_NEW(m_mp) CExpression(m_mp, op, query, (*arguments)[0]);
@@ -610,45 +604,19 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 				CRefCount::SafeRelease(arguments);
 				return nullptr;
 			}
-			if (COperator::EopScalarCmp == head->Pop()->Eopid())
-			{
-				if (!CDSLMatchView::FScalarCall(head) ||
-					!CDSLMatchView::FCallArgumentTypes(head, arguments))
-				{
-					arguments->Release();
-					return nullptr;
-				}
-				head->Pop()->AddRef();
-				CExpression *result = GPOS_NEW(m_mp) CExpression(m_mp, head->Pop(), arguments);
-				if (!CDSLMatchView::FScalarCall(result)) { result->Release(); return nullptr; }
-				return result;
-			}
-			if (COperator::EopScalarSubqueryAny != head->Pop()->Eopid() &&
-				COperator::EopScalarSubqueryAll != head->Pop()->Eopid())
+			if (COperator::EopScalarCmp != head->Pop()->Eopid() ||
+				!CDSLMatchView::FScalarCall(head) ||
+				!CDSLMatchView::FCallArgumentTypes(head, arguments))
 			{
 				arguments->Release();
 				return nullptr;
 			}
-			const auto *comparison = CScalarSubqueryQuantified::PopConvert(head->Pop());
-			CExpressionArray *left = GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			(*arguments)[0]->AddRef();
-			left->Append((*arguments)[0]);
-			const BOOL valid = CDSLMatchView::FQuantifiedInputs(head, (*head)[0], left, comparison->Pcr()) &&
-				CScalar::PopConvert((*arguments)[1]->Pop())->MdidType()->Equals(
-					comparison->Pcr()->RetrieveType()->MDId()) &&
-				CScalar::PopConvert((*arguments)[1]->Pop())->TypeModifier() == comparison->Pcr()->TypeModifier() &&
-				CDSLConstraintChecker::FQueryDemandInsensitive((*arguments)[1]);
-			left->Release();
-			if (!valid) { arguments->Release(); return nullptr; }
-			IMDId *id = comparison->MdIdOp();
-			id->AddRef();
-			(*arguments)[0]->AddRef();
-			(*arguments)[1]->AddRef();
-			CExpression *result = CUtils::PexprScalarCmp(m_mp, (*arguments)[0], (*arguments)[1],
-				*comparison->PstrOp(), id);
-			arguments->Release();
+			head->Pop()->AddRef();
+			CExpression *result = GPOS_NEW(m_mp) CExpression(m_mp, head->Pop(), arguments);
+			if (!CDSLMatchView::FScalarCall(result)) { result->Release(); return nullptr; }
 			return result;
 		}
+
 		if (EdslexprValueBool == pdef->Edslexpr())
 		{
 			CExpression *value = PexprResolveScalar(pdef->PsymOperand(0), pmodel, ulDepth + 1);
