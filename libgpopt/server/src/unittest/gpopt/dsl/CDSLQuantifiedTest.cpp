@@ -393,6 +393,7 @@ EresRelationalToScalarQuantifier()
 	for (BOOL all : {false, true})
 	for (BOOL correlated : {false, true})
 	for (BOOL post_apply : {false, true})
+	for (ULONG invalid = 0; invalid < (post_apply ? 3 : 2); ++invalid)
 	{
 		const std::string quant = all ? "All" : "Any";
 		const std::string text = quant + "<p0 a0>(Input<t0>,Input<t1>)|Filter<" + quant +
@@ -407,9 +408,13 @@ EresRelationalToScalarQuantifier()
 		if (correlated)
 			inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), inner,
 				fix.PexprEqPred((*inner_cols)[0], (*outer_cols)[0]));
+		// Invalid cases: select an outer-only column, or let Apply metadata
+		// name a different inner column from its comparison's right operand.
+		CColRef *selected = invalid == 1 ? (*outer_cols)[0] : (*inner_cols)[1];
+		CColRef *carrier_output = invalid == 2 ? (*inner_cols)[0] : selected;
 		CExpression *source = GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CLogicalSelect(mp), outer,
-			PexprQuantified(mp, fix, all, inner, (*outer_cols)[0], (*inner_cols)[1]));
+			PexprQuantified(mp, fix, all, inner, (*outer_cols)[0], selected));
 		CExpression *expected = source;
 		expected->AddRef();
 		if (post_apply)
@@ -427,19 +432,28 @@ EresRelationalToScalarQuantifier()
 			if (all)
 				source = correlated
 					? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(mp, outer, inner,
-						(*inner_cols)[1], COperator::EopScalarSubqueryAll, comparison)
+						carrier_output, COperator::EopScalarSubqueryAll, comparison)
 					: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(mp, outer, inner,
-						(*inner_cols)[1], COperator::EopScalarSubqueryAll, comparison);
+						carrier_output, COperator::EopScalarSubqueryAll, comparison);
 			else
 				source = correlated
 					? CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(mp, outer, inner,
-						(*inner_cols)[1], COperator::EopScalarSubqueryAny, comparison)
+						carrier_output, COperator::EopScalarSubqueryAny, comparison)
 					: CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, outer, inner,
-						(*inner_cols)[1], COperator::EopScalarSubqueryAny, comparison);
+						carrier_output, COperator::EopScalarSubqueryAny, comparison);
 		}
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, rule);
-		GPOS_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		GPOS_ASSERT(matched == (invalid == 0));
+		if (invalid != 0)
+		{
+			model->Release();
+			source->Release();
+			expected->Release();
+			rule->Release();
+			continue;
+		}
 		CDSLConstraintChecker checker(mp);
 		GPOS_ASSERT(checker.FCheck(rule, model));
 		CDSLInstantiator inst(mp);

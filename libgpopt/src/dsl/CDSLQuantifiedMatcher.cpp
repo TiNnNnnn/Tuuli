@@ -9,6 +9,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
 
 using namespace gpopt;
@@ -19,13 +20,20 @@ CDSLQuantifiedMatcher::FMatchInner(const CDSLOp *popInner,
 								   CColRefArray *pdrgpcrProjected,
 								   CDSLModel *pmodel) const
 {
+	// All carrier routes share the same selected-output contract. In
+	// particular, an outer reference is not an output of the inner query.
+	if (!pexprInner->Pop()->FLogical() || nullptr == pdrgpcrProjected ||
+		1 != pdrgpcrProjected->Size() ||
+		!pexprInner->DeriveOutputColumns()->FMember((*pdrgpcrProjected)[0]))
+	{
+		return false;
+	}
 	// PostgreSQL folds a pass-through subquery projection into the quantified
 	// operator's selected-column metadata. Re-expose only that transparent
 	// projection; computed projections and Proj* remain real tree nodes.
 	if (EdslopProj == popInner->Edslop() && !popInner->FDistinct() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-		2 == popInner->Pdrgpsym()->Size() &&
-		nullptr != pdrgpcrProjected && 0 < pdrgpcrProjected->Size())
+		2 == popInner->Pdrgpsym()->Size())
 	{
 		CExpression *pexprRel = pexprInner;
 		while (COperator::EopLogicalProject == pexprRel->Pop()->Eopid() &&
@@ -162,7 +170,10 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	CLogicalApply *popApply = CLogicalApply::PopConvert(pexpr->Pop());
 	CColRefArray *pdrgpcrInner = popApply->PdrgPcrInner();
 	if (eopidSubquery != popApply->EopidOriginSubq() ||
-		nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size())
+		nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size() ||
+		2 != (*pexpr)[2]->Arity() ||
+		COperator::EopScalarIdent != (*(*pexpr)[2])[1]->Pop()->Eopid() ||
+		CScalarIdent::PopConvert((*(*pexpr)[2])[1]->Pop())->Pcr() != (*pdrgpcrInner)[0])
 	{
 		return false;
 	}
