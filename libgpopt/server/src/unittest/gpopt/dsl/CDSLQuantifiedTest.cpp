@@ -336,6 +336,53 @@ EresCapturedComparison()
 }
 
 static GPOS_RESULT
+EresQuantifiedInnerFilterRewrite()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	{
+		const std::string quant = all ? "All" : "Any";
+		const std::string text = quant +
+			"<p0 a0>(Input<t0>,Filter<Not(Not(p1)) a1>(Input<t1>))|" + quant +
+			"<p2 a2>(Input<t2>,Filter<p3 a3>(Input<t3>))|"
+			"t2 := t0;t3 := t1;p2 := p0;a2 := a0;p3 := p1;a3 := a1";
+		CDSLRule *rule = PruleParse(mp, text.c_str());
+		GPOS_ASSERT(nullptr != rule);
+		CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("inner_rewrite_outer", 1, &outer_cols);
+		CExpression *inner = fix.PexprLogicalGet("inner_rewrite_inner", 2, &inner_cols);
+		CExpression *predicate = fix.PexprEqPred((*inner_cols)[0], (*inner_cols)[1]);
+		CExpression *filtered = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			inner, CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, predicate)));
+		CExpression *quantified = PexprQuantified(mp, fix, all, filtered,
+			(*outer_cols)[0], (*inner_cols)[0]);
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), outer, quantified);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		GPOS_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(rule, model));
+		CDSLInstantiator inst(mp);
+		CExpression *target = inst.PexprInstantiate(rule, model);
+		GPOS_ASSERT(nullptr != target);
+		GPOS_ASSERT(target->Pop()->Eopid() == (all
+			? COperator::EopLogicalLeftAntiSemiApplyNotIn
+			: COperator::EopLogicalLeftSemiApplyIn));
+		GPOS_ASSERT((*(*target)[1])[0] == inner);
+		GPOS_ASSERT(CDSLMatchView::FSameCapturedExpression(predicate, (*(*target)[1])[1]));
+		GPOS_ASSERT((*CLogicalApply::PopConvert(target->Pop())->PdrgPcrInner())[0] == (*inner_cols)[0]);
+		target->Release();
+		model->Release();
+		source->Release();
+		rule->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresConstructedQuantifiedPredicate()
 {
 	CAutoMemoryPool amp;
@@ -396,6 +443,7 @@ CDSLQuantifiedTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
+		GPOS_UNITTEST_FUNC(EresQuantifiedInnerFilterRewrite),
 		GPOS_UNITTEST_FUNC(EresConstructedQuantifiedPredicate),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings),

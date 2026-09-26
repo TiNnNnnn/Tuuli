@@ -571,6 +571,16 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 	}
 
 	const CDSLSymbol *psymPred = PsymResolve((*pop->Pdrgpsym())[0]);
+	// Explicit predicate references retain the source comparison's carrier
+	// and dependency metadata. Stop at a constructor: it is not an alias.
+	for (ULONG depth = 0; depth < m_prule->Pexprdefs()->UlDefinitions(); ++depth)
+	{
+		const auto *def = m_prule->Pexprdefs()->Pdef(psymPred);
+		if (nullptr == def || CDSLExpressionDefinitions::EBuild != def->Binding() ||
+			EdslexprRef != def->Edslexpr())
+			break;
+		psymPred = PsymResolve(def->PsymOperand(0));
+	}
 	const CDSLSymbol *psymTargetAttrs =
 		PsymResolve((*pop->Pdrgpsym())[1]);
 	CExpression *pexprPredBound = pmodel->PexprPred(psymPred);
