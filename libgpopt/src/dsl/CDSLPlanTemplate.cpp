@@ -653,8 +653,9 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	}
 	if (project)
 	{
-		// Only independent SELECT items belong to Proj: the local dependency
-		// check above excludes sequential LET references to earlier definitions.
+		// LogicalProject appends definitions while retaining its input columns.
+		// Expanding its values must preserve Compute, not turn it into SELECT.
+		// The local dependency check excludes references to sibling definitions.
 		// Unsupported value internals remain typed scalar captures, not guesses.
 		std::string list;
 		for (ULONG i = 0; i < (*expr)[1]->Arity(); ++i)
@@ -670,8 +671,8 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 		// items. A caller can close the list explicitly with Item().
 		list += SymbolText(mp, (*op->Pdrgpsym())[0]);
 		list.append((*expr)[1]->Arity(), ')');
-		*text = "Proj<" + SymbolText(mp, (*op->Pdrgpsym())[1]) + " " +
-			SymbolText(mp, (*op->Pdrgpsym())[2]) + " " + list + ">(" + inputs + ")";
+		*text = "Compute<" + list + " " + SymbolText(mp, (*op->Pdrgpsym())[1]) + " " +
+			SymbolText(mp, (*op->Pdrgpsym())[2]) + ">(" + inputs + ")";
 		*expanded = true;
 		return true;
 	}
