@@ -1,0 +1,51 @@
+{
+  "description": "Compose a typed scalar subquery inside ordered Call arguments: call_empty",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"83fe990f923dcb40\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,",
+      "2,",
+      "3,"
+    ],
+    "postgres_output": [
+      "1,",
+      "2,",
+      "3,"
+    ],
+    "off_output": [
+      "1,",
+      "2,",
+      "3,"
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+# Operator-local construction probes, not newly mined optimization rules.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
+LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
+SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
+AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2

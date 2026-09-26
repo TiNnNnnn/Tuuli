@@ -1,0 +1,50 @@
+{
+  "description": "Explicit LIMIT 0 preserves empty existence input",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ],
+    "off_output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}

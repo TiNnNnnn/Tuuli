@@ -16,6 +16,7 @@
 #include "unittest/gpopt/dsl/CDSLAggTest.h"
 
 #include "gpos/base.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
@@ -37,6 +38,8 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
+
+#include <string>
 
 using namespace gpopt;
 
@@ -229,6 +232,56 @@ BuildDistinctGbAgg(CDSLTestFixture &fix, BOOL fUniqueKey,
 	*ppGbAgg = pexprGbAgg;
 }
 
+static GPOS_RESULT
+EresAggregateExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG mode = 0; mode < 3; ++mode)
+	{
+		const BOOL explicit_outputs = 1 == mode;
+		const std::string text = std::string("Agg<a0 a1 ") +
+			(explicit_outputs ? "a2 " : "") + "f0 s0 " +
+			(2 == mode ? "Not(p0)" : "p0") + ">(Input<t0>)|Agg<a4 a5 " +
+			(explicit_outputs ? "a6 " : "") + "f1 s1 Not(Not(p0))>(Input<t1>)|" +
+			"t1 := t0;a4 := a0;a5 := a1;" + (explicit_outputs ? "a6 := a2;" : "") +
+			"f1 := f0;s1 := s0";
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CExpression *get = nullptr, *agg = nullptr;
+		CColRefArray *input = nullptr;
+		CColRef *output = nullptr;
+		BuildRealGbAgg(fix, &get, &agg, &input, &output);
+		CAutoRef<CExpression> get_owner(get), agg_owner(agg);
+		CAutoRef<CExpression> predicate(fix.PexprPredAtom(output));
+		CAutoRef<CExpression> source(fix.PexprLogicalSelect(agg, predicate.Value()));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		CDSLMatcher matcher(mp, rule.Value());
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value());
+		if (2 == mode)
+		{
+			GPOS_UNITTEST_ASSERT(!matched);
+			continue;
+		}
+		GPOS_UNITTEST_ASSERT(matched);
+		CDSLConstraintChecker checker(mp);
+		GPOS_UNITTEST_ASSERT(checker.FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator instantiator(mp);
+		CAutoRef<CExpression> target(instantiator.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == target->Pop()->Eopid());
+		CExpression *having = (*target)[1];
+		GPOS_UNITTEST_ASSERT(COperator::EopScalarBoolOp == having->Pop()->Eopid() &&
+			1 == having->Arity() && 1 == (*having)[0]->Arity() &&
+			(*(*having)[0])[0]->Matches(predicate.Value()));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == (*target)[0]->Pop()->Eopid() &&
+			(*(*target)[0])[0] == get && (*(*target)[0])[1]->Matches((*agg)[1]) &&
+			target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()));
+	}
+	return GPOS_OK;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLAggTest::EresUnittest
@@ -237,6 +290,7 @@ GPOS_RESULT
 CDSLAggTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchSplitDedupInput),
 		GPOS_UNITTEST_FUNC(

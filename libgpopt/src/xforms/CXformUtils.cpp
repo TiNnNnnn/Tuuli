@@ -681,14 +681,14 @@ CXformUtils::ExistentialToAgg(
 	GPOS_ASSERT(nullptr != ppexprNewScalar);
 
 	COperator::EOperatorId op_id = pexprSubquery->Pop()->Eopid();
-	CExpression *pexprInner = (*pexprSubquery)[0];
+	CExpression *pexprInner =
+		CUtils::PexprExistentialInput(mp, (*pexprSubquery)[0]);
 	IMDType::ECmpType ecmptype = IMDType::EcmptG;
 	if (COperator::EopScalarSubqueryNotExists == op_id)
 	{
 		ecmptype = IMDType::EcmptEq;
 	}
 
-	pexprInner->AddRef();
 	CExpression *pexprInnerNew = CUtils::PexprCountStar(mp, pexprInner);
 	const CColRef *pcrCount =
 		CScalarProjectElement::PopConvert((*(*pexprInnerNew)[1])[0]->Pop())

@@ -1,0 +1,3 @@
+# Construction probes for the shared EXISTS expression context, not new optimization laws.
+Exists(Input<t0>,Compute<e0 a0 s0>(Filter<p0 a1>(Input<t1>)))|Exists(Input<t2>,Compute<e1 a2 s1>(Filter<Not(Not(p0)) a3>(Input<t3>)))|t2 := t0;t3 := t1;e1 := e0;a2 := a0;s1 := s0;a3 := a1
+NotExists(Input<t0>,Compute<e0 a0 s0>(Filter<p0 a1>(Input<t1>)))|NotExists(Input<t2>,Compute<e1 a2 s1>(Filter<Not(Not(p0)) a3>(Input<t3>)))|t2 := t0;t3 := t1;e1 := e0;a2 := a0;s1 := s0;a3 := a1

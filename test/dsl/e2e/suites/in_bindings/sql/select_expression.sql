@@ -1,0 +1,3 @@
+SELECT v FROM in_bool
+WHERE v IN (SELECT j > 0 FROM in_wide)
+ORDER BY v NULLS FIRST;

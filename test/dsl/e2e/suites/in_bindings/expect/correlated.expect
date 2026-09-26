@@ -1,0 +1,51 @@
+{
+  "description": "IN construction preserves correlation and the selected output column",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"baa0b40558e824d2\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "0",
+      "1",
+      "1"
+    ],
+    "postgres_output": [
+      "0",
+      "1",
+      "1"
+    ],
+    "off_output": [
+      "0",
+      "1",
+      "1"
+    ]
+  }
+}

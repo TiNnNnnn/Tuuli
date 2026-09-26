@@ -1,5 +1,5 @@
 //---------------------------------------------------------------------------
-// Typed scalar-expression definition graph compiled from RuleIR constraints.
+// One output-indexed definition graph for typed bindings and legacy constraints.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLExpressionDefinitions_H
 #define GPOPT_CDSLExpressionDefinitions_H
@@ -20,6 +20,7 @@ enum EDslExpressionKind
 	EdslexprNotExists,
 	EdslexprAny,
 	EdslexprAll,
+	EdslexprCompare,
 	EdslexprScalarSubquery,
 	EdslexprExprListScalarSubquery,
 	EdslexprExprListExists,
@@ -37,6 +38,8 @@ enum EDslExpressionKind
 	EdslexprValueBool,
 	EdslexprCall,
 	EdslexprArgs,
+	EdslexprColumn,
+	EdslexprScalarDeps,
 	EdslexprSentinel
 };
 
@@ -102,11 +105,6 @@ public:
 		return (*m_pdrgpdefDefinitions)[ul];
 	}
 
-	// Find the output of a typed binary expression definition.
-	const CDSLSymbol *PsymBinaryResult(
-		EDslExpressionKind edslexpr,
-		const CDSLSymbol *psymLeft, const CDSLSymbol *psymRight) const;
-
 	// True when operand occurs in output's transitive definition tree.
 	BOOL FUses(const CDSLSymbol *psymOutput,
 			   const CDSLSymbol *psymOperand) const;
@@ -116,6 +114,18 @@ public:
 	BOOL FAppendBinding(CMemoryPool *mp, EDslExpressionKind kind,
 						EBinding binding, const CDSLSymbolArray *symbols);
 	BOOL FHasBindings() const;
+	// Public constructors only; legacy constraints have different signatures.
+	struct SBindingSignature
+	{
+		EDslExpressionKind kind;
+		const CHAR *name;
+		ULONG arity;
+		EDslSymbolKind types[5];  // Result first, then operands.
+	};
+	static const SBindingSignature *PsigBinding(const CHAR *name, ULONG arity);
+	static const SBindingSignature *PsigBinding(EDslExpressionKind kind,
+											 ULONG arity);
+	static const CHAR *SzBindingName(EDslExpressionKind kind);
 	void OsPrintBindings(IOstream &os, BOOL separator) const;
 
 	// Reject duplicate definitions and cycles before a rule is admitted.

@@ -1,0 +1,12 @@
+CREATE EXTENSION IF NOT EXISTS pg_orca;
+CREATE TABLE quant_outer(i int, v bool);
+CREATE TABLE quant_inner(v bool);
+CREATE TABLE quant_empty(v bool);
+CREATE TABLE quant_wide(unrelated bool, selected bool);
+INSERT INTO quant_outer VALUES (1,NULL),(2,true),(3,false),(4,false);
+INSERT INTO quant_inner VALUES (NULL),(true),(false),(false);
+INSERT INTO quant_wide VALUES (true,false),(true,false);
+ANALYZE quant_outer;
+ANALYZE quant_inner;
+ANALYZE quant_empty;
+ANALYZE quant_wide;

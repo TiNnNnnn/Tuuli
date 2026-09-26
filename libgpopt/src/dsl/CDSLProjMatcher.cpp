@@ -51,6 +51,17 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 
 	CDSLSymbolArray *pdrgpsym = popCompute->Pdrgpsym();
 	CExpression *pexprList = (*pexprProject)[1];
+	const BOOL exact = nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
+	// One input scope with fresh output columns; scalar certificates do not
+	// cover SRFs, correlated subqueries or implicit sibling dependencies.
+	if (exact && (pexprList->DeriveHasNonScalarFunction() ||
+		pexprList->DeriveDefinedColumns()->Size() != pexprList->Arity() ||
+		!(*pexprProject)[0]->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()) ||
+		!(*pexprProject)[0]->DeriveOutputColumns()->ContainsAll(pexprList->DeriveUsedColumns())))
+	{
+		return false;
+	}
 	CColRefArray *pdrgpcrAttrs = PdrgpcrAttrs(pexprList);
 	CColRefArray *pdrgpcrSchema = PdrgpcrSchema(pexprList);
 	if (nullptr == pdrgpcrAttrs || nullptr == pdrgpcrSchema)
@@ -60,7 +71,7 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 		return false;
 	}
 
-	const BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pexprList) &&
+	const BOOL fBound = m_pmatcher->FMatchExpression((*pdrgpsym)[0], pexprList, pmodel) &&
 		pmodel->FBind((*pdrgpsym)[1], pdrgpcrAttrs) &&
 		pmodel->FBind((*pdrgpsym)[2], pdrgpcrSchema);
 	pdrgpcrAttrs->Release();

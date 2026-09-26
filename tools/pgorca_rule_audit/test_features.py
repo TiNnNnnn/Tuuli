@@ -34,7 +34,9 @@ def check_learning_ir(node):
     assert {c['kind'] for c in ir['constraints']} == set(node['constraints'])
     for binding in ir.get('bindings', []):
         assert set(binding) == {'kind', 'mode', 'symbols'}
-        assert binding['kind'] in ('Not', 'NotTrue', 'And', 'Or', 'Ref', 'NullSafeEq')
+        assert binding['kind'] in ('Not', 'NotTrue', 'And', 'Or', 'Ref', 'NullSafeEq',
+                                   'Item', 'BoolValue', 'ValueBool', 'Case', 'Call', 'Args',
+                                   'Exists', 'Any', 'All', 'Subquery', 'Column')
         assert binding['mode'] in ('match', 'build')
         symbols(binding['symbols'])
     assert seen == list(range(len(ir['symbols'])))
@@ -79,6 +81,31 @@ def check_alpha_and_binding(binary, directory):
     assert ir[0] != ir[3]  # Repeated symbol is not two independent symbols.
     assert ir[4] != ir[5]  # Ordered children, including a non-scan Input placeholder.
     assert ir[6] == ir[7]  # Constraint-only LET symbols are normalized too.
+
+
+def check_typed_expression_export(binary, directory):
+    # Export every public value/subquery constructor. The model consumer's
+    # supported vocabulary is a separate contract, not permission to drop nodes.
+    terms = ['Case(p0,n0,n1)', 'Call(h0,Args(n0,v0))', 'BoolValue(Exists(t1))',
+             'BoolValue(Any(c0,Args(n0,Args()),a0,t1))',
+             'BoolValue(All(c0,Args(n0,Args()),a0,t1))',
+             'BoolValue(ValueBool(Subquery(a0,t1)))', 'Column(a0)']
+    source = directory / 'typed-expression-input'
+    source.mkdir()
+    rules = [f'Compute<Item({term},a8,e0) a9 s0>(Input<t0>)|'
+             f'Compute<Item({term},a8,e0) a10 s1>(Input<t2>)|'
+             't2 := t0;a10 := a9;s1 := s0' for term in terms]
+    (source / 'cases.rules').write_text('\n'.join(rules) + '\n')
+    output = directory / 'typed-expression-output'
+    subprocess.run([binary, str(source), str(output)], check=True)
+    nodes = json.loads((output / 'rule_graph.json').read_text())['nodes']
+    assert len(nodes) == len(rules)
+    kinds = set()
+    for node in nodes:
+        check_learning_ir(node)
+        kinds.update(binding['kind'] for binding in node['learning_ir']['bindings'])
+    assert {'Item', 'Case', 'Call', 'Args', 'BoolValue', 'ValueBool',
+            'Exists', 'Any', 'All', 'Subquery', 'Column'} <= kinds
 
 
 def check_expression_bindings(binary, directory):
@@ -259,6 +286,7 @@ def main():
             assert f['constraint_kinds'] == len(n['constraints'])
         check_alpha_and_binding(sys.argv[1], Path(directory))
         check_expression_bindings(sys.argv[1], Path(directory))
+        check_typed_expression_export(sys.argv[1], Path(directory))
         check_surface_equalities(sys.argv[1], Path(directory))
         check_policy_snapshot(sys.argv[1], Path(directory))
         check_e2e_policies(sys.argv[1], Path(directory))

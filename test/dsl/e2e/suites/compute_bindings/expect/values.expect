@@ -1,0 +1,60 @@
+{
+  "description": "Compute item construction retains child columns, ordered definitions and SQL outcomes",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b1692bbdf800914c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2,null,,",
+      "0,1,zero,f,10",
+      "1,1,one,f,11",
+      "2,,two,t,12",
+      "2,,two,t,12",
+      "3,2,three,t,13"
+    ],
+    "postgres_output": [
+      ",2,null,,",
+      "0,1,zero,f,10",
+      "1,1,one,f,11",
+      "2,,two,t,12",
+      "2,,two,t,12",
+      "3,2,three,t,13"
+    ],
+    "off_output": [
+      ",2,null,,",
+      "0,1,zero,f,10",
+      "1,1,one,f,11",
+      "2,,two,t,12",
+      "2,,two,t,12",
+      "3,2,three,t,13"
+    ]
+  }
+}

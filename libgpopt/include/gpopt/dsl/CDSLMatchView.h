@@ -29,12 +29,23 @@ class COrderSpec;
 class CDSLMatchView
 {
 public:
+	// Exact one-column SQL result, excluding implicit system columns.
+	static BOOL FSingleValueOutput(CExpression *expression, const CColRef *column);
+	// Owned exact SELECT view of a scalar subquery's result column. Retain
+	// computed outputs and every child; never peel unrelated projections.
+	static CExpression *PexprSingleColumnProject(CMemoryPool *mp,
+		CExpression *expression, const CColRef *column);
 	// Native eager scalar calls only; no lazy, set-returning, volatile or
 	// subquery semantics. Reuse the resolved operator, never resolve by name.
 	static BOOL FScalarCall(const CExpression *expression);
 	static BOOL FCallArgumentTypes(const CExpression *source,
 		const CExpressionArray *arguments);
 	static BOOL FSameCallHead(const CExpression *left, const CExpression *right);
+	// Quantified comparison adapter: preserve the selected output and scalar
+	// type; both row production and the repeated left operand must be total.
+	static BOOL FQuantifiedInputs(const CExpression *source, CExpression *query,
+		const CExpressionArray *arguments, const CColRef *output);
+	static BOOL FSelectedSubqueryInput(CExpression *query, const CColRef *output);
 	// Exact captured-tree equality, including native call metadata omitted by
 	// CExpression::Matches. Shared by repeated bindings and explicit Eq.
 	static BOOL FSameCapturedExpression(const CExpression *left, const CExpression *right);

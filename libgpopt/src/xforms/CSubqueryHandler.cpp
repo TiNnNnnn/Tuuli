@@ -1469,14 +1469,13 @@ CSubqueryHandler::FCreateCorrelatedApplyForExistentialSubquery(
 	GPOS_ASSERT(COperator::EopScalarSubqueryExists == eopidSubq ||
 				COperator::EopScalarSubqueryNotExists == eopidSubq);
 
-	// get the logical child of subquery
-	CExpression *pexprInner = (*pexprSubquery)[0];
+	CExpression *pexprInner =
+		CUtils::PexprExistentialInput(mp, (*pexprSubquery)[0]);
 
 	// for existential subqueries, any column produced by inner expression
 	// can be used to check for empty answers; we use first column for that
 	CColRef *colref = pexprInner->DeriveOutputColumns()->PcrFirst();
 
-	pexprInner->AddRef();
 	if (EsqctxtFilter == esqctxt)
 	{
 		// we can use correlated semi/anti-semi apply here since the subquery is used in filtering context
@@ -1488,7 +1487,8 @@ CSubqueryHandler::FCreateCorrelatedApplyForExistentialSubquery(
 				// add a limit operator on top of the inner child if the subquery does not have
 				// any outer references. Adding Limit for the correlated case hinders pulling up
 				// predicates into an EXISTS join
-				pexprInner = AddOrReplaceLimitOne(mp, pexprInner);
+				// Preserve existing limits, including zero and fallible parameters.
+				pexprInner = CUtils::PexprLimit(mp, pexprInner, 0, 1);
 			}
 
 			*ppexprNewOuter =
@@ -2023,25 +2023,6 @@ CSubqueryHandler::PexprScalarIf(CMemoryPool *mp, CColRef *pcrBool,
 	return result;
 }
 
-// add a limit 1 expression over given expression,
-// removing any existing limits
-CExpression *
-CSubqueryHandler::AddOrReplaceLimitOne(CMemoryPool *mp, CExpression *pexpr)
-{
-	if (COperator::EopLogicalLimit == pexpr->Pop()->Eopid() &&
-		CUtils::FHasZeroOffset(pexpr))
-	{
-		// If the expression is LIMIT expression with zero OFFSET
-		//  then remove existing LIMIT before adding a new LIMIT with COUNT = 1
-		CExpression *old_limit_expr = pexpr;
-		pexpr = (*pexpr)[0];
-		pexpr->AddRef();
-		old_limit_expr->Release();
-	}
-	return CUtils::PexprLimit(mp, pexpr, 0, 1);
-}
-
-
 //---------------------------------------------------------------------------
 //	@function:
 //		CSubqueryHandler::FRemoveExistentialSubquery
@@ -2082,13 +2063,9 @@ CSubqueryHandler::FRemoveExistentialSubquery(
 	GPOS_ASSERT(op_id == pexprSubquery->Pop()->Eopid());
 #endif	// GPOS_DEBUG
 
-	CExpression *pexprInner = (*pexprSubquery)[0];
+	CExpression *pexprInner =
+		CUtils::PexprExistentialInput(mp, (*pexprSubquery)[0]);
 	BOOL fOuterRefsUnderInner = pexprInner->HasOuterRefs();
-
-	// we always add-ref Apply's inner child since it is reused from subquery
-	// inner expression
-
-	pexprInner->AddRef();
 
 	BOOL fSuccess = true;
 	if (EsqctxtValue == esqctxt)
@@ -2121,7 +2098,8 @@ CSubqueryHandler::FRemoveExistentialSubquery(
 			{
 				// add a limit operator on top of the inner child if the subquery does not have
 				// any outer references.
-				pexprInner = AddOrReplaceLimitOne(mp, pexprInner);
+				// Cap observation without changing an explicit inner LIMIT/OFFSET.
+				pexprInner = CUtils::PexprLimit(mp, pexprInner, 0, 1);
 			}
 			*ppexprNewOuter = CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(
 				mp, pexprOuter, pexprInner, colref, op_id);

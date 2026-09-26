@@ -253,6 +253,20 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         actual["not_contains"] = [
             text for text in expected["not_contains"] if text not in output
         ]
+    if "rule_edges" in expected:
+        import ml_orca_test_support  # Reuse versioned edge/batch decoding.
+        from ml_orca.collect.run_workload_comparison import trace_records
+        patterns = expected["rule_edges"]
+        if not isinstance(patterns, list) or any(
+            not isinstance(edge, dict) or not {"src_rule", "dst_rule"} <= edge.keys()
+            for edge in patterns
+        ):
+            raise ValueError("rule_edges requires source/destination rule patterns")
+        edges = [row for row in trace_records(output) if row.get("kind") == "rule_edge"]
+        actual["rule_edges"] = [pattern for pattern in patterns if any(
+            all(key in edge and edge[key] == value for key, value in pattern.items())
+            for edge in edges
+        )]
     if "alternative" in expected:
         actual["alternative"] = [
             xform

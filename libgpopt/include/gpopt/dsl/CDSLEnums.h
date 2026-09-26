@@ -56,6 +56,7 @@ enum EDslSymbolKind
 	EdslsymRank,			 // r (rank output attribute and value embedding)
 	EdslsymCallHead,      // h (source call carrier: operator and argument types)
 	EdslsymValueList,     // v (ordered scalar values, no output columns)
+	EdslsymCompareHead,   // c (resolved quantified comparison and selected column)
 	EdslsymSentinel
 };
 

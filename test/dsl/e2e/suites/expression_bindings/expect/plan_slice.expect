@@ -19,7 +19,7 @@
           "r/0"
         ],
         "status": "ok",
-        "source_template": "Filter<And(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a0>(Input<t0>)",
+        "source_template": "Filter<And(ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))),ValueBool(Call(h1,Args(Column(a3),Args(n1,Args()))))) a0>(Input<t0>)",
         "error": null
       }
     }

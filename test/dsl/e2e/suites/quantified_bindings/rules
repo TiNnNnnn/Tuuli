@@ -1,0 +1,3 @@
+# Construction probes, not new optimization laws. Keep comparison and query intact.
+Compute<Item(BoolValue(Any(c0,Args(BoolValue(p0),Args()),a8,t1)),a0,e0) a1 s0>(Input<t0>)|Compute<Item(BoolValue(Any(c0,Args(BoolValue(Not(Not(p0))),Args()),a8,t1)),a0,e0) a2 s1>(Input<t2>)|t2 := t0;a2 := a1;s1 := s0
+Compute<Item(BoolValue(All(c0,Args(BoolValue(p0),Args()),a8,t1)),a0,e0) a1 s0>(Input<t0>)|Compute<Item(BoolValue(All(c0,Args(BoolValue(Not(Not(p0))),Args()),a8,t1)),a0,e0) a2 s1>(Input<t2>)|t2 := t0;a2 := a1;s1 := s0

@@ -35,6 +35,9 @@
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/xforms/CXformUtils.h"
@@ -63,7 +66,12 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitio
 	}
 	else if (!model->FBind(symbol, arguments)) return false;
 	const auto *def = definitions->Pdef(symbol);
-	if (nullptr == def) return true;
+	if (nullptr == def)
+	{
+		for (ULONG i = 0; i < arguments->Size(); ++i)
+			if ((*arguments)[i]->DeriveHasSubquery()) return false;
+		return true;
+	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding() || EdslexprArgs != def->Edslexpr())
 		return false;
 	if (0 == def->Arity()) return 0 == arguments->Size();
@@ -100,13 +108,40 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
 	{
-		return true;
+		// Subqueries must be exposed by a typed constructor, not smuggled
+		// through an opaque scalar capture. Its TABLE child stays opaque.
+		return EdslsymTable == symbol->Esymkind() || !expression->DeriveHasSubquery();
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
 		return false;
-	if (EdslexprCall == def->Edslexpr())
+	if (EdslexprNot == def->Edslexpr() &&
+		COperator::EopScalarSubqueryNotExists == expression->Pop()->Eopid() &&
+		1 == expression->Arity())
 	{
-		if (!CDSLMatchView::FScalarCall(expression)) return false;
+		// Native NOT EXISTS is the compact representation of Not(Exists(q)).
+		(*expression)[0]->AddRef();
+		CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubqueryExists(mp), (*expression)[0]);
+		const BOOL matched = FMatchExpressionBinding(mp, definitions,
+			def->PsymOperand(0), exists, model, depth + 1);
+		exists->Release();
+		return matched;
+	}
+	if (EdslexprExists == def->Edslexpr())
+	{
+		// Capture the complete native query, not its base tables or a flattened
+		// view. Correlated column references and demand-sensitive operators stay.
+		return COperator::EopScalarSubqueryExists == expression->Pop()->Eopid() &&
+			1 == expression->Arity() && (*expression)[0]->Pop()->FLogical() &&
+			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0),
+				(*expression)[0], model, depth + 1);
+	}
+	if (EdslexprCall == def->Edslexpr() || EdslexprCompare == def->Edslexpr())
+	{
+		if (!CDSLMatchView::FScalarCall(expression) ||
+			(EdslexprCompare == def->Edslexpr() &&
+				(COperator::EopScalarCmp != expression->Pop()->Eopid() ||
+				 2 != expression->Arity()))) return false;
 		const CDSLSymbol *head = def->PsymOperand(0);
 		const auto *bound = static_cast<CExpression *>(model->PvalLookup(head));
 		if (nullptr != bound ? !CDSLMatchView::FSameCallHead(bound, expression)
@@ -119,6 +154,62 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		}
 		const BOOL matched = FMatchValueArguments(mp, definitions, def->PsymOperand(1),
 			arguments, model, depth + 1);
+		arguments->Release();
+		return matched;
+	}
+	if (EdslexprColumn == def->Edslexpr())
+	{
+		if (COperator::EopScalarIdent != expression->Pop()->Eopid() || 0 != expression->Arity())
+			return false;
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append(const_cast<CColRef *>(CScalarIdent::PopConvert(expression->Pop())->Pcr()));
+		const auto *bound = model->PdrgpcrAttrs(def->PsymOperand(0));
+		const BOOL matched = nullptr != bound ? bound->Equals(columns)
+			: model->FBind(def->PsymOperand(0), columns);
+		columns->Release();
+		return matched;
+	}
+	if (EdslexprScalarSubquery == def->Edslexpr())
+	{
+		if (COperator::EopScalarSubquery != expression->Pop()->Eopid() || 1 != expression->Arity())
+			return false;
+		const auto *op = CScalarSubquery::PopConvert(expression->Pop());
+		if (op->FGeneratedByExist() || op->FGeneratedByQuantified() ||
+			!CDSLMatchView::FSelectedSubqueryInput((*expression)[0], op->Pcr())) return false;
+		CColRefArray *outputs = GPOS_NEW(mp) CColRefArray(mp);
+		outputs->Append(const_cast<CColRef *>(op->Pcr()));
+		const auto *bound = model->PdrgpcrAttrs(def->PsymOperand(0));
+		const BOOL selected = nullptr != bound ? bound->Equals(outputs)
+			: model->FBind(def->PsymOperand(0), outputs);
+		outputs->Release();
+		return selected && FMatchExpressionBinding(mp, definitions, def->PsymOperand(1),
+			(*expression)[0], model, depth + 1);
+	}
+	if (EdslexprAny == def->Edslexpr() || EdslexprAll == def->Edslexpr())
+	{
+		const auto expected = EdslexprAny == def->Edslexpr()
+			? COperator::EopScalarSubqueryAny : COperator::EopScalarSubqueryAll;
+		if (expected != expression->Pop()->Eopid() || 2 != expression->Arity()) return false;
+		CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
+		(*expression)[1]->AddRef();
+		arguments->Append((*expression)[1]);
+		const CDSLSymbol *head = def->PsymOperand(0);
+		const auto *bound = static_cast<CExpression *>(model->PvalLookup(head));
+		const auto *comparison = CScalarSubqueryQuantified::PopConvert(expression->Pop());
+		CColRefArray *outputs = GPOS_NEW(mp) CColRefArray(mp);
+		outputs->Append(const_cast<CColRef *>(comparison->Pcr()));
+		const auto *bound_outputs = model->PdrgpcrAttrs(def->PsymOperand(2));
+		// The constructor selects ANY/ALL; c captures the comparison and
+		// its type signature. The selected column is an independent capture.
+		const BOOL matched = CDSLMatchView::FQuantifiedInputs(expression, (*expression)[0], arguments, comparison->Pcr()) &&
+			(nullptr != bound ?
+				CScalarSubqueryQuantified::PopConvert(bound->Pop())->MdIdOp()->Equals(comparison->MdIdOp()) &&
+				CDSLMatchView::FQuantifiedInputs(bound, (*expression)[0], arguments, comparison->Pcr())
+				: model->FBind(head, expression)) &&
+			(nullptr != bound_outputs ? bound_outputs->Equals(outputs) : model->FBind(def->PsymOperand(2), outputs)) &&
+			FMatchValueArguments(mp, definitions, def->PsymOperand(1), arguments, model, depth + 1) &&
+			FMatchExpressionBinding(mp, definitions, def->PsymOperand(3), (*expression)[0], model, depth + 1);
+		outputs->Release();
 		arguments->Release();
 		return matched;
 	}
@@ -227,8 +318,7 @@ CDSLMatcher::FMatchExpression(const CDSLSymbol *symbol, CExpression *expression,
 {
 	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
 	{
-		return !expression->DeriveHasSubquery() &&
-			FMatchExpressionBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
+		return FMatchExpressionBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
 	}
 	return model->FBind(symbol, expression);
 }
@@ -678,22 +768,27 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 		{
 			// Oriented scalar patterns match the actual tree. In particular,
 			// do not split/reorder predicates through the legacy filter views.
+			CDSLSymbolArray *symbols = pop->Pdrgpsym();
 			if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
-				2 != pexpr->Arity() || 2 != pop->Pdrgpsym()->Size() ||
-				(*pexpr)[1]->DeriveHasSubquery() ||
-				!(*pexpr)[0]->DeriveOutputColumns()->ContainsAll(
-					(*pexpr)[1]->DeriveUsedColumns()))
+				2 != pexpr->Arity() ||
+				(2 != symbols->Size() && 3 != symbols->Size()) ||
+				(2 == symbols->Size() &&
+				 !(*pexpr)[0]->DeriveOutputColumns()->ContainsAll(
+					 (*pexpr)[1]->DeriveUsedColumns())))
 			{
 				return false;
 			}
-			CColRefArray *columns =
-				(*pexpr)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
-			const BOOL matched =
-				pmodel->FBind((*pop->Pdrgpsym())[1], columns) &&
-				FMatchPredicate((*pop->Pdrgpsym())[0], (*pexpr)[1], pmodel) &&
+			for (ULONG i = 1; i < symbols->Size(); i++)
+			{
+				CColRefArray *columns = CDSLFilterMatcher::PdrgpcrDependencies(
+					m_mp, pop, (*pexpr)[1], (*pexpr)[0], i);
+				const BOOL bound = pmodel->FBind((*symbols)[i], columns);
+				columns->Release();
+				if (!bound)
+					return false;
+			}
+			return FMatchPredicate((*symbols)[0], (*pexpr)[1], pmodel) &&
 				FMatch((*pop)[0], (*pexpr)[0], pmodel);
-			columns->Release();
-			return matched;
 		}
 		CDSLFilterMatcher fm(m_mp, this, m_prule);
 		return fm.FMatch(pop, pexpr, pmodel);

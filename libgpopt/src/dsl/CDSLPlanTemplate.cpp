@@ -229,13 +229,17 @@ CanonicalKind(const CExpression *expr, BOOL *distinct)
 		case COperator::EopLogicalLeftOuterJoin: return EdslopLeftJoin;
 		case COperator::EopLogicalFullOuterJoin: return EdslopFullJoin;
 		case COperator::EopLogicalLeftSemiJoin: return EdslopSemiJoin;
-		case COperator::EopLogicalLeftSemiApply: return EdslopSemiApply;
+		case COperator::EopLogicalLeftSemiApply:
+		case COperator::EopLogicalLeftSemiCorrelatedApply: return EdslopSemiApply;
 		case COperator::EopLogicalLeftAntiSemiJoin: return EdslopAntiJoin;
-		case COperator::EopLogicalLeftAntiSemiApply: return EdslopAntiApply;
+		case COperator::EopLogicalLeftAntiSemiApply:
+		case COperator::EopLogicalLeftAntiSemiCorrelatedApply: return EdslopAntiApply;
 		case COperator::EopLogicalLeftAntiSemiJoinNotIn: return EdslopAntiJoinNotIn;
 		case COperator::EopLogicalLeftAntiSemiApplyNotIn: return EdslopAntiApplyNotIn;
-		case COperator::EopLogicalInnerApply: return EdslopInnerApply;
-		case COperator::EopLogicalLeftOuterApply: return EdslopLeftOuterApply;
+		case COperator::EopLogicalInnerApply:
+		case COperator::EopLogicalInnerCorrelatedApply: return EdslopInnerApply;
+		case COperator::EopLogicalLeftOuterApply:
+		case COperator::EopLogicalLeftOuterCorrelatedApply: return EdslopLeftOuterApply;
 		case COperator::EopLogicalUnion:
 			*distinct = true;
 			return EdslopUnion;
@@ -441,8 +445,9 @@ PopSlice(CMemoryPool *mp, const CExpression *expr, const std::string &path,
 			}
 			candidate->Release();
 		}
-		*error = "no canonical subquery DSL view for " + path;
-		return nullptr;
+		// A subquery under a Boolean expression need not be a relational
+		// semi/anti filter. Fall through to the scalar-aware Filter template;
+		// FSlice still rejects unrepresented cuts and validates every capture.
 	}
 	BOOL distinct = false;
 	const EDslOpKind kind = CanonicalKind(expr, &distinct);
@@ -494,7 +499,28 @@ PredicateTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts
 	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
+	const BOOL negated_exists = COperator::EopScalarSubqueryNotExists == expr->Pop()->Eopid();
+	if ((COperator::EopScalarSubqueryAny == expr->Pop()->Eopid() ||
+		 COperator::EopScalarSubqueryAll == expr->Pop()->Eopid()) && 2 == expr->Arity())
+	{
+		*expanded = true;
+		const std::string head = "c" + std::to_string(symbol_counts[EdslsymCompareHead]++);
+		const std::string arguments = "Args(" + ValueTemplate(mp, (*expr)[1], symbol_counts, expanded) + ",Args())";
+		const std::string output = "a" + std::to_string(symbol_counts[EdslsymAttrs]++);
+		const std::string query = "t" + std::to_string(symbol_counts[EdslsymTable]++);
+		return std::string(COperator::EopScalarSubqueryAny == expr->Pop()->Eopid() ? "Any(" : "All(") +
+			head + ',' + arguments + ',' + output + ',' + query + ')';
+	}
+	if ((COperator::EopScalarSubqueryExists == expr->Pop()->Eopid() || negated_exists) &&
+		1 == expr->Arity() && (*expr)[0]->Pop()->FLogical())
+	{
+		*expanded = true;
+		const std::string exists = "Exists(t" + std::to_string(symbol_counts[EdslsymTable]++) + ')';
+		return negated_exists ? "Not(" + exists + ')' : exists;
+	}
 	if (((COperator::EopScalarIf == expr->Pop()->Eopid() && 3 == expr->Arity()) ||
+		(COperator::EopScalarIdent == expr->Pop()->Eopid() && 0 == expr->Arity()) ||
+		(COperator::EopScalarSubquery == expr->Pop()->Eopid() && 1 == expr->Arity()) ||
 		CDSLMatchView::FScalarCall(expr)) &&
 		IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
 			CScalar::PopConvert(expr->Pop())->MdidType())->GetDatumType())
@@ -541,6 +567,17 @@ ValueTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
 	BOOL *expanded)
 {
 	GPOS_CHECK_STACK_SIZE;
+	if (COperator::EopScalarIdent == expr->Pop()->Eopid() && 0 == expr->Arity())
+	{
+		*expanded = true;
+		return "Column(a" + std::to_string(symbol_counts[EdslsymAttrs]++) + ')';
+	}
+	if (COperator::EopScalarSubquery == expr->Pop()->Eopid() && 1 == expr->Arity())
+	{
+		*expanded = true;
+		const std::string output = "a" + std::to_string(symbol_counts[EdslsymAttrs]++);
+		return "Subquery(" + output + ",t" + std::to_string(symbol_counts[EdslsymTable]++) + ')';
+	}
 	if (CDSLMatchView::FScalarCall(expr))
 	{
 		*expanded = true;
@@ -583,14 +620,16 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 		return true;
 	}
 	const EDslOpKind kind = op->Edslop();
+	const BOOL apply = EdslopInnerApply == kind || EdslopLeftOuterApply == kind ||
+		EdslopSemiApply == kind || EdslopAntiApply == kind;
 	const BOOL join = EdslopInnerJoin == kind || EdslopLeftJoin == kind ||
-		EdslopFullJoin == kind || EdslopSemiJoin == kind || EdslopAntiJoin == kind;
+		EdslopFullJoin == kind || EdslopSemiJoin == kind || EdslopAntiJoin == kind || apply;
 	const BOOL project = EdslopCompute == kind;
 	BOOL distinct = false;
 	if ((!join && !project && EdslopFilter != kind) || CanonicalKind(expr, &distinct) != kind)
 		return false;
 	const ULONG children = join ? 2 : 1;
-	if (children + 1 != expr->Arity() || (*expr)[children]->DeriveHasSubquery())
+	if (children + 1 != expr->Arity())
 		return false;
 	if (project && (COperator::EopScalarProjectList != (*expr)[1]->Pop()->Eopid() ||
 		(*expr)[1]->DeriveHasNonScalarFunction()))
@@ -600,7 +639,7 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 		available->Union((*expr)[i]->DeriveOutputColumns());
 	const BOOL local = available->ContainsAll((*expr)[children]->DeriveUsedColumns());
 	available->Release();
-	if (!local)
+	if (!local && EdslopFilter != kind)
 		return false;
 	std::string inputs;
 	for (ULONG i = 0; i < children; ++i)
@@ -638,7 +677,8 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	}
 	*text = std::string(CDSLOpKindTable::SzName(kind)) + "<" +
 		PredicateTemplate(mp, (*expr)[children], symbol_counts, expanded);
-	for (ULONG i = 1; i <= children; ++i)
+	const ULONG dependencies = apply ? 3 : EdslopFilter == kind && !local ? 2 : children;
+	for (ULONG i = 1; i <= dependencies; ++i)
 		*text += " " + SymbolText(mp, (*op->Pdrgpsym())[i]);
 	*text += ">(" + inputs + ")";
 	return true;

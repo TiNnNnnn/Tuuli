@@ -13,9 +13,11 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
@@ -29,6 +31,8 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubqueryNotExists.h"
+#include "gpopt/xforms/CSubqueryHandler.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -119,6 +123,9 @@ GPOS_RESULT
 CDSLInSubTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ExpressionBindings),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ProjectedExpressionBindings),
+		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ExistentialInputDemand),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_PreApplyCorpusElimination),
 		GPOS_UNITTEST_FUNC(
@@ -1261,6 +1268,254 @@ CDSLInSubTest::EresUnittest_PreApplyRepeatedInElimination()
 	pexprInner0->Release();
 	pexprInner1->Release();
 	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_ExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PruleParse(mp,
+		"InSubFilter<a0>(Input<t0>,Filter<p0 a1>(Input<t1>))|"
+		"InSubFilter<a2>(Input<t2>,Filter<Not(Not(p0)) a3>(Input<t3>))|"
+		"t2 := t0;t3 := t1;a2 := a0;a3 := a1");
+	GPOS_ASSERT(nullptr != rule);
+	CDSLMatcher matcher(mp, rule);
+	BOOL ok = true;
+	for (ULONG shape = 0; shape < 6; shape++)
+	{
+		CExpression *outer = fix.PexprLogicalGet("binding_outer", 1);
+		CExpression *inner = fix.PexprLogicalGet("binding_inner", 1 == shape ? 2 : 1);
+		CColRef *left = outer->DeriveOutputColumns()->PcrFirst();
+		CColRef *right = inner->DeriveOutputColumns()->PcrFirst();
+		if (3 == shape)
+			inner = CUtils::PexprLimit(mp, inner, 0, 1);
+		if (5 == shape)
+			inner = CUtils::PexprAddProjection(mp, inner, fix.PexprGenerateSeries(right));
+		CExpression *pred = fix.PexprEqPred(right, right);
+		CExpression *filtered = fix.PexprLogicalSelect(inner, pred);
+		pred->Release();
+		inner->Release();
+		CExpression *any = PexprScalarAny(mp, fix, filtered, left, right);
+		if (2 == shape)
+		{
+			// Used-column equality is not equality of the scalar argument.
+			CScalarSubqueryAny *op = CScalarSubqueryAny::PopConvert(any->Pop());
+			op->AddRef();
+			filtered->AddRef();
+			left->RetrieveType()->MDId()->AddRef();
+			CExpression *computed = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarCoalesce(mp, left->RetrieveType()->MDId()),
+				CUtils::PexprScalarIdent(mp, left), CUtils::PexprScalarConstInt4(mp, 0));
+			any->Release();
+			any = GPOS_NEW(mp) CExpression(mp, op, filtered, computed);
+		}
+		if (4 == shape)
+		{
+			CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+			conjuncts->Append(any);
+			conjuncts->Append(fix.PexprEqPred(left, left));
+			any = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, conjuncts);
+		}
+		CExpression *source = fix.PexprLogicalSelect(outer, any);
+		outer->Release();
+		any->Release();
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		ok &= matched == (0 == shape);
+		if (matched)
+		{
+			CDSLConstraintChecker checker(mp);
+			ok &= checker.FCheck(rule, model);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			ok &= nullptr != target;
+			if (nullptr != target)
+			{
+				ok &= COperator::EopLogicalSelect == target->Pop()->Eopid() &&
+					(*source)[1]->Pop()->Matches((*target)[1]->Pop()) &&
+					!source->Matches(target) &&
+					source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns());
+				target->Release();
+			}
+			// A sole captured IN is not permission to guess a different inner
+			// result column. The target must retain the exact selected output.
+			CDSLRule *wrong = PruleParse(mp,
+				"InSubFilter<a0>(Input<t0>,Filter<p0 a1>(Input<t1>))|"
+				"InSubFilter<a2>(Input<t2>,Input<t3>)|"
+				"t2 := t0;t3 := t0;a2 := a0");
+			CDSLModel *wrongModel = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher wrongMatcher(mp, wrong);
+			ok &= wrongMatcher.FMatch(wrong->PfragSrc()->PopRoot(), source, wrongModel);
+			CExpression *wrongTarget = instantiator.PexprInstantiate(wrong, wrongModel);
+			ok &= nullptr == wrongTarget;
+			CRefCount::SafeRelease(wrongTarget);
+			wrongModel->Release();
+			wrong->Release();
+		}
+		model->Release();
+		source->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_ProjectedExpressionBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PruleParse(mp,
+		"InSubFilter<a0>(Input<t0>,Proj<a1 s0>(Filter<p0 a2>(Input<t1>)))|"
+		"InSubFilter<a3>(Input<t2>,Proj<a4 s1>(Filter<Not(Not(p0)) a5>(Input<t3>)))|"
+		"t2 := t0;t3 := t1;a3 := a0;a4 := a1;s1 := s0;a5 := a2");
+	GPOS_ASSERT(nullptr != rule);
+	CDSLMatcher matcher(mp, rule);
+	BOOL ok = true;
+	for (ULONG shape = 0; shape < 3; shape++)
+	{
+		CExpression *outer = fix.PexprLogicalGet("projection_outer", 1);
+		CColRefArray *columns = nullptr;
+		CExpression *inner = fix.PexprLogicalGet("projection_inner", 2, &columns);
+		CColRef *left = outer->DeriveOutputColumns()->PcrFirst();
+		CColRef *selected = (*columns)[1];
+		CExpression *pred = fix.PexprEqPred(selected, selected);
+		CExpression *filtered = fix.PexprLogicalSelect(inner, pred);
+		pred->Release();
+		inner->Release();
+		inner = filtered;
+		if (0 != shape)
+		{
+			selected->RetrieveType()->MDId()->AddRef();
+			CExpression *value = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarCoalesce(mp, selected->RetrieveType()->MDId()),
+				CUtils::PexprScalarIdent(mp, selected), CUtils::PexprScalarConstInt4(mp, 0));
+			inner = CUtils::PexprAddProjection(mp, inner, value);
+			if (1 == shape)
+				selected = CScalarProjectElement::PopConvert((*(*inner)[1])[0]->Pop())->Pcr();
+		}
+		CExpression *view = CDSLMatchView::PexprSingleColumnProject(mp, inner, selected);
+		ok &= nullptr != view && (1 == shape ? view == inner : (*view)[0] == inner);
+		CRefCount::SafeRelease(view);
+		ok &= nullptr == CDSLMatchView::PexprSingleColumnProject(mp, inner, left);
+		CExpression *any = PexprScalarAny(mp, fix, inner, left, selected);
+		CExpression *source = fix.PexprLogicalSelect(outer, any);
+		outer->Release();
+		any->Release();
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		// An unrelated Project is not peeled to expose the Filter beneath it.
+		ok &= matched == (2 != shape);
+		if (matched)
+		{
+			CDSLConstraintChecker checker(mp);
+			ok &= checker.FCheck(rule, model);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			ok &= nullptr != target;
+			if (nullptr != target)
+			{
+				ok &= (*source)[1]->Pop()->Matches((*target)[1]->Pop()) &&
+					CScalarSubqueryAny::PopConvert((*target)[1]->Pop())->Pcr() == selected &&
+					!source->Matches(target);
+				target->Release();
+			}
+			// Removing the explicit SELECT must not silently expose the full
+			// input schema as the IN result (or choose its first column).
+			CDSLRule *drop = PruleParse(mp,
+				"InSubFilter<a0>(Input<t0>,Proj<a1 s0>(Filter<p0 a2>(Input<t1>)))|"
+				"InSubFilter<a3>(Input<t2>,Filter<p1 a4>(Input<t3>))|"
+				"t2 := t0;t3 := t1;a3 := a0;a4 := a2;p1 := p0");
+			GPOS_ASSERT(nullptr != drop);
+			CDSLModel *dropModel = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher dropMatcher(mp, drop);
+			ok &= dropMatcher.FMatch(drop->PfragSrc()->PopRoot(), source, dropModel);
+			CExpression *dropped = instantiator.PexprInstantiate(drop, dropModel);
+			ok &= nullptr == dropped;
+			CRefCount::SafeRelease(dropped);
+			dropModel->Release();
+			drop->Release();
+		}
+		model->Release();
+		source->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_ExistentialInputDemand()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (ULONG shape = 0; shape < 6; shape++)
+	{
+		CColRefArray *cols = GPOS_NEW(mp) CColRefArray(mp);
+		CColRef *col = fix.PcrCreateInt4("input");
+		if (4 != shape)
+			cols->Append(col);
+		CExpression *input = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, cols, GPOS_NEW(mp) IDatum2dArray(mp)));
+		input->AddRef();
+		CExpression *project = CUtils::PexprAddProjection(mp, input,
+			2 == shape ? fix.PexprGenerateSeries(col) : CUtils::PexprScalarConstInt4(mp, 42));
+		if (1 == shape)
+			project = CUtils::PexprAddProjection(mp, project, CUtils::PexprScalarConstInt4(mp, 43));
+		if (3 == shape)
+		{
+			// The filter consumes a computed value: peeling through it is invalid.
+			CColRef *computed = CScalarProjectElement::PopConvert((*(*project)[1])[0]->Pop())->Pcr();
+			CExpression *predicate = fix.PexprPredAtom(computed);
+			CExpression *filtered = fix.PexprLogicalSelect(project, predicate);
+			predicate->Release();
+			project->Release();
+			project = filtered;
+		}
+		if (5 == shape)
+			project = CUtils::PexprLimit(mp, project, 0, 0);
+		CExpression *prepared = CUtils::PexprExistentialInput(mp, project);
+		if (2 == shape || 3 == shape || 5 == shape)
+			ok &= prepared == project;
+		else if (4 == shape)
+			ok &= COperator::EopLogicalProject == prepared->Pop()->Eopid() &&
+				(*prepared)[0] == input && 1 == prepared->DeriveOutputColumns()->Size() &&
+				CUtils::FScalarConstTrue((*(*(*prepared)[1])[0])[0]);
+		else
+			ok &= prepared == input;
+		prepared->Release();
+		if (0 == shape || 5 == shape)
+		{
+			for (BOOL negated : {false, true})
+			{
+				project->AddRef();
+				COperator *op = negated
+					? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+					: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp));
+				CExpression *subquery = GPOS_NEW(mp) CExpression(mp, op, project);
+				for (BOOL correlated : {false, true})
+				{
+					CExpression *outer = fix.PexprLogicalGet("existence_outer", 1);
+					CExpression *rewritten = nullptr, *residual = nullptr;
+					CSubqueryHandler handler(mp, correlated);
+					ok &= handler.FProcess(outer, subquery, CSubqueryHandler::EsqctxtFilter,
+						&rewritten, &residual);
+					CExpression *expected = 0 == shape ? input : project;
+					ok &= nullptr != rewritten && (negated
+						? (*rewritten)[1] == expected : (*(*rewritten)[1])[0] == expected);
+					CRefCount::SafeRelease(rewritten);
+					CRefCount::SafeRelease(residual);
+				}
+				subquery->Release();
+			}
+		}
+		project->Release();
+		input->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

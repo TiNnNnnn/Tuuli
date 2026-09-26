@@ -415,7 +415,17 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		COperator::EopLogicalLeftAntiSemiCorrelatedApply == eopidBucket;
 	m_fFollowDSLSelectAlternatives =
 		m_fFollowDSLSelectAlternatives || fSemiApplyView || fAntiApplyView;
-	if (popRoot->Eopid() == eopidBucket && prule->Pexprdefs()->FHasBindings())
+	const BOOL fCorrelatedApply =
+		(EdslopInnerApply == popRoot->Edslop() &&
+		 COperator::EopLogicalInnerCorrelatedApply == eopidBucket) ||
+		(EdslopLeftOuterApply == popRoot->Edslop() &&
+		 COperator::EopLogicalLeftOuterCorrelatedApply == eopidBucket) ||
+		(EdslopSemiApply == popRoot->Edslop() &&
+		 COperator::EopLogicalLeftSemiCorrelatedApply == eopidBucket) ||
+		(EdslopAntiApply == popRoot->Edslop() &&
+		 COperator::EopLogicalLeftAntiSemiCorrelatedApply == eopidBucket);
+	if ((popRoot->Eopid() == eopidBucket || fCorrelatedApply) &&
+		prule->Pexprdefs()->FHasBindings())
 	{
 		// Retain every literal relational level, including Filters below both
 		// Join branches. Adapter boundaries must not truncate memo extraction.

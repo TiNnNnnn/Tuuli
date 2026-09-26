@@ -1,0 +1,2 @@
+SELECT i FROM exists_outer WHERE NOT EXISTS
+(SELECT j FROM exists_inner LIMIT 0) ORDER BY i NULLS FIRST;

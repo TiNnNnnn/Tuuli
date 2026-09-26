@@ -10,6 +10,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -533,6 +534,37 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 	const BOOL fExtended = 5 == pop->Pdrgpsym()->Size();
+	const CDSLRule *rule = m_pmatcher->Prule();
+	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
+	{
+		// Bind the native IN value and selected result, never dependency sets
+		// or a semijoin/conjunct view. FormalSQL evaluates the full inner query;
+		// PostgreSQL may stop on a match, so require demand-insensitive input.
+		if (fExtended || COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
+			2 != pexpr->Arity() || !CDSLMatchView::FPlainEqAny((*pexpr)[1]))
+			return false;
+		CExpression *any = (*pexpr)[1];
+		CScalarSubqueryAny *opAny = CScalarSubqueryAny::PopConvert(any->Pop());
+		const BOOL projected = EdslopProj == (*pop)[1]->Edslop() && !(*pop)[1]->FDistinct();
+		if (COperator::EopScalarIdent != (*any)[1]->Pop()->Eopid() ||
+			!(*pexpr)[0]->DeriveOutputColumns()->ContainsAll((*any)[1]->DeriveUsedColumns()) ||
+			(!projected && !CDSLMatchView::FSingleValueOutput((*any)[0], opAny->Pcr())) ||
+			!CPredicateUtils::FBuiltInComparisonIsVeryStrict(opAny->MdIdOp()) ||
+			!CDSLConstraintChecker::FQueryDemandInsensitive((*any)[0]))
+			return false;
+		if (!m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel))
+			return false;
+		CExpression *inner = (*any)[0];
+		if (projected)
+			inner = CDSLMatchView::PexprSingleColumnProject(m_mp, inner, opAny->Pcr());
+		const BOOL matched = nullptr != inner && m_pmatcher->FMatch((*pop)[1], inner, pmodel);
+		if (projected)
+			CRefCount::SafeRelease(inner);
+		if (!matched || !FBindOuterAttrs(pop, (*any)[1], pmodel))
+			return false;
+		any->AddRef();
+		return pmodel->FSetInSubCarrier((*pop->Pdrgpsym())[0], any);
+	}
 	if (fExtended &&
 		COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid())
 	{

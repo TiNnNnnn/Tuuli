@@ -228,6 +228,8 @@ if(PG_ORCA_BUNDLED_ANTLR4)
 
     # The static runtime target is "antlr4_static".
     set_target_properties(antlr4_static PROPERTIES
+        # ANTLR 4.8 defaults to the source tree's dist/, shared by all builds.
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/third_party/antlr4/lib"
         POSITION_INDEPENDENT_CODE ON
         CXX_VISIBILITY_PRESET     hidden
         VISIBILITY_INLINES_HIDDEN ON)
@@ -570,7 +572,7 @@ add_test(
 )
 set_tests_properties(pgorca_rule_audit_fixture PROPERTIES
     PASS_REGULAR_EXPRESSION
-    "candidates=7 parsed=5 supported_static=4 unsupported_static=1 parse_failed=1 skipped_non_eq=1 native_exploration=97 semantic_rewrite=50 join_enumeration=19 implementation_property=28 graph_nodes=3 static_edges=5 unresolved_inputs=3"
+    "candidates=7 parsed=5 supported_static=4 unsupported_static=1 parse_failed=1 skipped_non_eq=1 native_exploration=98 semantic_rewrite=50 join_enumeration=19 implementation_property=29 graph_nodes=3 static_edges=5 unresolved_inputs=3"
 )
 
 # -------------------------------------------------------------------

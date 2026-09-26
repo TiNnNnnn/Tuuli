@@ -1,0 +1,2 @@
+# Construction probe, not a newly mined optimization law. Preserve typed column identity under lazy CASE.
+Compute<Item(Case(p0,Column(a0),n0),a1,e0) a2 s0>(Input<t0>)|Compute<Item(Case(Not(Not(p0)),Column(a3),n0),a1,e0) a4 s1>(Input<t1>)|t1 := t0;a3 := a0;a4 := a2;s1 := s0

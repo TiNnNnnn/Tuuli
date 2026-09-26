@@ -8,6 +8,7 @@
 //		Implementation of the symbol-binding model (see CDSLModel.h).
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 
 using namespace gpopt;
 
@@ -32,7 +33,7 @@ CDSLFrameBound::Matches(const CDSLFrameBound *other) const
 	return nullptr != other && m_efb == other->m_efb &&
 		   (m_pexprOffset == other->m_pexprOffset ||
 			(nullptr != m_pexprOffset && nullptr != other->m_pexprOffset &&
-			 m_pexprOffset->Matches(other->m_pexprOffset)));
+			 CDSLMatchView::FSameCapturedExpression(m_pexprOffset, other->m_pexprOffset)));
 }
 
 //---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ CDSLModel::FSetInSubPred(const CDSLSymbol *psymAttrs, CExpression *pexpr)
 	CExpression *pexprExisting = m_phmInSubPred->Find(psymAttrs);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -130,7 +131,7 @@ CDSLModel::FSetInSubCarrier(const CDSLSymbol *psymAttrs,
 	CExpression *pexprExisting = m_phmInSubCarrier->Find(psymAttrs);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -159,7 +160,7 @@ CDSLModel::FSetFilterCarrier(const CDSLSymbol *psymPred,
 	CExpression *pexprExisting = m_phmFilterCarrier->Find(psymPred);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -188,7 +189,7 @@ CDSLModel::FSetApplyCarrier(const CDSLSymbol *psymPred,
 	CExpression *pexprExisting = m_phmApplyCarrier->Find(psymPred);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -239,7 +240,7 @@ CDSLModel::FSetProjList(const CDSLSymbol *psymSchema, CExpression *pexpr)
 	CExpression *pexprExisting = m_phmProjList->Find(psymSchema);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -268,7 +269,7 @@ CDSLModel::FSetVirtualIdentityProj(const CDSLSymbol *psymSchema,
 	CExpression *pexprExisting = m_phmVirtualIdentityProj->Find(psymSchema);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexprCarrier);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexprCarrier);
 		pexprCarrier->Release();
 		return fCompatible;
 	}
@@ -297,7 +298,7 @@ CDSLModel::FSetProjLimitShell(const CDSLSymbol *psymSchema,
 	CExpression *pexprExisting = m_phmProjLimitShell->Find(psymSchema);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -326,7 +327,7 @@ CDSLModel::FSetProjAggShell(const CDSLSymbol *psymSchema,
 	CExpression *pexprExisting = m_phmProjAggShell->Find(psymSchema);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -355,7 +356,7 @@ CDSLModel::FSetAggBinding(const CDSLSymbol *psymSchema,
 	CExpression *pexprExisting = m_phmAggBinding->Find(psymSchema);
 	if (nullptr != pexprExisting)
 	{
-		BOOL fCompatible = pexprExisting->Matches(pexpr);
+		BOOL fCompatible = CDSLMatchView::FSameCapturedExpression(pexprExisting, pexpr);
 		pexpr->Release();
 		return fCompatible;
 	}
@@ -430,8 +431,8 @@ CDSLModel::FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
 
 	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
 	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
-	if ((nullptr != pexprLeft && !pexprLeft->Matches(pexpr)) ||
-		(nullptr != pexprRight && !pexprRight->Matches(pexpr)))
+	if ((nullptr != pexprLeft && !CDSLMatchView::FSameCapturedExpression(pexprLeft, pexpr)) ||
+		(nullptr != pexprRight && !CDSLMatchView::FSameCapturedExpression(pexprRight, pexpr)))
 	{
 		return false;
 	}
@@ -459,7 +460,7 @@ CDSLModel::PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
 	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
 	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
 	return nullptr != pexprLeft && nullptr != pexprRight &&
-			   pexprLeft->Matches(pexprRight)
+			   CDSLMatchView::FSameCapturedExpression(pexprLeft, pexprRight)
 		   ? pexprLeft
 		   : nullptr;
 }

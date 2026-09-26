@@ -1,0 +1,51 @@
+{
+  "description": "IN composes Item/BoolValue expression construction with its exact projected result",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8b9a6f5bc86ba6e4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "f",
+      "f",
+      "t"
+    ],
+    "postgres_output": [
+      "f",
+      "f",
+      "t"
+    ],
+    "off_output": [
+      "f",
+      "f",
+      "t"
+    ]
+  }
+}

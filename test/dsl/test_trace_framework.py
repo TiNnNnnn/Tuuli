@@ -3361,6 +3361,22 @@ class TraceFrameworkTest(unittest.TestCase):
             actual_plan({"provenance": contract}, output)["provenance"], contract
         )
 
+    def test_e2e_rule_edges_accept_versioned_batches(self) -> None:
+        edge = {"scheduler": "cbo", "src_rule": "src", "dst_rule": "dst",
+                "target_path": "r"}
+        expected = {"rule_edges": [edge]}
+        for event in (
+            {"kind": "rule_edge", **edge},
+            {"kind": "rule_edge_batch", "engine": "pgorca", "scheduler": "cbo", "schema_version": 2,
+             "edges": [["src", "dst", "r", "r", "ready_cbo", 0, 0, 1, 5, 2,
+                        "memo_consumes", "memo_inserted"]]},
+        ):
+            with self.subTest(kind=event["kind"]):
+                output = "DSL_TRACE " + json.dumps(event)
+                self.assertEqual(actual_plan(expected, output), expected)
+                wrong = {"rule_edges": [{**edge, "target_path": "r.0"}]}
+                self.assertEqual(actual_plan(wrong, output), {"rule_edges": []})
+
     def test_dphyper_stability_preserves_imported_statement_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cases = Path(directory) / "cases.sql"

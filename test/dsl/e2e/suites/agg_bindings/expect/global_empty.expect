@@ -1,0 +1,32 @@
+{
+  "description": "Empty global aggregate retains one group before HAVING",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f61d596ac55c2f30\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "0,-1"
+    ],
+    "postgres_output": [
+      "0,-1"
+    ],
+    "off_output": [
+      "0,-1"
+    ]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "description": "Aggregate HAVING construction retains output bindings, NULLs and multiplicities",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f61d596ac55c2f30\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "-1,30,30,1",
+      "2,20,15,2"
+    ],
+    "postgres_output": [
+      "-1,30,30,1",
+      "2,20,15,2"
+    ],
+    "off_output": [
+      "-1,30,30,1",
+      "2,20,15,2"
+    ]
+  }
+}

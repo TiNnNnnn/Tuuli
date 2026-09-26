@@ -1,0 +1,2 @@
+# Construction probe verified by FormalSQLExpressionGroupTest; not a new optimization law.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a4 a5 f1 s1 Not(Not(p0))>(Input<t1>)|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0

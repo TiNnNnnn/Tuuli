@@ -150,8 +150,11 @@ private:
 	BOOL FCheckPredicateNullSafeEq(const CDSLConstraint *pcon,
 								 const CDSLModel *pmodel) const;
 
-	// PredicateExists(out,input): destructure a bound EXISTS predicate and bind
-	// its relational operand for use by the target template.
+	// Legacy subquery bindings (CDSLConstraintCheckerLegacySubquery.cpp).
+	// Unlike property checks, these methods can bind extracted/rebuilt values.
+	// Subsequent constraints and target construction consume those bindings;
+	// do not reorder them or treat them as removable property annotations.
+	// PredicateExists(out,input) extracts the bound EXISTS relational operand.
 	BOOL FCheckPredicateExists(const CDSLConstraint *pcon, CDSLModel *pmodel,
 							   BOOL fNegated) const;
 	BOOL FCheckPredicateQuantified(const CDSLConstraint *pcon,
@@ -215,6 +218,10 @@ private:
 
 public:
 	CDSLConstraintChecker(const CDSLConstraintChecker &) = delete;
+	// Sufficient evidence that early termination and full query evaluation
+	// agree. Unknown/errorful or non-repeatable inputs are not evidence.
+	// Scalar operands use the same totality/determinism traversal.
+	static BOOL FQueryDemandInsensitive(CExpression *pexpr);
 	// Reuse the constraint's evidence when a match view needs a NULL guard.
 	static BOOL FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
 		const CColRef *pcr);

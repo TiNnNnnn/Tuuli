@@ -8,6 +8,7 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -94,6 +95,18 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		(0 != ulSymbols && 3 != ulSymbols))
 	{
 		return false;
+	}
+
+	// Typed bindings describe the actual scalar subquery, not a normalized
+	// conjunct or an Apply view. Keep demand-sensitive expression structure.
+	const CDSLRule *rule = m_pmatcher->Prule();
+	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
+	{
+		return 0 == ulSymbols &&
+			COperator::EopLogicalSelect == pexpr->Pop()->Eopid() &&
+			2 == pexpr->Arity() && FDirectExistential((*pexpr)[1], fNegated) &&
+			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+			m_pmatcher->FMatch((*pop)[1], (*(*pexpr)[1])[0], pmodel);
 	}
 
 	// The predicate-bearing form is the common view of a decorrelated

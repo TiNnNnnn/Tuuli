@@ -76,6 +76,13 @@ using CDSLSymbolAliasMap =
 //	@doc:
 //		Builds a rule's target expression from a populated model. Construct per
 //		instantiation with the (per-optimization) pool it should allocate in.
+//		One state/ownership model, separate implementation units:
+//		  Instantiator: lifecycle, dispatch, shared inputs and Memo contracts.
+//		  Bindings / Columns: typed construction and column identity/remapping.
+//		  Projection / Relational / Join / Subquery: operator builders.
+//		  Legacy: constraint-defined expression recipes for unmigrated rules.
+//		Relational legacy adapters remain in the corresponding operator unit;
+//		moving files does not make those paths safe to delete yet.
 //---------------------------------------------------------------------------
 class CDSLInstantiator
 {
@@ -136,6 +143,17 @@ private:
 	// it should reuse; returns psym itself if it has no alias (already source).
 	const CDSLSymbol *PsymResolve(const CDSLSymbol *psym) const;
 
+	// Compatibility boundary: called only after the common resolvers have
+	// handled captures, aliases and non-legacy definitions. Typed construction
+	// failure MUST NOT retry these recipes. Operand resolution stays shared.
+	CExpression *PexprResolveLegacyScalar(const CDSLSymbol *psym) const;
+	CExpression *PexprResolveLegacyPredicate(const CDSLSymbol *psym,
+		const CDSLModel *pmodel, ULONG ulDepth) const;
+	CColRefArray *PdrgpcrResolveLegacyCols(const CDSLSymbol *psym,
+		const CDSLModel *pmodel, ULONG ulDepth) const;
+	CExpression *PexprResolveLegacyExpr(const CDSLSymbol *psym,
+		const CDSLModel *pmodel, ULONG ulDepth) const;
+
 	// Resolve typed scalar references/BoolValue to an owned expression, or
 	// materialize the legacy ScalarOne/ScalarZero constants.
 	CExpression *PexprResolveScalar(const CDSLSymbol *psym,
@@ -148,6 +166,9 @@ private:
 	CExpression *PexprResolvePredicate(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
 									ULONG ulDepth = 0) const;
+	// Shared exact unary construction for typed and legacy definitions.
+	// Consumes input; NOT and IS NOT TRUE differ on SQL UNKNOWN.
+	CExpression *PexprBuildNegation(CExpression *input, BOOL fNotTrue) const;
 
 	// Atomically partition one conjunction and populate its two predicate plus
 	// four dependency-vector outputs. Returns false for mixed three-domain atoms

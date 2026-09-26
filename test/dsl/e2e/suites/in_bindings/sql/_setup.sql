@@ -1,0 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS pg_orca;
+CREATE TABLE in_outer(i int);
+CREATE TABLE in_inner(j int);
+INSERT INTO in_outer VALUES (NULL),(0),(1),(1),(2);
+INSERT INTO in_inner VALUES (NULL),(0),(1),(1);
+ANALYZE in_outer;
+ANALYZE in_inner;
+CREATE TABLE in_wide(k int, j int);
+INSERT INTO in_wide VALUES (100,NULL),(0,0),(200,1),(300,1);
+ANALYZE in_wide;
+CREATE TABLE in_bool(v bool);
+INSERT INTO in_bool VALUES (NULL),(true),(false),(false);
+ANALYZE in_bool;

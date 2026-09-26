@@ -1,0 +1,15 @@
+CREATE EXTENSION IF NOT EXISTS pg_orca;
+CREATE TABLE scalar_outer(i int);
+CREATE TABLE scalar_inner(i int, ignored bool, selected bool);
+CREATE TABLE scalar_empty(selected bool);
+CREATE TABLE scalar_error(i int);
+CREATE TABLE scalar_text(i int, v varchar(8));
+INSERT INTO scalar_outer VALUES (1),(2),(3);
+INSERT INTO scalar_inner VALUES (1,true,NULL),(2,false,true),(3,true,false);
+INSERT INTO scalar_error VALUES (0);
+INSERT INTO scalar_text VALUES (1,NULL),(2,'alpha'),(3,'beta');
+ANALYZE scalar_outer;
+ANALYZE scalar_inner;
+ANALYZE scalar_empty;
+ANALYZE scalar_error;
+ANALYZE scalar_text;

@@ -1,0 +1,42 @@
+{
+  "description": "A constant quantified left operand has an empty dependency vector",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ]
+  }
+}

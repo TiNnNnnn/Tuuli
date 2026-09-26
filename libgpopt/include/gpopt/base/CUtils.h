@@ -610,6 +610,10 @@ public:
 	// check if a given operator is existential subquery
 	static BOOL FExistentialSubquery(COperator *pop);
 
+	// Owned row-existence input: omit unobserved leading scalar projections,
+	// preserving row-producing functions and an output column for Apply.
+	static CExpression *PexprExistentialInput(CMemoryPool *mp, CExpression *inner);
+
 	// check if a given operator is quantified subquery
 	static BOOL FQuantifiedSubquery(COperator *pop);
 

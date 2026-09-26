@@ -99,6 +99,12 @@ private:
 public:
 	CDSLJoinMatcher(const CDSLJoinMatcher &) = delete;
 
+	// Shared by source matching and target validation; outside columns fail.
+	static BOOL FDerivePredicateDependencies(
+		CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeft,
+		CExpression *pexprRight, CColRefArray **ppdrgpcrLeft,
+		CColRefArray **ppdrgpcrRight);
+
 	CDSLJoinMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher,
 				   const CDSLRule *prule)
 		: m_mp(mp), m_pmatcher(pmatcher), m_prule(prule)

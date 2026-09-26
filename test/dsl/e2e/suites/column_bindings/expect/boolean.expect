@@ -1,0 +1,54 @@
+{
+  "description": "Typed column identity and lazy CASE: boolean",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"39a6682f2b9c5c18\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,f",
+      "2,",
+      "3,f",
+      "3,f"
+    ],
+    "postgres_output": [
+      "1,f",
+      "2,",
+      "3,f",
+      "3,f"
+    ],
+    "off_output": [
+      "1,f",
+      "2,",
+      "3,f",
+      "3,f"
+    ]
+  }
+}
