@@ -605,6 +605,8 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 				return nullptr;
 			}
 			if (COperator::EopScalarCmp != head->Pop()->Eopid() ||
+				!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					CScalarCmp::PopConvert(head->Pop())->MdIdOp()) ||
 				!CDSLMatchView::FScalarCall(head) ||
 				!CDSLMatchView::FCallArgumentTypes(head, arguments))
 			{

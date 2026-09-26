@@ -4,4 +4,7 @@ INSERT INTO call_input VALUES
     (NULL,2,'null'),(0,1,'zero'),(1,1,'one'),(2,NULL,'two'),(2,NULL,'two'),(3,2,'three');
 CREATE FUNCTION call_volatile(int) RETURNS int VOLATILE LANGUAGE plpgsql AS
 $$ BEGIN RETURN $1; END $$;
+CREATE FUNCTION call_compare(int, int) RETURNS bool IMMUTABLE STRICT LANGUAGE plpgsql AS
+$$ BEGIN RETURN (10 / $1) = $2; END $$;
+CREATE OPERATOR #=# (LEFTARG = int, RIGHTARG = int, FUNCTION = call_compare);
 ANALYZE call_input;
