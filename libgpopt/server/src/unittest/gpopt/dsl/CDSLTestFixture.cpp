@@ -161,9 +161,9 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	// (FScalarOpReturnsNullOnNullInput / FCommutativeScalarOp), so PexprEqPred —
 	// used to build equi-join keys — needs it registered. '=' is commutative
 	// (commute op is itself), result type bool, cmp type EcmptEq. Also register
-	// an unrecognized operator with the same immutable signature: signature
-	// matching alone must not grant the total-predicate contract.
-	for (OID oid : {GPDB_INT4_EQ_OP, 100400U})
+	// unrecognized operators with immutable/stable/volatile implementations.
+	// An immutable signature alone must not grant the total-predicate contract.
+	for (OID oid : {GPDB_INT4_EQ_OP, 100400U, 100401U, 100402U})
 	{
 		CMDName *pmdnameEq = GPOS_NEW(mp) CMDName(
 			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true /*owns*/);
@@ -174,7 +174,8 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
-			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 65 /*int4eq*/),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+				oid > 100400 ? oid + 100 : 65 /*int4eq*/),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
 								   GPDB_INT4_EQ_OP) /*commute = itself*/,
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
@@ -241,11 +242,13 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	}
 
 	// Operator stability comes from its real implementation function, not
-	// from the operator OID or its children alone (PostgreSQL pg_proc.dat).
-	const OID comparisonFunctions[] = {65, 144, 467, 468};
+	// from the operator OID or its children alone. Include synthetic stable
+	// and volatile implementations alongside the built-ins from pg_proc.dat.
+	const OID comparisonFunctions[] = {65, 144, 467, 468, 100501, 100502};
 	const WCHAR *comparisonNames[] = {
 		GPOS_WSZ_LIT("int4eq"), GPOS_WSZ_LIT("int4ne"),
-		GPOS_WSZ_LIT("int8eq"), GPOS_WSZ_LIT("int8ne")};
+		GPOS_WSZ_LIT("int8eq"), GPOS_WSZ_LIT("int8ne"),
+		GPOS_WSZ_LIT("stable_eq"), GPOS_WSZ_LIT("volatile_eq")};
 	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(comparisonFunctions); i++)
 	{
 		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
@@ -253,7 +256,8 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(comparisonNames[i]), true),
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
 			GPOS_NEW(mp) IMdIdArray(mp), false /*returns set*/,
-			IMDFunction::EfsImmutable, true /*strict*/,
+			i < 4 ? IMDFunction::EfsImmutable :
+				(i == 4 ? IMDFunction::EfsStable : IMDFunction::EfsVolatile), true /*strict*/,
 			false /*ndv preserving*/, false /*allowed for PS*/));
 	}
 
