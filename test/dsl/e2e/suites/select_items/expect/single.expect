@@ -1,5 +1,5 @@
 {
-  "description": "SELECT item with an empty tail preserves three-valued Boolean results",
+  "description": "Open and explicitly closed SELECT lists preserve three-valued Boolean results",
   "plans": [
     {
       "name": "dsl-off",
@@ -20,7 +20,8 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"1a1334b1cfce1a28\""
+        "\"status\":\"applied\",\"rule_hash\":\"1a1334b1cfce1a28\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c7c51a37168ab654\""
       ],
       "not_contains": [
         "Falling back to Postgres"

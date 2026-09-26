@@ -884,6 +884,32 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 					model->Release();
 				}
 				GPOS_DELETE(decision);
+				// Closing the tail is an exact width check, not a wildcard.
+				std::string closed = source_rule + target_rules[kind] + aliases;
+				for (size_t pos = 0; (pos = closed.find("e2", pos)) != std::string::npos; pos += 6)
+					closed.replace(pos, 2, "Item()");
+				CDSLRule *closed_rule = PdslruleParseLocal(mp, closed.c_str());
+				if (nullptr == closed_rule)
+					ok = false;
+				else
+				{
+					CDSLModel *closed_model = GPOS_NEW(mp) CDSLModel(mp);
+					ok &= (0 == tail_size) == CDSLMatcher(mp, closed_rule).FMatch(
+						closed_rule->PfragSrc()->PopRoot(), source, closed_model);
+					closed_model->Release();
+					decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, closed_rule, source);
+					ok &= (0 == tail_size) == (EdsldecisionReady == decision->Status());
+					ok &= (0 == tail_size) == (nullptr != decision->PexprTarget());
+					if (0 == tail_size && nullptr != decision->PexprTarget())
+					{
+						CExpression *closed_list = (*decision->PexprTarget())[1];
+						ok &= 2 == closed_list->Arity() &&
+							(*(*closed_list)[0])[0]->Matches(predicate) &&
+							(*closed_list)[1]->Matches((*list)[1]);
+					}
+					GPOS_DELETE(decision);
+					closed_rule->Release();
+				}
 				if (1 == truth)
 				{
 					// BoolValue is not a cast from a numeric value to a predicate.

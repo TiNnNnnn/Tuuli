@@ -666,8 +666,8 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 			list += "Item(" + ValueTemplate(mp, value, symbol_counts, expanded);
 			list += ",a" + std::to_string(symbol_counts[EdslsymAttrs]++) + ',';
 		}
-		// The last capture binds the remaining list (empty in this instance),
-		// rather than inventing an empty-list constructor or fixing query width.
+		// Keep the slice width-polymorphic: this capture binds any remaining
+		// items. A caller can close the list explicitly with Item().
 		list += SymbolText(mp, (*op->Pdrgpsym())[0]);
 		list.append((*expr)[1]->Arity(), ')');
 		*text = "Proj<" + SymbolText(mp, (*op->Pdrgpsym())[1]) + " " +
