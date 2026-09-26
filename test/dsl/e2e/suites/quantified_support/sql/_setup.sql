@@ -1,0 +1,15 @@
+CREATE EXTENSION IF NOT EXISTS pg_orca;
+CREATE TABLE quant_outer(i int, v int);
+CREATE TABLE quant_inner(v int);
+CREATE TABLE quant_equal(v int);
+CREATE TABLE quant_empty(v int);
+CREATE TABLE quant_error(v int);
+INSERT INTO quant_outer VALUES (1, NULL), (2, 1), (3, 2), (4, 3);
+INSERT INTO quant_inner VALUES (1), (NULL), (2), (2);
+INSERT INTO quant_equal VALUES (1), (1);
+INSERT INTO quant_error VALUES (0), (0);
+ANALYZE quant_outer;
+ANALYZE quant_inner;
+ANALYZE quant_equal;
+ANALYZE quant_empty;
+ANALYZE quant_error;

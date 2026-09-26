@@ -1,0 +1,63 @@
+{
+  "description": "Proved quantified DISTINCT elimination: uncorrelated",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres",
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb10b9ef484988cc\"",
+        "\"status\":\"applied\",\"rule_hash\":\"395e27156b45cf18\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformRemoveSubqDistinct"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "all,2",
+      "any,2"
+    ],
+    "postgres_output": [
+      "all,2",
+      "any,2"
+    ],
+    "off_output": [
+      "all,2",
+      "any,2"
+    ]
+  }
+}
