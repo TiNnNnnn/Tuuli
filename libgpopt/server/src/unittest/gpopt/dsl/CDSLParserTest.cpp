@@ -373,6 +373,8 @@ EresExpressionBindings()
 		"p1 := p0;PredicateNotTrue(p2,p0)",
 		"p1 := p0;AttrsEq(a1,t0)",
 		"p1 := p0;ErrorFree(p1)",
+		"p1 := Not(p0);Deterministic(p1)",
+		"Deterministic(p1);p1 := Not(p0)",
 		"Not(p2) := p3;p1 := p0;PredicateEq(p2,p0)",
 		"Not(p2) := p0;p1 := p0;PredicateAnd(p3,p0,p2)",
 	};

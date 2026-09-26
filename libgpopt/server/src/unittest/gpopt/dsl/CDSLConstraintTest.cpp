@@ -21,6 +21,7 @@
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -29,6 +30,9 @@
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarOp.h"
+#include "gpopt/operators/CScalarBoolOp.h"
 #include "naucrates/base/IDatumInt8.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -97,6 +101,61 @@ BindTableAndAttr(CDSLModel *pmodel, const CDSLSymbol *psymTable,
 	pdrgpcr->Release();
 }
 
+static GPOS_RESULT
+EresDeterministicOperatorHeads()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *input = fix.PexprLogicalGet("operator_stability", 1, &cols);
+	BOOL ok = true;
+	for (ULONG stability = 0; stability < IMDFunction::EfsSentinel; ++stability)
+	for (BOOL comparison : {false, true})
+	for (BOOL wrapped : {false, true})
+	{
+		IMDId *id = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100400 + stability);
+		auto *name = GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("="));
+		COperator *op = comparison ?
+			static_cast<COperator *>(GPOS_NEW(mp) CScalarCmp(mp, id, name, IMDType::EcmptEq)) :
+			static_cast<COperator *>(GPOS_NEW(mp) CScalarOp(mp, id, nullptr, name));
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp, op,
+			CUtils::PexprScalarIdent(mp, (*cols)[0]), CUtils::PexprScalarConstInt4(mp, 7));
+		const BOOL call = CDSLMatchView::FScalarCall(predicate);
+		if (call != (0 == stability))
+			GPOS_TRACE_FORMAT("operator call stability=%lu comparison=%d accepted=%d", stability, comparison, call);
+		ok &= call == (0 == stability);
+		if (wrapped)
+			predicate = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate);
+		for (const CHAR *text : {
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"Deterministic(p0);p1 := Not(p0);t1 := t0;a1 := a0",
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"Deterministic(p1);PredicateNot(p1,p0);TableEq(t1,t0);AttrsEq(a1,a0)"})
+		{
+			// Property-only fixture: no equivalence of this tree rewrite is asserted.
+			// New bindings require source premises; legacy target annotations
+			// must inspect the same operator metadata after construction.
+			CDSLRule *rule = PdslruleParseLocal(mp, text);
+			if (nullptr == rule) { predicate->Release(); input->Release(); return GPOS_FAILED; }
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			BindTableAndAttr(model, PsymByName(rule, "t0"), input,
+				PsymByName(rule, "a0"), (*cols)[0], mp);
+			model->FBind(PsymByName(rule, "p0"), predicate);
+			const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+			if (accepted != (0 == stability))
+				GPOS_TRACE_FORMAT("operator stability=%lu comparison=%d wrapped=%d accepted=%d rule=%s",
+					stability, comparison, wrapped, accepted, text);
+			ok &= accepted == (0 == stability);
+			model->Release(); rule->Release();
+		}
+		predicate->Release();
+	}
+	input->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintTest::EresUnittest
@@ -105,6 +164,7 @@ GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),
