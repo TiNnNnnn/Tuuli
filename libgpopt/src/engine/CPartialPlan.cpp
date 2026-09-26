@@ -178,6 +178,26 @@ CPartialPlan::ExtractChildrenCostingInfo(CMemoryPool *mp, ICostModel *pcm,
 CCost
 CPartialPlan::CostCompute(CMemoryPool *mp)
 {
+	// A correlated alternative may reach lower-bound costing before all
+	// group statistics are available. This is an optional pruning estimate,
+	// not final plan costing: zero is a safe bound when its inputs are missing.
+	// Do not abort optimization or invent cardinalities for this case.
+	if (nullptr == m_pgexpr->Pgroup()->Pstats())
+	{
+		return CCost(0.0);
+	}
+	for (ULONG ul = 0; ul < m_pgexpr->Arity(); ul++)
+	{
+		CGroup *child = (*m_pgexpr)[ul];
+		if (!child->FScalar() &&
+			(nullptr == child->Pstats() ||
+			 (ul == m_ulChildIndex && nullptr != m_pccChild &&
+			  nullptr == m_pccChild->Pstats())))
+		{
+			return CCost(0.0);
+		}
+	}
+
 	CExpressionHandle exprhdl(mp);
 	exprhdl.Attach(m_pgexpr);
 

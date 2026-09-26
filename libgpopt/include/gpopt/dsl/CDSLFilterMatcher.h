@@ -137,6 +137,12 @@ private:
 							 CDSLModel *pmodel) const;
 
 public:
+	// Owned exact dependency partition for matching and target validation.
+	static CColRefArray *PdrgpcrDependencies(CMemoryPool *mp,
+										   const CDSLOp *filter,
+										   CExpression *predicate,
+										   CExpression *child, ULONG symbol);
+
 	CDSLFilterMatcher(const CDSLFilterMatcher &) = delete;
 
 	CDSLFilterMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher,

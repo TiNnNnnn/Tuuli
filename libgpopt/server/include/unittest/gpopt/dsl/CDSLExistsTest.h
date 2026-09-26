@@ -25,6 +25,7 @@ public:
 	static GPOS_RESULT EresUnittest_ExistsPolarityIsolation();
 	static GPOS_RESULT EresUnittest_PredicateSemiJoinRoundTrip();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedExistence();
+	static GPOS_RESULT EresUnittest_TypedScalarExists();
 };
 }  // namespace gpopt
 

@@ -51,8 +51,20 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\"",
-        "\"scheduler\":\"cbo\",\"src_rule\":\"8dcdd8a3308b3054\",\"dst_rule\":\"984eec66d5bc3f5d\",\"target_path\":\"r\",\"src_target_path\":\"r\",\"dst_source_path\":\"r\",\"dst_binding_path\":\"r\",\"path_kind\":\"instantiated_expression\",\"candidate_status\":\"ready_cbo\""
+        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "8dcdd8a3308b3054",
+          "dst_rule": "984eec66d5bc3f5d",
+          "target_path": "r",
+          "src_target_path": "r",
+          "dst_source_path": "r",
+          "dst_binding_path": "r",
+          "path_kind": "instantiated_expression",
+          "candidate_status": "ready_cbo"
+        }
       ],
       "alternative": [
         "CXformDSLRule_Project"

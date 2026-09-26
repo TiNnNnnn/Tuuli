@@ -216,11 +216,6 @@ private:
 							ESubqueryCtxt esqctxt, CExpression **ppexprNewOuter,
 							CExpression **ppexprResidualScalar);
 
-	// add a limit 1 expression over given expression,
-	// removing any existing limits
-	static CExpression *AddOrReplaceLimitOne(CMemoryPool *mp,
-											 CExpression *pexpr);
-
 	// remove a subquery EXISTS/NOT EXISTS node from scalar tree
 	static BOOL FRemoveExistentialSubquery(
 		CMemoryPool *mp, COperator::EOperatorId op_id, CExpression *pexprOuter,

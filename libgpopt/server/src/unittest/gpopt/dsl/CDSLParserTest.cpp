@@ -126,6 +126,20 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Compute<Item(Column(a0),a1,e0) a2 s0>(Input<t0>)|"
+		"Compute<Item(Column(a3),a1,e0) a4 s1>(Input<t1>)|"
+		"t1 := t0;a3 := a0;a4 := a2;s1 := s0",
+		"Filter<Any(c0,Args(n0,Args()),a8,t2) a0>(Input<t0>)|"
+		"Filter<Any(c1,Args(n0,Args()),a8,t3) a1>(Input<t1>)|"
+		"t1 := t0;t3 := t2;a1 := a0;c1 := c0",
+		"Filter<All(c0,Args(n0,Args()),a8,t2) a0>(Input<t0>)|"
+		"Filter<All(c1,Args(n0,Args()),a8,t3) a1>(Input<t1>)|"
+		"t1 := t0;t3 := t2;a1 := a0;c1 := c0",
+		"Proj<a0 s0 Item(Subquery(a2,t2),a3,e0)>(Input<t0>)|"
+		"Proj<a1 s1 Item(Subquery(a2,t2),a3,e0)>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0",
+		"Filter<Exists(t2) a0>(Input<t0>)|Filter<Exists(t3) a1>(Input<t1>)|"
+		"t1 := t0;t3 := t2;a1 := a0",
 		"Proj<a0 s0 Item(Call(h0,Args()),a2,e0)>(Input<t0>)|"
 		"Proj<a1 s1 Item(Call(h1,v1),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;h1 := h0;v1 := Args()",
 		"SortBy<o0>(Filter<Not(Not(p0)) a0>(Input<t0>))|"
@@ -188,6 +202,30 @@ EresInlineExpressions()
 		if (!stable)
 			return GPOS_FAILED;
 	}
+	// Identical operator/operand pairs need not denote the same definition:
+	// the source captures a value while the target constructs another value.
+	// Resolve by output identity, never by a reverse operand lookup.
+	CDSLRule *sameOperands = Parse(mp,
+		"Filter<And(p0,p1) a0>(Input<t0>)|Filter<And(p0,p1) a1>(Input<t1>)|"
+		"t1 := t0;a1 := a0");
+	if (nullptr == sameOperands)
+		return GPOS_FAILED;
+	const auto *source = sameOperands->Pexprdefs()->Pdef(
+		(*sameOperands->PfragSrc()->PopRoot()->Pdrgpsym())[0]);
+	const auto *target = sameOperands->Pexprdefs()->Pdef(
+		(*sameOperands->PfragTgt()->PopRoot()->Pdrgpsym())[0]);
+	const BOOL distinctDefinitions = nullptr != source && nullptr != target &&
+		source != target && source->PsymOutput() != target->PsymOutput() &&
+		CDSLExpressionDefinitions::EMatch == source->Binding() &&
+		CDSLExpressionDefinitions::EBuild == target->Binding() &&
+		EdslexprAnd == source->Edslexpr() && EdslexprAnd == target->Edslexpr() &&
+		2 == source->Arity() && 2 == target->Arity() &&
+		source->PsymOperand(0) == target->PsymOperand(0) &&
+		source->PsymOperand(1) == target->PsymOperand(1);
+	sameOperands->Release();
+	if (!distinctDefinitions)
+		return GPOS_FAILED;
+
 	// Existing policy IDs must survive the inline spelling of these fixtures.
 	CDSLRule *eliminate = Parse(mp,
 		"Filter<Not(Not(p3)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
@@ -244,6 +282,8 @@ EresExpressionBindings()
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
 	const CHAR *valid[] = {
+		"Exists(t2) := p0;p1 := Exists(t2)",
+		"Exists(t2) := p0;t3 := t2;p1 := Exists(t3)",
 		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a2,a3)",
 		"a8 := a2;a9 := a3;NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a9)",
 		"a8 := a9;a9 := a2;NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a8,a3)",
@@ -289,6 +329,19 @@ EresExpressionBindings()
 			return GPOS_FAILED;
 	}
 	const CHAR *invalid[] = {
+		"p1 := Ref(p0)",
+		"p1 := not(p0)",
+		"p1 := PredicateExists(t0)",
+		"p1 := Any(p0,a0,t0)",
+		"p1 := All(p0,a0,t0)",
+		"Any(c0,v0,a8,t2) := p0;p1 := Any(c0,v0,t2)",
+		"Any(c0,v0,a8,t2) := p0;p1 := Any(c0,v0)",
+		"All(c0,v0,a8,t2) := p0;p1 := All(c0,v0,t2,t2)",
+		"Any(c0,v0,a8,t2) := p0;p1 := All(c0,t2,a8,v0)",
+		"p1 := Exists(p0)",
+		"p1 := Exists()",
+		"p1 := Exists(t0,t0)",
+		"p1 := Exists(t8)",
 		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(p0,a3)",
 		"NullSafeEq(a2) := p0;p1 := p0",
 		"NullSafeEq(a2,a3,a4) := p0;p1 := p0",
@@ -337,6 +390,16 @@ EresExpressionBindings()
 	const std::string select =
 		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|";
 	for (const CHAR *bindings : {
+		"Item(n0,a2,e2) := e0;Column() := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Column(a3,a3) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Column(t0) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Column(a3) := n0;n1 := Column(e2);e1 := Item(n1,a2,e2)",
+		"Item(n0,a2,e2) := e0;Column(a3) := n0;n1 := Column(a9);e1 := Item(n1,a2,e2)",
+		"Item(n0,a2,e2) := e0;Subquery(a3) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Subquery(a3,t0,t0) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Subquery(t0,a3) := n0;e1 := e0",
+		"Item(n0,a2,e2) := e0;Subquery(a3,t2) := n0;n1 := Subquery(a3,a3);e1 := Item(n1,a2,e2)",
+		"Item(n0,a2,e2) := e0;Subquery(a3,t2) := n0;n1 := Subquery(a3,t9);e1 := Item(n1,a2,e2)",
 		"Item(n0,a2,e2) := e0;Call(h0,v0) := n0;Args(n1) := v0;e1 := e0",
 		"Item(n0,a2,e2) := e0;Call(n0,v0) := n0;e1 := e0",
 		"Item(n0,a2,e2) := e0;Call(h0,e2) := n0;e1 := e0",
@@ -982,11 +1045,13 @@ CDSLParserTest::EresUnittest_Constraints()
 		(*(*definitions->PfragSrc()->PopRoot())[1]->Pdrgpsym())[0];
 	const CDSLSymbol *psymP2 =
 		(*definitions->PfragTgt()->PopRoot()->Pdrgpsym())[0];
-	const CDSLSymbol *psymP3 = definitions->Pexprdefs()->PsymBinaryResult(
-		EdslexprAnd, psymP0, psymP1);
-	const BOOL fDefinitionGraph = nullptr != psymP3 &&
-		psymP2 == definitions->Pexprdefs()->PsymBinaryResult(
-					 EdslexprAnd, psymP3, psymP1) &&
+	const auto *outer = definitions->Pexprdefs()->Pdef(psymP2);
+	const auto *inner = nullptr != outer && 2 == outer->Arity()
+		? definitions->Pexprdefs()->Pdef(outer->PsymOperand(0)) : nullptr;
+	const BOOL fDefinitionGraph = nullptr != inner && 2 == inner->Arity() &&
+		EdslexprAnd == outer->Edslexpr() && EdslexprAnd == inner->Edslexpr() &&
+		psymP2 == outer->PsymOutput() && psymP1 == outer->PsymOperand(1) &&
+		psymP0 == inner->PsymOperand(0) && psymP1 == inner->PsymOperand(1) &&
 		definitions->Pexprdefs()->FUses(psymP2, psymP0);
 	definitions->Release();
 	if (!fDefinitionGraph)

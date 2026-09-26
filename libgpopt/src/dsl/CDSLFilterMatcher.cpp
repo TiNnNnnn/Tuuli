@@ -36,12 +36,6 @@ using namespace gpopt;
 
 namespace
 {
-CColRefArray *PdrgpcrFilterDependencies(CMemoryPool *mp,
-										const CDSLOp *popFilter,
-										CExpression *pexprPredicate,
-										CExpression *pexprBase,
-										ULONG ulSymbol);
-
 // ORCA may retain adjacent Select nodes in separate Memo groups or normalize
 // them into one AND predicate. Present both physical forms as one Filter chain
 // to the DSL matcher and return the relational child left after consuming the
@@ -149,16 +143,16 @@ CDSLFilterMatcher::FBindFilterSymbols(const CDSLOp *popFilter,
 	// each local reference after binding.
 	if (2 == pdrgpsym->Size())
 	{
-		CColRefArray *pdrgpcrDeps = PdrgpcrFilterDependencies(
+		CColRefArray *pdrgpcrDeps = PdrgpcrDependencies(
 			m_mp, popFilter, pexprConj, pexprBase, 1);
 		BOOL fBound = pmodel->FBind((*pdrgpsym)[1], pdrgpcrDeps);
 		pdrgpcrDeps->Release();
 		return fBound;
 	}
 
-	CColRefArray *pdrgpcrLocal = PdrgpcrFilterDependencies(
+	CColRefArray *pdrgpcrLocal = PdrgpcrDependencies(
 		m_mp, popFilter, pexprConj, pexprBase, 1);
-	CColRefArray *pdrgpcrOuter = PdrgpcrFilterDependencies(
+	CColRefArray *pdrgpcrOuter = PdrgpcrDependencies(
 		m_mp, popFilter, pexprConj, pexprBase, 2);
 	BOOL fBound = pmodel->FBind((*pdrgpsym)[1], pdrgpcrLocal) &&
 		pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter);
@@ -263,14 +257,16 @@ FUsedColumnsEqual(CMemoryPool *mp, CExpression *pexpr,
 	return fEqual;
 }
 
+}  // namespace
+
 // Materialize one Filter dependency vector using the same definition during
 // candidate selection and final binding. The legacy two-symbol form has one
 // vector containing every used column. The extended form partitions that set
 // by whether the column is produced by the Filter's relational child.
 CColRefArray *
-PdrgpcrFilterDependencies(CMemoryPool *mp, const CDSLOp *popFilter,
-						  CExpression *pexprPredicate,
-						  CExpression *pexprBase, ULONG ulSymbol)
+CDSLFilterMatcher::PdrgpcrDependencies(CMemoryPool *mp, const CDSLOp *popFilter,
+										 CExpression *pexprPredicate,
+										 CExpression *pexprBase, ULONG ulSymbol)
 {
 	GPOS_ASSERT(nullptr != popFilter && EdslopFilter == popFilter->Edslop());
 	GPOS_ASSERT(nullptr != pexprPredicate && nullptr != pexprBase);
@@ -301,6 +297,8 @@ PdrgpcrFilterDependencies(CMemoryPool *mp, const CDSLOp *popFilter,
 	return pdrgpcrDeps;
 }
 
+namespace
+{
 void
 ExtractJoinKeys(CMemoryPool *mp, CExpression *pexprJoin,
 				CColRefArray *pdrgpcrLeft, CColRefArray *pdrgpcrRight)
@@ -555,7 +553,7 @@ CDSLFilterMatcher::FBaseAssignmentCompatible(
 		}
 
 		fLinked = true;
-		CColRefArray *pdrgpcrDeps = PdrgpcrFilterDependencies(
+		CColRefArray *pdrgpcrDeps = PdrgpcrDependencies(
 			m_mp, popFilter, pexprCandidate, pexprBase, ulSymbol);
 		fCompatible =
 			(fLinkedLeft && 0 < pdrgpcrLeft->Size() &&
@@ -625,11 +623,11 @@ CDSLFilterMatcher::FAssignmentCompatible(
 						(*pdrgpsymPrevious)[ulPreviousSym]))
 				{
 					CColRefArray *pdrgpcrCandidate =
-						PdrgpcrFilterDependencies(
+						PdrgpcrDependencies(
 							m_mp, rgpopFilters[ulFilter], pexprCandidate,
 							pexprBase, ulCandidate);
 					CColRefArray *pdrgpcrPrevious =
-						PdrgpcrFilterDependencies(
+						PdrgpcrDependencies(
 							m_mp, rgpopFilters[ulPrevious], pexprPrevious,
 							pexprBase, ulPreviousSym);
 					const BOOL fEqual = CColRef::Equals(

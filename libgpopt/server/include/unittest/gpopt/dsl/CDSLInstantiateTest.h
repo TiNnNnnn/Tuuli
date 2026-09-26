@@ -30,7 +30,11 @@ class CDSLInstantiateTest
 public:
 	static GPOS_RESULT EresUnittest();
 	static GPOS_RESULT EresUnittest_ExpressionBindings();
+	static GPOS_RESULT EresUnittest_LegacyBindingBoundary();
+	static GPOS_RESULT EresUnittest_CorrelatedFilterBindings();
+	static GPOS_RESULT EresUnittest_ExistsExpressionBindings();
 	static GPOS_RESULT EresUnittest_JoinExpressionBindings();
+	static GPOS_RESULT EresUnittest_ApplyExpressionBindings();
 	static GPOS_RESULT EresUnittest_ProjectExpressionBindings();
 	static GPOS_RESULT EresUnittest_DistinctProjectionBindings();
 	static GPOS_RESULT EresUnittest_DistinctProjectionPrefix();

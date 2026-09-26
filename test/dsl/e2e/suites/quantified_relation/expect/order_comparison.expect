@@ -1,0 +1,40 @@
+{
+  "description": "ALL retains a non-equality comparison head through DSL unnesting",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "2",
+      "3",
+      "4"
+    ],
+    "postgres_output": [
+      "2",
+      "3",
+      "4"
+    ]
+  }
+}

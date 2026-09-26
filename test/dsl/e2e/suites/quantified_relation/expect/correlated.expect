@@ -1,0 +1,45 @@
+{
+  "description": "Preserve correlated ANY and ALL comparison and outer references",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "all,2",
+      "all,3",
+      "all,4",
+      "any,2",
+      "any,3"
+    ],
+    "postgres_output": [
+      "all,2",
+      "all,3",
+      "all,4",
+      "any,2",
+      "any,3"
+    ]
+  }
+}

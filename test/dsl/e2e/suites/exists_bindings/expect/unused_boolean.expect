@@ -1,0 +1,50 @@
+{
+  "description": "Existential input demand: unused_boolean",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",t",
+      "1,t",
+      "2,t",
+      "2,t"
+    ],
+    "postgres_output": [
+      ",t",
+      "1,t",
+      "2,t",
+      "2,t"
+    ],
+    "off_output": [
+      ",t",
+      "1,t",
+      "2,t",
+      "2,t"
+    ]
+  }
+}

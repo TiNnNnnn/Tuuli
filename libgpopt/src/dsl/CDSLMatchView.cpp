@@ -5,8 +5,10 @@
 //		CDSLMatchView.cpp
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLMatchView.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 
 #include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/COrderSpec.h"
@@ -28,6 +30,8 @@
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
 #include "gpopt/xforms/CSubqueryHandler.h"
 #include "gpopt/xforms/CXformUtils.h"
@@ -73,7 +77,10 @@ CDSLMatchView::FScalarCall(const CExpression *expression)
 		COperator::EopScalarCmp != id) return false;
 	// Property derivation only populates CExpression's existing property cache.
 	CExpression *derived = const_cast<CExpression *>(expression);
-	return !derived->DeriveHasSubquery() && !derived->DeriveHasNonScalarFunction() &&
+	// Typed argument matching validates each exposed subquery independently;
+	// an opaque scalar/list capture still cannot hide one. A blanket subtree
+	// ban here would reject compositional Call(Args(Subquery(...), ...)).
+	return !derived->DeriveHasNonScalarFunction() &&
 		IMDFunction::EfsImmutable == derived->DeriveScalarFunctionProperties()->Efs() &&
 		FImmutableCallTree(expression);
 }
@@ -111,6 +118,38 @@ CDSLMatchView::FSameCallHead(const CExpression *left, const CExpression *right)
 			return false;
 	}
 	return 0 == right->Arity() || FCallArgumentTypes(left, right->PdrgPexpr());
+}
+
+BOOL
+CDSLMatchView::FSelectedSubqueryInput(CExpression *query, const CColRef *output)
+{
+	return nullptr != query && nullptr != output && query->Pop()->FLogical() &&
+		query->DeriveOutputColumns()->FMember(output) &&
+		CDSLConstraintChecker::FQueryDemandInsensitive(query);
+}
+
+BOOL
+CDSLMatchView::FQuantifiedInputs(const CExpression *source, CExpression *query,
+	const CExpressionArray *arguments, const CColRef *output)
+{
+	if (nullptr == source || nullptr == query || nullptr == arguments || nullptr == output ||
+		(COperator::EopScalarSubqueryAny != source->Pop()->Eopid() &&
+		 COperator::EopScalarSubqueryAll != source->Pop()->Eopid()) ||
+		2 != source->Arity() || 1 != arguments->Size() || !query->Pop()->FLogical() ||
+		!(*source)[1]->Pop()->FScalar() || !(*arguments)[0]->Pop()->FScalar())
+		return false;
+	const auto *op = CScalarSubqueryQuantified::PopConvert(source->Pop());
+	const auto *before = CScalar::PopConvert((*source)[1]->Pop());
+	const auto *after = CScalar::PopConvert((*arguments)[0]->Pop());
+	// The head fixes the comparison's input types, not a column identity.
+	// Selection is an explicit ATTRS operand; never infer a first column.
+	return before->MdidType()->Equals(after->MdidType()) &&
+		before->TypeModifier() == after->TypeModifier() &&
+		op->Pcr()->RetrieveType()->MDId()->Equals(output->RetrieveType()->MDId()) &&
+		op->Pcr()->TypeModifier() == output->TypeModifier() &&
+		CPredicateUtils::FBuiltInComparisonIsVeryStrict(op->MdIdOp()) &&
+		FSelectedSubqueryInput(query, output) &&
+		CDSLConstraintChecker::FQueryDemandInsensitive((*arguments)[0]);
 }
 
 BOOL
@@ -718,6 +757,22 @@ CDSLMatchView::FDirectExists(CExpression *pexpr)
 }
 
 BOOL
+CDSLMatchView::FSingleValueOutput(CExpression *expression, const CColRef *column)
+{
+	CColRefSet *output = expression->DeriveOutputColumns();
+	if (!output->FMember(column))
+		return false;
+	CColRefSetIter iter(*output);
+	while (iter.Advance())
+	{
+		CColRef *other = iter.Pcr();
+		if (other != column && !other->IsSystemCol())
+			return false;
+	}
+	return true;
+}
+
+BOOL
 CDSLMatchView::FPlainEqAny(CExpression *pexpr)
 {
 	return nullptr != pexpr &&
@@ -725,6 +780,31 @@ CDSLMatchView::FPlainEqAny(CExpression *pexpr)
 		   2 == pexpr->Arity() &&
 		   IMDType::EcmptEq == CUtils::ParseCmpType(
 				CScalarSubqueryAny::PopConvert(pexpr->Pop())->MdIdOp());
+}
+
+CExpression *
+CDSLMatchView::PexprSingleColumnProject(CMemoryPool *mp,
+	CExpression *expression, const CColRef *column)
+{
+	if (!expression->DeriveOutputColumns()->FMember(column))
+		return nullptr;
+	if (COperator::EopLogicalProject == expression->Pop()->Eopid() &&
+		2 == expression->Arity() &&
+		COperator::EopScalarProjectList == (*expression)[1]->Pop()->Eopid() &&
+		1 == (*expression)[1]->Arity() &&
+		CScalarProjectElement::PopConvert((*(*expression)[1])[0]->Pop())->Pcr() == column)
+	{
+		expression->AddRef();
+		return expression;
+	}
+	// A pass-through SQL SELECT may exist only in subquery metadata. Expose
+	// that projection without confusing its value with the child's full schema.
+	CExpression *element = CUtils::PexprScalarProjectElement(mp,
+		const_cast<CColRef *>(column), CUtils::PexprScalarIdent(mp, column));
+	CExpression *list = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarProjectList(mp), element);
+	expression->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), expression, list);
 }
 
 CExpression *

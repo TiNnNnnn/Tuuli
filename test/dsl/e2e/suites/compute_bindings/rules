@@ -1,0 +1,2 @@
+# Construction probe, proved by FormalSQLComputeSemanticsTest; not a new optimization law.
+Compute<Item(BoolValue(p0),a0,e0) a1 s0>(Input<t0>)|Compute<Item(BoolValue(Not(Not(p0))),a0,e0) a2 s1>(Input<t1>)|t1 := t0;a2 := a1;s1 := s0

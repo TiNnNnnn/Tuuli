@@ -1,9 +1,10 @@
 //---------------------------------------------------------------------------
-// Typed scalar-expression definition graph compiled from RuleIR constraints.
+// One output-indexed definition graph for typed bindings and legacy constraints.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include <algorithm>
+#include <cstring>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -11,6 +12,28 @@ using namespace gpopt;
 
 namespace
 {
+const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
+	{EdslexprAnd, "And", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
+	{EdslexprOr, "Or", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
+	{EdslexprNullSafeEq, "NullSafeEq", 2, {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
+	{EdslexprItem, "Item", 3, {EdslsymExpr, EdslsymScalar, EdslsymAttrs, EdslsymExpr}},
+	{EdslexprBoolValue, "BoolValue", 1, {EdslsymScalar, EdslsymPred}},
+	{EdslexprCase, "Case", 3, {EdslsymScalar, EdslsymPred, EdslsymScalar, EdslsymScalar}},
+	{EdslexprValueBool, "ValueBool", 1, {EdslsymPred, EdslsymScalar}},
+	{EdslexprCall, "Call", 2, {EdslsymScalar, EdslsymCallHead, EdslsymValueList}},
+	{EdslexprScalarSubquery, "Subquery", 2, {EdslsymScalar, EdslsymAttrs, EdslsymTable}},
+	{EdslexprArgs, "Args", 0, {EdslsymValueList}},
+	{EdslexprArgs, "Args", 2, {EdslsymValueList, EdslsymScalar, EdslsymValueList}},
+	{EdslexprColumn, "Column", 1, {EdslsymScalar, EdslsymAttrs}},
+	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymScalar}},
+	{EdslexprExists, "Exists", 1, {EdslsymPred, EdslsymTable}},
+	{EdslexprAny, "Any", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},
+	{EdslexprAll, "All", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},
+	{EdslexprCompare, "Compare", 2, {EdslsymPred, EdslsymCompareHead, EdslsymValueList}},
+	{EdslexprNotTrue, "NotTrue", 1, {EdslsymPred, EdslsymPred}},
+	{EdslexprNot, "Not", 1, {EdslsymPred, EdslsymPred}},
+};
+
 EDslExpressionKind
 EdslexprKind(const CDSLConstraint *pcon)
 {
@@ -215,42 +238,33 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 										  EBinding binding,
 										  const CDSLSymbolArray *symbols)
 {
-	const BOOL binary = EdslexprAnd == kind || EdslexprOr == kind ||
-		EdslexprNullSafeEq == kind || EdslexprCall == kind;
-	if ((EdslexprNot != kind && EdslexprNotTrue != kind && EdslexprRef != kind &&
-		 EdslexprItem != kind && EdslexprBoolValue != kind && EdslexprCase != kind &&
-		 EdslexprValueBool != kind && EdslexprArgs != kind && !binary) ||
-		(EMatch != binding && EBuild != binding) ||
+	if ((EMatch != binding && EBuild != binding) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
-		(EdslexprArgs == kind ? (1 != symbols->Size() && 3 != symbols->Size()) :
-		 (EdslexprItem == kind || EdslexprCase == kind ? 4 : binary ? 3 : 2) != symbols->Size()))
+		0 == symbols->Size())
+	{
+		return false;
+	}
+	const auto *signature = PsigBinding(kind, symbols->Size() - 1);
+	if (EdslexprRef == kind ? 2 != symbols->Size() : nullptr == signature)
 	{
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
-	const auto output_kind = EdslexprItem == kind ? EdslsymExpr :
-		EdslexprArgs == kind ? EdslsymValueList :
-		EdslexprBoolValue == kind || EdslexprCase == kind || EdslexprCall == kind ? EdslsymScalar : EdslsymPred;
+	const auto output_kind = nullptr == signature ? EdslsymPred : signature->types[0];
 	if ((output_kind != output->Esymkind() &&
 		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
 			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
-			EdslsymOrder == output->Esymkind() ||
+			EdslsymOrder == output->Esymkind() || EdslsymFunc == output->Esymkind() ||
 			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind() ||
-			EdslsymCallHead == output->Esymkind() || EdslsymValueList == output->Esymkind()))) ||
+			EdslsymCallHead == output->Esymkind() || EdslsymValueList == output->Esymkind() ||
+			EdslsymCompareHead == output->Esymkind()))) ||
 		nullptr != Pdef(output))
 	{
 		return false;
 	}
 	for (ULONG i = 1; i < symbols->Size(); i++)
 	{
-		const auto expected = EdslexprItem == kind
-			? (1 == i ? EdslsymScalar : 2 == i ? EdslsymAttrs : EdslsymExpr)
-			: EdslexprBoolValue == kind ? EdslsymPred
-			: EdslexprValueBool == kind ? EdslsymScalar
-			: EdslexprCase == kind ? (1 == i ? EdslsymPred : EdslsymScalar)
-			: EdslexprCall == kind ? (1 == i ? EdslsymCallHead : EdslsymValueList)
-			: EdslexprArgs == kind ? (1 == i ? EdslsymScalar : EdslsymValueList)
-			: EdslexprNullSafeEq == kind ? EdslsymAttrs : output->Esymkind();
+		const auto expected = nullptr == signature ? output->Esymkind() : signature->types[i];
 		if (expected != (*symbols)[i]->Esymkind() ||
 			FUses((*symbols)[i], output))
 		{
@@ -281,6 +295,46 @@ CDSLExpressionDefinitions::FHasBindings() const
 	return false;
 }
 
+const CDSLExpressionDefinitions::SBindingSignature *
+CDSLExpressionDefinitions::PsigBinding(const CHAR *name, ULONG arity)
+{
+	for (const auto &signature : binding_signatures)
+	{
+		if (signature.arity == arity && nullptr != name &&
+			0 == std::strcmp(signature.name, name))
+		{
+			return &signature;
+		}
+	}
+	return nullptr;
+}
+
+const CDSLExpressionDefinitions::SBindingSignature *
+CDSLExpressionDefinitions::PsigBinding(EDslExpressionKind kind, ULONG arity)
+{
+	for (const auto &signature : binding_signatures)
+	{
+		if (signature.kind == kind && signature.arity == arity)
+		{
+			return &signature;
+		}
+	}
+	return nullptr;
+}
+
+const CHAR *
+CDSLExpressionDefinitions::SzBindingName(EDslExpressionKind kind)
+{
+	for (const auto &signature : binding_signatures)
+	{
+		if (signature.kind == kind)
+		{
+			return signature.name;
+		}
+	}
+	return EdslexprRef == kind ? "Ref" : nullptr;
+}
+
 void
 CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 {
@@ -302,16 +356,9 @@ CDSLExpressionDefinitions::OsPrintBindings(IOstream &os, BOOL separator) const
 		}
 		if (EdslexprRef != def->Edslexpr())
 		{
-			os << (EdslexprAnd == def->Edslexpr() ? "And("
-				: EdslexprOr == def->Edslexpr() ? "Or("
-				: EdslexprNullSafeEq == def->Edslexpr() ? "NullSafeEq("
-				: EdslexprItem == def->Edslexpr() ? "Item("
-				: EdslexprBoolValue == def->Edslexpr() ? "BoolValue("
-				: EdslexprCase == def->Edslexpr() ? "Case("
-				: EdslexprValueBool == def->Edslexpr() ? "ValueBool("
-				: EdslexprCall == def->Edslexpr() ? "Call("
-				: EdslexprArgs == def->Edslexpr() ? "Args("
-				: EdslexprNotTrue == def->Edslexpr() ? "NotTrue(" : "Not(");
+			const CHAR *name = SzBindingName(def->Edslexpr());
+			GPOS_ASSERT(nullptr != name);
+			os << name << '(';
 		}
 		for (ULONG operand = 0; operand < def->Arity(); operand++)
 		{
@@ -340,28 +387,6 @@ CDSLExpressionDefinitions::Pdef(
 		return nullptr;
 	}
 	return (*m_pdrgpdefByOutput)[psymOutput->Id()];
-}
-
-const CDSLSymbol *
-CDSLExpressionDefinitions::PsymBinaryResult(
-	EDslExpressionKind edslexpr,
-	const CDSLSymbol *psymLeft, const CDSLSymbol *psymRight) const
-{
-	if (EdslexprSentinel == edslexpr)
-	{
-		return nullptr;
-	}
-	for (ULONG ul = 0; ul < m_pdrgpdefDefinitions->Size(); ul++)
-	{
-		const CDefinition *pdef = (*m_pdrgpdefDefinitions)[ul];
-		if (edslexpr == pdef->Edslexpr() && 2 == pdef->Arity() &&
-			pdef->PsymOperand(0) == psymLeft &&
-			pdef->PsymOperand(1) == psymRight)
-		{
-			return pdef->PsymOutput();
-		}
-	}
-	return nullptr;
 }
 
 BOOL

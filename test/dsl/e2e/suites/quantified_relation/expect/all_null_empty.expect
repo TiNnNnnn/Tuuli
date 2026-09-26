@@ -1,0 +1,42 @@
+{
+  "description": "Preserve ALL null and empty-input semantics without native Select2Apply",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "empty_inner,1",
+      "empty_inner,2",
+      "empty_inner,3",
+      "empty_inner,4"
+    ],
+    "postgres_output": [
+      "empty_inner,1",
+      "empty_inner,2",
+      "empty_inner,3",
+      "empty_inner,4"
+    ]
+  }
+}

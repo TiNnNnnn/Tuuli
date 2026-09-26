@@ -10,6 +10,7 @@
 //		two <a> symbols, keep non-equi conjuncts as residual, recurse both children.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLJoinMatcher.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 
 #include <vector>
 
@@ -40,15 +41,13 @@
 
 using namespace gpopt;
 
-namespace
-{
 // Derive the exact left/right dependency vectors of a predicate. Predicates
 // using a column outside both relational inputs fail closed.
 BOOL
-FDerivePredicateDependencies(CMemoryPool *mp, CExpression *pexprPred,
-							 CExpression *pexprLeft, CExpression *pexprRight,
-							 CColRefArray **ppdrgpcrLeft,
-							 CColRefArray **ppdrgpcrRight)
+CDSLJoinMatcher::FDerivePredicateDependencies(
+	CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeft,
+	CExpression *pexprRight, CColRefArray **ppdrgpcrLeft,
+	CColRefArray **ppdrgpcrRight)
 {
 	CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
 	CColRefSet *pcrsLeft = GPOS_NEW(mp) CColRefSet(mp, *pcrsUsed);
@@ -66,6 +65,8 @@ FDerivePredicateDependencies(CMemoryPool *mp, CExpression *pexprPred,
 	return fExact;
 }
 
+namespace
+{
 // Return the already-bound source attrs connected to psymJoin by a direct
 // AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
 // constrain this match. Multiple declarations are accepted only when they
@@ -537,10 +538,18 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
+	const BOOL bindings = nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings();
+	// IN carriers can hide the comparison inside their inner tree. New binding
+	// templates require the literal EXISTS-style Apply predicate, not that view.
+	if (bindings && fSemiApply &&
+		(COperator::EopLogicalLeftSemiApplyIn == eopid ||
+		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopid))
+		return false;
 	if (fInnerApply &&
 		COperator::EopLogicalSelect == pexprJoin->Pop()->Eopid())
 	{
-		return FMatchScalarSubquerySelect(popJoin, pexprJoin, pmodel);
+		return (nullptr == m_prule || !m_prule->Pexprdefs()->FHasBindings()) &&
+			FMatchScalarSubquerySelect(popJoin, pexprJoin, pmodel);
 	}
 	COperator::EOperatorId eopidExpected = COperator::EopLogicalLeftOuterJoin;
 	if (fInner)
@@ -780,7 +789,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps) &&
 			(!fPredicateApply ||
 			 pmodel->FBind((*pdrgpsym)[3], pdrgpcrCorrelations));
-		if (fMatched && (fInnerApply || fLeftOuterApply))
+		if (fMatched && (fInnerApply || fLeftOuterApply ||
+			(bindings && (fSemiApply || fAntiApply))))
 		{
 			pexprJoin->AddRef();
 			fMatched =

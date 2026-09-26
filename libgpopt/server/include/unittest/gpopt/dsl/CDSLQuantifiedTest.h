@@ -14,6 +14,8 @@ class CDSLQuantifiedTest
 {
 public:
 	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_TypedQuantifiedBindings();
+	static GPOS_RESULT EresUnittest_TypedScalarSubqueryBindings();
 	static GPOS_RESULT EresUnittest_PreUnnestAnyDistinctDrop();
 	static GPOS_RESULT EresUnittest_PreUnnestAllDistinctDrop();
 	static GPOS_RESULT EresUnittest_PostUnnestAllRestoresPredicate();

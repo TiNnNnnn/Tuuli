@@ -484,17 +484,8 @@ LearningIR(const CDSLRule *rule)
 			const auto *def = definitions->PdefAt(i);
 			if (CDSLExpressionDefinitions::ELegacy == def->Binding())
 				continue;
-			const CHAR *kind = nullptr;
-			switch (def->Edslexpr())
-			{
-				case EdslexprNot: kind = "Not"; break;
-				case EdslexprNotTrue: kind = "NotTrue"; break;
-				case EdslexprNullSafeEq: kind = "NullSafeEq"; break;
-				case EdslexprAnd: kind = "And"; break;
-				case EdslexprOr: kind = "Or"; break;
-				case EdslexprRef: kind = "Ref"; break;
-				default: throw std::runtime_error("unsupported learning expression kind");
-			}
+			const CHAR *kind = CDSLExpressionDefinitions::SzBindingName(def->Edslexpr());
+			GPOS_ASSERT(nullptr != kind);
 			out << (first ? "" : ",") << "{\"kind\":\"" << kind
 				<< "\",\"mode\":\""
 				<< (CDSLExpressionDefinitions::EMatch == def->Binding() ? "match" : "build")

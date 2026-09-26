@@ -14,6 +14,9 @@ class CDSLInSubTest
 {
 public:
 	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_ExpressionBindings();
+	static GPOS_RESULT EresUnittest_ProjectedExpressionBindings();
+	static GPOS_RESULT EresUnittest_ExistentialInputDemand();
 	static GPOS_RESULT EresUnittest_PreApplyCorpusElimination();
 	static GPOS_RESULT EresUnittest_PostApplyCorpusElimination();
 	static GPOS_RESULT EresUnittest_PreApplyRepeatedInElimination();

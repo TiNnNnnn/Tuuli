@@ -1,0 +1,54 @@
+{
+  "description": "Typed scalar EXISTS preserves the complete non-correlated subquery",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"e191e7074950321c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "t",
+      "t",
+      "t",
+      "t"
+    ],
+    "postgres_output": [
+      "t",
+      "t",
+      "t",
+      "t"
+    ],
+    "off_output": [
+      "t",
+      "t",
+      "t",
+      "t"
+    ]
+  }
+}

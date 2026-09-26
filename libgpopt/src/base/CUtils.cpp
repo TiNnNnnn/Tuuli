@@ -1327,6 +1327,26 @@ CUtils::FExistentialSubquery(COperator *pop)
 							  COperator::EopScalarSubqueryNotExists == op_id);
 }
 
+CExpression *
+CUtils::PexprExistentialInput(CMemoryPool *mp, CExpression *inner)
+{
+	// Only the leading SELECT values are unobserved. Do not cross Filter,
+	// aggregate, set or ordering operators which may consume those values.
+	while (COperator::EopLogicalProject == inner->Pop()->Eopid() &&
+		   2 == inner->Arity() && !(*inner)[1]->DeriveHasNonScalarFunction())
+	{
+		inner = (*inner)[0];
+	}
+	inner->AddRef();
+	// Apply needs a witness column even for a zero-column one-row input
+	// (SELECT without FROM). Its value need not come from the original list.
+	if (0 == inner->DeriveOutputColumns()->Size())
+	{
+		return PexprAddProjection(mp, inner, PexprScalarConstBool(mp, true));
+	}
+	return inner;
+}
+
 // check if a given operator is quantified subquery
 BOOL
 CUtils::FQuantifiedSubquery(COperator *pop)

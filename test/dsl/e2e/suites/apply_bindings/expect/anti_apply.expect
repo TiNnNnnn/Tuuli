@@ -1,0 +1,53 @@
+{
+  "description": "AntiApply ON construction preserves correlated NOT EXISTS and NULL outer rows",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"d86fcaceeea23506\"",
+        "CScalarBoolOp (EboolopNot)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_NotExists"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      "",
+      "0",
+      "1"
+    ],
+    "postgres_output": [
+      "",
+      "0",
+      "1"
+    ],
+    "off_output": [
+      "",
+      "0",
+      "1"
+    ]
+  }
+}

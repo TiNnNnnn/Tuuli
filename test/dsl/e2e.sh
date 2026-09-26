@@ -111,7 +111,7 @@ for program in initdb pg_ctl psql; do
 done
 
 mkdir -p "$ARTIFACT_DIR" "$RESULT_DIR" "$DIFF_DIR"
-DSL_E2E_ROOT="$(mktemp -d /tmp/pgorca-dsl-e2e.XXXXXX)"
+DSL_E2E_ROOT="$(mktemp -d "${DSL_E2E_TMPDIR:-${TMPDIR:-/tmp}}/pgorca-dsl-e2e.XXXXXX")"
 DATA_DIR="$DSL_E2E_ROOT/data"
 SOCKET_DIR="$DSL_E2E_ROOT/socket"
 RULE_BUNDLE="$DSL_E2E_ROOT/e2e.rules"

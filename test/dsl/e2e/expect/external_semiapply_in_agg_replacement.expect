@@ -47,6 +47,7 @@
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
       ],
       "contains": [
+        "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
         "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ],

@@ -452,7 +452,7 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 	fBound = fHavingValid && fBound &&
 			 pmodel->FBind((*pdrgpsym)[ulFunc], pdrgpexprFuncs) &&
 			 pmodel->FBind((*pdrgpsym)[ulSchema], pdrgpcrSchema) &&
-			 pmodel->FBind((*pdrgpsym)[ulHaving], pexprHaving);
+			 m_pmatcher->FMatchPredicate((*pdrgpsym)[ulHaving], pexprHaving, pmodel);
 	if (fBound)
 	{
 		pexprAgg->AddRef();

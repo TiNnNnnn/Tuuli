@@ -1,0 +1,30 @@
+{
+  "description": "Do not unnest an errorful quantified input without a demand proof",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"match_rejected\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "Xform: CXformSelect2Apply"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

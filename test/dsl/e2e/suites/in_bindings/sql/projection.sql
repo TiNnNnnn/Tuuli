@@ -1,0 +1,3 @@
+SELECT i FROM in_outer
+WHERE i IN (SELECT j FROM in_wide WHERE k > 0)
+ORDER BY i NULLS FIRST;

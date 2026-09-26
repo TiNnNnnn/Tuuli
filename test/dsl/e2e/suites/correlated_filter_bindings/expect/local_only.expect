@@ -1,0 +1,55 @@
+{
+  "description": "Explicit Filter local/outer dependencies: local_only",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9e784df4b286ee98\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4bf1830db29927c4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ],
+    "off_output": [
+      "",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}

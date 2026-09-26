@@ -120,7 +120,9 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		// lowering owns scalar expressions in this shell while enabled: its
 		// compensation projections cannot share a memo group with a DSL chain
 		// assembled from separate atomic rules.
-		if (fNativeSelect2Apply &&
+		// Exact expression bindings retain the scalar subquery tree and cannot
+		// match the Apply view. They must run here even with native unnesting on.
+		if (fNativeSelect2Apply && !pexprdefs->FHasBindings() &&
 			(fExprListScalar ||
 			 CDSLOpKindTable::FHasPreUnnestRepresentation(
 				 popSrcRoot->Edslop())))

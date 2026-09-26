@@ -1,0 +1,3 @@
+SELECT i FROM exists_outer
+WHERE NOT EXISTS (SELECT 1 FROM exists_inner WHERE j > 5)
+ORDER BY i NULLS FIRST;

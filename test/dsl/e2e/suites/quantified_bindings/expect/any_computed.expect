@@ -1,0 +1,54 @@
+{
+  "description": "Preserve selected second column and computed output: any computed",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4f37afa4271b9e7e\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,",
+      "2,t",
+      "3,f",
+      "4,f"
+    ],
+    "postgres_output": [
+      "1,",
+      "2,t",
+      "3,f",
+      "4,f"
+    ],
+    "off_output": [
+      "1,",
+      "2,t",
+      "3,f",
+      "4,f"
+    ]
+  }
+}

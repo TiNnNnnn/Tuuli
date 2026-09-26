@@ -195,7 +195,9 @@ const SDslConDesc rg_con_desc[] = {
 const ULONG ul_num_cons = GPOS_ARRAY_SIZE(rg_con_desc);
 
 // symbol-prefix letters, indexed by EDslSymbolKind
-const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm', 'b', 'r', 'h', 'v'};
+const CHAR rg_sym_prefix[] = {'t', 'a', 'p', 's', 'f', 'n', 'e', 'o', 'w', 'm', 'b', 'r', 'h', 'v', 'c'};
+static_assert(GPOS_ARRAY_SIZE(rg_sym_prefix) == EdslsymSentinel,
+	"Every DSL symbol kind needs a printable prefix");
 }  // namespace
 
 // ---------------------------------------------------------------------------

@@ -441,6 +441,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 		}
 		if ((EdslconErrorFree == edslcon || EdslconDeterministic == edslcon) &&
 			(EdslsymCallHead == (*pdrgpsym)[0]->Esymkind() ||
+			 EdslsymCompareHead == (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymValueList == (*pdrgpsym)[0]->Esymkind()))
 		{
 			bctx.Fail("function heads and argument lists do not declare scalar safety premises");
@@ -823,11 +824,27 @@ FBindingTree(const CDSLOp *op)
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
 	const BOOL set = EdslopUnion == op->Edslop() ||
 		EdslopIntersect == op->Edslop() || EdslopExcept == op->Edslop();
+	const BOOL exists = EdslopExists == op->Edslop() ||
+		EdslopNotExists == op->Edslop();
+	const BOOL quantified = EdslopAny == op->Edslop() ||
+		EdslopAll == op->Edslop();
+	const BOOL apply = EdslopInnerApply == op->Edslop() ||
+		EdslopLeftOuterApply == op->Edslop() || EdslopSemiApply == op->Edslop() ||
+		EdslopAntiApply == op->Edslop();
 	if (nullptr == op->Pdrgpsym() ||
 		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : set ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : quantified ? 2 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : exists ? 0 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : EdslopInSubFilter == op->Edslop()
+				   ? 1 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
-				 ((EdslopFilter == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
+				 ((EdslopFilter == op->Edslop() &&
+				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())) ||
+				  (EdslopCompute == op->Edslop() && 3 == op->Pdrgpsym()->Size()) ||
+				  (EdslopAgg == op->Edslop() &&
+				   (5 == op->Pdrgpsym()->Size() || 6 == op->Pdrgpsym()->Size())) ||
 				  (EdslopSort == op->Edslop() && EdslsortSpec == op->Edslsort() &&
 				   1 == op->Pdrgpsym()->Size()) ||
 				  (EdslopProj == op->Edslop() &&
@@ -859,7 +876,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/SortBy, complete-predicate Join and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, single-slot InSubFilter, zero-slot Exists/NotExists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -899,39 +916,21 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				references.push_back(binding);
 				continue;
 			}
-			const BOOL comparison = "NullSafeEq" == call->ID()->getText();
-			const BOOL item = "Item" == call->ID()->getText();
-			const BOOL bool_value = "BoolValue" == call->ID()->getText();
-			const BOOL value_bool = "ValueBool" == call->ID()->getText();
-			const BOOL case_value = "Case" == call->ID()->getText();
-			const BOOL scalar_call = "Call" == call->ID()->getText();
-			const BOOL args = "Args" == call->ID()->getText();
-			if (!(("Not" == call->ID()->getText() || "NotTrue" == call->ID()->getText() || bool_value || value_bool) &&
-				  1 == call->SYMBOL().size()) &&
-				!(("And" == call->ID()->getText() || "Or" == call->ID()->getText() || comparison || scalar_call) &&
-				  2 == call->SYMBOL().size()) && !((item || case_value) && 3 == call->SYMBOL().size()) &&
-				!(args && (call->SYMBOL().empty() || 2 == call->SYMBOL().size())))
+			const auto *signature = CDSLExpressionDefinitions::PsigBinding(
+				call->ID()->getText().c_str(), call->SYMBOL().size());
+			if (nullptr == signature)
 			{
-				bctx.Fail(
-					"unsupported expression constructor or arity (expected Not/NotTrue/And/Or/NullSafeEq/Item/BoolValue/Case/ValueBool/Call/Args)");
+				bctx.Fail("unsupported expression constructor or arity");
 				return false;
 			}
 			if (!declare(binding->SYMBOL(0)->getText(),
-				item ? EdslsymExpr : args ? EdslsymValueList :
-				bool_value || case_value || scalar_call ? EdslsymScalar : EdslsymPred, match))
+						 signature->types[0], match))
 			{
 				return false;
 			}
 			for (ULONG i = 0; i < call->SYMBOL().size(); ++i)
 			{
-				const auto kind = item
-					? (0 == i ? EdslsymScalar : 1 == i ? EdslsymAttrs : EdslsymExpr)
-					: case_value ? (0 == i ? EdslsymPred : EdslsymScalar)
-					: scalar_call ? (0 == i ? EdslsymCallHead : EdslsymValueList)
-					: args ? (0 == i ? EdslsymScalar : EdslsymValueList)
-					: value_bool ? EdslsymScalar
-					: comparison ? EdslsymAttrs : EdslsymPred;
-				if (!declare(call->SYMBOL(i)->getText(), kind, match))
+				if (!declare(call->SYMBOL(i)->getText(), signature->types[i + 1], match))
 				{
 					return false;
 				}
@@ -956,9 +955,9 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			}
 			const auto kind = known->second->Esymkind();
 			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymOrder != kind &&
+				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymOrder != kind && EdslsymFunc != kind &&
 				 EdslsymExpr != kind && EdslsymScalar != kind &&
-				 EdslsymCallHead != kind && EdslsymValueList != kind) ||
+				 EdslsymCallHead != kind && EdslsymValueList != kind && EdslsymCompareHead != kind) ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
 				bctx.Fail("expression reference requires matching supported symbol types");
@@ -1056,18 +1055,19 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			right->AddRef();
 			symbols->Append(right);
 		}
+		// FDeclareBindings already checked the public signature and types.
+		const auto *signature = nullptr == call ? nullptr : Definitions::PsigBinding(
+			call->ID()->getText().c_str(), operands.size());
+		GPOS_ASSERT(nullptr == call || nullptr != signature);
+		if (match && nullptr != signature && EdslexprScalarDeps == signature->kind)
+		{
+			bctx.Fail("ScalarDeps is a target-only constructor");
+			symbols->Release();
+			return false;
+		}
 		const BOOL valid = definitions->FAppendBinding(
-			bctx.mp, nullptr == call ? EdslexprRef
-				: "And" == call->ID()->getText() ? EdslexprAnd
-				: "Or" == call->ID()->getText() ? EdslexprOr
-				: "NullSafeEq" == call->ID()->getText() ? EdslexprNullSafeEq
-				: "Item" == call->ID()->getText() ? EdslexprItem
-				: "BoolValue" == call->ID()->getText() ? EdslexprBoolValue
-				: "Case" == call->ID()->getText() ? EdslexprCase
-				: "ValueBool" == call->ID()->getText() ? EdslexprValueBool
-				: "Call" == call->ID()->getText() ? EdslexprCall
-				: "Args" == call->ID()->getText() ? EdslexprArgs
-				: "NotTrue" == call->ID()->getText() ? EdslexprNotTrue : EdslexprNot,
+			bctx.mp, nullptr == call ? EdslexprRef :
+				nullptr == signature ? EdslexprSentinel : signature->kind,
 			match ? Definitions::EMatch : Definitions::EBuild, symbols);
 		symbols->Release();
 		if (!valid)

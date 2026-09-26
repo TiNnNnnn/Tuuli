@@ -1,0 +1,14 @@
+{
+  "description": "InnerApply ON construction retains correlated scalar evaluation",
+  "plans": [
+    {"name": "dsl-off", "dsl": false, "trace": true, "policy": "bindings.policy",
+     "contains": ["Optimizer: pg_orca"],
+     "not_contains": ["\"status\":\"applied\"", "Falling back to Postgres"]},
+    {"name": "dsl-on", "trace": true, "xform_trace": true, "policy": "bindings.policy",
+     "contains": ["Optimizer: pg_orca", "\"status\":\"applied\""],
+     "not_contains": ["Falling back to Postgres"],
+     "alternative": ["CXformDSLRule_JoinApply"]}
+  ],
+  "rows": {"policy": "bindings.policy",
+    "output": ["2", "2"], "postgres_output": ["2", "2"], "off_output": ["2", "2"]}
+}

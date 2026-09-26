@@ -19,7 +19,7 @@
           "r/0"
         ],
         "status": "ok",
-        "source_template": "Proj<a0 s0 Item(Call(h0,Args(n0,Args(n1,Args()))),a1,Item(Call(h1,Args(n2,Args(n3,Args()))),a2,Item(Call(h2,Args(n4,Args(n5,Args()))),a3,e0)))>(Input<t0>)",
+        "source_template": "Proj<a0 s0 Item(Call(h0,Args(Column(a1),Args(n0,Args()))),a2,Item(Call(h1,Args(Column(a3),Args(n1,Args()))),a4,Item(Call(h2,Args(Column(a5),Args(n2,Args()))),a6,e0)))>(Input<t0>)",
         "error": null
       }
     }

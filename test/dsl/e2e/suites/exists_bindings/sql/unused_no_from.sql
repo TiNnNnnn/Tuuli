@@ -1,0 +1,1 @@
+SELECT i FROM exists_outer WHERE EXISTS (SELECT 1/(i-i)) ORDER BY i NULLS FIRST;

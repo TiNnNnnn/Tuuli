@@ -1,0 +1,54 @@
+{
+  "description": "Typed column identity and lazy CASE: integer",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"39a6682f2b9c5c18\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,-1",
+      "2,",
+      "3,30",
+      "3,30"
+    ],
+    "postgres_output": [
+      "1,-1",
+      "2,",
+      "3,30",
+      "3,30"
+    ],
+    "off_output": [
+      "1,-1",
+      "2,",
+      "3,30",
+      "3,30"
+    ]
+  }
+}

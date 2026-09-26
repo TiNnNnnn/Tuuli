@@ -1,0 +1,4 @@
+# Construction probes, not new optimization laws. Preserve the IN comparison and demand.
+InSubFilter<a0>(Input<t0>,Filter<p0 a1 a2>(Input<t1>))|InSubFilter<a3>(Input<t2>,Filter<Not(Not(p0)) a4 a5>(Input<t3>))|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
+InSubFilter<a0>(Input<t0>,Proj<a1 s0>(Filter<p0 a2 a3>(Input<t1>)))|InSubFilter<a4>(Input<t2>,Proj<a5 s1>(Filter<Not(Not(p0)) a6 a7>(Input<t3>)))|t2 := t0;t3 := t1;a4 := a0;a5 := a1;s1 := s0;a6 := a2;a7 := a3
+InSubFilter<a0>(Input<t0>,Proj<a1 s0 Item(BoolValue(p0),a2,e0)>(Input<t1>))|InSubFilter<a3>(Input<t2>,Proj<a4 s1 Item(BoolValue(Not(Not(p0))),a5,e1)>(Input<t3>))|t2 := t0;t3 := t1;a3 := a0;a4 := a1;s1 := s0;a5 := a2;e1 := e0

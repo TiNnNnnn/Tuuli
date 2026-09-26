@@ -1,0 +1,51 @@
+{
+  "description": "Generic scalar-subquery value type under CASE: case_integer",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"73e5a5eb0b5c50e0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "1,2",
+      "2,2",
+      "3,2"
+    ],
+    "postgres_output": [
+      "1,2",
+      "2,2",
+      "3,2"
+    ],
+    "off_output": [
+      "1,2",
+      "2,2",
+      "3,2"
+    ]
+  }
+}
