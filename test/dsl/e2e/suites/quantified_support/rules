@@ -1,0 +1,3 @@
+# Same bindings and rules as FormalSQLExpressionQuantifiedTest.quantifiedDistinctEliminationUsesSupportSearch.
+Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
+All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0

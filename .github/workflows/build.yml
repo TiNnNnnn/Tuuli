@@ -184,6 +184,7 @@ jobs:
           test/dsl/e2e.sh --suite apply_bindings
           test/dsl/e2e.sh --suite surface_equality
           test/dsl/e2e.sh --suite slice_compose
+          test/dsl/e2e.sh --suite quantified_support
 
       - name: Run public real-SQL trace corpus
         run: |
