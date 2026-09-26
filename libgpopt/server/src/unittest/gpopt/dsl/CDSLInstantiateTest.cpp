@@ -164,14 +164,19 @@ EresColumnAliases()
 	CDSLTestFixture fix(mp);
 	const std::string definitions = "Item(Column(a2),a3,Item(Column(a2),a4,Item()))";
 	BOOL ok = true;
-	for (ULONG trial = 0; trial < 6; ++trial)
+	for (ULONG trial = 0; trial < 7; ++trial)
 	{
 		const BOOL in_case = 3 <= trial;
+		const BOOL in_condition = 6 == trial;
 		const std::string text =
-			"Compute<Item(" + std::string(in_case ? "Case(p0,Column(a3),n0)" : "Column(a3)") +
+			"Compute<Item(" + std::string(in_condition ?
+				"Case(Compare(c0,Args(Column(a3),Args(n0,Args()))),n3,n4)" :
+				(in_case ? "Case(p0,Column(a3),n0)" : "Column(a3)")) +
 			",a5,Item()) a0 s0>(Compute<" + definitions + " a1 s1>(Input<t0>))|"
 			"Compute<Item(n1,a5,Item()) a6 s2>(Compute<" + definitions + " a7 s3>(Input<t1>))|" +
-			(in_case ? "n2 := Column(a4);n1 := Case(p0,n2,n0);" : "n1 := Column(a4);") +
+			(in_condition ? "n2 := Column(a4);v0 := Args();v1 := Args(n0,v0);v2 := Args(n2,v1);"
+				"p1 := Compare(c0,v2);n1 := Case(p1,n3,n4);" :
+				(in_case ? "n2 := Column(a4);n1 := Case(p0,n2,n0);" : "n1 := Column(a4);")) +
 			"t1 := t0;s2 := s0;a7 := a1;s3 := s1;";
 		CColRefArray *columns = nullptr;
 		CExpression *input = fix.PexprLogicalGet("column_aliases", 2, &columns);
@@ -186,10 +191,17 @@ EresColumnAliases()
 		CExpression *source_value = CUtils::PexprScalarIdent(mp, a);
 		if (in_case)
 		{
+			CExpression *condition = in_condition ? fix.PexprEqConst(a, 7) :
+				CUtils::PexprScalarConstBool(mp, 4 == trial, 5 == trial);
+			if (in_condition)
+			{
+				source_value->Release();
+				source_value = CUtils::PexprScalarConstInt4(mp, 8);
+			}
 			IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
 			type->AddRef();
 			source_value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
-				CUtils::PexprScalarConstBool(mp, 4 == trial, 5 == trial), source_value,
+				condition, source_value,
 				CUtils::PexprScalarConstInt4(mp, 9));
 		}
 		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), inner,
@@ -216,8 +228,24 @@ EresColumnAliases()
 						GPOS_DELETE(decision); rule->Release(); source->Release(); return GPOS_FAILED;
 					}
 					ok &= value->Pop()->Matches(source_value->Pop()) &&
-						(*value)[0]->Matches((*source_value)[0]) && (*value)[2]->Matches((*source_value)[2]);
-					value = (*value)[1];
+						(*value)[2]->Matches((*source_value)[2]);
+					if (in_condition)
+					{
+						ok &= (*value)[1]->Matches((*source_value)[1]);
+						value = (*value)[0];
+						if (COperator::EopScalarCmp != value->Pop()->Eopid() || 2 != value->Arity())
+						{
+							GPOS_DELETE(decision); rule->Release(); source->Release(); return GPOS_FAILED;
+						}
+						ok &= value->Pop()->Matches((*source_value)[0]->Pop()) &&
+							(*value)[1]->Matches((*(*source_value)[0])[1]);
+						value = (*value)[0];
+					}
+					else
+					{
+						ok &= (*value)[0]->Matches((*source_value)[0]);
+						value = (*value)[1];
+					}
 				}
 				ok &= COperator::EopScalarIdent == value->Pop()->Eopid() &&
 					CScalarIdent::PopConvert(value->Pop())->Pcr() == b &&
