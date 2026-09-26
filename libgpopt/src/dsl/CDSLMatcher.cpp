@@ -242,8 +242,11 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	}
 	if (EdslexprItem == def->Edslexpr())
 	{
-		if (COperator::EopScalarProjectList != expression->Pop()->Eopid() ||
-			0 == expression->Arity() ||
+		if (COperator::EopScalarProjectList != expression->Pop()->Eopid())
+			return false;
+		if (0 == def->Arity())
+			return 0 == expression->Arity();
+		if (0 == expression->Arity() ||
 			COperator::EopScalarProjectElement != (*expression)[0]->Pop()->Eopid() ||
 			1 != (*expression)[0]->Arity())
 			return false;

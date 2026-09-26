@@ -755,6 +755,8 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 			return PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
 		if (EdslexprItem != binding->Edslexpr())
 			return nullptr;
+		if (0 == binding->Arity())
+			return GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp));
 		CExpression *value = PexprResolveScalar(binding->PsymOperand(0), pmodel);
 		CColRefArray *output = PdrgpcrResolveCols(binding->PsymOperand(1), pmodel);
 		CExpression *tail = PexprResolveExpr(binding->PsymOperand(2), pmodel, ulDepth + 1);
