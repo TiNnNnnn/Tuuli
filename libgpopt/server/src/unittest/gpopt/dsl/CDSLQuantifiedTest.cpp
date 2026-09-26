@@ -383,6 +383,77 @@ EresQuantifiedInnerFilterRewrite()
 }
 
 static GPOS_RESULT
+EresQuantifiedInnerBooleanConstruction()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL correlated : {false, true})
+	{
+		const std::string quant = all ? "All" : "Any";
+		const std::string text = quant +
+			"<p0 a0>(Input<t0>,Filter<Or(p1,p2) a1 a4>(Input<t1>))|" + quant +
+			"<p3 a3>(Input<t2>,Filter<Not(And(Not(p4),Not(p5))) a6 a5>(Input<t3>))|"
+			"t2 := t0;t3 := t1;p3 := p0;a3 := a0;p4 := p1;p5 := p2;a6 := a1;a5 := a4";
+		CDSLRule *rule = PruleParse(mp, text.c_str());
+		GPOS_ASSERT(nullptr != rule);
+		CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("boolean_outer", 1, &outer_cols);
+		CExpression *inner = fix.PexprLogicalGet("boolean_inner", 2, &inner_cols);
+		CExpression *left = fix.PexprEqPred((*inner_cols)[0], (*inner_cols)[1]);
+		CExpression *right = fix.PexprEqPred((*inner_cols)[1],
+			correlated ? (*outer_cols)[0] : (*inner_cols)[0]);
+		CExpression *filtered = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), inner,
+			GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopOr), left, right));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), outer,
+			PexprQuantified(mp, fix, all, filtered, (*outer_cols)[0], (*inner_cols)[0]));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		GPOS_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(rule, model));
+		CDSLInstantiator inst(mp);
+		CExpression *target = inst.PexprInstantiate(rule, model);
+		GPOS_ASSERT(nullptr != target);
+		CLogicalApply *apply = CLogicalApply::PopConvert(target->Pop());
+		GPOS_ASSERT(apply->FCorrelated() == correlated);
+		GPOS_ASSERT(apply->EopidOriginSubq() == (all
+			? COperator::EopScalarSubqueryAll : COperator::EopScalarSubqueryAny));
+		GPOS_ASSERT((*apply->PdrgPcrInner())[0] == (*inner_cols)[0]);
+		GPOS_ASSERT((*(*target)[1])[0] == inner);
+		left->AddRef();
+		right->AddRef();
+		CExpression *expected = CUtils::PexprNegate(mp, GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
+			CUtils::PexprNegate(mp, left), CUtils::PexprNegate(mp, right)));
+		GPOS_ASSERT(CDSLMatchView::FSameCapturedExpression(expected, (*(*target)[1])[1]));
+		GPOS_ASSERT((*target)[1]->HasOuterRefs() == correlated);
+		expected->Release();
+		target->Release();
+		model->Release();
+		// Dependency partitions govern runtime applicability, not the captured
+		// predicate's meaning. Reject incorrect local/outer metadata here.
+		std::string bad_text = text;
+		bad_text.replace(bad_text.find("a5 := a4"), 8, "a5 := a1");
+		CDSLRule *bad_rule = PruleParse(mp, bad_text.c_str());
+		GPOS_ASSERT(nullptr != bad_rule);
+		CDSLModel *bad_model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher bad_matcher(mp, bad_rule);
+		GPOS_ASSERT(bad_matcher.FMatch(bad_rule->PfragSrc()->PopRoot(), source, bad_model));
+		GPOS_ASSERT(nullptr == inst.PexprInstantiate(bad_rule, bad_model));
+		bad_model->Release();
+		bad_rule->Release();
+		source->Release();
+		rule->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresConstructedQuantifiedPredicate()
 {
 	CAutoMemoryPool amp;
@@ -444,6 +515,7 @@ CDSLQuantifiedTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
 		GPOS_UNITTEST_FUNC(EresQuantifiedInnerFilterRewrite),
+		GPOS_UNITTEST_FUNC(EresQuantifiedInnerBooleanConstruction),
 		GPOS_UNITTEST_FUNC(EresConstructedQuantifiedPredicate),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings),
 		GPOS_UNITTEST_FUNC(CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings),
