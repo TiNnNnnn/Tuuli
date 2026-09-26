@@ -1,0 +1,5 @@
+- rule: '*'
+  enabled: true
+  placement: cbo
+  budget:
+    per_rule: 2
