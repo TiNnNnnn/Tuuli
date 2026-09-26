@@ -20,7 +20,7 @@
           "r/1"
         ],
         "status": "ok",
-        "source_template": "LeftJoin<Or(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(Call(h2,Args(n2,Args(n3,Args()))),Args(n4,Args()))))) a0 a1>(Input<t0>,Input<t1>)",
+        "source_template": "LeftJoin<Or(ValueBool(Call(h0,Args(Column(a2),Args(Column(a3),Args())))),ValueBool(Call(h1,Args(Call(h2,Args(Column(a4),Args(n0,Args()))),Args(Column(a5),Args()))))) a0 a1>(Input<t0>,Input<t1>)",
         "error": null
       }
     }

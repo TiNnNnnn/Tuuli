@@ -1,0 +1,61 @@
+{
+  "description": "Projection and Limit movement inserts alternatives and preserves nonempty PostgreSQL results",
+  "plans": [
+    {
+      "name": "enabled",
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"99cbe26978f97e47\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c9ec34e0d2b51aff\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project",
+          "CXformDSLRule_Limit"
+        ],
+        "forbidden_origins": []
+      }
+    },
+    {
+      "name": "disabled",
+      "dsl": false,
+      "native": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDSLRule_Project",
+          "CXformDSLRule_Limit"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "native": false,
+    "output": [
+      "1,20,20,eng"
+    ],
+    "postgres_output": [
+      "1,20,20,eng"
+    ],
+    "off_output": [
+      "1,20,20,eng"
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+# FormalSQL ORDERED_EQ, 2026-09-21. Separate directions are search alternatives.
+# ErrorFree excludes throwing expressions; Deterministic excludes volatility.
+Proj<a0 s0>(Limit<n0 n1>(Input<t0>))|Limit<n2 n3>(Proj<a1 s1>(Input<t1>))|TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0);ScalarEq(n2,n0);ScalarEq(n3,n1);ErrorFree(a0);ErrorFree(a1);Deterministic(a0)
+Limit<n0 n1>(Proj<a0 s0>(Input<t0>))|Proj<a1 s1>(Limit<n2 n3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0);ScalarEq(n2,n0);ScalarEq(n3,n1);ErrorFree(a0);ErrorFree(a1);Deterministic(a0)

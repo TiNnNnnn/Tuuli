@@ -16,8 +16,8 @@
     },
     {
       "name": "dsl-on",
-      "trace": true,
       "xform_trace": true,
+      "trace": true,
       "policy": "bindings.policy",
       "contains": [
         "Optimizer: pg_orca",

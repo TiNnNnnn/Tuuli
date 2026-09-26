@@ -136,7 +136,7 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 			m_mp, szPolicyPath, &strPolicyErrors);
 		if (nullptr == ppolicy)
 		{
-			GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+			GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration,
 					   strPolicyErrors.GetBuffer());
 		}
 	}
@@ -145,7 +145,7 @@ COptCtxt::COptCtxt(CMemoryPool *mp, CColumnFactory *col_factory,
 	CRefCount::SafeRelease(ppolicy);
 	if (nullptr == m_pdslPolicySnapshot)
 	{
-		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+		GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration,
 				   strPolicyErrors.GetBuffer());
 	}
 }
@@ -193,7 +193,7 @@ COptCtxt::InitializeDSLStatsExperiment(const CExpression *root)
 		CDSLStatsExperimentSnapshot::PsnapshotLoadFile(m_mp, path, root, &errors);
 	if (nullptr == m_pdslStatsExperimentSnapshot)
 	{
-		GPOS_RAISE(CException::ExmaInvalid, CException::ExmiInvalid,
+		GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration,
 				   errors.GetBuffer());
 	}
 	for (const std::string &suffix : m_dsl_pending_experiment_candidates)
@@ -712,8 +712,11 @@ COptCtxt::TraceDSLRouteInput(const CExpression *expr, ULONG candidateRules)
 	}
 	GPOS_ASSERT(nullptr != expr);
 	FlushDSLRouteOutcome();
+	m_pexprDSLRouteInput = expr;
+	m_ulDSLRouteSequence = ++m_ulDSLRouteInputs;
 	const std::string context =
-		CDSLStatsExperimentSnapshot::RouteContext(expr);
+		CDSLStatsExperimentSnapshot::RouteContext(
+			expr, m_pdslStatsExperimentSnapshot, m_ulDSLRouteSequence);
 	const std::string key = "route_input_context:" + context;
 	auto found = m_dsl_experiment_context_ids.find(key);
 	ULONG id;
@@ -732,8 +735,6 @@ COptCtxt::TraceDSLRouteInput(const CExpression *expr, ULONG candidateRules)
 		id = found->second;
 
 	const CGroupExpression *gexpr = expr->Pgexpr();
-	m_pexprDSLRouteInput = expr;
-	m_ulDSLRouteSequence = ++m_ulDSLRouteInputs;
 	CAutoTrace trace(m_mp);
 	trace.Os() << "DSL_TRACE {\"kind\":\"rule_route\",\"engine\":\"pgorca\",";
 	if (nullptr != m_pdslStatsExperimentSnapshot)

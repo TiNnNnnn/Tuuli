@@ -1,0 +1,2 @@
+# A real nonidentity rule whose Limit source does not occur in the test query.
+Limit<n0 n1>(Proj<a0 s0>(Input<t0>))|Proj<a1 s1>(Limit<n2 n3>(Input<t1>))|TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0);ScalarEq(n2,n0);ScalarEq(n3,n1);ErrorFree(a0);ErrorFree(a1);Deterministic(a0)

@@ -115,6 +115,11 @@ gpopt::EresExceptionInit(CMemoryPool *mp)
 				 CException::ExsevError,
 				 GPOS_WSZ_WSZLEN("Missing group stats in %ls"), 1,
 				 GPOS_WSZ_WSZLEN("Missing group stats")),
+
+		CMessage(CException(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration),
+				 CException::ExsevError,
+				 GPOS_WSZ_WSZLEN("Invalid optimizer configuration: %ls"), 1,
+				 GPOS_WSZ_WSZLEN("Invalid optimizer configuration")),
 	};
 
 	// copy exception array into heap

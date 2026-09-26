@@ -11,19 +11,35 @@
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <sstream>
 #include <unordered_set>
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CDrvdPropRelational.h"
+#include "gpopt/base/CColRefTable.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpos/io/COstreamString.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalDynamicGetBase.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalIndexGet.h"
+#include "gpopt/operators/CLogicalBitmapTableGet.h"
+#include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/COperator.h"
+#include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarConst.h"
+#include "naucrates/base/IDatumInt2.h"
+#include "naucrates/base/IDatumInt4.h"
+#include "naucrates/base/IDatumInt8.h"
+#include "naucrates/base/IDatumBool.h"
+#include "naucrates/base/IDatumOid.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "naucrates/statistics/IStatistics.h"
@@ -36,6 +52,101 @@ namespace
 {
 std::string Fingerprint(CMemoryPool *mp, const CExpression *expr,
 	std::unordered_map<const CExpression *, std::string> *cache);
+
+// Read stored semantic enums only; no metadata/statistics derivation or
+// debug-text parsing. A category is not full operator/function identity.
+const CHAR *ScalarKind(const COperator *op)
+{
+	if (const auto *cmp = dynamic_cast<const CScalarCmp *>(op))
+	{
+		switch (cmp->ParseCmpType())
+		{
+			case IMDType::EcmptEq: return "eq";
+			case IMDType::EcmptNEq: return "neq";
+			case IMDType::EcmptL: return "lt";
+			case IMDType::EcmptLEq: return "le";
+			case IMDType::EcmptG: return "gt";
+			case IMDType::EcmptGEq: return "ge";
+			case IMDType::EcmptIDF: return "distinct";
+			case IMDType::EcmptOther: return "other";
+		}
+	}
+	if (const auto *boolean = dynamic_cast<const CScalarBoolOp *>(op))
+	{
+		switch (boolean->Eboolop())
+		{
+			case CScalarBoolOp::EboolopAnd: return "and";
+			case CScalarBoolOp::EboolopOr: return "or";
+			case CScalarBoolOp::EboolopNot: return "not";
+			default: break;
+		}
+	}
+	if (const auto *test = dynamic_cast<const CScalarBooleanTest *>(op))
+	{
+		switch (test->Ebt())
+		{
+			case CScalarBooleanTest::EbtIsTrue: return "is_true";
+			case CScalarBooleanTest::EbtIsNotTrue: return "is_not_true";
+			case CScalarBooleanTest::EbtIsFalse: return "is_false";
+			case CScalarBooleanTest::EbtIsNotFalse: return "is_not_false";
+			case CScalarBooleanTest::EbtIsUnknown: return "is_unknown";
+			case CScalarBooleanTest::EbtIsNotUnknown: return "is_not_unknown";
+			default: break;
+		}
+	}
+	return nullptr;
+}
+
+void ConstantContext(std::ostream &out, gpnaucrates::IDatum *datum)
+{
+	using namespace gpnaucrates;
+	const CHAR *kinds[] = {"int2", "int4", "int8", "bool", "oid", "generic"};
+	static_assert(GPOS_ARRAY_SIZE(kinds) == IMDType::EtiGeneric + 1, "datum kinds changed");
+	const auto type = datum->GetDatumType();
+	const BOOL known_type = IMDType::EtiInt2 <= type && type < IMDType::EtiGeneric;
+	const BOOL is_null = datum->IsNull();
+	out << ",\"constant\":{\"kind\":\"" << (known_type ? kinds[type] : "generic")
+		<< "\",\"is_null\":" << (is_null ? "true" : "false")
+		<< ",\"value_observed\":" << (is_null || known_type ? "true" : "false")
+		<< ",\"value\":";
+	// Generic datum statistics mappings can be lossy (or hashes). They are
+	// never a substitute for a typed SQL literal, including for non-null values.
+	if (is_null || !known_type)
+		out << "null";
+	else
+	{
+		switch (type)
+		{
+			case IMDType::EtiInt2: out << dynamic_cast<IDatumInt2 *>(datum)->Value(); break;
+			case IMDType::EtiInt4: out << dynamic_cast<IDatumInt4 *>(datum)->Value(); break;
+			case IMDType::EtiInt8: out << dynamic_cast<IDatumInt8 *>(datum)->Value(); break;
+			case IMDType::EtiBool: out << (dynamic_cast<IDatumBool *>(datum)->GetValue() ? "true" : "false"); break;
+			case IMDType::EtiOid: out << dynamic_cast<IDatumOid *>(datum)->OidValue(); break;
+			default: break;
+		}
+	}
+	out << "}";
+}
+
+void ColumnReference(std::ostream &out, const CColRef *column, ULONG slot)
+{
+	const CColRefTable *base = dynamic_cast<const CColRefTable *>(column);
+	const CMDIdGPDB *relation = nullptr == base ? nullptr
+		: dynamic_cast<const CMDIdGPDB *>(column->GetMdidTable());
+	out << "{\"slot\":" << slot << ",\"kind\":\""
+		<< (nullptr == base ? "computed" : "table") << "\",\"attribute_number\":";
+	if (nullptr != base)
+		out << base->AttrNum();
+	else
+		out << "null";
+	out << ",\"relation_oid\":";
+	if (nullptr != relation && 0 != relation->Oid() &&
+		(IMDId::EmdidRel == relation->MdidType() || IMDId::EmdidGeneral == relation->MdidType()))
+		out << relation->Oid();
+	else
+		out << "null";
+	out << "}";
+}
 }
 
 std::string
@@ -221,7 +332,9 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 		out << ",\"plan_template\":" << CDSLPlanTemplate::Serialize(mp, expr);
 		const CDSLStatsExperimentSnapshot *snapshot = nullptr == context ? nullptr
 			: context->PDSLStatsExperimentSnapshot();
-		if (nullptr != snapshot && snapshot->FHasTemplateSelection())
+		if (nullptr != snapshot && 0 != snapshot->UlTemplateRoute())
+			out << ",\"template_route\":" << snapshot->UlTemplateRoute();
+		else if (nullptr != snapshot && snapshot->FHasTemplateSelection())
 			out << ",\"plan_slice\":"
 				<< snapshot->TemplateSelectionArtifact(const_cast<CExpression *>(expr));
 	}
@@ -237,6 +350,47 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 		out << "null";
 	out << ",\"nodes\":[";
 	std::vector<const CExpression *> pending{expr};
+	std::unordered_map<const CColRef *, ULONG> column_slots;
+	std::vector<const CLogicalSetOp *> setops;
+	// Canonicalize only references present in this tree before serializing
+	// their declarations. Get outputs can precede their scalar consumers.
+	ULONG visited = 0;
+	while (!pending.empty())
+	{
+		if (0 == visited++ % 256)
+			GPOS_CHECK_ABORT;
+		const CExpression *input = pending.back();
+		pending.pop_back();
+		if (COperator::EopScalarIdent == input->Pop()->Eopid())
+			column_slots.emplace(CScalarIdent::PopConvert(input->Pop())->Pcr(), column_slots.size());
+		const auto *setop = dynamic_cast<const CLogicalSetOp *>(input->Pop());
+		if (nullptr != setop)
+			setops.push_back(setop);
+		for (ULONG i = input->Arity(); i > 0; --i)
+			pending.push_back((*input)[i - 1]);
+	}
+	// Keep existing scalar-reference slots stable. Register positional set-op
+	// columns even when no ScalarIdent happens to mention them in this tree.
+	std::vector<const CColRef *> additional_columns;
+	auto register_columns = [&](const CColRefArray *columns) {
+		for (ULONG i = 0; i < columns->Size(); ++i)
+			if (column_slots.emplace((*columns)[i], column_slots.size()).second)
+				additional_columns.push_back((*columns)[i]);
+	};
+	for (const CLogicalSetOp *setop : setops)
+	{
+		GPOS_CHECK_ABORT;
+		register_columns(setop->PdrgpcrOutput());
+		for (ULONG i = 0; i < setop->PdrgpdrgpcrInput()->Size(); ++i)
+			register_columns((*setop->PdrgpdrgpcrInput())[i]);
+	}
+	auto column_array = [&](const CColRefArray *columns) {
+		out << "[";
+		for (ULONG i = 0; i < columns->Size(); ++i)
+			out << (i ? "," : "") << column_slots.at((*columns)[i]);
+		out << "]";
+	};
+	pending.push_back(expr);
 	ULONG retained = 0;
 	while (!pending.empty())
 	{
@@ -267,16 +421,83 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 			out << request_index;
 		else
 			out << "null";
+		if (const CHAR *kind = ScalarKind(input->Pop()))
+			out << ",\"scalar_kind\":\"" << kind << "\"";
+		if (COperator::EopScalarConst == input->Pop()->Eopid())
+			ConstantContext(out, CScalarConst::PopConvert(input->Pop())->GetDatum());
+		if (COperator::EopScalarIdent == input->Pop()->Eopid())
+		{
+			// Declared identity only: a base colref can also be reused as a
+			// set-op output. Never treat its catalog statistics as derived stats.
+			const CColRef *column = CScalarIdent::PopConvert(input->Pop())->Pcr();
+			out << ",\"column_ref\":";
+			ColumnReference(out, column, column_slots.at(column));
+		}
+		const auto *setop = dynamic_cast<const CLogicalSetOp *>(input->Pop());
+		if (nullptr != setop)
+		{
+			out << ",\"setop_columns\":{\"output_slots\":";
+			column_array(setop->PdrgpcrOutput());
+			out << ",\"input_slots\":[";
+			for (ULONG i = 0; i < setop->PdrgpdrgpcrInput()->Size(); ++i)
+			{
+				if (i) out << ",";
+				column_array((*setop->PdrgpdrgpcrInput())[i]);
+			}
+			out << "]}";
+		}
+		const CLogicalGet *get = dynamic_cast<const CLogicalGet *>(input->Pop());
+		const CLogicalDynamicGetBase *dynamic_get =
+			dynamic_cast<const CLogicalDynamicGetBase *>(input->Pop());
+		const CLogicalIndexGet *index_get = dynamic_cast<const CLogicalIndexGet *>(input->Pop());
+		const CLogicalBitmapTableGet *bitmap_get =
+			dynamic_cast<const CLogicalBitmapTableGet *>(input->Pop());
+		const CColRefArray *outputs = nullptr != get ? get->PdrgpcrOutput()
+			: nullptr != dynamic_get ? dynamic_get->PdrgpcrOutput()
+			: nullptr != index_get ? index_get->PdrgpcrOutput()
+			: nullptr != bitmap_get ? bitmap_get->PdrgpcrOutput() : nullptr;
+		if (nullptr != outputs)
+		{
+			out << ",\"referenced_output_slots\":[";
+			BOOL first = true;
+			for (ULONG i = 0; i < outputs->Size(); ++i)
+			{
+				auto found = column_slots.find((*outputs)[i]);
+				if (found != column_slots.end())
+				{
+					out << (first ? "" : ",") << found->second;
+					first = false;
+				}
+			}
+			out << "]";
+		}
+		if (COperator::EopScalarProjectElement == input->Pop()->Eopid())
+		{
+			const CColRef *column = CScalarProjectElement::PopConvert(input->Pop())->Pcr();
+			auto found = column_slots.find(column);
+			out << ",\"referenced_definition_slot\":";
+			if (found != column_slots.end())
+				out << found->second;
+			else
+				out << "null";
+		}
 		out << "}";
 		for (ULONG i = input->Arity(); i > 0; --i)
 			pending.push_back((*input)[i - 1]);
+	}
+	out << "],\"additional_column_refs\":[";
+	for (ULONG i = 0; i < additional_columns.size(); ++i)
+	{
+		if (i) out << ",";
+		ColumnReference(out, additional_columns[i], column_slots.at(additional_columns[i]));
 	}
 	out << "],\"complete\":" << (pending.empty() ? "true" : "false") << "}}";
 	return out.str();
 }
 
 std::string
-CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr)
+CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr,
+	const CDSLStatsExperimentSnapshot *snapshot, ULONG sequence)
 {
 	GPOS_ASSERT(nullptr != expr);
 	std::ostringstream out;
@@ -315,7 +536,47 @@ CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr)
 		for (ULONG child = relational_children.size(); child > 0; --child)
 			pending.push_back(relational_children[child - 1]);
 	}
-	out << "\",\"complete\":true}}";
+	out << "\",\"complete\":true}";
+	if (nullptr != snapshot && 0 != sequence && sequence == snapshot->m_template_route)
+	{
+		const std::string fingerprint = Fingerprint(snapshot->m_mp, expr);
+		out << ",\"template_route\":" << sequence
+			<< ",\"template_fingerprint\":\"" << fingerprint << "\"";
+		// A route is an instantiated binding, not the entire Memo. Do not pretend
+		// a depth-limited, group-bound leaf is a complete standalone plan.
+		BOOL complete = true;
+		pending = {expr};
+		while (!pending.empty())
+		{
+			GPOS_CHECK_ABORT;
+			const CExpression *input = pending.back();
+			pending.pop_back();
+			if (nullptr != input->Pgexpr() && input->Arity() != input->Pgexpr()->Arity())
+				complete = false;
+			for (ULONG child = 0; child < input->Arity(); ++child)
+				pending.push_back((*input)[child]);
+		}
+		if (!complete)
+			out << ",\"template_error\":\"incomplete route binding\"";
+		else if (!snapshot->m_template_fingerprint.empty() &&
+				 snapshot->m_template_fingerprint != fingerprint)
+			out << ",\"template_error\":\"route fingerprint mismatch\"";
+		else
+		{
+			out << ",\"plan_template\":" << CDSLPlanTemplate::Serialize(snapshot->m_mp, expr);
+			if (snapshot->FHasTemplateSelection())
+			{
+				// The production matcher derives properties. Validate on a detached
+				// tree so observing a route cannot populate live Memo properties.
+				UlongToColRefMap *columns = GPOS_NEW(snapshot->m_mp) UlongToColRefMap(snapshot->m_mp);
+				CExpression *copy = expr->PexprCopyWithRemappedColumns(snapshot->m_mp, columns, false);
+				columns->Release();
+				out << ",\"plan_slice\":" << snapshot->TemplateSelectionArtifact(copy);
+				copy->Release();
+			}
+		}
+	}
+	out << "}";
 	return out.str();
 }
 
@@ -516,6 +777,7 @@ BOOL
 Parse(const CHAR *content, std::string *id,
 	  std::vector<SParsedTarget> *targets, BOOL *discover,
 	  std::string *template_root, std::vector<std::string> *template_cuts,
+	  ULONG *template_route, std::string *template_fingerprint,
 	  CWStringDynamic *errors)
 {
 	std::istringstream input(nullptr == content ? "" : content);
@@ -619,6 +881,28 @@ Parse(const CHAR *content, std::string *id,
 				valid = false;
 			}
 		}
+		else if (!in_cardinalities && "template_route" == key && 0 == *template_route)
+		{
+			errno = 0;
+			CHAR *end = nullptr;
+			const unsigned long long route = std::strtoull(value.c_str(), &end, 10);
+			if (value.empty() || value.find_first_not_of("0123456789") != std::string::npos ||
+				errno || *end || 0 == route || route > std::numeric_limits<ULONG>::max())
+			{
+				Error(errors, line_no, "template_route must be a positive integer");
+				valid = false;
+			}
+			else
+				*template_route = (ULONG) route;
+		}
+		else if (!in_cardinalities && "template_fingerprint" == key && template_fingerprint->empty())
+		{
+			if (!ParseFingerprint(value, template_fingerprint))
+			{
+				Error(errors, line_no, "template_fingerprint must be 16 hexadecimal digits");
+				valid = false;
+			}
+		}
 		else if (!in_cardinalities && "template_root" == key &&
 				 template_root->empty())
 		{
@@ -683,6 +967,12 @@ Parse(const CHAR *content, std::string *id,
 	if (has_template_cuts && template_root->empty())
 	{
 		Error(errors, 0, "template_cuts requires template_root");
+		valid = false;
+	}
+	if ((!template_fingerprint->empty() && 0 == *template_route) ||
+		(0 != *template_route && !template_root->empty() && template_fingerprint->empty()))
+	{
+		Error(errors, 0, "route template selection requires template_route and template_fingerprint");
 		valid = false;
 	}
 	return valid;
@@ -928,8 +1218,10 @@ CDSLStatsExperimentSnapshot::FParseRequests(const CHAR *content, std::string *id
 	BOOL parsed_discover = false;
 	std::string template_root;
 	std::vector<std::string> template_cuts;
+	ULONG template_route = 0;
+	std::string template_fingerprint;
 	if (!Parse(content, &parsed_id, &parsed, &parsed_discover,
-			   &template_root, &template_cuts, errors))
+			   &template_root, &template_cuts, &template_route, &template_fingerprint, errors))
 		return false;
 	std::vector<SDSLStatsExperimentRequest> result;
 	for (const SParsedTarget &entry : parsed)
@@ -952,8 +1244,10 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	BOOL discover = false;
 	std::string template_root;
 	std::vector<std::string> template_cuts;
+	ULONG template_route = 0;
+	std::string template_fingerprint;
 	if (nullptr == root || !Parse(content, &id, &parsed, &discover,
-							 &template_root, &template_cuts, errors))
+							 &template_root, &template_cuts, &template_route, &template_fingerprint, errors))
 	{
 		return nullptr;
 	}
@@ -962,10 +1256,12 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 		GPOS_NEW(mp) CDSLStatsExperimentSnapshot(mp);
 	snapshot->m_id = id;
 	snapshot->m_fDiscover = discover;
+	snapshot->m_template_route = template_route;
+	snapshot->m_template_fingerprint = std::move(template_fingerprint);
 	if (!template_root.empty())
 	{
 		std::string selection_error;
-		if (!CDSLPlanTemplate::FValidateSelection(
+		if (0 == template_route && !CDSLPlanTemplate::FValidateSelection(
 				root, template_root, template_cuts, &selection_error))
 		{
 			Error(errors, 0, selection_error);
@@ -1010,6 +1306,18 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	if (discover)
 	{
 		std::unordered_set<const COperator *> claimed;
+		for (const SDSLStatsExperimentTarget &target : snapshot->m_targets)
+		{
+			if (target.m_inject && nullptr != target.m_pop)
+				claimed.insert(target.m_pop);
+		}
+		// Explicit injections supersede discovery-only observations. Two
+		// explicit selectors for one node still fail the uniqueness check below.
+		auto &targets = snapshot->m_targets;
+		targets.erase(std::remove_if(targets.begin(), targets.end(),
+			[&claimed](const SDSLStatsExperimentTarget &target) {
+				return !target.m_inject && claimed.count(target.m_pop) != 0;
+			}), targets.end());
 		for (const SDSLStatsExperimentTarget &target : snapshot->m_targets)
 		{
 			if (nullptr != target.m_pop)

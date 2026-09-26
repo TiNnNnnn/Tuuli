@@ -6,6 +6,7 @@
 
 #include <sstream>
 #include <cstdlib>
+#include <limits>
 
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -23,6 +24,7 @@
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
@@ -31,6 +33,8 @@
 #include "gpopt/search/CGroupProxy.h"
 #include "gpopt/search/CMemo.h"
 #include "naucrates/statistics/CStatistics.h"
+#include "naucrates/base/CDatumInt2GPDB.h"
+#include "naucrates/base/CDatumGenericGPDB.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -45,13 +49,72 @@ CDSLStatsExperimentTest::EresUnittest()
 			CDSLStatsExperimentTest::EresUnittest_ExpressionFingerprintRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_StrictInput),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ConstantInputContext),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_SetOpInputContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("route", 1, &cols);
+	CExpression *predicate = fixture.PexprEqConst((*cols)[0], 7);
+	CExpression *select = fixture.PexprLogicalSelect(get, predicate);
+	const std::string fingerprint = CDSLStatsExperimentSnapshot::Fingerprint(mp, select);
+	const std::string config = "experiment: route\ntemplate_route: 7\n";
+	CWStringDynamic errors(mp);
+	BOOL valid = true;
+	for (ULONG trial = 0; trial < 4; ++trial)
+	{
+		const std::string selection = 0 == trial ? "" :
+			"template_root: " + std::string(3 == trial ? "r/99" : "r") +
+			"\ntemplate_cuts: [r/0]\ntemplate_fingerprint: " +
+			(2 == trial ? "0000000000000000" : fingerprint) + "\n";
+		CDSLStatsExperimentSnapshot *snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp, (config + selection + "cardinalities:\n").c_str(), get, &errors);
+		valid &= nullptr != snapshot;
+		if (nullptr != snapshot)
+		{
+			const auto context = CDSLStatsExperimentSnapshot::RouteContext(select, snapshot, 7);
+			valid &= CDSLStatsExperimentSnapshot::RouteContext(select, snapshot, 6) ==
+				CDSLStatsExperimentSnapshot::RouteContext(select);
+			valid &= context.find("\"template_route\":7") != std::string::npos;
+			const std::string expected = 0 == trial ? "\"plan_template\":" :
+				1 == trial ? "Filter<ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))) a0>(Input<t0>)" :
+				2 == trial ? "route fingerprint mismatch" : "root path does not exist";
+			valid &= context.find(expected) != std::string::npos;
+			valid &= nullptr == select->Pstats() && nullptr == get->Pstats();
+		}
+		GPOS_DELETE(snapshot);
+	}
+	for (const std::string bad : {
+		"template_route: 0\n", "template_route: -1\n", "template_route: 1.0\n",
+		"template_route: 184467440737095516160\n", "template_route: 1\ntemplate_route: 1\n",
+		"template_fingerprint: 0000000000000000\n",
+		"template_route: 1\ntemplate_fingerprint: xyz\n",
+		"template_route: 1\ntemplate_root: r\n"})
+	{
+		errors.Reset();
+		CDSLStatsExperimentSnapshot *snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp, ("experiment: invalid\n" + bad + "cardinalities:\n").c_str(), get, &errors);
+		valid &= nullptr == snapshot;
+		GPOS_DELETE(snapshot);
+	}
+	select->Release();
+	predicate->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -73,6 +136,11 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 			GPOS_NEW(mp) CScalarBoolOp(mp, 0 == trial ? CScalarBoolOp::EboolopNot
 				: 3 <= trial ? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopAnd), operands);
 		CExpression *select = fixture.PexprLogicalSelect(get, predicate);
+		const std::string context = CDSLStatsExperimentSnapshot::InputContext(select);
+		const std::string kind = 0 == trial ? "not" : 3 <= trial ? "or" : "and";
+		ok &= std::string::npos != context.find("\"scalar_kind\":\"" + kind + "\"") &&
+			std::string::npos != context.find("\"scalar_kind\":\"eq\"") &&
+			nullptr == select->Pstats() && nullptr == predicate->Pstats();
 		std::string text, error;
 		ok &= CDSLPlanTemplate::FSlice(mp, select, "r", {"r/0"}, &text, &error);
 		ok &= error.empty();
@@ -80,9 +148,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 		{
 			// Equal leaf values are separate occurrences, not an inferred equality
 			// requirement. N-ary AND/OR must not be reassociated by the exporter.
-			ok &= text == (0 == trial ? "Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>)"
-				: 3 == trial ? "Filter<Or(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a0>(Input<t0>)"
-				: "Filter<And(ValueBool(Call(h0,Args(n0,Args(n1,Args())))),ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a0>(Input<t0>)");
+			ok &= text == (0 == trial ? "Filter<Not(ValueBool(Call(h0,Args(Column(a2),Args(n0,Args()))))) a0>(Input<t0>)"
+				: 3 == trial ? "Filter<Or(ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))),ValueBool(Call(h1,Args(Column(a3),Args(n1,Args()))))) a0>(Input<t0>)"
+				: "Filter<And(ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))),ValueBool(Call(h1,Args(Column(a3),Args(n1,Args()))))) a0>(Input<t0>)");
 			CWStringDynamic parse_error(mp);
 			CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
 				(text + "|Input<t1>|TableEq(t1,t0)").c_str(), nullptr, &parse_error);
@@ -122,9 +190,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 	std::string text, error;
 	// Input can capture a join. Cutting there must not expose either join leaf.
 	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r", {"r/0/0"}, &text, &error) &&
-		text == "Filter<Not(ValueBool(Call(h1,Args(n2,Args(n3,Args()))))) a2>(Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>))";
+		text == "Filter<Not(ValueBool(Call(h1,Args(Column(a5),Args(n1,Args()))))) a2>(Filter<Not(ValueBool(Call(h0,Args(Column(a4),Args(n0,Args()))))) a0>(Input<t0>))";
 	ok &= CDSLPlanTemplate::FSlice(mp, nested, "r/0", {"r/0/0"}, &text, &error) &&
-		text == "Filter<Not(ValueBool(Call(h0,Args(n0,Args(n1,Args()))))) a0>(Input<t0>)";
+		text == "Filter<Not(ValueBool(Call(h0,Args(Column(a2),Args(n0,Args()))))) a0>(Input<t0>)";
 	// Keeping a Join no longer hides expressions above or inside either branch.
 	ok &= CDSLPlanTemplate::FSlice(mp, select_join, "r", {}, &text, &error) &&
 		std::string::npos != text.find("Not(") &&
@@ -231,9 +299,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		!CDSLPlanTemplate::FValidateSelection(
 			select, "r", {"r/0", "r/0"}, &selection_error) &&
 		selection_error == "duplicate cut path: r/0" && sliced_ok &&
-		sliced == "Filter<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0>(Input<t0>)" && slice_error.empty() &&
+		sliced == "Filter<ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))) a0>(Input<t0>)" && slice_error.empty() &&
 		join_sliced &&
-		join_slice == "InnerJoin<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0 a1>(Input<t0>,Input<t1>)" &&
+		join_slice == "InnerJoin<ValueBool(Call(h0,Args(Column(a2),Args(Column(a3),Args())))) a0 a1>(Input<t0>,Input<t1>)" &&
 		join_error.empty() &&
 		dedup_sliced && dedup_slice == "Proj*<a0 s0>(Input<t0>)" &&
 		dedup_error.empty() &&
@@ -241,7 +309,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		requested_slice ==
 			"{\"schema\":\"pgorca.dsl.plan-slice.v1\",\"root_path\":\"r\","
 			"\"cut_paths\":[\"r/0\"],\"status\":\"ok\","
-			"\"source_template\":\"Filter<ValueBool(Call(h0,Args(n0,Args(n1,Args())))) a0>(Input<t0>)\",\"error\":null}" &&
+			"\"source_template\":\"Filter<ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))) a0>(Input<t0>)\",\"error\":null}" &&
 		!CDSLPlanTemplate::FValidateSelection(
 			nested_select, "r", {"r/0", "r/0/0"}, &selection_error) &&
 		selection_error == "cut paths must form an antichain";
@@ -579,6 +647,55 @@ CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats()
 		std::string::npos != keyed.find("\"reference_key\":\"" +
 			CDSLStatsExperimentSnapshot::Fingerprint(mp, get) + "\"") &&
 		keyed != CDSLStatsExperimentSnapshot::InputContext(other, mp);
+	// Table IDs/attribute numbers are declaration metadata, not derived stats.
+	// Slots preserve repeated references and distinguish aliases without names.
+	CColRef *base = (*cols)[0];
+	CColRef *alias = (*CLogicalGet::PopConvert(other->Pop())->PdrgpcrOutput())[0];
+	base->SetMdidTable(table->MDId());
+	alias->SetMdidTable(table->MDId());
+	CExpression *same_column = fixture.PexprEqPred(base, base);
+	CExpression *self_join = fixture.PexprEqPred(base, alias);
+	CExpression *computed_column = fixture.PexprEqPred(base, fixture.PcrCreateInt4("computed"));
+	const std::string same_context = CDSLStatsExperimentSnapshot::InputContext(same_column);
+	const std::string alias_context = CDSLStatsExperimentSnapshot::InputContext(self_join);
+	const std::string computed_context = CDSLStatsExperimentSnapshot::InputContext(computed_column);
+	CExpression *not_equal = CUtils::PexprScalarCmp(mp, base, alias, IMDType::EcmptNEq);
+	const std::string neq_context = CDSLStatsExperimentSnapshot::InputContext(not_equal);
+	valid = valid && CDSLStatsExperimentSnapshot::ExpressionShape(self_join) ==
+		CDSLStatsExperimentSnapshot::ExpressionShape(not_equal) && alias_context != neq_context &&
+		std::string::npos != neq_context.find("\"scalar_kind\":\"neq\"") &&
+		nullptr == not_equal->Pstats();
+	not_equal->Release();
+	const CHAR *test_kinds[] = {"is_true", "is_not_true", "is_false", "is_not_false",
+		"is_unknown", "is_not_unknown"};
+	for (ULONG i = 0; i < CScalarBooleanTest::EbtSentinel; ++i)
+	{
+		self_join->AddRef();
+		CExpression *test = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBooleanTest(mp, static_cast<CScalarBooleanTest::EBoolTest>(i)), self_join);
+		const std::string observed = CDSLStatsExperimentSnapshot::InputContext(test);
+		valid = valid && std::string::npos != observed.find(
+			std::string("\"scalar_kind\":\"") + test_kinds[i] + "\"") && nullptr == test->Pstats();
+		test->Release();
+	}
+	CExpression *joined = fixture.PexprLogicalInnerJoin(get, other, self_join);
+	CExpression *projected = fixture.PexprLogicalProject(get, cols);
+	const std::string joined_context = CDSLStatsExperimentSnapshot::InputContext(joined);
+	const std::string projected_context = CDSLStatsExperimentSnapshot::InputContext(projected);
+	valid = valid && std::string::npos != joined_context.find("\"referenced_output_slots\":[0]") &&
+		std::string::npos != joined_context.find("\"referenced_output_slots\":[1]") &&
+		std::string::npos != projected_context.find("\"referenced_definition_slot\":0") &&
+		nullptr == joined->Pstats() && nullptr == projected->Pstats();
+	joined->Release();
+	projected->Release();
+	valid = valid && std::string::npos != same_context.find("\"column_ref\":{\"slot\":0,\"kind\":\"table\",\"attribute_number\":1") &&
+		std::string::npos == same_context.find("\"slot\":1") &&
+		std::string::npos != alias_context.find("\"column_ref\":{\"slot\":1,\"kind\":\"table\"") &&
+		std::string::npos != computed_context.find("\"column_ref\":{\"slot\":1,\"kind\":\"computed\",\"attribute_number\":null,\"relation_oid\":null}") &&
+		nullptr == same_column->Pstats() && nullptr == self_join->Pstats() && nullptr == computed_column->Pstats();
+	same_column->Release();
+	self_join->Release();
+	computed_column->Release();
 	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
 	CColRef2dArray *input_cols = GPOS_NEW(mp) CColRef2dArray(mp);
 	for (ULONG i = 0; i < 9; ++i)
@@ -633,6 +750,92 @@ CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats()
 	join->Release();
 	other->Release();
 	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_ConstantInputContext()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	auto check = [](CExpression *expr, const CHAR *expected) {
+		const std::string context = CDSLStatsExperimentSnapshot::InputContext(expr);
+		const BOOL valid = std::string::npos != context.find(expected) && nullptr == expr->Pstats();
+		expr->Release();
+		return valid;
+	};
+	BOOL valid = check(CUtils::PexprScalarConstInt4(mp, -7),
+		"\"constant\":{\"kind\":\"int4\",\"is_null\":false,\"value_observed\":true,\"value\":-7}");
+	valid &= check(CUtils::PexprScalarConstInt4(mp, 0), "\"value_observed\":true,\"value\":0}");
+	valid &= check(CUtils::PexprScalarConstInt8(mp, std::numeric_limits<LINT>::min()),
+		"\"kind\":\"int8\",\"is_null\":false,\"value_observed\":true,\"value\":-9223372036854775808}");
+	valid &= check(CUtils::PexprScalarConstInt8(mp, std::numeric_limits<LINT>::max()),
+		"\"value_observed\":true,\"value\":9223372036854775807}");
+	valid &= check(CUtils::PexprScalarConstBool(mp, false),
+		"\"kind\":\"bool\",\"is_null\":false,\"value_observed\":true,\"value\":false}");
+	valid &= check(CUtils::PexprScalarConstBool(mp, true), "\"value_observed\":true,\"value\":true}");
+	valid &= check(CUtils::PexprScalarConstBool(mp, false, true),
+		"\"kind\":\"bool\",\"is_null\":true,\"value_observed\":true,\"value\":null}");
+	valid &= check(CUtils::PexprScalarConstOid(mp, std::numeric_limits<OID>::max()),
+		"\"kind\":\"oid\",\"is_null\":false,\"value_observed\":true,\"value\":4294967295}");
+	valid &= check(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarConst(mp,
+		GPOS_NEW(mp) CDatumInt2GPDB(GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT2_OID), -32768))),
+		"\"kind\":\"int2\",\"is_null\":false,\"value_observed\":true,\"value\":-32768}");
+	const double opaque = 1.25;
+	for (BOOL is_null : {false, true})
+	{
+		CExpression *generic = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarConst(mp,
+			GPOS_NEW(mp) CDatumGenericGPDB(mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 701),
+				default_type_modifier, &opaque, sizeof(opaque), is_null, 999, CDouble(999.0))));
+		valid &= check(generic, is_null
+			? "\"kind\":\"generic\",\"is_null\":true,\"value_observed\":true,\"value\":null}"
+			: "\"kind\":\"generic\",\"is_null\":false,\"value_observed\":false,\"value\":null}");
+	}
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_SetOpInputContext()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *left_cols = nullptr, *right_cols = nullptr;
+	CExpression *left = fixture.PexprLogicalGet("left", 2, &left_cols);
+	CExpression *right = fixture.PexprLogicalGet("right", 2, &right_cols);
+	CColRefArray *reversed = GPOS_NEW(mp) CColRefArray(mp);
+	reversed->Append((*right_cols)[1]);
+	reversed->Append((*right_cols)[0]);
+	CColRef2dArray *inputs = GPOS_NEW(mp) CColRef2dArray(mp);
+	left_cols->AddRef();
+	inputs->Append(left_cols);
+	inputs->Append(reversed);
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	children->Append(left);
+	children->Append(right);
+	left_cols->AddRef();
+	CExpression *setop = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalUnionAll(mp, left_cols, inputs), children);
+	const std::string context = CDSLStatsExperimentSnapshot::InputContext(setop);
+	BOOL valid = std::string::npos != context.find(
+		"\"setop_columns\":{\"output_slots\":[0,1],\"input_slots\":[[0,1],[2,3]]}") &&
+		std::string::npos != context.find("\"referenced_output_slots\":[3,2]") &&
+		std::string::npos != context.find("\"additional_column_refs\":[{\"slot\":0") &&
+		std::string::npos == context.find("\"column_ref\":");
+	// Scalar references keep their original numbering; only non-scalar ports
+	// are appended, including the unreferenced column of the second input.
+	CExpression *predicate = fixture.PexprEqConst((*left_cols)[1], 7);
+	CExpression *select = fixture.PexprLogicalSelect(setop, predicate);
+	const std::string selected = CDSLStatsExperimentSnapshot::InputContext(select);
+	valid &= std::string::npos != selected.find(
+		"\"setop_columns\":{\"output_slots\":[1,0],\"input_slots\":[[1,0],[2,3]]}") &&
+		std::string::npos != selected.find("\"additional_column_refs\":[{\"slot\":1") &&
+		nullptr == setop->Pstats() && nullptr == select->Pstats() &&
+		nullptr == left->Pstats() && nullptr == right->Pstats();
+	select->Release();
+	predicate->Release();
+	setop->Release();
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
@@ -745,6 +948,40 @@ CDSLStatsExperimentTest::EresUnittest_ResolveSPJBoundaries()
 			!snapshot->FRequestIndex(a->Pop(), &index) && index == 99;
 	}
 	GPOS_DELETE(snapshot);
+	// Discovery must not create a second target for an explicitly selected
+	// SPJ expression. Both a base scan and the outermost select are boundaries.
+	for (CExpression *selected : {a, outer_select})
+	{
+		std::ostringstream explicit_config;
+		explicit_config << "experiment: explicit-with-discovery\ndiscover: true\ncardinalities:\n"
+			<< "  - expression: " << CDSLStatsExperimentSnapshot::Fingerprint(mp, selected)
+			<< "\n    operator: " << selected->Pop()->SzId() << "\n    rows: 17\n";
+		errors.Reset();
+		snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp, explicit_config.str().c_str(), join, &errors);
+		const auto *target = nullptr == snapshot ? nullptr : snapshot->Ptarget(selected);
+		valid = valid && nullptr != target && target->m_inject && target->m_rows == 17 &&
+			snapshot->UlTargets() == 5 && errors.Length() == 0;
+		if (nullptr != snapshot)
+		{
+			ULONG index = 99;
+			valid = valid && snapshot->FRequestIndex(selected->Pop(), &index) && index == 0;
+			ULONG injected = 0;
+			for (const auto &entry : snapshot->Targets())
+				injected += entry.m_inject ? 1 : 0;
+			valid = valid && injected == 1;
+		}
+		GPOS_DELETE(snapshot);
+		if (selected == outer_select)
+		{
+			explicit_config << "  - relations: [a]\n    rows: 23\n";
+			errors.Reset();
+			snapshot = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+				mp, explicit_config.str().c_str(), join, &errors);
+			valid = valid && nullptr == snapshot && errors.Length() > 0;
+			GPOS_DELETE(snapshot);
+		}
+	}
 	join->Release();
 	b->Release();
 	outer_select->Release();

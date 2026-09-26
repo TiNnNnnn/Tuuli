@@ -1,0 +1,3 @@
+- rule: '*'
+  enabled: false
+  placement: cbo

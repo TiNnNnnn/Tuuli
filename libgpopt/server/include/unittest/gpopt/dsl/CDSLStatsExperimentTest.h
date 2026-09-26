@@ -18,9 +18,12 @@ public:
 	static GPOS_RESULT EresUnittest_ExpressionFingerprintRoundTrip();
 	static GPOS_RESULT EresUnittest_StrictInput();
 	static GPOS_RESULT EresUnittest_InputContextDoesNotDeriveStats();
+	static GPOS_RESULT EresUnittest_ConstantInputContext();
+	static GPOS_RESULT EresUnittest_SetOpInputContext();
 	static GPOS_RESULT EresUnittest_CachedLogicalContext();
 	static GPOS_RESULT EresUnittest_ShapesAndBindings();
 	static GPOS_RESULT EresUnittest_PlanTemplateContext();
+	static GPOS_RESULT EresUnittest_RouteTemplateContext();
 	static GPOS_RESULT EresUnittest_PlanTemplateExpressions();
 	static GPOS_RESULT EresUnittest_RehashAlreadyEquivalentGroups();
 };
