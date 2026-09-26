@@ -1,0 +1,42 @@
+{
+  "description": "Reconstruct scalar quantified comparison: empty",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"05765c196b6ecbf0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5f8f82931bc357d0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "all,1",
+      "all,2",
+      "all,3",
+      "all,4"
+    ],
+    "postgres_output": [
+      "all,1",
+      "all,2",
+      "all,3",
+      "all,4"
+    ],
+    "off_output": [
+      "all,1",
+      "all,2",
+      "all,3",
+      "all,4"
+    ]
+  }
+}
