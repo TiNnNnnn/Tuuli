@@ -987,16 +987,26 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	using Definitions = CDSLExpressionDefinitions;
 	std::unordered_set<const CDSLSymbol *> available;
 	std::unordered_map<const CDSLSymbol *, const CDSLSymbol *> aliases;
+	std::unordered_map<const CDSLSymbol *, const CDSLConstraint *> columnDerivations;
+	std::vector<const CDSLConstraint *> columnChecks;
 	for (ULONG i = 0; i < sourceSymbols; i++)
 	{
 		available.insert((*source->Pdrgpsym())[i]);
 	}
-	// Cross-side aliases are bindings. Do not silently interpret constructive
-	// legacy constraints as premises for the new oriented expression language.
+	// Column derivations share the existing checked runtime resolver. Other
+	// constructive legacy constraints are not expression-binding premises.
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
 		const CDSLConstraint *con = (*constraints)[i];
 		const auto kind = con->Edslcon();
+		if (EdslconAttrsEmpty == kind || EdslconAttrsUnion == kind ||
+			EdslconSchemaUnion == kind || EdslconAttrsIntersect == kind ||
+			EdslconOutputAttrs == kind || EdslconSchemaFromAttrs == kind ||
+			EdslconFuncAttrs == kind)
+		{
+			columnChecks.push_back(con);
+			continue;
+		}
 		BOOL sourcePremise = true;
 		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
@@ -1031,6 +1041,17 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			return false;
 		}
 	}
+	for (const auto *con : columnChecks)
+	{
+		const auto *output = (*con->Pdrgpsym())[0];
+		// Captures and cross-side aliases are checked, never redefined.
+		if (EdslsideSource == output->Eside() || aliases.count(output)) continue;
+		if (!columnDerivations.emplace(output, con).second)
+		{
+			bctx.Fail("target column symbol has multiple definitions");
+			return false;
+		}
+	}
 	for (auto *binding : ctx->binding())
 	{
 		const BOOL match =
@@ -1038,10 +1059,11 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		const auto *output = bctx.symtab.at(binding->SYMBOL(0)->getText());
 		auto *call = binding->call();
 		if (!match &&
-			(EdslsideSource == output->Eside() || aliases.count(output)))
+			(EdslsideSource == output->Eside() || aliases.count(output) ||
+			 columnDerivations.count(output)))
 		{
 			bctx.Fail(
-				"expression construction cannot overwrite a source or alias");
+				"expression construction cannot overwrite a source, alias or column derivation");
 			return false;
 		}
 		CDSLSymbolArray *symbols = GPOS_NEW(bctx.mp) CDSLSymbolArray(bctx.mp);
@@ -1087,6 +1109,14 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		{
 			if (available.count(alias.second))
 				available.insert(alias.first);
+		}
+		for (const auto &entry : columnDerivations)
+		{
+			const auto *symbols = entry.second->Pdrgpsym();
+			BOOL ready = true;
+			for (ULONG i = 1; i < symbols->Size(); i++)
+				ready &= 0 != available.count((*symbols)[i]);
+			if (ready) available.insert(entry.first);
 		}
 		for (ULONG i = 0; i < definitions->UlDefinitions(); i++)
 		{
