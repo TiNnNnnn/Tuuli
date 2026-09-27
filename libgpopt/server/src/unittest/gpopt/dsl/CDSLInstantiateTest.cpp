@@ -327,6 +327,59 @@ EresComputeColumnDerivations()
 }
 
 static GPOS_RESULT
+EresComputeAliasFusion()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Same native Compute rule as the FormalSQL public-DSL proof regression.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Compute<Item(Column(a1),a2,Item()) a5 s1>("
+		"Compute<Item(Column(a0),a1,Item()) a4 s0>(Input<t0>))|"
+		"Compute<Item(Column(a0),a1,Item(Column(a0),a2,Item())) a6 s3>(Input<t1>)|"
+		"t1 := t0;AttrsUnion(a6,a0,a0);SchemaUnion(s3,s0,a2)");
+	if (nullptr == rule) return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG trial = 0; trial < 3; ++trial)
+	{
+		CColRefArray *inputs = nullptr;
+		CExpression *input = fix.PexprLogicalGet("compute_alias_fusion", 0 == trial ? 1 : 3, &inputs);
+		CColRef *lowerOutput = fix.PcrCreateInt4("lower");
+		CColRef *upperOutput = fix.PcrCreateInt4("upper");
+		input->AddRef();
+		CExpression *lower = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, lowerOutput),
+					CUtils::PexprScalarIdent(mp, (*inputs)[0]))));
+		lower->AddRef();
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), lower,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, upperOutput),
+					CUtils::PexprScalarIdent(mp, 2 == trial ? (*inputs)[1] : lowerOutput))));
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		const BOOL ready = EdsldecisionReady == decision->Status();
+		ok &= ready == (trial < 2);
+		if (ready)
+		{
+			CExpression *target = decision->PexprTarget();
+			CExpression *expected = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, upperOutput),
+				CUtils::PexprScalarIdent(mp, (*inputs)[0]));
+			ok &= COperator::EopLogicalProject == target->Pop()->Eopid() &&
+				(*target)[0]->Matches(input) && 2 == (*target)[1]->Arity() &&
+				(*(*target)[1])[0]->Matches((*(*lower)[1])[0]) &&
+				(*(*target)[1])[1]->Matches(expected) &&
+				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+			expected->Release();
+		}
+		GPOS_DELETE(decision);
+		source->Release(); lower->Release(); input->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresColumnProjectionFusion()
 {
 	CAutoMemoryPool amp;
@@ -408,6 +461,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
+		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ExistsExpressionBindings),
