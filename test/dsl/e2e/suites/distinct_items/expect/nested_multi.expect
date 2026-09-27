@@ -1,0 +1,80 @@
+{
+  "description": "多列 DISTINCT 吸收内层去重；保留复合 NULL、重复行与列映射",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"d682686f65bb7e54\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Agg"
+        ],
+        "forbidden_origins": [
+          "CXformCollapseGbAgg"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1,x",
+      "1,",
+      "2,y",
+      ",x",
+      ","
+    ],
+    "postgres_output": [
+      "1,x",
+      "1,",
+      "2,y",
+      ",x",
+      ","
+    ],
+    "off_output": [
+      "1,x",
+      "1,",
+      "2,y",
+      ",x",
+      ","
+    ]
+  }
+}
