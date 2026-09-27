@@ -1,0 +1,67 @@
+{
+  "description": "同一已证明 Proj 结果重命名规则：本地别名未产生相邻 Project，排序外壳隔开上下投影，结果相等不计为 DSL 触发",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"candidate_rules\":0"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "",
+      "10",
+      "11",
+      "12",
+      "12",
+      "13"
+    ],
+    "postgres_output": [
+      "",
+      "10",
+      "11",
+      "12",
+      "12",
+      "13"
+    ],
+    "off_output": [
+      "",
+      "10",
+      "11",
+      "12",
+      "12",
+      "13"
+    ]
+  }
+}
