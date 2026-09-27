@@ -371,9 +371,58 @@ EresComputeAliasFusion()
 				(*(*target)[1])[1]->Matches(expected) &&
 				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
 			expected->Release();
+			CExpression *applied = CDSLRuleEngine::Instance()->PexprApply(mp, rule, source);
+			ok &= nullptr != applied && applied->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+			CRefCount::SafeRelease(applied);
 		}
 		GPOS_DELETE(decision);
 		source->Release(); lower->Release(); input->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
+EresComputedResultOutputContract()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// This exact rule is proved for strict DSL Proj by FormalSQL. Native
+	// LogicalProject also exposes the lower computed column: dropping it is
+	// not a valid alternative for arbitrary parents of the same memo group.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj<a0 s0 Item(Column(a2),a3,Item())>("
+		"Proj<a1 s1 Item(n0,a2,Item())>(Input<t0>))|"
+		"Proj<a4 s2 Item(n0,a3,Item())>(Input<t1>)|"
+		"t1 := t0;a4 := a0;s2 := s0");
+	if (nullptr == rule) return GPOS_FAILED;
+	BOOL ok = true;
+	for (ULONG width = 1; width <= 3; width += 2)
+	{
+		CExpression *input = fix.PexprLogicalGet("computed_result", width);
+		CColRef *lowerOutput = fix.PcrCreateInt4("lower");
+		CColRef *upperOutput = fix.PcrCreateInt4("upper");
+		CExpression *lower = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, lowerOutput),
+					CUtils::PexprScalarConstInt4(mp, 7))));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), lower,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, upperOutput),
+					CUtils::PexprScalarIdent(mp, lowerOutput))));
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		CExpression *target = decision->PexprTarget();
+		ok &= EdsldecisionReady == decision->Status() && nullptr != target &&
+			target->DeriveOutputColumns()->FMember(upperOutput) &&
+			!target->DeriveOutputColumns()->FMember(lowerOutput) &&
+			source->DeriveOutputColumns()->Size() == width + 2 &&
+			target->DeriveOutputColumns()->Size() == width + 1;
+		CExpression *applied = CDSLRuleEngine::Instance()->PexprApply(mp, rule, source);
+		ok &= nullptr == applied;
+		CRefCount::SafeRelease(applied);
+		GPOS_DELETE(decision);
+		source->Release();
 	}
 	rule->Release();
 	return ok ? GPOS_OK : GPOS_FAILED;
@@ -462,6 +511,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
+		GPOS_UNITTEST_FUNC(EresComputedResultOutputContract),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ExistsExpressionBindings),

@@ -872,12 +872,16 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		return nullptr;
 	}
 	if (EdsldecisionReady == pdecision->Status() &&
-		nullptr != pexpr->Pgexpr() &&
-		FTargetDependsOnGroup(mp, pexprTgt, pexpr->Pgexpr()->Pgroup()))
+		((prule->Pexprdefs()->FHasBindings() &&
+		  !pexprTgt->DeriveOutputColumns()->ContainsAll(pexpr->DeriveOutputColumns())) ||
+		 (nullptr != pexpr->Pgexpr() &&
+		  FTargetDependsOnGroup(mp, pexprTgt, pexpr->Pgexpr()->Pgroup()))))
 	{
 		// This is a valid algebraic result but not a legal Cascades insertion
-		// from the current binding: one of its reused subtrees is an ancestor of
-		// the source group. Another acyclic binding may still apply the same rule.
+		// if an exact expression binding loses source-group outputs (including
+		// Project pass-through columns), or reuses an ancestor of that group.
+		// ponytail: legacy compatibility views retain their existing schema
+		// contract until migrated to exact bindings. RBO checks its whole tree.
 		TraceDSLRule(mp, ulRuleId, EdsltraceInstantiateRejected, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 					 ulConstraintUs, ulInstantiateUs, pdecision);

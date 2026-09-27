@@ -1,0 +1,41 @@
+{
+  "description": "Join 展开必须保留显式引用的系统列，未匹配侧 ctid 仍为 NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ],
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+    ],
+    "policy": "isolate_expand_leftjoin.policy",
+    "output": [
+      "1,1,t,t",
+      "3000,,t,f"
+    ],
+    "postgres_output": [
+      "1,1,t,t",
+      "3000,,t,f"
+    ],
+    "off_output": [
+      "1,1,t,t",
+      "3000,,t,f"
+    ]
+  }
+}
