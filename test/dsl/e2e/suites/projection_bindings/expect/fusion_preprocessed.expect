@@ -1,0 +1,66 @@
+{
+  "description": "纯列嵌套已在进入 DSL 前消去；结果正确但不计作 DSL 触发或替代覆盖",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      ",12",
+      ",12",
+      "101,10",
+      "101,11",
+      "102,",
+      "102,13"
+    ],
+    "postgres_output": [
+      ",12",
+      ",12",
+      "101,10",
+      "101,11",
+      "102,",
+      "102,13"
+    ],
+    "off_output": [
+      ",12",
+      ",12",
+      "101,10",
+      "101,11",
+      "102,",
+      "102,13"
+    ]
+  }
+}
