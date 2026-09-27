@@ -1,0 +1,2 @@
+# Native Compute column-alias fusion, proved over an opaque Input.
+Compute<Item(Column(a1),a2,Item()) a5 s1>(Compute<Item(Column(a0),a1,Item()) a4 s0>(Input<t0>))|Compute<Item(Column(a0),a1,Item(Column(a0),a2,Item())) a6 s3>(Input<t1>)|t1 := t0;AttrsUnion(a6,a0,a0);SchemaUnion(s3,s0,a2)
