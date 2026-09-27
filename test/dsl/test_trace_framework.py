@@ -280,6 +280,19 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             run_e2e_sql(args, "SELECT 1", error_sqlstate=".*")
 
+    def test_e2e_copy_preserves_trailing_null_rows(self) -> None:
+        args = SimpleNamespace(psql="psql", host="socket", port="1",
+                               policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for output, rows in (("", []), ("\n", [""]), ("\n\n", ["", ""]),
+                             ("1\n\n", ["1", ""]), ('""\n', ['""'])):
+            with self.subTest(output=output), patch(
+                "run_e2e_cases.subprocess.run",
+                return_value=SimpleNamespace(returncode=0, stdout=output),
+            ):
+                result = actual_rows(args, "SELECT NULL", {"off_output": rows})
+                for state in ("output", "postgres_output", "off_output"):
+                    self.assertEqual(rows, result[state])
+
     def test_e2e_rejects_assertion_hidden_by_planner_fallback(self) -> None:
         args = SimpleNamespace(psql="psql", host="socket", port="1")
         with patch("run_e2e_cases.subprocess.run", return_value=SimpleNamespace(

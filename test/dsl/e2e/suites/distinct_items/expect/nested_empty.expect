@@ -1,0 +1,62 @@
+{
+  "description": "双层 DISTINCT 消去不改变空输入",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"decc60701db0baa0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Agg"
+        ],
+        "forbidden_origins": [
+          "CXformCollapseGbAgg"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "policy": "construct.policy",
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

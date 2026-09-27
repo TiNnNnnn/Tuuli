@@ -1,0 +1,39 @@
+{
+  "description": "内层计算 COUNT 的聚合不是纯 DISTINCT，不能应用去重消去规则",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\"",
+        "Xform: CXformCollapseGbAgg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ]
+  }
+}
