@@ -3331,9 +3331,15 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 	CDSLInstantiator materializer(m_mp);
 	for (ULONG ul = 0; ul < ulCon; ul++)
 	{
-		if (!FCheckOne(prule, (*pdrgpcon)[ul], pmodel) ||
-			!materializer.FMaterializeConstraintOutputs(
-				prule, (*pdrgpcon)[ul], pmodel))
+		const CDSLConstraint *constraint = (*pdrgpcon)[ul];
+		// Resolve pure metadata inputs before checking, outputs afterwards.
+		// In particular, OutputAttrs checks the logical source schema before
+		// construction narrows an unbound target to ORCA's live columns.
+		const BOOL columns = prule->Pexprdefs()->FHasBindings() &&
+			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon());
+		if ((columns && !materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, true)) ||
+			!FCheckOne(prule, constraint, pmodel) ||
+			!materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, false))
 		{
 			if (nullptr != ppconFailed)
 			{

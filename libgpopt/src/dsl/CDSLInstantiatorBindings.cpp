@@ -29,12 +29,17 @@
 using namespace gpopt;
 
 BOOL
-CDSLInstantiator::FMaterializeConstraintOutputs(
-	const CDSLRule *prule, const CDSLConstraint *pcon, CDSLModel *pmodel)
+CDSLInstantiator::FMaterializeConstraintBindings(
+	const CDSLRule *prule, const CDSLConstraint *pcon, CDSLModel *pmodel,
+	BOOL inputs_only)
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pcon);
 	GPOS_ASSERT(nullptr != pmodel);
+	if (inputs_only && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
+	{
+		return false;
+	}
 	if (nullptr == m_prule)
 	{
 		m_prule = prule;
@@ -173,6 +178,7 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 
 	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
 	{
+		if (inputs_only && 0 == ul) continue;
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
 		if (EdslconAttrsIntersect == pcon->Edslcon() && 0 == ul)
@@ -180,6 +186,13 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 			esymkind = (*pdrgpsym)[0]->Esymkind();
 		}
 		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		// A column derivation can consume another derivation or a typed
+		// reference. Publish those resolved inputs for the independent checker,
+		// not merely the output; never replace an existing source capture.
+		if (inputs_only && EdslsideTarget == psym->Eside())
+		{
+			esymkind = psym->Esymkind();
+		}
 		if (EdslsymSentinel == esymkind && EdslsideTarget == psym->Eside() &&
 			(EdslsymAttrs == psym->Esymkind() ||
 			 EdslsymSchema == psym->Esymkind()) &&
@@ -215,6 +228,12 @@ CDSLInstantiator::FMaterializeConstraintOutputs(
 		BOOL fOwned = false;
 		switch (esymkind)
 		{
+			case EdslsymTable:
+				pval = pmodel->PexprTable(PsymResolve(psym));
+				break;
+			case EdslsymFunc:
+				pval = pmodel->PdrgpexprFunc(PsymResolve(psym));
+				break;
 			case EdslsymPred:
 				pval = PexprResolvePredicate(psym, pmodel);
 				fOwned = true;
