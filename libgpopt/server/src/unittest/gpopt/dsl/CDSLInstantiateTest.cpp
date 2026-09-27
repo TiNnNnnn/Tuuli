@@ -326,15 +326,26 @@ EresComputeColumnDerivations()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+enum class ComputeAliasValue { Column, Call, And, Or };
+
 static GPOS_RESULT
-EresComputeAliasFusionVariant(BOOL call)
+EresComputeAliasFusionVariant(ComputeAliasValue kind)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
+	const BOOL call = ComputeAliasValue::Call == kind;
+	const BOOL junction = ComputeAliasValue::And == kind || ComputeAliasValue::Or == kind;
 	// Same native Compute rule as the FormalSQL public-DSL proof regression.
-	const std::string source_value = call ? "Call(h0,Args(Column(a1),Args(Column(a1),Args())))" : "Column(a1)";
-	const std::string target_value = call ? "Call(h0,Args(Column(a0),Args(Column(a0),Args())))" : "Column(a0)";
+	auto template_value = [&](const CHAR *column) -> std::string {
+		const std::string value = "Column(" + std::string(column) + ")";
+		if (call) return "Call(h0,Args(" + value + ",Args(" + value + ",Args())))";
+		if (junction) return "BoolValue(" + std::string(ComputeAliasValue::And == kind ? "And" : "Or") +
+			"(ValueBool(" + value + "),Not(ValueBool(" + value + "))))";
+		return value;
+	};
+	const std::string source_value = template_value("a1");
+	const std::string target_value = template_value("a0");
 	CDSLRule *rule = PdslruleParseLocal(mp, (
 		"Compute<Item(" + source_value + ",a2,Item()) a5 s1>("
 		"Compute<Item(Column(a0),a1,Item()) a4 s0>(Input<t0>))|"
@@ -342,6 +353,11 @@ EresComputeAliasFusionVariant(BOOL call)
 		"t1 := t0;AttrsUnion(a6,a0,a0);SchemaUnion(s3,s0,a2)").c_str());
 	if (nullptr == rule) return GPOS_FAILED;
 	auto value = [&](CColRef *column) -> CExpression * {
+		if (junction) return GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, ComputeAliasValue::And == kind ? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr),
+			CUtils::PexprScalarIdent(mp, column),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot),
+				CUtils::PexprScalarIdent(mp, column)));
 		if (!call) return CUtils::PexprScalarIdent(mp, column);
 		IMDId *type = fix.Pmda()->PtMDType<IMDTypeBool>()->MDId();
 		type->AddRef();
@@ -354,9 +370,20 @@ EresComputeAliasFusionVariant(BOOL call)
 	for (ULONG trial = 0; trial < 3; ++trial)
 	{
 		CColRefArray *inputs = nullptr;
-		CExpression *input = fix.PexprLogicalGet("compute_alias_fusion", 0 == trial ? 1 : 3, &inputs);
-		CColRef *lowerOutput = fix.PcrCreateInt4("lower");
-		CColRef *upperOutput = call ? COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		CExpression *input = nullptr;
+		if (junction)
+		{
+			inputs = GPOS_NEW(mp) CColRefArray(mp);
+			for (ULONG col = 0; col < (0 == trial ? 1UL : 3UL); ++col)
+				inputs->Append(COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier));
+			input = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, inputs, GPOS_NEW(mp) IDatum2dArray(mp)));
+		}
+		else input = fix.PexprLogicalGet("compute_alias_fusion", 0 == trial ? 1 : 3, &inputs);
+		CColRef *lowerOutput = junction ? COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier) : fix.PcrCreateInt4("lower");
+		CColRef *upperOutput = call || junction ? COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
 			fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier) : fix.PcrCreateInt4("upper");
 		input->AddRef();
 		CExpression *lower = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
@@ -397,8 +424,10 @@ EresComputeAliasFusionVariant(BOOL call)
 static GPOS_RESULT
 EresComputeAliasFusion()
 {
-	return GPOS_OK == EresComputeAliasFusionVariant(false) &&
-		GPOS_OK == EresComputeAliasFusionVariant(true) ? GPOS_OK : GPOS_FAILED;
+	for (ComputeAliasValue kind : {ComputeAliasValue::Column, ComputeAliasValue::Call,
+		ComputeAliasValue::And, ComputeAliasValue::Or})
+		if (GPOS_OK != EresComputeAliasFusionVariant(kind)) return GPOS_FAILED;
+	return GPOS_OK;
 }
 
 static GPOS_RESULT
