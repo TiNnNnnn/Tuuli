@@ -1,3 +1,9 @@
 # FormalSQL OUTCOME_EQ: a constructor regression, not a new optimization benefit.
 # Keep the typed comparison explicit on both sides and preserve ordered column captures.
 Filter<NullSafeEq(a2,a3) a0>(Input<t0>)|Filter<Not(Not(NullSafeEq(a8,a9))) a1>(Input<t1>)|Eq(t1,t0);Eq(a1,a0);a8 := a2;a9 := a3
+# Compare retains its total binary head, but its ordered arguments may fail.
+# These are construction probes, not new optimization laws.
+# FormalSQL OUTCOME_EQ: 6eb9909f1e36caa35a53fec6706735b58ec244051d68662be1ef2c801a8b44de
+Filter<Compare(c0,Args(Case(p0,n0,n1),v0)) a0>(Input<t0>)|Filter<Compare(c0,Args(Case(Not(Not(p0)),n0,n1),v0)) a1>(Input<t1>)|t1 := t0;a1 := a0
+# FormalSQL OUTCOME_EQ: b5dd1002ea5baa8d3a86f5c38715370db78a6ea472f616d8d03b0f80679b4619
+Proj<a0 s0 Item(BoolValue(Compare(c0,Args(Case(p0,n0,n1),v0))),a2,e0)>(Input<t0>)|Proj<a1 s1 Item(BoolValue(Compare(c0,Args(Case(Not(Not(p0)),n0,n1),v0))),a2,e0)>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0

@@ -1,0 +1,3 @@
+SELECT i, j, k FROM comparison_input
+WHERE (CASE WHEN i = 1 AND j = 1 THEN k ELSE j END) = 2
+ORDER BY i NULLS FIRST, j NULLS FIRST, k NULLS FIRST;

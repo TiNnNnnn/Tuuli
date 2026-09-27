@@ -1,0 +1,67 @@
+{
+  "description": "Compare 参数中的 CASE 保持 NULL、重复行和条件组合",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9a7ad9b233c114a6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",2,2",
+      "1,1,2",
+      "1,2,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "postgres_output": [
+      ",2,2",
+      "1,1,2",
+      "1,2,1",
+      "2,2,2",
+      "2,2,2"
+    ],
+    "off_output": [
+      ",2,2",
+      "1,1,2",
+      "1,2,1",
+      "2,2,2",
+      "2,2,2"
+    ]
+  }
+}
