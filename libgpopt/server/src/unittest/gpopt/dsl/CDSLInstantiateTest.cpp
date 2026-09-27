@@ -271,16 +271,28 @@ EresComputeColumnDerivations()
 	BOOL ok = true;
 	// Construction only, not an installed/proved law. Incorrect dependencies
 	// and output layouts must still fail at the shared builder boundary.
-	for (ULONG trial = 0; trial < 3; ++trial)
+	const struct { const CHAR *constraints; BOOL ready; } cases[] = {
+		{"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,a3)", true},
+		{"t1 := t0;AttrsUnion(a2,a0,a0);SchemaUnion(s2,s1,a3)", false},
+		{"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,a4)", false},
+		{"t1 := t0;AttrsUnion(a2,a5,a1);SchemaUnion(s2,s1,a3);a5 := a0", true},
+		{"t1 := t0;SchemaFromAttrs(s2,a6);AttrsUnion(a6,a4,a3);AttrsUnion(a2,a0,a1)", true},
+		{"t1 := t0;AttrsUnion(a2,a0,a1);AttrsUnion(a6,a4,a3);SchemaFromAttrs(s2,a6)", true},
+		{"t1 := t0;SchemaFromAttrs(s2,a6);AttrsUnion(a6,a4,a3);AttrsUnion(a2,a0,a1);"
+		 "SchemaUnion(s1,s0,a4)", false},
+		{"t1 := t0;OutputAttrs(a2,t1);SchemaUnion(s2,s1,a3)", true},
+	};
+	for (ULONG trial = 0; trial < GPOS_ARRAY_SIZE(cases); ++trial)
 	{
-		const std::string constraints = 0 == trial ?
-			"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,a3)" :
-			1 == trial ? "t1 := t0;AttrsUnion(a2,a0,a0);SchemaUnion(s2,s1,a3)" :
-			"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,a4)";
-		CDSLRule *rule = PdslruleParseLocal(mp, (sourceText + targetText + constraints).c_str());
-		if (nullptr == rule) return GPOS_FAILED;
+		CDSLRule *rule = PdslruleParseLocal(mp, (sourceText + targetText + cases[trial].constraints).c_str());
+		if (nullptr == rule)
+		{
+			GPOS_TRACE_FORMAT("Compute derivation parse failed trial=%lu", trial);
+			return GPOS_FAILED;
+		}
 		CColRefArray *inputs = nullptr;
 		CExpression *input = fix.PexprLogicalGet("compute_columns", 2, &inputs);
+		for (ULONG i = 0; i < inputs->Size(); ++i) (*inputs)[i]->MarkAsUsed();
 		CColRef *lowerOutput = fix.PcrCreateInt4("lower");
 		CColRef *upperOutput = fix.PcrCreateInt4("upper");
 		input->AddRef();
@@ -294,8 +306,11 @@ EresComputeColumnDerivations()
 				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, upperOutput),
 					CUtils::PexprScalarIdent(mp, (*inputs)[1]))));
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
-		ok &= (EdsldecisionReady == decision->Status()) == (0 == trial);
-		if (0 == trial && EdsldecisionReady == decision->Status())
+		const BOOL ready = EdsldecisionReady == decision->Status();
+		if (ready != cases[trial].ready)
+			GPOS_TRACE_FORMAT("Compute derivation trial=%lu status=%d", trial, decision->Status());
+		ok &= ready == cases[trial].ready;
+		if (cases[trial].ready && ready)
 		{
 			CExpression *target = decision->PexprTarget();
 			ok &= COperator::EopLogicalProject == target->Pop()->Eopid() &&
@@ -303,6 +318,7 @@ EresComputeColumnDerivations()
 				(*(*target)[1])[0]->Matches((*(*lower)[1])[0]) &&
 				(*(*target)[1])[1]->Matches((*(*source)[1])[0]) &&
 				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+			if (!ok) GPOS_TRACE_FORMAT("Compute derivation target failed trial=%lu", trial);
 		}
 		GPOS_DELETE(decision);
 		source->Release(); lower->Release(); input->Release(); rule->Release();

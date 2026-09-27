@@ -347,12 +347,11 @@ public:
 										 const CDSLSymbol *psym,
 										 const CDSLModel *pmodel);
 
-	// Evaluate every constructive output of one already-validated constraint and
-	// bind it into the match model. This gives constraint checking and target
-	// construction one implementation of restricted LET chains.
-	BOOL FMaterializeConstraintOutputs(const CDSLRule *prule,
+	// Resolve column inputs before checking, or constructive outputs after
+	// checking. Both phases reuse target construction's restricted LET resolver.
+	BOOL FMaterializeConstraintBindings(const CDSLRule *prule,
 									 const CDSLConstraint *pcon,
-									 CDSLModel *pmodel);
+									 CDSLModel *pmodel, BOOL inputs_only);
 
 	// build the rule's target expression; NULL if instantiation is not possible
 	// (missing binding, unsupported operator). Caller owns the returned ref.

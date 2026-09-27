@@ -304,6 +304,7 @@ EresExpressionBindings()
 		"AttrsUnion(a1,a0,a3);AttrsUnion(a1,a3,a0);a5 := a3",
 		"a1 := a0;AttrsUnion(a1,a0,a3);a5 := a3",
 		"a1 := a0;Eq(a5,a1)", "a1 := a0;AttrsSub(a5,a0)",
+		"a1 := a0;AttrsUnion(a5,a6,a3);AttrsUnion(a6,a5,a3)",
 		"a1 := a0;ErrorFree(a5)", "a1 := a0;AttrsNonEmpty(a5)"})
 	{
 		CDSLRule *rule = Parse(mp, (projection + "s1 := s0;" + clauses).c_str());

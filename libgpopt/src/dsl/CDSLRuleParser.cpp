@@ -346,6 +346,26 @@ PdrgpconBuild(SBuildCtx &bctx,
 	{
 		return pdrgpcon;  // constraints are optional
 	}
+	// Column definitions and typed bindings form one dependency graph. Declare
+	// fixed-type outputs first; FBuildBindings later rejects cycles/free inputs.
+	// Keep legacy expression decomposition on its existing parsing path.
+	if (!cons_ctx->binding().empty())
+	{
+		for (auto *con : cons_ctx->constraint())
+		{
+			const auto kind = CDSLConstraintKindTable::Parse(con->ID()->getText().c_str());
+			const auto symbols = con->SYMBOL();
+			if (!CDSLConstraintKindTable::FColumnDerivation(kind) ||
+				symbols.size() != CDSLConstraintKindTable::UlArity(kind)) continue;
+			const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, 0);
+			const std::string name = symbols[0]->getText();
+			if (EdslsymSentinel == type || bctx.symtab.count(name)) continue;
+			CDSLSymbol *symbol = GPOS_NEW(mp) CDSLSymbol(mp, type, name.c_str(),
+				bctx.next_id++, EdslsideTarget);
+			pdrgpsymTarget->Append(symbol);
+			bctx.symtab.emplace(name, symbol);
+		}
+	}
 
 	for (auto *con_ctx : cons_ctx->constraint())
 	{
@@ -999,10 +1019,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	{
 		const CDSLConstraint *con = (*constraints)[i];
 		const auto kind = con->Edslcon();
-		if (EdslconAttrsEmpty == kind || EdslconAttrsUnion == kind ||
-			EdslconSchemaUnion == kind || EdslconAttrsIntersect == kind ||
-			EdslconOutputAttrs == kind || EdslconSchemaFromAttrs == kind ||
-			EdslconFuncAttrs == kind)
+		if (CDSLConstraintKindTable::FColumnDerivation(kind))
 		{
 			columnChecks.push_back(con);
 			continue;

@@ -368,6 +368,9 @@ public:
 
 	// Whether CDSLConstraintChecker implements this constraint kind.
 	static BOOL FCheckerSupported(EDslConstraintKind edslcon);
+
+	// Pure column metadata supported alongside oriented expression bindings.
+	static BOOL FColumnDerivation(EDslConstraintKind edslcon);
 };
 }  // namespace gpopt
 

@@ -16,6 +16,15 @@
 
 using namespace gpopt;
 
+BOOL
+CDSLConstraintKindTable::FColumnDerivation(EDslConstraintKind kind)
+{
+	return EdslconAttrsEmpty == kind || EdslconAttrsUnion == kind ||
+		EdslconSchemaUnion == kind || EdslconAttrsIntersect == kind ||
+		EdslconOutputAttrs == kind || EdslconSchemaFromAttrs == kind ||
+		EdslconFuncAttrs == kind;
+}
+
 namespace
 {
 // Per-operator descriptor. Order MUST match EDslOpKind.
