@@ -278,6 +278,43 @@ EresExpressionBindings()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
+	const std::string projection =
+		"Proj<a0 s0 Item(Column(a3),a4,Item())>(Input<t0>)|"
+		"Proj<a1 s1 Item(Column(a5),a4,Item())>(Input<t1>)|t1 := t0;";
+	for (const CHAR *clauses : {
+		"a1 := a6;a6 := a0;AttrsUnion(a5,a1,a3);SchemaFromAttrs(s1,a5)",
+		"SchemaFromAttrs(s1,a5);AttrsUnion(a5,a1,a3);a6 := a0;a1 := a6",
+		"a1 := a0;a5 := a3;s1 := s0;AttrsUnion(a0,a3,a4)",
+		"AttrsUnion(a1,a0,a3);AttrsUnion(a1,a0,a4);AttrsEq(a1,a0);a5 := a3;s1 := s0",
+		"AttrsEmpty(a1);a5 := a3;SchemaUnion(s1,s0,a4)",
+		"OutputAttrs(a1,t0);AttrsIntersect(a5,a3,t0);SchemaFromAttrs(s1,a1)"})
+	{
+		CDSLRule *rule = Parse(mp, (projection + clauses).c_str());
+		if (nullptr == rule)
+		{
+			GPOS_TRACE_FORMAT("Rejected column binding: %s", clauses);
+			return GPOS_FAILED;
+		}
+		rule->Release();
+	}
+	for (const CHAR *clauses : {
+		"AttrsUnion(a1,a5,a0);AttrsUnion(a5,a1,a3)",
+		"a1 := a5;AttrsUnion(a5,a1,a3)",
+		"a1 := a0;a5 := a9;AttrsUnion(a9,a9,a0)",
+		"AttrsUnion(a1,a0,a3);AttrsUnion(a1,a3,a0);a5 := a3",
+		"a1 := a0;AttrsUnion(a1,a0,a3);a5 := a3",
+		"a1 := a0;Eq(a5,a1)", "a1 := a0;AttrsSub(a5,a0)",
+		"a1 := a0;ErrorFree(a5)", "a1 := a0;AttrsNonEmpty(a5)"})
+	{
+		CDSLRule *rule = Parse(mp, (projection + "s1 := s0;" + clauses).c_str());
+		const BOOL rejected = nullptr == rule;
+		CRefCount::SafeRelease(rule);
+		if (!rejected)
+		{
+			GPOS_TRACE_FORMAT("Accepted invalid column binding: %s", clauses);
+			return GPOS_FAILED;
+		}
+	}
 	const std::string tree =
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";

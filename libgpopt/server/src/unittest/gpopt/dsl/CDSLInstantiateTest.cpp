@@ -260,6 +260,57 @@ EresColumnAliases()
 }
 
 static GPOS_RESULT
+EresComputeColumnDerivations()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string sourceText = "Compute<Item(n0,a3,Item()) a0 s0>("
+		"Compute<Item(n1,a4,Item()) a1 s1>(Input<t0>))|";
+	const std::string targetText = "Compute<Item(n1,a4,Item(n0,a3,Item())) a2 s2>(Input<t1>)|";
+	BOOL ok = true;
+	// Construction only, not an installed/proved law. Incorrect dependencies
+	// and output layouts must still fail at the shared builder boundary.
+	for (ULONG trial = 0; trial < 3; ++trial)
+	{
+		const std::string constraints = 0 == trial ?
+			"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,a3)" :
+			1 == trial ? "t1 := t0;AttrsUnion(a2,a0,a0);SchemaUnion(s2,s1,a3)" :
+			"t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,a4)";
+		CDSLRule *rule = PdslruleParseLocal(mp, (sourceText + targetText + constraints).c_str());
+		if (nullptr == rule) return GPOS_FAILED;
+		CColRefArray *inputs = nullptr;
+		CExpression *input = fix.PexprLogicalGet("compute_columns", 2, &inputs);
+		CColRef *lowerOutput = fix.PcrCreateInt4("lower");
+		CColRef *upperOutput = fix.PcrCreateInt4("upper");
+		input->AddRef();
+		CExpression *lower = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, lowerOutput),
+					CUtils::PexprScalarIdent(mp, (*inputs)[0]))));
+		lower->AddRef();
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), lower,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, upperOutput),
+					CUtils::PexprScalarIdent(mp, (*inputs)[1]))));
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		ok &= (EdsldecisionReady == decision->Status()) == (0 == trial);
+		if (0 == trial && EdsldecisionReady == decision->Status())
+		{
+			CExpression *target = decision->PexprTarget();
+			ok &= COperator::EopLogicalProject == target->Pop()->Eopid() &&
+				(*target)[0]->Matches(input) && 2 == (*target)[1]->Arity() &&
+				(*(*target)[1])[0]->Matches((*(*lower)[1])[0]) &&
+				(*(*target)[1])[1]->Matches((*(*source)[1])[0]) &&
+				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+		}
+		GPOS_DELETE(decision);
+		source->Release(); lower->Release(); input->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresColumnProjectionFusion()
 {
 	CAutoMemoryPool amp;
@@ -340,6 +391,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresColumnValues),
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
+		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ExistsExpressionBindings),
