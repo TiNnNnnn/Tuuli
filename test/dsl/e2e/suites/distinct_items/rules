@@ -7,3 +7,6 @@ Proj*<a0 s0 Item(Call(h0,Args(Case(p0,n0,n1),v0)),a2,e0)>(Filter<p2 a3>(Input<t0
 # Retain the inner SELECT list, including errors and its arbitrary tail.
 # FormalSQL OUTCOME_EQ: f3fc8f27163e9a1882005e162f446da3101dd2fa60a1ddf6e2b6388be4ff3af7
 Proj*<a0 s0 Item(Column(a2),a2,Item())>(Proj*<a1 s1 Item(n0,a2,e0)>(Input<t0>))|Proj*<a3 s2 Item(Column(a2),a2,Item())>(Proj<a4 s3 Item(n0,a2,e0)>(Input<t1>))|t1 := t0;a3 := a0;s2 := s0;a4 := a1;s3 := s1
+# Same support transport with two selected columns and three captured values.
+# FormalSQL OUTCOME_EQ: 3e1ce9447cb960dfbf164d14893c47168757b799b50decc515f2eb7833de2e90
+Proj*<a0 s0 Item(Column(a2),a2,Item(Column(a5),a5,Item()))>(Proj*<a1 s1 Item(n0,a2,Item(n1,a5,Item(n2,a6,e0)))>(Input<t0>))|Proj*<a3 s2 Item(Column(a2),a2,Item(Column(a5),a5,Item()))>(Proj<a4 s3 Item(n0,a2,Item(n1,a5,Item(n2,a6,e0)))>(Input<t1>))|t1 := t0;a3 := a0;s2 := s0;a4 := a1;s3 := s1
