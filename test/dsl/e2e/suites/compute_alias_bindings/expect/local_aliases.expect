@@ -1,0 +1,67 @@
+{
+  "description": "本地列别名复用列标识；结果相同不代表原生 Compute 合并触发",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres",
+        "CLogicalProject"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      ",",
+      "0,0",
+      "1,1",
+      "2,2",
+      "2,2",
+      "3,3"
+    ],
+    "postgres_output": [
+      ",",
+      "0,0",
+      "1,1",
+      "2,2",
+      "2,2",
+      "3,3"
+    ],
+    "off_output": [
+      ",",
+      "0,0",
+      "1,1",
+      "2,2",
+      "2,2",
+      "3,3"
+    ]
+  }
+}
