@@ -259,6 +259,76 @@ EresColumnAliases()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresColumnProjectionFusion()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string inner = "Item(Column(a2),a2,Item(Column(a6),a6,Item()))";
+	const std::string values = "Item(n0,a2,Item(n1,a6,Item()))";
+	BOOL ok = true;
+	for (ULONG trial = 0; trial < 4; ++trial)
+	{
+		const std::string outer = 0 == trial ? "Item(Column(a2),a2,Item())" :
+			"Item(Column(a6),a6,Item(Column(a2),a2,Item()))";
+		const std::string text = "Proj<a0 s0 " + outer + ">(Proj<a1 s1 " + inner +
+			">(Proj<a3 s2 " + values + ">(Input<t0>)))|Proj<a4 s3 " + outer +
+			">(Proj<a5 s4 " + values + ">(Input<t1>))|"
+			"t1 := t0;a4 := a0;s3 := s0;a5 := a3;s4 := s2";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		if (nullptr == rule) return GPOS_FAILED;
+		CColRefArray *inputs = nullptr;
+		CExpression *input = fix.PexprLogicalGet("column_fusion", 2, &inputs);
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		CExpressionArray *definitions = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < 2; ++i)
+		{
+			CColRef *output = fix.PcrCreateInt4("defined");
+			columns->Append(output);
+			definitions->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, output),
+				CUtils::PexprScalarIdent(mp, (*inputs)[i])));
+		}
+		input->AddRef();
+		CExpression *bottom = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), definitions));
+		CExpression *middle = fix.PexprLogicalProject(bottom, columns);
+		// A renamed or computed middle item is not a pure identity selection.
+		if (2 <= trial)
+		{
+			middle->Release();
+			CColRef *output = 2 == trial ? fix.PcrCreateInt4("renamed") : (*columns)[0];
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			items->Append(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, output),
+				2 == trial ? CUtils::PexprScalarIdent(mp, (*columns)[0]) : CUtils::PexprScalarConstInt4(mp, 7)));
+			items->Append(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, (*columns)[1]),
+				CUtils::PexprScalarIdent(mp, (*columns)[1])));
+			bottom->AddRef();
+			middle = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), bottom,
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		}
+		CColRefArray *selected = GPOS_NEW(mp) CColRefArray(mp);
+		if (0 != trial) selected->Append((*columns)[1]);
+		selected->Append((*columns)[0]);
+		CExpression *source = fix.PexprLogicalProject(middle, selected);
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		ok &= (EdsldecisionReady == decision->Status()) == (trial < 2);
+		if (trial < 2)
+		{
+			CExpression *target = decision->PexprTarget();
+			ok &= nullptr != target && COperator::EopLogicalProject == target->Pop()->Eopid() &&
+				(*target)[0]->Matches(bottom) && 0 == (*target)[1]->Arity() &&
+				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+		}
+		GPOS_DELETE(decision);
+		source->Release(); selected->Release(); middle->Release(); bottom->Release(); input->Release();
+		columns->Release();
+		rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiateTest::EresUnittest
@@ -269,6 +339,7 @@ CDSLInstantiateTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresColumnValues),
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
+		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_ExistsExpressionBindings),

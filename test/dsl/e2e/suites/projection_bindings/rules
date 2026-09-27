@@ -1,2 +1,5 @@
 # Construction regression certified by FormalSQL OUTCOME_EQ; not a mined optimization.
 Proj<a0 s0>(Filter<p0 a1>(Input<t0>))|Proj<a2 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|Eq(t1,t0);Eq(a2,a0);Eq(s1,s0);Eq(a3,a1)
+# Pure-column fusion; the computed child is retained. Checked through the public API.
+# FormalSQL OUTCOME_EQ: 724fd8db44e3cb531186d0d72ec31a8a50df95db1942702a08885247b830ce1d
+Proj<a0 s0 Item(Column(a6),a6,Item(Column(a2),a2,Item()))>(Proj<a1 s1 Item(Column(a2),a2,Item(Column(a6),a6,Item()))>(Proj<a3 s2 Item(n0,a2,Item(n1,a6,Item()))>(Input<t0>)))|Proj<a4 s3 Item(Column(a6),a6,Item(Column(a2),a2,Item()))>(Proj<a5 s4 Item(n0,a2,Item(n1,a6,Item()))>(Input<t1>))|t1 := t0;a4 := a0;s3 := s0;a5 := a3;s4 := s2
