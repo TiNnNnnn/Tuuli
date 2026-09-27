@@ -1,0 +1,56 @@
+{
+  "description": "Compare 的总比较头不意味着参数无错误；选择分支的除零保留",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9a7ad9b233c114a6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Select"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

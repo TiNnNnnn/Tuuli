@@ -1,0 +1,55 @@
+{
+  "description": "Compare 参数保留 CASE 惰性，未选择的除零分支不得执行",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b172d6f07dcad33e\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "t"
+    ],
+    "postgres_output": [
+      "t"
+    ],
+    "off_output": [
+      "t"
+    ]
+  }
+}

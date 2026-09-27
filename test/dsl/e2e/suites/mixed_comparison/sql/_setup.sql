@@ -7,3 +7,6 @@ ANALYZE comparison_input;
 CREATE TABLE comparison_error(i int, j int);
 INSERT INTO comparison_error VALUES (0,0);
 ANALYZE comparison_error;
+CREATE FUNCTION comparison_fallible(int, int) RETURNS bool IMMUTABLE STRICT LANGUAGE plpgsql AS
+$$ BEGIN RETURN (10 / $1) = $2; END $$;
+CREATE OPERATOR #=# (LEFTARG = int, RIGHTARG = int, FUNCTION = comparison_fallible);
