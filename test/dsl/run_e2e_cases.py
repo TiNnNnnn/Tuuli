@@ -116,7 +116,9 @@ def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False,
         raise RuntimeError(f"Expected SQLSTATE {error_sqlstate}, got:\n{process.stdout}")
     if process.returncode != 0 or "Failed assertion:" in process.stdout:
         raise RuntimeError(process.stdout.rstrip())
-    return process.stdout.rstrip("\n")
+    # COPY CSV represents a single-column NULL row as a bare newline. Keep
+    # every row terminator until splitlines(), including trailing NULL rows.
+    return process.stdout if tuples_only else process.stdout.rstrip("\n")
 
 
 def native_setting(enabled: bool) -> str:

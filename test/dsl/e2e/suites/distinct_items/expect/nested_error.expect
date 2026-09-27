@@ -1,0 +1,69 @@
+{
+  "description": "删除内层去重不能删除其 SELECT 表达式的除零错误",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "dsl": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseGbAgg"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"decc60701db0baa0\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseGbAgg"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Agg"
+        ],
+        "forbidden_origins": [
+          "CXformCollapseGbAgg"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseGbAgg"
+    ],
+    "policy": "construct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
