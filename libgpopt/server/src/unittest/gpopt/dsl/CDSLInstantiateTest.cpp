@@ -38,11 +38,16 @@
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarSubqueryNotExists.h"
+#include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryAll.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
@@ -105,6 +110,97 @@ BuildSelectOverAtoms(CDSLTestFixture &fix, ULONG ulCols, ULONG ulAtoms,
 	*ppGet = pexprGet;
 	*ppSelect = pexprSelect;
 	*ppdrgpcrOut = pdrgpcrOut;
+}
+
+static GPOS_RESULT
+EresTypedQuantifiedDistinct()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL all : {false, true})
+	for (BOOL nested : {false, true})
+	for (ULONG carrier = 0; carrier < 4; ++carrier)
+	{
+		const std::string name = all ? "All" : "Any";
+		std::string source_text = name + "<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))";
+		std::string target_text = name + "<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))";
+		std::string bindings = "AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+			"p1 := p0;a2 := a0;a3 := a1;s1 := s0";
+		if (nested)
+		{
+			source_text = "Filter<p2 a4>(" + source_text + ")";
+			target_text = "Filter<p3 a5>(" + target_text + ")";
+			bindings += ";p3 := p2;a5 := a4";
+		}
+		CDSLRule *rule = PdslruleParseLocal(mp, (source_text + "|" + target_text + "|" + bindings).c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("quant_left", 1, &lc);
+		CExpression *right = fix.PexprLogicalGet("quant_right", 1, &rc);
+		CExpression *dedup = fix.PexprLogicalGbAgg(right, rc);
+		CExpression *cmp = CUtils::PexprScalarCmp(mp,
+			CUtils::PexprScalarIdent(mp, (*lc)[0]), CUtils::PexprScalarIdent(mp, (*rc)[0]),
+			all && 1 == carrier ? IMDType::EcmptNEq : IMDType::EcmptEq);
+		CExpression *source = nullptr;
+		if (0 == carrier)
+		{
+			auto *op = CScalarCmp::PopConvert(cmp->Pop());
+			op->MdIdOp()->AddRef();
+			auto *label = GPOS_NEW(mp) CWStringConst(mp, op->Pstr()->GetBuffer());
+			COperator *quantifier = all
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryAll(mp, op->MdIdOp(), label, (*rc)[0]))
+				: GPOS_NEW(mp) CScalarSubqueryAny(mp, op->MdIdOp(), label, (*rc)[0]);
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), left,
+				GPOS_NEW(mp) CExpression(mp, quantifier, dedup, CUtils::PexprScalarIdent(mp, (*lc)[0])));
+			cmp->Release();
+		}
+		else
+		{
+			const auto origin = 3 == carrier ? COperator::EopScalarSubqueryExists
+				: all ? COperator::EopScalarSubqueryAll : COperator::EopScalarSubqueryAny;
+			if (all)
+				source = 2 == carrier
+					? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(mp, left, dedup, (*rc)[0], origin, cmp)
+					: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(mp, left, dedup, (*rc)[0], origin, cmp);
+			else
+				source = 2 == carrier
+					? CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(mp, left, dedup, (*rc)[0], origin, cmp)
+					: CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, left, dedup, (*rc)[0], origin, cmp);
+		}
+		if (nested)
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), source, fix.PexprPredAtom((*lc)[0]));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+			CDSLConstraintChecker(mp).FCheck(rule, model);
+		CDSLInstantiator inst(mp);
+		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(rule, 0, source->Pop()->Eopid());
+		CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+		const BOOL valid = matched == (3 != carrier) &&
+			(3 == carrier || (nullptr != target && 1 == candidates->Size()));
+		if (!valid)
+			GPOS_TRACE_FORMAT("typed quantified all=%d nested=%d carrier=%lu matched=%d built=%d candidates=%lu",
+				all, nested, carrier, matched, nullptr != target, candidates->Size());
+		ok &= valid;
+		if (nullptr != target)
+		{
+			CExpression *quantifier = nested ? (*target)[0] : target;
+			const auto expected = all
+				? (2 == carrier ? COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn : COperator::EopLogicalLeftAntiSemiApplyNotIn)
+				: (2 == carrier ? COperator::EopLogicalLeftSemiCorrelatedApplyIn : COperator::EopLogicalLeftSemiApplyIn);
+			ok &= expected == quantifier->Pop()->Eopid() &&
+				COperator::EopLogicalProject == (*quantifier)[1]->Pop()->Eopid() &&
+				(*(*quantifier)[1])[0] == right && 0 == (*(*quantifier)[1])[1]->Arity() &&
+				CScalarCmp::PopConvert((*quantifier)[2]->Pop())->ParseCmpType() ==
+					(all && 2 != carrier ? IMDType::EcmptNEq : IMDType::EcmptEq);
+		}
+		candidates->Release(); CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); right->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 static GPOS_RESULT
@@ -568,6 +664,7 @@ CDSLInstantiateTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresColumnValues),
+		GPOS_UNITTEST_FUNC(EresTypedQuantifiedDistinct),
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),

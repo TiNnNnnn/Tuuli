@@ -338,13 +338,13 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return PnodeInsertOp(pnodeCurrent, (*pop)[0], false, pfComplete);
 	}
 
-	// At any depth, zero-slot EXISTS can be a scalar subquery or an exact
-	// native Apply carrier (possibly wrapping LIMIT 1). Its matcher owns this
-	// boundary; treating it as one literal operator would lose valid bindings.
-	const BOOL existentialView =
-		(EdslopExists == pop->Edslop() || EdslopNotExists == pop->Edslop()) &&
-		0 == pop->Pdrgpsym()->Size();
-	if (existentialView || (!fLiteral && !FStructurallyExact(pop)))
+	// At any depth, existential/quantified relations can be scalar subqueries
+	// or tagged native Apply carriers. Their matchers own this boundary;
+	// one literal operator would lose valid bindings (including correlated ones).
+	const BOOL subqueryView = EdslopAny == pop->Edslop() || EdslopAll == pop->Edslop() ||
+		((EdslopExists == pop->Edslop() || EdslopNotExists == pop->Edslop()) &&
+		 0 == pop->Pdrgpsym()->Size());
+	if (subqueryView || (!fLiteral && !FStructurallyExact(pop)))
 	{
 		*pfComplete = false;
 		return pnode;
