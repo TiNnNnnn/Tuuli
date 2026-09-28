@@ -24,6 +24,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -383,6 +384,80 @@ EresExplicitExistentialApply()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresTypedDistinctExistence()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL negated : {false, true})
+	for (BOOL wrapped : {false, true})
+	for (ULONG shape = 0; shape < 6; ++shape)
+	{
+		const std::string op = negated ? "NotExists" : "Exists";
+		const std::string src = op + "(Input<t0>,Proj*<a0 s0>(Input<t1>))";
+		const std::string dst = op + "(Input<t2>,Proj<a1 s1>(Input<t3>))";
+		const std::string text = (wrapped
+			? "Filter<p2 a2>(" + src + ")|Filter<p3 a3>(" + dst + ")"
+			: src + "|" + dst) + "|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0" +
+			(wrapped ? ";p3 := p2;a3 := a2" : "");
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *columns = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("typed_exists_outer", 2);
+		CExpression *input = fix.PexprLogicalGet("typed_exists_inner", 2, &columns);
+		CColRefArray *group = GPOS_NEW(mp) CColRefArray(mp);
+		group->Append((*columns)[0]);
+		CExpression *inner = fix.PexprLogicalGbAgg(input, group);
+		group->Release();
+		if (1 <= shape && shape <= 3)
+			inner = CUtils::PexprLimit(mp, inner, 3 == shape ? 1 : 0, 2 == shape ? 0 : 1);
+		const auto origin = 5 == shape ? COperator::EopScalarSubqueryAny :
+			negated ? COperator::EopScalarSubqueryNotExists : COperator::EopScalarSubqueryExists;
+		CExpression *source = negated
+			? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(mp, outer, inner, (*columns)[0], origin)
+			: CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp, outer, inner, (*columns)[0], origin);
+		if (4 == shape)
+		{
+			source->Pop()->AddRef(); outer->AddRef(); inner->AddRef();
+			CExpression *wrong = GPOS_NEW(mp) CExpression(mp, source->Pop(), outer, inner,
+				CUtils::PexprScalarConstBool(mp, false));
+			source->Release(); source = wrong;
+		}
+		if (wrapped)
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), source,
+				CUtils::PexprScalarConstBool(mp, true));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL expected = 0 == shape || (!negated && 1 == shape);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		if (expected != matched)
+			GPOS_TRACE_FORMAT("typed existential carrier negated=%d shape=%lu matched=%d", negated, shape, matched);
+		ok &= expected == matched;
+		if (matched)
+		{
+			CDSLRulePrefixIndex index(mp);
+			index.Insert(rule, 0, source->Pop()->Eopid());
+			CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+			ok &= 1 == candidates->Size();
+			candidates->Release();
+			ok &= CDSLConstraintChecker(mp).FCheck(rule, model);
+			CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+			CExpression *exists = nullptr != target && wrapped ? (*target)[0] : target;
+			const BOOL constructed = nullptr != exists && COperator::EopLogicalSelect == exists->Pop()->Eopid() &&
+				COperator::EopLogicalProject == (*(*exists)[1])[0]->Pop()->Eopid() &&
+				(*(*(*exists)[1])[0])[0] == input;
+			if (!constructed)
+				GPOS_TRACE_FORMAT("typed existential carrier negated=%d shape=%lu target=%p", negated, shape, target);
+			ok &= constructed;
+			CRefCount::SafeRelease(target);
+		}
+		model->Release(); source->Release(); input->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
@@ -391,6 +466,7 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
+		GPOS_UNITTEST_FUNC(EresTypedDistinctExistence),
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip),
 		GPOS_UNITTEST_FUNC(

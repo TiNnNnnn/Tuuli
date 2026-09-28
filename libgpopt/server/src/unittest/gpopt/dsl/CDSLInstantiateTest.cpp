@@ -2248,13 +2248,16 @@ CDSLInstantiateTest::EresUnittest_ExistsExpressionBindings()
 		GPOS_DELETE(decision);
 		bad->Release();
 		wrong->Release();
-		// An Apply is a separate semantic adapter, not an exact scalar capture.
+		// A TRUE-ON native EXISTS carrier has the same capped demand; the
+		// opposite polarity remains rejected. Preserve its complete inner tree.
 		outer->AddRef();
 		filtered->AddRef();
 		bad = CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp, outer, filtered,
 			(*cols)[0], COperator::EopScalarSubqueryExists);
 		decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, bad);
-		ok &= EdsldecisionMatchRejected == decision->Status();
+		ok &= (negated ? EdsldecisionMatchRejected : EdsldecisionReady) == decision->Status();
+		if (!negated && nullptr != decision->PexprTarget())
+			ok &= (*(*(*decision->PexprTarget())[1])[0])[0]->Matches(project);
 		GPOS_DELETE(decision);
 		bad->Release();
 		{

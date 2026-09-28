@@ -98,18 +98,18 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	// Typed bindings describe the actual scalar subquery, not a normalized
-	// conjunct or an Apply view. Keep demand-sensitive expression structure.
+	// Typed bindings preserve the scalar subquery's demand, including on the
+	// exact native existential carrier checked below. Do not split conjuncts.
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
 		if (!fNegated && 3 == ulSymbols)
 			return CDSLJoinMatcher(m_mp, m_pmatcher, rule).FMatch(pop, pexpr, pmodel);
-		return 0 == ulSymbols &&
-			COperator::EopLogicalSelect == pexpr->Pop()->Eopid() &&
-			2 == pexpr->Arity() && FDirectExistential((*pexpr)[1], fNegated) &&
-			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
-			m_pmatcher->FMatch((*pop)[1], (*(*pexpr)[1])[0], pmodel);
+		if (COperator::EopLogicalSelect == pexpr->Pop()->Eopid())
+			return 0 == ulSymbols && 2 == pexpr->Arity() &&
+				FDirectExistential((*pexpr)[1], fNegated) &&
+				m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
+				m_pmatcher->FMatch((*pop)[1], (*(*pexpr)[1])[0], pmodel);
 	}
 
 	// The predicate-bearing form is the common view of a decorrelated
