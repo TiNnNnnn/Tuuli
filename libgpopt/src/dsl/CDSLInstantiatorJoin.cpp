@@ -177,7 +177,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
 	const ULONG ulSymbols = nullptr == pdrgpsym ? 0 : pdrgpsym->Size();
-	const BOOL fSemiJoin = EdslopSemiJoin == pop->Edslop();
+	const BOOL fSemiJoin =
+		EdslopSemiJoin == pop->Edslop() || EdslopExists == pop->Edslop();
 	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
 	const BOOL fAntiJoin = EdslopAntiJoin == pop->Edslop();
 	const BOOL fAntiApply = EdslopAntiApply == pop->Edslop();
@@ -659,6 +660,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			popJoin = GPOS_NEW(m_mp) CLogicalFullOuterJoin(m_mp);
 			break;
 		case EdslopSemiJoin:
+		case EdslopExists:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp);
 			break;
 		case EdslopSemiApply:

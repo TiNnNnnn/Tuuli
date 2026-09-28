@@ -1587,12 +1587,14 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 		return GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), input);
 	};
-	const CHAR *kinds[] = {"InnerJoin", "LeftJoin", "FullJoin", "SemiJoin", "AntiJoin"};
+	const CHAR *kinds[] = {"InnerJoin", "LeftJoin", "FullJoin", "SemiJoin", "AntiJoin", "Exists"};
 	BOOL ok = true;
 	for (ULONG kind = 0; kind < GPOS_ARRAY_SIZE(kinds); kind++)
 	{
 		const std::string name(kinds[kind]);
-		const std::string text = name +
+		// Predicate-form Exists is a SemiJoin, not plain existential demand.
+		const std::string nativeName = 5 == kind ? "SemiJoin" : name;
+		const std::string text = nativeName +
 			"<Not(Not(p0)) a0 a1>(Filter<Not(Not(p1)) a2>(Input<t0>),"
 			"Filter<Not(Not(p2)) a3>(Input<t1>))|" + name +
 			"<p3 a4 a5>(Filter<p4 a6>(Input<t2>),Filter<p5 a7>(Input<t3>))|"
@@ -1611,7 +1613,8 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 				case 0: op = GPOS_NEW(mp) CLogicalInnerJoin(mp); break;
 				case 1: op = GPOS_NEW(mp) CLogicalLeftOuterJoin(mp); break;
 				case 2: op = GPOS_NEW(mp) CLogicalFullOuterJoin(mp); break;
-				case 3: op = GPOS_NEW(mp) CLogicalLeftSemiJoin(mp); break;
+				case 3:
+				case 5: op = GPOS_NEW(mp) CLogicalLeftSemiJoin(mp); break;
 				default: op = GPOS_NEW(mp) CLogicalLeftAntiSemiJoin(mp); break;
 			}
 			l->AddRef(); r->AddRef(); p->AddRef();
@@ -1654,7 +1657,7 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 				&exported, &export_error), "export branch expressions");
 			const std::string on_template = 2 <= shape ? "p5"
 				: 0 == shape ? "And(p5,p6)" : "Or(p5,p6)";
-			check(exported == name + "<Not(Not(" + on_template + ")) a4 a5>("
+			check(exported == nativeName + "<Not(Not(" + on_template + ")) a4 a5>("
 				"Filter<Not(Not(p3)) a0>(Input<t0>),Filter<Not(Not(p4)) a2>(Input<t1>))",
 				"lossless ON and two independent child templates");
 			check(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0", "r/1"},
@@ -1703,7 +1706,10 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 			check(EdsldecisionReady == decision->Status() && nullptr != target, "direct rewrite");
 			if (nullptr != target)
 			{
-				check(target->Pop()->Eopid() == source->Pop()->Eopid(), "join kind");
+				check(target->Pop()->Eopid() == source->Pop()->Eopid() && 3 == target->Arity(), "join kind");
+			}
+			if (nullptr != target && 3 == target->Arity())
+			{
 				check((*target)[2]->Matches(on), "ON target");
 				check((*(*target)[0])[1]->Matches(lp), "left predicate");
 				check((*(*target)[1])[1]->Matches(rp), "right predicate");
@@ -1712,6 +1718,24 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 				check((*source)[2] == pnn, "source unchanged");
 			}
 			GPOS_DELETE(decision);
+			if (5 == kind)
+			{
+				std::string reverse = text;
+				reverse.replace(0, nativeName.size(), name);
+				reverse.replace(reverse.find("|Exists"), 7, "|SemiJoin");
+				CDSLRule *alias = PdslruleParseLocal(mp, reverse.c_str());
+				check(nullptr != alias, "predicate Exists source parses");
+				if (nullptr != alias)
+				{
+					decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, alias, source);
+					check(EdsldecisionReady == decision->Status() &&
+						nullptr != decision->PexprTarget() &&
+						3 == decision->PexprTarget()->Arity() &&
+						(*decision->PexprTarget())[2]->Matches(on), "predicate Exists source capture");
+					GPOS_DELETE(decision);
+					alias->Release();
+				}
+			}
 			// A dependency union can be correct while its two scopes are wrong.
 			// Reject swapped/duplicated partitions, but permit empty partitions
 			// and a genuinely commuted InnerJoin with both inputs swapped.

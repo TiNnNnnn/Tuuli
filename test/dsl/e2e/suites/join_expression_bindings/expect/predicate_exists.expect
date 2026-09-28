@@ -1,0 +1,42 @@
+{
+  "description": "Predicate-form Exists preserves the complete non-equality ON instead of observing a nonempty right input",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2e0bdb40a536beec\"",
+        "\"status\":\"applied\",\"rule_hash\":\"016bab98f36f3444\"",
+        "CScalarBoolOp (EboolopNot)"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

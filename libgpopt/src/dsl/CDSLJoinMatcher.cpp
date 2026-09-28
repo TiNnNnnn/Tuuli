@@ -509,6 +509,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 				EdslopLeftJoin == popJoin->Edslop() ||
 				EdslopFullJoin == popJoin->Edslop() ||
 				EdslopSemiJoin == popJoin->Edslop() ||
+				EdslopExists == popJoin->Edslop() ||
 				EdslopSemiApply == popJoin->Edslop() ||
 				EdslopAntiJoin == popJoin->Edslop() ||
 				EdslopAntiApply == popJoin->Edslop() ||
@@ -523,7 +524,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const COperator::EOperatorId eopid = pexprJoin->Pop()->Eopid();
 	const BOOL fInner = (EdslopInnerJoin == popJoin->Edslop());
 	const BOOL fFull = (EdslopFullJoin == popJoin->Edslop());
-	const BOOL fSemi = (EdslopSemiJoin == popJoin->Edslop());
+	const BOOL fSemi =
+		EdslopSemiJoin == popJoin->Edslop() || EdslopExists == popJoin->Edslop();
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
