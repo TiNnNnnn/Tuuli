@@ -19,8 +19,72 @@
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "naucrates/md/IMDTypeBool.h"
 
+#include <initializer_list>
+
 using namespace gpopt;
 using namespace gpnaucrates;
+
+namespace
+{
+BOOL
+FSameSubqueryOutput(EDslSymbolKind kind, const CRefCount *left,
+					const CRefCount *right)
+{
+	if (left == right) return true;
+	switch (kind)
+	{
+		case EdslsymAttrs:
+		case EdslsymSchema:
+			return static_cast<const CColRefArray *>(left)->Equals(
+				static_cast<const CColRefArray *>(right));
+		case EdslsymTable:
+		case EdslsymPred:
+		case EdslsymExpr:
+		case EdslsymWindow:
+			return CDSLMatchView::FSameCapturedExpression(
+				static_cast<const CExpression *>(left), static_cast<const CExpression *>(right));
+		case EdslsymFunc:
+		{
+			const auto *l = static_cast<const CExpressionArray *>(left);
+			const auto *r = static_cast<const CExpressionArray *>(right);
+			if (l->Size() != r->Size()) return false;
+			for (ULONG i = 0; i < l->Size(); ++i)
+				if (!CDSLMatchView::FSameCapturedExpression((*l)[i], (*r)[i])) return false;
+			return true;
+		}
+		default:
+			return false;
+	}
+}
+
+// Slot zero is the source. Validate every output (including repeated symbols)
+// before publishing any, preserving existing captures and predicate provenance.
+BOOL
+FBindSubqueryOutputs(const CDSLSymbolArray *symbols, CDSLModel *model,
+	std::initializer_list<CRefCount *> outputs, const CDSLSymbol *derived = nullptr)
+{
+	GPOS_ASSERT(symbols->Size() == outputs.size() + 1);
+	for (ULONG i = 0; i < outputs.size(); ++i)
+	{
+		const auto *symbol = (*symbols)[i + 1];
+		const auto *value = outputs.begin()[i];
+		const auto *bound = model->PvalLookup(symbol);
+		if (nullptr != bound && !FSameSubqueryOutput(symbol->Esymkind(), bound, value)) return false;
+		for (ULONG j = 0; j < i; ++j)
+			if (symbol == (*symbols)[j + 1] &&
+				!FSameSubqueryOutput(symbol->Esymkind(), outputs.begin()[j], value)) return false;
+	}
+	for (ULONG i = 0; i < outputs.size(); ++i)
+	{
+		const auto *symbol = (*symbols)[i + 1];
+		auto *bound = model->PvalLookup(symbol);
+		auto *value = nullptr != bound ? bound : outputs.begin()[i];
+		if (symbol == derived ? !model->FBindDerived(symbol, value)
+			: (nullptr == bound && !model->FBind(symbol, value))) return false;
+	}
+	return true;
+}
+}  // namespace
 
 BOOL
 CDSLConstraintChecker::FCheckPredicateExists(
@@ -78,23 +142,18 @@ CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 	{
 		return false;
 	}
+	CExpression *pexprInner = (*pexprQuantified)[0];
+	if (!pexprInner->Pop()->FLogical() ||
+		!pexprInner->DeriveOutputColumns()->FMember(
+			CScalarSubqueryQuantified::PopConvert(pexprQuantified->Pop())->Pcr()))
+		return false;
 
 	CExpression *pexprComparison =
 		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprQuantified);
 	CColRefArray *pdrgpcrOuter =
 		(*pexprQuantified)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
-	CExpression *boundComparison = pmodel->PexprPred((*pdrgpsym)[1]);
-	CColRefArray *boundOuter = pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
-	CExpression *boundInput = pmodel->PexprTable((*pdrgpsym)[3]);
-	// Extraction allocates fresh artifacts, not fresh logical captures. Check
-	// all existing captures before publishing any output; never replace them.
-	const BOOL fMatches =
-		(nullptr == boundComparison || CDSLMatchView::FSameCapturedExpression(boundComparison, pexprComparison)) &&
-		(nullptr == boundOuter || boundOuter->Equals(pdrgpcrOuter)) &&
-		(nullptr == boundInput || CDSLMatchView::FSameCapturedExpression(boundInput, (*pexprQuantified)[0])) &&
-		(nullptr != boundComparison || pmodel->FBind((*pdrgpsym)[1], pexprComparison)) &&
-		(nullptr != boundOuter || pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter)) &&
-		(nullptr != boundInput || pmodel->FBind((*pdrgpsym)[3], (*pexprQuantified)[0]));
+	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
+		{pexprComparison, pdrgpcrOuter, (*pexprQuantified)[0]});
 	pexprComparison->Release();
 	pdrgpcrOuter->Release();
 	return fMatches;
@@ -319,12 +378,8 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 	CColRefArray *pdrgpcrCorrelation =
 		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
 
-	const BOOL fMatches =
-		pmodel->FBind((*pdrgpsym)[1], pexprLowered) &&
-		pmodel->FBind((*pdrgpsym)[2], pdrgpcrLeft) &&
-		pmodel->FBind((*pdrgpsym)[3], pdrgpcrRight) &&
-		pmodel->FBind((*pdrgpsym)[4], pdrgpcrCorrelation) &&
-		pmodel->FBind((*pdrgpsym)[5], pexprInner);
+	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
+		{pexprLowered, pdrgpcrLeft, pdrgpcrRight, pdrgpcrCorrelation, pexprInner});
 	pexprLowered->Release();
 	pdrgpcrLeft->Release();
 	pdrgpcrRight->Release();
@@ -388,17 +443,10 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CColRefArray *pdrgpcrCorrelation =
 		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
 
-	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
-		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
-		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
-	const BOOL fMatches =
-		fLowered &&
-		pmodel->FBind((*pdrgpsym)[2], pexprTrue) &&
-		pmodel->FBind((*pdrgpsym)[3], pdrgpcrLeft) &&
-		pmodel->FBind((*pdrgpsym)[4], pdrgpcrRight) &&
-		pmodel->FBind((*pdrgpsym)[5], pdrgpcrCorrelation) &&
-		pmodel->FBind((*pdrgpsym)[6], pdrgpcrInner) &&
-		pmodel->FBind((*pdrgpsym)[7], pexprInner);
+	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
+		{pvalLowered, pexprTrue, pdrgpcrLeft, pdrgpcrRight,
+		 pdrgpcrCorrelation, pdrgpcrInner, pexprInner},
+		EdslsymPred == (*pdrgpsym)[1]->Esymkind() ? (*pdrgpsym)[1] : nullptr);
 	pvalLowered->Release();
 	pexprTrue->Release();
 	pdrgpcrLeft->Release();
@@ -485,20 +533,10 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	pdrgpcrRequiredInner->Append(pcrMarker);
 	pdrgpcrRequiredInner->Append(pcrsInnerOutput->PcrFirst());
 
-	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
-		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
-		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
-	const BOOL fMatches =
-		fLowered &&
-		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
-		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
-		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
-		pmodel->FBind((*pdrgpsym)[5], pexprTrue) &&
-		pmodel->FBind((*pdrgpsym)[6], pdrgpcrLeft) &&
-		pmodel->FBind((*pdrgpsym)[7], pdrgpcrRight) &&
-		pmodel->FBind((*pdrgpsym)[8], pdrgpcrCorrelation) &&
-		pmodel->FBind((*pdrgpsym)[9], pdrgpcrRequiredInner) &&
-		pmodel->FBind((*pdrgpsym)[10], pexprInner);
+	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
+		{pvalLowered, pexprMarkerList, pdrgpcrMarkerAttrs, pdrgpcrMarkerSchema,
+		 pexprTrue, pdrgpcrLeft, pdrgpcrRight, pdrgpcrCorrelation, pdrgpcrRequiredInner, pexprInner},
+		EdslsymPred == (*pdrgpsym)[1]->Esymkind() ? (*pdrgpsym)[1] : nullptr);
 	pvalLowered->Release();
 	pexprMarkerList->Release();
 	pdrgpcrMarkerAttrs->Release();
@@ -550,6 +588,9 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 		CScalarSubqueryQuantified::PopConvert(pexprSubquery->Pop());
 	CColRef *pcrInner = const_cast<CColRef *>(popQuantified->Pcr());
 	CExpression *pexprInner = (*pexprSubquery)[0];
+	if (!pexprInner->Pop()->FLogical() ||
+		!pexprInner->DeriveOutputColumns()->FMember(pcrInner))
+		return false;
 
 	const IMDTypeBool *pmdtypebool =
 		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
@@ -585,20 +626,10 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	CColRefArray *pdrgpcrMarkerSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	pdrgpcrMarkerSchema->Append(pcrMarker);
 
-	const BOOL fLowered = EdslsymPred == (*pdrgpsym)[1]->Esymkind()
-		? pmodel->FBindDerived((*pdrgpsym)[1], pvalLowered)
-		: pmodel->FBind((*pdrgpsym)[1], pvalLowered);
-	const BOOL fMatches =
-		fLowered &&
-		pmodel->FBind((*pdrgpsym)[2], pexprMarkerList) &&
-		pmodel->FBind((*pdrgpsym)[3], pdrgpcrMarkerAttrs) &&
-		pmodel->FBind((*pdrgpsym)[4], pdrgpcrMarkerSchema) &&
-		pmodel->FBind((*pdrgpsym)[5], pexprComparison) &&
-		pmodel->FBind((*pdrgpsym)[6], pdrgpcrLeft) &&
-		pmodel->FBind((*pdrgpsym)[7], pdrgpcrRight) &&
-		pmodel->FBind((*pdrgpsym)[8], pdrgpcrCorrelation) &&
-		pmodel->FBind((*pdrgpsym)[9], pdrgpcrRequiredInner) &&
-		pmodel->FBind((*pdrgpsym)[10], pexprInner);
+	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
+		{pvalLowered, pexprMarkerList, pdrgpcrMarkerAttrs, pdrgpcrMarkerSchema,
+		 pexprComparison, pdrgpcrLeft, pdrgpcrRight, pdrgpcrCorrelation, pdrgpcrRequiredInner, pexprInner},
+		EdslsymPred == (*pdrgpsym)[1]->Esymkind() ? (*pdrgpsym)[1] : nullptr);
 	pvalLowered->Release();
 	pexprMarkerList->Release();
 	pdrgpcrMarkerAttrs->Release();
