@@ -856,7 +856,9 @@ FBindingTree(const CDSLOp *op)
 			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : set ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : quantified ? 2 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
-			   : exists ? 0 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : exists ? (0 == op->Pdrgpsym()->Size() ||
+						   (EdslopExists == op->Edslop() && 3 == op->Pdrgpsym()->Size())) &&
+						  2 == op->UlChildren()
 			   : EdslopInSubFilter == op->Edslop()
 				   ? 1 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
@@ -896,7 +898,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, single-slot InSubFilter, zero-slot Exists/NotExists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

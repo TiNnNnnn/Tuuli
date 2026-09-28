@@ -133,6 +133,10 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		{
 			return nullptr;
 		}
+		// Predicate-form Exists denotes a semi join. In particular it must not
+		// take the zero-slot existential path and discard its ON expression.
+		if (m_prule->Pexprdefs()->FHasBindings())
+			return PexprBuildJoin(pop, pmodel);
 		const CDSLSymbol *psymPred = (*pdrgpsym)[0];
 		const CDSLSymbol *psymLeftDeps = PsymResolve((*pdrgpsym)[1]);
 		const CDSLSymbol *psymRightDeps = PsymResolve((*pdrgpsym)[2]);

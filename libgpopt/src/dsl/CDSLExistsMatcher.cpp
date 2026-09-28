@@ -9,6 +9,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -102,6 +103,8 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
+		if (!fNegated && 3 == ulSymbols)
+			return CDSLJoinMatcher(m_mp, m_pmatcher, rule).FMatch(pop, pexpr, pmodel);
 		return 0 == ulSymbols &&
 			COperator::EopLogicalSelect == pexpr->Pop()->Eopid() &&
 			2 == pexpr->Arity() && FDirectExistential((*pexpr)[1], fNegated) &&

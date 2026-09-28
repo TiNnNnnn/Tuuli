@@ -1,0 +1,37 @@
+{
+  "description": "Predicate Exists and SemiJoin aliases preserve NULL rejection and duplicate outer rows",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2e0bdb40a536beec\"",
+        "\"status\":\"applied\",\"rule_hash\":\"016bab98f36f3444\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "2",
+      "2"
+    ],
+    "off_output": [
+      "2",
+      "2"
+    ]
+  }
+}
