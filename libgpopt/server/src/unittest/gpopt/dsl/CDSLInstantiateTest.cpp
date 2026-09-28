@@ -1791,6 +1791,39 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 		}
 			rule->Release();
 	}
+	// A predicate Exists observes columns produced by its right Project.
+	// It must never inherit plain EXISTS's unused-target-list stripping.
+	for (const CHAR *bindings : {
+		"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)",
+		"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1"})
+	{
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = input(&lc), *right = input(&rc);
+		CColRef *column = fix.PcrCreateInt4("computed");
+		CExpression *project = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), right,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp, column),
+					CUtils::PexprScalarConstInt4(mp, 7))));
+		CExpression *on = fix.PexprEqConst(column, 7);
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), left, project, on);
+		const std::string text =
+			"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
+			"Exists<p1 a2 a3>(Input<t2>,Input<t3>)|" + std::string(bindings);
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		if (nullptr == rule) { source->Release(); return GPOS_FAILED; }
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		CExpression *target = decision->PexprTarget();
+		const BOOL preserved = EdsldecisionDuplicate == decision->Status() && nullptr != target &&
+			3 == target->Arity() && (*target)[1] == project && (*target)[2]->Matches(on);
+		if (!preserved)
+			GPOS_TRACE_FORMAT("predicate Exists Project status=%d target=%p source=%s",
+				decision->Status(), target, bindings);
+		ok &= preserved;
+		GPOS_DELETE(decision);
+		rule->Release(); source->Release();
+	}
 	// NOT IN needs its own evaluation certificate;
 	// keyed/residual forms must not masquerade as one complete ON expression.
 	for (const CHAR *text : {

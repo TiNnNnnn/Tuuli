@@ -133,35 +133,9 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		{
 			return nullptr;
 		}
-		// Predicate-form Exists denotes a semi join. In particular it must not
-		// take the zero-slot existential path and discard its ON expression.
-		if (m_prule->Pexprdefs()->FHasBindings())
-			return PexprBuildJoin(pop, pmodel);
-		const CDSLSymbol *psymPred = (*pdrgpsym)[0];
-		const CDSLSymbol *psymLeftDeps = PsymResolve((*pdrgpsym)[1]);
-		const CDSLSymbol *psymRightDeps = PsymResolve((*pdrgpsym)[2]);
-		CExpression *pexprPred = PexprResolvePredicate(psymPred, pmodel);
-		CColRefArray *pdrgpcrLeftDeps =
-			PdrgpcrResolveCols(psymLeftDeps, pmodel);
-		CColRefArray *pdrgpcrRightDeps =
-			PdrgpcrResolveCols(psymRightDeps, pmodel);
-		if (nullptr == pexprPred || nullptr == pdrgpcrLeftDeps ||
-			nullptr == pdrgpcrRightDeps)
-		{
-			CRefCount::SafeRelease(pexprPred);
-			return nullptr;
-		}
-		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		pcrsDeclared->Include(pdrgpcrLeftDeps);
-		pcrsDeclared->Include(pdrgpcrRightDeps);
-		const BOOL fDependenciesExact =
-			pcrsDeclared->Equals(pexprPred->DeriveUsedColumns());
-		pcrsDeclared->Release();
-		pexprPred->Release();
-		if (!fDependenciesExact)
-		{
-			return nullptr;
-		}
+		// Both syntaxes denote a semi join. Its ON can observe a right Project's
+		// output, unlike plain EXISTS's unobserved target list below.
+		return PexprBuildJoin(pop, pmodel);
 	}
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
@@ -202,23 +176,6 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 		pexprChild->AddRef();
 		pexprInner->Release();
 		pexprInner = pexprChild;
-	}
-
-	if (3 == ulSymbols)
-	{
-		CExpression *pexprPred =
-			PexprResolvePredicate((*pdrgpsym)[0], pmodel);
-		CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
-			(*pop)[0], pexprOuter, (*pop)[1], pexprInner, pexprPred, pmodel);
-		CRefCount::SafeRelease(pexprPred);
-		if (nullptr == pexprTargetPred)
-		{
-			pexprOuter->Release();
-			pexprInner->Release();
-			return nullptr;
-		}
-		return CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
-			m_mp, pexprOuter, pexprInner, pexprTargetPred);
 	}
 
 	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();
