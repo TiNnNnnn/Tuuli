@@ -65,6 +65,80 @@ using namespace gpopt;
 	"TableEq(t1,t0);PredicateNotExists(p0,t2)"
 
 static GPOS_RESULT
+EresSafeFilterMerge()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (ULONG kind = 0; kind < 3; kind++)
+	for (BOOL stale : {false, true})
+	{
+		const BOOL correlated = 1 == kind;
+		const std::string text = std::string(
+			"Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|"
+			"t1 := t0;p2 := And(p0,p1);") +
+			(stale ? "a4 := a0;" : "AttrsUnion(a4,a0,a2);") + "AttrsUnion(a5,a1,a3);" +
+			"AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)";
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *cols = nullptr, *outerCols = nullptr;
+		CExpression *input = fix.PexprLogicalGet("merge_input", 2, &cols);
+		CExpression *outer = fix.PexprLogicalGet("merge_outer", 1, &outerCols);
+		CExpression *first = fix.PexprEqPred((*cols)[0], (*cols)[0]);
+		CExpression *second = fix.PexprEqPred((*cols)[1], correlated ? (*outerCols)[0] : (*cols)[1]);
+		if (2 == kind)
+		{
+			second->Release();
+			outer->AddRef();
+			second = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), outer);
+		}
+		CExpression *inner = fix.PexprLogicalSelect(input, second);
+		CExpression *source = fix.PexprLogicalSelect(inner, first);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+			CDSLConstraintChecker(mp).FCheck(rule, model);
+		CDSLInstantiator inst(mp);
+		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
+		if ((2 != kind) != matched || (matched && stale != (nullptr == target)))
+			GPOS_TRACE_FORMAT("Filter merge correlated=%d stale=%d matched=%d built=%d", correlated, stale, matched, nullptr != target);
+		ok &= (2 != kind) == matched && ((stale || 2 == kind) == (nullptr == target));
+		if (2 == kind && !stale)
+		{
+			// Opaque subqueries still require the legacy compatibility rule.
+			// Do not retire it merely because ordinary/correlated predicates pass.
+			CDSLRule *legacy = CDSLRuleParser::PdslruleParse(mp,
+				"Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|"
+				"TableEq(t1,t0);PredicateAnd(p2,p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);"
+				"AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);"
+				"ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)", "EQ", &error);
+			GPOS_UNITTEST_ASSERT(nullptr != legacy);
+			CDSLModel *legacyModel = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLInstantiator legacyInst(mp);
+			const BOOL legacyMatched = CDSLMatcher(mp, legacy).FMatch(legacy->PfragSrc()->PopRoot(), source, legacyModel) &&
+				CDSLConstraintChecker(mp).FCheck(legacy, legacyModel);
+			CExpression *legacyTarget = legacyMatched ? legacyInst.PexprInstantiate(legacy, legacyModel) : nullptr;
+			ok &= nullptr != legacyTarget;
+			CRefCount::SafeRelease(legacyTarget);
+			legacyModel->Release(); legacy->Release();
+		}
+		if (nullptr != target)
+		{
+			CExpression *predicate = (*target)[1];
+			ok &= COperator::EopLogicalSelect == target->Pop()->Eopid() && (*target)[0] == input &&
+				CPredicateUtils::FAnd(predicate) && 2 == predicate->Arity() &&
+				(*predicate)[0]->Matches(first) && (*predicate)[1]->Matches(second) &&
+				target->DeriveOuterReferences()->Equals(source->DeriveOuterReferences());
+		}
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); inner->Release(); first->Release(); second->Release();
+		input->Release(); outer->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresNestedFilterSplit()
 {
 	CAutoMemoryPool amp;
@@ -297,6 +371,7 @@ GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresSafeFilterMerge),
 		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
