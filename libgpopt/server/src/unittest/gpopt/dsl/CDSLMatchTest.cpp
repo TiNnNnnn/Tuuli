@@ -75,7 +75,7 @@ CDSLMatchTest::EresUnittest()
 //
 //	@doc:
 //		WeTune: Match.matchOne INPUT branch — an Input placeholder binds to ANY
-//		plan node with no type check. Here Input<t0> is matched directly against
+//		logical plan node without fixing its operator kind. Input<t0> matches
 //		a Select(Get) tree; t0 must bind to the whole non-leaf subtree rather than
 //		being narrowed to the Get leaf.
 //---------------------------------------------------------------------------
@@ -106,6 +106,13 @@ CDSLMatchTest::EresUnittest_InputBindsAnySubtree()
 	CDSLMatcher matcher(mp);
 
 	GPOS_RESULT eres = GPOS_OK;
+	// A relational placeholder must reject scalar expressions without binding
+	// them. Use a fresh model so an existing table binding cannot mask this.
+	if (nullptr != popInput &&
+		(matcher.FMatch(popInput, pexprPred, pmodel) || 0 != pmodel->Size()))
+	{
+		eres = GPOS_FAILED;
+	}
 	if (nullptr == popInput || EdslopInput != popInput->Edslop() ||
 		!matcher.FMatch(popInput, pexprSubtree, pmodel) || 1 != pmodel->Size())
 	{
