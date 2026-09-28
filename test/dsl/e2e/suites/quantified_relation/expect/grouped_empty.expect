@@ -1,0 +1,51 @@
+{
+  "description": "ALL over empty pure grouping retains every outer row including NULL",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply",
+        "CXformRemoveSubqDistinct"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply",
+        "Xform: CXformSimplifySelectWithSubquery",
+        "Xform: CXformSubquery2CorrelatedApply",
+        "Xform: CXformRemoveSubqDistinct"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply",
+      "CXformRemoveSubqDistinct"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4"
+    ]
+  }
+}

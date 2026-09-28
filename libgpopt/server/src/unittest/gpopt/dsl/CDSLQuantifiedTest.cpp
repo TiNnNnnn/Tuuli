@@ -18,6 +18,7 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
@@ -1415,11 +1416,12 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
-	for (ULONG ul = 0; ul < 6; ul++)
+	for (ULONG ul = 0; ul < 8; ul++)
 	{
 		const BOOL fAll = 0 != ul % 2;
-		// Current native demand guard admits Get but not GbAgg or MaxOneRow.
-		const BOOL demandSensitive = 2 <= ul;
+		// Pure grouping is total on safe keys/inputs; MaxOneRow and real
+		// aggregate functions still require their own demand contracts.
+		const BOOL demandSensitive = 4 <= ul;
 		CExpression *pexprInnerGet = nullptr;
 		CExpression *pexprSource =
 			PexprPreUnnest(mp, fix, fAll, &pexprInnerGet);
@@ -1428,8 +1430,15 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 			CExpression *predicate = (*pexprSource)[1];
 			CExpression *query = ul < 2 ? pexprInnerGet : (*predicate)[0];
 			query->AddRef();
-			if (ul >= 4)
+			if (ul >= 4 && ul < 6)
 				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
+			else if (ul >= 6)
+			{
+				CExpression *aggregate = fix.PexprLogicalGbAgg((*query)[0],
+					CLogicalGbAgg::PopConvert(query->Pop())->Pdrgpcr(), fix.PcrCreateInt4("agg_value"));
+				query->Release();
+				query = aggregate;
+			}
 			predicate->Pop()->AddRef();
 			(*predicate)[1]->AddRef();
 			CExpression *wrapped = GPOS_NEW(mp) CExpression(mp, predicate->Pop(), query, (*predicate)[1]);

@@ -421,6 +421,27 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 			(!deterministic || FScalarTreeProvablyDeterministic(pexpr));
 	switch (pexpr->Pop()->Eopid())
 	{
+		case COperator::EopLogicalGbAgg:
+		{
+			// Pure global grouping adds neither scalar evaluation nor an
+			// aggregate transition/final function. Audit every grouping key's
+			// equality and recurse into the input; DISTINCT is not a safety
+			// certificate for an errorful or volatile subtree beneath it.
+			const auto *agg = CLogicalGbAgg::PopConvert(pexpr->Pop());
+			if (!agg->FGlobal() || 2 != pexpr->Arity() ||
+				!(*pexpr)[0]->Pop()->FLogical() ||
+				COperator::EopScalarProjectList != (*pexpr)[1]->Pop()->Eopid() ||
+				0 != (*pexpr)[1]->Arity()) return false;
+			const CColRefArray *keys = agg->Pdrgpcr();
+			if (nullptr == keys) return false;
+			for (ULONG i = 0; i < keys->Size(); ++i)
+			{
+				IMDId *equality = (*keys)[i]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
+				if (!IMDId::IsValid(equality) || IMDId::EmdidGeneral != equality->MdidType() ||
+					!CPredicateUtils::FBuiltInComparisonIsVeryStrict(equality)) return false;
+			}
+			break;
+		}
 		case COperator::EopLogicalGet:
 		case COperator::EopLogicalConstTableGet:
 		case COperator::EopLogicalSelect:
@@ -434,7 +455,7 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 		case COperator::EopLogicalUnionAll:
 			break;
 		default:
-			// Cardinality assertions, dynamic LIMITs, aggregates, window frames,
+			// Cardinality assertions, dynamic LIMITs, real aggregates, window frames,
 			// and opaque/CTE inputs need their own totality contracts. A table
 			// placeholder is not evidence that an arbitrary subtree cannot err.
 			return false;
