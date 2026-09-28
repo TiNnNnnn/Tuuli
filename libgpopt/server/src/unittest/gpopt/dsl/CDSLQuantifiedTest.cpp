@@ -1415,12 +1415,30 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
-	for (ULONG ul = 0; ul < 2; ul++)
+	for (ULONG ul = 0; ul < 6; ul++)
 	{
-		const BOOL fAll = 0 < ul;
+		const BOOL fAll = 0 != ul % 2;
+		// Current native demand guard admits Get but not GbAgg or MaxOneRow.
+		const BOOL demandSensitive = 2 <= ul;
 		CExpression *pexprInnerGet = nullptr;
 		CExpression *pexprSource =
 			PexprPreUnnest(mp, fix, fAll, &pexprInnerGet);
+		if (ul < 2 || ul >= 4)
+		{
+			CExpression *predicate = (*pexprSource)[1];
+			CExpression *query = ul < 2 ? pexprInnerGet : (*predicate)[0];
+			query->AddRef();
+			if (ul >= 4)
+				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
+			predicate->Pop()->AddRef();
+			(*predicate)[1]->AddRef();
+			CExpression *wrapped = GPOS_NEW(mp) CExpression(mp, predicate->Pop(), query, (*predicate)[1]);
+			(*pexprSource)[0]->AddRef();
+			CExpression *source = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalSelect(mp), (*pexprSource)[0], wrapped);
+			pexprSource->Release();
+			pexprSource = source;
+		}
 		CDSLRule *prule = PruleParse(
 			mp, fAll ? GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE
 					 : GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE);
@@ -1455,7 +1473,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 			}
 			else
 			{
-				capture = compatible ? (*(*pexprSource)[1])[0] : pexprInnerGet;
+				capture = compatible ? (*(*pexprSource)[1])[0] : (*pexprSource)[0];
 				capture->AddRef();
 			}
 			ok &= bound->FBind((*symbols)[slot], capture);
@@ -1484,6 +1502,29 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		GPOS_ASSERT((fAll ? COperator::EopScalarSubqueryAll
 						   : COperator::EopScalarSubqueryAny) ==
 					CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
+
+		// The typed bridge agrees on its admitted domain, but its native-demand
+		// guard is narrower. Do not delete the compatibility rule on proof alone.
+		const std::string kind = fAll ? "All" : "Any";
+		const std::string text = "Filter<" + kind + "(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|" +
+			kind + "<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);"
+			"n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)";
+		CDSLRule *typed = PruleParse(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != typed);
+		CDSLModel *typedModel = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), pexprSource, typedModel);
+		GPOS_UNITTEST_ASSERT(matched == !demandSensitive);
+		if (matched)
+		{
+			GPOS_UNITTEST_ASSERT(checker.FCheck(typed, typedModel));
+			CDSLInstantiator typedInst(mp);
+			CExpression *target = typedInst.PexprInstantiate(typed, typedModel);
+			GPOS_UNITTEST_ASSERT(nullptr != target && target->Matches(pexprTarget));
+			GPOS_UNITTEST_ASSERT((*target)[1] == (*(*pexprSource)[1])[0]);
+			target->Release();
+		}
+		typedModel->Release();
+		typed->Release();
 
 		pexprTarget->Release();
 		pmodel->Release();

@@ -30,6 +30,7 @@
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarSubqueryNotExists.h"
@@ -595,14 +596,25 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 	CDSLTestFixture fix(mp);
 
 	for (ULONG ul = 0; ul < 2; ul++)
+	for (ULONG shape = 0; shape < 4; shape++)
 	{
 		const BOOL fNegated = 1 == ul;
+		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
 		CExpression *pexprOuter = fix.PexprLogicalGet(
 			fNegated ? "expression_not_exists_outer" : "expression_exists_outer",
-			2);
+			2, &outerCols);
 		CExpression *pexprInner = fix.PexprLogicalGet(
 			fNegated ? "expression_not_exists_inner" : "expression_exists_inner",
-			2);
+			2, &innerCols);
+		if (1 == shape)
+			pexprInner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+				pexprInner, fix.PexprEqPred((*innerCols)[0], (*outerCols)[0]));
+		else if (2 == shape)
+			pexprInner = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),
+				pexprInner, CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
+		else if (3 == shape)
+			pexprInner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprInner);
 		COperator *popScalar =
 			fNegated
 				? static_cast<COperator *>(
@@ -686,6 +698,25 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 						->EopidOriginSubq());
 		GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
 			pexprTarget->DeriveOutputColumns()));
+
+		// Typed construction preserves the full scalar query, including
+		// correlation and demand-sensitive operators. Unlike the compatibility
+		// entry above, it does NOT implicitly lower to Apply. A textual migration
+		// alone would therefore lose the native-rule replacement capability.
+		CDSLRule *typed = CDSLRuleParser::PdslruleParse(mp, fNegated
+			? "Filter<Not(Exists(t1)) a0>(Input<t0>)|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1"
+			: "Filter<Exists(t1) a0>(Input<t0>)|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1", "EQ", &strErr);
+		GPOS_UNITTEST_ASSERT(nullptr != typed);
+		CDSLModel *typedModel = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), pexprSource, typedModel));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, typedModel));
+		CDSLInstantiator typedInst(mp);
+		CExpression *typedTarget = typedInst.PexprInstantiate(typed, typedModel);
+		GPOS_UNITTEST_ASSERT(nullptr != typedTarget && typedTarget->Matches(pexprSource));
+		GPOS_UNITTEST_ASSERT((*(*typedTarget)[1])[0] == pexprInner);
+		typedTarget->Release();
+		typedModel->Release();
+		typed->Release();
 
 		pexprTarget->Release();
 		pmodel->Release();
