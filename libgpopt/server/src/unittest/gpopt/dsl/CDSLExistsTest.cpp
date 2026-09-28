@@ -65,6 +65,82 @@ using namespace gpopt;
 	"TableEq(t1,t0);PredicateNotExists(p0,t2)"
 
 static GPOS_RESULT
+EresNestedFilterSplit()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	const CHAR *patterns[] = {"And(p0,And(p1,p2))", "And(And(p0,p1),p2)",
+		"And(And(p0,p1),And(p2,p3))", "And(p0,And(p1,p2))"};
+	for (ULONG shape = 0; shape < GPOS_ARRAY_SIZE(patterns); shape++)
+	{
+		const ULONG count = 2 == shape ? 4 : 3;
+		std::string targetText = "Input<t1>", bindings = "t1 := t0";
+		for (ULONG i = count; i-- > 0;)
+		{
+			const std::string p = "p" + std::to_string(i), n = "n" + std::to_string(i);
+			const std::string output = "p" + std::to_string(i + 4), attrs = "a" + std::to_string(i + 1);
+			targetText = "Filter<" + output + " " + attrs + ">(" + targetText + ")";
+			bindings += ";" + output + " := " + p + ";" + n + " := BoolValue(" + p + ");" +
+				attrs + " := ScalarDeps(" + n + ");ErrorFree(" + p + ");Deterministic(" + p + ")";
+		}
+		const std::string text = std::string("Filter<") + patterns[shape] +
+			" a0>(Input<t0>)|" + targetText + "|" + bindings;
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *cols = nullptr;
+		CExpression *input = fix.PexprLogicalGet("nested_filter", count, &cols);
+		CExpressionArray *atoms = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < count; i++) atoms->Append(fix.PexprEqPred((*cols)[i], (*cols)[i]));
+		auto conjunction = [&](CExpression *left, CExpression *right) {
+			left->AddRef(); right->AddRef();
+			return GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), left, right);
+		};
+		CExpression *predicate = nullptr;
+		if (3 == shape)
+		{
+			// No implicit associativity bridge: a flat native AND is a different
+			// source tree, even when its leaves happen to satisfy safety premises.
+			atoms->AddRef();
+			predicate = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), atoms);
+		}
+		else
+		{
+			CExpression *pair = conjunction((*atoms)[0 == shape ? 1 : 0], (*atoms)[0 == shape ? 2 : 1]);
+			CExpression *tail = 2 == shape ? conjunction((*atoms)[2], (*atoms)[3]) : nullptr;
+			predicate = 0 == shape ? conjunction((*atoms)[0], pair) :
+				conjunction(pair, nullptr == tail ? (*atoms)[2] : tail);
+			pair->Release(); CRefCount::SafeRelease(tail);
+		}
+		CExpression *source = fix.PexprLogicalSelect(input, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		ok &= matched == (3 != shape);
+		if (matched)
+		{
+			ok &= CDSLConstraintChecker(mp).FCheck(rule, model);
+			CDSLInstantiator inst(mp);
+			CExpression *target = inst.PexprInstantiate(rule, model), *current = target;
+			for (ULONG i = 0; i < count && nullptr != current; i++)
+			{
+				if (COperator::EopLogicalSelect != current->Pop()->Eopid()) { ok = false; break; }
+				ok &= (*current)[1]->Matches((*atoms)[i]);
+				current = (*current)[0];
+			}
+			ok &= current == input;
+			CRefCount::SafeRelease(target);
+		}
+		model->Release(); source->Release(); predicate->Release(); atoms->Release(); input->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresIndependentFilterDependencies()
 {
 	CAutoMemoryPool amp;
@@ -221,6 +297,7 @@ GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
 		GPOS_UNITTEST_FUNC(
