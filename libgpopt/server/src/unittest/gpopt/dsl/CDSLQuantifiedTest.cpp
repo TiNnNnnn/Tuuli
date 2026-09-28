@@ -788,7 +788,44 @@ EresSubqueryOutputBindings()
 		const BOOL accepted = checker.FCheck(rule, baseline);
 		ok &= accepted;
 		if (!accepted) GPOS_TRACE_FORMAT("subquery probe baseline=%d", kind);
-		if (accepted && !freshMarker) ok &= checker.FCheck(rule, baseline);
+		if (accepted)
+		{
+			CRefCount *outputs[11] = {};
+			for (ULONG slot = 1; slot < symbols->Size(); ++slot)
+				outputs[slot] = baseline->PvalLookup((*symbols)[slot]);
+			const BOOL repeated = checker.FCheck(rule, baseline);
+			if (!repeated) GPOS_TRACE_FORMAT("subquery recheck rejected kind=%d", kind);
+			ok &= repeated;
+			for (ULONG slot = 1; slot < symbols->Size(); ++slot)
+				ok &= outputs[slot] == baseline->PvalLookup((*symbols)[slot]);
+		}
+		if (accepted && freshMarker)
+		{
+			const auto *constraint = (*rule->Pdrgpcon())[1];
+			CColRef *marker = baseline->PcrSubqueryMarker(constraint);
+			ok &= nullptr != marker && marker == (*baseline->PdrgpcrSchema((*symbols)[4]))[0];
+			// Reusing column identity must not bypass revalidation of outputs.
+			CColRefArray *required = baseline->PdrgpcrAttrs((*symbols)[9]);
+			required->Replace(0, (*outerCols)[1]);
+			ok &= !checker.FCheck(rule, baseline) && baseline->PcrSubqueryMarker(constraint) == marker;
+			required->Replace(0, marker);
+			ok &= checker.FCheck(rule, baseline);
+			// Copying the entire output group to another model supplies no evidence
+			// that its marker was freshly generated for that match.
+			CDSLModel *imported = GPOS_NEW(mp) CDSLModel(mp);
+			for (ULONG slot = 0; slot < symbols->Size(); ++slot)
+				ok &= imported->FBind((*symbols)[slot], baseline->PvalLookup((*symbols)[slot]));
+			ok &= !checker.FCheck(rule, imported) && nullptr == imported->PcrSubqueryMarker(constraint);
+			for (ULONG slot = 0; slot < symbols->Size(); ++slot)
+				ok &= imported->PvalLookup((*symbols)[slot]) == baseline->PvalLookup((*symbols)[slot]);
+			imported->Release();
+			CDSLModel *independent = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= independent->FBind((*symbols)[0], source);
+			ok &= checker.FCheck(rule, independent) && checker.FCheck(rule, independent);
+			ok &= nullptr != independent->PcrSubqueryMarker(constraint) &&
+				marker != independent->PcrSubqueryMarker(constraint);
+			independent->Release();
+		}
 		for (ULONG slot = 1; accepted && slot < symbols->Size(); ++slot)
 		{
 			for (BOOL compatible : {false, true})
@@ -827,6 +864,7 @@ EresSubqueryOutputBindings()
 				else
 				{
 					ok &= !model->FDerivedBinding((*symbols)[1]);
+					ok &= nullptr == model->PcrSubqueryMarker((*rule->Pdrgpcon())[1]);
 					for (ULONG other = 1; other < symbols->Size(); ++other)
 						if (other != slot) ok &= nullptr == model->PvalLookup((*symbols)[other]);
 				}
@@ -888,11 +926,83 @@ EresSubqueryOutputBindings()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresMarkerSequenceReplay()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	const CHAR *names[] = {"Exists", "NotExists", "Any", "All"};
+	// The existing extraction order chooses the first occurrence at the same
+	// depth, with these operator priorities. Exercise all ten ordered pairs.
+	for (ULONG first = 0; first < 4; ++first)
+	{
+		for (ULONG second = first; second < 4; ++second)
+		{
+			const std::string text =
+				"Compute<e0 a0 s0>(Input<t0>)|Compute<e2 a1 s1>("
+				"LeftApply<p1 a6 a7 a8>(LeftApply<p0 a2 a3 a4>(Input<t1>,"
+				"Compute<e3 a9 s2>(Input<t2>)),Compute<e4 a10 s3>(Input<t3>)))|"
+				"TableEq(t1,t0);SchemaEq(s1,s0);ExprList" + std::string(names[first]) +
+				"(e0,e1,e3,a9,s2,p0,a2,a3,a4,a11,t2);ExprList" + names[second] +
+				"(e1,e2,e4,a10,s3,p1,a6,a7,a8,a12,t3)";
+			// Output identity probes only, not registered equivalent rewrites.
+			CWStringDynamic error(mp);
+			CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), nullptr, &error);
+			if (nullptr == rule) { GPOS_TRACE(error.GetBuffer()); ok = false; continue; }
+			CColRefArray *outerCols = nullptr;
+			CExpression *outer = fix.PexprLogicalGet("marker_chain_outer", 1, &outerCols);
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			for (ULONG kind : {first, second})
+			{
+				CColRefArray *innerCols = nullptr;
+				CExpression *inner = fix.PexprLogicalGet("marker_chain_inner", 1, &innerCols);
+				CExpression *subquery = kind >= 2
+					? PexprQuantified(mp, fix, kind == 3, inner, (*outerCols)[0], (*innerCols)[0])
+					: GPOS_NEW(mp) CExpression(mp, kind == 0
+						? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp))
+						: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp)), inner);
+				CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+				items->Append(CUtils::PexprScalarProjectElement(mp, output, subquery));
+			}
+			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+				outer, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLConstraintChecker checker(mp);
+			const BOOL checked = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+				checker.FCheck(rule, model);
+			if (!checked) GPOS_TRACE_FORMAT("marker chain failed first=%d second=%d", first, second);
+			ok &= checked;
+			if (checked)
+			{
+				const auto *step1 = (*rule->Pdrgpcon())[2];
+				const auto *step2 = (*rule->Pdrgpcon())[3];
+				CColRef *marker1 = model->PcrSubqueryMarker(step1);
+				CColRef *marker2 = model->PcrSubqueryMarker(step2);
+				CExpression *intermediate = model->PexprExpr((*step1->Pdrgpsym())[1]);
+				CExpression *result = model->PexprExpr((*step2->Pdrgpsym())[1]);
+				ok &= nullptr != marker1 && nullptr != marker2 && marker1 != marker2 &&
+					intermediate->DeriveHasSubquery() && !result->DeriveHasSubquery();
+				for (ULONG replay = 0; replay < 2; ++replay)
+					ok &= checker.FCheck(rule, model) && marker1 == model->PcrSubqueryMarker(step1) &&
+						marker2 == model->PcrSubqueryMarker(step2) &&
+						intermediate == model->PexprExpr((*step1->Pdrgpsym())[1]) &&
+						result == model->PexprExpr((*step2->Pdrgpsym())[1]);
+			}
+			model->Release(); source->Release(); rule->Release();
+		}
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresSubqueryOutputBindings),
+		GPOS_UNITTEST_FUNC(EresMarkerSequenceReplay),
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
 		GPOS_UNITTEST_FUNC(EresComparisonOutcomeDomain),

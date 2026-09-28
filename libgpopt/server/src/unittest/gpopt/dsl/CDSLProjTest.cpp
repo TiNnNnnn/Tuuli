@@ -46,6 +46,7 @@
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "naucrates/md/IMDTypeBool.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -358,7 +359,8 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 			pexprScalarInner)));
 	pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CScalarProjectElement(
-			mp, fix.PcrCreateInt4("project_chain_exists_value")),
+			mp, COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier)),
 		GPOS_NEW(mp) CExpression(
 			mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprExistsInner)));
 	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
@@ -392,6 +394,12 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		{
 			eres = GPOS_FAILED;
 		}
+		// Replay the complete scalar -> existential lowering chain after target
+		// construction, retaining the same intermediate expressions and marker.
+		CColRef *marker = pmodel->PcrSubqueryMarker((*prule->Pdrgpcon())[3]);
+		if (nullptr == marker || !checker.FCheck(prule, pmodel) ||
+			marker != pmodel->PcrSubqueryMarker((*prule->Pdrgpcon())[3]))
+			eres = GPOS_FAILED;
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
