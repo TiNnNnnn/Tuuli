@@ -125,17 +125,25 @@ CDSLExistsTest::EresUnittest_TypedScalarExists()
 		GPOS_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
 		// The same typed TABLE capture must also feed a relational target Input.
 		// Both polarities retain the complete correlated query, not a synthetic Get.
-		for (ULONG negated = 0; negated < 2; ++negated)
+		for (ULONG variant = 0; variant < 4; ++variant)
 		{
-			CDSLRule *bridge = CDSLRuleParser::PdslruleParse(mp, negated
+			const BOOL negated = 0 != variant % 2;
+			const BOOL nested = 2 <= variant;
+			const CHAR *text = nested ? (negated
 				? "Filter<Not(Not(Not(Exists(t1)))) a0>(Input<t0>)|"
 				  "NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1"
 				: "Filter<Not(Not(Exists(t1))) a0>(Input<t0>)|"
-				  "Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1", "EQ", &error);
+				  "Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1") : (negated
+				? "Filter<Not(Exists(t1)) a0>(Input<t0>)|"
+				  "NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1"
+				: "Filter<Exists(t1) a0>(Input<t0>)|"
+				  "Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1");
+			CDSLRule *bridge = CDSLRuleParser::PdslruleParse(mp, text, "EQ", &error);
 			GPOS_ASSERT(nullptr != bridge);
 			outer->AddRef();
 			exists->AddRef();
-			CExpression *predicate = CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, exists));
+			CExpression *predicate = nested
+				? CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, exists)) : exists;
 			if (negated) predicate = CUtils::PexprNegate(mp, predicate);
 			CExpression *bridge_source = GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CLogicalSelect(mp), outer, predicate);
@@ -143,13 +151,36 @@ CDSLExistsTest::EresUnittest_TypedScalarExists()
 			CDSLMatcher bridge_matcher(mp, bridge);
 			GPOS_ASSERT(bridge_matcher.FMatch(bridge->PfragSrc()->PopRoot(), bridge_source, bridge_model));
 			GPOS_ASSERT(checker.FCheck(bridge, bridge_model));
-			CExpression *bridge_target = inst.PexprInstantiate(bridge, bridge_model);
+			CDSLInstantiator bridge_inst(mp);
+			CExpression *bridge_target = bridge_inst.PexprInstantiate(bridge, bridge_model);
 			GPOS_ASSERT(nullptr != bridge_target);
 			GPOS_ASSERT(COperator::EopLogicalSelect == bridge_target->Pop()->Eopid());
 			GPOS_ASSERT((negated ? COperator::EopScalarSubqueryNotExists
 				: COperator::EopScalarSubqueryExists) == (*bridge_target)[1]->Pop()->Eopid());
 			GPOS_ASSERT((*bridge_target)[0] == outer && (*(*bridge_target)[1])[0] == query);
 			GPOS_ASSERT(source->DeriveOutputColumns()->Equals(bridge_target->DeriveOutputColumns()));
+			GPOS_ASSERT(checker.FCheck(bridge, bridge_model));
+			// Compact native NOT EXISTS and explicit NOT(EXISTS) feed the same
+			// typed query capture. This is representation matching, not unnesting.
+			if (negated && !nested)
+			{
+				outer->AddRef();
+				query->AddRef();
+				CExpression *compact = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalSelect(mp), outer,
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryNotExists(mp), query));
+				CDSLModel *compact_model = GPOS_NEW(mp) CDSLModel(mp);
+				GPOS_ASSERT(bridge_matcher.FMatch(bridge->PfragSrc()->PopRoot(), compact, compact_model));
+				GPOS_ASSERT(checker.FCheck(bridge, compact_model));
+				CDSLInstantiator compact_inst(mp);
+				CExpression *compact_target = compact_inst.PexprInstantiate(bridge, compact_model);
+				GPOS_ASSERT(nullptr != compact_target &&
+					COperator::EopLogicalSelect == compact_target->Pop()->Eopid() &&
+					(*(*compact_target)[1])[0] == query);
+				compact_target->Release();
+				compact_model->Release();
+				compact->Release();
+			}
 			bridge_target->Release();
 			bridge_model->Release();
 			bridge_source->Release();
@@ -270,7 +301,7 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 		// The legacy check produces a binding, not just a boolean result.
 		// Missing/non-subquery captures, opposite polarity and a conflicting
 		// prebound input must fail at this constraint without inventing an input.
-		for (ULONG shape = 0; shape < 4; ++shape)
+		for (ULONG shape = 0; shape < 5; ++shape)
 		{
 			CDSLModel *rejected = GPOS_NEW(mp) CDSLModel(mp);
 			if (1 == shape)
@@ -293,6 +324,16 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 			{
 				rejected->FBind(predicate, pexprPredicate);
 				rejected->FBind(input, pexprOuter);
+			}
+			else if (4 == shape)
+			{
+				COperator *op = fNegated
+					? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+					: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp));
+				CExpression *value = GPOS_NEW(mp) CExpression(mp, op,
+					CUtils::PexprScalarConstBool(mp, true));
+				rejected->FBind(predicate, value);
+				value->Release();
 			}
 			const CDSLConstraint *failed = nullptr;
 			ULONG index = gpos::ulong_max;

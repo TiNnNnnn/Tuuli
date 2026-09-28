@@ -1,0 +1,54 @@
+{
+  "description": "NOT EXISTS 捕获完整的 LIMIT/OFFSET 子查询，不删除有序算子或提前解相关",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0cc2a62105c50f52\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "t",
+      "f",
+      "t",
+      "t"
+    ],
+    "postgres_output": [
+      "t",
+      "f",
+      "t",
+      "t"
+    ],
+    "off_output": [
+      "t",
+      "f",
+      "t",
+      "t"
+    ]
+  }
+}

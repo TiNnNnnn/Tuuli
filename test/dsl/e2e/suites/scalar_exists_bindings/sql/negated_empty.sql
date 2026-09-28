@@ -1,0 +1,2 @@
+SELECT NOT EXISTS (SELECT 1 FROM exists_inner WHERE j = i AND j < 0)
+FROM exists_outer ORDER BY i NULLS FIRST;

@@ -112,6 +112,10 @@ CDSLConstraintChecker::FCheckPredicateExists(
 		return false;
 	}
 	CExpression *pexprInput = (*pexprPredicate)[0];
+	if (!pexprInput->Pop()->FLogical())
+	{
+		return false;
+	}
 	CExpression *pexprBound = pmodel->PexprTable((*pdrgpsym)[1]);
 	return nullptr == pexprBound ? pmodel->FBind((*pdrgpsym)[1], pexprInput)
 							 : CDSLMatchView::FSameCapturedExpression(pexprBound, pexprInput);
