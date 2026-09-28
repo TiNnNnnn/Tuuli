@@ -1,15 +1,5 @@
 {
-  "description": "A proved aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
-  "replacement": {
-    "xforms": [
-      "CXformLeftSemiApplyIn2LeftSemiJoin"
-    ],
-    "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "acc0381a6ee39104"
-    ]
-  },
+  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
   "plans": [
     {
       "name": "native",
@@ -21,7 +11,16 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\""
+      ]
     },
     {
       "name": "negative",
@@ -35,24 +34,21 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "safety-guard",
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"failed_constraint\":\"ErrorFree\""
       ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformLeftSemiApplyIn2LeftSemiJoin"
-        ]
-      }
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\""
+      ]
     }
   ],
   "rows": {

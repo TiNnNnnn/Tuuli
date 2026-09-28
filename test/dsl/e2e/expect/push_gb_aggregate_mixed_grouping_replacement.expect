@@ -1,15 +1,5 @@
 {
-  "description": "One aggregate pushdown rule drops referred-side grouping columns and restores them through the unique join",
-  "replacement": {
-    "xforms": [
-      "CXformPushGbBelowJoin"
-    ],
-    "scope": "Real aggregate with FK grouping on the outer child and additional grouping columns from the unique referred child",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "78c046d1ea440878"
-    ]
-  },
+  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
   "plans": [
     {
       "name": "native",
@@ -23,11 +13,13 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"78c046d1ea440878\"",
+        "\"failed_constraint\":\"ErrorFree\""
       ],
-      "alternative": [
-        "CXformPushGbBelowJoin",
-        "CXformDSLRule_Agg"
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
       ]
     },
     {
@@ -42,24 +34,21 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "safety-guard",
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"78c046d1ea440878\"",
+        "\"failed_constraint\":\"ErrorFree\""
       ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformPushGbBelowJoin"
-        ]
-      }
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+      ]
     }
   ],
   "rows": {

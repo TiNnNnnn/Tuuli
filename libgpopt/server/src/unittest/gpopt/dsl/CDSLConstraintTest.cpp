@@ -22,12 +22,14 @@
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatchView.h"
+#include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -104,6 +106,44 @@ BindTableAndAttr(CDSLModel *pmodel, const CDSLSymbol *psymTable,
 }
 
 static GPOS_RESULT
+EresAggregateTotalityScope()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL bounded : {false, true})
+	{
+		CExpression *input = bounded
+			? GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(mp,
+				GPOS_NEW(mp) CColRefArray(mp), GPOS_NEW(mp) IDatum2dArray(mp)))
+			: fix.PexprLogicalGet("count_unbounded", 1);
+		CExpression *aggregate = CUtils::PexprCountStar(mp, input);
+		for (BOOL function : {false, true})
+		{
+			// A finite invocation is safe, but does not make COUNT universally
+			// total. These identity templates exercise properties, not rewrites.
+			CDSLRule *rule = PdslruleParseLocal(mp, function
+				? "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|"
+				  "t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;ErrorFree(f0)"
+				: "Input<t0>|Input<t1>|t1 := t0;ErrorFree(t0)");
+			if (nullptr == rule) { aggregate->Release(); return GPOS_FAILED; }
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL matched = CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), aggregate, model);
+			const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
+			ok &= matched && accepted == (bounded && !function);
+			if (!matched || accepted != (bounded && !function))
+				GPOS_TRACE_FORMAT("aggregate totality bounded=%d function=%d matched=%d accepted=%d",
+					bounded, function, matched, accepted);
+			model->Release(); rule->Release();
+		}
+		aggregate->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresDeterministicOperatorHeads()
 {
 	CAutoMemoryPool amp;
@@ -166,6 +206,7 @@ GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),

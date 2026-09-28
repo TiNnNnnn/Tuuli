@@ -1,0 +1,74 @@
+{
+  "description": "Integer MIN positive control: An atomic CBO DSL rule decorrelates a grouped subquery by extending its grouping and output schema with the equality key",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key; ordinary integer MIN only",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "88f3ce3adc6c520b"
+    ],
+    "excluded_native_domains": [
+      "Unbounded COUNT and other potentially throwing aggregate functions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "output": [
+      "1",
+      "1",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "3"
+    ]
+  }
+}

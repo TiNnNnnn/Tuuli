@@ -1,0 +1,76 @@
+{
+  "description": "Integer MIN positive control: A proved aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key; ordinary integer MIN only",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "acc0381a6ee39104"
+    ],
+    "excluded_native_domains": [
+      "Unbounded COUNT and other potentially throwing aggregate functions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoin"
+    ],
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ]
+  }
+}
