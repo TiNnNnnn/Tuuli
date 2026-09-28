@@ -83,9 +83,18 @@ CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprQuantified);
 	CColRefArray *pdrgpcrOuter =
 		(*pexprQuantified)[1]->DeriveUsedColumns()->Pdrgpcr(m_mp);
-	const BOOL fMatches = pmodel->FBind((*pdrgpsym)[1], pexprComparison) &&
-		pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter) &&
-		pmodel->FBind((*pdrgpsym)[3], (*pexprQuantified)[0]);
+	CExpression *boundComparison = pmodel->PexprPred((*pdrgpsym)[1]);
+	CColRefArray *boundOuter = pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
+	CExpression *boundInput = pmodel->PexprTable((*pdrgpsym)[3]);
+	// Extraction allocates fresh artifacts, not fresh logical captures. Check
+	// all existing captures before publishing any output; never replace them.
+	const BOOL fMatches =
+		(nullptr == boundComparison || CDSLMatchView::FSameCapturedExpression(boundComparison, pexprComparison)) &&
+		(nullptr == boundOuter || boundOuter->Equals(pdrgpcrOuter)) &&
+		(nullptr == boundInput || CDSLMatchView::FSameCapturedExpression(boundInput, (*pexprQuantified)[0])) &&
+		(nullptr != boundComparison || pmodel->FBind((*pdrgpsym)[1], pexprComparison)) &&
+		(nullptr != boundOuter || pmodel->FBind((*pdrgpsym)[2], pdrgpcrOuter)) &&
+		(nullptr != boundInput || pmodel->FBind((*pdrgpsym)[3], (*pexprQuantified)[0]));
 	pexprComparison->Release();
 	pdrgpcrOuter->Release();
 	return fMatches;

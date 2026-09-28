@@ -1132,6 +1132,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
+	BOOL ok = true;
 	for (ULONG ul = 0; ul < 2; ul++)
 	{
 		const BOOL fAll = 0 < ul;
@@ -1148,6 +1149,46 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 								   pmodel));
 		CDSLConstraintChecker checker(mp);
 		GPOS_ASSERT(checker.FCheck(prule, pmodel));
+		// Extraction must accept an existing identical capture, including a
+		// separately allocated comparison/vector, and never overwrite a conflict.
+		ok &= checker.FCheck(prule, pmodel);
+		const CDSLSymbolArray *symbols = (*prule->Pdrgpcon())[1]->Pdrgpsym();
+		for (ULONG variant = 0; variant < 6; ++variant)
+		{
+			CDSLModel *bound = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, bound);
+			const ULONG slot = 1 + variant % 3;
+			const BOOL compatible = variant < 3;
+			CRefCount *capture = nullptr;
+			if (1 == slot)
+				capture = compatible
+					? CDSLQuantifiedMatcher::PexprComparison(mp, (*pexprSource)[1])
+					: CUtils::PexprScalarConstBool(mp, true);
+			else if (2 == slot)
+			{
+				CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+				if (compatible)
+					columns->AppendArray(pmodel->PdrgpcrAttrs((*symbols)[2]));
+				capture = columns;
+			}
+			else
+			{
+				capture = compatible ? (*(*pexprSource)[1])[0] : pexprInnerGet;
+				capture->AddRef();
+			}
+			ok &= bound->FBind((*symbols)[slot], capture);
+			const BOOL accepted = checker.FCheck(prule, bound);
+			if (accepted != compatible)
+				GPOS_TRACE_FORMAT("quantified capture all=%d variant=%d accepted=%d", fAll, variant, accepted);
+			ok &= accepted == compatible && bound->PvalLookup((*symbols)[slot]) == capture;
+			if (accepted)
+				ok &= checker.FCheck(prule, bound);
+			else
+				for (ULONG other = 1; other <= 3; ++other)
+					if (other != slot) ok &= nullptr == bound->PvalLookup((*symbols)[other]);
+			capture->Release();
+			bound->Release();
+		}
 		CDSLInstantiator instantiator(mp);
 		CExpression *pexprTarget =
 			instantiator.PexprInstantiate(prule, pmodel);
@@ -1168,7 +1209,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 		pexprSource->Release();
 		pexprInnerGet->Release();
 	}
-	return GPOS_OK;
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
