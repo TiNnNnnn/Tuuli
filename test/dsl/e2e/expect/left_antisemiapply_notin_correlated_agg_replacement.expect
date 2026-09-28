@@ -1,16 +1,5 @@
 {
-  "description": "Aggregate/filter commute feeds the qualified NOT IN decorrelation rule when correlation is grouped",
-  "replacement": {
-    "xforms": [
-      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
-    ],
-    "scope": "Correlated NOT IN whose aggregate groups the local correlation key",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "acc0381a6ee39104",
-      "59a6d12ce1dd7d88"
-    ]
-  },
+  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
   "plans": [
     {
       "name": "native",
@@ -19,7 +8,17 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+      ]
     },
     {
       "name": "negative",
@@ -30,25 +29,22 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "safety-guard",
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
         "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
-      ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
-        ]
-      }
+      ]
     }
   ],
   "rows": {

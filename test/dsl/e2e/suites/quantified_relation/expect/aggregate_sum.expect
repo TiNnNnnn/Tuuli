@@ -1,5 +1,5 @@
 {
-  "description": "Audited integer MAX supports the typed quantified bridge",
+  "description": "SUM is not certified total merely because it is built-in",
   "plans": [
     {
       "name": "dsl-on-native-unnest-off",
@@ -12,36 +12,24 @@
       ],
       "policy": "construct.policy",
       "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"eb808b80935652d6\""
       ],
       "not_contains": [
-        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
         "Xform: CXformSelect2Apply",
         "Xform: CXformSimplifySelectWithSubquery",
         "Xform: CXformSubquery2CorrelatedApply",
         "Xform: CXformRemoveSubqDistinct"
-      ],
-      "alternative": [
-        "CXformDSLRule_Select"
       ]
     }
   ],
   "rows": {
-    "disable_xforms": [
-      "CXformSelect2Apply",
-      "CXformSimplifySelectWithSubquery",
-      "CXformSubquery2CorrelatedApply",
-      "CXformRemoveSubqDistinct"
-    ],
     "policy": "construct.policy",
     "output": [
-      "2",
-      "3"
+      "2"
     ],
     "postgres_output": [
-      "2",
-      "3"
+      "2"
     ]
   }
 }

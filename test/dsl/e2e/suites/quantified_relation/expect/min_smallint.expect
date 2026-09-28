@@ -1,5 +1,5 @@
 {
-  "description": "Audited integer MAX supports the typed quantified bridge",
+  "description": "Integer aggregate totality composes with safe widening casts: min_smallint",
   "plans": [
     {
       "name": "dsl-on-native-unnest-off",
@@ -36,12 +36,10 @@
     ],
     "policy": "construct.policy",
     "output": [
-      "2",
-      "3"
+      "2"
     ],
     "postgres_output": [
-      "2",
-      "3"
+      "2"
     ]
   }
 }

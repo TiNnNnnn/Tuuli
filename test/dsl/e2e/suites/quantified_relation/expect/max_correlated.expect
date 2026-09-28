@@ -1,5 +1,5 @@
 {
-  "description": "Audited integer MAX supports the typed quantified bridge",
+  "description": "Audited MAX preserves the whole correlated query",
   "plans": [
     {
       "name": "dsl-on-native-unnest-off",

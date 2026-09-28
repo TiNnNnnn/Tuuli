@@ -30,6 +30,7 @@
 #include "gpopt/base/CCastUtils.h"
 #include "gpopt/base/CPropConstraint.h"
 #include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/CMaxCard.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
@@ -112,10 +113,8 @@ FScalarCastProvablyErrorFree(CExpression *pexpr)
 BOOL
 FAggFuncProvablyErrorFree(CScalarAggFunc *popAgg)
 {
-	if (popAgg->FCountStar() || popAgg->FCountAny())
-	{
-		return true;
-	}
+	// COUNT is not unconditionally total: PostgreSQL's int8inc transition
+	// reports bigint overflow. MIN/MAX below only select an existing value.
 	IMDId *pmdid = popAgg->MDId();
 	if (IMDId::EmdidGeneral != pmdid->MdidType())
 	{
@@ -199,8 +198,6 @@ FWindowFuncProvablyErrorFree(CScalarWindowFunc *popWindow)
 	const OID oid = CMDIdGPDB::CastMdid(popWindow->FuncMdId())->Oid();
 	switch (oid)
 	{
-		case GPDB_COUNT_STAR:
-		case GPDB_INT4_AGG_COUNT:
 		case GPDB_INT2_AGG_MIN:
 		case GPDB_INT2_AGG_MAX:
 		case GPDB_INT4_AGG_MIN:
@@ -322,7 +319,8 @@ BOOL
 FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic = false);
 
 BOOL
-FScalarTreeProvablyErrorFree(CExpression *pexpr)
+FScalarTreeProvablyErrorFree(CExpression *pexpr,
+							   const CMaxCard &aggregateInput = CMaxCard())
 {
 	switch (pexpr->Pop()->Eopid())
 	{
@@ -363,14 +361,32 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 			break;
 		case COperator::EopScalarAggFunc:
 		{
-			// Admit only aggregates whose exact built-in OID has a total transition:
-			// COUNT and signed-integer MIN/MAX. SUM/AVG can overflow, and user-defined
-			// aggregates remain rejected without an equivalent metadata property.
+			// A total transition alone does not establish safety of DISTINCT,
+			// ordered-set/direct arguments or a split state. Admit only ordinary
+			// global calls, then check their argument expressions recursively.
 			CScalarAggFunc *popAgg =
 				CScalarAggFunc::PopConvert(pexpr->Pop());
-			if (!FAggFuncProvablyErrorFree(popAgg))
+			// This bound belongs to this aggregate's actual relational input,
+			// never to an arbitrary invocation of a captured function symbol.
+			// For ordinary COUNT, every transition state is in [0, input rows].
+			const BOOL boundedCount = (popAgg->FCountStar() || popAgg->FCountAny()) &&
+				aggregateInput.Ull() != GPOPT_MAX_CARD &&
+				aggregateInput.Ull() <= static_cast<ULLONG>(gpos::lint_max);
+			if (!popAgg->FGlobal() || popAgg->FSplit() || popAgg->IsDistinct() ||
+				popAgg->AggKind() != EaggfunckindNormal ||
+				(!boundedCount && !FAggFuncProvablyErrorFree(popAgg)) ||
+				EaggfuncIndexSentinel != pexpr->Arity())
 			{
 				return false;
+			}
+			for (ULONG i = 0; i < pexpr->Arity(); ++i)
+			{
+				if (COperator::EopScalarValuesList != (*pexpr)[i]->Pop()->Eopid() ||
+					(*pexpr)[i]->Arity() !=
+						(i == EaggfuncIndexArgs && !popAgg->FCountStar() ? 1U : 0U))
+				{
+					return false;
+				}
 			}
 			break;
 		}
@@ -401,7 +417,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 	}
 	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
 	{
-		if (!FScalarTreeProvablyErrorFree((*pexpr)[ul]))
+		if (!FScalarTreeProvablyErrorFree((*pexpr)[ul], aggregateInput))
 		{
 			return false;
 		}
@@ -421,17 +437,21 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 			(!deterministic || FScalarTreeProvablyDeterministic(pexpr));
 	switch (pexpr->Pop()->Eopid())
 	{
+		case COperator::EopLogicalMaxOneRow:
+			// The operator's own bound is always one, even when it can raise a
+			// cardinality violation. Only a guaranteed child bound discharges it.
+			return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
+				(*pexpr)[0]->DeriveMaxCard().Ull() <= 1 &&
+				FRelationalTreeProvablyErrorFree((*pexpr)[0], deterministic);
 		case COperator::EopLogicalGbAgg:
 		{
-			// Pure global grouping adds neither scalar evaluation nor an
-			// aggregate transition/final function. Audit every grouping key's
-			// equality and recurse into the input; DISTINCT is not a safety
-			// certificate for an errorful or volatile subtree beneath it.
+			// Audit every grouping key and recurse through all aggregate items
+			// and the input. COUNT additionally needs a guaranteed input bound;
+			// neither that bound nor MIN/MAX makes its arguments safe.
 			const auto *agg = CLogicalGbAgg::PopConvert(pexpr->Pop());
 			if (!agg->FGlobal() || 2 != pexpr->Arity() ||
 				!(*pexpr)[0]->Pop()->FLogical() ||
-				COperator::EopScalarProjectList != (*pexpr)[1]->Pop()->Eopid() ||
-				0 != (*pexpr)[1]->Arity()) return false;
+				COperator::EopScalarProjectList != (*pexpr)[1]->Pop()->Eopid()) return false;
 			const CColRefArray *keys = agg->Pdrgpcr();
 			if (nullptr == keys) return false;
 			for (ULONG i = 0; i < keys->Size(); ++i)
@@ -440,7 +460,9 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 				if (!IMDId::IsValid(equality) || IMDId::EmdidGeneral != equality->MdidType() ||
 					!CPredicateUtils::FBuiltInComparisonIsVeryStrict(equality)) return false;
 			}
-			break;
+			return FRelationalTreeProvablyErrorFree((*pexpr)[0], deterministic) &&
+				FScalarTreeProvablyErrorFree((*pexpr)[1], (*pexpr)[0]->DeriveMaxCard()) &&
+				(!deterministic || FScalarTreeProvablyDeterministic((*pexpr)[1]));
 		}
 		case COperator::EopLogicalGet:
 		case COperator::EopLogicalConstTableGet:
@@ -455,7 +477,7 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 		case COperator::EopLogicalUnionAll:
 			break;
 		default:
-			// Cardinality assertions, dynamic LIMITs, real aggregates, window frames,
+			// Cardinality assertions, dynamic LIMITs, window frames,
 			// and opaque/CTE inputs need their own totality contracts. A table
 			// placeholder is not evidence that an arbitrary subtree cannot err.
 			return false;

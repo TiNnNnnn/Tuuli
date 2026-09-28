@@ -1,5 +1,5 @@
 {
-  "description": "Audited integer MAX supports the typed quantified bridge",
+  "description": "COUNT(*) is total on a statically bounded VALUES input",
   "plans": [
     {
       "name": "dsl-on-native-unnest-off",
@@ -36,11 +36,9 @@
     ],
     "policy": "construct.policy",
     "output": [
-      "2",
       "3"
     ],
     "postgres_output": [
-      "2",
       "3"
     ]
   }

@@ -1,15 +1,5 @@
 {
-  "description": "An atomic CBO DSL rule decorrelates a grouped subquery by extending its grouping and output schema with the equality key",
-  "replacement": {
-    "xforms": [
-      "CXformLeftSemiApply2LeftSemiJoin"
-    ],
-    "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "88f3ce3adc6c520b"
-    ]
-  },
+  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
   "plans": [
     {
       "name": "native",
@@ -18,7 +8,16 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"88f3ce3adc6c520b\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\""
+      ]
     },
     {
       "name": "negative",
@@ -29,24 +28,21 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "safety-guard",
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"88f3ce3adc6c520b\"",
+        "\"failed_constraint\":\"ErrorFree\""
       ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformLeftSemiApply2LeftSemiJoin"
-        ]
-      }
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"88f3ce3adc6c520b\""
+      ]
     }
   ],
   "rows": {

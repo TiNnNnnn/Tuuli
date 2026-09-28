@@ -1,5 +1,5 @@
 {
-  "description": "Audited integer MAX supports the typed quantified bridge",
+  "description": "Plain integer MIN is safe on an audited input",
   "plans": [
     {
       "name": "dsl-on-native-unnest-off",
@@ -13,7 +13,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -36,12 +36,10 @@
     ],
     "policy": "construct.policy",
     "output": [
-      "2",
-      "3"
+      "2"
     ],
     "postgres_output": [
-      "2",
-      "3"
+      "2"
     ]
   }
 }

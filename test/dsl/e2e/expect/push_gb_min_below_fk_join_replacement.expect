@@ -1,0 +1,85 @@
+{
+  "description": "Integer MIN positive control: A proved DSL rule pushes a real aggregate below an FK inner join",
+  "replacement": {
+    "xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "scope": "Aggregate grouping contains the outer FK and aggregate inputs use only the outer child; ordinary integer MIN only",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "78c046d1ea440878"
+    ],
+    "excluded_native_domains": [
+      "Unbounded COUNT and other potentially throwing aggregate functions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+      ],
+      "alternative": [
+        "CXformPushGbBelowJoin",
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformPushGbBelowJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushGbBelowJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "output": [
+      "10,1",
+      "20,3"
+    ],
+    "postgres_output": [
+      "10,1",
+      "20,3"
+    ]
+  }
+}

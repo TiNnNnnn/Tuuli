@@ -1,12 +1,13 @@
 {
-  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
+  "description": "Safety gap: an unbounded window COUNT is not universally ErrorFree; reject window/filter movement",
   "plans": [
     {
       "name": "native",
       "dsl": false,
       "trace": true,
       "contains": [
-        "Xform: CXformPushGbBelowJoin"
+        "Xform: CXformLeftSemiApply2LeftSemiJoin",
+        "CLogicalSequenceProject"
       ]
     },
     {
@@ -14,12 +15,12 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c6147dd109512ce4\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"878a42451564c19e\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"c6147dd109512ce4\""
+        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\""
       ]
     },
     {
@@ -27,10 +28,10 @@
       "dsl": false,
       "trace": true,
       "disable_xforms": [
-        "CXformPushGbBelowJoin"
+        "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "not_contains": [
-        "Xform: CXformPushGbBelowJoin"
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
       ]
     },
     {
@@ -38,32 +39,30 @@
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
-        "CXformPushGbBelowJoin"
+        "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c6147dd109512ce4\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"878a42451564c19e\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"c6147dd109512ce4\""
+        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\""
       ]
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformPushGbBelowJoin"
+      "CXformLeftSemiApply2LeftSemiJoin"
     ],
     "output": [
-      "10,1,1",
-      "10,2,1",
-      "20,3,1"
+      "10",
+      "30"
     ],
     "postgres_output": [
-      "10,1,1",
-      "10,2,1",
-      "20,3,1"
+      "10",
+      "30"
     ]
   }
 }

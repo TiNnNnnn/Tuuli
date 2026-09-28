@@ -18,6 +18,7 @@
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
@@ -27,6 +28,7 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIf.h"
@@ -1416,26 +1418,56 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedQuantified()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
-	for (ULONG ul = 0; ul < 8; ul++)
+	for (ULONG ul = 0; ul < 18; ul++)
 	{
 		const BOOL fAll = 0 != ul % 2;
-		// Pure grouping is total on safe keys/inputs; MaxOneRow and real
-		// aggregate functions still require their own demand contracts.
-		const BOOL demandSensitive = 4 <= ul;
+		// An assertion requires its child's guaranteed bound, not its own
+		// output bound. Even a bounded child must be checked for errors.
+		const BOOL demandSensitive = (4 <= ul && ul < 6) ||
+			(8 <= ul && ul < 10) || ul >= 14;
 		CExpression *pexprInnerGet = nullptr;
 		CExpression *pexprSource =
 			PexprPreUnnest(mp, fix, fAll, &pexprInnerGet);
 		if (ul < 2 || ul >= 4)
 		{
 			CExpression *predicate = (*pexprSource)[1];
-			CExpression *query = ul < 2 ? pexprInnerGet : (*predicate)[0];
+			CExpression *query = ul < 2 || (4 <= ul && ul < 6) || ul >= 16
+				? pexprInnerGet : (*predicate)[0];
 			query->AddRef();
-			if (ul >= 4 && ul < 6)
+			if (ul >= 10 && ul < 16)
+			{
+				CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+				columns->Append((*CLogicalGbAgg::PopConvert(query->Pop())->Pdrgpcr())[0]);
+				IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+				for (ULONG i = 0; i < (ul - 10) / 2; ++i)
+				{
+					IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+					CExpression *value = CUtils::PexprScalarConstInt4(mp, 1);
+					IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+					datum->AddRef();
+					row->Append(datum);
+					value->Release();
+					rows->Append(row);
+				}
+				query->Release();
+				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, rows)));
+			}
+			else if (ul >= 16)
+			{
+				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp),
+					GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+						GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query),
+						CUtils::PexprScalarConstBool(mp, false)));
+			}
+			else if (ul >= 4 && ul < 6)
 				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
 			else if (ul >= 6)
 			{
 				CExpression *aggregate = fix.PexprLogicalGbAgg((*query)[0],
 					CLogicalGbAgg::PopConvert(query->Pop())->Pdrgpcr(), fix.PcrCreateInt4("agg_value"));
+				if (ul >= 8)
+					CScalarAggFunc::PopConvert((*(*(*aggregate)[1])[0])[0]->Pop())->SetIsDistinct(true);
 				query->Release();
 				query = aggregate;
 			}

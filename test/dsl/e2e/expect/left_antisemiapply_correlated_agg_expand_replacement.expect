@@ -1,15 +1,5 @@
 {
-  "description": "A proved atomic anti-Apply rule decorrelates a grouped subquery by extending grouping and schema",
-  "replacement": {
-    "xforms": [
-      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
-    ],
-    "scope": "LeftAntiSemiApply whose grouped inner correlation key is not already a grouping key",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "8acf52440ec02ea3"
-    ]
-  },
+  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
   "plans": [
     {
       "name": "native",
@@ -18,7 +8,16 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8acf52440ec02ea3\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"8acf52440ec02ea3\""
+      ]
     },
     {
       "name": "negative",
@@ -29,24 +28,21 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "safety-guard",
       "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8acf52440ec02ea3\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8acf52440ec02ea3\"",
+        "\"failed_constraint\":\"ErrorFree\""
       ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
-        ]
-      }
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"8acf52440ec02ea3\""
+      ]
     }
   ],
   "rows": {
