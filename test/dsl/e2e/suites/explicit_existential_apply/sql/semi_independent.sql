@@ -1,0 +1,3 @@
+SELECT i FROM apply_pairs
+WHERE i>0 AND EXISTS (SELECT * FROM apply_inner WHERE j<>k AND j>0)
+ORDER BY i NULLS FIRST;

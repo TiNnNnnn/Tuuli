@@ -11,7 +11,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"decbcd38aad02bdd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
         "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
       ],
       "not_contains": [
@@ -19,7 +19,7 @@
       ],
       "rule_edges": [
         {
-          "src_rule": "decbcd38aad02bdd",
+          "src_rule": "f489170cc9013ac8",
           "dst_rule": "78963540e9d42c30",
           "target_path": "r/0",
           "dst_binding_path": "r",

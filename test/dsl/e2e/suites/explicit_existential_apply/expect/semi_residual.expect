@@ -22,7 +22,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"1f8c09c5a197a085\"",
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
         "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
       ],
       "not_contains": [
@@ -30,7 +30,7 @@
       ],
       "rule_edges": [
         {
-          "src_rule": "1f8c09c5a197a085",
+          "src_rule": "235e16002a86b0d0",
           "dst_rule": "07bc74ac0afe2295",
           "target_path": "r/0",
           "dst_binding_path": "r",

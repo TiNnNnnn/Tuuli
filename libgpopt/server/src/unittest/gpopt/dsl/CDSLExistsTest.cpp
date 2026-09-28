@@ -65,6 +65,67 @@ using namespace gpopt;
 	"TableEq(t1,t0);PredicateNotExists(p0,t2)"
 
 static GPOS_RESULT
+EresIndependentFilterDependencies()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (ULONG kind = 0; kind < 3; kind++)
+	for (ULONG deps = 0; deps < (2 == kind ? 3 : 4); deps++)
+	{
+		// Correct independent dependencies, then stale combined and swapped
+		// dependencies, plus an invalid Column(two-column vector) constructor.
+		// None may bypass exact target validation or fall back to inferred cols.
+		const std::string text = std::string(
+			"Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t1>))|") +
+			(0 == kind ? "" : "Exists(t2) := p1;") +
+			"t1 := t0;p2 := p0;p3 := p1;n1 := BoolValue(p1);" +
+			(3 == deps ? "n0 := Column(a0);" : "n0 := BoolValue(p0);") +
+			(0 == deps || 3 == deps ? "a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);" :
+			 1 == deps ? "a1 := a0;a2 := a0;" : "a1 := ScalarDeps(n1);a2 := ScalarDeps(n0);") +
+			"ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)";
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("deps_left", 2, &lc);
+		CExpression *right = fix.PexprLogicalGet("deps_right", 1, &rc);
+		CExpression *first = fix.PexprEqPred((*lc)[0], (*lc)[0]);
+		CExpression *second = nullptr;
+		if (0 == kind)
+			second = fix.PexprEqPred((*lc)[1], (*lc)[1]);
+		else
+		{
+			CExpression *on = fix.PexprEqPred((*rc)[0], 1 == kind ? (*lc)[1] : (*rc)[0]);
+			CExpression *input = fix.PexprLogicalSelect(right, on);
+			on->Release();
+			second = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), input);
+		}
+		first->AddRef(); second->AddRef();
+		CExpression *both = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), first, second);
+		CExpression *source = fix.PexprLogicalSelect(left, both);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+			CDSLConstraintChecker(mp).FCheck(rule, model);
+		CDSLInstantiator inst(mp);
+		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
+		ok &= matched && ((0 == deps) == (nullptr != target));
+		if (nullptr != target)
+			ok &= COperator::EopLogicalSelect == target->Pop()->Eopid() &&
+				COperator::EopLogicalSelect == (*target)[0]->Pop()->Eopid() &&
+				(*(*target)[0])[0] == left && (*target)[1]->Matches(first) &&
+				(*(*target)[0])[1]->Matches(second);
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); both->Release(); first->Release(); second->Release();
+		left->Release(); right->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresExplicitExistentialApply()
 {
 	CAutoMemoryPool amp;
@@ -160,6 +221,7 @@ GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip),
