@@ -342,6 +342,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	// or tagged native Apply carriers. Their matchers own this boundary;
 	// one literal operator would lose valid bindings (including correlated ones).
 	const BOOL subqueryView = EdslopAny == pop->Edslop() || EdslopAll == pop->Edslop() ||
+		(EdslopInSubFilter == pop->Edslop() && 1 == pop->Pdrgpsym()->Size()) ||
 		((EdslopExists == pop->Edslop() || EdslopNotExists == pop->Edslop()) &&
 		 0 == pop->Pdrgpsym()->Size());
 	if (subqueryView || (!fLiteral && !FStructurallyExact(pop)))

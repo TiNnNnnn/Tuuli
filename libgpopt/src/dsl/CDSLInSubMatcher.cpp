@@ -537,6 +537,33 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
+		if (!fExtended && (COperator::EopLogicalLeftSemiApplyIn == pexpr->Pop()->Eopid() ||
+			COperator::EopLogicalLeftSemiCorrelatedApplyIn == pexpr->Pop()->Eopid()))
+		{
+			// Re-expose the origin-tagged membership value, then use the same
+			// selected-column and demand checks as the scalar representation.
+			const auto *apply = CLogicalApply::PopConvert(pexpr->Pop());
+			const CColRefArray *selected = apply->PdrgPcrInner();
+			if (3 != pexpr->Arity() || COperator::EopScalarSubqueryAny != apply->EopidOriginSubq() ||
+				nullptr == selected || 1 != selected->Size() ||
+				COperator::EopScalarCmp != (*pexpr)[2]->Pop()->Eopid() || 2 != (*pexpr)[2]->Arity() ||
+				COperator::EopScalarIdent != (*(*pexpr)[2])[1]->Pop()->Eopid() ||
+				CScalarIdent::PopConvert((*(*pexpr)[2])[1]->Pop())->Pcr() != (*selected)[0])
+				return false;
+			const auto *comparison = CScalarCmp::PopConvert((*pexpr)[2]->Pop());
+			comparison->MdIdOp()->AddRef();
+			(*pexpr)[0]->AddRef();
+			(*pexpr)[1]->AddRef();
+			(*(*pexpr)[2])[0]->AddRef();
+			CExpression *view = GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp),
+				(*pexpr)[0], GPOS_NEW(m_mp) CExpression(m_mp,
+					GPOS_NEW(m_mp) CScalarSubqueryAny(m_mp, comparison->MdIdOp(),
+						GPOS_NEW(m_mp) CWStringConst(m_mp, comparison->Pstr()->GetBuffer()), (*selected)[0]),
+					(*pexpr)[1], (*(*pexpr)[2])[0]));
+			const BOOL matched = FMatch(pop, view, pmodel);
+			view->Release();
+			return matched;
+		}
 		// Bind the native IN value and selected result, never dependency sets
 		// or a semijoin/conjunct view. FormalSQL evaluates the full inner query;
 		// PostgreSQL may stop on a match, so require demand-insensitive input.
