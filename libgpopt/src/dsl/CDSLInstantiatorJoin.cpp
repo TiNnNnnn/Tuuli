@@ -480,6 +480,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		const BOOL bindings = m_prule->Pexprdefs()->FHasBindings();
 		CExpression *pexprCarrier = bindings ? nullptr :
 			pmodel->PexprApplyCarrier(PsymResolve((*pdrgpsym)[0]));
+		BOOL hasSourceCarrier = false;
 		const auto findCarrier = [&](const auto &self, const CDSLOp *source) -> BOOL {
 			CExpression *candidate =
 				(source->Edslop() == pop->Edslop() ||
@@ -488,6 +489,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 					? pmodel->PexprApplyCarrier((*source->Pdrgpsym())[0]) : nullptr;
 			if (nullptr != candidate)
 			{
+				hasSourceCarrier = true;
 				BOOL matches = true;
 				// New predicates need not alias their old root. Reuse a complete
 				// source metadata binding, not an arbitrary Apply in the tree.
@@ -508,8 +510,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 					return false;
 			return true;
 		};
+		// A new explicit existential Apply needs no scalar-subquery carrier.
+		// Do not silently discard incompatible metadata from a source Apply.
 		if (bindings && (!findCarrier(findCarrier, m_prule->PfragSrc()->PopRoot()) ||
-						 nullptr == pexprCarrier))
+			(nullptr == pexprCarrier && (hasSourceCarrier || !(fSemiApply || fAntiApply)))))
 		{
 			pexprTargetPred->Release();
 			pexprLeft->Release();
@@ -521,12 +525,15 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			CLogicalApply *popCarrier =
 				CLogicalApply::PopConvert(pexprCarrier->Pop());
 			CColRefArray *pdrgpcrInner = popCarrier->PdrgPcrInner();
+			const BOOL ordinaryExistential = (fSemiApply || fAntiApply) &&
+				nullptr == pdrgpcrInner && !popCarrier->FCorrelated() &&
+				COperator::EopSentinel == popCarrier->EopidOriginSubq();
 			CColRefArray *pdrgpcrTargetInner =
 				nullptr == pdrgpcrInner
 					? nullptr
 					: PdrgpcrMapToTarget((*pop)[1], pexprRight,
 										 pdrgpcrInner, pmodel);
-			if (nullptr == pdrgpcrTargetInner ||
+			if ((!ordinaryExistential && nullptr == pdrgpcrTargetInner) ||
 				((fInnerApply || fLeftOuterApply) && 0 == pdrgpcrTargetInner->Size()))
 			{
 				CRefCount::SafeRelease(pdrgpcrTargetInner);
@@ -540,7 +547,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				// Native remapping represents unchanged columns by absent entries.
 				// PdrgpcrMapToTarget above has already validated every required column.
 				UlongToColRefMap *mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
-				for (ULONG i = 0; i < pdrgpcrInner->Size(); i++)
+				for (ULONG i = 0; nullptr != pdrgpcrInner && i < pdrgpcrInner->Size(); i++)
 				{
 					ULONG id = (*pdrgpcrInner)[i]->Id();
 					if ((*pdrgpcrInner)[i] != (*pdrgpcrTargetInner)[i] && nullptr == mapping->Find(&id))
@@ -548,7 +555,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				}
 				popJoin = popCarrier->PopCopyWithRemappedColumns(m_mp, mapping, false);
 				mapping->Release();
-				pdrgpcrTargetInner->Release();
+				CRefCount::SafeRelease(pdrgpcrTargetInner);
 			}
 			else if (fInnerApply)
 			{

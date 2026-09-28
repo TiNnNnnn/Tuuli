@@ -1,0 +1,10 @@
+# Existing compositional FormalSQL OUTCOME_EQ proofs; explicit ordinary Apply, no implicit unnesting.
+# Semi: 1477460462388683c16a1db7253c48b071c3c564c2937b3e93da4b445aaa9d67
+Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
+# Anti: 00ba13b2d0aaa4673ef1409e554decb15242a41d7e7a8ef8e8077ae48f3b4f6a
+NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
+# Preserve the remaining right-side Filter and its actual correlation vector.
+# Correlated Semi: 59941d7efbee3ebb3ff783599662f4efb1e9b89764505dd4a47409f9239f78b3
+Exists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|SemiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3
+# Correlated Anti: d978771fbe4d7e7d3fd632b876543f6b505b941dcf08ca0b97d4b62a9bf61eec
+NotExists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|AntiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3

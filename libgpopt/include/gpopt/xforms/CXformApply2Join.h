@@ -70,11 +70,11 @@ private:
 
 		TApply *popApply = TApply::PopConvert(pexprApply->Pop());
 		CColRefArray *colref_array = popApply->PdrgPcrInner();
-		if (nullptr == colref_array)
+		if (nullptr == colref_array || 0 == colref_array->Size())
 		{
 			// Apply created from LATERAL (or any non-scalar-subquery source)
-			// has no inner scalar colref; the correlated-apply form built
-			// here is scalar-subquery-shaped and does not apply. Skip.
+			// has no inner scalar colref (NULL or an empty array). The
+			// scalar-subquery-shaped correlated form does not apply. Skip.
 			return;
 		}
 		GPOS_ASSERT(1 == colref_array->Size());
