@@ -373,7 +373,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)
 # predicate stacks through ordinary Cascade chaining.
 # Typed binding: derive conjunction safety from its leaves; retain the exact
 # local/outer dependency partition checked by the Filter builder.
-# FormalSQL OUTCOME_EQ (rooted attributes and context-local safety): 58574652063e642eef710dbd3444a3b5a827e8863c20e0fa29b4c236f7eafff9
+# FormalSQL OUTCOME_EQ (rooted attributes and context-local safety): a9ad47ce7c56a770c9ebe19e705dd07956fbb20b32d602466452a0f5ef0d632e
 Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := t0;p2 := And(p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the single correlated-Filter decorrelation domain of
