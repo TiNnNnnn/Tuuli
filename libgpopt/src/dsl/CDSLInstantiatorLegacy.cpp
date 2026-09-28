@@ -13,6 +13,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -323,9 +324,7 @@ CDSLInstantiator::PexprResolveLegacyPredicate(const CDSLSymbol *psym, const CDSL
 			PdrgpcrResolveCols(pdef->PsymOperand(0), pmodel);
 		CColRefArray *pdrgpcrRight =
 			PdrgpcrResolveCols(pdef->PsymOperand(1), pmodel);
-		if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight ||
-			0 == pdrgpcrLeft->Size() ||
-			pdrgpcrLeft->Size() != pdrgpcrRight->Size())
+		if (!CDSLMatchView::FNullSafeEqComparableColumns(pdrgpcrLeft, pdrgpcrRight))
 		{
 			return nullptr;
 		}

@@ -13,6 +13,7 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/mdcache/CMDAccessorUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
@@ -707,6 +708,23 @@ CDSLMatchView::PexprPeelOrderLimit(CExpression *pexpr,
 		pexpr = (*pexpr)[0];
 	}
 	return pexpr;
+}
+
+BOOL
+CDSLMatchView::FNullSafeEqComparableColumns(const CColRefArray *left,
+										 const CColRefArray *right)
+{
+	if (nullptr == left || nullptr == right || 0 == left->Size() ||
+		left->Size() != right->Size())
+		return false;
+	for (ULONG i = 0; i < left->Size(); ++i)
+	{
+		if (!CMDAccessorUtils::FCmpOrCastedCmpExists(
+				(*left)[i]->RetrieveType()->MDId(),
+				(*right)[i]->RetrieveType()->MDId(), IMDType::EcmptEq))
+			return false;
+	}
+	return true;
 }
 
 BOOL

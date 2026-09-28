@@ -2851,6 +2851,80 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 	BOOL ok = true;
 	CColRefArray *columns = nullptr;
 	CExpression *get = fix.PexprLogicalGet("pairs", 3, &columns);
+	// Both spellings reject unavailable comparisons and malformed vectors.
+	// These are constructor checks, not claimed equivalent rewrite rules.
+	CColRef *boolean = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+	for (const CHAR *text : {
+		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Filter<p1 a2>(Input<t2>)|"
+		"TableEq(t2,t0);AttrsEq(a2,a0);PredicateNullSafeEq(p1,a0,a1)",
+		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Filter<NullSafeEq(a0,a1) a2>(Input<t2>)|"
+		"t2 := t0;a2 := a0"})
+	{
+		CWStringDynamic construction_error(mp);
+		CDSLRule *construction = CDSLRuleParser::PdslruleParse(mp, text, nullptr, &construction_error);
+		if (nullptr == construction)
+		{
+			GPOS_TRACE(construction_error.GetBuffer());
+			ok = false;
+			continue;
+		}
+		for (ULONG variant = 0; variant < 5; ++variant)
+		{
+			CColRefArray *left = GPOS_NEW(mp) CColRefArray(mp);
+			CColRefArray *right = GPOS_NEW(mp) CColRefArray(mp);
+			if (3 != variant)
+			{
+				left->Append((*columns)[0]);
+				right->Append(1 == variant ? boolean : (*columns)[1]);
+			}
+			if (2 == variant) right->Append((*columns)[2]);
+			if (4 == variant)
+			{
+				left->Append((*columns)[2]);
+				right->Append(boolean);
+			}
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= model->FBind((*construction->PfragSrc()->PopRoot()->Pdrgpsym())[1], left) &&
+				model->FBind((*construction->PfragSrc()->PopRoot()->Pdrgpsym())[2], right);
+			CDSLInstantiator builder(mp);
+			CExpression *predicate = builder.PexprInstantiatePredicate(construction,
+				(*construction->PfragTgt()->PopRoot()->Pdrgpsym())[0], model);
+			if ((nullptr != predicate) != (0 == variant))
+				GPOS_TRACE_FORMAT("NullSafeEq construction variant=%d present=%d rule=%s",
+					variant, nullptr != predicate, text);
+			ok &= (nullptr != predicate) == (0 == variant);
+			if (nullptr != predicate && 0 == variant)
+			{
+				CExpression *expected = CPredicateUtils::PexprINDFConjunction(mp, left, right);
+				ok &= predicate->Matches(expected);
+				expected->Release();
+			}
+			if (!construction->Pexprdefs()->FHasBindings())
+			{
+				ok &= model->FBind((*(*construction->PfragSrc()->PopRoot())[0]->Pdrgpsym())[0], get);
+				CDSLConstraintChecker checker(mp);
+				ok &= checker.FCheck(construction, model) == (0 == variant);
+				const CDSLSymbol *output = (*construction->PfragTgt()->PopRoot()->Pdrgpsym())[0];
+				// FCheck materializes a valid target predicate. Reuse that binding:
+				// FBind deliberately rejects even equivalent, separately built trees.
+				CExpression *bound = model->PexprPred(output);
+				ok &= (nullptr != bound) == (0 == variant);
+				if (nullptr == bound)
+				{
+					bound = CUtils::PexprScalarConstBool(mp, true);
+					ok &= model->FBind(output, bound);
+					bound->Release();
+				}
+				ok &= checker.FCheck(construction, model) == (0 == variant);
+			}
+			CRefCount::SafeRelease(predicate);
+			model->Release();
+			left->Release();
+			right->Release();
+		}
+		construction->Release();
+	}
 	for (ULONG count : {1U, 2U, 3U})
 	{
 		CColRefArray *left = GPOS_NEW(mp) CColRefArray(mp);

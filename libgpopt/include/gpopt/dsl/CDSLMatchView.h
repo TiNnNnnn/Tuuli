@@ -123,6 +123,10 @@ public:
 	// On success the caller owns both arrays; on failure both outputs are NULL.
 	static BOOL FNullSafeEqColumns(CMemoryPool *mp, const CExpression *pexpr,
 								 CColRefArray **left, CColRefArray **right);
+	// Legacy NULL-safe equality may use native casts; unavailable comparisons
+	// must reject both a constraint check and target construction, not throw.
+	static BOOL FNullSafeEqComparableColumns(const CColRefArray *left,
+										   const CColRefArray *right);
 
 	// Return the borrowed logical input of a pure Global dedup, skipping only
 	// compatible, function-free Local dedup stages. Never changes memo members.
