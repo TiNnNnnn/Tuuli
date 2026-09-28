@@ -88,6 +88,12 @@ COperator *
 CLogicalLeftAntiSemiApply::PopCopyWithRemappedColumns(
 	CMemoryPool *mp, UlongToColRefMap *colref_mapping, BOOL must_exist)
 {
+	// An explicit relational Apply has no scalar-subquery output metadata.
+	if (nullptr == m_pdrgpcrInner)
+	{
+		return GPOS_NEW(mp) CLogicalLeftAntiSemiApply(mp);
+	}
+
 	CColRefArray *pdrgpcrInner =
 		CUtils::PdrgpcrRemap(mp, m_pdrgpcrInner, colref_mapping, must_exist);
 

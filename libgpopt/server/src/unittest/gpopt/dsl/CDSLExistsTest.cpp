@@ -64,10 +64,103 @@ using namespace gpopt;
 	"Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|"         \
 	"TableEq(t1,t0);PredicateNotExists(p0,t2)"
 
+static GPOS_RESULT
+EresExplicitExistentialApply()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL negated : {false, true})
+	for (BOOL correlated : {false, true})
+	{
+		const std::string kind = negated ? "NotExists" : "Exists";
+		const std::string apply = negated ? "AntiApply" : "SemiApply";
+		const std::string text = correlated
+			? kind + "(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|" +
+			  apply + "<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|"
+			  "t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3"
+			: kind + "(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|" +
+			  apply + "<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"
+			  "t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)";
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("explicit_apply_left", 2, &lc);
+		CExpression *right = fix.PexprLogicalGet("explicit_apply_right", 2, &rc);
+		CExpression *on = fix.PexprEqPred((*rc)[0], correlated ? (*lc)[0] : (*rc)[1]);
+		CExpression *residual = fix.PexprEqPred((*rc)[1], (*lc)[1]);
+		CExpression *input = correlated ? fix.PexprLogicalSelect(right, residual) : right;
+		if (!correlated) input->AddRef();
+		CExpression *filtered = fix.PexprLogicalSelect(input, on);
+		COperator *op = negated
+			? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+			: GPOS_NEW(mp) CScalarSubqueryExists(mp);
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp, op, filtered);
+		CExpression *source = fix.PexprLogicalSelect(left, predicate);
+		CDSLMatcher matcher(mp, rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLConstraintChecker checker(mp);
+		CDSLInstantiator inst(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+			checker.FCheck(rule, model);
+		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
+		if (nullptr == target)
+		{
+			GPOS_TRACE_FORMAT("Explicit Apply negated=%d correlated=%d matched=%d", negated, correlated, matched);
+			ok = false;
+		}
+		else
+		{
+			CLogicalApply *built = CLogicalApply::PopConvert(target->Pop());
+			auto check = [&](BOOL valid, const CHAR *step) {
+				if (!valid) GPOS_TRACE_FORMAT("Explicit Apply negated=%d correlated=%d check=%s", negated, correlated, step);
+				ok &= valid;
+			};
+			check((negated ? COperator::EopLogicalLeftAntiSemiApply :
+				COperator::EopLogicalLeftSemiApply) == built->Eopid() &&
+				(nullptr == built->PdrgPcrInner() || 0 == built->PdrgPcrInner()->Size()) &&
+				COperator::EopSentinel == built->EopidOriginSubq() &&
+				(*target)[0] == left && (*target)[2]->Matches(on) &&
+				source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()), "operator/left/ON/output");
+			check(correlated ? (*(*target)[1])[0] == right && (*(*target)[1])[1]->Matches(residual)
+				: (*target)[1] == right, "right input");
+			// Ordinary existential Apply has no scalar result metadata to remap.
+			UlongToColRefMap *mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+			CExpression *copy = target->PexprCopyWithRemappedColumns(mp, mapping, false);
+			check(copy->Matches(target), "copy");
+			copy->Release();
+			mapping->Release();
+			// A newly built ordinary Apply remains consumable by another typed
+			// rule; missing scalar-result metadata must not break a rule chain.
+			const std::string nextText = apply + "<p0 a0 a1 a2>(Input<t0>,Input<t1>)|" +
+				apply + "<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|"
+				"t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2";
+			CDSLRule *next = CDSLRuleParser::PdslruleParse(mp, nextText.c_str(), "EQ", &error);
+			GPOS_UNITTEST_ASSERT(nullptr != next);
+			CDSLModel *nextModel = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher nextMatcher(mp, next);
+			CDSLInstantiator nextInst(mp);
+			const BOOL nextMatched = nextMatcher.FMatch(next->PfragSrc()->PopRoot(), target, nextModel) &&
+				checker.FCheck(next, nextModel);
+			CExpression *nextTarget = nextMatched ? nextInst.PexprInstantiate(next, nextModel) : nullptr;
+			check(nullptr != nextTarget && nextTarget->Pop()->Matches(target->Pop()), "second rule");
+			CRefCount::SafeRelease(nextTarget);
+			nextModel->Release(); next->Release();
+		}
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); predicate->Release(); input->Release();
+		residual->Release(); on->Release(); right->Release(); left->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip),
 		GPOS_UNITTEST_FUNC(

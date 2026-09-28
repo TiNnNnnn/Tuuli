@@ -1,0 +1,3 @@
+SELECT i FROM apply_outer WHERE EXISTS
+  (SELECT * FROM apply_empty WHERE j > 0)
+ORDER BY i NULLS FIRST;
