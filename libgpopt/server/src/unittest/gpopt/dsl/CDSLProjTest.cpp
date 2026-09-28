@@ -1319,6 +1319,98 @@ CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
 	pexprProject->Release();
 	pexprGet->Release();
 	prule->Release();
+
+	// Constructor/checker probes, not equivalence claims. Exercise ordered,
+	// heterogeneous outputs and reject malformed captures before publication.
+	prule = PdslruleParseLocal(mp,
+		"Proj<a0 s0>(Input<t0>)|Compute<e0 a1 s1>(Input<t1>)|"
+		"ExprNulls(e0,a0,a2)");
+	GPOS_ASSERT(nullptr != prule);
+	const auto *symbols = (*prule->Pdrgpcon())[0]->Pdrgpsym();
+	const IMDType *types[] = {fix.PcrCreateInt4("null_template")->RetrieveType(),
+		fix.Pmda()->PtMDType<IMDTypeBool>()};
+	// 0: valid; 1: datum type; 2: non-NULL; 3/4: output type/typmod;
+	// 5/6: output order/identity; 7/8: partial capture; 9/10: build/empty;
+	// 11: captured typmod; 12: absent input; 13: arity; 14: built typmod.
+	for (ULONG variant = 0; variant < 15; ++variant)
+	{
+		const BOOL generated = 9 == variant || 10 == variant || 14 == variant;
+		const BOOL expected = 0 == variant || generated || 11 == variant;
+		const ULONG count = 10 == variant ? 0 : 2;
+		CColRefArray *templates = GPOS_NEW(mp) CColRefArray(mp);
+		CColRefArray *outputs = GPOS_NEW(mp) CColRefArray(mp);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < count; ++i)
+		{
+			const INT typmod = 11 == variant || 14 == variant ? 42 : default_type_modifier;
+			templates->Append(COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(types[i], typmod));
+			CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				3 == variant && 0 == i ? types[1] : types[i],
+				4 == variant && 0 == i ? 42 : typmod);
+			outputs->Append(output);
+			CExpression *value = 2 == variant && 0 == i
+				? CUtils::PexprScalarConstInt4(mp, 1)
+				: CUtils::PexprScalarConstNull(mp,
+					1 == variant && 0 == i ? types[1] : types[i], default_type_modifier);
+			if (6 == variant && 0 == i)
+				output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(types[i], typmod);
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, output), value));
+		}
+		if (5 == variant)
+		{
+			CColRef *first = (*outputs)[0];
+			outputs->Replace(0, (*outputs)[1]);
+			outputs->Replace(1, first);
+		}
+		if (13 == variant)
+			outputs->Append((*outputs)[0]);
+		CExpression *list = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarProjectList(mp), items);
+		pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		if (12 != variant)
+			pmodel->FBind((*symbols)[1], templates);
+		if (!generated && 8 != variant)
+			pmodel->FBind((*symbols)[0], list);
+		if (!generated && 7 != variant)
+			pmodel->FBind((*symbols)[2], outputs);
+		const BOOL accepted = checker.FCheck(prule, pmodel);
+		if (expected != accepted)
+		{
+			GPOS_TRACE_FORMAT("ExprNulls capture variant %lu: expected %d, got %d",
+				variant, expected, accepted);
+			eres = GPOS_FAILED;
+		}
+		if (accepted && expected)
+		{
+			CExpression *bound = pmodel->PexprExpr((*symbols)[0]);
+			CColRefArray *cols = pmodel->PdrgpcrAttrs((*symbols)[2]);
+			if (nullptr == bound || nullptr == cols || count != bound->Arity() ||
+				count != cols->Size() || !checker.FCheck(prule, pmodel) ||
+				bound != pmodel->PexprExpr((*symbols)[0]) ||
+				cols != pmodel->PdrgpcrAttrs((*symbols)[2]))
+				eres = GPOS_FAILED;
+			else
+			{
+				for (ULONG i = 0; i < count; ++i)
+				{
+					if ((*cols)[i] != CScalarProjectElement::PopConvert((*bound)[i]->Pop())->Pcr() ||
+						!(*templates)[i]->RetrieveType()->MDId()->Equals((*cols)[i]->RetrieveType()->MDId()) ||
+						(*templates)[i]->TypeModifier() != (*cols)[i]->TypeModifier() ||
+						(generated && (*templates)[i] == (*cols)[i]))
+						eres = GPOS_FAILED;
+				}
+			}
+		}
+		if (!accepted && ((7 == variant && nullptr != pmodel->PdrgpcrAttrs((*symbols)[2])) ||
+			(8 == variant && nullptr != pmodel->PexprExpr((*symbols)[0]))))
+			eres = GPOS_FAILED;
+		pmodel->Release();
+		list->Release();
+		outputs->Release();
+		templates->Release();
+	}
+	prule->Release();
 	return eres;
 }
 
