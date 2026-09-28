@@ -1,0 +1,81 @@
+{
+  "description": "OR 的本地列别名复用输入列；没有双层 Compute，不计作规则触发",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalProject",
+        "\"nodes\":\"CLogicalProject/1 CLogicalGet/0\"",
+        "\"candidate_rules\":0"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1,t",
+      "2,f",
+      "3,",
+      "4,t",
+      "4,t",
+      "5,t",
+      "6,t",
+      "7,t",
+      "8,",
+      "9,"
+    ],
+    "postgres_output": [
+      "1,t",
+      "2,f",
+      "3,",
+      "4,t",
+      "4,t",
+      "5,t",
+      "6,t",
+      "7,t",
+      "8,",
+      "9,"
+    ],
+    "off_output": [
+      "1,t",
+      "2,f",
+      "3,",
+      "4,t",
+      "4,t",
+      "5,t",
+      "6,t",
+      "7,t",
+      "8,",
+      "9,"
+    ]
+  }
+}
