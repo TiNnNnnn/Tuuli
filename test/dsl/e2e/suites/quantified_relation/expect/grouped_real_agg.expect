@@ -1,0 +1,37 @@
+{
+  "description": "Pure grouping admission does not admit aggregate transitions",
+  "plans": [
+    {
+      "name": "dsl-on-native-unnest-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply",
+        "CXformRemoveSubqDistinct"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "\"status\":\"match_rejected\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "Xform: CXformSelect2Apply",
+        "Xform: CXformSimplifySelectWithSubquery",
+        "Xform: CXformSubquery2CorrelatedApply",
+        "Xform: CXformRemoveSubqDistinct"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}
