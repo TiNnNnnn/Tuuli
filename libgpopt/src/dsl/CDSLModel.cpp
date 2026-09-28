@@ -42,6 +42,7 @@ CDSLFrameBound::Matches(const CDSLFrameBound *other) const
 //---------------------------------------------------------------------------
 CDSLModel::CDSLModel(CMemoryPool *mp)
 	: m_mp(mp),
+	  m_phmSubqueryMarkers(nullptr),
 	  m_pdrgpexprResidual(nullptr),
 	  m_fDedupDrop(false),
 	  m_pexprDistinctAgg(nullptr)
@@ -75,6 +76,7 @@ CDSLModel::~CDSLModel()
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
 	m_pdrgpsymDerived->Release();
+	CRefCount::SafeRelease(m_phmSubqueryMarkers);
 	m_phmInSubPred->Release();
 	m_phmInSubCarrier->Release();
 	m_phmFilterCarrier->Release();
@@ -541,6 +543,23 @@ CDSLModel::FDerivedBinding(const CDSLSymbol *psym) const
 		}
 	}
 	return false;
+}
+
+CColRef *
+CDSLModel::PcrSubqueryMarker(const CDSLConstraint *constraint) const
+{
+	return nullptr == m_phmSubqueryMarkers ? nullptr : m_phmSubqueryMarkers->Find(constraint);
+}
+
+BOOL
+CDSLModel::FRecordSubqueryMarker(const CDSLConstraint *constraint, CColRef *marker)
+{
+	GPOS_ASSERT(nullptr != constraint && nullptr != marker);
+	CColRef *existing = PcrSubqueryMarker(constraint);
+	if (nullptr != existing) return existing == marker;
+	if (nullptr == m_phmSubqueryMarkers)
+		m_phmSubqueryMarkers = GPOS_NEW(m_mp) ConstraintToMarkerMap(m_mp);
+	return m_phmSubqueryMarkers->Insert(const_cast<CDSLConstraint *>(constraint), marker);
 }
 
 //---------------------------------------------------------------------------

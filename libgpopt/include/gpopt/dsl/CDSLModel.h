@@ -92,6 +92,12 @@ private:
 	// provenance makes repeated checks idempotent without treating arbitrary
 	// target bindings as trusted matcher evidence.
 	CDSLSymbolArray *m_pdrgpsymDerived;
+	// Fresh columns belong to the column factory; constraint keys belong to the
+	// rule. Record identity only after successful lowering in this match model.
+	using ConstraintToMarkerMap = CHashMap<CDSLConstraint, CColRef,
+		gpos::HashPtr<CDSLConstraint>, gpos::EqualPtr<CDSLConstraint>,
+		CleanupNULL<CDSLConstraint>, CleanupNULL<CColRef>>;
+	ConstraintToMarkerMap *m_phmSubqueryMarkers;
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
 	CDSLSymbolToExpressionMap *m_phmInSubCarrier;
 	CDSLSymbolToExpressionMap *m_phmFilterCarrier;
@@ -163,6 +169,8 @@ public:
 	// provenance. The value ownership contract is identical to FBind().
 	BOOL FBindDerived(const CDSLSymbol *psym, CRefCount *pval);
 	BOOL FDerivedBinding(const CDSLSymbol *psym) const;
+	CColRef *PcrSubqueryMarker(const CDSLConstraint *constraint) const;
+	BOOL FRecordSubqueryMarker(const CDSLConstraint *constraint, CColRef *marker);
 
 	// look up a bound artifact (NULL if unbound). Does NOT AddRef.
 	CRefCount *PvalLookup(const CDSLSymbol *psym) const;

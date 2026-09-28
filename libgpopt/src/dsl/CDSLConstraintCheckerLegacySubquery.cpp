@@ -500,8 +500,10 @@ CDSLConstraintChecker::FCheckExprListExistential(
 
 	const IMDTypeBool *pmdtypebool =
 		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
-	CColRef *pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
-		pmdtypebool, default_type_modifier);
+	CColRef *pcrMarker = pmodel->PcrSubqueryMarker(pcon);
+	if (nullptr == pcrMarker)
+		pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			pmdtypebool, default_type_modifier);
 	CExpressionArray *pdrgpexprMarker = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	pdrgpexprMarker->Append(CUtils::PexprScalarProjectElement(
 		m_mp, pcrMarker, CUtils::PexprScalarConstBool(m_mp, true)));
@@ -546,7 +548,7 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	pdrgpcrRight->Release();
 	pdrgpcrCorrelation->Release();
 	pdrgpcrRequiredInner->Release();
-	return fMatches;
+	return fMatches && pmodel->FRecordSubqueryMarker(pcon, pcrMarker);
 }
 
 BOOL
@@ -594,8 +596,10 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 
 	const IMDTypeBool *pmdtypebool =
 		COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
-	CColRef *pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
-		pmdtypebool, default_type_modifier);
+	CColRef *pcrMarker = pmodel->PcrSubqueryMarker(pcon);
+	if (nullptr == pcrMarker)
+		pcrMarker = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			pmdtypebool, default_type_modifier);
 	CExpressionArray *pdrgpexprMarker = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	pdrgpexprMarker->Append(CUtils::PexprScalarProjectElement(
 		m_mp, pcrMarker, CUtils::PexprScalarConstBool(m_mp, true)));
@@ -639,5 +643,5 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	pdrgpcrRight->Release();
 	pdrgpcrCorrelation->Release();
 	pdrgpcrRequiredInner->Release();
-	return fMatches;
+	return fMatches && pmodel->FRecordSubqueryMarker(pcon, pcrMarker);
 }
