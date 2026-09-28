@@ -1,0 +1,58 @@
+{
+  "description": "标量子查询 LIMIT 0 仍返回 NULL",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f166b55f6ec92b7a\"",
+        "CScalarSubquery["
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "",
+      "0",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "",
+      "0",
+      "1",
+      "2",
+      "2"
+    ],
+    "off_output": [
+      "",
+      "0",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}
