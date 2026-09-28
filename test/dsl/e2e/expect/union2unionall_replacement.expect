@@ -7,7 +7,7 @@
     "scope": "Union distinct of any arity with the complete ordered output row bound by the DSL",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "079267866f94c558"
+      "ce27c1ee32ac38dc"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_union2unionall.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
+        "\"status\":\"applied\",\"rule_hash\":\"ce27c1ee32ac38dc\""
       ],
       "alternative": [
         "CXformUnion2UnionAll",
@@ -58,7 +58,7 @@
       ],
       "policy": "isolate_union2unionall.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"079267866f94c558\""
+        "\"status\":\"applied\",\"rule_hash\":\"ce27c1ee32ac38dc\""
       ],
       "alternative": [
         "CXformDSLRule_Union"

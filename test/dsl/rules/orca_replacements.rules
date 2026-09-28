@@ -1,6 +1,8 @@
 Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a1);SchemaEq(s2,s1)
 
-Union*<a0 s0>(Input<t0>,Input<t1>)|Proj*<a1 s1>(Union<a2 s2>(Input<t2>,Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a1,a0);SchemaEq(s1,s0);AttrsEq(a2,a0);SchemaEq(s2,s0)
+# Native FormalSQL OUTCOME_EQ: exact output columns are captured from the set
+# producer; both input maps remain explicit and arbitrary subqueries stay opaque.
+Union*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a3 s1>(Union<a4 s2 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;a3 := a0;s1 := s0;a4 := a0;s2 := s0;a5 := a1;a6 := a2
 
 # Replace CXformIntersect2Join. Four-symbol SetOp bindings preserve each
 # input's ordered columns; PredicateNullSafeEq constructs positional IS NOT
