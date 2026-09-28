@@ -7,7 +7,7 @@
     "scope": "positive EXISTS over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "bc2d97446eab95bb"
+      "0b8d60ce1b8155f8"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"bc2d97446eab95bb\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b8d60ce1b8155f8\""
       ],
       "not_contains": [
         "\"kind\":\"rule_candidate\""
@@ -59,7 +59,7 @@
       ],
       "policy": "isolate_remove_subq_distinct_exists_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"bc2d97446eab95bb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"0b8d60ce1b8155f8\"",
         "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\"",
         "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
       ],
@@ -67,7 +67,13 @@
         {
           "scheduler": "cbo",
           "src_rule": "dec0eb1e99571556",
-          "dst_rule": "bc2d97446eab95bb",
+          "dst_rule": "0b8d60ce1b8155f8",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "0b8d60ce1b8155f8",
+          "dst_rule": "dec0eb1e99571556",
           "target_path": "r"
         }
       ],
