@@ -358,8 +358,15 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 					PsymResolve((*pop->Pdrgpsym())[i]), pmodel);
 				CColRefArray *actual = CDSLFilterMatcher::PdrgpcrDependencies(
 					m_mp, pop, predicate, child, i);
+				// Dependency partitions are sets; AttrsUnion preserves construction
+				// order, which need not be the column-id order of DeriveUsedColumns.
+				CColRefSet *declaredSet = GPOS_NEW(m_mp) CColRefSet(m_mp);
+				if (nullptr != declared) declaredSet->Include(declared);
+				CColRefSet *actualSet = GPOS_NEW(m_mp) CColRefSet(m_mp, actual);
 				const BOOL valid =
-					nullptr != declared && CColRef::Equals(declared, actual);
+					nullptr != declared && declaredSet->Equals(actualSet);
+				declaredSet->Release();
+				actualSet->Release();
 				actual->Release();
 				if (!valid)
 				{
