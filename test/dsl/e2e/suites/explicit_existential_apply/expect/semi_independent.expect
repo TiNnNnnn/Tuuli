@@ -1,6 +1,17 @@
 {
-  "description": "安全拆分 NOT EXISTS 与外侧残余条件，再串联显式 AntiApply，保留重复外行",
+  "description": "残余谓词依赖 i，EXISTS 相关列为 k，独立推导两侧依赖集合",
   "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
     {
       "name": "replacement",
       "trace": true,
@@ -11,16 +22,16 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
-        "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_edges": [
         {
-          "src_rule": "f489170cc9013ac8",
-          "dst_rule": "78963540e9d42c30",
+          "src_rule": "235e16002a86b0d0",
+          "dst_rule": "07bc74ac0afe2295",
           "target_path": "r/0",
           "dst_binding_path": "r",
           "candidate_status": "ready_cbo"
@@ -48,12 +59,10 @@
     ],
     "policy": "construct.policy",
     "output": [
-      "2",
-      "2"
+      "1"
     ],
     "postgres_output": [
-      "2",
-      "2"
+      "1"
     ]
   }
 }

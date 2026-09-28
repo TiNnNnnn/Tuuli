@@ -1,6 +1,17 @@
 {
-  "description": "安全拆分 NOT EXISTS 与外侧残余条件，再串联显式 AntiApply，保留重复外行",
+  "description": "独立依赖列的 NOT EXISTS 拆分，保留 NULL 和重复行",
   "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
     {
       "name": "replacement",
       "trace": true,
@@ -48,10 +59,12 @@
     ],
     "policy": "construct.policy",
     "output": [
+      "1",
       "2",
       "2"
     ],
     "postgres_output": [
+      "1",
       "2",
       "2"
     ]

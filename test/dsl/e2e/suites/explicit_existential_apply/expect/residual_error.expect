@@ -6,11 +6,11 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1f8c09c5a197a085\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"235e16002a86b0d0\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"1f8c09c5a197a085\""
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\""
       ]
     }
   ],
