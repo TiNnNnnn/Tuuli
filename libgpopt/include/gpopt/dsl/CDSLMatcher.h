@@ -11,9 +11,9 @@
 //
 //		This class owns ONLY the GENERIC skeleton, mirroring WeTune's
 //		Match.matchOne dispatch:
-//		  * Input<t> — an OPAQUE relational placeholder: matches ANY subtree and
-//		    binds the table symbol to it (no node-type check), exactly like
-//		    WeTune's INPUT branch. This is the recursion's leaf.
+//		  * Input<t> — an OPAQUE relational placeholder: matches any logical
+//		    subtree and binds the table symbol without fixing its operator kind.
+//		    Scalar/physical expressions are rejected. This is the recursion's leaf.
 //		  * every other operator — an IDENTITY gate: the DSL op's mapped ORCA
 //		    EOperatorId must equal pexpr->Pop()->Eopid(); then its own symbols are
 //		    bound and its RELATIONAL children are matched positionally.
@@ -73,7 +73,7 @@ private:
 						CDSLModel *pmodel) const;
 
 	// Input<t>: bind the single table symbol to the whole subtree (any
-	// relational subtree qualifies; no node-type check — WeTune INPUT branch).
+	// logical relational subtree qualifies; its specific operator is opaque).
 	BOOL FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 					 CDSLModel *pmodel) const;
 

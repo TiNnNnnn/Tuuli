@@ -563,9 +563,9 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 //		CDSLMatcher::FMatchInput
 //
 //	@doc:
-//		Input<t> is an opaque table placeholder. WeTune's INPUT branch binds the
-//		table symbol to whatever plan node sits there WITHOUT checking its type
-//		— any relational subtree qualifies. So we bind the single <t> symbol to
+//		Input<t> is an opaque relational placeholder: any logical operator
+//		qualifies, but scalar and physical expressions are not table bindings.
+//		We bind the single <t> symbol to
 //		the whole pexpr subtree (FBind AddRefs it). If <t> is already bound (same
 //		symbol appears again under an equality class), FBind enforces it points at
 //		the SAME subtree.
@@ -575,6 +575,10 @@ CDSLMatcher::FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 						 CDSLModel *pmodel) const
 {
 	GPOS_ASSERT(EdslopInput == pop->Edslop());
+	if (!pexpr->Pop()->FLogical())
+	{
+		return false;
+	}
 
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
 	// Input declares exactly one table symbol <t> (validated at parse time).
