@@ -1853,9 +1853,7 @@ CDSLConstraintChecker::FCheckPredicateNullSafeEq(
 	}
 	CColRefArray *pdrgpcrLeft = pmodel->PdrgpcrAttrs((*pdrgpsym)[1]);
 	CColRefArray *pdrgpcrRight = pmodel->PdrgpcrAttrs((*pdrgpsym)[2]);
-	if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight ||
-		0 == pdrgpcrLeft->Size() ||
-		pdrgpcrLeft->Size() != pdrgpcrRight->Size())
+	if (!CDSLMatchView::FNullSafeEqComparableColumns(pdrgpcrLeft, pdrgpcrRight))
 	{
 		return false;
 	}
