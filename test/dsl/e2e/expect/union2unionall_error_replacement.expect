@@ -1,0 +1,47 @@
+{
+  "description": "Typed Union replacement preserves errors in an opaque computed child",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "policy": "isolate_union2unionall.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ce27c1ee32ac38dc\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Union"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformUnion2UnionAll",
+          "CXformPushGbBelowUnionAll"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnionAll"
+    ],
+    "policy": "isolate_union2unionall.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
