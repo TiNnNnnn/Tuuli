@@ -1,0 +1,49 @@
+{
+  "description": "整体谓词捕获保留 OR 内的相关 EXISTS",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f166b55f6ec92b7a\"",
+        "CScalarSubqueryExists"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "0",
+      "1"
+    ],
+    "postgres_output": [
+      "0",
+      "1"
+    ],
+    "off_output": [
+      "0",
+      "1"
+    ]
+  }
+}

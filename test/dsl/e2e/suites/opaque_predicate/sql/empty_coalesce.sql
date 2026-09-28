@@ -1,0 +1,3 @@
+SELECT i FROM opaque_outer
+WHERE COALESCE((SELECT j FROM opaque_inner WHERE j=i LIMIT 0), i)=i
+ORDER BY i NULLS FIRST;

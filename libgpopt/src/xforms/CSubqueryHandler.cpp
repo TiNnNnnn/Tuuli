@@ -2250,6 +2250,20 @@ CSubqueryHandler::FRecursiveHandler(CExpression *pexprOuter,
 			esqctxt = EsqctxtValue;
 		}
 
+		if (EsqctxtFilter == esqctxt && !CPredicateUtils::FAnd(pexprScalar) &&
+			pexprScalarChild->DeriveHasSubquery())
+		{
+			// An empty scalar subquery produces NULL, not an absent outer row.
+			// Preserve value context unless this operator propagates that NULL;
+			// IS NULL, COALESCE and non-strict calls may otherwise accept the row.
+			ULongPtrArray *results = GPOS_NEW(mp) ULongPtrArray(mp);
+			for (ULONG i = 0; i < arity; i++)
+				results->Append(GPOS_NEW(mp) ULONG(i == ul ? CScalar::EberNull : CScalar::EberAny));
+			const BOOL propagatesNull = CScalar::PopConvert(popScalar)->Eber(results) == CScalar::EberNull;
+			results->Release();
+			if (!propagatesNull) esqctxt = EsqctxtValue;
+		}
+
 		if (!FProcess(pexprCurrentOuter, pexprScalarChild, esqctxt,
 					  &pexprNewLogical, &pexprNewScalar))
 		{

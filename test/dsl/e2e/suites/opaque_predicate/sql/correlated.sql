@@ -1,0 +1,3 @@
+SELECT i FROM opaque_outer
+WHERE i=0 OR EXISTS (SELECT 1 FROM opaque_inner WHERE j=i)
+ORDER BY i NULLS FIRST;

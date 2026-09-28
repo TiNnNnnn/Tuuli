@@ -1,0 +1,4 @@
+# Constructor probe, not a newly mined optimization: preserve the whole Boolean
+# capture, including query bodies, evaluation errors, and correlated columns.
+# FormalSQL OUTCOME_EQ: 987bac2bb335da9f1912f5c73c70c1642e581939a4619065f9b78716f859facc
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|t1 := t0;a1 := a0;p2 := Not(p0);p1 := Not(p2)

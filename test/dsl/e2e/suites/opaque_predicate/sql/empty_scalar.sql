@@ -1,0 +1,3 @@
+SELECT i FROM opaque_outer
+WHERE (SELECT j FROM opaque_inner WHERE j=i LIMIT 0) IS NULL
+ORDER BY i NULLS FIRST;

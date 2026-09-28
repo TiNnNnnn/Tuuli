@@ -110,9 +110,13 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
 	{
-		// Subqueries must be exposed by a typed constructor, not smuggled
-		// through an opaque scalar capture. Its TABLE child stays opaque.
-		return EdslsymTable == symbol->Esymkind() || !expression->DeriveHasSubquery();
+		// A predicate capture is the complete native Boolean tree, including
+		// subqueries. Reusing it does not inspect, unnest or rebind its inputs;
+		// the proof and safety premises govern any change in evaluation.
+		// Value/list decomposition still requires explicit typed constructors.
+		return EdslsymTable == symbol->Esymkind() ||
+			(EdslsymPred == symbol->Esymkind() && expression->Pop()->FScalar()) ||
+			!expression->DeriveHasSubquery();
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
 		return false;

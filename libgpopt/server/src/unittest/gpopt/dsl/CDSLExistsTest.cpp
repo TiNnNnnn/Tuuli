@@ -15,6 +15,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -28,9 +29,12 @@
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarSubqueryNotExists.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
@@ -71,7 +75,7 @@ EresSafeFilterMerge()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
-	for (ULONG kind = 0; kind < 3; kind++)
+	for (ULONG kind = 0; kind < 6; kind++)
 	for (BOOL stale : {false, true})
 	{
 		const BOOL correlated = 1 == kind;
@@ -88,26 +92,37 @@ EresSafeFilterMerge()
 		CExpression *outer = fix.PexprLogicalGet("merge_outer", 1, &outerCols);
 		CExpression *first = fix.PexprEqPred((*cols)[0], (*cols)[0]);
 		CExpression *second = fix.PexprEqPred((*cols)[1], correlated ? (*outerCols)[0] : (*cols)[1]);
-		if (2 == kind)
+		if (2 <= kind)
 		{
 			second->Release();
-			outer->AddRef();
-			second = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), outer);
+			CExpression *on = fix.PexprEqPred((*outerCols)[0], (*cols)[1]);
+			CExpression *query = fix.PexprLogicalSelect(outer, on);
+			on->Release();
+			if (4 == kind)
+				query = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),
+					query, CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
+			COperator *op = 5 == kind ? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubquery(mp, (*outerCols)[0], false, false))
+				: 3 == kind ? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+				: GPOS_NEW(mp) CScalarSubqueryExists(mp);
+			second = GPOS_NEW(mp) CExpression(mp, op, query);
+			if (5 == kind)
+				second = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp), second);
 		}
 		CExpression *inner = fix.PexprLogicalSelect(input, second);
 		CExpression *source = fix.PexprLogicalSelect(inner, first);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
-			CDSLConstraintChecker(mp).FCheck(rule, model);
+		const BOOL captured = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		const BOOL matched = captured && CDSLConstraintChecker(mp).FCheck(rule, model);
 		CDSLInstantiator inst(mp);
 		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
-		if ((2 != kind) != matched || (matched && stale != (nullptr == target)))
+		if (!captured || matched != (kind < 4) || ((stale || 4 <= kind) != (nullptr == target)))
 			GPOS_TRACE_FORMAT("Filter merge correlated=%d stale=%d matched=%d built=%d", correlated, stale, matched, nullptr != target);
-		ok &= (2 != kind) == matched && ((stale || 2 == kind) == (nullptr == target));
-		if (2 == kind && !stale)
+		// Capturing a query is not evidence that reordering it is safe.
+		ok &= captured && matched == (kind < 4) && ((stale || 4 <= kind) == (nullptr == target));
+		if (2 <= kind && kind < 4 && !stale)
 		{
-			// Opaque subqueries still require the legacy compatibility rule.
-			// Do not retire it merely because ordinary/correlated predicates pass.
+			// The typed rule must retain the legacy rule's safe subquery domain.
 			CDSLRule *legacy = CDSLRuleParser::PdslruleParse(mp,
 				"Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|"
 				"TableEq(t1,t0);PredicateAnd(p2,p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);"
@@ -119,7 +134,7 @@ EresSafeFilterMerge()
 			const BOOL legacyMatched = CDSLMatcher(mp, legacy).FMatch(legacy->PfragSrc()->PopRoot(), source, legacyModel) &&
 				CDSLConstraintChecker(mp).FCheck(legacy, legacyModel);
 			CExpression *legacyTarget = legacyMatched ? legacyInst.PexprInstantiate(legacy, legacyModel) : nullptr;
-			ok &= nullptr != legacyTarget;
+			ok &= nullptr != legacyTarget && nullptr != target && target->Matches(legacyTarget);
 			CRefCount::SafeRelease(legacyTarget);
 			legacyModel->Release(); legacy->Release();
 		}
@@ -515,7 +530,14 @@ CDSLExistsTest::EresUnittest_TypedScalarExists()
 		GPOS_ASSERT(nullptr != opaque);
 		CDSLModel *opaque_model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher opaque_matcher(mp, opaque);
-		GPOS_ASSERT(!opaque_matcher.FMatch(opaque->PfragSrc()->PopRoot(), source, opaque_model));
+		GPOS_ASSERT(opaque_matcher.FMatch(opaque->PfragSrc()->PopRoot(), source, opaque_model));
+		CDSLInstantiator opaque_inst(mp);
+		CExpression *opaque_target = opaque_inst.PexprInstantiate(opaque, opaque_model);
+		GPOS_ASSERT(nullptr != opaque_target && COperator::EopLogicalSelect == opaque_target->Pop()->Eopid());
+		// Adding double negation preserves the complete captured predicate, not
+		// merely the subquery's base relation or an implicit Apply conversion.
+		GPOS_ASSERT((*(*(*opaque_target)[1])[0])[0] == (*source)[1]);
+		opaque_target->Release();
 		opaque_model->Release();
 		opaque->Release();
 		query->AddRef();
