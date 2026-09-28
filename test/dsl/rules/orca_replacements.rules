@@ -55,18 +55,24 @@ All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(I
 # DIRECT(expression-rewrite): PredicateExists destructures a scalar EXISTS
 # predicate into its relational operand; the target then uses the ordinary
 # Exists builder. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+# Compatibility: typed Exists(t) -> Exists preserves the scalar tree; replacing
+# this entry also requires the separate, explicit Apply lowering rules.
 Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
 
 # DIRECT(expression-rewrite): typed NOT EXISTS sibling of PredicateExists;
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+# The same explicit-lowering migration requirement applies here.
 Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
 
 # DIRECT(expression-rewrite): PredicateAny binds the comparison, exact outer
 # dependencies, and quantified relation from the scalar ANY predicate.
+# Keep this compatibility entry: the typed quantifier bridge currently requires
+# demand-insensitive inputs and a strict built-in comparison (see quantified_relation).
 Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)
 
 # DIRECT(expression-rewrite): PredicateAll shares quantified comparison
 # decomposition with ANY while preserving NULL-aware ALL semantics.
+# The same typed-bridge compatibility boundary applies as for ANY above.
 Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
