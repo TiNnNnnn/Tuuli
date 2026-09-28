@@ -1,0 +1,26 @@
+{
+  "description": "内侧可能除零时拒绝安全拆分，不以不可证明的求值重排掩盖错误",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1f8c09c5a197a085\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"1f8c09c5a197a085\""
+      ]
+    }
+  ],
+  "rows": {
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
