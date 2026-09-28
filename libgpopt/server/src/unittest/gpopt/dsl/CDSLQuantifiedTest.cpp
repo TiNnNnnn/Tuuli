@@ -33,6 +33,8 @@
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubqueryNotExists.h"
 #include "naucrates/md/IMDTypeBool.h"
 #include "naucrates/md/IMDTypeInt4.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
@@ -717,10 +719,180 @@ EresConstructedQuantifiedPredicate()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresSubqueryOutputBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	const CHAR *rules[] = {
+		GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE,
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
+		"ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
+		"ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)",
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
+		"ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)",
+		"Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(LeftApply<p2 a4 a5 a6>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
+		"ExprListScalarSubquery(f0,f1,p2,a4,a5,a6,a7,t2)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a3 a4 a5>(Input<t1>,Compute<e2 a2 s2>(Input<t2>)))|TableEq(t1,t0);"
+		"ExprListExists(e0,e1,e2,a2,s2,p0,a3,a4,a5,a6,t2)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a3 a4 a5>(Input<t1>,Compute<e2 a2 s2>(Input<t2>)))|TableEq(t1,t0);"
+		"ExprListNotExists(e0,e1,e2,a2,s2,p0,a3,a4,a5,a6,t2)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a3 a4 a5>(Input<t1>,Compute<e2 a2 s2>(Input<t2>)))|TableEq(t1,t0);"
+		"ExprListAny(e0,e1,e2,a2,s2,p0,a3,a4,a5,a6,t2)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a3 a4 a5>(Input<t1>,Compute<e2 a2 s2>(Input<t2>)))|TableEq(t1,t0);"
+		"ExprListAll(e0,e1,e2,a2,s2,p0,a3,a4,a5,a6,t2)",
+		GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE,
+		GPOPT_DSL_EXPRESSION_DEFINED_ALL_RULE};
+	// Constraint/container probes, not certified or registered rewrite rules.
+	for (ULONG kind = 0; kind < GPOS_ARRAY_SIZE(rules); ++kind)
+	{
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, rules[kind], nullptr, &error);
+		if (nullptr == rule) { ok = false; GPOS_TRACE(error.GetBuffer()); continue; }
+		const auto *symbols = (*rule->Pdrgpcon())[1]->Pdrgpsym();
+		const BOOL freshMarker = kind >= 5 && kind <= 8;
+		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("capture_outer", 2, &outerCols);
+		CExpression *inner = fix.PexprLogicalGet("capture_inner", 1, &innerCols);
+		CExpression *scalar = nullptr;
+		if (kind < 5)
+			scalar = CUtils::PexprScalarCmp(mp, (*outerCols)[0],
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubquery(
+					mp, (*innerCols)[0], false, false), inner), IMDType::EcmptEq);
+		else if (kind < 7)
+			scalar = GPOS_NEW(mp) CExpression(mp, kind == 5
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp))
+				: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp)), inner);
+		else
+			scalar = PexprQuantified(mp, fix, kind == 8 || kind == 10, inner, (*outerCols)[0], (*innerCols)[0]);
+		CRefCount *source = scalar;
+		if (EdslsymFunc == (*symbols)[0]->Esymkind())
+		{
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			items->Append(scalar);
+			source = items;
+		}
+		else if (EdslsymPred != (*symbols)[0]->Esymkind())
+		{
+			CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				CUtils::PexprScalarProjectElement(mp, output, scalar));
+		}
+		CDSLModel *baseline = GPOS_NEW(mp) CDSLModel(mp);
+		ok &= baseline->FBind((*symbols)[0], source);
+		CDSLConstraintChecker checker(mp);
+		const BOOL accepted = checker.FCheck(rule, baseline);
+		ok &= accepted;
+		if (!accepted) GPOS_TRACE_FORMAT("subquery probe baseline=%d", kind);
+		if (accepted && !freshMarker) ok &= checker.FCheck(rule, baseline);
+		for (ULONG slot = 1; accepted && slot < symbols->Size(); ++slot)
+		{
+			for (BOOL compatible : {false, true})
+			{
+				// Fresh-marker lowering is not equated by alpha-renaming.
+				if (compatible && freshMarker) continue;
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= model->FBind((*symbols)[0], source);
+				CRefCount *capture = baseline->PvalLookup((*symbols)[slot]);
+				if (compatible) capture->AddRef();
+				else switch ((*symbols)[slot]->Esymkind())
+				{
+					case EdslsymAttrs:
+					case EdslsymSchema:
+					{
+						CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+						columns->Append((*outerCols)[1]); capture = columns; break;
+					}
+					case EdslsymTable: capture = outer; capture->AddRef(); break;
+					case EdslsymFunc: capture = GPOS_NEW(mp) CExpressionArray(mp); break;
+					case EdslsymExpr:
+					case EdslsymWindow:
+						capture = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)); break;
+					default: capture = CUtils::PexprScalarConstBool(mp, false); break;
+				}
+				ok &= model->FBind((*symbols)[slot], capture);
+				const BOOL checked = checker.FCheck(rule, model);
+				if (checked != compatible)
+					GPOS_TRACE_FORMAT("subquery output kind=%d slot=%d compatible=%d", kind, slot, compatible);
+				ok &= checked == compatible && model->PvalLookup((*symbols)[slot]) == capture;
+				if (checked)
+				{
+					ok &= checker.FCheck(rule, model);
+					if (1 == kind) ok &= model->FDerivedBinding((*symbols)[1]);
+				}
+				else
+				{
+					ok &= !model->FDerivedBinding((*symbols)[1]);
+					for (ULONG other = 1; other < symbols->Size(); ++other)
+						if (other != slot) ok &= nullptr == model->PvalLookup((*symbols)[other]);
+				}
+				capture->Release(); model->Release();
+			}
+		}
+		if (kind < 2)
+		{
+			// Repeated output symbols must agree with each other even when none
+			// is already bound: two empty vectors agree; outer/inner keys do not.
+			std::string text(rules[kind]);
+			const std::string oldName = kind == 0 ? "a2" : "a3";
+			const std::string newName = kind == 0 ? "a1" : "a2";
+			for (size_t pos = text.find(oldName, text.rfind('|') + 1); pos != std::string::npos;
+				 pos = text.find(oldName, pos + newName.size()))
+				text.replace(pos, oldName.size(), newName);
+			CWStringDynamic aliasError(mp);
+			CDSLRule *alias = CDSLRuleParser::PdslruleParse(mp, text.c_str(), nullptr, &aliasError);
+			ok &= nullptr != alias;
+			if (nullptr == alias) GPOS_TRACE(aliasError.GetBuffer());
+			if (nullptr != alias)
+			{
+				const auto *aliased = (*alias->Pdrgpcon())[1]->Pdrgpsym();
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= model->FBind((*aliased)[0], source);
+				const BOOL checked = checker.FCheck(alias, model);
+				if (checked != (1 == kind)) GPOS_TRACE_FORMAT("aliased subquery output kind=%d accepted=%d", kind, checked);
+				ok &= checked == (1 == kind);
+				if (checked) ok &= checker.FCheck(alias, model);
+				else for (ULONG slot = 1; slot < aliased->Size(); ++slot)
+					ok &= nullptr == model->PvalLookup((*aliased)[slot]);
+				model->Release(); alias->Release();
+			}
+		}
+		if (kind >= 7)
+		{
+			// A correlated reference is not a selected output of the inner query.
+			inner->AddRef();
+			CExpression *invalid = PexprQuantified(mp, fix, kind == 8 || kind == 10,
+				inner, (*outerCols)[0], (*outerCols)[1]);
+			if (EdslsymExpr == (*symbols)[0]->Esymkind())
+			{
+				CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+				invalid = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+					CUtils::PexprScalarProjectElement(mp, output, invalid));
+			}
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			ok &= model->FBind((*symbols)[0], invalid);
+			const BOOL checked = checker.FCheck(rule, model);
+			if (checked) GPOS_TRACE_FORMAT("invalid selected output accepted kind=%d", kind);
+			ok &= !checked;
+			for (ULONG slot = 1; slot < symbols->Size(); ++slot)
+				ok &= nullptr == model->PvalLookup((*symbols)[slot]);
+			invalid->Release(); model->Release();
+		}
+		baseline->Release(); source->Release(); outer->Release(); rule->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresSubqueryOutputBindings),
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
 		GPOS_UNITTEST_FUNC(EresCapturedComparison),
 		GPOS_UNITTEST_FUNC(EresComparisonOutcomeDomain),
