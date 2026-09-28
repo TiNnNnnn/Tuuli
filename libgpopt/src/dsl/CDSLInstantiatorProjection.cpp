@@ -604,6 +604,19 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		CColRefArray *attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
 		CColRefArray *source_attrs = nullptr == source ? nullptr :
 			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
+		// Without a captured SELECT program, only an exact ordered column
+		// identity is defined. Never infer a computed value or positional alias.
+		if (nullptr == source && nullptr == list && 2 == pop->Pdrgpsym()->Size() &&
+			nullptr != attrs && nullptr != schema && CColRef::Equals(attrs, schema))
+		{
+			CExpressionArray *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			for (ULONG i = 0; i < schema->Size(); ++i)
+				items->Append(CUtils::PexprScalarProjectElement(m_mp, (*schema)[i],
+					CUtils::PexprScalarIdent(m_mp, (*schema)[i])));
+			list = GPOS_NEW(m_mp) CExpression(m_mp,
+				GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
+			source_attrs = attrs;
+		}
 		BOOL outputs_match = nullptr != list && nullptr != schema && list->Arity() == schema->Size();
 		for (ULONG i = 0; outputs_match && i < schema->Size(); ++i)
 		{

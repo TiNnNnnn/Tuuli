@@ -422,11 +422,61 @@ EresExplicitSetOpInputMaps()
 	return GPOS_OK;
 }
 
+// Construction coverage, not equivalence certificates for arbitrary templates.
+static GPOS_RESULT
+EresTypedOutputColumnProjection()
+{
+	const CHAR *names[] = {"Union", "Union*", "Intersect", "Intersect*", "Except", "Except*"};
+	const COperator::EOperatorId kinds[] = {
+		COperator::EopLogicalUnionAll, COperator::EopLogicalUnion,
+		COperator::EopLogicalIntersectAll, COperator::EopLogicalIntersect,
+		COperator::EopLogicalDifferenceAll, COperator::EopLogicalDifference};
+	for (ULONG k = 0; k < GPOS_ARRAY_SIZE(kinds); ++k)
+	for (BOOL distinct : {false, true})
+	for (ULONG width : {1UL, 3UL})
+	for (ULONG variant = 0; variant < 4; ++variant)
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		const std::string set = std::string(names[k]) + "<a4 s2 a5 a6>(Input<t2>,Input<t3>)";
+		const std::string text = std::string(names[k]) + "<a0 s0 a1 a2>(Input<t0>,Input<t1>)|" +
+			(distinct ? "Proj*" : "Proj") + (3 == variant ? "<a3 s1 Item()>(" : "<a3 s1>(") +
+			(2 == variant ? "Input<t3>)|t3 := t1;s1 := s0;" : set + ")|t2 := t0;t3 := t1;s1 := s0;") +
+			(1 == variant ? "a3 := a2" : "a3 := a0") +
+			(2 == variant ? "" : ";a4 := a0;s2 := s0;a5 := a1;a6 := a2");
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("project_set_left", width, &lc));
+		CAutoRef<CExpression> right(fix.PexprLogicalGet("project_set_right", width, &rc));
+		CAutoRef<CExpression> source(PexprSetOpById(mp, kinds[k], left.Value(), lc, right.Value(), rc));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator inst(mp);
+		CAutoRef<CExpression> target(inst.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT((0 == variant) == (nullptr != target.Value()));
+		if (nullptr != target.Value())
+		{
+			GPOS_UNITTEST_ASSERT((distinct ? COperator::EopLogicalGbAgg : COperator::EopLogicalProject) == target->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT(kinds[k] == (*target)[0]->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT(FOutputContains(target.Value(), lc));
+			if (distinct)
+				GPOS_UNITTEST_ASSERT(CColRef::Equals(CLogicalGbAgg::PopConvert(target->Pop())->Pdrgpcr(), lc));
+			else
+				GPOS_UNITTEST_ASSERT(0 == (*target)[1]->Arity());
+		}
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresExplicitSetOpInputMaps),
+		GPOS_UNITTEST_FUNC(EresTypedOutputColumnProjection),
 		GPOS_UNITTEST_FUNC(EresExpressionSetBindings),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_PhysicalImplementation),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_PhysicalSetOpDXL),
