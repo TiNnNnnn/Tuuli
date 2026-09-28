@@ -2057,6 +2057,45 @@ CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings()
 	}
 	child->Release();
 	input->Release();
+	// Dependency vectors are sets, not output schemas. AttrsUnion may list
+	// the upper filter's newer columns before the lower filter's older ones.
+	for (BOOL correlated : {false, true})
+	{
+		CColRefArray *cols = nullptr;
+		CExpression *base = fix.PexprLogicalGet("filter_dependency_order", 2, &cols);
+		CColRef *outer_first = fix.PcrCreateInt4("outer_first");
+		CColRef *outer_second = fix.PcrCreateInt4("outer_second");
+		CExpression *lower_pred = correlated ? fix.PexprEqPred((*cols)[0], outer_first)
+			: fix.PexprPredAtom((*cols)[0]);
+		CExpression *upper_pred = correlated ? fix.PexprEqPred((*cols)[1], outer_second)
+			: fix.PexprPredAtom((*cols)[1]);
+		CExpression *lower = fix.PexprLogicalSelect(base, lower_pred);
+		CExpression *source = fix.PexprLogicalSelect(lower, upper_pred);
+		CDSLRule *rule = PdslruleParseLocal(mp,
+			"Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|"
+			"t1 := t0;p2 := And(p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3)");
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(rule, model);
+		ok &= nullptr != target;
+		if (nullptr != target)
+		{
+			ok &= (*target)[0] == base &&
+				source->DeriveOuterReferences()->Equals(target->DeriveOuterReferences()) &&
+				(*(*target)[1])[0]->Matches(upper_pred) &&
+				(*(*target)[1])[1]->Matches(lower_pred);
+			target->Release();
+		}
+		model->Release();
+		rule->Release();
+		source->Release();
+		lower->Release();
+		base->Release();
+		upper_pred->Release();
+		lower_pred->Release();
+	}
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
