@@ -161,6 +161,14 @@ CREATE TABLE dsl_loj_inner(k int NOT NULL);
 INSERT INTO dsl_loj_outer VALUES (1),(3000);
 INSERT INTO dsl_loj_inner SELECT generate_series(1, 2000);
 
+CREATE TABLE dsl_typed_join_left(k int, label varchar(10), amount numeric(6,2), flag boolean);
+CREATE TABLE dsl_typed_join_right(k int, label varchar(12), amount numeric(7,2), flag boolean);
+INSERT INTO dsl_typed_join_left VALUES
+    (1,'left',1.25,true),(2,'orphan',-2.50,false),(NULL,'null-left',3.00,NULL);
+INSERT INTO dsl_typed_join_right VALUES
+    (1,'match',12.34,false),(1,'match',12.34,false),
+    (3,'right-only',9.00,true),(NULL,'null-right',4.50,NULL);
+
 CREATE TABLE dsl_eq_pair_left(a int, b int);
 CREATE TABLE dsl_eq_pair_right(a int, b int);
 INSERT INTO dsl_eq_pair_left VALUES

@@ -1,0 +1,58 @@
+{
+  "description": "DSL 外连接展开保留异构列类型、varchar/numeric typmod、NULL 键及重复行；关闭原生展开和对应物理外连接以强制使用 DSL 替代",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
+        "CXformLeftOuterJoin2HashJoin",
+        "CXformLeftOuterJoin2NLJoin",
+        "CXformLeftJoin2RightJoin",
+        "CXformRightOuterJoin2HashJoin"
+      ],
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_LeftJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
+      "CXformLeftOuterJoin2HashJoin",
+      "CXformLeftOuterJoin2NLJoin",
+      "CXformLeftJoin2RightJoin",
+      "CXformRightOuterJoin2HashJoin"
+    ],
+    "policy": "isolate_expand_leftjoin.policy",
+    "output": [
+      "1,left,1.25,t,1,match,12.34,f",
+      "1,left,1.25,t,1,match,12.34,f",
+      "2,orphan,-2.50,f,,,,",
+      ",null-left,3.00,,,,,"
+    ],
+    "postgres_output": [
+      "1,left,1.25,t,1,match,12.34,f",
+      "1,left,1.25,t,1,match,12.34,f",
+      "2,orphan,-2.50,f,,,,",
+      ",null-left,3.00,,,,,"
+    ]
+  }
+}

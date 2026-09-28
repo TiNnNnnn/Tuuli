@@ -2546,11 +2546,15 @@ CDSLConstraintChecker::FCheckExprNulls(const CDSLConstraint *pcon,
 		CExpression *pexprElem = (*pexpr)[ul];
 		CColRef *pcrTemplate = (*pdrgpcrTemplate)[ul];
 		CColRef *pcrOutput = (*pdrgpcrOutput)[ul];
+		// Native type-specific NULL datums may have the default typmod;
+		// the generated output column must still retain the template's typmod.
 		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
 			1 != pexprElem->Arity() ||
 			CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr() != pcrOutput ||
 			COperator::EopScalarConst != (*pexprElem)[0]->Pop()->Eopid() ||
 			!CScalarConst::PopConvert((*pexprElem)[0]->Pop())->GetDatum()->IsNull() ||
+			!pcrOutput->RetrieveType()->MDId()->Equals(
+				CScalarConst::PopConvert((*pexprElem)[0]->Pop())->MdidType()) ||
 			!pcrTemplate->RetrieveType()->MDId()->Equals(
 				pcrOutput->RetrieveType()->MDId()) ||
 			pcrTemplate->TypeModifier() != pcrOutput->TypeModifier())
