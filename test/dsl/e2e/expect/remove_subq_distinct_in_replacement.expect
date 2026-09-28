@@ -7,7 +7,7 @@
     "scope": "positive single-column IN over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "4f678f34086c5cd7"
+      "0ac51b2f5bf779aa"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\""
+        "\"status\":\"applied\",\"rule_hash\":\"0ac51b2f5bf779aa\""
       ],
       "alternative": [
         "CXformRemoveSubqDistinct",
@@ -59,9 +59,23 @@
       ],
       "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4f678f34086c5cd7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"0ac51b2f5bf779aa\"",
         "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
         "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "0ac51b2f5bf779aa",
+          "dst_rule": "b1d9ece967912f1c",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "b1d9ece967912f1c",
+          "dst_rule": "e3458abf2b3167d5",
+          "target_path": "r"
+        }
       ],
       "alternative": [
         "CXformDSLRule_InSub"

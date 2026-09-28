@@ -1,0 +1,51 @@
+{
+  "description": "Typed IN distinct removal preserves NULL membership and duplicate outer rows",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"0ac51b2f5bf779aa\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_remove_subq_distinct_in_pipeline.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "1,2",
+      "2,2",
+      ",3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "1,2",
+      "2,2",
+      ",3"
+    ]
+  }
+}
