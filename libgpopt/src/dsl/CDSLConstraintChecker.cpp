@@ -319,6 +319,9 @@ PcrResolveIdentityLineage(const CDSLRule *prule, const CDSLModel *pmodel,
 }
 
 BOOL
+FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic = false);
+
+BOOL
 FScalarTreeProvablyErrorFree(CExpression *pexpr)
 {
 	switch (pexpr->Pop()->Eopid())
@@ -326,6 +329,10 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr)
 		case COperator::EopScalarIdent:
 		case COperator::EopScalarConst:
 			return true;
+		case COperator::EopScalarSubqueryExists:
+		case COperator::EopScalarSubqueryNotExists:
+			return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
+				FRelationalTreeProvablyErrorFree((*pexpr)[0]);
 		case COperator::EopScalarCmp:
 		case COperator::EopScalarIsDistinctFrom:
 			// Admit every comparison in ORCA's explicit built-in strict whitelist.
@@ -406,7 +413,7 @@ BOOL
 FScalarTreeProvablyDeterministic(CExpression *pexpr);
 
 BOOL
-FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic = false)
+FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 {
 	if (nullptr == pexpr) return false;
 	if (pexpr->Pop()->FScalar())
@@ -442,11 +449,19 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic = false)
 BOOL
 FScalarTreeProvablyDeterministic(CExpression *pexpr)
 {
-	// Immutable functions do not establish repeatable subquery results (e.g.
-	// an unordered LIMIT). Require a separate query-level proof before admitting
-	// such trees; use the same guard for captured and constructed expressions.
-	return !pexpr->DeriveHasSubquery() &&
-		!pexpr->DeriveHasNonScalarFunction() &&
+	if (!pexpr->Pop()->FScalar()) return false;
+	if (COperator::EopScalarSubqueryExists == pexpr->Pop()->Eopid() ||
+		COperator::EopScalarSubqueryNotExists == pexpr->Pop()->Eopid())
+	{
+		// Repeatability follows only for the audited total relational fragment,
+		// not from immutable function metadata alone (e.g. unordered LIMIT).
+		return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
+			FRelationalTreeProvablyErrorFree((*pexpr)[0], true);
+	}
+	if (pexpr->DeriveHasSubquery())
+		for (ULONG i = 0; i < pexpr->Arity(); i++)
+			if (!FScalarTreeProvablyDeterministic((*pexpr)[i])) return false;
+	return !pexpr->DeriveHasNonScalarFunction() &&
 		IMDFunction::EfsImmutable ==
 			pexpr->DeriveScalarFunctionProperties()->Efs();
 }

@@ -35,6 +35,8 @@
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "naucrates/base/IDatumInt8.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubqueryNotExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -412,30 +414,70 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 	CExpression *pexprGet = fix.PexprLogicalGet("deterministic_input", 1, &pdrgpcr);
 	CDSLConstraintChecker checker(mp);
 	GPOS_RESULT eres = GPOS_OK;
-	for (ULONG has_subquery = 0; has_subquery < 2; ++has_subquery)
+	// Safe EXISTS/NOT EXISTS can use the relational safety proof. Scalar
+	// subqueries and sliced/opaque relational trees retain their old boundary.
+	for (ULONG kind = 0; kind < 8; ++kind)
 	{
 		CExpression *pexprPredicate = nullptr;
-		if (has_subquery)
+		if (1 == kind || 4 == kind)
 		{
 			pexprGet->AddRef();
 			CExpression *pexprLimit = GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp),
 					true, true, false), pexprGet,
 				CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
-			CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(mp,
-				GPOS_NEW(mp) CScalarSubquery(mp, (*pdrgpcr)[0], false, false), pexprLimit);
+			if (4 == kind)
+				pexprPredicate = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprLimit);
+			else
+			{
+				CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, (*pdrgpcr)[0], false, false), pexprLimit);
+				pexprPredicate = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarNullTest(mp), pexprSubquery);
+			}
+		}
+		else if (7 == kind)
+		{
 			pexprPredicate = GPOS_NEW(mp) CExpression(mp,
-				GPOS_NEW(mp) CScalarNullTest(mp), pexprSubquery);
+				GPOS_NEW(mp) CScalarSubqueryExists(mp), CUtils::PexprScalarConstInt4(mp, 1));
+		}
+		else if (2 == kind || 3 == kind || 5 == kind || 6 == kind)
+		{
+			CExpression *pred = fix.PexprEqPred((*pdrgpcr)[0], (*pdrgpcr)[0]);
+			if (5 == kind)
+			{
+				pred->Release();
+				pred = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarCmp(mp,
+						GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100402),
+						GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), IMDType::EcmptEq),
+					CUtils::PexprScalarIdent(mp, (*pdrgpcr)[0]), CUtils::PexprScalarConstInt4(mp, 7));
+			}
+			if (6 == kind)
+			{
+				pred->Release();
+				pexprGet->AddRef();
+				pred = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprGet);
+			}
+			CExpression *input = fix.PexprLogicalSelect(pexprGet, pred);
+			pred->Release();
+			COperator *op = 3 == kind
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+				: GPOS_NEW(mp) CScalarSubqueryExists(mp);
+			pexprPredicate = GPOS_NEW(mp) CExpression(mp, op, input);
 		}
 		else
 		{
 			pexprPredicate = fix.PexprEqPred((*pdrgpcr)[0], (*pdrgpcr)[0]);
 		}
-		// Both trees pass the former function-only guard. Only the second
-		// can pick a different row on a repeated unordered subquery scan.
-		GPOS_ASSERT(!pexprPredicate->DeriveHasNonScalarFunction());
-		GPOS_ASSERT(IMDFunction::EfsImmutable ==
-			pexprPredicate->DeriveScalarFunctionProperties()->Efs());
+		// Function metadata alone also admits the unordered scalar subquery;
+		// the relational shape guard must still reject it and the EXISTS slice.
+		if (7 != kind) GPOS_ASSERT(!pexprPredicate->DeriveHasNonScalarFunction());
+		if (5 != kind && 7 != kind)
+			GPOS_ASSERT(IMDFunction::EfsImmutable ==
+				pexprPredicate->DeriveScalarFunctionProperties()->Efs());
 		for (const CHAR *rule : rules)
 		{
 			CDSLRule *prule = PdslruleParseLocal(mp, rule);
@@ -449,7 +491,8 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 				{
 					pmodel->FBind(PsymByName(prule, "p0"), pexprPredicate);
 				}
-				if (checker.FCheck(prule, pmodel) != (bound && !has_subquery))
+				if (checker.FCheck(prule, pmodel) !=
+					(bound && (0 == kind || 2 == kind || 3 == kind || 6 == kind)))
 				{
 					eres = GPOS_FAILED;
 				}

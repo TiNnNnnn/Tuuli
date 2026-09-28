@@ -1,0 +1,59 @@
+{
+  "description": "安全拆分 NOT EXISTS 与外侧残余条件，再串联显式 AntiApply，保留重复外行",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"decbcd38aad02bdd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "decbcd38aad02bdd",
+          "dst_rule": "78963540e9d42c30",
+          "target_path": "r/0",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "2",
+      "2"
+    ]
+  }
+}
