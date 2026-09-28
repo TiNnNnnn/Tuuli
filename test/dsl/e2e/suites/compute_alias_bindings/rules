@@ -1,2 +1,6 @@
 # Native Compute column-alias fusion, proved over an opaque Input.
 Compute<Item(Column(a1),a2,Item()) a5 s1>(Compute<Item(Column(a0),a1,Item()) a4 s0>(Input<t0>))|Compute<Item(Column(a0),a1,Item(Column(a0),a2,Item())) a6 s3>(Input<t1>)|t1 := t0;AttrsUnion(a6,a0,a0);SchemaUnion(s3,s0,a2)
+# Same explicit multi-alias templates proved by FormalSQLComputeSemanticsTest
+# and instantiated by CDSLInstantiateTest. SQL reachability is checked separately.
+Compute<Item(BoolValue(And(ValueBool(Column(a1)),Not(ValueBool(Column(a9))))),a2,Item()) a5 s1>(Compute<Item(Column(a0),a1,Item(Column(a8),a9,Item())) a4 s0>(Input<t0>))|Compute<Item(Column(a0),a1,Item(Column(a8),a9,Item(BoolValue(And(ValueBool(Column(a0)),Not(ValueBool(Column(a8))))),a2,Item()))) a6 s3>(Input<t1>)|t1 := t0;AttrsUnion(a6,a0,a8);SchemaUnion(s3,s0,a2)
+Compute<Item(BoolValue(Or(ValueBool(Column(a1)),Not(ValueBool(Column(a9))))),a2,Item()) a5 s1>(Compute<Item(Column(a0),a1,Item(Column(a8),a9,Item())) a4 s0>(Input<t0>))|Compute<Item(Column(a0),a1,Item(Column(a8),a9,Item(BoolValue(Or(ValueBool(Column(a0)),Not(ValueBool(Column(a8))))),a2,Item()))) a6 s3>(Input<t1>)|t1 := t0;AttrsUnion(a6,a0,a8);SchemaUnion(s3,s0,a2)
