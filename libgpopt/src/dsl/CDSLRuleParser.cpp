@@ -842,6 +842,10 @@ FBindingTree(const CDSLOp *op, BOOL source)
 	{
 		return true;
 	}
+	if (EdslopCTEAnchor == op->Edslop())
+	{
+		return source && FBindingTree((*op)[0], source);
+	}
 	const BOOL join = EdslopInnerJoin == op->Edslop() ||
 		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
@@ -902,7 +906,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, source-only CTEConsumer, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, source-only CTEConsumer/CTEAnchor, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

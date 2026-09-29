@@ -1509,8 +1509,11 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_SHARED_UNION_RULE);
 	CDSLRule *pruleInline =
 		PdslruleParseLocal(mp, GPOPT_DSL_INLINE_CTE_CONSUMER_RULE);
-	if (nullptr == prule || nullptr == pruleInline)
+	CDSLRule *pruleAnchor = PdslruleParseLocal(
+		mp, "CTEAnchor(Input<t0>)|Input<t1>|t1 := t0");
+	if (nullptr == prule || nullptr == pruleInline || nullptr == pruleAnchor)
 	{
+		CRefCount::SafeRelease(pruleAnchor);
 		CRefCount::SafeRelease(pruleInline);
 		CRefCount::SafeRelease(prule);
 		return GPOS_FAILED;
@@ -1575,6 +1578,30 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 			CRefCount::SafeRelease(pexprInlined);
 			pmodelInline->Release();
 		}
+		if (GPOS_OK == eres)
+		{
+			CDSLModel *pmodelAnchor = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcherAnchor(mp, pruleAnchor);
+			CExpression *pexprUnwrapped = nullptr;
+			if (matcherAnchor.FMatch(pruleAnchor->PfragSrc()->PopRoot(),
+									pexprTarget, pmodelAnchor) &&
+				checker.FCheck(pruleAnchor, pmodelAnchor))
+			{
+				CDSLInstantiator instantiator(mp);
+				pexprUnwrapped =
+					instantiator.PexprInstantiate(pruleAnchor, pmodelAnchor);
+			}
+			eres = nullptr != pexprUnwrapped &&
+				COperator::EopLogicalSelect == pexprUnwrapped->Pop()->Eopid() &&
+				2 == pexprUnwrapped->Arity() &&
+				CUtils::FScalarConstTrue((*pexprUnwrapped)[1]) &&
+				(*pexprUnwrapped)[0]->DeriveOutputColumns()->Equals(
+					pexprUnion->DeriveOutputColumns())
+				? GPOS_OK
+				: GPOS_FAILED;
+			CRefCount::SafeRelease(pexprUnwrapped);
+			pmodelAnchor->Release();
+		}
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
@@ -1582,5 +1609,6 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	pexprSource->Release();
 	CRefCount::SafeRelease(prule);
 	CRefCount::SafeRelease(pruleInline);
+	pruleAnchor->Release();
 	return eres;
 }
