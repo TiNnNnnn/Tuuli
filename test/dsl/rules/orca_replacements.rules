@@ -1,4 +1,6 @@
-Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a1);SchemaEq(s2,s1)
+# Native FormalSQL OUTCOME_EQ: compose captured grouping-column projections
+# through DISTINCT support; retain arbitrary child queries and their errors.
+Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);t1 := t0;a2 := a1;s2 := s1
 
 # Native FormalSQL OUTCOME_EQ: exact output columns are captured from the set
 # producer; both input maps remain explicit and arbitrary subqueries stay opaque.

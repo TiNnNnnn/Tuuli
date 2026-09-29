@@ -7,7 +7,7 @@
     "scope": "all grouping-subset branches; equal-grouping and aggregate/local guards are covered by companion cases",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "81e937ce3b542473"
+      "d0edd1db3ce9b8a8"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+        "\"status\":\"applied\",\"rule_hash\":\"d0edd1db3ce9b8a8\""
       ],
       "alternative": [
         "CXformCollapseGbAgg",
@@ -48,7 +48,7 @@
         "CXformCollapseGbAgg"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+        "\"status\":\"applied\",\"rule_hash\":\"d0edd1db3ce9b8a8\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
