@@ -5,7 +5,7 @@
       "name": "guard",
       "trace": true,
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"81e937ce3b542473\""
+        "\"status\":\"applied\",\"rule_hash\":\"d0edd1db3ce9b8a8\""
       ]
     }
   ],

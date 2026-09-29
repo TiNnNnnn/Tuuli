@@ -77,8 +77,7 @@ using namespace gpopt;
 #define GPOPT_DSL_COLLAPSE_DEDUP_RULE                                  \
 	"Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|"                            \
 	"Proj*<a2 s2>(Input<t1>)|"                                         \
-	"AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);"                   \
-	"AttrsEq(a2,a1);SchemaEq(s2,s1)"
+	"AttrsSub(a0,t0);AttrsSub(a1,s0);t1 := t0;a2 := a1;s2 := s1"
 
 #define GPOPT_DSL_COLLAPSE_IDENTITY_PROJECT_RULE                        \
 	"Proj<a0 s0>(Proj<a1 s1>(Input<t0>))|"                              \
