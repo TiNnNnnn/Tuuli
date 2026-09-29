@@ -557,28 +557,43 @@ CDSLProjTest::EresUnittest_ComputeExactRoundTrip()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
+static GPOS_RESULT
+EresComputeFilterBindings(BOOL typed, BOOL subquery, BOOL correlated_items)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(
-		mp, GPOPT_DSL_COMPUTE_FILTER_COMMUTE_RULE);
+		mp, typed ? "Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|"
+					"Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|"
+					"t1 := t0;e1 := e0;a5 := a0;s1 := s0;p1 := p0;a3 := "
+					"a1;a4 := a2;"
+					"DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)"
+				  : GPOPT_DSL_COMPUTE_FILTER_COMMUTE_RULE);
 	GPOS_ASSERT(nullptr != prule);
 
 	CColRefArray *pdrgpcrOuter = nullptr;
 	CColRefArray *pdrgpcrInner = nullptr;
-	CExpression *pexprOuter =
-		fix.PexprLogicalGet("commute_outer", 1, &pdrgpcrOuter);
-	CExpression *pexprInner =
-		fix.PexprLogicalGet("commute_inner", 1, &pdrgpcrInner);
+	CExpression *pexprOuter = fix.PexprLogicalGet("commute_outer", 1, &pdrgpcrOuter);
+	CExpression *pexprInner = fix.PexprLogicalGet("commute_inner", 1, &pdrgpcrInner);
 	CExpression *pexprPred = fix.PexprPredAtom((*pdrgpcrOuter)[0]);
-	CExpression *pexprSelect =
-		fix.PexprLogicalSelect(pexprInner, pexprPred);
+	if (subquery)
+	{
+		CExpression *nested = fix.PexprLogicalGet("commute_nested", 1);
+		CExpression *filtered = fix.PexprLogicalSelect(nested, pexprPred);
+		pexprPred->Release();
+		nested->Release();
+		pexprPred = GPOS_NEW(mp)
+			CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), filtered);
+	}
+	CExpression *pexprSelect = fix.PexprLogicalSelect(pexprInner, pexprPred);
 	CColRef *pcrDefined = fix.PcrCreateInt4("commuted_constant");
+	CExpression *value = correlated_items
+		? GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarIdent(mp, (*pdrgpcrOuter)[0]))
+		: CUtils::PexprScalarConstInt4(mp, 1);
 	CExpression *pexprProject = PexprProjectWithScalar(
-		mp, pexprSelect, pcrDefined, CUtils::PexprScalarConstInt4(mp, 1));
+		mp, pexprSelect, pcrDefined, value);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
@@ -600,24 +615,77 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 			COperator::EopLogicalGet != (*(*pexprTarget)[0])[0]->Pop()->Eopid() ||
 			!(*pexprTarget)[1]->Matches(pexprPred) ||
 			!pexprTarget->DeriveOutputColumns()->Equals(
-				pexprProject->DeriveOutputColumns()))
+				pexprProject->DeriveOutputColumns()) ||
+			!pexprTarget->DeriveOuterReferences()->Equals(
+				pexprProject->DeriveOuterReferences()))
 		{
 			eres = GPOS_FAILED;
+		}
+		else
+		{
+			// The inverse uses the same captured predicate, including nested
+			// subqueries and their outer references. It must restore the tree.
+			CDSLRule *reverse = PdslruleParseLocal(
+				mp, typed ? "Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|"
+							"Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|"
+							"t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := "
+							"s0;e1 := e0;"
+							"ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)"
+						  : "Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|"
+							"Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|"
+							"TableEq(t1,t0);AttrsEq(a4,a1);AttrsEq(a5,a2);AttrsEq("
+							"a3,a0);"
+							"PredicateEq(p1,p0);SchemaEq(s1,s0);ExprListEq(e1,e0);"
+							"ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)");
+			GPOS_UNITTEST_ASSERT(nullptr != reverse);
+			CDSLModel *reversed = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher reverse_matcher(mp, reverse);
+			CExpression *round_trip = nullptr;
+			if (reverse_matcher.FMatch(reverse->PfragSrc()->PopRoot(),
+									  pexprTarget, reversed) &&
+				checker.FCheck(reverse, reversed))
+			{
+				round_trip = instantiator.PexprInstantiate(reverse, reversed);
+			}
+			if (nullptr == round_trip || !round_trip->Matches(pexprProject) ||
+				!round_trip->DeriveOuterReferences()->Equals(
+					pexprProject->DeriveOuterReferences()))
+			{
+				eres = GPOS_FAILED;
+			}
+			CRefCount::SafeRelease(round_trip);
+			reversed->Release();
+			// This is a valid Filter above Compute, but pushing it below the
+			// definition it reads would introduce an unavailable column.
+			CExpression *dependent = fix.PexprPredAtom(pcrDefined);
+			CExpression *blocked =
+				fix.PexprLogicalSelect((*pexprTarget)[0], dependent);
+			CDSLModel *blocked_model = GPOS_NEW(mp) CDSLModel(mp);
+			if (!reverse_matcher.FMatch(reverse->PfragSrc()->PopRoot(),
+									   blocked, blocked_model) ||
+				checker.FCheck(reverse, blocked_model))
+			{
+				eres = GPOS_FAILED;
+			}
+			blocked_model->Release();
+			blocked->Release();
+			dependent->Release();
+			reverse->Release();
 		}
 	}
 
 	// The same structural rule must reject a predicate that consumes a column
-	// defined by the Compute layer: moving it below that definition is ill-scoped.
+	// defined by the Compute layer: moving it below that definition is
+	// ill-scoped.
 	CExpression *pexprDefinedPred = fix.PexprPredAtom(pcrDefined);
 	CExpression *pexprInvalidSelect =
 		fix.PexprLogicalSelect(pexprInner, pexprDefinedPred);
 	CExpression *pexprInvalidProject = PexprProjectWithScalar(
-		mp, pexprInvalidSelect, pcrDefined,
-		CUtils::PexprScalarConstInt4(mp, 1));
+		mp, pexprInvalidSelect, pcrDefined, CUtils::PexprScalarConstInt4(mp, 1));
 	CDSLModel *pmodelInvalid = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcherInvalid(mp, prule);
-	if (!matcherInvalid.FMatch(prule->PfragSrc()->PopRoot(),
-								 pexprInvalidProject, pmodelInvalid) ||
+	if (!matcherInvalid.FMatch(prule->PfragSrc()->PopRoot(), pexprInvalidProject,
+							   pmodelInvalid) ||
 		checker.FCheck(prule, pmodelInvalid))
 	{
 		eres = GPOS_FAILED;
@@ -636,6 +704,88 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 	pexprOuter->Release();
 	prule->Release();
 	return eres;
+}
+
+static GPOS_RESULT
+EresComputeCapturedScope()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Construction-domain checks, not equivalence claims: removing the right
+	// input must not reinterpret its local column as an external reference.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Compute<e0 a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
+		"Compute<e1 a3 s1>(Input<t2>)|t2 := t0;e1 := e0;a3 := a0;s1 := s0");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	CColRefArray *right_columns = nullptr;
+	CExpression *left = fix.PexprLogicalGet("scope_left", 1);
+	CExpression *right = fix.PexprLogicalGet("scope_right", 1, &right_columns);
+	CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *join = fix.PexprLogicalInnerJoin(left, right, predicate);
+	CColRef *external = fix.PcrCreateInt4("scope_external");
+	GPOS_RESULT result = GPOS_OK;
+	for (BOOL outer : {false, true})
+	{
+		CExpression *source = PexprProjectWithScalar(mp, join,
+			fix.PcrCreateInt4("scope_item"),
+			CUtils::PexprScalarIdent(mp, outer ? external : (*right_columns)[0]));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		CDSLConstraintChecker checker(mp);
+		CExpression *target = nullptr;
+		if (!matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) ||
+			!checker.FCheck(rule, model))
+		{
+			result = GPOS_FAILED;
+		}
+		else
+		{
+			CDSLInstantiator instantiator(mp);
+			target = instantiator.PexprInstantiate(rule, model);
+			if (outer != (nullptr != target) ||
+				(nullptr != target && !target->DeriveOuterReferences()->Equals(
+					source->DeriveOuterReferences())))
+			{
+				result = GPOS_FAILED;
+			}
+		}
+		CRefCount::SafeRelease(target);
+		model->Release();
+		source->Release();
+	}
+	join->Release();
+	predicate->Release();
+	right->Release();
+	left->Release();
+	rule->Release();
+	return result;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
+{
+	for (BOOL typed : {false, true})
+	{
+		for (BOOL subquery : {false, true})
+		{
+			for (BOOL correlated_items : {false, true})
+			{
+				// Legacy construction intentionally retains its existing domain.
+				if (!typed && correlated_items)
+				{
+					continue;
+				}
+				const GPOS_RESULT result =
+					EresComputeFilterBindings(typed, subquery, correlated_items);
+				if (GPOS_OK != result)
+				{
+					return result;
+				}
+			}
+		}
+	}
+	return EresComputeCapturedScope();
 }
 
 GPOS_RESULT
