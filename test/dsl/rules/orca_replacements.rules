@@ -236,8 +236,9 @@ AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
 # column-remapped inline definition; the same rule composes under Filter.
-# FormalSQL/Rocq: BAG_EQ, verified 2026-09-05.
-CTEConsumer<t0>|Input<t1>|TableEq(t1,t0)
+# Native FormalSQL OUTCOME_EQ; eligibility and column remapping remain
+# enforced by the CTE source matcher, not by a free equivalence assumption.
+CTEConsumer<t0>|Input<t1>|t1 := t0
 
 # Replace CXformCTEAnchor2TrivialSelect after every consumer is eligible for
 # inlining. The source-only anchor has the same relational result as its child;
@@ -435,7 +436,7 @@ Proj*<a0 s0>(Union*<a1 s1>(Input<t0>,Input<t1>))|Union*<a2 s2>(Proj*<a3 s3>(Inpu
 # exact RuleIR is an outcome-equivalence proof accepted by FormalSQL/Rocq;
 # aligned expressions preserve errors, so no scalar ErrorFree premise is
 # required.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);MinimalGrouping(a0,s0)
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;MinimalGrouping(a0,s0)
 
 # Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
 # exact right-to-left dependency set separately from the scalar predicate's

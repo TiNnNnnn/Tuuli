@@ -8,7 +8,7 @@
     "scope": "Any FInlinableCTE consumer through its existing column-remapped inline definition",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f2116d97cabfa066"
+      "0fab0293bf556f94"
     ]
   },
   "plans": [
@@ -26,7 +26,7 @@
       "trace": true,
       "policy": "isolate_cte_consumer_inline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\""
+        "\"status\":\"applied\",\"rule_hash\":\"0fab0293bf556f94\""
       ],
       "alternative": [
         "CXformInlineCTEConsumer",
@@ -56,7 +56,7 @@
       ],
       "policy": "isolate_cte_consumer_inline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\""
+        "\"status\":\"applied\",\"rule_hash\":\"0fab0293bf556f94\""
       ],
       "alternative": [
         "CXformDSLRule_CTEConsumer"

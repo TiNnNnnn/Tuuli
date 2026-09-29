@@ -833,9 +833,12 @@ PdrgpconBuild(SBuildCtx &bctx,
 // Input remains an arbitrary relational subtree; these are supported template
 // constructors, not a whitelist of rewrite identities.
 BOOL
-FBindingTree(const CDSLOp *op)
+FBindingTree(const CDSLOp *op, BOOL source)
 {
-	if (EdslopInput == op->Edslop())
+	// A consumer captures its eligible, column-remapped inline definition;
+	// it is a source boundary, not a target CTE constructor.
+	if (EdslopInput == op->Edslop() ||
+		(source && EdslopCTEConsumer == op->Edslop()))
 	{
 		return true;
 	}
@@ -876,7 +879,7 @@ FBindingTree(const CDSLOp *op)
 	}
 	for (ULONG i = 0; i < op->UlChildren(); i++)
 	{
-		if (!FBindingTree((*op)[i]))
+		if (!FBindingTree((*op)[i], source))
 			return false;
 	}
 	return true;
@@ -895,10 +898,11 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		}
 		return true;
 	}
-	if (!FBindingTree(source->PopRoot()) || !FBindingTree(target->PopRoot()))
+	if (!FBindingTree(source->PopRoot(), true) ||
+		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, source-only CTEConsumer, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

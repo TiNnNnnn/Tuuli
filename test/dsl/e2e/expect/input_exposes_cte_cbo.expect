@@ -13,14 +13,14 @@
       "policy": "input_exposes_cte_cbo.policy",
       "stats_experiment": "discover_experiment.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2116d97cabfa066\"",
+        "\"status\":\"applied\",\"rule_hash\":\"0fab0293bf556f94\"",
         "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\"",
         "\"kind\":\"rule_candidate\",\"engine\":\"pgorca\",\"experiment\":\"dsl-e2e-discover\"",
-        "\"rule_hash\":\"f2116d97cabfa066\",\"binding_fingerprint\":",
+        "\"rule_hash\":\"0fab0293bf556f94\",\"binding_fingerprint\":",
         "\"placement\":\"cbo\",\"status\":\"ready_cbo\"",
         "\"kind\":\"rule_candidate_outcome\",\"engine\":\"pgorca\",\"experiment\":\"dsl-e2e-discover\"",
-        "\"rule_hash\":\"f2116d97cabfa066\",\"status\":\"memo_inserted\",\"memo_version_before\":",
-        "\"selected_plan_cbo_dsl_rules\":{\"dec0eb1e99571556\":",
+        "\"rule_hash\":\"0fab0293bf556f94\",\"status\":\"memo_inserted\",\"memo_version_before\":",
+        "\"selected_plan_cbo_dsl_rules\":{\"0fab0293bf556f94\":1,\"dec0eb1e99571556\":1}",
         "\"kind\":\"rule_edge_batch\",\"engine\":\"pgorca\",\"scheduler\":\"cbo\",\"schema_version\":4",
         "\"binding_edge_trace_version\":6"
       ]

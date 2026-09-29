@@ -126,6 +126,10 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"CTEConsumer<t0>|Input<t1>|t1 := t0",
+		"Filter<p0 a0>(CTEConsumer<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"t1 := t0;p1 := p0;a1 := a0",
+		"SortBy<o0>(CTEConsumer<t0>)|SortBy<o1>(Input<t1>)|t1 := t0;o1 := o0",
 		"Compute<Item(Column(a0),a1,e0) a2 s0>(Input<t0>)|"
 		"Compute<Item(Column(a3),a1,e0) a4 s1>(Input<t1>)|"
 		"t1 := t0;a3 := a0;a4 := a2;s1 := s0",
@@ -235,6 +239,17 @@ EresInlineExpressions()
 	CRefCount::SafeRelease(eliminate);
 	if (!identity)
 		return GPOS_FAILED;
+	for (const CHAR *text : {
+			"Input<t0>|CTEConsumer<t1>|t1 := t0",
+			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEConsumer<t1>)|t1 := t0;o1 := o0"})
+	{
+		CDSLRule *rule = Parse(mp, text);
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	for (const CHAR *term : {"NotTrue()", "NotTrue(p0,p0)", "NotTrue(a0)",
 						   "Not()", "Not(p0,p0)", "And(p0)",
 						   "And(p0,p0,p0)", "Not(a0)", "Not(p9)",
