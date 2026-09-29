@@ -127,6 +127,10 @@ EresInlineExpressions()
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
 		"CTEConsumer<t0>|Input<t1>|t1 := t0",
+		"CTEAnchor(Input<t0>)|Input<t1>|t1 := t0",
+		"CTEAnchor(Filter<Not(Not(p0)) a0>(Input<t0>))|"
+		"Filter<p1 a1>(Input<t1>)|t1 := t0;p1 := p0;a1 := a0",
+		"SortBy<o0>(CTEAnchor(Input<t0>))|SortBy<o1>(Input<t1>)|t1 := t0;o1 := o0",
 		"Filter<p0 a0>(CTEConsumer<t0>)|Filter<p1 a1>(Input<t1>)|"
 		"t1 := t0;p1 := p0;a1 := a0",
 		"SortBy<o0>(CTEConsumer<t0>)|SortBy<o1>(Input<t1>)|t1 := t0;o1 := o0",
@@ -241,7 +245,10 @@ EresInlineExpressions()
 		return GPOS_FAILED;
 	for (const CHAR *text : {
 			"Input<t0>|CTEConsumer<t1>|t1 := t0",
-			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEConsumer<t1>)|t1 := t0;o1 := o0"})
+			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEConsumer<t1>)|t1 := t0;o1 := o0",
+			"Input<t0>|CTEAnchor(Input<t1>)|t1 := t0",
+			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEAnchor(Input<t1>))|t1 := t0;o1 := o0",
+			"CTEAnchor(Limit<n0 n1>(Input<t0>))|Input<t1>|t1 := t0"})
 	{
 		CDSLRule *rule = Parse(mp, text);
 		if (nullptr != rule)

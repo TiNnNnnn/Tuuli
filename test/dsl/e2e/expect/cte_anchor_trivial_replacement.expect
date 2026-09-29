@@ -7,7 +7,7 @@
     "scope": "Any FInlinableCTE anchor after its consumers have an inline alternative",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "e3e3886bcb546d48"
+      "0c1dd9218a99c7d6"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_cte_anchor_trivial.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3e3886bcb546d48\""
+        "\"status\":\"applied\",\"rule_hash\":\"0c1dd9218a99c7d6\""
       ],
       "alternative": [
         "CXformCTEAnchor2TrivialSelect",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_cte_anchor_trivial.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3e3886bcb546d48\""
+        "\"status\":\"applied\",\"rule_hash\":\"0c1dd9218a99c7d6\""
       ],
       "alternative": [
         "CXformDSLRule_CTEAnchor"
