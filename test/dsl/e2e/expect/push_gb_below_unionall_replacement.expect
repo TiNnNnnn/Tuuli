@@ -7,7 +7,7 @@
     "scope": "Complete pure Global grouping domain of CXformPushGbBelowUnionAll; aggregate functions remain outside the native xform itself",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "d2588917b10afdab"
+      "25e64f2301e0bc41"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d2588917b10afdab\""
+        "\"status\":\"applied\",\"rule_hash\":\"25e64f2301e0bc41\""
       ],
       "alternative": [
         "CXformPushGbBelowUnionAll",
@@ -48,7 +48,7 @@
         "CXformPushGbBelowUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d2588917b10afdab\""
+        "\"status\":\"applied\",\"rule_hash\":\"25e64f2301e0bc41\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
