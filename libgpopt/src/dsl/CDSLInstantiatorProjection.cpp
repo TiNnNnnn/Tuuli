@@ -589,7 +589,20 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
-	if (m_prule->Pexprdefs()->FHasBindings())
+	// A captured two-slot Proj* is pure grouping. Reuse the common grouping
+	// builder below, including positional SetOp mapping, for both syntaxes.
+	// Explicit SELECT programs and computed captures keep the typed path.
+	const CDSLOp *group_source = m_prule->Pexprdefs()->FHasBindings()
+		? PopSourceProjForSchema(m_prule->PfragSrc()->PopRoot(), psymSchema) : nullptr;
+	CColRefArray *group_attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
+	CColRefArray *group_schema = PdrgpcrResolveCols(psymSchema, pmodel);
+	const BOOL captured_grouping = nullptr != group_source && pop->FDistinct() &&
+		group_source->FDistinct() && 2 == pop->Pdrgpsym()->Size() &&
+		2 == group_source->Pdrgpsym()->Size() &&
+		psymAttrs == (*group_source->Pdrgpsym())[0] &&
+		nullptr != group_attrs && nullptr != group_schema &&
+		CColRef::Equals(group_attrs, group_schema);
+	if (m_prule->Pexprdefs()->FHasBindings() && !captured_grouping)
 	{
 		// Keep the source schema/dependency context, whether reusing a whole
 		// capture or constructing independently typed SELECT items.

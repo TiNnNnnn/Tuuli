@@ -297,7 +297,8 @@ CDSLInstantiator::PcrMapToTarget(const CDSLOp *popTarget,
 								 CColRef *pcrSource,
 								 const CDSLModel *pmodel) const
 {
-	if (pexprTarget->DeriveOutputColumns()->FMember(pcrSource))
+	CColRefSet *output = pexprTarget->DeriveOutputColumns();
+	if (output->FMember(pcrSource))
 	{
 		return pcrSource;
 	}
@@ -346,7 +347,10 @@ CDSLInstantiator::PcrMapToTarget(const CDSLOp *popTarget,
 	{
 		CColRef *pcrMapped = PcrMapToTarget(
 			(*popTarget)[ul], (*pexprTarget)[ul], pcrSource, pmodel);
-		if (nullptr != pcrMapped)
+		// A child can still own columns removed by this node (for example
+		// grouping keys omit part of a SetOp row). Do not export those columns
+		// to a parent predicate or positional SetOp map.
+		if (nullptr != pcrMapped && output->FMember(pcrMapped))
 		{
 			return pcrMapped;
 		}

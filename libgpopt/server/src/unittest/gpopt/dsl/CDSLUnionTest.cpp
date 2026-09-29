@@ -471,10 +471,65 @@ EresTypedOutputColumnProjection()
 	return GPOS_OK;
 }
 
+// A moved grouping exposes only its keys, even when the underlying Input
+// still has the complete SetOp row. Test both implicit and explicit maps.
+static GPOS_RESULT
+EresTypedGroupingSetMaps()
+{
+	for (BOOL distinct : {false, true})
+	for (BOOL explicit_maps : {false, true})
+	for (BOOL full_output : {false, true})
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		const std::string text = std::string("Proj*<a0 s0>(") +
+			(distinct ? "Union*" : "Union") + "<a1 s1 a10 a11>(Input<t0>,Input<t1>))|" +
+			(explicit_maps ? "Union*<a2 s2 a12 a13>" : "Union*<a2 s2>") +
+			"(Proj*<a3 s3>(Input<t2>),Proj*<a4 s4>(Input<t3>))|" +
+			(explicit_maps
+				? std::string("t2 := t0;t3 := t1;a3 := a0;s3 := s0;a4 := a0;s4 := s0;") +
+					(full_output ? "a2 := a1;s2 := s1" : "a2 := a0;s2 := s0") + ";a12 := a2;a13 := a2"
+				: std::string("TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);SchemaEq(s3,s0);AttrsEq(a4,a0);SchemaEq(s4,s0);") +
+					(full_output ? "AttrsEq(a2,a1);SchemaEq(s2,s1)" : "AttrsEq(a2,a0);SchemaEq(s2,s0)"));
+		CWStringDynamic error(mp);
+		CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
+		if (nullptr == rule.Value()) GPOS_TRACE(error.GetBuffer());
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CExpression *l = nullptr, *r = nullptr, *u = nullptr;
+		BuildTwoGetUnion(fix, distinct, &l, &r, &u);
+		CAutoRef<CExpression> left(l), right(r), set(u);
+		CAutoRef<CColRefArray> keys(GPOS_NEW(mp) CColRefArray(mp));
+		keys->Append((*CLogicalSetOp::PopConvert(set->Pop())->PdrgpcrOutput())[0]);
+		CAutoRef<CExpression> source(fix.PexprLogicalGbAgg(set.Value(), keys.Value()));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator inst(mp);
+		CAutoRef<CExpression> target(inst.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(full_output == (nullptr == target.Value()));
+		if (nullptr != target.Value())
+		{
+			CExpression *result = target.Value();
+			while (COperator::EopLogicalSelect == result->Pop()->Eopid() ||
+				   COperator::EopLogicalProject == result->Pop()->Eopid())
+				result = (*result)[0];
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalUnion == result->Pop()->Eopid());
+			CLogicalSetOp *op = CLogicalSetOp::PopConvert(result->Pop());
+			GPOS_UNITTEST_ASSERT(CColRef::Equals(op->PdrgpcrOutput(), keys.Value()));
+			for (ULONG i = 0; i < 2; ++i)
+				GPOS_UNITTEST_ASSERT(FOutputContains((*result)[i], (*op->PdrgpdrgpcrInput())[i]));
+		}
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresTypedGroupingSetMaps),
 		GPOS_UNITTEST_FUNC(EresExplicitSetOpInputMaps),
 		GPOS_UNITTEST_FUNC(EresTypedOutputColumnProjection),
 		GPOS_UNITTEST_FUNC(EresExpressionSetBindings),
