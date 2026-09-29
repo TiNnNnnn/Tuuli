@@ -7,6 +7,7 @@
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -26,6 +27,7 @@
 #include "gpopt/operators/CLogicalDifferenceAll.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
@@ -1033,6 +1035,34 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	CLogicalSequenceProject *popSource =
 		CLogicalSequenceProject::PopConvert(pexprCarrier->Pop());
 	if (fFrame != popSource->FHasFrameSpecs())
+	{
+		return nullptr;
+	}
+	// The carrier preserves opaque window functions and their spec indexes.
+	// Reuse it only if it implements the metadata requested by the target.
+	CColRefArray *partition = PdrgpcrResolveCols((*pop->Pdrgpsym())[0], pmodel);
+	COrderSpecArray *orders = pmodel->PdrgposOrder(PsymResolve((*pop->Pdrgpsym())[1]));
+	CWindowFrameArray *frames = fFrame
+		? pmodel->PdrgpwfFrame(PsymResolve((*pop->Pdrgpsym())[2])) : popSource->Pdrgpwf();
+	if (nullptr == partition || nullptr == orders || nullptr == frames ||
+		!COrderSpec::Equals(orders, popSource->Pdrgpos()) ||
+		!CWindowFrame::Equals(frames, popSource->Pdrgpwf()))
+	{
+		return nullptr;
+	}
+	if (CDistributionSpec::EdtHashed == popSource->Pds()->Edt())
+	{
+		const auto *keys = CDistributionSpecHashed::PdsConvert(popSource->Pds())->Pdrgpexpr();
+		if (partition->Size() != keys->Size()) return nullptr;
+		for (ULONG i = 0; i < keys->Size(); ++i)
+		{
+			if (COperator::EopScalarIdent != (*keys)[i]->Pop()->Eopid() ||
+				(*partition)[i] != CScalarIdent::PopConvert((*keys)[i]->Pop())->Pcr())
+				return nullptr;
+		}
+	}
+	else if (CDistributionSpec::EdtSingleton != popSource->Pds()->Edt() ||
+			 0 != partition->Size())
 	{
 		return nullptr;
 	}
