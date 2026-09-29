@@ -53,12 +53,12 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 	CExpression *pexprList = (*pexprProject)[1];
 	const BOOL exact = nullptr != m_pmatcher->Prule() &&
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
-	// One input scope with fresh output columns; scalar certificates do not
-	// cover SRFs, correlated subqueries or implicit sibling dependencies.
+	// Fresh outputs and no sibling dependencies. Outer references are allowed,
+	// but construction must retain their original scope. SRFs are not Compute.
 	if (exact && (pexprList->DeriveHasNonScalarFunction() ||
 		pexprList->DeriveDefinedColumns()->Size() != pexprList->Arity() ||
 		!(*pexprProject)[0]->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()) ||
-		!(*pexprProject)[0]->DeriveOutputColumns()->ContainsAll(pexprList->DeriveUsedColumns())))
+		!pexprList->DeriveDefinedColumns()->IsDisjoint(pexprList->DeriveUsedColumns())))
 	{
 		return false;
 	}
@@ -76,6 +76,14 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 		pmodel->FBind((*pdrgpsym)[2], pdrgpcrSchema);
 	pdrgpcrAttrs->Release();
 	pdrgpcrSchema->Release();
+	if (fBound && exact)
+	{
+		pexprProject->AddRef();
+		if (!pmodel->FSetComputeCarrier((*pdrgpsym)[0], pexprProject))
+		{
+			return false;
+		}
+	}
 	return fBound &&
 		m_pmatcher->FMatch((*popCompute)[0], (*pexprProject)[0], pmodel);
 }

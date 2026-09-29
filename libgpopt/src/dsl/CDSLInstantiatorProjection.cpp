@@ -528,7 +528,26 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 		pexprList->Release();
 		return nullptr;
 	}
-	if (!FColSetContainsArray(pexprChild->DeriveOutputColumns(), pdrgpcrAttrs) ||
+	CColRefSet *available = GPOS_NEW(m_mp) CColRefSet(m_mp);
+	available->Include(pexprChild->DeriveOutputColumns());
+	CExpression *carrier = m_prule->Pexprdefs()->FHasBindings()
+		? pmodel->PexprComputeCarrier(psymExpr) : nullptr;
+	BOOL scope_valid = true;
+	if (nullptr != carrier)
+	{
+		// Only captured outer references may remain external; a dropped local
+		// column must not silently turn into a correlation. Conversely, a new
+		// child must not shadow a captured external column.
+		CColRefSet *outer = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		outer->Include((*carrier)[1]->DeriveUsedColumns());
+		outer->Exclude((*carrier)[0]->DeriveOutputColumns());
+		scope_valid = outer->IsDisjoint(pexprChild->DeriveOutputColumns());
+		available->Include(outer);
+		outer->Release();
+	}
+	scope_valid = scope_valid && FColSetContainsArray(available, pdrgpcrAttrs);
+	available->Release();
+	if (!scope_valid ||
 		(m_prule->Pexprdefs()->FHasBindings() &&
 		 (pexprList->DeriveDefinedColumns()->Size() != pexprList->Arity() ||
 		  !pexprChild->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()))))
