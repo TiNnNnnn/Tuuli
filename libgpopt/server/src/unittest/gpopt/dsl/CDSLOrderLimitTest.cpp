@@ -240,6 +240,38 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 		eres = GPOS_FAILED;
 	}
 	pexprLive->Release();
+	// Removing a nested rank can remove a required partition/order column.
+	// Reusing its output identity above the retained child is also invalid.
+	for (BOOL order : {false, true})
+	{
+		CExpression *inner = CXformUtils::PexprWindowWithRowNumber(mp, pexprGet, pdrgpcr);
+		CColRef *rank = (*inner)[1]->DeriveDefinedColumns()->PcrFirst();
+		CColRefArray *partition = GPOS_NEW(mp) CColRefArray(mp);
+		COrderSpecArray *orders = GPOS_NEW(mp) COrderSpecArray(mp);
+		if (order) orders->Append(PosOne(mp, rank, EdslsortAsc));
+		else partition->Append(rank);
+		CExpression *outer = CXformUtils::PexprWindowWithRowNumber(
+			mp, inner, partition, nullptr, orders);
+		const std::string source =
+			"RowNumber<a0 o0 r0>(RowNumber<a2 o2 r2>(Input<t0>))|";
+		const std::string target =
+			"RowNumber<a1 o1 r1>(RowNumber<a3 o3 r3>(Input<t1>))|"
+			"t1 := t0;a1 := a0;o1 := o0;a3 := a2;o3 := o2;r3 := r2;";
+		if (!FBindingRoundTrip(mp, (source + target + "r1 := r0").c_str(), outer))
+			eres = GPOS_FAILED;
+		for (const std::string &invalid : {
+			source + target + "r1 := r2", source +
+			"RowNumber<a1 o1 r1>(Input<t1>)|"
+			"t1 := t0;a1 := a0;o1 := o0;r1 := r0"})
+		{
+			if (!FBindingRoundTrip(mp, invalid.c_str(), outer, true))
+				eres = GPOS_FAILED;
+		}
+		outer->Release();
+		inner->Release();
+		partition->Release();
+		orders->Release();
+	}
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
 	pexprGet->Release();
@@ -371,6 +403,12 @@ CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
 		if (!FBindingRoundTrip(mp, (tree + bindings).c_str(), outer, true))
 			eres = GPOS_FAILED;
 	}
+	if (!FBindingRoundTrip(mp,
+		"Window<a0 o0 m0 w0>(Window<a2 o2 m2 w2>(Input<t0>))|"
+		"Window<a1 o1 m1 w1>(Window<a3 o3 m3 w3>(Input<t1>))|"
+		"t1 := t0;a1 := a2;o1 := o2;m1 := m2;w1 := w2;"
+		"a3 := a2;o3 := o2;m3 := m2;w3 := w2", outer, true))
+		eres = GPOS_FAILED;
 	outer->Release();
 	inner->Release();
 	pexprGet->Release();
