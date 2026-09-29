@@ -70,8 +70,8 @@ using namespace gpopt;
 	"Agg<a0 a1 f0 s0 p0>(Input<t0>)|"                                      \
 	"Agg<a2 a3 f1 s1 p1>(Input<t1>)|"                                      \
 	"AttrsSub(a0,t0);AttrsSub(a1,t0);"                                     \
-	"TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);"                        \
-	"FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);"                    \
+	"t1 := t0;a2 := a0;a3 := a1;"                                        \
+	"f1 := f0;s1 := s0;p1 := p0;"                                        \
 	"MinimalGrouping(a0,s0)"
 
 #define GPOPT_DSL_AGG_KEYED_OUTPUT_RULE                                    \

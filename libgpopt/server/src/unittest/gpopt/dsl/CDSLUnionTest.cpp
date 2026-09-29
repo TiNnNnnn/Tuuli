@@ -54,7 +54,7 @@ using namespace gpopt;
 	"SchemaFromAttrs(s0,a0);TableShared(t1,t2)"
 
 #define GPOPT_DSL_INLINE_CTE_CONSUMER_RULE \
-	"CTEConsumer<t0>|Input<t1>|TableEq(t1,t0)"
+	"CTEConsumer<t0>|Input<t1>|t1 := t0"
 
 #define GPOPT_DSL_UNION_SWAP_RULE                                      \
 	"Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|"            \
@@ -1509,6 +1509,12 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_SHARED_UNION_RULE);
 	CDSLRule *pruleInline =
 		PdslruleParseLocal(mp, GPOPT_DSL_INLINE_CTE_CONSUMER_RULE);
+	if (nullptr == prule || nullptr == pruleInline)
+	{
+		CRefCount::SafeRelease(pruleInline);
+		CRefCount::SafeRelease(prule);
+		return GPOS_FAILED;
+	}
 	CExpression *pexprSource = CUtils::PexprLogicalCTGDummy(mp);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
@@ -1541,7 +1547,7 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 				? GPOS_OK
 				: GPOS_FAILED;
 		}
-		if (GPOS_OK == eres && nullptr != pruleInline)
+		if (GPOS_OK == eres)
 		{
 			CExpression *pexprConsumer = (*pexprUnion)[0];
 			CDSLModel *pmodelInline = GPOS_NEW(mp) CDSLModel(mp);
@@ -1560,7 +1566,9 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 					instantiator.PexprInstantiate(pruleInline, pmodelInline);
 			}
 			eres = nullptr != pexprInlined &&
-			COperator::EopLogicalCTEConsumer != pexprInlined->Pop()->Eopid()
+			COperator::EopLogicalCTEConsumer != pexprInlined->Pop()->Eopid() &&
+			pexprInlined->DeriveOutputColumns()->Equals(
+				pexprConsumer->DeriveOutputColumns())
 				? GPOS_OK
 				: GPOS_FAILED;
 			pxfs->Release();
