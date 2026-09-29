@@ -78,20 +78,20 @@ using namespace gpopt;
 	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0)"
 
 #define GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_RULE                       \
-	"Proj*<a0 s0>(Union*<a1 s1>(Input<t0>,Input<t1>))|"                 \
-	"Union*<a2 s2>(Proj*<a3 s3>(Input<t2>),"                            \
+	"Proj*<a0 s0>(Union*<a1 s1 a10 a11>(Input<t0>,Input<t1>))|"         \
+	"Union*<a2 s2 a12 a13>(Proj*<a3 s3>(Input<t2>),"                    \
 	"Proj*<a4 s4>(Input<t3>))|"                                        \
-	"AttrsSub(a0,a1);AttrsSub(a0,s1);TableEq(t2,t0);TableEq(t3,t1);"   \
-	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0);"   \
-	"AttrsEq(a4,a0);SchemaEq(s4,s0)"
+	"AttrsSub(a0,a1);AttrsSub(a0,s1);t2 := t0;t3 := t1;"                \
+	"a2 := a0;s2 := s0;a3 := a0;s3 := s0;a4 := a0;s4 := s0;"          \
+	"a12 := a0;a13 := a0"
 
 #define GPOPT_DSL_PUSH_GROUPING_BELOW_UNION_ALL_RULE                   \
-	"Proj*<a0 s0>(Union<a1 s1>(Input<t0>,Input<t1>))|"                  \
-	"Union*<a2 s2>(Proj*<a3 s3>(Input<t2>),"                            \
+	"Proj*<a0 s0>(Union<a1 s1 a10 a11>(Input<t0>,Input<t1>))|"          \
+	"Union*<a2 s2 a12 a13>(Proj*<a3 s3>(Input<t2>),"                    \
 	"Proj*<a4 s4>(Input<t3>))|"                                        \
-	"AttrsSub(a0,a1);AttrsSub(a0,s1);TableEq(t2,t0);TableEq(t3,t1);"   \
-	"AttrsEq(a2,a0);SchemaEq(s2,s0);AttrsEq(a3,a0);SchemaEq(s3,s0);"   \
-	"AttrsEq(a4,a0);SchemaEq(s4,s0)"
+	"AttrsSub(a0,a1);AttrsSub(a0,s1);t2 := t0;t3 := t1;"                \
+	"a2 := a0;s2 := s0;a3 := a0;s3 := s0;a4 := a0;s4 := s0;"          \
+	"a12 := a0;a13 := a0"
 
 #define GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE                         \
 	"InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"    \
@@ -479,6 +479,8 @@ EresTypedGroupingSetMaps()
 	for (BOOL distinct : {false, true})
 	for (BOOL explicit_maps : {false, true})
 	for (BOOL full_output : {false, true})
+	for (BOOL shared_input : {false, true})
+	for (BOOL permuted : {false, true})
 	{
 		CAutoMemoryPool amp;
 		CMemoryPool *mp = amp.Pmp();
@@ -496,9 +498,22 @@ EresTypedGroupingSetMaps()
 		CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
 		if (nullptr == rule.Value()) GPOS_TRACE(error.GetBuffer());
 		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
-		CExpression *l = nullptr, *r = nullptr, *u = nullptr;
-		BuildTwoGetUnion(fix, distinct, &l, &r, &u);
-		CAutoRef<CExpression> left(l), right(r), set(u);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("group_set_left", 2, &lc));
+		CExpression *r = nullptr;
+		if (shared_input)
+		{
+			r = left.Value();
+			r->AddRef();
+			rc = lc;
+		}
+		else r = fix.PexprLogicalGet("group_set_right", 2, &rc);
+		CAutoRef<CExpression> right(r);
+		CAutoRef<CColRefArray> right_map(GPOS_NEW(mp) CColRefArray(mp));
+		right_map->Append((*rc)[permuted ? 1 : 0]);
+		right_map->Append((*rc)[permuted ? 0 : 1]);
+		CAutoRef<CExpression> set(PexprSetOp(mp, distinct, left.Value(), lc,
+			right.Value(), right_map.Value()));
 		CAutoRef<CColRefArray> keys(GPOS_NEW(mp) CColRefArray(mp));
 		keys->Append((*CLogicalSetOp::PopConvert(set->Pop())->PdrgpcrOutput())[0]);
 		CAutoRef<CExpression> source(fix.PexprLogicalGbAgg(set.Value(), keys.Value()));
@@ -508,7 +523,18 @@ EresTypedGroupingSetMaps()
 		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
 		CDSLInstantiator inst(mp);
 		CAutoRef<CExpression> target(inst.PexprInstantiate(rule.Value(), model.Value()));
-		GPOS_UNITTEST_ASSERT(full_output == (nullptr == target.Value()));
+		// Later SetOp inputs cannot own the common output identities. A
+		// deliberately shared, unrenamed source is a rejection case, not a
+		// license to alias two range variables while rebuilding the set.
+		const BOOL rejected = full_output || shared_input;
+		if (rejected != (nullptr == target.Value()))
+		{
+			CWStringDynamic diagnostic(mp);
+			diagnostic.AppendFormat(GPOS_WSZ_LIT("grouping map: distinct=%d explicit=%d full=%d shared=%d permuted=%d"),
+				distinct, explicit_maps, full_output, shared_input, permuted);
+			GPOS_TRACE(diagnostic.GetBuffer());
+		}
+		GPOS_UNITTEST_ASSERT(rejected == (nullptr == target.Value()));
 		if (nullptr != target.Value())
 		{
 			CExpression *result = target.Value();
@@ -520,6 +546,12 @@ EresTypedGroupingSetMaps()
 			GPOS_UNITTEST_ASSERT(CColRef::Equals(op->PdrgpcrOutput(), keys.Value()));
 			for (ULONG i = 0; i < 2; ++i)
 				GPOS_UNITTEST_ASSERT(FOutputContains((*result)[i], (*op->PdrgpdrgpcrInput())[i]));
+			CExpression *rhs = (*result)[1];
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == rhs->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalGet == (*rhs)[0]->Pop()->Eopid());
+			CColRefArray *rhs_columns = CLogicalGet::PopConvert((*rhs)[0]->Pop())->PdrgpcrOutput();
+			GPOS_UNITTEST_ASSERT((*CLogicalGbAgg::PopConvert(rhs->Pop())->Pdrgpcr())[0] ==
+				(*rhs_columns)[permuted ? 1 : 0]);
 		}
 	}
 	return GPOS_OK;

@@ -7,7 +7,7 @@
     "scope": "Pure global grouping over Union distinct with grouping attrs drawn from the complete set-op output",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "5cb275809f4a03a3"
+      "bf7357563a7b7249"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5cb275809f4a03a3\""
+        "\"status\":\"applied\",\"rule_hash\":\"bf7357563a7b7249\""
       ],
       "alternative": [
         "CXformPushGbBelowUnion",
@@ -48,7 +48,7 @@
         "CXformPushGbBelowUnion"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5cb275809f4a03a3\""
+        "\"status\":\"applied\",\"rule_hash\":\"bf7357563a7b7249\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
