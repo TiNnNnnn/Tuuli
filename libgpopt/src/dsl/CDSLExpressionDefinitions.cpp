@@ -251,14 +251,9 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 		return false;
 	}
 	const CDSLSymbol *output = (*symbols)[0];
-	const auto output_kind = nullptr == signature ? EdslsymPred : signature->types[0];
-	if ((output_kind != output->Esymkind() &&
-		 !(EdslexprRef == kind && (EdslsymAttrs == output->Esymkind() ||
-			EdslsymTable == output->Esymkind() || EdslsymSchema == output->Esymkind() ||
-			EdslsymOrder == output->Esymkind() || EdslsymFunc == output->Esymkind() ||
-			EdslsymExpr == output->Esymkind() || EdslsymScalar == output->Esymkind() ||
-			EdslsymCallHead == output->Esymkind() || EdslsymValueList == output->Esymkind() ||
-			EdslsymCompareHead == output->Esymkind()))) ||
+	const auto output_kind =
+		nullptr == signature ? output->Esymkind() : signature->types[0];
+	if (output_kind >= EdslsymSentinel || output_kind != output->Esymkind() ||
 		nullptr != Pdef(output))
 	{
 		return false;

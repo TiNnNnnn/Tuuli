@@ -63,7 +63,8 @@ Prule(CMemoryPool *mp, const CHAR *szRule)
 CExpression *
 PexprWindowRows(CMemoryPool *mp, CDSLTestFixture &fix,
 				CExpression *pexprChild, CColRef *pcrPartition,
-				CColRef *pcrArgument)
+				CColRef *pcrArgument, COrderSpec *order = nullptr,
+				CWindowFrame *frame = nullptr)
 {
 	CExpressionArray *pdrgpexprDist = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprDist->Append(CUtils::PexprScalarIdent(mp, pcrPartition));
@@ -71,6 +72,8 @@ PexprWindowRows(CMemoryPool *mp, CDSLTestFixture &fix,
 		GPOS_NEW(mp) CDistributionSpecHashed(pdrgpexprDist, true);
 	COrderSpecArray *pdrgpos = GPOS_NEW(mp) COrderSpecArray(mp);
 	CWindowFrameArray *pdrgpwf = GPOS_NEW(mp) CWindowFrameArray(mp);
+	if (nullptr != order) pdrgpos->Append(order);
+	if (nullptr != frame) pdrgpwf->Append(frame);
 
 	CScalarWindowFunc *popWindow = GPOS_NEW(mp) CScalarWindowFunc(
 		mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_AGG_MAX),
@@ -92,6 +95,34 @@ PexprWindowRows(CMemoryPool *mp, CDSLTestFixture &fix,
 	return CUtils::PexprLogicalSequenceProject(
 		mp, COperator::EsptypeGlobalOneStep, pds, pdrgpos, pdrgpwf,
 		pexprChild, pexprList);
+}
+
+BOOL
+FBindingRoundTrip(CMemoryPool *mp, const CHAR *text, CExpression *source,
+				  BOOL reject = false)
+{
+	CWStringDynamic error(mp);
+	CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text, "EQ", &error);
+	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLMatcher matcher(mp, rule);
+	CDSLConstraintChecker checker(mp);
+	CDSLInstantiator instantiator(mp);
+	CExpression *target = nullptr;
+	BOOL valid = nullptr != rule &&
+		matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+		checker.FCheck(rule, model);
+	if (valid)
+	{
+		target = instantiator.PexprInstantiate(rule, model);
+		valid = reject ? nullptr == target : nullptr != target && target->Matches(source);
+	}
+	if (!valid)
+		GPOS_TRACE_FORMAT("Window binding check failed (parsed=%d, target=%d, reject=%d): %s; %ls",
+			nullptr != rule, nullptr != target, reject, text, error.GetBuffer());
+	CRefCount::SafeRelease(target);
+	model->Release();
+	CRefCount::SafeRelease(rule);
+	return valid;
 }
 }  // namespace
 
@@ -202,6 +233,12 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 	CRefCount::SafeRelease(pexprIdentity);
 	pmodelIdentity->Release();
 	CRefCount::SafeRelease(pruleIdentity);
+	if (!FBindingRoundTrip(mp,
+		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;r1 := r2;r2 := r0;ErrorFree(r0)", pexprLive))
+	{
+		eres = GPOS_FAILED;
+	}
 	pexprLive->Release();
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
@@ -301,7 +338,41 @@ CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
+	if (!FBindingRoundTrip(mp,
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;w1 := w2;w2 := w0;ErrorFree(w0)", pexprLive))
+	{
+		eres = GPOS_FAILED;
+	}
 	pexprLive->Release();
+	// Nested windows expose distinct partition/order/frame captures. Reusing
+	// the outer item list must not silently ignore a different target spec.
+	CExpression *inner = PexprWindowRows(mp, fix, pexprGet,
+		(*pdrgpcr)[1], (*pdrgpcr)[0], PosOne(mp, (*pdrgpcr)[1], EdslsortDesc),
+		GPOS_NEW(mp) CWindowFrame(mp, CWindowFrame::EfsRows,
+			CWindowFrame::EfbUnboundedPreceding, CWindowFrame::EfbUnboundedFollowing,
+			nullptr, nullptr, CWindowFrame::EfesNone, 0, 0, 0, true, false));
+	CExpression *outer = PexprWindowRows(mp, fix, inner,
+		(*pdrgpcr)[0], (*pdrgpcr)[1], PosOne(mp, (*pdrgpcr)[0], EdslsortAsc),
+		GPOS_NEW(mp) CWindowFrame(mp, CWindowFrame::EfsRows,
+			CWindowFrame::EfbUnboundedPreceding, CWindowFrame::EfbCurrentRow,
+			nullptr, nullptr, CWindowFrame::EfesNone, 0, 0, 0, true, false));
+	const std::string tree =
+		"Window<a0 o0 m0 w0>(Window<a2 o2 m2 w2>(Input<t0>))|"
+		"Window<a1 o1 m1 w1>(Window<a4 o4 m4 w4>(Input<t1>))|"
+		"t1 := t0;w1 := w3;w3 := w0;a4 := a2;o4 := o2;m4 := m2;w4 := w2;";
+	if (!FBindingRoundTrip(mp,
+		(tree + "a1 := a0;o1 := o0;m1 := m3;m3 := m0").c_str(), outer))
+		eres = GPOS_FAILED;
+	for (const CHAR *bindings : {
+		"a1 := a2;o1 := o0;m1 := m0", "a1 := a0;o1 := o2;m1 := m0",
+		"a1 := a0;o1 := o0;m1 := m2"})
+	{
+		if (!FBindingRoundTrip(mp, (tree + bindings).c_str(), outer, true))
+			eres = GPOS_FAILED;
+	}
+	outer->Release();
+	inner->Release();
 	pexprGet->Release();
 	return eres;
 }

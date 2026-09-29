@@ -876,6 +876,9 @@ FBindingTree(const CDSLOp *op, BOOL source)
 				   (5 == op->Pdrgpsym()->Size() || 6 == op->Pdrgpsym()->Size())) ||
 				  (EdslopSort == op->Edslop() && EdslsortSpec == op->Edslsort() &&
 				   1 == op->Pdrgpsym()->Size()) ||
+				  ((EdslopWindowRows == op->Edslop() || EdslopRowNumber == op->Edslop()) &&
+				   3 == op->Pdrgpsym()->Size()) ||
+				  (EdslopWindowFrame == op->Edslop() && 4 == op->Pdrgpsym()->Size()) ||
 				  (EdslopProj == op->Edslop() &&
 				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())))))
 	{
@@ -906,7 +909,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy, source-only CTEConsumer/CTEAnchor, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Window/WindowRows/RowNumber, source-only CTEConsumer/CTEAnchor, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -984,10 +987,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				continue;
 			}
 			const auto kind = known->second->Esymkind();
-			if ((EdslsymPred != kind && EdslsymAttrs != kind &&
-				 EdslsymTable != kind && EdslsymSchema != kind && EdslsymOrder != kind && EdslsymFunc != kind &&
-				 EdslsymExpr != kind && EdslsymScalar != kind &&
-				 EdslsymCallHead != kind && EdslsymValueList != kind && EdslsymCompareHead != kind) ||
+			if (kind >= EdslsymSentinel ||
 				!declare(output, kind, false) || !declare(input, kind, false))
 			{
 				bctx.Fail("expression reference requires matching supported symbol types");

@@ -126,6 +126,12 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;m1 := m2;m2 := m0;w1 := w2;w2 := w0",
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;w1 := w2;w2 := w0",
+		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;r1 := r2;r2 := r0",
 		"CTEConsumer<t0>|Input<t1>|t1 := t0",
 		"CTEAnchor(Input<t0>)|Input<t1>|t1 := t0",
 		"CTEAnchor(Filter<Not(Not(p0)) a0>(Input<t0>))|"
@@ -300,6 +306,30 @@ EresExpressionBindings()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
+	// References preserve every declared type, including frame boundaries;
+	// no operator-specific whitelist belongs in the shared definition graph.
+	for (ULONG output = 0; output < EdslsymSentinel; ++output)
+	{
+		for (ULONG input = 0; input < EdslsymSentinel; ++input)
+		{
+			CDSLConstraintArray *constraints = GPOS_NEW(mp) CDSLConstraintArray(mp);
+			CDSLSymbolArray *symbols = GPOS_NEW(mp) CDSLSymbolArray(mp);
+			symbols->Append(GPOS_NEW(mp) CDSLSymbol(mp,
+				static_cast<EDslSymbolKind>(output), "target", 0, EdslsideTarget));
+			symbols->Append(GPOS_NEW(mp) CDSLSymbol(mp,
+				static_cast<EDslSymbolKind>(input), "source", 1, EdslsideSource));
+			BOOL valid;
+			{
+				CDSLExpressionDefinitions definitions(mp, constraints);
+				valid = definitions.FAppendBinding(mp, EdslexprRef,
+					CDSLExpressionDefinitions::EBuild, symbols) == (output == input);
+			}
+			symbols->Release();
+			constraints->Release();
+			if (!valid)
+				return GPOS_FAILED;
+		}
+	}
 	const std::string projection =
 		"Proj<a0 s0 Item(Column(a3),a4,Item())>(Input<t0>)|"
 		"Proj<a1 s1 Item(Column(a5),a4,Item())>(Input<t1>)|t1 := t0;";
@@ -441,6 +471,22 @@ EresExpressionBindings()
 	for (const CHAR *bindings : invalid)
 	{
 		CDSLRule *rule = Parse(mp, (tree + aliases + bindings).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
+	const std::string window =
+		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;";
+	for (const CHAR *bindings : {
+		"m1 := m0;w1 := a0", "m1 := m0;w1 := missing",
+		"m1 := m0;w1 := w2;w2 := w1", "m1 := m0;w1 := w0;w1 := w0",
+		"w1 := w0;m1 := o0", "w1 := w0;m1 := missing",
+		"w1 := w0;m1 := m2;m2 := m1", "w1 := w0;m1 := m0;m0 := m1"})
+	{
+		CDSLRule *rule = Parse(mp, (window + bindings).c_str());
 		if (nullptr != rule)
 		{
 			rule->Release();
