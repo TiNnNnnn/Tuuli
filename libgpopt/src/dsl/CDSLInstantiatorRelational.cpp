@@ -35,6 +35,19 @@ using namespace gpopt::dslinstantiator;
 
 namespace
 {
+// Window metadata and expressions must use the rebuilt child's columns, and
+// appended outputs must remain fresh even when a captured shell is reused.
+BOOL
+FWindowColumns(const CLogicalSequenceProject *pop, CExpression *child,
+			   CExpression *items)
+{
+	CColRefSet *output = child->DeriveOutputColumns();
+	CColRefSet *defined = items->DeriveDefinedColumns();
+	return output->ContainsAll(pop->PcrsLocalUsed()) &&
+		output->ContainsAll(items->DeriveUsedColumns()) &&
+		defined->Size() == items->Arity() && output->IsDisjoint(defined);
+}
+
 BOOL
 FContainsGbAgg(const CExpression *pexpr)
 {
@@ -1076,10 +1089,7 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	// references remains available. A future operator that remaps columns must
 	// provide an explicit remapping contract instead of silently producing a
 	// dangling SequenceProject.
-	CColRefSet *pcrsOutput = pexprChild->DeriveOutputColumns();
-	CColRefSet *pcrsProject = pexprProjectList->DeriveUsedColumns();
-	if (!pcrsOutput->ContainsAll(popSource->PcrsLocalUsed()) ||
-		!pcrsOutput->ContainsAll(pcrsProject))
+	if (!FWindowColumns(popSource, pexprChild, pexprProjectList))
 	{
 		pexprChild->Release();
 		return nullptr;
@@ -1123,6 +1133,12 @@ CDSLInstantiator::PexprBuildRowNumber(const CDSLOp *pop,
 	CExpression *pexpr = CXformUtils::PexprWindowWithRowNumber(
 		m_mp, pexprChild, pdrgpcrPartition, (*pdrgpcrRank)[0], pdrgpos);
 	pexprChild->Release();
+	if (!FWindowColumns(CLogicalSequenceProject::PopConvert(pexpr->Pop()),
+						(*pexpr)[0], (*pexpr)[1]))
+	{
+		pexpr->Release();
+		return nullptr;
+	}
 	return pexpr;
 }
 
