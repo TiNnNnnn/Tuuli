@@ -744,9 +744,13 @@ CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings()
 		"Proj*<a0 s0>(Filter<p0 a2>(Input<t0>))|"
 		"Proj*<a1 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
 		"t1 := t0;a1 := a0;s1 := s0;a3 := a2");
-	if (nullptr == rule || nullptr == filter)
+	CDSLRule *columnsRule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Input<t0>)|Proj*<a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0");
+	if (nullptr == rule || nullptr == filter || nullptr == columnsRule)
 	{
 		CRefCount::SafeRelease(rule); CRefCount::SafeRelease(filter);
+		CRefCount::SafeRelease(columnsRule);
 		return GPOS_FAILED;
 	}
 	CColRefArray *columns = nullptr;
@@ -822,6 +826,28 @@ CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings()
 			dedup->Release(); dedup = fix.PexprLogicalGbAgg(limited_project, keys);
 			limited_project->Release();
 		}
+		if (0 == shape || 4 == shape || 6 == shape || 7 == shape)
+		{
+			// Two slots capture grouping columns, never absorb computed items
+			// (including unselected/reordered items) out of the opaque child.
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, columnsRule);
+			const CDSLOp *root = columnsRule->PfragSrc()->PopRoot();
+			const BOOL matched = matcher.FMatch(root, dedup, model);
+			ok &= matched;
+			if (matched)
+			{
+				ok &= model->PexprTable((*(*root)[0]->Pdrgpsym())[0]) == (*dedup)[0];
+				CExpression *captured = model->PexprProjList((*root->Pdrgpsym())[1]);
+				ok &= nullptr != captured && captured->Arity() == keys->Size();
+				if (nullptr != captured)
+					for (ULONG i = 0; i < captured->Arity(); ++i)
+						ok &= COperator::EopScalarIdent == (*(*captured)[i])[0]->Pop()->Eopid() &&
+							CScalarIdent::PopConvert((*(*captured)[i])[0]->Pop())->Pcr() ==
+								CScalarProjectElement::PopConvert((*captured)[i]->Pop())->Pcr();
+			}
+			model->Release();
+		}
 		decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, dedup);
 		target = decision->PexprTarget();
 		if (0 == shape || 6 == shape)
@@ -845,7 +871,7 @@ CDSLInstantiateTest::EresUnittest_DistinctProjectionBindings()
 		GPOS_DELETE(decision); dedup->Release(); project->Release(); keys->Release();
 	}
 	predicate->Release(); select->Release(); input->Release();
-	rule->Release(); filter->Release();
+	rule->Release(); filter->Release(); columnsRule->Release();
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
