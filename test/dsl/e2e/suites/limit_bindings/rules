@@ -1,0 +1,3 @@
+# Native FormalSQL OUTCOME_EQ: constructor regression, not a mined optimization.
+# LIMIT/OFFSET remain in place; only the predicate is reconstructed.
+Limit<n0 n1>(SortBy<o0>(Filter<p0 a0>(Input<t0>)))|Limit<n2 n3>(SortBy<o1>(Filter<Not(Not(p0)) a1>(Input<t1>)))|t1 := t0;a1 := a0;n2 := n0;n3 := n1;o1 := o0;ScalarOne(n0);ScalarZero(n1)

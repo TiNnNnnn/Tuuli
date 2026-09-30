@@ -400,8 +400,8 @@ CDSLMatcher::FMatchOrderLimit(const CDSLOp *pop, CExpression *pexpr,
 
 	// DSL positional order is Limit<count offset>; ORCA child order is
 	// relational, offset, count.
-	if (!pmodel->FBind((*pop->Pdrgpsym())[0], view.m_pexprCount) ||
-		!pmodel->FBind((*pop->Pdrgpsym())[1], view.m_pexprOffset))
+	if (!FMatchExpression((*pop->Pdrgpsym())[0], view.m_pexprCount, pmodel) ||
+		!FMatchExpression((*pop->Pdrgpsym())[1], view.m_pexprOffset, pmodel))
 	{
 		return false;
 	}
