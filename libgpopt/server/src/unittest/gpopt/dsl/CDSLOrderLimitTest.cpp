@@ -221,7 +221,7 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 		"RowNumber<a0 o0 r0>(Input<t0>)|"
 		"RowNumber<a1 o1 r1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0);"
-		"ErrorFree(r0);Deterministic(r0)");
+		"OrderEmpty(o1);ErrorFree(r0);Deterministic(r0)");
 	CDSLModel *pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcherIdentity(mp, pruleIdentity);
 	CDSLInstantiator instantiatorIdentity(mp);
@@ -670,6 +670,24 @@ CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip()
 		CDSLPlanTemplate::FSlice(mp, pexprLive, "r", {"r/0"}, &dsl, &error) &&
 		dsl == "SortBy<o0>(Input<t0>)" && error.empty())
 		? GPOS_OK : GPOS_FAILED;
+
+	// An empty-order condition on an alias must inspect the captured order,
+	// irrespective of the order/orientation of the equality clauses.
+	for (const CHAR *clauses : {
+		"TableEq(t1,t0);OrderEq(o1,o0);OrderEmpty(o1)",
+		"OrderEmpty(o1);OrderEq(o1,o0);TableEq(t1,t0)",
+		"TableEq(t1,t0);OrderEq(o0,o1);OrderEmpty(o1)"})
+	{
+		const std::string text =
+			"SortBy<o0>(Input<t0>)|SortBy<o1>(Input<t1>)|" + std::string(clauses);
+		CDSLRule *restricted = Prule(mp, text.c_str());
+		CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
+		if (nullptr == restricted ||
+			!matcher.FMatch(restricted->PfragSrc()->PopRoot(), pexprLive, captured) ||
+			checker.FCheck(restricted, captured)) eres = GPOS_FAILED;
+		captured->Release();
+		CRefCount::SafeRelease(restricted);
+	}
 
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();

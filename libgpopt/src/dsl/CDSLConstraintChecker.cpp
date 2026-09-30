@@ -1188,6 +1188,15 @@ CDSLConstraintChecker::FCheckAttrsNonEmpty(const CDSLConstraint *pcon,
 }
 
 BOOL
+CDSLConstraintChecker::FEmptyOrder(const COrderSpecArray *orders)
+{
+	if (nullptr == orders) return false;
+	for (ULONG i = 0; i < orders->Size(); i++)
+		if (!(*orders)[i]->IsEmpty()) return false;
+	return true;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckOrderEmpty(const CDSLConstraint *pcon,
 										 const CDSLModel *pmodel) const
 {
@@ -1200,7 +1209,7 @@ CDSLConstraintChecker::FCheckOrderEmpty(const CDSLConstraint *pcon,
 	COrderSpecArray *pdrgpos = pmodel->PdrgposOrder((*pdrgpsym)[0]);
 	return nullptr == pdrgpos
 		? EdslsideTarget == (*pdrgpsym)[0]->Eside()
-		: 0 == pdrgpos->Size();
+		: FEmptyOrder(pdrgpos);
 }
 
 BOOL
