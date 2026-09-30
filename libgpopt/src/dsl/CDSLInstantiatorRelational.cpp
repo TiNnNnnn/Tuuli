@@ -11,6 +11,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
@@ -355,6 +356,7 @@ CDSLInstantiator::PexprBuildFilter(const CDSLOp *pop,
 		CExpression *predicate = PexprBuildFilterPredicate(pop, pmodel);
 		const BOOL correlated = 3 == pop->Pdrgpsym()->Size();
 		if (nullptr == child || nullptr == predicate ||
+			!CDSLExprListUtils::FRowScalar(predicate) ||
 			(!correlated &&
 			 !child->DeriveOutputColumns()->ContainsAll(
 				 predicate->DeriveUsedColumns())))

@@ -19,6 +19,9 @@ public:
 	CDSLExprListUtils() = delete;
 
 	static BOOL FProjectList(const CExpression *pexpr);
+	// Row-level scalar scope: no SRFs, aggregate or window calls. Relational
+	// subquery children have their own evaluation phase and are not inspected.
+	static BOOL FRowScalar(CExpression *pexpr);
 	// Typed Compute is a parallel scalar list: unique outputs, no SRFs and
 	// no references to outputs defined by this same list. Outer refs are valid.
 	static BOOL FComputeList(CExpression *pexpr);

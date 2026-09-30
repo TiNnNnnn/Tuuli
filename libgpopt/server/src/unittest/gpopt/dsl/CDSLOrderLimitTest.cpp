@@ -19,6 +19,7 @@
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -382,6 +383,17 @@ CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
 	{
 		eres = GPOS_FAILED;
 	}
+	// A row-level predicate may contain a window in its subquery's scope.
+	pexprLive->AddRef();
+	CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprLive);
+	CExpression *filtered = fix.PexprLogicalSelect(pexprGet, exists);
+	if (!FBindingRoundTrip(mp,
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"p1 := p0;a1 := a0;t1 := t0", filtered))
+		eres = GPOS_FAILED;
+	filtered->Release();
+	exists->Release();
 	pexprLive->Release();
 	// Nested windows expose distinct partition/order/frame captures. Reusing
 	// the outer item list must not silently ignore a different target spec.
