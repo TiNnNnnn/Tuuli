@@ -1,0 +1,5 @@
+# New-syntax candidates for the existing Intersect/Except DISTINCT replacements.
+# Runtime migration probes only: public native OUTCOME_EQ proof is still required
+# before replacing entries in orca_replacements.rules. Preserve all old premises.
+Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(InnerJoin<NullSafeEq(a3,a4) a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0
+Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<NullSafeEq(a3,a4) a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0
