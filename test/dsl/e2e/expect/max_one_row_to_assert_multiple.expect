@@ -1,0 +1,52 @@
+{
+  "description": "Execute the DSL Assert lowering, excluding direct MaxOneRow and scalar SubPlan alternatives",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformMaxOneRow2Assert",
+        "CXformImplementMaxOneRow",
+        "CXformImplementLeftOuterCorrelatedApply",
+        "CXformImplementInnerCorrelatedApply"
+      ],
+      "policy": "isolate_max_one_row_assert.policy",
+      "assert_maxonerow": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Custom Scan (Assert)",
+        "WindowAgg",
+        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+      ],
+      "not_contains": [
+        "Xform: CXformMaxOneRow2Assert"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformMaxOneRow2Assert"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformMaxOneRow2Assert",
+      "CXformImplementMaxOneRow",
+      "CXformImplementLeftOuterCorrelatedApply",
+      "CXformImplementInnerCorrelatedApply"
+    ],
+    "policy": "isolate_max_one_row_assert.policy",
+    "assert_maxonerow": true,
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}
