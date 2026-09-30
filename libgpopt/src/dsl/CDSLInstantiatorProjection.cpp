@@ -534,6 +534,31 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 	CExpression *carrier = m_prule->Pexprdefs()->FHasBindings()
 		? pmodel->PexprComputeCarrier(psymExpr) : nullptr;
 	BOOL scope_valid = true;
+	if (nullptr == carrier && m_prule->Pexprdefs()->FHasBindings())
+	{
+		// Item construction need not alias the old list root. Its retained
+		// dependency/schema bindings still identify the captured Compute scope.
+		// Do not choose arbitrarily if several sources have these bindings.
+		const auto findCarrier = [&](const auto &self, const CDSLOp *source) -> BOOL {
+			GPOS_CHECK_STACK_SIZE;
+			if (EdslopCompute == source->Edslop() &&
+				psymAttrs == (*source->Pdrgpsym())[1] &&
+				psymSchema == (*source->Pdrgpsym())[2])
+			{
+				CExpression *candidate = pmodel->PexprComputeCarrier((*source->Pdrgpsym())[0]);
+				if (nullptr != candidate)
+				{
+					if (nullptr != carrier && !carrier->Matches(candidate))
+						return false;
+					carrier = candidate;
+				}
+			}
+			for (ULONG i = 0; i < source->UlChildren(); i++)
+				if (!self(self, (*source)[i])) return false;
+			return true;
+		};
+		scope_valid = findCarrier(findCarrier, m_prule->PfragSrc()->PopRoot());
+	}
 	if (nullptr != carrier)
 	{
 		// Only captured outer references may remain external; a dropped local
@@ -542,7 +567,7 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 		CColRefSet *outer = GPOS_NEW(m_mp) CColRefSet(m_mp);
 		outer->Include((*carrier)[1]->DeriveUsedColumns());
 		outer->Exclude((*carrier)[0]->DeriveOutputColumns());
-		scope_valid = outer->IsDisjoint(pexprChild->DeriveOutputColumns());
+		scope_valid = scope_valid && outer->IsDisjoint(pexprChild->DeriveOutputColumns());
 		available->Include(outer);
 		outer->Release();
 	}

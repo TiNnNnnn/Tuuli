@@ -1544,10 +1544,12 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
 			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
 		std::string exported, error;
-		if (shape < 3)
+		if (0 == shape || 2 == shape)
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
 				exported == "Compute<e0 a0 s0>(Input<t0>)";
 		else if (shape < 5)
+			// A sibling definition is not an outer reference. The production
+			// matcher rejects it along with colliding/duplicate outputs.
 			ok &= !CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		const BOOL valid = 0 == shape || 5 == shape;
