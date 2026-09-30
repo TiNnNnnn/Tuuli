@@ -29,9 +29,24 @@ CDSLExprListUtils::FProjectList(const CExpression *pexpr)
 }
 
 BOOL
+CDSLExprListUtils::FRowScalar(CExpression *pexpr)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (nullptr == pexpr || !pexpr->Pop()->FScalar() ||
+		COperator::EopScalarAggFunc == pexpr->Pop()->Eopid() ||
+		COperator::EopScalarWindowFunc == pexpr->Pop()->Eopid() ||
+		pexpr->DeriveHasNonScalarFunction())
+		return false;
+	for (ULONG i = 0; i < pexpr->Arity(); ++i)
+		if ((*pexpr)[i]->Pop()->FScalar() && !FRowScalar((*pexpr)[i]))
+			return false;
+	return true;
+}
+
+BOOL
 CDSLExprListUtils::FComputeList(CExpression *pexpr)
 {
-	return FProjectList(pexpr) && !pexpr->DeriveHasNonScalarFunction() &&
+	return FProjectList(pexpr) && FRowScalar(pexpr) &&
 		pexpr->DeriveDefinedColumns()->Size() == pexpr->Arity() &&
 		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns());
 }

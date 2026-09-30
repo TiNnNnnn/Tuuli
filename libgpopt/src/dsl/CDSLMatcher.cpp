@@ -20,6 +20,7 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExistsMatcher.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLFilterMatcher.h"
 #include "gpopt/dsl/CDSLInSubMatcher.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
@@ -792,6 +793,7 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 			if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
 				2 != pexpr->Arity() ||
 				(2 != symbols->Size() && 3 != symbols->Size()) ||
+				!CDSLExprListUtils::FRowScalar((*pexpr)[1]) ||
 				(2 == symbols->Size() &&
 				 !(*pexpr)[0]->DeriveOutputColumns()->ContainsAll(
 					 (*pexpr)[1]->DeriveUsedColumns())))

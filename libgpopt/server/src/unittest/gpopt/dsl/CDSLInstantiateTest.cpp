@@ -42,6 +42,8 @@
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarSubqueryNotExists.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
@@ -61,6 +63,7 @@
 #include "gpopt/operators/CScalarCmp.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/IMDTypeInt4.h"
+#include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
@@ -1518,22 +1521,53 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		}
 	}
 	// The exact Compute path accepts empty lists, but rejects sibling dependencies,
-	// SRFs, child-column collisions and duplicate definitions.
+	// SRFs, child-column collisions, duplicate definitions and same-level
+	// aggregate/window calls. An aggregate inside a subquery has its own scope.
 	CDSLRule *rule = PdslruleParseLocal(mp,
 		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
 		"e1 := e0;a1 := a0;s1 := s0;t1 := t0");
 	if (nullptr == rule)
 		return GPOS_FAILED;
-	for (ULONG shape = 0; shape < 6; ++shape)
+	for (ULONG shape = 0; shape < 11; ++shape)
 	{
+		const BOOL previous_ok = ok;
+		ok = true;
 		CColRefArray *columns = nullptr;
 		CExpression *input = fix.PexprLogicalGet("select_export", 1, &columns);
 		CColRef *output = 3 == shape ? (*columns)[0] : fix.PcrCreateInt4("definition");
 		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
 		if (shape > 0)
-			items->Append(GPOS_NEW(mp) CExpression(mp,
-				GPOS_NEW(mp) CScalarProjectElement(mp, output), 2 == shape
-					? fix.PexprGenerateSeries((*columns)[0]) : CUtils::PexprScalarConstInt4(mp, 7)));
+		{
+			CExpression *value = nullptr;
+			if (6 == shape || 8 == shape)
+				value = CUtils::PexprAgg(mp, fix.Pmda(), IMDType::EaggMax, (*columns)[0], false, false);
+			else if (7 == shape || 9 == shape)
+				value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarWindowFunc(
+					mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_AGG_MAX),
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+					GPOS_NEW(mp) CWStringConst(mp, GPOS_WSZ_LIT("max")),
+					CScalarWindowFunc::EwsImmediate, false, false, true),
+					CUtils::PexprScalarIdent(mp, (*columns)[0]));
+			else if (10 == shape)
+			{
+				CColRefArray *inner_columns = nullptr;
+				CExpression *inner = fix.PexprLogicalGet("aggregate_subquery", 1, &inner_columns);
+				CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+				CColRef *aggregate = fix.PcrCreateInt4("maximum");
+				CExpression *query = fix.PexprLogicalGbAgg(inner, grouping, aggregate, (*inner_columns)[0]);
+				inner->Release(); grouping->Release();
+				value = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, aggregate, false, false), query);
+			}
+			else
+				value = 2 == shape ? fix.PexprGenerateSeries((*columns)[0])
+					: CUtils::PexprScalarConstInt4(mp, 7);
+			if (8 == shape || 9 == shape)
+				value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID)),
+					CUtils::PexprScalarConstBool(mp, true), value, CUtils::PexprScalarConstInt4(mp, 0));
+			items->Append(CUtils::PexprScalarProjectElement(mp, output, value));
+		}
 		if (1 == shape)
 			items->Append(GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("dependent")),
@@ -1547,13 +1581,21 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		if (0 == shape || 2 == shape)
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
 				exported == "Compute<e0 a0 s0>(Input<t0>)";
-		else if (shape < 5)
+		else if (shape < 5 || (6 <= shape && shape <= 9))
 			// A sibling definition is not an outer reference. The production
 			// matcher rejects it along with colliding/duplicate outputs.
 			ok &= !CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
+		else
+			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-		const BOOL valid = 0 == shape || 5 == shape;
-		ok &= CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) == valid;
+		const BOOL valid = 0 == shape || 5 == shape || 10 == shape;
+		// Subquery values need an explicit typed constructor, supplied by the
+		// exporter above; the opaque e0 capture deliberately remains unsupported.
+		const BOOL match_valid = valid && 10 != shape;
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		if (matched != match_valid)
+			GPOS_TRACE_FORMAT("Compute matching domain: shape=%lu", shape);
+		ok &= matched == match_valid;
 		model->Release();
 		// Probe construction independently: source matching must not be the
 		// only guard for lists assembled by target expressions or other captures.
@@ -1577,6 +1619,38 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		defined->Release();
 		used->Release();
 		model->Release();
+		if (5 <= shape || 2 == shape)
+		{
+			// The same row-scalar boundary applies to Filter, on both entry paths.
+			CDSLRule *filter_rule = PdslruleParseLocal(mp,
+				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|p1 := p0;a1 := a0;t1 := t0");
+			CExpression *value = (*(*source)[1])[0];
+			value = (*value)[0];
+			value->AddRef();
+			CExpression *predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp), value);
+			CExpression *filter = fix.PexprLogicalSelect(input, predicate);
+			model = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL filter_matched = CDSLMatcher(mp, filter_rule).FMatch(filter_rule->PfragSrc()->PopRoot(), filter, model);
+			if (filter_matched != valid)
+				GPOS_TRACE_FORMAT("Filter matching domain: shape=%lu", shape);
+			ok &= filter_matched == valid;
+			model->Release();
+			model = GPOS_NEW(mp) CDSLModel(mp);
+			const CDSLOp *filter_pattern = filter_rule->PfragSrc()->PopRoot();
+			used = predicate->DeriveUsedColumns()->Pdrgpcr(mp);
+			ok &= model->FBind((*filter_pattern->Pdrgpsym())[0], predicate) &&
+				model->FBind((*filter_pattern->Pdrgpsym())[1], used) &&
+				model->FBind((*(*filter_pattern)[0]->Pdrgpsym())[0], input);
+			target = builder.PexprInstantiate(filter_rule, model);
+			if ((nullptr != target) != valid)
+				GPOS_TRACE_FORMAT("Filter construction domain: shape=%lu", shape);
+			ok &= (nullptr != target) == valid;
+			CRefCount::SafeRelease(target);
+			used->Release(); model->Release(); filter->Release(); predicate->Release(); filter_rule->Release();
+		}
+		if (!ok)
+			GPOS_TRACE_FORMAT("Row scalar domain: shape=%lu", shape);
+		ok &= previous_ok;
 		source->Release();
 	}
 	rule->Release();
@@ -2793,7 +2867,7 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 	CRefCount::SafeRelease(sharedAnd);
 	CRefCount::SafeRelease(equalAnd);
 	// Unary source premises must check the captured subtree, not act as
-	// construction aliases. A set-returning function has neither property.
+	// construction aliases. An SRF is rejected earlier by the row-scalar domain.
 	for (const CHAR *property : {"ErrorFree", "Deterministic"})
 	{
 		const std::string text =
@@ -2819,7 +2893,7 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 			CExpression *once = negate(atom), *twice = negate(once);
 			CExpression *source = fix.PexprLogicalSelect(get, twice);
 			CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, guarded, source);
-			ok &= (setReturning ? EdsldecisionConstraintRejected : EdsldecisionReady)
+			ok &= (setReturning ? EdsldecisionMatchRejected : EdsldecisionReady)
 				== decision->Status();
 			if (!setReturning)
 				ok &= nullptr != decision->PexprTarget() &&
