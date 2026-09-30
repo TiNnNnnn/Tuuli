@@ -38,6 +38,8 @@ public:
 	// Native eager scalar calls only; no lazy, set-returning, volatile or
 	// subquery semantics. Reuse the resolved operator, never resolve by name.
 	static BOOL FScalarCall(const CExpression *expression);
+	// Predicate captures must be Boolean values, including nullable ones.
+	static BOOL FBooleanValue(const CExpression *expression);
 	static BOOL FCallArgumentTypes(const CExpression *source,
 		const CExpressionArray *arguments);
 	static BOOL FSameCallHead(const CExpression *left, const CExpression *right);

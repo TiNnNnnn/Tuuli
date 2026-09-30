@@ -41,6 +41,17 @@
 
 using namespace gpopt;
 
+BOOL
+CDSLMatchView::FBooleanValue(const CExpression *expression)
+{
+	if (nullptr == expression || !expression->Pop()->FScalar() ||
+		COperator::EopScalarProjectList == expression->Pop()->Eopid() ||
+		COperator::EopScalarProjectElement == expression->Pop()->Eopid())
+		return false;
+	return IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+		CScalar::PopConvert(expression->Pop())->MdidType())->GetDatumType();
+}
+
 namespace
 {
 BOOL

@@ -20,6 +20,8 @@
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
+#include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
@@ -64,9 +66,76 @@ CDSLMatchTest::EresUnittest()
 			CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_IdentityGateRejects),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_DeepestFailure),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedPredicateResultTypes),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_TypedPredicateResultTypes()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const CHAR *rules[] = {
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"t1 := t0;p1 := p0;a1 := a0",
+		"Filter<p0 a0>(Input<t0>)|Filter<Not(Not(p0)) a1>(Input<t1>)|"
+		"t1 := t0;a1 := a0"};
+	CDSLRule *nested_rule = PdslruleParseLocal(mp,
+		"Filter<Not(Not(p0)) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"t1 := t0;p1 := p0;a1 := a0");
+	GPOS_UNITTEST_ASSERT(nullptr != nested_rule);
+	CDSLMatcher nested_matcher(mp, nested_rule);
+	GPOS_RESULT result = GPOS_OK;
+	for (const CHAR *text : rules)
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp, text);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CDSLOp *root = rule->PfragSrc()->PopRoot();
+		for (ULONG kind = 0; kind < 5; ++kind)
+		{
+			const BOOL valid = kind < 3;
+			CExpression *predicate = valid
+				? CUtils::PexprScalarConstBool(mp, 0 == kind, 2 == kind)
+				: CUtils::PexprScalarConstInt8(mp, 7, 4 == kind);
+			CExpression *input = fix.PexprLogicalGet("typed_predicate", 1);
+			predicate->AddRef();
+			CExpression *nested = CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, predicate));
+			CDSLModel *nested_model = GPOS_NEW(mp) CDSLModel(mp);
+			if (valid != nested_matcher.FMatchPredicate(
+				(*nested_rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], nested, nested_model))
+				result = GPOS_FAILED;
+			nested_model->Release();
+			nested->Release();
+			CExpression *source = fix.PexprLogicalSelect(input, predicate);
+			CDSLModel *matched = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			if (valid != matcher.FMatch(root, source, matched))
+				result = GPOS_FAILED;
+			matched->Release();
+			// Bypass source matching to test reuse and Boolean construction too.
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CColRefArray *attrs = GPOS_NEW(mp) CColRefArray(mp);
+			model->FBind((*(*root)[0]->Pdrgpsym())[0], input);
+			model->FBind((*root->Pdrgpsym())[0], predicate);
+			model->FBind((*root->Pdrgpsym())[1], attrs);
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			if (valid != (nullptr != target))
+				result = GPOS_FAILED;
+			CRefCount::SafeRelease(target);
+			attrs->Release();
+			model->Release();
+			source->Release();
+			predicate->Release();
+			input->Release();
+		}
+		rule->Release();
+	}
+	nested_rule->Release();
+	return result;
 }
 
 //---------------------------------------------------------------------------

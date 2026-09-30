@@ -41,6 +41,7 @@ public:
 
 	// a nested rejection reports the deepest expected/actual operator pair
 	static GPOS_RESULT EresUnittest_DeepestFailure();
+	static GPOS_RESULT EresUnittest_TypedPredicateResultTypes();
 };	// class CDSLMatchTest
 }  // namespace gpopt
 
