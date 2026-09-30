@@ -202,12 +202,47 @@ EresDeterministicOperatorHeads()
 //	@function:
 //		CDSLConstraintTest::EresUnittest
 //---------------------------------------------------------------------------
+static GPOS_RESULT
+EresMetadataAliasPremises()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("metadata_alias", 1, &columns);
+	BOOL ok = true;
+	for (BOOL typed : {false, true})
+	for (BOOL empty : {false, true})
+	for (BOOL first : {false, true})
+	{
+		const std::string aliases = typed
+			? "t1 := t0;p1 := p0;AttrsEq(a1,a0)"
+			: "TableEq(t1,t0);PredicateEq(p1,p0);AttrsEq(a1,a0)";
+		const std::string text = "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|" +
+			(first ? "AttrsEmpty(a1);" + aliases : aliases + ";AttrsEmpty(a1)");
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		CExpression *predicate = empty ? CUtils::PexprScalarConstBool(mp, true)
+			: fix.PexprEqConst((*columns)[0], 1);
+		CExpression *source = fix.PexprLogicalSelect(input, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = nullptr != rule &&
+			CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
+		ok &= matched && accepted == empty;
+		model->Release(); source->Release(); predicate->Release();
+		CRefCount::SafeRelease(rule);
+	}
+	input->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
+		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),
