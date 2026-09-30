@@ -126,6 +126,13 @@ EresInlineExpressions()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	const CHAR *valid[] = {
+		"Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|"
+		"t1 := t0;n2 := n0;n3 := n1",
+		"Limit<n0 n1>(Filter<p0 a0>(Input<t0>))|"
+		"Limit<n2 n3>(Filter<Not(Not(p0)) a1>(Input<t1>))|"
+		"t1 := t0;a1 := a0;n2 := n0;n3 := n1;ScalarOne(n0);ScalarZero(n1)",
+		// Syntax validation is not an equivalence certificate.
+		"CTEAnchor(Limit<n0 n1>(Input<t0>))|Input<t1>|t1 := t0",
 		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
 		"t1 := t0;a1 := a0;o1 := o0;m1 := m2;m2 := m0;w1 := w2;w2 := w0",
 		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|"
@@ -254,7 +261,7 @@ EresInlineExpressions()
 			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEConsumer<t1>)|t1 := t0;o1 := o0",
 			"Input<t0>|CTEAnchor(Input<t1>)|t1 := t0",
 			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEAnchor(Input<t1>))|t1 := t0;o1 := o0",
-			"CTEAnchor(Limit<n0 n1>(Input<t0>))|Input<t1>|t1 := t0"})
+			"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;ScalarOne(n0);ScalarZero(n1)"})
 	{
 		CDSLRule *rule = Parse(mp, text);
 		if (nullptr != rule)

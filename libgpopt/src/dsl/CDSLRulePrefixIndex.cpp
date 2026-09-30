@@ -228,6 +228,17 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	GPOS_ASSERT(nullptr != pop);
 	GPOS_ASSERT(nullptr != pfComplete);
 
+	// The exact matcher still exposes a fused ORCA order/limit as two DSL
+	// nodes. Compile that representation once, including below other roots.
+	if (fLiteral && EdslopLimit == pop->Edslop() &&
+		1 == pop->UlChildren() && EdslopSort == (*pop)[0]->Edslop() &&
+		1 == (*pop)[0]->UlChildren())
+	{
+		SNode *limit = PnodeExact(pnode, COperator::EopLogicalLimit, 1);
+		return PnodeInsertOp(limit, (*(*pop)[0])[0], false, pfComplete,
+			0, true /*literal*/);
+	}
+
 	// Root-level adapters still have a stable physical prefix in their direct
 	// shell. Compile that prefix, then continue into the relation view which the
 	// corresponding matcher exposes. Routed shells were already rejected by the

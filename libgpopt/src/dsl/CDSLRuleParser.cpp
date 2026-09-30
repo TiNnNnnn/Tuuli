@@ -872,6 +872,7 @@ FBindingTree(const CDSLOp *op, BOOL source)
 				 ((EdslopFilter == op->Edslop() &&
 				   (2 == op->Pdrgpsym()->Size() || 3 == op->Pdrgpsym()->Size())) ||
 				  (EdslopCompute == op->Edslop() && 3 == op->Pdrgpsym()->Size()) ||
+				  (EdslopLimit == op->Edslop() && 2 == op->Pdrgpsym()->Size()) ||
 				  (EdslopAgg == op->Edslop() &&
 				   (5 == op->Pdrgpsym()->Size() || 6 == op->Pdrgpsym()->Size())) ||
 				  (EdslopSort == op->Edslop() && EdslsortSpec == op->Edslsort() &&
@@ -909,7 +910,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Window/WindowRows/RowNumber, source-only CTEConsumer/CTEAnchor, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only CTEConsumer/CTEAnchor, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -1035,12 +1036,15 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			continue;
 		}
 		BOOL sourcePremise = true;
+		// A literal constraint on an already captured scalar is a check, not
+		// the legacy target-only constant constructor.
+		const BOOL scalarLiteral = EdslconScalarOne == kind || EdslconScalarZero == kind;
 		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
 			sourcePremise &=
 				EdslsideSource == (*con->Pdrgpsym())[slot]->Eside() &&
-				EdslsymSentinel ==
-					CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot);
+				(scalarLiteral || EdslsymSentinel ==
+					CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot));
 		}
 		if (sourcePremise)
 			continue;  // Checked after capture matching; never produces a value.

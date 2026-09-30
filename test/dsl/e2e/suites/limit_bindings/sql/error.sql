@@ -1,0 +1,3 @@
+SELECT i, j FROM limit_binding_input
+WHERE 10 / i > 1
+ORDER BY i NULLS FIRST, j NULLS FIRST LIMIT 1 OFFSET 0;

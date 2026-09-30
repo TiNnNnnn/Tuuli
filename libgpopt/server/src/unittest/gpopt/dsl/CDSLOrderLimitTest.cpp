@@ -13,6 +13,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
@@ -113,11 +114,16 @@ FBindingRoundTrip(CMemoryPool *mp, const CHAR *text, CExpression *source,
 		checker.FCheck(rule, model);
 	if (valid)
 	{
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(rule, 0, source->Pop()->Eopid());
+		CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+		valid = 1 == candidates->Size();
+		candidates->Release();
 		target = instantiator.PexprInstantiate(rule, model);
-		valid = reject ? nullptr == target : nullptr != target && target->Matches(source);
+		valid = valid && (reject ? nullptr == target : nullptr != target && target->Matches(source));
 	}
 	if (!valid)
-		GPOS_TRACE_FORMAT("Window binding check failed (parsed=%d, target=%d, reject=%d): %s; %ls",
+		GPOS_TRACE_FORMAT("Order/window binding check failed (parsed=%d, target=%d, reject=%d): %s; %ls",
 			nullptr != rule, nullptr != target, reject, text, error.GetBuffer());
 	CRefCount::SafeRelease(target);
 	model->Release();
@@ -425,6 +431,10 @@ CDSLOrderLimitTest::EresUnittest_FusedLimitSortRoundTrip()
 	CExpression *pexprGet = fix.PexprLogicalGet("ordered", 2, &pdrgpcr);
 	CExpression *pexprLive = PexprLimit(
 		mp, pexprGet, PosOne(mp, (*pdrgpcr)[0], EdslsortAsc), true, 0, 7);
+	const BOOL indexed = FBindingRoundTrip(mp,
+		"Limit<n0 n1>(SortBy<o0>(Input<t0>))|"
+		"Limit<n2 n3>(SortBy<o1>(Input<t1>))|"
+		"t1 := t0;n2 := n0;n3 := n1;o1 := o0", pexprLive);
 
 	CDSLRule *prule = Prule(mp,
 		"Limit<n0 n1>(SortAsc<a0>(Input<t0>))|"
@@ -433,7 +443,29 @@ CDSLOrderLimitTest::EresUnittest_FusedLimitSortRoundTrip()
 		"ScalarEq(n3,n1)");
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
-	GPOS_RESULT eres = GPOS_OK;
+	GPOS_RESULT eres = indexed ? GPOS_OK : GPOS_FAILED;
+	CExpression *nested = PexprLimit(
+		mp, pexprLive, PosOne(mp, (*pdrgpcr)[0], EdslsortDesc), false, 0, 0);
+	if (!FBindingRoundTrip(mp,
+		"SortBy<o2>(Limit<n0 n1>(SortBy<o0>(Input<t0>)))|"
+		"SortBy<o3>(Limit<n2 n3>(SortBy<o1>(Input<t1>)))|"
+		"t1 := t0;n2 := n0;n3 := n1;o1 := o0;o3 := o2", nested))
+		eres = GPOS_FAILED;
+	nested->Release();
+	for (const CHAR *capture : {"Column(a0) := n0", "Column(a0) := n1"})
+	{
+		const std::string text =
+			"Limit<n0 n1>(SortBy<o0>(Input<t0>))|"
+			"Limit<n2 n3>(SortBy<o1>(Input<t1>))|"
+			"t1 := t0;n2 := n0;n3 := n1;o1 := o0;" + std::string(capture);
+		CDSLRule *wrong = Prule(mp, text.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		if (nullptr == wrong || CDSLMatcher(mp, wrong).FMatch(
+			wrong->PfragSrc()->PopRoot(), pexprLive, model))
+			eres = GPOS_FAILED;
+		model->Release();
+		CRefCount::SafeRelease(wrong);
+	}
 	if (nullptr == prule
 		|| !matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel)
 		|| 4 != pmodel->Size())
@@ -480,6 +512,10 @@ CDSLOrderLimitTest::EresUnittest_SortOverLimitStaysNested()
 		= PexprLimit(mp, pexprGet, GPOS_NEW(mp) COrderSpec(mp), true, 0, 5);
 	CExpression *pexprOuter = PexprLimit(
 		mp, pexprInner, PosOne(mp, (*pdrgpcr)[0], EdslsortDesc), false, 0, 0);
+	const BOOL indexed = FBindingRoundTrip(mp,
+		"SortBy<o0>(Limit<n0 n1>(Input<t0>))|"
+		"SortBy<o1>(Limit<n2 n3>(Input<t1>))|"
+		"t1 := t0;n2 := n0;n3 := n1;o1 := o0", pexprOuter);
 
 	CDSLRule *prule = Prule(mp,
 		"SortDesc<a0>(Limit<n0 n1>(Input<t0>))|"
@@ -488,7 +524,7 @@ CDSLOrderLimitTest::EresUnittest_SortOverLimitStaysNested()
 		"ScalarEq(n3,n1)");
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
-	GPOS_RESULT eres = GPOS_OK;
+	GPOS_RESULT eres = indexed ? GPOS_OK : GPOS_FAILED;
 	if (nullptr == prule
 		|| !matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprOuter, pmodel))
 	{
