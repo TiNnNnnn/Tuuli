@@ -397,6 +397,20 @@ CDSLExpressionDefinitions::FUses(const CDSLSymbol *psymOutput,
 	return FUsesRecursive(this, psymOutput, psymOperand, &setVisited);
 }
 
+const CDSLSymbol *
+CDSLExpressionDefinitions::PsymRefRoot(const CDSLSymbol *symbol) const
+{
+	// The parser rejects cycles; keep the walk bounded for internal callers.
+	for (ULONG i = 0; i < UlDefinitions(); ++i)
+	{
+		const auto *definition = Pdef(symbol);
+		if (nullptr == definition || EBuild != definition->Binding() ||
+			EdslexprRef != definition->Edslexpr()) break;
+		symbol = definition->PsymOperand(0);
+	}
+	return symbol;
+}
+
 BOOL
 CDSLExpressionDefinitions::FValidate(const CDSLConstraintArray *pdrgpcon)
 {

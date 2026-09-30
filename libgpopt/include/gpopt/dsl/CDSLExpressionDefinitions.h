@@ -99,6 +99,8 @@ public:
 	// Return the unique typed expression definition for output, or NULL.
 	const CDefinition *Pdef(
 		const CDSLSymbol *psymOutput) const;
+	// Follow typed references only; stop at a capture or a real constructor.
+	const CDSLSymbol *PsymRefRoot(const CDSLSymbol *symbol) const;
 	ULONG UlDefinitions() const { return m_pdrgpdefDefinitions->Size(); }
 	const CDefinition *PdefAt(ULONG ul) const
 	{

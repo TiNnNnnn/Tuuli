@@ -2841,7 +2841,9 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		return false;
 	}
 	const CDSLSymbol *psym = (*pdrgpsym)[0];
-	const CDSLSymbol *psymBound = psym;
+	// Inspect the original artifact, even when a derived alias already has a
+	// value. In particular, Proj attrs also carry a source scalar-list contract.
+	const CDSLSymbol *psymBound = prule->Pexprdefs()->PsymRefRoot(psym);
 	if (nullptr == pmodel->PvalLookup(psymBound))
 	{
 		// Inspect exactly what target construction would build, including nested
