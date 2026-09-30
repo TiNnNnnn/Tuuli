@@ -379,6 +379,7 @@ EresExpressionBindings()
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
 	const CHAR *valid[] = {
+		"p1 := p0;AttrsNonEmpty(a0)",
 		"Exists(t2) := p0;p1 := Exists(t2)",
 		"Exists(t2) := p0;t3 := t2;p1 := Exists(t3)",
 		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a2,a3)",
@@ -470,6 +471,8 @@ EresExpressionBindings()
 		"p1 := p0;PredicateNotTrue(p2,p0)",
 		"p1 := p0;AttrsEq(a1,t0)",
 		"p1 := p0;ErrorFree(p1)",
+		"p1 := p0;AttrsNonEmpty(a1)",
+		"p1 := p0;AttrsNonEmpty(a9)",
 		"p1 := Not(p0);Deterministic(p1)",
 		"Deterministic(p1);p1 := Not(p0)",
 		"Not(p2) := p3;p1 := p0;PredicateEq(p2,p0)",

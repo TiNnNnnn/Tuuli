@@ -480,14 +480,13 @@ CDSLJoinTest::EresUnittest_PhysicalApply()
 	return GPOS_OK;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
+static GPOS_RESULT
+EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_SEMI_APPLY_FILTER_TO_JOIN_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -562,14 +561,13 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
+static GPOS_RESULT
+EresTestPredicateAndBuildsAntiJoinCondition(const CHAR *rule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_ANTI_APPLY_FILTER_TO_JOIN_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -642,6 +640,68 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
 	pexprInner->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
+{
+	// Compare legacy and explicit construction on the same captured predicates.
+	const CHAR *rules[] = {
+		GPOPT_DSL_SEMI_APPLY_FILTER_TO_JOIN_RULE,
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"t2 := t0;"
+		"t3 := t1;"
+		"p2 := And(p0,p1);"
+		"AttrsEq(a2,a4);"
+		"AttrsUnion(a5,a0,a4);"
+		"AttrsUnion(a6,a1,a3);"
+		"AttrsSub(a0,t0);"
+		"AttrsSub(a1,t1);"
+		"AttrsSub(a3,t1);"
+		"AttrsSub(a4,t0);"
+		"Deterministic(p0);"
+		"Deterministic(p1);"
+		"ErrorFree(p0);"
+		"ErrorFree(p1)"
+	};
+	for (const CHAR *rule : rules)
+	{
+		if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule))
+			return GPOS_FAILED;
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
+{
+	// Compare legacy and explicit construction on the same captured predicates.
+	const CHAR *rules[] = {
+		GPOPT_DSL_ANTI_APPLY_FILTER_TO_JOIN_RULE,
+		"AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"t2 := t0;"
+		"t3 := t1;"
+		"p2 := And(p0,p1);"
+		"AttrsEq(a2,a4);"
+		"AttrsUnion(a5,a0,a4);"
+		"AttrsUnion(a6,a1,a3);"
+		"AttrsSub(a0,t0);"
+		"AttrsSub(a1,t1);"
+		"AttrsSub(a3,t1);"
+		"AttrsSub(a4,t0);"
+		"Deterministic(p0);"
+		"Deterministic(p1);"
+		"ErrorFree(p0);"
+		"ErrorFree(p1)"
+	};
+	for (const CHAR *rule : rules)
+	{
+		if (GPOS_OK != EresTestPredicateAndBuildsAntiJoinCondition(rule))
+			return GPOS_FAILED;
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

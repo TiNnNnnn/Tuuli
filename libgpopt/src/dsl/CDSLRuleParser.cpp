@@ -1036,14 +1036,15 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			continue;
 		}
 		BOOL sourcePremise = true;
-		// A literal constraint on an already captured scalar is a check, not
-		// the legacy target-only constant constructor.
-		const BOOL scalarLiteral = EdslconScalarOne == kind || EdslconScalarZero == kind;
+		// Literals and non-emptiness on source captures are checks, not
+		// constructors. Non-emptiness cannot invent a target column list.
+		const BOOL capturedCheck = EdslconScalarOne == kind ||
+			EdslconScalarZero == kind || EdslconAttrsNonEmpty == kind;
 		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
 			sourcePremise &=
 				EdslsideSource == (*con->Pdrgpsym())[slot]->Eside() &&
-				(scalarLiteral || EdslsymSentinel ==
+				(capturedCheck || EdslsymSentinel ==
 					CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot));
 		}
 		if (sourcePremise)
