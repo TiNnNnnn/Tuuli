@@ -72,11 +72,7 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitio
 	else if (!model->FBind(symbol, arguments)) return false;
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
-	{
-		for (ULONG i = 0; i < arguments->Size(); ++i)
-			if ((*arguments)[i]->DeriveHasSubquery()) return false;
 		return true;
-	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding() || EdslexprArgs != def->Edslexpr())
 		return false;
 	if (0 == def->Arity()) return 0 == arguments->Size();
@@ -102,7 +98,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	GPOS_CHECK_STACK_SIZE;
 	if (depth > definitions->UlDefinitions() ||
 		(EdslsymScalar == symbol->Esymkind() && !CDSLMatchView::FScalarValue(expression)) ||
-		(EdslsymPred == symbol->Esymkind() && !CDSLMatchView::FBooleanValue(expression)))
+		(EdslsymPred == symbol->Esymkind() && !CDSLMatchView::FBooleanValue(expression)) ||
+		(EdslsymExpr == symbol->Esymkind() && !CDSLExprListUtils::FTypedProjectList(expression)))
 	{
 		return false;
 	}
@@ -115,12 +112,12 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
 	{
-		// A predicate capture is the complete native Boolean tree, including
-		// subqueries. Reusing it does not inspect, unnest or rebind its inputs;
-		// the proof and safety premises govern any change in evaluation.
-		// Value/list decomposition still requires explicit typed constructors.
+		// Opaque captures retain the complete tree, including subqueries. Only
+		// explicit constructors decompose it; movement still needs the rule's
+		// dependency and safety checks. A list capture must remain typed.
 		return EdslsymTable == symbol->Esymkind() ||
 			(EdslsymPred == symbol->Esymkind() && expression->Pop()->FScalar()) ||
+			EdslsymScalar == symbol->Esymkind() || EdslsymExpr == symbol->Esymkind() ||
 			!expression->DeriveHasSubquery();
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())

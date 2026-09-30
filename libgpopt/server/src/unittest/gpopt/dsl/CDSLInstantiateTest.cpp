@@ -1589,9 +1589,9 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		const BOOL valid = 0 == shape || 5 == shape || 10 == shape;
-		// Subquery values need an explicit typed constructor, supplied by the
-		// exporter above; the opaque e0 capture deliberately remains unsupported.
-		const BOOL match_valid = valid && 10 != shape;
+		// An opaque list retains the complete subquery just like its explicit
+		// typed spelling; row-phase checks stop at the relational boundary.
+		const BOOL match_valid = valid;
 		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
 		if (matched != match_valid)
 			GPOS_TRACE_FORMAT("Compute matching domain: shape=%lu", shape);
