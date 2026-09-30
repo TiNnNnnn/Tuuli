@@ -355,8 +355,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 		{
 			const auto kind = CDSLConstraintKindTable::Parse(con->ID()->getText().c_str());
 			const auto symbols = con->SYMBOL();
-			if ((!CDSLConstraintKindTable::FColumnDerivation(kind) &&
-				 !CDSLConstraintKindTable::FScalarLiteral(kind)) ||
+			if (!CDSLConstraintKindTable::FBindingMetadata(kind) ||
 				symbols.size() != CDSLConstraintKindTable::UlArity(kind)) continue;
 			const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, 0);
 			const std::string name = symbols[0]->getText();
@@ -1021,6 +1020,10 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	std::unordered_map<const CDSLSymbol *, const CDSLSymbol *> aliases;
 	std::unordered_map<const CDSLSymbol *, const CDSLConstraint *> columnDerivations;
 	std::vector<const CDSLConstraint *> columnChecks;
+	std::unordered_set<const CDSLSymbol *> constructed;
+	for (auto *binding : ctx->binding())
+		if (binding->getStart()->getType() != dsl::DSLRuleParser::ID)
+			constructed.insert(bctx.symtab.at(binding->SYMBOL(0)->getText()));
 	for (ULONG i = 0; i < sourceSymbols; i++)
 	{
 		available.insert((*source->Pdrgpsym())[i]);
@@ -1031,12 +1034,15 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	{
 		const CDSLConstraint *con = (*constraints)[i];
 		const auto kind = con->Edslcon();
-		if (CDSLConstraintKindTable::FColumnDerivation(kind) ||
-			CDSLConstraintKindTable::FScalarLiteral(kind))
+		if (CDSLConstraintKindTable::FBindingMetadata(kind))
 		{
 			columnChecks.push_back(con);
 			continue;
 		}
+		// Safety checks consume captured or constructed values; they never bind
+		// one. The runtime checker must still establish the property.
+		if (EdslconErrorFree == kind || EdslconDeterministic == kind)
+			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
 		const BOOL capturedCheck = EdslconAttrsNonEmpty == kind;
@@ -1075,6 +1081,14 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	}
 	for (const auto *con : columnChecks)
 	{
+		if (EdslconRankAttrs == con->Edslcon())
+		{
+			const auto *rank = (*con->Pdrgpsym())[1];
+			// RankAttrs can allocate a target rank, but must not fill a missing
+			// reference or hide a cycle in an explicit rank construction.
+			if (EdslsideTarget == rank->Eside() && !aliases.count(rank) &&
+				!constructed.count(rank)) available.insert(rank);
+		}
 		const auto *output = (*con->Pdrgpsym())[0];
 		// Captures and cross-side aliases are checked, never redefined.
 		if (EdslsideSource == output->Eside() || aliases.count(output)) continue;
@@ -1166,6 +1180,17 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				available.insert(def->PsymOutput());
 		}
 	} while (previous != available.size());
+	for (ULONG i = 0; i < constraints->Size(); i++)
+	{
+		const auto *con = (*constraints)[i];
+		if ((EdslconErrorFree == con->Edslcon() ||
+			 EdslconDeterministic == con->Edslcon()) &&
+			!available.count((*con->Pdrgpsym())[0]))
+		{
+			bctx.Fail("safety check depends on an unbound expression");
+			return false;
+		}
+	}
 	for (const CDSLFragment *fragment : {source, target})
 	{
 		for (ULONG i = 0; i < fragment->Pdrgpsym()->Size(); i++)

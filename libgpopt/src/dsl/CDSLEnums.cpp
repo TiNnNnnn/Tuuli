@@ -17,6 +17,13 @@
 using namespace gpopt;
 
 BOOL
+CDSLConstraintKindTable::FBindingMetadata(EDslConstraintKind kind)
+{
+	return FColumnDerivation(kind) || FScalarLiteral(kind) ||
+		EdslconOrderEmpty == kind || EdslconRankAttrs == kind;
+}
+
+BOOL
 CDSLConstraintKindTable::FScalarLiteral(EDslConstraintKind kind)
 {
 	return EdslconScalarOne == kind || EdslconScalarZero == kind;

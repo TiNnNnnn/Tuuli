@@ -215,6 +215,32 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
+	for (const CHAR *metadata : {
+		"OrderEmpty(o0);RankAttrs(a1,r0)",
+		"RankAttrs(a1,r0);OrderEmpty(o0)",
+		"o0 := o1;OrderEmpty(o1);r0 := r1;RankAttrs(a1,r1)",
+		"RankAttrs(a1,r0);RankAttrs(a2,r0);OrderEmpty(o0)",
+		"OrderEmpty(o0);RankAttrs(a1,r0);ErrorFree(r0);Deterministic(r0)"})
+	{
+		const std::string text = "Input<t0>|RowNumber<a0 o0 r0>(Input<t1>)|"
+			"t1 := t0;AttrsEmpty(a0);" + std::string(metadata);
+		CDSLRule *typed = Prule(mp, text.c_str());
+		CDSLModel *bindings = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher capture(mp, typed);
+		CExpression *target = nullptr;
+		if (nullptr == typed || !capture.FMatch(typed->PfragSrc()->PopRoot(), pexprGet, bindings) ||
+			!checker.FCheck(typed, bindings)) eres = GPOS_FAILED;
+		else
+		{
+			CDSLInstantiator build(mp);
+			target = build.PexprInstantiate(typed, bindings);
+			if (nullptr == target || target->Pop()->Eopid() != COperator::EopLogicalSequenceProject ||
+				(*target)[1]->Arity() != 1) eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(target);
+		bindings->Release();
+		CRefCount::SafeRelease(typed);
+	}
 	CExpression *pexprLive = CXformUtils::PexprWindowWithRowNumber(
 		mp, pexprGet, pdrgpcr);
 	CDSLRule *pruleIdentity = Prule(mp,
