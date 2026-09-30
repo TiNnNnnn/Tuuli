@@ -1524,7 +1524,7 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		"e1 := e0;a1 := a0;s1 := s0;t1 := t0");
 	if (nullptr == rule)
 		return GPOS_FAILED;
-	for (ULONG shape = 0; shape < 5; ++shape)
+	for (ULONG shape = 0; shape < 6; ++shape)
 	{
 		CColRefArray *columns = nullptr;
 		CExpression *input = fix.PexprLogicalGet("select_export", 1, &columns);
@@ -1547,10 +1547,33 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		if (shape < 3)
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
 				exported == "Compute<e0 a0 s0>(Input<t0>)";
-		else
+		else if (shape < 5)
 			ok &= !CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-		ok &= CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) == (0 == shape);
+		const BOOL valid = 0 == shape || 5 == shape;
+		ok &= CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model) == valid;
+		model->Release();
+		// Probe construction independently: source matching must not be the
+		// only guard for lists assembled by target expressions or other captures.
+		model = GPOS_NEW(mp) CDSLModel(mp);
+		const CDSLOp *pattern = rule->PfragSrc()->PopRoot();
+		CExpression *list = (*source)[1];
+		CColRefArray *used = list->DeriveUsedColumns()->Pdrgpcr(mp);
+		CColRefArray *defined = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < list->Arity(); ++i)
+			defined->Append(CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr());
+		ok &= model->FBind((*pattern->Pdrgpsym())[0], list) &&
+			model->FBind((*pattern->Pdrgpsym())[1], used) &&
+			model->FBind((*pattern->Pdrgpsym())[2], defined) &&
+			model->FBind((*(*pattern)[0]->Pdrgpsym())[0], input);
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(rule, model);
+		if ((nullptr != target) != valid)
+			GPOS_TRACE_FORMAT("Compute construction domain: shape=%lu", shape);
+		ok &= (nullptr != target) == valid;
+		CRefCount::SafeRelease(target);
+		defined->Release();
+		used->Release();
 		model->Release();
 		source->Release();
 	}

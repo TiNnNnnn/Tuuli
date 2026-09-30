@@ -29,6 +29,14 @@ CDSLExprListUtils::FProjectList(const CExpression *pexpr)
 }
 
 BOOL
+CDSLExprListUtils::FComputeList(CExpression *pexpr)
+{
+	return FProjectList(pexpr) && !pexpr->DeriveHasNonScalarFunction() &&
+		pexpr->DeriveDefinedColumns()->Size() == pexpr->Arity() &&
+		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns());
+}
+
+BOOL
 CDSLExprListUtils::FConcatSafe(CExpression *pexprUpper,
 							   CExpression *pexprLower)
 {

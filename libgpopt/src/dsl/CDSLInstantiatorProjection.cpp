@@ -3,6 +3,7 @@
 // Compute, projection and aggregate builders, including their existing compatibility views.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "CDSLInstantiatorUtils.h"
 
@@ -549,7 +550,7 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 	available->Release();
 	if (!scope_valid ||
 		(m_prule->Pexprdefs()->FHasBindings() &&
-		 (pexprList->DeriveDefinedColumns()->Size() != pexprList->Arity() ||
+		 (!CDSLExprListUtils::FComputeList(pexprList) ||
 		  !pexprChild->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()))))
 	{
 		pexprChild->Release();
