@@ -111,9 +111,8 @@ CDSLMatchView::FScalarCall(const CExpression *expression)
 		if (!FScalarValue((*expression)[i])) return false;
 	// Property derivation only populates CExpression's existing property cache.
 	CExpression *derived = const_cast<CExpression *>(expression);
-	// Typed argument matching validates each exposed subquery independently;
-	// an opaque scalar/list capture still cannot hide one. A blanket subtree
-	// ban here would reject compositional Call(Args(Subquery(...), ...)).
+	// Captured arguments retain their subqueries. Matching a call does not
+	// certify argument error freedom or authorize changing their scope.
 	return !derived->DeriveHasNonScalarFunction() &&
 		IMDFunction::EfsImmutable == derived->DeriveScalarFunctionProperties()->Efs() &&
 		FImmutableCallTree(expression);

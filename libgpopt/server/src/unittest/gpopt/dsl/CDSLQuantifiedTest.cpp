@@ -1167,7 +1167,7 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, active_rule);
 		const BOOL matched = matcher.FMatch(active_rule->PfragSrc()->PopRoot(), source, model);
-		GPOS_ASSERT(matched == (trial < 2 || trial == 5));
+		GPOS_ASSERT(matched == (trial < 2 || trial >= 5));
 		if (matched)
 		{
 			CDSLConstraintChecker checker(mp);
@@ -1176,8 +1176,10 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 			CExpression *target = inst.PexprInstantiate(active_rule, model);
 			GPOS_ASSERT(nullptr != target);
 			CExpression *value = (*(*(*target)[1])[0])[0];
-			CExpression *rebuilt = trial == 5 ? (*value)[0] : (*(*value)[0])[0];
+			CExpression *rebuilt = trial >= 5 ? (*value)[0] : (*(*value)[0])[0];
 			GPOS_ASSERT(rebuilt->Pop()->Matches(subquery->Pop()) && (*rebuilt)[0] == query);
+			if (trial == 6)
+				GPOS_ASSERT(value->Matches(scalar));
 			GPOS_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
 			std::string text, error;
 			GPOS_ASSERT(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &text, &error));

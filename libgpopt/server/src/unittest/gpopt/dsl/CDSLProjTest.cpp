@@ -204,6 +204,7 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeExactRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedProjectResultTypes),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedScalarPhases),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery),
 		GPOS_UNITTEST_FUNC(
@@ -557,6 +558,126 @@ CDSLProjTest::EresUnittest_ComputeExactRoundTrip()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_TypedScalarPhases()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const CHAR *rules[] = {
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0",
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"t1 := t0;p1 := p0;a1 := a0",
+		"Proj<a0 s0 Item(n0,a2,Item())>(Input<t0>)|"
+		"Proj<a1 s1 Item(n1,a2,Item())>(Input<t1>)|"
+		"t1 := t0;n1 := n0;a1 := a0;s1 := s0",
+		"Filter<Compare(c0,v0) a0>(Input<t0>)|"
+		"Filter<Compare(c0,v0) a1>(Input<t1>)|t1 := t0;a1 := a0",
+		"Filter<Compare(c0,Args(n0,v0)) a0>(Input<t0>)|"
+		"Filter<Compare(c0,Args(n0,v0)) a1>(Input<t1>)|t1 := t0;a1 := a0"};
+	GPOS_RESULT result = GPOS_OK;
+	for (ULONG op = 0; op < GPOS_ARRAY_SIZE(rules); ++op)
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp, rules[op]);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		// Row scalars exclude direct aggregates/SRFs. A subquery starts a new
+		// phase: neither an aggregate nor an SRF inside it invalidates the outer
+		// expression. These are admission probes, not replacement rules.
+		for (ULONG phase = 0; phase < 5; ++phase)
+		{
+			CColRefArray *columns = nullptr;
+			CExpression *input = fix.PexprLogicalGet("phase_input", 1, &columns);
+			CColRef *output = fix.PcrCreateInt4("phase_output");
+			CExpression *value = nullptr;
+			if (0 == phase)
+				value = CUtils::PexprScalarConstInt4(mp, 1);
+			else if (1 == phase)
+				value = CUtils::PexprAgg(mp, fix.Pmda(), IMDType::EaggMax,
+					(*columns)[0], false, false);
+			else if (2 == phase)
+				value = fix.PexprGenerateSeries((*columns)[0]);
+			else
+			{
+				CColRefArray *inner_columns = nullptr;
+				CExpression *inner = fix.PexprLogicalGet("phase_subquery", 1, &inner_columns);
+				CColRef *selected = fix.PcrCreateInt4("phase_selected");
+				CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+				CExpression *nested = 3 == phase
+					? fix.PexprLogicalGbAgg(inner, grouping, selected, (*inner_columns)[0])
+					: PexprProjectWithScalar(mp, inner, selected,
+						fix.PexprGenerateSeries((*inner_columns)[0]));
+				grouping->Release();
+				inner->Release();
+				value = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, selected, false, false), nested);
+			}
+			CExpression *source = nullptr;
+			if (2 == op || op >= 4)
+			{
+				CExpression *predicate = nullptr;
+				if (2 == op)
+					predicate = GPOS_NEW(mp) CExpression(
+						mp, GPOS_NEW(mp) CScalarNullTest(mp), value);
+				else
+				{
+					IMDId *comparison = (*columns)[0]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
+					comparison->AddRef();
+					predicate = CUtils::PexprScalarCmp(mp, value,
+						CUtils::PexprScalarConstInt4(mp, 1), comparison);
+				}
+				source = fix.PexprLogicalSelect(input, predicate);
+				predicate->Release();
+			}
+			else
+				source = PexprProjectWithScalar(mp, input, output, value);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			// Call/Compare retains its existing immutable-call restriction,
+			// including SRFs nested in arguments; opaque values do not add it.
+			const BOOL admitted = (0 == phase || phase >= 3) && !(op >= 4 && 4 == phase);
+			const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+			if (admitted != matched)
+			{
+				GPOS_TRACE_FORMAT("Scalar phase op=%lu phase=%lu: expected %d, got %d",
+					op, phase, admitted, matched);
+				result = GPOS_FAILED;
+			}
+			if (matched)
+			{
+				CDSLConstraintChecker checker(mp);
+				CDSLInstantiator instantiator(mp);
+				CExpression *target = instantiator.PexprInstantiate(rule, model);
+				if (!checker.FCheck(rule, model) || nullptr == target ||
+					!target->Matches(source) ||
+					!target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()))
+					result = GPOS_FAILED;
+				CRefCount::SafeRelease(target);
+			}
+			if (op < 2 && admitted)
+			{
+				const std::string guarded_text = std::string(rules[op]) + ";ErrorFree(e0)";
+				CDSLRule *guarded = PdslruleParseLocal(mp, guarded_text.c_str());
+				GPOS_UNITTEST_ASSERT(nullptr != guarded);
+				CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
+				CDSLConstraintChecker checker(mp);
+				if (!CDSLMatcher(mp, guarded).FMatch(guarded->PfragSrc()->PopRoot(), source, captured) ||
+					checker.FCheck(guarded, captured) != (0 == phase))
+					result = GPOS_FAILED;
+				captured->Release();
+				guarded->Release();
+			}
+			model->Release();
+			source->Release();
+			input->Release();
+		}
+		rule->Release();
+	}
+	return result;
 }
 
 GPOS_RESULT
