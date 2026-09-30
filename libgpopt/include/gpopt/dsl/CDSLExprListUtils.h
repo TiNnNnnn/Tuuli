@@ -19,6 +19,9 @@ public:
 	CDSLExprListUtils() = delete;
 
 	static BOOL FProjectList(const CExpression *pexpr);
+	// Native typed captures must agree with each item's output column type.
+	static BOOL FTypedProjectElement(const CExpression *pexpr);
+	static BOOL FTypedProjectList(const CExpression *pexpr);
 	// Row-level scalar scope: no SRFs, aggregate or window calls. Relational
 	// subquery children have their own evaluation phase and are not inspected.
 	static BOOL FRowScalar(CExpression *pexpr);

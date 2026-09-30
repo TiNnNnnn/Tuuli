@@ -203,6 +203,7 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_CollapseIdentityProject),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeExactRoundTrip),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedProjectResultTypes),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery),
 		GPOS_UNITTEST_FUNC(
@@ -556,6 +557,81 @@ CDSLProjTest::EresUnittest_ComputeExactRoundTrip()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_TypedProjectResultTypes()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const CHAR *rules[] = {
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0",
+		"Proj<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0"};
+	const IMDType *types[] = {fix.PcrCreateInt4("type_template")->RetrieveType(),
+		fix.Pmda()->PtMDType<IMDTypeBool>()};
+	CDSLRule *item_rule = PdslruleParseLocal(mp,
+		"Compute<Item(n0,a2,e2) a0 s0>(Input<t0>)|"
+		"Compute<Item(n0,a2,e2) a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0");
+	GPOS_UNITTEST_ASSERT(nullptr != item_rule);
+	CDSLMatcher item_matcher(mp, item_rule);
+	GPOS_RESULT result = GPOS_OK;
+	for (const CHAR *text : rules)
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp, text);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		for (ULONG column_type = 0; column_type < 2; ++column_type)
+			for (ULONG value_type = 0; value_type < 2; ++value_type)
+				for (ULONG null_value = 0; null_value < 2; ++null_value)
+				{
+					const BOOL valid = column_type == value_type;
+					CExpression *input = fix.PexprLogicalGet("typed_result", 1);
+					CColRef *column = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+						types[column_type], default_type_modifier);
+					CExpression *value = null_value
+						? CUtils::PexprScalarConstNull(mp, types[value_type], default_type_modifier)
+						: value_type ? CUtils::PexprScalarConstBool(mp, true)
+							: CUtils::PexprScalarConstInt4(mp, 7);
+					CExpression *source = PexprProjectWithScalar(mp, input, column, value);
+					CDSLModel *item_model = GPOS_NEW(mp) CDSLModel(mp);
+					if (valid != item_matcher.FMatchExpression(
+						(*item_rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], (*source)[1], item_model))
+						result = GPOS_FAILED;
+					item_model->Release();
+					CDSLMatcher matcher(mp, rule);
+					CDSLModel *matched = GPOS_NEW(mp) CDSLModel(mp);
+					if (valid != matcher.FMatch(rule->PfragSrc()->PopRoot(), source, matched))
+						result = GPOS_FAILED;
+					matched->Release();
+					// Check construction independently, including a reused whole list.
+					CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+					CColRefArray *attrs = GPOS_NEW(mp) CColRefArray(mp);
+					CColRefArray *schema = GPOS_NEW(mp) CColRefArray(mp);
+					schema->Append(column);
+					CDSLOp *root = rule->PfragSrc()->PopRoot();
+					const BOOL compute = EdslopCompute == root->Edslop();
+					model->FBind((*(*root)[0]->Pdrgpsym())[0], input);
+					model->FBind((*root->Pdrgpsym())[compute ? 0 : 2], (*source)[1]);
+					model->FBind((*root->Pdrgpsym())[compute ? 1 : 0], attrs);
+					model->FBind((*root->Pdrgpsym())[compute ? 2 : 1], schema);
+					CDSLInstantiator instantiator(mp);
+					CExpression *target = instantiator.PexprInstantiate(rule, model);
+					if (valid != (nullptr != target))
+						result = GPOS_FAILED;
+					CRefCount::SafeRelease(target);
+					schema->Release();
+					attrs->Release();
+					model->Release();
+					source->Release();
+					input->Release();
+				}
+		rule->Release();
+	}
+	item_rule->Release();
+	return result;
 }
 
 static GPOS_RESULT
