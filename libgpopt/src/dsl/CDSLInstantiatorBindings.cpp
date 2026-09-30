@@ -553,16 +553,14 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 	}
 	psym = PsymResolve(psym);
 	CExpression *pexprBound = pmodel->PexprPred(psym);
+	if (nullptr == pexprBound)
+		pexprBound = m_phmDerivedPreds->Find(psym);
 	if (nullptr != pexprBound)
 	{
+		if (m_prule->Pexprdefs()->FHasBindings() && !CDSLMatchView::FBooleanValue(pexprBound))
+			return nullptr;
 		pexprBound->AddRef();
 		return pexprBound;
-	}
-	CExpression *pexprDerived = m_phmDerivedPreds->Find(psym);
-	if (nullptr != pexprDerived)
-	{
-		pexprDerived->AddRef();
-		return pexprDerived;
 	}
 
 	const CDSLExpressionDefinitions::CDefinition *pdef =

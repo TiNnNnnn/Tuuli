@@ -98,7 +98,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 					   CDSLModel *model, ULONG depth)
 {
 	GPOS_CHECK_STACK_SIZE;
-	if (depth > definitions->UlDefinitions())
+	if (depth > definitions->UlDefinitions() ||
+		(EdslsymPred == symbol->Esymkind() && !CDSLMatchView::FBooleanValue(expression)))
 	{
 		return false;
 	}
