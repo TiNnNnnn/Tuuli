@@ -356,7 +356,11 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		(EdslopInSubFilter == pop->Edslop() && 1 == pop->Pdrgpsym()->Size()) ||
 		((EdslopExists == pop->Edslop() || EdslopNotExists == pop->Edslop()) &&
 		 0 == pop->Pdrgpsym()->Size());
-	if (subqueryView || (!fLiteral && !FStructurallyExact(pop)))
+	// Agg retains its optional Select-over-GbAgg HAVING representation even
+	// with explicit bindings. It is not a literal one-node physical prefix.
+	// ponytail: stop here; index optional wrappers if candidate volume warrants it.
+	if (subqueryView || EdslopAgg == pop->Edslop() ||
+		(!fLiteral && !FStructurallyExact(pop)))
 	{
 		*pfComplete = false;
 		return pnode;
@@ -445,8 +449,8 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 	if ((popRoot->Eopid() == eopidBucket || fCorrelatedApply) &&
 		prule->Pexprdefs()->FHasBindings())
 	{
-		// Retain every literal relational level, including Filters below both
-		// Join branches. Adapter boundaries must not truncate memo extraction.
+		// Retain literal relational levels, including Filters below both Join
+		// branches, but honor operators with multiple native representations.
 		pnodeTerminal = PnodeInsertOp(pnodeTerminal, popRoot, false,
 			&fComplete, 0, true /*literal*/);
 	}

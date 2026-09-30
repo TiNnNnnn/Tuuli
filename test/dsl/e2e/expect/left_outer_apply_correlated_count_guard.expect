@@ -1,5 +1,5 @@
 {
-  "description": "COUNT decorrelation preserves zero-on-empty through generic Compute compensation",
+  "description": "COUNT is neither NullOnEmpty nor universally ErrorFree; both unsupported decorrelation paths must be rejected while the native-off query preserves zero-on-empty",
   "plans": [
     {
       "name": "guard",
@@ -10,11 +10,14 @@
       "contains": [
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"b8a54fa637de5d89\"",
         "\"failed_constraint\":\"NullOnEmpty\"",
-        "\"status\":\"applied\",\"rule_hash\":\"80727e91f96e399d\"",
-        "\"operator\":\"CLogicalLeftOuterJoin\",\"source\":\"dsl\",\"origin\":\"CXformDSLRule_Project\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"80727e91f96e399d\"",
+        "\"failed_constraint\":\"ErrorFree\"",
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"b8a54fa637de5d89\"",
+        "\"status\":\"applied\",\"rule_hash\":\"80727e91f96e399d\"",
+        "Falling back to Postgres",
         "Xform: CXformLeftOuterApply2LeftOuterJoin"
       ]
     }
