@@ -16,6 +16,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -55,10 +56,8 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// Fresh outputs and no sibling dependencies. Outer references are allowed,
 	// but construction must retain their original scope. SRFs are not Compute.
-	if (exact && (pexprList->DeriveHasNonScalarFunction() ||
-		pexprList->DeriveDefinedColumns()->Size() != pexprList->Arity() ||
-		!(*pexprProject)[0]->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()) ||
-		!pexprList->DeriveDefinedColumns()->IsDisjoint(pexprList->DeriveUsedColumns())))
+	if (exact && (!CDSLExprListUtils::FComputeList(pexprList) ||
+		!(*pexprProject)[0]->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns())))
 	{
 		return false;
 	}

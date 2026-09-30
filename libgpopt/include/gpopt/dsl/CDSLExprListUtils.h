@@ -19,6 +19,9 @@ public:
 	CDSLExprListUtils() = delete;
 
 	static BOOL FProjectList(const CExpression *pexpr);
+	// Typed Compute is a parallel scalar list: unique outputs, no SRFs and
+	// no references to outputs defined by this same list. Outer refs are valid.
+	static BOOL FComputeList(CExpression *pexpr);
 	// Volatile expression lists cannot be composed or partitioned: independent
 	// columns do not imply independent effects or invariant evaluation counts.
 	static BOOL FConcatSafe(CExpression *pexprUpper,
