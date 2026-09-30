@@ -272,6 +272,16 @@ EresInlineExpressions()
 			return GPOS_FAILED;
 		}
 	}
+	for (const CHAR *metadata : {"OrderEmpty(o0)", "RankAttrs(a1,r0)",
+		"OrderEmpty(o0);RankAttrs(a1,r0);r0 := r0",
+		"OrderEmpty(o0);RankAttrs(a1,r0);r0 := r1;r1 := r0",
+		"OrderEmpty(o0);RankAttrs(a1,r0);AttrsEmpty(a1)"})
+	{
+		const std::string text = "Input<t0>|RowNumber<a0 o0 r0>(Input<t1>)|"
+			"t1 := t0;AttrsEmpty(a0);" + std::string(metadata);
+		CDSLRule *rule = Parse(mp, text.c_str());
+		if (nullptr != rule) { rule->Release(); return GPOS_FAILED; }
+	}
 	for (const CHAR *term : {"NotTrue()", "NotTrue(p0,p0)", "NotTrue(a0)",
 						   "Not()", "Not(p0,p0)", "And(p0)",
 						   "And(p0,p0,p0)", "Not(a0)", "Not(p9)",
@@ -381,6 +391,9 @@ EresExpressionBindings()
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
 	const CHAR *valid[] = {
+		"p1 := p0;ErrorFree(p1)",
+		"p1 := Not(p0);Deterministic(p1)",
+		"Deterministic(p1);p1 := Not(p0)",
 		"p1 := p0;AttrsNonEmpty(a0)",
 		"Exists(t2) := p0;p1 := Exists(t2)",
 		"Exists(t2) := p0;t3 := t2;p1 := Exists(t3)",
@@ -472,11 +485,8 @@ EresExpressionBindings()
 		"p1 := p0;PredicateFalse(p1)",
 		"p1 := p0;PredicateNotTrue(p2,p0)",
 		"p1 := p0;AttrsEq(a1,t0)",
-		"p1 := p0;ErrorFree(p1)",
 		"p1 := p0;AttrsNonEmpty(a1)",
 		"p1 := p0;AttrsNonEmpty(a9)",
-		"p1 := Not(p0);Deterministic(p1)",
-		"Deterministic(p1);p1 := Not(p0)",
 		"Not(p2) := p3;p1 := p0;PredicateEq(p2,p0)",
 		"Not(p2) := p0;p1 := p0;PredicateAnd(p3,p0,p2)",
 	};

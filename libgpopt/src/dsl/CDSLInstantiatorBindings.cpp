@@ -390,7 +390,19 @@ const CDSLSymbol *
 CDSLInstantiator::PsymResolve(const CDSLSymbol *psym) const
 {
 	CDSLSymbol *psymSrc = m_phmAlias->Find(psym);
-	return (nullptr != psymSrc) ? psymSrc : psym;
+	if (nullptr != psymSrc) return psymSrc;
+	// A typed reference can end at freshly constructed metadata, not just a
+	// source capture. The parser rejects cycles; retain a bounded walk here.
+	for (ULONG i = 0; nullptr != m_prule && i < m_prule->Pexprdefs()->UlDefinitions(); i++)
+	{
+		const auto *definition = m_prule->Pexprdefs()->Pdef(psym);
+		if (nullptr == definition || CDSLExpressionDefinitions::EBuild != definition->Binding() ||
+			EdslexprRef != definition->Edslexpr()) break;
+		psym = definition->PsymOperand(0);
+		psymSrc = m_phmAlias->Find(psym);
+		if (nullptr != psymSrc) return psymSrc;
+	}
+	return psym;
 }
 
 CExpressionArray *

@@ -1,0 +1,5 @@
+SELECT COALESCE(a,-1), COALESCE(b,-1) FROM (
+  SELECT a,b FROM set_left
+  INTERSECT ALL
+  SELECT b,a FROM set_right
+) s ORDER BY 1,2;

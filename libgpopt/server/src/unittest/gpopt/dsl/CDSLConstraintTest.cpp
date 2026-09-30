@@ -485,6 +485,13 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 		"Deterministic(p1);ErrorFree(p1);TableEq(t1,t0);"
 		"PredicateAnd(p2,p0,p0);PredicateNotTrue(p1,p2);AttrsEq(a1,a0)",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Deterministic(p1);t1 := t0;p1 := p0;a1 := a0",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"ErrorFree(p1);t1 := t0;p2 := NotTrue(p0);p1 := And(p2,p0);a1 := a0",
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"Deterministic(p1);ErrorFree(p1);t1 := t0;"
+		"p2 := And(p0,p0);p1 := NotTrue(p2);a1 := a0",
 	};
 	CColRefArray *pdrgpcr = nullptr;
 	CExpression *pexprGet = fix.PexprLogicalGet("deterministic_input", 1, &pdrgpcr);

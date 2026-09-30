@@ -1,0 +1,56 @@
+{
+  "description": "ALL binding migration probe, preserving nullable duplicate occurrence tags; native proof pending.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2260f52b547a018c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "-1,-1",
+      "1,10",
+      "4,40"
+    ],
+    "postgres_output": [
+      "-1,-1",
+      "1,10",
+      "4,40"
+    ]
+  }
+}
