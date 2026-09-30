@@ -22,10 +22,19 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarValuesList.h"
+#include "gpopt/operators/CScalarSwitchCase.h"
+#include "gpopt/operators/CScalarArrayRefIndexList.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -67,9 +76,95 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_IdentityGateRejects),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_DeepestFailure),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedPredicateResultTypes),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedScalarValueKinds),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_TypedScalarValueKinds()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Filter<ValueBool(n0) a0>(Input<t0>)|Filter<ValueBool(n1) a1>(Input<t1>)|"
+		"t1 := t0;n1 := n0;a1 := a0");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	const CDSLSymbol *predicate = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+	const CDSLSymbol *value = rule->Pexprdefs()->Pdef(predicate)->PsymOperand(0);
+	const CDSLSymbol *target = (*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0];
+	CDSLMatcher matcher(mp, rule);
+	CDSLRule *calls = PdslruleParseLocal(mp,
+		"Filter<Compare(c0,v0) a0>(Input<t0>)|Filter<Compare(c1,v1) a1>(Input<t1>)|"
+		"t1 := t0;c1 := c0;v1 := v0;a1 := a0");
+	GPOS_UNITTEST_ASSERT(nullptr != calls);
+	const auto *call_def = calls->Pexprdefs()->Pdef((*calls->PfragSrc()->PopRoot()->Pdrgpsym())[0]);
+	CExpression *head = fix.PexprEqConst(fix.PcrCreateInt4("call_arg"), 7);
+	CExpression *candidates[] = {
+		CUtils::PexprScalarConstBool(mp, true),
+		CUtils::PexprScalarConstBool(mp, false, true),
+		CUtils::PexprScalarConstInt4(mp, 7),
+		CUtils::PexprScalarConstInt8(mp, 7, true),
+		fix.PexprLogicalGet("not_a_scalar", 1),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp,
+			fix.PcrCreateInt4("not_a_value")), CUtils::PexprScalarConstInt4(mp, 7)),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarValuesList(mp)),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSwitchCase(mp)),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarArrayRefIndexList(mp,
+			CScalarArrayRefIndexList::EiltLower)),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSortGroupClause(mp, 1, 0, 0, false, false))};
+	GPOS_RESULT result = GPOS_OK;
+	for (ULONG kind = 0; kind < GPOS_ARRAY_SIZE(candidates); ++kind)
+	{
+		CExpression *expression = candidates[kind];
+		if (CDSLMatchView::FScalarValue(expression) != (kind < 4) ||
+			CDSLMatchView::FBooleanValue(expression) != (kind < 2)) result = GPOS_FAILED;
+		CDSLModel *source = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = matcher.FMatchExpression(value, expression, source);
+		if (matched != (kind < 4)) result = GPOS_FAILED;
+		if (!matched && nullptr != source->PvalLookup(value)) result = GPOS_FAILED;
+		source->Release();
+		// Bypass source matching: reuse must enforce the same value boundary.
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		model->FBind(value, expression);
+		CDSLInstantiator instantiator(mp);
+		CExpression *built = instantiator.PexprInstantiatePredicate(rule, target, model);
+		if ((nullptr != built) != (kind < 2)) result = GPOS_FAILED;
+		CRefCount::SafeRelease(built);
+		model->Release();
+		expression->AddRef();
+		CExpression *item = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("typed_item")), expression);
+		if (CDSLExprListUtils::FTypedProjectElement(item) != (2 == kind)) result = GPOS_FAILED;
+		item->Release();
+		CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
+		expression->AddRef();
+		arguments->Append(expression);
+		arguments->Append(CUtils::PexprScalarConstInt4(mp, 7));
+		if (CDSLMatchView::FCallArgumentTypes(head, arguments) != (2 == kind)) result = GPOS_FAILED;
+		CDSLModel *call_model = GPOS_NEW(mp) CDSLModel(mp);
+		call_model->FBind(call_def->PsymOperand(0), head);
+		call_model->FBind(call_def->PsymOperand(1), arguments);
+		CDSLInstantiator call_instantiator(mp);
+		CExpression *call = call_instantiator.PexprInstantiatePredicate(calls,
+			(*calls->PfragTgt()->PopRoot()->Pdrgpsym())[0], call_model);
+		if ((nullptr != call) != (2 == kind)) result = GPOS_FAILED;
+		CRefCount::SafeRelease(call);
+		call_model->Release();
+		head->Pop()->AddRef();
+		CExpression *candidate_call = GPOS_NEW(mp) CExpression(mp, head->Pop(), arguments);
+		if (kind >= 4 && (CDSLMatchView::FScalarCall(candidate_call) ||
+			CDSLMatchView::FCallArgumentTypes(candidate_call, head->PdrgPexpr()))) result = GPOS_FAILED;
+		candidate_call->Release();
+		expression->Release();
+	}
+	head->Release();
+	calls->Release();
+	rule->Release();
+	return result;
 }
 
 GPOS_RESULT
