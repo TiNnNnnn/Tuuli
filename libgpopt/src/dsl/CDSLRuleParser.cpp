@@ -346,7 +346,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 	{
 		return pdrgpcon;  // constraints are optional
 	}
-	// Column definitions and typed bindings form one dependency graph. Declare
+	// Metadata definitions and typed bindings form one dependency graph. Declare
 	// fixed-type outputs first; FBuildBindings later rejects cycles/free inputs.
 	// Keep legacy expression decomposition on its existing parsing path.
 	if (!cons_ctx->binding().empty())
@@ -355,7 +355,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 		{
 			const auto kind = CDSLConstraintKindTable::Parse(con->ID()->getText().c_str());
 			const auto symbols = con->SYMBOL();
-			if (!CDSLConstraintKindTable::FColumnDerivation(kind) ||
+			if ((!CDSLConstraintKindTable::FColumnDerivation(kind) &&
+				 !CDSLConstraintKindTable::FScalarLiteral(kind)) ||
 				symbols.size() != CDSLConstraintKindTable::UlArity(kind)) continue;
 			const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, 0);
 			const std::string name = symbols[0]->getText();
@@ -1024,22 +1025,21 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	{
 		available.insert((*source->Pdrgpsym())[i]);
 	}
-	// Column derivations share the existing checked runtime resolver. Other
+	// Column derivations and literals share the checked runtime resolver. Other
 	// constructive legacy constraints are not expression-binding premises.
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
 		const CDSLConstraint *con = (*constraints)[i];
 		const auto kind = con->Edslcon();
-		if (CDSLConstraintKindTable::FColumnDerivation(kind))
+		if (CDSLConstraintKindTable::FColumnDerivation(kind) ||
+			CDSLConstraintKindTable::FScalarLiteral(kind))
 		{
 			columnChecks.push_back(con);
 			continue;
 		}
 		BOOL sourcePremise = true;
-		// Literals and non-emptiness on source captures are checks, not
-		// constructors. Non-emptiness cannot invent a target column list.
-		const BOOL capturedCheck = EdslconScalarOne == kind ||
-			EdslconScalarZero == kind || EdslconAttrsNonEmpty == kind;
+		// Non-emptiness cannot invent a target column list.
+		const BOOL capturedCheck = EdslconAttrsNonEmpty == kind;
 		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
 			sourcePremise &=
@@ -1080,7 +1080,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		if (EdslsideSource == output->Eside() || aliases.count(output)) continue;
 		if (!columnDerivations.emplace(output, con).second)
 		{
-			bctx.Fail("target column symbol has multiple definitions");
+			bctx.Fail("target metadata symbol has multiple definitions");
 			return false;
 		}
 	}

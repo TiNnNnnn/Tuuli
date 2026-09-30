@@ -17,6 +17,12 @@
 using namespace gpopt;
 
 BOOL
+CDSLConstraintKindTable::FScalarLiteral(EDslConstraintKind kind)
+{
+	return EdslconScalarOne == kind || EdslconScalarZero == kind;
+}
+
+BOOL
 CDSLConstraintKindTable::FColumnDerivation(EDslConstraintKind kind)
 {
 	return EdslconAttrsEmpty == kind || EdslconAttrsUnion == kind ||

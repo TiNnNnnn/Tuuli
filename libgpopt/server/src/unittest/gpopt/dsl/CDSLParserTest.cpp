@@ -261,7 +261,9 @@ EresInlineExpressions()
 			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEConsumer<t1>)|t1 := t0;o1 := o0",
 			"Input<t0>|CTEAnchor(Input<t1>)|t1 := t0",
 			"SortBy<o0>(Input<t0>)|SortBy<o1>(CTEAnchor(Input<t1>))|t1 := t0;o1 := o0",
-			"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;ScalarOne(n0);ScalarZero(n1)"})
+			"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;ScalarOne(n0)",
+			"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;ScalarOne(n0);ScalarZero(n0);ScalarZero(n1)",
+			"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;n0 := n1;ScalarOne(n0);ScalarZero(n1)"})
 	{
 		CDSLRule *rule = Parse(mp, text);
 		if (nullptr != rule)

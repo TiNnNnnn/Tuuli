@@ -264,25 +264,6 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 }
 
 CExpression *
-CDSLInstantiator::PexprResolveLegacyScalar(const CDSLSymbol *psym) const
-{
-	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
-	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
-	{
-		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
-		if ((EdslconScalarOne != pcon->Edslcon() &&
-			 EdslconScalarZero != pcon->Edslcon()) ||
-			1 != pcon->Pdrgpsym()->Size() || (*pcon->Pdrgpsym())[0] != psym)
-		{
-			continue;
-		}
-		return CUtils::PexprScalarConstInt8(
-			m_mp, EdslconScalarOne == pcon->Edslcon() ? 1 : 0);
-	}
-	return nullptr;
-}
-
-CExpression *
 CDSLInstantiator::PexprResolveLegacyPredicate(const CDSLSymbol *psym, const CDSLModel *pmodel, ULONG ulDepth) const
 {
 	const auto *pdef = m_prule->Pexprdefs()->Pdef(psym);

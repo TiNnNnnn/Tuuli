@@ -146,7 +146,6 @@ private:
 	// Compatibility boundary: called only after the common resolvers have
 	// handled captures, aliases and non-legacy definitions. Typed construction
 	// failure MUST NOT retry these recipes. Operand resolution stays shared.
-	CExpression *PexprResolveLegacyScalar(const CDSLSymbol *psym) const;
 	CExpression *PexprResolveLegacyPredicate(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
 	CColRefArray *PdrgpcrResolveLegacyCols(const CDSLSymbol *psym,

@@ -371,6 +371,7 @@ public:
 
 	// Pure column metadata supported alongside oriented expression bindings.
 	static BOOL FColumnDerivation(EDslConstraintKind edslcon);
+	static BOOL FScalarLiteral(EDslConstraintKind edslcon);
 };
 }  // namespace gpopt
 
