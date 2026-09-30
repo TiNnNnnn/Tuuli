@@ -346,11 +346,11 @@ public:
 										 const CDSLSymbol *psym,
 										 const CDSLModel *pmodel);
 
-	// Resolve column inputs before checking, or constructive outputs after
-	// checking. Both phases reuse target construction's restricted LET resolver.
+	// Resolve column inputs and captured aliases before checking, fresh outputs
+	// afterwards. Both phases reuse target construction's restricted LET resolver.
 	BOOL FMaterializeConstraintBindings(const CDSLRule *prule,
 									 const CDSLConstraint *pcon,
-									 CDSLModel *pmodel, BOOL inputs_only);
+									 CDSLModel *pmodel, BOOL before_check);
 
 	// build the rule's target expression; NULL if instantiation is not possible
 	// (missing binding, unsupported operator). Caller owns the returned ref.

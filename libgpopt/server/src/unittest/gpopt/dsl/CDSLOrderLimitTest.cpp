@@ -240,6 +240,41 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 	CRefCount::SafeRelease(pexprIdentity);
 	pmodelIdentity->Release();
 	CRefCount::SafeRelease(pruleIdentity);
+	// RankAttrs must reuse captured rank identities through aliases. A partition
+	// column is not a rank merely because both target symbols were unbound.
+	for (ULONG mode = 0; mode < 4; mode++)
+	{
+		const std::string aliases =
+			"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);RankEq(r1,r0)";
+		const std::string rank = mode == 3 ? "RankAttrs(a1,r1)" :
+			mode == 1 ? "RankAttrs(a2,r0)" : "RankAttrs(a2,r1)";
+		const std::string text =
+			"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|" +
+			(mode == 2 ? rank + ";" + aliases : aliases + ";" + rank);
+		CDSLRule *rule = Prule(mp, text.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher capture(mp, rule);
+		if (nullptr == rule || !capture.FMatch(rule->PfragSrc()->PopRoot(), pexprLive, model) ||
+			checker.FCheck(rule, model) != (mode != 3)) eres = GPOS_FAILED;
+		if (nullptr != rule && mode != 3)
+		{
+			CDSLInstantiator rebuild(mp);
+			CExpression *target = rebuild.PexprInstantiate(rule, model);
+			if (nullptr == target || !target->Matches(pexprLive)) eres = GPOS_FAILED;
+			CRefCount::SafeRelease(target);
+			for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); i++)
+			{
+				const auto *constraint = (*rule->Pdrgpcon())[i];
+				if (EdslconRankAttrs != constraint->Edslcon()) continue;
+				const auto *columns = model->PdrgpcrAttrs((*constraint->Pdrgpsym())[0]);
+				if (nullptr == columns || columns->Size() != 1 ||
+					(*columns)[0] != (*pexprLive)[1]->DeriveDefinedColumns()->PcrFirst())
+					eres = GPOS_FAILED;
+			}
+		}
+		model->Release();
+		CRefCount::SafeRelease(rule);
+	}
 	if (!FBindingRoundTrip(mp,
 		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
 		"t1 := t0;a1 := a0;o1 := o0;r1 := r2;r2 := r0;ErrorFree(r0)", pexprLive))

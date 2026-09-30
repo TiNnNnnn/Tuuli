@@ -31,12 +31,12 @@ using namespace gpopt;
 BOOL
 CDSLInstantiator::FMaterializeConstraintBindings(
 	const CDSLRule *prule, const CDSLConstraint *pcon, CDSLModel *pmodel,
-	BOOL inputs_only)
+	BOOL before_check)
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pcon);
 	GPOS_ASSERT(nullptr != pmodel);
-	if (inputs_only && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
+	if (before_check && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
 	{
 		return false;
 	}
@@ -152,8 +152,16 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 	{
 		const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
 		const CDSLSymbol *psymRank = (*pdrgpsym)[1];
-		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
-		CColRefArray *pdrgpcrRank = pmodel->PdrgpcrRank(psymRank);
+		const CDSLSymbol *attrs = PsymResolve(psymAttrs);
+		const CDSLSymbol *rank = PsymResolve(psymRank);
+		CColRefArray *pdrgpcrAttrs = pmodel->PdrgpcrAttrs(attrs);
+		CColRefArray *pdrgpcrRank = pmodel->PdrgpcrRank(rank);
+		// Only fresh target outputs may allocate a rank; references must retain
+		// their captured column, including when both target aliases are unbound.
+		if ((nullptr == pdrgpcrAttrs &&
+			 (attrs != psymAttrs || EdslsideSource == attrs->Eside())) ||
+			(nullptr == pdrgpcrRank &&
+			 (rank != psymRank || EdslsideSource == rank->Eside()))) return false;
 		if (nullptr == pdrgpcrAttrs && nullptr == pdrgpcrRank)
 		{
 			pdrgpcrRank = GPOS_NEW(m_mp) CColRefArray(m_mp);
@@ -173,27 +181,31 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		{
 			return false;
 		}
-		return nullptr == pdrgpcrAttrs
-			? pmodel->FBindDerived(psymAttrs, pdrgpcr)
-			: (nullptr == pdrgpcrRank
-				   ? pmodel->FBindDerived(psymRank, pdrgpcr)
-				   : true);
+		const auto *boundAttrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		const auto *boundRank = pmodel->PdrgpcrRank(psymRank);
+		return (nullptr == boundAttrs ? pmodel->FBindDerived(psymAttrs, pdrgpcr)
+				: CColRef::Equals(boundAttrs, pdrgpcr)) &&
+			(nullptr == boundRank ? pmodel->FBindDerived(psymRank, pdrgpcr)
+				: CColRef::Equals(boundRank, pdrgpcr));
 	}
 
 	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)
 	{
-		if (inputs_only && 0 == ul) continue;
+		const CDSLSymbol *psym = (*pdrgpsym)[ul];
+		// An alias is a check on an existing capture, not a fresh output. Resolve
+		// it before checking in both syntaxes; retain legacy input scheduling.
+		if (before_check && ((0 == ul && PsymResolve(psym) == psym) ||
+			(0 < ul && !prule->Pexprdefs()->FHasBindings()))) continue;
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
 		if (EdslconAttrsIntersect == pcon->Edslcon() && 0 == ul)
 		{
 			esymkind = (*pdrgpsym)[0]->Esymkind();
 		}
-		const CDSLSymbol *psym = (*pdrgpsym)[ul];
 		// A column derivation can consume another derivation or a typed
 		// reference. Publish those resolved inputs for the independent checker,
 		// not merely the output; never replace an existing source capture.
-		if (inputs_only && EdslsideTarget == psym->Eside())
+		if (before_check && EdslsideTarget == psym->Eside())
 		{
 			esymkind = psym->Esymkind();
 		}
