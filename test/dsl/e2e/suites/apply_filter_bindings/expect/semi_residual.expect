@@ -1,0 +1,44 @@
+{
+  "description": "Moving the outer Filter must not discard the same-column correlation retained below LIMIT; keep a physical Apply path instead.",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "reason=dependent_join_inputs"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"e67604b45b30344e\""
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "10",
+      "30",
+      "40"
+    ],
+    "postgres_output": [
+      "10",
+      "30",
+      "40"
+    ]
+  }
+}
