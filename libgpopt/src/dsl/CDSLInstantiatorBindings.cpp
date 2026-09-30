@@ -28,6 +28,20 @@
 
 using namespace gpopt;
 
+const CDSLSymbol *
+CDSLInstantiator::PsymBindingOrigin(const CDSLRule *prule,
+	const CDSLSymbol *psym)
+{
+	GPOS_ASSERT(nullptr != prule && nullptr != psym);
+	if (nullptr == m_prule)
+	{
+		m_prule = prule;
+		BuildAliasMap(prule);
+	}
+	if (m_prule != prule) return nullptr;
+	return PsymResolve(psym);
+}
+
 BOOL
 CDSLInstantiator::FMaterializeConstraintBindings(
 	const CDSLRule *prule, const CDSLConstraint *pcon, CDSLModel *pmodel,

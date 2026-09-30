@@ -200,10 +200,18 @@ EresDeterministicOperatorHeads()
 		// An attrs alias must retain its source projection's scalar program,
 		// even if another metadata check has already materialized the vector.
 		for (BOOL materialized : {false, true})
+		for (BOOL deterministic : {false, true})
+		for (BOOL first : {false, true})
+		for (const CHAR *bindings : {
+			"t1 := t0;a1 := a2;a2 := a0;s1 := s0",
+			"TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)",
+			"t1 := t0;AttrsEq(a1,a0);s1 := s0"})
 		{
-			CDSLRule *rule = PdslruleParseLocal(mp,
-				"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
-				"t1 := t0;a1 := a2;a2 := a0;s1 := s0;Deterministic(a1)");
+			const std::string property = deterministic ? "Deterministic(a1)" : "ErrorFree(a1)";
+			const std::string text = std::string(
+				"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|") +
+				(first ? property + ";" + bindings : bindings + (";" + property));
+			CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
 			input->AddRef();
 			predicate->AddRef();
 			CExpression *project = CUtils::PexprAddProjection(mp, input, predicate);
@@ -211,10 +219,15 @@ EresDeterministicOperatorHeads()
 			const BOOL matched = nullptr != rule && CDSLMatcher(mp, rule).FMatch(
 				rule->PfragSrc()->PopRoot(), project, model);
 			if (matched && materialized)
-				model->FBindDerived((*(*rule->Pdrgpcon())[0]->Pdrgpsym())[0],
+				model->FBindDerived((*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0],
 					model->PvalLookup(PsymByName(rule, "a0")));
 			const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
-			ok &= matched && accepted == (0 == stability);
+			// Unknown operator error behavior is rejected even when immutable.
+			const BOOL expected = deterministic && 0 == stability;
+			ok &= matched && accepted == expected;
+			if (!matched || accepted != expected)
+				GPOS_TRACE_FORMAT("attrs safety stability=%lu materialized=%d matched=%d accepted=%d rule=%s",
+					stability, materialized, matched, accepted, text.c_str());
 			model->Release();
 			CRefCount::SafeRelease(rule);
 			project->Release();

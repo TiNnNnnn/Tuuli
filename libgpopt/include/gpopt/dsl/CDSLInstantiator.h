@@ -340,6 +340,11 @@ public:
 
 	~CDSLInstantiator();
 
+	// Borrow the same binding origin used by target construction. This retains
+	// source artifacts when a metadata alias has already been materialized.
+	const CDSLSymbol *PsymBindingOrigin(const CDSLRule *prule,
+		const CDSLSymbol *psym);
+
 	// Resolve a predicate for constraint checking using the same aliases and
 	// definitions as target construction. Caller owns the result; no model writes.
 	CExpression *PexprInstantiatePredicate(const CDSLRule *prule,
