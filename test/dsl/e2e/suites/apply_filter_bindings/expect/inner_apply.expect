@@ -1,0 +1,57 @@
+{
+  "description": "New-binding Apply/Filter migration probe; native OUTCOME_EQ proof pending, not a certified replacement.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f37a8d740d9c9122\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformInnerApply2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1,10",
+      "2,30",
+      "2,30",
+      "2,40",
+      "2,40"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,30",
+      "2,30",
+      "2,40",
+      "2,40"
+    ]
+  }
+}
