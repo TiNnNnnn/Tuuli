@@ -30,6 +30,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
@@ -1314,6 +1315,35 @@ CDSLAggTest::EresUnittest_HavingRoundTrip()
 			eres = GPOS_FAILED;
 		}
 	}
+	// Agg's HAVING view also exists below another literal operator. The trie
+	// must admit every source accepted by the full matcher, with or without it.
+	CDSLRule *nested = PdslruleParseLocal(mp,
+		"InnerJoin<p2 a6 a7>(Input<t2>,Agg<a0 a1 f0 s0 p0>(Input<t0>))|"
+		"InnerJoin<p3 a8 a9>(Input<t3>,Agg<a2 a3 f1 s1 p1>(Input<t1>))|"
+		"t3 := t2;t1 := t0;p3 := p2;a8 := a6;a9 := a7;"
+		"a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0");
+	GPOS_UNITTEST_ASSERT(nullptr != nested);
+	CExpression *outer = fix.PexprLogicalGet("having_outer", 1);
+	CExpression *on = CUtils::PexprScalarConstBool(mp, true);
+	for (CExpression *right : {pexprGbAgg, pexprSelect, pexprGet})
+	{
+		CExpression *join = fix.PexprLogicalInnerJoin(outer, right, on);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, nested).FMatch(
+			nested->PfragSrc()->PopRoot(), join, model);
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(nested, 0, join->Pop()->Eopid());
+		CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, join);
+		if (matched != (right != pexprGet) ||
+			(matched && (1 != candidates->Size() || (*candidates)[0] != nested)))
+			eres = GPOS_FAILED;
+		candidates->Release();
+		model->Release();
+		join->Release();
+	}
+	on->Release();
+	outer->Release();
+	nested->Release();
 
 	CRefCount::SafeRelease(pexprTgt);
 	pmodel->Release();

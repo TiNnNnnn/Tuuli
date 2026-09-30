@@ -1,0 +1,53 @@
+{
+  "description": "New-binding migration probe; whole-rule native OUTCOME_EQ proof pending.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b2a292e9689270ed\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "10",
+      "30",
+      "40"
+    ],
+    "postgres_output": [
+      "10",
+      "30",
+      "40"
+    ]
+  }
+}
