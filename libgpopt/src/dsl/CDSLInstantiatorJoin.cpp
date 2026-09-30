@@ -389,6 +389,28 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pexprRight->Release();
 		return nullptr;
 	}
+	// An ordinary Join has independent inputs. Moving one correlated Filter
+	// into ON does not remove references hidden deeper in either input, even
+	// when they use the same columns as that Filter. References to an enclosing
+	// scope remain valid; only dependencies on the sibling input are forbidden.
+	if (!fPredicateApply &&
+		(!pexprRight->DeriveOuterReferences()->IsDisjoint(
+			 pexprLeft->DeriveOutputColumns()) ||
+		 !pexprLeft->DeriveOuterReferences()->IsDisjoint(
+			 pexprRight->DeriveOutputColumns())))
+	{
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+		{
+			GPOS_TRACE_FORMAT(
+				"DSL_INSTANTIATE_TRACE operator=%s status=rejected "
+				"reason=dependent_join_inputs",
+				CDSLOpKindTable::SzName(pop->Edslop()));
+		}
+		CRefCount::SafeRelease(pexprOwnedJoinPred);
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
+	}
 
 	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,

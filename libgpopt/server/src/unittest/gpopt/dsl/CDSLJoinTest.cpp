@@ -481,7 +481,7 @@ CDSLJoinTest::EresUnittest_PhysicalApply()
 }
 
 static GPOS_RESULT
-EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule)
+EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -498,6 +498,24 @@ EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule)
 		fix.PexprLogicalGet("predicate_and_outer", 2, &pdrgpcrOuter);
 	CExpression *pexprInner =
 		fix.PexprLogicalGet("predicate_and_inner", 2, &pdrgpcrInner);
+	CColRefArray *enclosingColumns = nullptr;
+	CAutoRef<CExpression> enclosing(
+		fix.PexprLogicalGet("predicate_and_enclosing", 1, &enclosingColumns));
+	const BOOL residual = 1 == scope || 3 == scope;
+	if (0 != scope)
+	{
+		// The removed Filter and the retained input both read the SAME outer
+		// column. Equality of their dependency sets does not prove decorrelation.
+		// Also check the reverse dependency and a valid enclosing-scope read.
+		CExpression *&child = 3 == scope ? pexprOuter : pexprInner;
+		CColRef *column = 2 == scope ? (*enclosingColumns)[0] :
+			(3 == scope ? (*pdrgpcrInner)[0] : (*pdrgpcrOuter)[0]);
+		CExpression *predicate = fix.PexprPredAtom(column);
+		CExpression *filtered = fix.PexprLogicalSelect(child, predicate);
+		predicate->Release();
+		child->Release();
+		child = filtered;
+	}
 	CExpression *pexprApplyPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
 	CExpressionArray *pdrgpexprOr = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprOr->Append(fix.PexprPredAtom((*pdrgpcrOuter)[0]));
@@ -537,12 +555,12 @@ EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule)
 			pdrgpexprConjuncts =
 				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
 		}
-		if (nullptr == pexprTarget ||
+		if (residual ? nullptr != pexprTarget : (nullptr == pexprTarget ||
 			COperator::EopLogicalLeftSemiJoin !=
 				pexprTarget->Pop()->Eopid() ||
 			nullptr == pdrgpexprConjuncts || 2 != pdrgpexprConjuncts->Size() ||
 			!(*pdrgpexprConjuncts)[0]->Matches(pexprApplyPred) ||
-			!(*pdrgpexprConjuncts)[1]->Matches(pexprFilterPred))
+			!(*pdrgpexprConjuncts)[1]->Matches(pexprFilterPred)))
 		{
 			eres = GPOS_FAILED;
 		}
@@ -667,8 +685,9 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 	};
 	for (const CHAR *rule : rules)
 	{
-		if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule))
-			return GPOS_FAILED;
+		for (ULONG scope = 0; scope < 4; ++scope)
+			if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule, scope))
+				return GPOS_FAILED;
 	}
 	return GPOS_OK;
 }

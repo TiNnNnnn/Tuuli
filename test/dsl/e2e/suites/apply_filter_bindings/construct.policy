@@ -3,3 +3,7 @@
   placement: cbo
   budget:
     per_rule: 1
+# Filter fusion is a prerequisite chain, not one candidate application.
+- rule: 397081c4258773d1
+  budget:
+    per_rule: 0
