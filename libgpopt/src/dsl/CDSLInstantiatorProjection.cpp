@@ -24,6 +24,26 @@ using namespace gpopt::dslinstantiator;
 
 namespace
 {
+// A SetOp's explicit input vector and output schema define an ordered SELECT
+// program. Merely having two equally sized column vectors does not.
+const CDSLOp *
+PopSetProjectionSource(const CDSLOp *pop, const CDSLSymbol *attrs,
+					   const CDSLSymbol *schema)
+{
+	if ((EdslopUnion == pop->Edslop() || EdslopIntersect == pop->Edslop() ||
+		 EdslopExcept == pop->Edslop()) && nullptr != pop->Pdrgpsym() &&
+		4 == pop->Pdrgpsym()->Size() && (*pop->Pdrgpsym())[1] == schema &&
+		((*pop->Pdrgpsym())[2] == attrs || (*pop->Pdrgpsym())[3] == attrs))
+		return pop;
+	for (ULONG i = 0; i < pop->UlChildren(); ++i)
+	{
+		const CDSLOp *found = PopSetProjectionSource((*pop)[i], attrs, schema);
+		if (nullptr != found)
+			return found;
+	}
+	return nullptr;
+}
+
 BOOL
 FAggNameEquals(CMemoryPool *mp, const CWStringConst *pstrActual,
 			   const CHAR *szExpected)
@@ -662,6 +682,31 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		CColRefArray *attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
 		CColRefArray *source_attrs = nullptr == source ? nullptr :
 			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
+		if (nullptr == source && nullptr == list && 2 == pop->Pdrgpsym()->Size() &&
+			nullptr != attrs && nullptr != schema && attrs->Size() == schema->Size() &&
+			nullptr != PopSetProjectionSource(m_prule->PfragSrc()->PopRoot(),
+				psymAttrs, psymSchema))
+		{
+			CExpressionArray *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			BOOL compatible = true;
+			for (ULONG i = 0; compatible && i < schema->Size(); ++i)
+			{
+				compatible = (*attrs)[i]->RetrieveType()->MDId()->Equals(
+					(*schema)[i]->RetrieveType()->MDId()) &&
+					(*attrs)[i]->TypeModifier() == (*schema)[i]->TypeModifier();
+				if (compatible)
+					items->Append(CUtils::PexprScalarProjectElement(m_mp, (*schema)[i],
+						CUtils::PexprScalarIdent(m_mp, (*attrs)[i])));
+			}
+			if (compatible)
+			{
+				list = GPOS_NEW(m_mp) CExpression(m_mp,
+					GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
+				source_attrs = attrs;
+			}
+			else
+				items->Release();
+		}
 		// Without a captured SELECT program, only an exact ordered column
 		// identity is defined. Never infer a computed value or positional alias.
 		if (nullptr == source && nullptr == list && 2 == pop->Pdrgpsym()->Size() &&

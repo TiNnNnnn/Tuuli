@@ -18,6 +18,7 @@ public:
 	static GPOS_RESULT EresUnittest_PhysicalSetOpDXL();
 	static GPOS_RESULT EresUnittest_MatchAndDistinctGate();
 	static GPOS_RESULT EresUnittest_SetOpKindsMatchAndInstantiate();
+	static GPOS_RESULT EresUnittest_SetInputProjectionBindings();
 	static GPOS_RESULT EresUnittest_IntersectInputBindingsBuildJoin();
 	static GPOS_RESULT EresUnittest_NarySetOpUsesAssociativeView();
 	static GPOS_RESULT EresUnittest_InstantiatePreservesColumnMaps();

@@ -5,6 +5,8 @@
 
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/common/CAutoRef.h"
+#include <string>
+
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -32,6 +34,8 @@
 #include "gpopt/operators/CLogicalDifference.h"
 #include "gpopt/operators/CLogicalDifferenceAll.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CPhysicalUnion.h"
 #include "gpopt/operators/CPhysicalSetOp.h"
 #include "gpopt/xforms/CXformImplementSetOp.h"
@@ -159,10 +163,10 @@ static CExpression *
 PexprSetOpById(CMemoryPool *mp, COperator::EOperatorId eopid,
 			   CExpression *pexprLeft,
 			   CColRefArray *pdrgpcrLeft, CExpression *pexprRight,
-			   CColRefArray *pdrgpcrRight)
+			   CColRefArray *pdrgpcrRight, CColRefArray *output = nullptr)
 {
 	GPOS_ASSERT(pdrgpcrLeft->Size() == pdrgpcrRight->Size());
-	CColRefArray *pdrgpcrOutput = PdrgpcrCopy(mp, pdrgpcrLeft);
+	CColRefArray *pdrgpcrOutput = PdrgpcrCopy(mp, nullptr == output ? pdrgpcrLeft : output);
 	CColRef2dArray *pdrgpdrgpcrInput = GPOS_NEW(mp) CColRef2dArray(mp);
 	pdrgpdrgpcrInput->Append(PdrgpcrCopy(mp, pdrgpcrLeft));
 	pdrgpdrgpcrInput->Append(PdrgpcrCopy(mp, pdrgpcrRight));
@@ -570,6 +574,7 @@ CDSLUnionTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_MatchAndDistinctGate),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate),
+		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SetInputProjectionBindings),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin),
 		GPOS_UNITTEST_FUNC(
@@ -847,6 +852,74 @@ CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
 		CRefCount::SafeRelease(prule);
 		if (!ok)
 			return GPOS_FAILED;
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_SetInputProjectionBindings()
+{
+	const CHAR *names[] = {"Union", "Union*", "Intersect", "Intersect*", "Except", "Except*"};
+	const COperator::EOperatorId kinds[] = {COperator::EopLogicalUnionAll,
+		COperator::EopLogicalUnion, COperator::EopLogicalIntersectAll,
+		COperator::EopLogicalIntersect, COperator::EopLogicalDifferenceAll,
+		COperator::EopLogicalDifference};
+	for (ULONG kind = 0; kind < GPOS_ARRAY_SIZE(names); ++kind)
+	for (ULONG branch = 0; branch < 2; ++branch)
+	for (ULONG invalid = 0; invalid < 3; ++invalid)
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		std::string rule = std::string(names[kind]) +
+			"<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a3 s1>(Input<t2>)|"
+			"s1 := s0;t2 := t" + std::to_string(branch) + ";";
+		// An available same-width vector is still not a captured positional
+		// program: only a1/a2 paired with s0 establish that correspondence.
+		rule += invalid == 2 ? "OutputAttrs(a3,t" + std::to_string(branch) + ")"
+			: "a3 := a" + std::to_string(invalid ? 0 : branch + 1);
+		CDSLRule *parsed = PdslruleParseLocal(mp, rule.c_str());
+		CColRefArray *left_cols = nullptr, *right_cols = nullptr, *output = nullptr;
+		CExpression *left = fix.PexprLogicalGet("map_left", 2, &left_cols);
+		CExpression *right = fix.PexprLogicalGet("map_right", 2, &right_cols);
+		CExpression *identities = fix.PexprLogicalGet("map_output", 2, &output);
+		CExpression *source = PexprSetOpById(mp, kinds[kind], left, left_cols,
+			right, right_cols, output);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, parsed);
+		CDSLConstraintChecker checker(mp);
+		BOOL ok = nullptr != parsed && matcher.FMatch(parsed->PfragSrc()->PopRoot(), source, model)
+			&& checker.FCheck(parsed, model);
+		CExpression *target = nullptr;
+		if (ok)
+		{
+			CDSLInstantiator instantiator(mp);
+			target = instantiator.PexprInstantiate(parsed, model);
+		}
+		if (invalid)
+			ok &= nullptr == target;
+		else
+		{
+			ok &= nullptr != target && target->Pop()->Eopid() == COperator::EopLogicalGbAgg
+				&& (*target)[0]->Pop()->Eopid() == COperator::EopLogicalProject;
+			if (ok)
+			{
+				CExpression *items = (*(*target)[0])[1];
+				CColRefArray *inputs = branch ? right_cols : left_cols;
+				ok &= FOutputContains(target, output) && items->Arity() == output->Size();
+				for (ULONG i = 0; ok && i < items->Arity(); ++i)
+					ok &= CScalarProjectElement::PopConvert((*items)[i]->Pop())->Pcr() == (*output)[i]
+						&& CScalarIdent::PopConvert((*(*items)[i])[0]->Pop())->Pcr() == (*inputs)[i];
+			}
+		}
+		CRefCount::SafeRelease(target);
+		model->Release();
+		source->Release();
+		left->Release();
+		right->Release();
+		identities->Release();
+		CRefCount::SafeRelease(parsed);
+		if (!ok) return GPOS_FAILED;
 	}
 	return GPOS_OK;
 }
