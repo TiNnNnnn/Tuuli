@@ -117,6 +117,7 @@ DECLARE
   engine text;
   variant text;
   bound integer;
+  offset_count integer;
   query text;
   plan_line text;
   plan_text text;
@@ -129,50 +130,52 @@ BEGIN
   FOREACH engine IN ARRAY ARRAY['postgres', 'orca'] LOOP
     PERFORM set_config('pg_orca.enable_orca', (engine = 'orca')::text, true);
     FOREACH variant IN ARRAY ARRAY['project', 'filter', 'blocking'] LOOP
-      FOR bound IN 0..2 LOOP
-        IF variant = 'filter' THEN
-          query := 'SELECT k AS value FROM demand_stream WHERE k >= 1 AND 10 / divisor > 0 ORDER BY k';
-        ELSE
-          query := 'SELECT 10 / divisor AS value FROM demand_stream WHERE k >= 1 ORDER BY '
-            || CASE WHEN variant = 'blocking' THEN 'value' ELSE 'k' END;
-        END IF;
-        query := query || ' LIMIT ' || bound;
-        plan_text := '';
-        FOR plan_line IN EXECUTE 'EXPLAIN (COSTS ON) ' || query LOOP
-          plan_text := plan_text || plan_line || E'\n';
-        END LOOP;
-        blocking := position('Sort' IN plan_text) > 0;
-        IF (engine = 'orca' AND position('Optimizer: pg_orca' IN plan_text) = 0)
-            OR (engine = 'postgres' AND position('Optimizer: pg_orca' IN plan_text) > 0)
-            OR (bound > 0 AND variant <> 'blocking'
-                AND position('Index Scan' IN plan_text) = 0)
-            OR (bound > 0 AND variant = 'project' AND blocking)
-            OR (bound > 0 AND variant = 'blocking' AND NOT blocking) THEN
-          RAISE EXCEPTION 'unexpected prefix plan: %', plan_text;
-        END IF;
-        result_count := 0;
-        result_state := '00000';
-        BEGIN
-          FOR result_row IN EXECUTE query LOOP
-            IF result_row.value IS DISTINCT FROM (CASE WHEN variant = 'filter' THEN 1 ELSE 10 END) THEN
-              RAISE EXCEPTION 'unexpected prefix row: %', result_row;
-            END IF;
-            result_count := result_count + 1;
+      FOR offset_count IN 0..1 LOOP
+        FOR bound IN 0..2 LOOP
+          IF variant = 'filter' THEN
+            query := 'SELECT k AS value FROM demand_stream WHERE k >= 1 AND 10 / divisor > 0 ORDER BY k';
+          ELSE
+            query := 'SELECT 10 / divisor AS value FROM demand_stream WHERE k >= 1 ORDER BY '
+              || CASE WHEN variant = 'blocking' THEN 'value' ELSE 'k' END;
+          END IF;
+          query := query || ' LIMIT ' || bound || ' OFFSET ' || offset_count;
+          plan_text := '';
+          FOR plan_line IN EXECUTE 'EXPLAIN (COSTS ON) ' || query LOOP
+            plan_text := plan_text || plan_line || E'\n';
           END LOOP;
-        EXCEPTION WHEN division_by_zero THEN
-          result_state := SQLSTATE;
-          result_count := NULL;
-        END;
-        expected_state := CASE WHEN bound = 0 OR (bound = 1 AND NOT blocking)
-          THEN '00000' ELSE '22012' END;
-        IF result_state <> expected_state
-            OR (result_state = '00000' AND result_count <> bound) THEN
-          RAISE EXCEPTION 'unexpected prefix demand: %, %, %, %, %',
-            engine, variant, bound, result_state, result_count;
-        END IF;
-        RAISE NOTICE '%', json_build_object('engine', engine, 'scenario', 'prefix',
-          'variant', variant, 'bound', bound, 'sqlstate', result_state,
-          'rows', result_count, 'blocking', blocking, 'plan', plan_text);
+          blocking := position('Sort' IN plan_text) > 0;
+          IF (engine = 'orca' AND position('Optimizer: pg_orca' IN plan_text) = 0)
+              OR (engine = 'postgres' AND position('Optimizer: pg_orca' IN plan_text) > 0)
+              OR (bound > 0 AND variant <> 'blocking'
+                  AND position('Index Scan' IN plan_text) = 0)
+              OR (bound > 0 AND variant = 'project' AND blocking)
+              OR (bound > 0 AND variant = 'blocking' AND NOT blocking) THEN
+            RAISE EXCEPTION 'unexpected prefix plan: %', plan_text;
+          END IF;
+          result_count := 0;
+          result_state := '00000';
+          BEGIN
+            FOR result_row IN EXECUTE query LOOP
+              IF result_row.value IS DISTINCT FROM (CASE WHEN variant = 'filter' THEN 1 ELSE 10 END) THEN
+                RAISE EXCEPTION 'unexpected prefix row: %', result_row;
+              END IF;
+              result_count := result_count + 1;
+            END LOOP;
+          EXCEPTION WHEN division_by_zero THEN
+            result_state := SQLSTATE;
+            result_count := NULL;
+          END;
+          expected_state := CASE WHEN bound = 0 OR (bound = 1 AND offset_count = 0 AND NOT blocking)
+            THEN '00000' ELSE '22012' END;
+          IF result_state <> expected_state
+              OR (result_state = '00000' AND result_count <> bound) THEN
+            RAISE EXCEPTION 'unexpected prefix demand: %, %, %, %, %, %',
+              engine, variant, bound, offset_count, result_state, result_count;
+          END IF;
+          RAISE NOTICE '%', json_build_object('engine', engine, 'scenario', 'prefix',
+            'variant', variant, 'bound', bound, 'sqlstate', result_state,
+            'offset', offset_count, 'rows', result_count, 'blocking', blocking, 'plan', plan_text);
+        END LOOP;
       END LOOP;
     END LOOP;
   END LOOP;
