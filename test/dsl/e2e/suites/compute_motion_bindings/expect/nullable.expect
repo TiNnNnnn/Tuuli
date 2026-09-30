@@ -1,0 +1,61 @@
+{
+  "description": "Compute/Filter binding chain preserves NULL and empty outcomes; public proof pending.",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9e7233e667eedbe7\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [
+          "CXformDSLRule_Project"
+        ],
+        "forbidden_origins": []
+      }
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      "2,20",
+      "3,30",
+      "4,"
+    ],
+    "postgres_output": [
+      "2,20",
+      "3,30",
+      "4,"
+    ],
+    "off_output": [
+      "2,20",
+      "3,30",
+      "4,"
+    ]
+  }
+}
