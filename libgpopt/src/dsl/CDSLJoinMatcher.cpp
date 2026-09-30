@@ -11,6 +11,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 
 #include <vector>
 
@@ -619,7 +620,8 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	if ((!fExpectedSemiApply && !fExpectedAntiApply && !fExpectedInnerApply &&
 		 !fExpectedLeftOuterApply && !fExpectedAntiApplyNotIn &&
 		 eopid != eopidExpected) ||
-		3 != pexprJoin->Arity())
+		3 != pexprJoin->Arity() ||
+		(bindings && !CDSLExprListUtils::FRowScalar((*pexprJoin)[2])))
 	{
 		return false;
 	}

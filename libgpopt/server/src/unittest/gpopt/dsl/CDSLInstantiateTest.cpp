@@ -1616,6 +1616,36 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			GPOS_TRACE_FORMAT("Compute construction domain: shape=%lu", shape);
 		ok &= (nullptr != target) == valid;
 		CRefCount::SafeRelease(target);
+		if (5 <= shape || 2 == shape)
+		{
+			// SELECT and SELECT DISTINCT consume the same row-level values;
+			// target validation must also cover independently bound lists.
+			for (BOOL distinct : {false, true})
+			{
+				const std::string project_text = std::string("Proj<a0 s0 e0>(Input<t0>)|Proj") +
+					(distinct ? "*" : "") + "<a1 s1 e1>(Input<t1>)|"
+					"a1 := a0;s1 := s0;e1 := e0;t1 := t0";
+				CDSLRule *project_rule = PdslruleParseLocal(mp, project_text.c_str());
+				GPOS_ASSERT(nullptr != project_rule);
+				CDSLModel *project_model = GPOS_NEW(mp) CDSLModel(mp);
+				const CDSLOp *project_pattern = project_rule->PfragSrc()->PopRoot();
+				ok &= CDSLMatcher(mp, project_rule).FMatch(project_pattern, source, project_model) == match_valid;
+				project_model->Release();
+				project_model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= project_model->FBind((*project_pattern->Pdrgpsym())[0], used) &&
+					project_model->FBind((*project_pattern->Pdrgpsym())[1], defined) &&
+					project_model->FBind((*project_pattern->Pdrgpsym())[2], list) &&
+					project_model->FBind((*(*project_pattern)[0]->Pdrgpsym())[0], input);
+				CDSLInstantiator project_builder(mp);
+				target = project_builder.PexprInstantiate(project_rule, project_model);
+				if ((nullptr != target) != valid)
+					GPOS_TRACE_FORMAT("SELECT construction domain: shape=%lu distinct=%d", shape, distinct);
+				ok &= (nullptr != target) == valid;
+				CRefCount::SafeRelease(target);
+				project_model->Release();
+				project_rule->Release();
+			}
+		}
 		defined->Release();
 		used->Release();
 		model->Release();
@@ -1627,7 +1657,20 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			CExpression *value = (*(*source)[1])[0];
 			value = (*value)[0];
 			value->AddRef();
-			CExpression *predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp), value);
+			CExpression *predicate = nullptr;
+			if (8 == shape || 9 == shape)
+			{
+				// A quantified subquery starts a new scope only for its relational
+				// child, not for the left comparison operand evaluated here.
+				CColRefArray *inner_columns = nullptr;
+				CExpression *inner = fix.PexprLogicalGet("quantified_scope", 1, &inner_columns);
+				IMDId *comparison = (*columns)[0]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
+				comparison->AddRef();
+				predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryAny(mp,
+					comparison, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), (*inner_columns)[0]), inner, value);
+			}
+			else
+				predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp), value);
 			CExpression *filter = fix.PexprLogicalSelect(input, predicate);
 			model = GPOS_NEW(mp) CDSLModel(mp);
 			const BOOL filter_matched = CDSLMatcher(mp, filter_rule).FMatch(filter_rule->PfragSrc()->PopRoot(), filter, model);
@@ -1641,11 +1684,59 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			ok &= model->FBind((*filter_pattern->Pdrgpsym())[0], predicate) &&
 				model->FBind((*filter_pattern->Pdrgpsym())[1], used) &&
 				model->FBind((*(*filter_pattern)[0]->Pdrgpsym())[0], input);
-			target = builder.PexprInstantiate(filter_rule, model);
+			CDSLInstantiator filter_builder(mp);
+			target = filter_builder.PexprInstantiate(filter_rule, model);
 			if ((nullptr != target) != valid)
 				GPOS_TRACE_FORMAT("Filter construction domain: shape=%lu", shape);
 			ok &= (nullptr != target) == valid;
 			CRefCount::SafeRelease(target);
+			for (BOOL apply : {false, true})
+			{
+				const std::string op = apply ? "LeftApply" : "InnerJoin";
+				const std::string slots = apply ? "p0 a0 a1 a2" : "p0 a0 a1";
+				const std::string target_slots = apply ? "p1 a3 a4 a5" : "p1 a3 a4";
+				CDSLRule *join_rule = PdslruleParseLocal(mp, (op + "<" + slots +
+					">(Input<t0>,Input<t1>)|" + op + "<" + target_slots +
+					">(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1" +
+					(apply ? ";a5 := a2" : "")).c_str());
+				GPOS_ASSERT(nullptr != join_rule);
+				CColRefArray *right_columns = nullptr;
+				CExpression *right = fix.PexprLogicalGet("row_scope_right", 1, &right_columns);
+				COperator *join_op = nullptr;
+				if (apply)
+				{
+					right_columns->AddRef();
+					join_op = GPOS_NEW(mp) CLogicalLeftOuterApply(mp, right_columns, COperator::EopScalarSubquery);
+				}
+				else
+					join_op = GPOS_NEW(mp) CLogicalInnerJoin(mp);
+				input->AddRef(); predicate->AddRef();
+				CExpression *join = GPOS_NEW(mp) CExpression(mp, join_op, input, right, predicate);
+				const CDSLOp *join_pattern = join_rule->PfragSrc()->PopRoot();
+				CDSLModel *join_model = GPOS_NEW(mp) CDSLModel(mp);
+				ok &= CDSLMatcher(mp, join_rule).FMatch(join_pattern, join, join_model) == valid;
+				join_model->Release();
+				join_model = GPOS_NEW(mp) CDSLModel(mp);
+				CColRefArray *empty = GPOS_NEW(mp) CColRefArray(mp);
+				ok &= join_model->FBind((*join_pattern->Pdrgpsym())[0], predicate) &&
+					join_model->FBind((*join_pattern->Pdrgpsym())[1], used) &&
+					join_model->FBind((*join_pattern->Pdrgpsym())[2], empty) &&
+					(!apply || join_model->FBind((*join_pattern->Pdrgpsym())[3], empty)) &&
+					join_model->FBind((*(*join_pattern)[0]->Pdrgpsym())[0], input) &&
+					join_model->FBind((*(*join_pattern)[1]->Pdrgpsym())[0], right);
+				if (apply)
+				{
+					join->AddRef();
+					ok &= join_model->FSetApplyCarrier((*join_pattern->Pdrgpsym())[0], join);
+				}
+				CDSLInstantiator join_builder(mp);
+				target = join_builder.PexprInstantiate(join_rule, join_model);
+				if ((nullptr != target) != valid)
+					GPOS_TRACE_FORMAT("ON construction domain: shape=%lu apply=%d", shape, apply);
+				ok &= (nullptr != target) == valid;
+				CRefCount::SafeRelease(target);
+				empty->Release(); join_model->Release(); join->Release(); join_rule->Release();
+			}
 			used->Release(); model->Release(); filter->Release(); predicate->Release(); filter_rule->Release();
 		}
 		if (!ok)

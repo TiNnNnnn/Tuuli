@@ -393,7 +393,7 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	if (exact && (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
 		2 != pexprProject->Arity() ||
 		COperator::EopScalarProjectList != (*pexprProject)[1]->Pop()->Eopid() ||
-		(*pexprProject)[1]->DeriveHasNonScalarFunction()))
+		!CDSLExprListUtils::FRowScalar((*pexprProject)[1])))
 	{
 		return false;
 	}

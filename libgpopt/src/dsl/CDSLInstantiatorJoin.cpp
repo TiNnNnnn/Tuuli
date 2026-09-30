@@ -9,6 +9,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
@@ -471,6 +472,18 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		pexprTargetPred->Release();
 		pexprTargetQualifier->Release();
 		pexprTargetPred = pexprQualified;
+	}
+
+	// Check the complete ON, including a separately reconstructed NOT IN
+	// qualifier. Dependency partitions alone do not certify row-level scope.
+	if (m_prule->Pexprdefs()->FHasBindings() &&
+		!CDSLExprListUtils::FRowScalar(pexprTargetPred))
+	{
+		CRefCount::SafeRelease(pexprNotInComparison);
+		pexprTargetPred->Release();
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
 	}
 
 	// build the join operator the TARGET names.
