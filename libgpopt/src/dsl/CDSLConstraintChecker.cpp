@@ -2833,7 +2833,8 @@ CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
 BOOL
 CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 										 const CDSLConstraint *pcon,
-										 const CDSLModel *pmodel) const
+										 const CDSLModel *pmodel,
+										 CDSLInstantiator &materializer) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (1 != pdrgpsym->Size())
@@ -2843,16 +2844,16 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 	const CDSLSymbol *psym = (*pdrgpsym)[0];
 	// Inspect the original artifact, even when a derived alias already has a
 	// value. In particular, Proj attrs also carry a source scalar-list contract.
-	const CDSLSymbol *psymBound = prule->Pexprdefs()->PsymRefRoot(psym);
+	const CDSLSymbol *psymBound = materializer.PsymBindingOrigin(prule, psym);
+	if (nullptr == psymBound) return false;
 	if (nullptr == pmodel->PvalLookup(psymBound))
 	{
 		// Inspect exactly what target construction would build, including nested
 		// definitions and aliases. Do not manufacture missing source captures.
 		if (EdslsymPred == psym->Esymkind())
 		{
-			CDSLInstantiator instantiator(m_mp);
 			CExpression *pexpr =
-				instantiator.PexprInstantiatePredicate(prule, psym, pmodel);
+				materializer.PexprInstantiatePredicate(prule, psym, pmodel);
 			if (nullptr == pexpr)
 			{
 				return false;
@@ -2863,43 +2864,8 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			pexpr->Release();
 			return safe;
 		}
-		// Resolve a target annotation only through an explicit equality to an
-		// already-bound source artifact. Treating an arbitrary unbound target as
-		// safe would silently discard the proof precondition.
-		psymBound = nullptr;
-		CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
-		for (ULONG ul = 0; ul < pdrgpcon->Size() && nullptr == psymBound; ul++)
-		{
-			const CDSLConstraint *pconEq = (*pdrgpcon)[ul];
-			const EDslConstraintKind edslconEq = pconEq->Edslcon();
-			const BOOL fEquality = EdslconTableEq == edslconEq ||
-				EdslconAttrsEq == edslconEq ||
-				EdslconPredicateEq == edslconEq ||
-				EdslconSchemaEq == edslconEq ||
-				EdslconFuncEq == edslconEq ||
-				EdslconScalarEq == edslconEq ||
-				EdslconExprListEq == edslconEq ||
-				EdslconOrderEq == edslconEq ||
-				EdslconWindowEq == edslconEq ||
-				EdslconFrameEq == edslconEq;
-			if (!fEquality || 2 != pconEq->Pdrgpsym()->Size())
-			{
-				continue;
-			}
-			const CDSLSymbol *psym0 = (*pconEq->Pdrgpsym())[0];
-			const CDSLSymbol *psym1 = (*pconEq->Pdrgpsym())[1];
-			const CDSLSymbol *psymPeer =
-				psym0 == psym ? psym1 : (psym1 == psym ? psym0 : nullptr);
-			if (nullptr != psymPeer && psymPeer->Esymkind() == psym->Esymkind() &&
-				nullptr != pmodel->PvalLookup(psymPeer))
-			{
-				psymBound = psymPeer;
-			}
-		}
-		if (nullptr == psymBound)
-		{
-			return false;
-		}
+		// A missing capture is not evidence of scalar safety.
+		return false;
 	}
 
 	CExpression *pexpr = nullptr;
@@ -3246,7 +3212,8 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 BOOL
 CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 							 const CDSLConstraint *pcon,
-								 CDSLModel *pmodel) const
+								 CDSLModel *pmodel,
+								 CDSLInstantiator &materializer) const
 {
 	switch (pcon->Edslcon())
 	{
@@ -3336,7 +3303,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckEmptyInputCompensation(pcon, pmodel);
 		case EdslconErrorFree:
 		case EdslconDeterministic:
-			return FCheckScalarProperty(prule, pcon, pmodel);
+			return FCheckScalarProperty(prule, pcon, pmodel, materializer);
 		case EdslconExprConcat:
 			return FCheckExprConcat(pcon, pmodel);
 		case EdslconExprNulls:
@@ -3410,12 +3377,12 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 		const BOOL columns =
 			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon());
 		if ((columns && !materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, true)) ||
-			!FCheckOne(prule, constraint, pmodel) ||
+			!FCheckOne(prule, constraint, pmodel, materializer) ||
 			!materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, false) ||
 			// An unbound target alias may resolve to a non-literal source value.
 			// Check its materialized value, not just its permission to be constructed.
 			(CDSLConstraintKindTable::FScalarLiteral(constraint->Edslcon()) &&
-			 !FCheckOne(prule, constraint, pmodel)))
+			 !FCheckOne(prule, constraint, pmodel, materializer)))
 		{
 			if (nullptr != ppconFailed)
 			{

@@ -47,6 +47,8 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CDSLInstantiator;
+
 //---------------------------------------------------------------------------
 //	@class:
 //		CDSLConstraintChecker
@@ -63,7 +65,7 @@ private:
 	// dispatch one constraint; returns true if it holds (or is a no-op class
 	// constraint handled elsewhere).
 	BOOL FCheckOne(const CDSLRule *prule, const CDSLConstraint *pcon,
-				   CDSLModel *pmodel) const;
+				   CDSLModel *pmodel, CDSLInstantiator &materializer) const;
 
 	// *Eq: check two source-side bindings when both are present; an unbound
 	// target-side symbol is deferred to instantiation alias resolution.
@@ -188,7 +190,7 @@ private:
 	// substitution while rejecting unknown, volatile, or set-returning shapes.
 	BOOL FCheckScalarProperty(const CDSLRule *prule,
 						  const CDSLConstraint *pcon,
-						  const CDSLModel *pmodel) const;
+						  const CDSLModel *pmodel, CDSLInstantiator &materializer) const;
 
 	// NullOnEmpty(f): all bound aggregate functions produce NULL on empty input.
 	BOOL FCheckNullOnEmpty(const CDSLConstraint *pcon,
