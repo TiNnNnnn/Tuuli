@@ -679,16 +679,19 @@ CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLOrderLimitTest::EresUnittest_TargetScalarConstants()
+static GPOS_RESULT
+EresTargetScalarConstants(ULONG mode)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CExpression *pexprGet = fix.PexprLogicalGet("target_constants", 1, nullptr);
-	CDSLRule *prule = Prule(mp,
-		"Input<t0>|Limit<n0 n1>(Input<t1>)|"
-		"TableEq(t1,t0);ScalarOne(n0);ScalarZero(n1)");
+	const CHAR *rules[] = {
+		"Input<t0>|Limit<n0 n1>(Input<t1>)|TableEq(t1,t0);ScalarOne(n0);ScalarZero(n1)",
+		"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;ScalarOne(n0);ScalarZero(n1)",
+		"Input<t0>|Limit<n0 n1>(Input<t1>)|t1 := t0;n0 := n2;ScalarOne(n2);ScalarZero(n1)",
+		"Input<t0>|Limit<n0 n1>(Input<t1>)|ScalarZero(n1);ScalarOne(n0);t1 := t0"};
+	CDSLRule *prule = Prule(mp, rules[mode]);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 	CDSLConstraintChecker checker(mp);
@@ -722,6 +725,39 @@ CDSLOrderLimitTest::EresUnittest_TargetScalarConstants()
 	CRefCount::SafeRelease(prule);
 	pexprGet->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_TargetScalarConstants()
+{
+	for (ULONG mode = 0; mode < 4; mode++)
+		if (GPOS_OK != EresTargetScalarConstants(mode)) return GPOS_FAILED;
+	// A cross-side alias must check the captured value after materialization.
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *get = fix.PexprLogicalGet("literal_alias", 1, nullptr);
+	BOOL valid = true;
+	for (BOOL typed : {false, true})
+	{
+		CDSLRule *rule = Prule(mp, typed
+			? "Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|t1 := t0;ScalarEq(n2,n0);n3 := n1;ScalarOne(n2)"
+			: "Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|TableEq(t1,t0);ScalarEq(n2,n0);ScalarEq(n3,n1);ScalarOne(n2)");
+		for (LINT count = 0; count < 2; count++)
+		{
+			CExpression *source = PexprLimit(mp, get, GPOS_NEW(mp) COrderSpec(mp), true, 0, count);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			CDSLConstraintChecker checker(mp);
+			valid &= nullptr != rule && matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
+				checker.FCheck(rule, model) == (count == 1);
+			model->Release();
+			source->Release();
+		}
+		CRefCount::SafeRelease(rule);
+	}
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 // EOF

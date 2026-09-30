@@ -511,7 +511,15 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 		return value;
 	}
 
-	return PexprResolveLegacyScalar(psym);
+	for (ULONG i = 0; i < m_prule->Pdrgpcon()->Size(); i++)
+	{
+		const auto *constraint = (*m_prule->Pdrgpcon())[i];
+		if (CDSLConstraintKindTable::FScalarLiteral(constraint->Edslcon()) &&
+			(*constraint->Pdrgpsym())[0] == psymResolved)
+			return CUtils::PexprScalarConstInt8(m_mp,
+				EdslconScalarOne == constraint->Edslcon() ? 1 : 0);
+	}
+	return nullptr;
 }
 
 CExpression *

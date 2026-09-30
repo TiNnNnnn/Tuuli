@@ -8,6 +8,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"831ce8e14d3ab8af\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"fe485727823f14f8\"",
         "\"failed_constraint\":\"ScalarOne\""
       ],
       "not_contains": [

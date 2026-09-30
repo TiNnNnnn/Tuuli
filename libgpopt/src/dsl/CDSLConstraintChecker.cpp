@@ -3399,7 +3399,11 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon());
 		if ((columns && !materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, true)) ||
 			!FCheckOne(prule, constraint, pmodel) ||
-			!materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, false))
+			!materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, false) ||
+			// An unbound target alias may resolve to a non-literal source value.
+			// Check its materialized value, not just its permission to be constructed.
+			(CDSLConstraintKindTable::FScalarLiteral(constraint->Edslcon()) &&
+			 !FCheckOne(prule, constraint, pmodel)))
 		{
 			if (nullptr != ppconFailed)
 			{
