@@ -134,11 +134,15 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 	if (EdslconOrderEmpty == pcon->Edslcon())
 	{
 		const CDSLSymbol *psymOrder = (*pdrgpsym)[0];
-		COrderSpecArray *pdrgpos = pmodel->PdrgposOrder(psymOrder);
+		const CDSLSymbol *resolved = PsymResolve(psymOrder);
+		COrderSpecArray *pdrgpos = pmodel->PdrgposOrder(resolved);
 		if (nullptr != pdrgpos)
 		{
-			return 0 == pdrgpos->Size();
+			return CDSLConstraintChecker::FEmptyOrder(pdrgpos) &&
+				(resolved == psymOrder || pmodel->FBindDerived(psymOrder, pdrgpos));
 		}
+		// A reference must retain its captured value, not invent an empty order.
+		if (resolved != psymOrder) return false;
 		pdrgpos = GPOS_NEW(m_mp) COrderSpecArray(m_mp);
 		const BOOL fBound = pmodel->FBindDerived(psymOrder, pdrgpos);
 		pdrgpos->Release();

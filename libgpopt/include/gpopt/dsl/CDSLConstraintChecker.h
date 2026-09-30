@@ -218,6 +218,8 @@ private:
 
 public:
 	CDSLConstraintChecker(const CDSLConstraintChecker &) = delete;
+	// SequenceProject represents no ordering by one empty order specification.
+	static BOOL FEmptyOrder(const COrderSpecArray *orders);
 	// Sufficient evidence that early termination and full query evaluation
 	// agree. Unknown/errorful or non-repeatable inputs are not evidence.
 	// Scalar operands use the same totality/determinism traversal.
