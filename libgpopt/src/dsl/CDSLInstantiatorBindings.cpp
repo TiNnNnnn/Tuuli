@@ -386,7 +386,13 @@ CDSLInstantiator::PdrgpexprResolveArguments(const CDSLSymbol *symbol,
 		depth > m_prule->Pexprdefs()->UlDefinitions()) return nullptr;
 	symbol = PsymResolve(symbol);
 	auto *bound = static_cast<CExpressionArray *>(model->PvalLookup(symbol));
-	if (nullptr != bound) { bound->AddRef(); return bound; }
+	if (nullptr != bound)
+	{
+		for (ULONG i = 0; i < bound->Size(); ++i)
+			if (!CDSLMatchView::FScalarValue((*bound)[i])) return nullptr;
+		bound->AddRef();
+		return bound;
+	}
 	const auto *def = m_prule->Pexprdefs()->Pdef(symbol);
 	if (nullptr == def || CDSLExpressionDefinitions::EBuild != def->Binding()) return nullptr;
 	if (EdslexprRef == def->Edslexpr())
@@ -426,6 +432,8 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 	CExpression *pexpr = pmodel->PexprScalar(psymResolved);
 	if (nullptr != pexpr)
 	{
+		if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings() &&
+			!CDSLMatchView::FScalarValue(pexpr)) return nullptr;
 		pexpr->AddRef();
 		return pexpr;
 	}

@@ -42,13 +42,32 @@
 using namespace gpopt;
 
 BOOL
+CDSLMatchView::FScalarValue(const CExpression *expression)
+{
+	if (nullptr == expression || !expression->Pop()->FScalar())
+		return false;
+	switch (expression->Pop()->Eopid())
+	{
+		case COperator::EopScalarProjectList:
+		case COperator::EopScalarProjectElement:
+		case COperator::EopScalarValuesList:
+		case COperator::EopScalarSwitchCase:
+		case COperator::EopScalarArrayRefIndexList:
+		case COperator::EopScalarSortGroupClause:
+		case COperator::EopScalarAssertConstraint:
+		case COperator::EopScalarAssertConstraintList:
+		case COperator::EopScalarBitmapIndexProbe:
+		case COperator::EopScalarBitmapBoolOp:
+			return false;
+		default:
+			return true;
+	}
+}
+
+BOOL
 CDSLMatchView::FBooleanValue(const CExpression *expression)
 {
-	if (nullptr == expression || !expression->Pop()->FScalar() ||
-		COperator::EopScalarProjectList == expression->Pop()->Eopid() ||
-		COperator::EopScalarProjectElement == expression->Pop()->Eopid())
-		return false;
-	return IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+	return FScalarValue(expression) && IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
 		CScalar::PopConvert(expression->Pop())->MdidType())->GetDatumType();
 }
 
@@ -84,9 +103,12 @@ FImmutableCallTree(const CExpression *expression)
 BOOL
 CDSLMatchView::FScalarCall(const CExpression *expression)
 {
+	if (nullptr == expression) return false;
 	const auto id = expression->Pop()->Eopid();
 	if (COperator::EopScalarFunc != id && COperator::EopScalarOp != id &&
 		COperator::EopScalarCmp != id) return false;
+	for (ULONG i = 0; i < expression->Arity(); ++i)
+		if (!FScalarValue((*expression)[i])) return false;
 	// Property derivation only populates CExpression's existing property cache.
 	CExpression *derived = const_cast<CExpression *>(expression);
 	// Typed argument matching validates each exposed subquery independently;
@@ -101,10 +123,12 @@ BOOL
 CDSLMatchView::FCallArgumentTypes(const CExpression *source,
 	const CExpressionArray *arguments)
 {
-	if (nullptr == arguments || source->Arity() != arguments->Size())
+	if (nullptr == source || nullptr == arguments || source->Arity() != arguments->Size())
 		return false;
 	for (ULONG i = 0; i < source->Arity(); ++i)
 	{
+		if (!FScalarValue((*source)[i]) || !FScalarValue((*arguments)[i]))
+			return false;
 		const auto *before = CScalar::PopConvert((*source)[i]->Pop());
 		const auto *after = CScalar::PopConvert((*arguments)[i]->Pop());
 		if (!before->MdidType()->Equals(after->MdidType()) ||
@@ -149,10 +173,10 @@ CDSLMatchView::FQuantifiedInputs(const CExpression *source, CExpression *query,
 		 COperator::EopScalarSubqueryAny != source->Pop()->Eopid() &&
 		 COperator::EopScalarSubqueryAll != source->Pop()->Eopid()) ||
 		2 != source->Arity() || 1 != arguments->Size() || !query->Pop()->FLogical() ||
-		!(*source)[1]->Pop()->FScalar() || !(*arguments)[0]->Pop()->FScalar())
+		!FScalarValue((*source)[1]) || !FScalarValue((*arguments)[0]))
 		return false;
 	const BOOL scalar = COperator::EopScalarCmp == source->Pop()->Eopid();
-	if (scalar && !(*source)[0]->Pop()->FScalar()) return false;
+	if (scalar && !FScalarValue((*source)[0])) return false;
 	const auto *before = CScalar::PopConvert((*source)[scalar ? 0 : 1]->Pop());
 	const auto *after = CScalar::PopConvert((*arguments)[0]->Pop());
 	const auto *quantified = scalar ? nullptr : CScalarSubqueryQuantified::PopConvert(source->Pop());

@@ -60,6 +60,8 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitio
 	GPOS_CHECK_STACK_SIZE;
 	if (depth > definitions->UlDefinitions())
 		return false;
+	for (ULONG i = 0; i < arguments->Size(); ++i)
+		if (!CDSLMatchView::FScalarValue((*arguments)[i])) return false;
 	const auto *existing = static_cast<CExpressionArray *>(model->PvalLookup(symbol));
 	if (nullptr != existing)
 	{
@@ -99,6 +101,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 {
 	GPOS_CHECK_STACK_SIZE;
 	if (depth > definitions->UlDefinitions() ||
+		(EdslsymScalar == symbol->Esymkind() && !CDSLMatchView::FScalarValue(expression)) ||
 		(EdslsymPred == symbol->Esymkind() && !CDSLMatchView::FBooleanValue(expression)))
 	{
 		return false;
@@ -242,10 +245,10 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 			return false;
 		const auto *result = CScalar::PopConvert(expression->Pop());
 		for (ULONG i = 1; i < 3; ++i)
-			if (!result->MdidType()->Equals(CScalar::PopConvert((*expression)[i]->Pop())->MdidType()))
+			if (!CDSLMatchView::FScalarValue((*expression)[i]) ||
+				!result->MdidType()->Equals(CScalar::PopConvert((*expression)[i]->Pop())->MdidType()))
 				return false;
-		if (IMDType::EtiBool != COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
-			CScalar::PopConvert((*expression)[0]->Pop())->MdidType())->GetDatumType())
+		if (!CDSLMatchView::FBooleanValue((*expression)[0]))
 			return false;
 		for (ULONG i = 0; i < 3; ++i)
 			if (!FMatchExpressionBinding(mp, definitions, def->PsymOperand(i),

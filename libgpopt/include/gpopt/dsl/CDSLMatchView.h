@@ -35,9 +35,12 @@ public:
 	// computed outputs and every child; never peel unrelated projections.
 	static CExpression *PexprSingleColumnProject(CMemoryPool *mp,
 		CExpression *expression, const CColRef *column);
-	// Native eager scalar calls only; no lazy, set-returning, volatile or
-	// subquery semantics. Reuse the resolved operator, never resolve by name.
+	// Native eager scalar calls only; no lazy, set-returning or volatile heads.
+	// Typed subquery operands are checked separately. Reuse the resolved operator.
 	static BOOL FScalarCall(const CExpression *expression);
+	// SQL value carrier, not a scalar structural node (lists, CASE arms, etc.).
+	// This is a kind check, not recursive type/phase/scope admission.
+	static BOOL FScalarValue(const CExpression *expression);
 	// Predicate captures must be Boolean values, including nullable ones.
 	static BOOL FBooleanValue(const CExpression *expression);
 	static BOOL FCallArgumentTypes(const CExpression *source,

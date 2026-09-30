@@ -2,6 +2,7 @@
 //	MONSOON DSL expression-list algebra
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CFunctionProp.h"
@@ -34,12 +35,9 @@ CDSLExprListUtils::FTypedProjectElement(const CExpression *pexpr)
 {
 	if (nullptr == pexpr ||
 		COperator::EopScalarProjectElement != pexpr->Pop()->Eopid() ||
-		1 != pexpr->Arity() || !(*pexpr)[0]->Pop()->FScalar())
+		1 != pexpr->Arity() || !CDSLMatchView::FScalarValue((*pexpr)[0]))
 		return false;
 	const CScalar *value = CScalar::PopConvert((*pexpr)[0]->Pop());
-	if (COperator::EopScalarProjectList == value->Eopid() ||
-		COperator::EopScalarProjectElement == value->Eopid())
-		return false;
 	return CScalarProjectElement::PopConvert(pexpr->Pop())->Pcr()->RetrieveType()->MDId()->Equals(
 		value->MdidType());
 }
