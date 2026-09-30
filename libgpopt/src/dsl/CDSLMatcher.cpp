@@ -259,8 +259,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		if (0 == def->Arity())
 			return 0 == expression->Arity();
 		if (0 == expression->Arity() ||
-			COperator::EopScalarProjectElement != (*expression)[0]->Pop()->Eopid() ||
-			1 != (*expression)[0]->Arity())
+			!CDSLExprListUtils::FTypedProjectElement((*expression)[0]))
 			return false;
 		CExpression *head = (*expression)[0];
 		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);

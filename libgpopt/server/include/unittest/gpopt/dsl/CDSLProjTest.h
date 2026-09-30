@@ -66,6 +66,7 @@ public:
 	// Compute captures the exact ProjectList independently of Proj's relational
 	// projection view, and can reuse it without changing LET semantics.
 	static GPOS_RESULT EresUnittest_ComputeExactRoundTrip();
+	static GPOS_RESULT EresUnittest_TypedProjectResultTypes();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedScalarSubquery();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedSubqueryChain();
 	static GPOS_RESULT EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate();

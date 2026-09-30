@@ -392,7 +392,7 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 	// not the legacy compatibility views. Set-returning items are not scalar values.
 	if (exact && (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
 		2 != pexprProject->Arity() ||
-		COperator::EopScalarProjectList != (*pexprProject)[1]->Pop()->Eopid() ||
+		!CDSLExprListUtils::FTypedProjectList((*pexprProject)[1]) ||
 		!CDSLExprListUtils::FRowScalar((*pexprProject)[1])))
 	{
 		return false;

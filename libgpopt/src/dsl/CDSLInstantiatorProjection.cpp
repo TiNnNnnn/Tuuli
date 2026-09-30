@@ -675,7 +675,7 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 				GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
 			source_attrs = attrs;
 		}
-		BOOL outputs_match = CDSLExprListUtils::FProjectList(list) &&
+		BOOL outputs_match = CDSLExprListUtils::FTypedProjectList(list) &&
 			CDSLExprListUtils::FRowScalar(list) &&
 			nullptr != schema && list->Arity() == schema->Size();
 		for (ULONG i = 0; outputs_match && i < schema->Size(); ++i)

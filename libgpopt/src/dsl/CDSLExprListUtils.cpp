@@ -5,6 +5,7 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CFunctionProp.h"
+#include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
 using namespace gpopt;
@@ -29,6 +30,32 @@ CDSLExprListUtils::FProjectList(const CExpression *pexpr)
 }
 
 BOOL
+CDSLExprListUtils::FTypedProjectElement(const CExpression *pexpr)
+{
+	if (nullptr == pexpr ||
+		COperator::EopScalarProjectElement != pexpr->Pop()->Eopid() ||
+		1 != pexpr->Arity() || !(*pexpr)[0]->Pop()->FScalar())
+		return false;
+	const CScalar *value = CScalar::PopConvert((*pexpr)[0]->Pop());
+	if (COperator::EopScalarProjectList == value->Eopid() ||
+		COperator::EopScalarProjectElement == value->Eopid())
+		return false;
+	return CScalarProjectElement::PopConvert(pexpr->Pop())->Pcr()->RetrieveType()->MDId()->Equals(
+		value->MdidType());
+}
+
+BOOL
+CDSLExprListUtils::FTypedProjectList(const CExpression *pexpr)
+{
+	if (!FProjectList(pexpr))
+		return false;
+	for (ULONG i = 0; i < pexpr->Arity(); ++i)
+		if (!FTypedProjectElement((*pexpr)[i]))
+			return false;
+	return true;
+}
+
+BOOL
 CDSLExprListUtils::FRowScalar(CExpression *pexpr)
 {
 	GPOS_CHECK_STACK_SIZE;
@@ -46,7 +73,7 @@ CDSLExprListUtils::FRowScalar(CExpression *pexpr)
 BOOL
 CDSLExprListUtils::FComputeList(CExpression *pexpr)
 {
-	return FProjectList(pexpr) && FRowScalar(pexpr) &&
+	return FTypedProjectList(pexpr) && FRowScalar(pexpr) &&
 		pexpr->DeriveDefinedColumns()->Size() == pexpr->Arity() &&
 		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns());
 }
