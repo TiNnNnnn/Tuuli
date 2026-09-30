@@ -17,6 +17,7 @@ SET LOCAL jit = off;
 SET LOCAL client_min_messages = notice;
 SET LOCAL statement_timeout = '1min';
 SET LOCAL pg_orca.enable_dsl_rule = off;
+SET LOCAL pg_orca.trace_fallback = on;
 
 DO $probe$
 DECLARE
@@ -99,4 +100,82 @@ BEGIN
   END LOOP;
 END
 $probe$;
+
+-- A late error has the same complete outcome as an immediate error, but not
+-- the same prefix. Use an ordered index path to avoid an accidental blocking
+-- sort in the projection control. The value-order case deliberately blocks;
+-- Filter plans are classified by their actual demand (ORCA may add a Sort).
+CREATE TEMP TABLE demand_stream(k integer PRIMARY KEY, divisor integer);
+INSERT INTO demand_stream VALUES (1, 1), (2, 0);
+ANALYZE demand_stream;
+SET LOCAL enable_seqscan = off;
+SET LOCAL enable_bitmapscan = off;
+SET LOCAL enable_indexscan = on;
+
+DO $prefix$
+DECLARE
+  engine text;
+  variant text;
+  bound integer;
+  query text;
+  plan_line text;
+  plan_text text;
+  result_row record;
+  result_count integer;
+  result_state text;
+  expected_state text;
+  blocking boolean;
+BEGIN
+  FOREACH engine IN ARRAY ARRAY['postgres', 'orca'] LOOP
+    PERFORM set_config('pg_orca.enable_orca', (engine = 'orca')::text, true);
+    FOREACH variant IN ARRAY ARRAY['project', 'filter', 'blocking'] LOOP
+      FOR bound IN 0..2 LOOP
+        IF variant = 'filter' THEN
+          query := 'SELECT k AS value FROM demand_stream WHERE k >= 1 AND 10 / divisor > 0 ORDER BY k';
+        ELSE
+          query := 'SELECT 10 / divisor AS value FROM demand_stream WHERE k >= 1 ORDER BY '
+            || CASE WHEN variant = 'blocking' THEN 'value' ELSE 'k' END;
+        END IF;
+        query := query || ' LIMIT ' || bound;
+        plan_text := '';
+        FOR plan_line IN EXECUTE 'EXPLAIN (COSTS ON) ' || query LOOP
+          plan_text := plan_text || plan_line || E'\n';
+        END LOOP;
+        blocking := position('Sort' IN plan_text) > 0;
+        IF (engine = 'orca' AND position('Optimizer: pg_orca' IN plan_text) = 0)
+            OR (engine = 'postgres' AND position('Optimizer: pg_orca' IN plan_text) > 0)
+            OR (bound > 0 AND variant <> 'blocking'
+                AND position('Index Scan' IN plan_text) = 0)
+            OR (bound > 0 AND variant = 'project' AND blocking)
+            OR (bound > 0 AND variant = 'blocking' AND NOT blocking) THEN
+          RAISE EXCEPTION 'unexpected prefix plan: %', plan_text;
+        END IF;
+        result_count := 0;
+        result_state := '00000';
+        BEGIN
+          FOR result_row IN EXECUTE query LOOP
+            IF result_row.value IS DISTINCT FROM (CASE WHEN variant = 'filter' THEN 1 ELSE 10 END) THEN
+              RAISE EXCEPTION 'unexpected prefix row: %', result_row;
+            END IF;
+            result_count := result_count + 1;
+          END LOOP;
+        EXCEPTION WHEN division_by_zero THEN
+          result_state := SQLSTATE;
+          result_count := NULL;
+        END;
+        expected_state := CASE WHEN bound = 0 OR (bound = 1 AND NOT blocking)
+          THEN '00000' ELSE '22012' END;
+        IF result_state <> expected_state
+            OR (result_state = '00000' AND result_count <> bound) THEN
+          RAISE EXCEPTION 'unexpected prefix demand: %, %, %, %, %',
+            engine, variant, bound, result_state, result_count;
+        END IF;
+        RAISE NOTICE '%', json_build_object('engine', engine, 'scenario', 'prefix',
+          'variant', variant, 'bound', bound, 'sqlstate', result_state,
+          'rows', result_count, 'blocking', blocking, 'plan', plan_text);
+      END LOOP;
+    END LOOP;
+  END LOOP;
+END
+$prefix$;
 ROLLBACK;
