@@ -18,15 +18,15 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"2ce93c5c16f91516\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"83cfde15ff305296\"",
         "\"failed_constraint\":\"ErrorFree\"",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8942e3fc0aa30e13\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"b489071f2f958778\"",
         "\"failed_constraint\":\"NullOnEmpty\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"2ce93c5c16f91516\"",
-        "\"status\":\"applied\",\"rule_hash\":\"8942e3fc0aa30e13\""
+        "\"status\":\"applied\",\"rule_hash\":\"83cfde15ff305296\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b489071f2f958778\""
       ],
       "provenance": {
         "required_sources": [],

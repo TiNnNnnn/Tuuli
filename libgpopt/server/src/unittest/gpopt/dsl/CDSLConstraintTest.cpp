@@ -120,13 +120,18 @@ EresAggregateTotalityScope()
 			: fix.PexprLogicalGet("count_unbounded", 1);
 		CExpression *aggregate = CUtils::PexprCountStar(mp, input);
 		for (BOOL function : {false, true})
+		for (ULONG reference = 0; reference < 3; ++reference)
 		{
 			// A finite invocation is safe, but does not make COUNT universally
 			// total. These identity templates exercise properties, not rewrites.
-			CDSLRule *rule = PdslruleParseLocal(mp, function
+			std::string text = function
 				? "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|"
-				  "t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;ErrorFree(f0)"
-				: "Input<t0>|Input<t1>|t1 := t0;ErrorFree(t0)");
+				  "t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;"
+				: "Input<t0>|Input<t1>|t1 := t0;";
+			if (reference == 2) text += function ? "f2 := f1;" : "t2 := t1;";
+			text += std::string("ErrorFree(") + (function ? "f" : "t") +
+				std::to_string(reference) + ")";
+			CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
 			if (nullptr == rule) { aggregate->Release(); return GPOS_FAILED; }
 			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 			const BOOL matched = CDSLMatcher(mp, rule).FMatch(
@@ -177,8 +182,8 @@ EresDeterministicOperatorHeads()
 			"Deterministic(p1);PredicateNot(p1,p0);TableEq(t1,t0);AttrsEq(a1,a0)"})
 		{
 			// Property-only fixture: no equivalence of this tree rewrite is asserted.
-			// New bindings require source premises; legacy target annotations
-			// must inspect the same operator metadata after construction.
+			// Source and target annotations must inspect the same operator
+			// metadata, not infer safety from a binding declaration.
 			CDSLRule *rule = PdslruleParseLocal(mp, text);
 			if (nullptr == rule) { predicate->Release(); input->Release(); return GPOS_FAILED; }
 			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
@@ -191,6 +196,28 @@ EresDeterministicOperatorHeads()
 					stability, comparison, wrapped, accepted, text);
 			ok &= accepted == (0 == stability);
 			model->Release(); rule->Release();
+		}
+		// An attrs alias must retain its source projection's scalar program,
+		// even if another metadata check has already materialized the vector.
+		for (BOOL materialized : {false, true})
+		{
+			CDSLRule *rule = PdslruleParseLocal(mp,
+				"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
+				"t1 := t0;a1 := a2;a2 := a0;s1 := s0;Deterministic(a1)");
+			input->AddRef();
+			predicate->AddRef();
+			CExpression *project = CUtils::PexprAddProjection(mp, input, predicate);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL matched = nullptr != rule && CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), project, model);
+			if (matched && materialized)
+				model->FBindDerived((*(*rule->Pdrgpcon())[0]->Pdrgpsym())[0],
+					model->PvalLookup(PsymByName(rule, "a0")));
+			const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
+			ok &= matched && accepted == (0 == stability);
+			model->Release();
+			CRefCount::SafeRelease(rule);
+			project->Release();
 		}
 		predicate->Release();
 	}

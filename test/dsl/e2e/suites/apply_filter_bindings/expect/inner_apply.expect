@@ -19,7 +19,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"397081c4258773d1\"",
-        "\"status\":\"applied\",\"rule_hash\":\"f37a8d740d9c9122\""
+        "\"status\":\"applied\",\"rule_hash\":\"292e0d5b7ebecb34\""
       ],
       "not_contains": [
         "Falling back to Postgres"

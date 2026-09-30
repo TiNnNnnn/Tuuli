@@ -18,7 +18,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"73995c3fd0397606\""
+        "\"status\":\"applied\",\"rule_hash\":\"e20c123c0bad1258\""
       ],
       "not_contains": [
         "Falling back to Postgres"

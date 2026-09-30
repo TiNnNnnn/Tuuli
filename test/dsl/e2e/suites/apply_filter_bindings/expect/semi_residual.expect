@@ -14,7 +14,7 @@
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"e67604b45b30344e\""
+        "\"status\":\"applied\",\"rule_hash\":\"0cb98fb3ed1a4ac0\""
       ],
       "provenance": {
         "required_sources": [],
