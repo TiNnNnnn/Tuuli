@@ -1,0 +1,60 @@
+{
+  "description": "Constructed Compute items retain captured outer references",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b1692bbdf800914c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "construct.policy",
+    "output": [
+      ",",
+      "1,t",
+      "3,f",
+      "2,f",
+      "2,f",
+      "0,t"
+    ],
+    "postgres_output": [
+      ",",
+      "1,t",
+      "3,f",
+      "2,f",
+      "2,f",
+      "0,t"
+    ],
+    "off_output": [
+      ",",
+      "1,t",
+      "3,f",
+      "2,f",
+      "2,f",
+      "0,t"
+    ]
+  }
+}

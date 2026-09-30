@@ -23,6 +23,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRewriteProgram.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
@@ -707,14 +708,16 @@ EresComputeFilterBindings(BOOL typed, BOOL subquery, BOOL correlated_items)
 }
 
 static GPOS_RESULT
-EresComputeCapturedScope()
+EresComputeCapturedScope(BOOL constructed)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	// Construction-domain checks, not equivalence claims: removing the right
 	// input must not reinterpret its local column as an external reference.
-	CDSLRule *rule = PdslruleParseLocal(mp,
+	CDSLRule *rule = PdslruleParseLocal(mp, constructed ?
+		"Compute<Item(n0,a6,e0) a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
+		"Compute<Item(n0,a6,e0) a3 s1>(Input<t2>)|t2 := t0;a3 := a0;s1 := s0" :
 		"Compute<e0 a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
 		"Compute<e1 a3 s1>(Input<t2>)|t2 := t0;e1 := e0;a3 := a0;s1 := s0");
 	GPOS_UNITTEST_ASSERT(nullptr != rule);
@@ -730,6 +733,35 @@ EresComputeCapturedScope()
 		CExpression *source = PexprProjectWithScalar(mp, join,
 			fix.PcrCreateInt4("scope_item"),
 			CUtils::PexprScalarIdent(mp, outer ? external : (*right_columns)[0]));
+		// Export and consume the same rooted Compute, including outer columns.
+		// This roundtrip checks the adapter, not an optimization equivalence.
+		std::string exported, error;
+		if (!CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) ||
+			0 != exported.find("Compute<Item(Column("))
+		{
+			GPOS_TRACE_FORMAT("Compute scope export outer=%d: %s; %s",
+				outer, exported.c_str(), error.c_str());
+			result = GPOS_FAILED;
+		}
+		else
+		{
+			std::string rebuilt = exported;
+			rebuilt.replace(rebuilt.rfind(" a0 s0>"), std::string::npos,
+				" a100 s100>(Input<t100>)");
+			CDSLRule *roundtrip = PdslruleParseLocal(mp, (exported + "|" + rebuilt +
+				"|a100 := a0;s100 := s0;t100 := t0").c_str());
+			CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
+			CExpression *restored = nullptr;
+			if (nullptr != roundtrip && CDSLMatcher(mp, roundtrip).FMatch(
+				roundtrip->PfragSrc()->PopRoot(), source, captured))
+				restored = CDSLInstantiator(mp).PexprInstantiate(roundtrip, captured);
+			if (nullptr == restored || !restored->Matches(source) ||
+				!restored->DeriveOuterReferences()->Equals(source->DeriveOuterReferences()))
+				result = GPOS_FAILED;
+			CRefCount::SafeRelease(restored);
+			captured->Release();
+			CRefCount::SafeRelease(roundtrip);
+		}
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, rule);
 		CDSLConstraintChecker checker(mp);
@@ -785,7 +817,8 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 			}
 		}
 	}
-	return EresComputeCapturedScope();
+	if (GPOS_OK != EresComputeCapturedScope(false)) return GPOS_FAILED;
+	return EresComputeCapturedScope(true);
 }
 
 GPOS_RESULT

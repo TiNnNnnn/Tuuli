@@ -639,7 +639,7 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 		available->Union((*expr)[i]->DeriveOutputColumns());
 	const BOOL local = available->ContainsAll((*expr)[children]->DeriveUsedColumns());
 	available->Release();
-	if (!local && EdslopFilter != kind)
+	if (!local && EdslopFilter != kind && !project)
 		return false;
 	std::string inputs;
 	for (ULONG i = 0; i < children; ++i)
@@ -655,7 +655,8 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	{
 		// LogicalProject appends definitions while retaining its input columns.
 		// Expanding its values must preserve Compute, not turn it into SELECT.
-		// The local dependency check excludes references to sibling definitions.
+		// Outer references are valid; FSlice's production matcher checks fresh
+		// outputs and sibling independence, and captures the original scope.
 		// Unsupported value internals remain typed scalar captures, not guesses.
 		std::string list;
 		for (ULONG i = 0; i < (*expr)[1]->Arity(); ++i)
