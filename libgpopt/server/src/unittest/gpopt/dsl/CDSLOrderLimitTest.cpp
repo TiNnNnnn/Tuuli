@@ -17,6 +17,7 @@
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
+#include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
@@ -404,21 +405,33 @@ CDSLOrderLimitTest::EresUnittest_WindowFilterBindings()
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
 	for (BOOL framed : {false, true})
+	for (ULONG wrappers = 0; wrappers < 3; ++wrappers)
 	{
-		const std::string tree = (framed ? "Window<a0 o0 m0 w0>" : "WindowRows<a0 o0 w0>") +
-			std::string("(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(") +
-			(framed ? "Window<a3 o1 m1 w1>" : "WindowRows<a3 o1 w1>") + "(Input<t1>))|";
+		const std::string window = framed ? "Window<a0 o0 m0 w0>" : "WindowRows<a0 o0 w0>";
+		const std::string target_window = framed ? "Window<a3 o1 m1 w1>" : "WindowRows<a3 o1 w1>";
+		const std::string source_prefix = (wrappers ? "Compute<e0 a8 s0>(" : std::string()) +
+			std::string(2 == wrappers ? "Filter<p2 a6>(" : "");
+		const std::string target_prefix = (wrappers ? "Compute<e1 a9 s1>(" : std::string()) +
+			std::string(2 == wrappers ? "Filter<p3 a7>(" : "");
+		const std::string tree = source_prefix + window + "(Filter<p0 a1 a2>(Input<t0>))" +
+			std::string(wrappers, ')') + "|Filter<p1 a4 a5>(" + target_prefix + target_window +
+			"(Input<t1>)" + std::string(wrappers, ')') + ")|";
 		const std::string premises =
 			"CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);"
 			"DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(w0,a2);"
 			"Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)" +
-			std::string(framed ? ";DepsDisjoint(m0,a2)" : "");
-		for (ULONG partition = 0; partition < 2; ++partition)
+			std::string(framed ? ";DepsDisjoint(m0,a2)" : "") +
+			(wrappers ? ";DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(e1);Deterministic(e1)" : "") +
+			(2 == wrappers ? ";ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);Deterministic(p1)" : "");
+		for (ULONG scenario = 0; scenario < 2 + wrappers; ++scenario)
 		{
+			const ULONG partition = 1 == scenario ? 1 : 0;
+			const BOOL external_items = 2 == scenario;
+			const BOOL external_residual = 3 == scenario;
 			CColRefArray *columns = nullptr;
 			CExpression *input = fix.PexprLogicalGet("motion", 2, &columns);
-			CExpression *predicate = CUtils::PexprScalarEqCmp(mp, (*columns)[0],
-				fix.PcrCreateInt4("outer"));
+			CColRef *outer = fix.PcrCreateInt4("outer");
+			CExpression *predicate = CUtils::PexprScalarEqCmp(mp, (*columns)[0], outer);
 			CExpression *filtered = fix.PexprLogicalSelect(input, predicate);
 			CWindowFrame *frame = framed ? GPOS_NEW(mp) CWindowFrame(mp,
 				CWindowFrame::EfsRows, CWindowFrame::EfbUnboundedPreceding,
@@ -427,6 +440,25 @@ CDSLOrderLimitTest::EresUnittest_WindowFilterBindings()
 			CExpression *source = PexprWindowRows(mp, fix, filtered,
 				(*columns)[partition], (*columns)[1],
 				framed ? GPOS_NEW(mp) COrderSpec(mp) : nullptr, frame);
+			if (2 == wrappers)
+			{
+				CColRef *window_column = CScalarProjectElement::PopConvert(
+					(*(*source)[1])[0]->Pop())->Pcr();
+				CExpression *residual = CUtils::PexprScalarEqCmp(mp, window_column,
+					external_residual ? outer : (*columns)[1]);
+				CExpression *selected = fix.PexprLogicalSelect(source, residual);
+				residual->Release();
+				source->Release();
+				source = selected;
+			}
+			if (wrappers)
+			{
+				CExpression *items = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarProjectList(mp), CUtils::PexprScalarProjectElement(
+						mp, fix.PcrCreateInt4("computed"), external_items
+							? CUtils::PexprScalarIdent(mp, outer) : CUtils::PexprScalarConstInt4(mp, 1)));
+				source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), source, items);
+			}
 			CExpression *legacy = nullptr;
 			for (BOOL bindings : {false, true})
 			{
@@ -434,16 +466,25 @@ CDSLOrderLimitTest::EresUnittest_WindowFilterBindings()
 					? "t1 := t0;a3 := a0;o1 := o0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;"
 					: "TableEq(t1,t0);AttrsEq(a3,a0);OrderEq(o1,o0);WindowEq(w1,w0);"
 					  "PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);";
-				CDSLRule *rule = Prule(mp, (tree + aliases + (framed
+				const std::string compute_aliases = !wrappers ? "" : bindings
+					? "e1 := e0;a9 := a8;s1 := s0;"
+					: "ExprListEq(e1,e0);AttrsEq(a9,a8);SchemaEq(s1,s0);";
+				const std::string residual_aliases = 2 != wrappers ? "" : bindings
+					? "p3 := p2;a7 := a6;" : "PredicateEq(p3,p2);AttrsEq(a7,a6);";
+				CDSLRule *rule = Prule(mp, (tree + aliases + compute_aliases + residual_aliases + (framed
 					? (bindings ? "m1 := m0;" : "FrameEq(m1,m0);") : "") + premises).c_str());
 				GPOS_UNITTEST_ASSERT(nullptr != rule);
 				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 				const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
 				const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
-				ok &= matched && accepted == (0 == partition);
-				if (!matched || accepted != (0 == partition))
-					GPOS_TRACE_FORMAT("Window motion framed=%d bindings=%d partition=%lu matched=%d accepted=%d",
-						framed, bindings, partition, matched, accepted);
+				// A two-argument Filter is local-only. Typed capture rejects
+				// an outer residual immediately; legacy target construction rejects it later.
+				const BOOL expected_match = !external_residual || !bindings;
+				const BOOL expected_accept = expected_match && 0 == partition;
+				ok &= matched == expected_match && accepted == expected_accept;
+				if (matched != expected_match || accepted != expected_accept)
+					GPOS_TRACE_FORMAT("Window motion framed=%d wrappers=%lu bindings=%d partition=%lu matched=%d accepted=%d",
+						framed, wrappers, bindings, partition, matched, accepted);
 				if (accepted)
 				{
 					CDSLRulePrefixIndex index(mp);
@@ -455,15 +496,31 @@ CDSLOrderLimitTest::EresUnittest_WindowFilterBindings()
 							framed, bindings, candidates->Size());
 					candidates->Release();
 					CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
-					ok &= nullptr != target && COperator::EopLogicalSelect == target->Pop()->Eopid() &&
-						COperator::EopLogicalSequenceProject == (*target)[0]->Pop()->Eopid() &&
-						(*target)[1]->Matches(predicate) && (*(*target)[0])[0]->Matches(input);
-					if (nullptr == target)
+					// Typed references retain the captured Compute's outer scope.
+					// Legacy construction only accepts child-local dependencies.
+					const BOOL expected_target = !external_residual && (!external_items || bindings);
+					ok &= (nullptr != target) == expected_target;
+					if (nullptr != target)
+					{
+						ok &= COperator::EopLogicalSelect == target->Pop()->Eopid() &&
+							(*target)[1]->Matches(predicate);
+						CExpression *before = source;
+						CExpression *after = (*target)[0];
+						for (ULONG depth = 0; depth <= wrappers; ++depth)
+						{
+							ok &= before->Pop()->Matches(after->Pop()) && (*before)[1]->Matches((*after)[1]);
+							before = (*before)[0];
+							after = (*after)[0];
+						}
+						ok &= before->Matches(filtered) && after->Matches(input);
+					}
+					if (expected_target && nullptr == target)
 						GPOS_TRACE_FORMAT("Window motion target missing framed=%d bindings=%d", framed, bindings);
 					if (!bindings) legacy = target;
 					else
 					{
-						ok &= nullptr != legacy && nullptr != target && legacy->Matches(target);
+						ok &= external_items ? nullptr == legacy :
+							nullptr != legacy && nullptr != target && legacy->Matches(target);
 						if (nullptr != legacy && nullptr != target && !legacy->Matches(target))
 							GPOS_TRACE_FORMAT("Window motion targets differ framed=%d", framed);
 						CRefCount::SafeRelease(target);

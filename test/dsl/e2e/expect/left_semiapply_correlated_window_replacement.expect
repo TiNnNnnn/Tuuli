@@ -30,6 +30,8 @@
       "contains": [
         "Xform: CXformDSLRule_Window",
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"025e6bd53059aa3d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"cf994771828d40c2\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ]
     },
@@ -53,6 +55,8 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"025e6bd53059aa3d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"cf994771828d40c2\"",
         "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
       ],
       "provenance": {
