@@ -7,7 +7,7 @@
     "scope": "Pure grouping attrs span both children and contain an outer FK joined to a unique inner key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "6f1d9b45630f2aa2"
+      "b52db53dcc916607"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_mixed_grouping.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"6f1d9b45630f2aa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"b52db53dcc916607\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -51,7 +51,7 @@
       ],
       "policy": "isolate_push_gb_mixed_grouping.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"6f1d9b45630f2aa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"b52db53dcc916607\""
       ],
       "provenance": {
         "required_sources": [

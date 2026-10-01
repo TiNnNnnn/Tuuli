@@ -276,6 +276,47 @@ EresMetadataAliasPremises()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresSubsetBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("subset_input", 2, &columns);
+	for (ULONG i = 0; i < columns->Size(); i++)
+		(*columns)[i]->MarkAsUsed();
+	CExpression *predicate = fix.PexprPredAtom((*columns)[0]);
+	CExpression *source = fix.PexprLogicalSelect(input, predicate);
+	BOOL valid = true;
+	for (BOOL checkFirst : {false, true})
+	for (BOOL alias : {false, true})
+	for (BOOL empty : {false, true})
+	for (const CHAR *domain : {"a2", "s1", "t1"})
+	{
+		if (empty && domain[0] == 't') continue;
+		const std::string check = "AttrsSub(" + std::string(alias ? "a1," : "a0,") + domain + ")";
+		const std::string metadata = (empty ? "AttrsEmpty(a2)" : "OutputAttrs(a2,t0)") +
+			std::string(";SchemaFromAttrs(s1,a2)");
+		const std::string text =
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"t1 := t0;a1 := a0;p1 := p0;" +
+			(checkFirst ? check + ";" + metadata : metadata + ";" + check);
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = nullptr != rule &&
+			CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
+		valid &= matched && accepted == !empty;
+		model->Release();
+		CRefCount::SafeRelease(rule);
+	}
+	source->Release();
+	predicate->Release();
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
@@ -283,6 +324,7 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
 		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
+		GPOS_UNITTEST_FUNC(EresSubsetBindings),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),

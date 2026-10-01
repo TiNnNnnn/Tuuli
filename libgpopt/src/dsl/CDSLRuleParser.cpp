@@ -850,6 +850,8 @@ FBindingTree(const CDSLOp *op, BOOL source)
 		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop() ||
 		EdslopAntiJoinNotIn == op->Edslop();
+	const BOOL keyedJoin = EdslopInnerJoin == op->Edslop() ||
+		EdslopLeftJoin == op->Edslop();
 	const BOOL set = EdslopUnion == op->Edslop() ||
 		EdslopIntersect == op->Edslop() || EdslopExcept == op->Edslop();
 	const BOOL exists = EdslopExists == op->Edslop() ||
@@ -862,6 +864,8 @@ FBindingTree(const CDSLOp *op, BOOL source)
 		(source && EdslopAntiApplyNotIn == op->Edslop());
 	if (nullptr == op->Pdrgpsym() ||
 		!(join ? (3 == op->Pdrgpsym()->Size() ||
+				  (keyedJoin && (2 == op->Pdrgpsym()->Size() ||
+								 4 == op->Pdrgpsym()->Size())) ||
 				  (EdslopAntiJoinNotIn == op->Edslop() && 6 == op->Pdrgpsym()->Size())) &&
 				 2 == op->UlChildren()
 			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
@@ -917,7 +921,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
+			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin without explicit residual slots, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -1046,10 +1050,10 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			columnChecks.push_back(con);
 			continue;
 		}
-		// Safety checks consume captured or constructed values; they never bind
+		// Property checks consume captured or constructed values; they never bind
 		// one. The runtime checker must still establish the property.
 		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
-			EdslconPredicateNullRejecting == kind)
+			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind)
 			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
@@ -1193,12 +1197,13 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		const auto *con = (*constraints)[i];
 		if (EdslconErrorFree == con->Edslcon() ||
 			EdslconDeterministic == con->Edslcon() ||
-			EdslconPredicateNullRejecting == con->Edslcon())
+			EdslconPredicateNullRejecting == con->Edslcon() ||
+			EdslconAttrsSub == con->Edslcon())
 		{
 			for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 				if (!available.count((*con->Pdrgpsym())[slot]))
 				{
-					bctx.Fail("safety check depends on an unbound expression or metadata");
+					bctx.Fail("property check depends on an unbound expression or metadata");
 					return false;
 				}
 		}

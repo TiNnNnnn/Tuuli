@@ -7,7 +7,7 @@
     "scope": "Grouping is exactly the outer join key and the inner join key is unique",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "abbf8a73e6365f11"
+      "8508e8910d0784eb"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"abbf8a73e6365f11\""
+        "\"status\":\"applied\",\"rule_hash\":\"8508e8910d0784eb\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -48,7 +48,7 @@
         "CXformPushGbBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"abbf8a73e6365f11\""
+        "\"status\":\"applied\",\"rule_hash\":\"8508e8910d0784eb\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

@@ -351,7 +351,7 @@ public:
 										 const CDSLSymbol *psym,
 										 const CDSLModel *pmodel);
 
-	// Resolve column inputs, captured aliases and null-rejection operands before
+	// Resolve column inputs, captured aliases and subset/null-rejection operands before
 	// checking, fresh outputs afterwards. Both phases use the restricted LET resolver.
 	BOOL FMaterializeConstraintBindings(const CDSLRule *prule,
 									 const CDSLConstraint *pcon,

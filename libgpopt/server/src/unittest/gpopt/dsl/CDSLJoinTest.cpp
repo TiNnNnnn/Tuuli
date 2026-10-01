@@ -1904,26 +1904,35 @@ CDSLJoinTest::EresUnittest_MatchBindsJoinKeys()
 //	@function:
 //		CDSLJoinTest::EresUnittest_InstantiatePreservesJoin
 //---------------------------------------------------------------------------
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
+static GPOS_RESULT
+EresKeyedJoinRoundTrip(const CHAR *rule, BOOL leftJoin, BOOL residual)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 
-	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_JOIN_IDENTITY_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
 	}
 
-	CExpression *pexprLeft = nullptr;
-	CExpression *pexprRight = nullptr;
-	CExpression *pexprJoin = nullptr;
-	BuildInnerJoinEqui(fix, &pexprLeft, &pexprRight, &pexprJoin);
+	CColRefArray *leftCols = nullptr;
+	CColRefArray *rightCols = nullptr;
+	CExpression *pexprLeft = fix.PexprLogicalGet("keyed_left", 2, &leftCols);
+	CExpression *pexprRight = fix.PexprLogicalGet("keyed_right", 2, &rightCols);
+	CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+	conjuncts->Append(fix.PexprEqPred((*leftCols)[0], (*rightCols)[0]));
+	if (residual)
+		conjuncts->Append(fix.PexprPredAtom((*leftCols)[1]));
+	CExpression *predicate = CPredicateUtils::PexprConjunction(mp, conjuncts);
+	CExpression *pexprJoin = leftJoin
+		? fix.PexprLogicalLeftOuterJoin(pexprLeft, pexprRight, predicate)
+		: fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, predicate);
+	predicate->Release();
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
+	CDSLMatcher matcher(mp, prule);
 	CExpression *pexprTgt = nullptr;
 
 	GPOS_RESULT eres = GPOS_OK;
@@ -1936,7 +1945,8 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 		CDSLInstantiator inst(mp);
 		pexprTgt = inst.PexprInstantiate(prule, pmodel);
 		if (nullptr == pexprTgt ||
-			COperator::EopLogicalInnerJoin != pexprTgt->Pop()->Eopid())
+			pexprJoin->Pop()->Eopid() != pexprTgt->Pop()->Eopid() ||
+			!(*pexprTgt)[2]->Matches((*pexprJoin)[2]))
 		{
 			eres = GPOS_FAILED;
 		}
@@ -1960,6 +1970,29 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 	pexprJoin->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
+{
+	const CHAR *rules[] = {
+		GPOPT_DSL_JOIN_IDENTITY_RULE,
+		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a2 a3>(Input<t4>,Input<t5>)|"
+		"t4 := t0;t5 := t1;a2 := a0;a3 := a1",
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|"
+		"LeftJoin<a2 a3>(Input<t4>,Input<t5>)|"
+		"TableEq(t4,t0);TableEq(t5,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|"
+		"LeftJoin<a2 a3>(Input<t4>,Input<t5>)|"
+		"t4 := t0;t5 := t1;a2 := a0;a3 := a1"
+	};
+	// Key aliases retain the complete captured ON, including unnamed residuals.
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(rules); i++)
+		for (ULONG residual = 0; residual < 2; residual++)
+			if (GPOS_OK != EresKeyedJoinRoundTrip(rules[i], i >= 2, residual))
+				return GPOS_FAILED;
+	return GPOS_OK;
 }
 
 GPOS_RESULT
@@ -2186,14 +2219,13 @@ CDSLJoinTest::EresUnittest_LeftJoinExpansion()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin()
+static GPOS_RESULT
+EresKeyedOutputCommute(const CHAR *rule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_JOIN_OUTPUT_COMMUTE_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -2242,13 +2274,27 @@ CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin()
 }
 
 GPOS_RESULT
-CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal()
+CDSLJoinTest::EresUnittest_ExtendedOutputPreservesCommutedJoin()
+{
+	const CHAR *rules[] = {
+		GPOPT_DSL_JOIN_OUTPUT_COMMUTE_RULE,
+		"InnerJoin<a0 a1 a2 s0>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a3 a4 a5 s1>(Input<t2>,Input<t3>)|"
+		"t2 := t1;t3 := t0;a3 := a1;a4 := a0;a5 := a2;s1 := s0"
+	};
+	for (const CHAR *rule : rules)
+		if (GPOS_OK != EresKeyedOutputCommute(rule))
+			return GPOS_FAILED;
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresNestedKeyedJoin(const CHAR *rule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_NESTED_JOIN_IDENTITY_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	GPOS_ASSERT(nullptr != prule);
 
 	CColRefArray *pdrgpcr0 = nullptr;
@@ -2267,7 +2313,7 @@ CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal()
 		fix.PexprLogicalInnerJoin(pexprInner, pexpr2, pexprOuterPred);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
+	CDSLMatcher matcher(mp, prule);
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
 	CDSLConstraintChecker checker(mp);
@@ -2293,6 +2339,21 @@ CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal()
 	pexpr1->Release();
 	pexpr2->Release();
 	prule->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_NestedJoinPredicatesStayLocal()
+{
+	const CHAR *rules[] = {
+		GPOPT_DSL_NESTED_JOIN_IDENTITY_RULE,
+		"InnerJoin<a0 a1>(InnerJoin<a2 a3>(Input<t0>,Input<t1>),Input<t2>)|"
+		"InnerJoin<a4 a5>(InnerJoin<a6 a7>(Input<t3>,Input<t4>),Input<t5>)|"
+		"t3 := t0;t4 := t1;t5 := t2;a4 := a0;a5 := a1;a6 := a2;a7 := a3"
+	};
+	for (const CHAR *rule : rules)
+		if (GPOS_OK != EresNestedKeyedJoin(rule))
+			return GPOS_FAILED;
 	return GPOS_OK;
 }
 
