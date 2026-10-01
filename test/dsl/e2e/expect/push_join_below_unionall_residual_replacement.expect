@@ -13,7 +13,7 @@
       "name": "shadow",
       "trace": true,
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll"
@@ -41,7 +41,7 @@
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
       ],
       "provenance": {
         "required_sources": [],

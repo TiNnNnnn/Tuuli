@@ -1,13 +1,13 @@
 {
-  "description": "The binary proved DSL rule recursively distributes InnerJoin across an n-ary UnionAll",
+  "description": "The existing binary equality-only DSL rule recursively distributes InnerJoin across an n-ary UnionAll; native expression proof remains UNKNOWN",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowLeftUnionAll"
     ],
-    "scope": "n-ary left UnionAll handled by repeated associative binary applications",
+    "scope": "equality-only InnerJoin over n-ary left UnionAll handled by repeated associative binary applications",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e99bceacc9aaf130"
+      "8423cca3e71db53d"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll",
@@ -49,7 +49,7 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
+        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
       ],
       "provenance": {
         "required_sources": [

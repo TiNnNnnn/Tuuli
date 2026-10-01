@@ -871,7 +871,12 @@ FBindingTree(const CDSLOp *op, BOOL source)
 				  (EdslopAntiJoinNotIn == op->Edslop() && 6 == op->Pdrgpsym()->Size())) &&
 				 2 == op->UlChildren()
 			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
-			   : set ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   // Source short forms retain the captured positional maps. A
+			   // target must declare its output, with optional explicit input maps.
+			   : set ? (4 == op->Pdrgpsym()->Size() ||
+						2 == op->Pdrgpsym()->Size() ||
+						(source && 0 == op->Pdrgpsym()->Size())) &&
+						2 == op->UlChildren()
 			   : quantified ? 2 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : exists ? (0 == op->Pdrgpsym()->Size() ||
 						   (EdslopExists == op->Edslop() && 3 == op->Pdrgpsym()->Size())) &&
@@ -923,7 +928,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
+			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and Set templates with declared target outputs");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

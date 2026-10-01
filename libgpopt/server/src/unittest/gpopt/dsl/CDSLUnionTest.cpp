@@ -101,17 +101,17 @@ using namespace gpopt;
 	"InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"    \
 	"Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),"              \
 	"InnerJoin<a5 a6>(Input<t5>,Input<t6>))|"                          \
-	"AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);"   \
-	"TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);"     \
-	"AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;"              \
+	"t4 := t2;t6 := t2;a3 := a0;a5 := a0;"                           \
+	"a4 := a1;a6 := a1;a7 := a2;s1 := s0"
 
 #define GPOPT_DSL_LEFT_JOIN_UNION_DISTRIBUTION_RULE                    \
 	"LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|"     \
 	"Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),"               \
 	"LeftJoin<a5 a6>(Input<t5>,Input<t6>))|"                           \
-	"AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);"   \
-	"TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);"     \
-	"AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;"              \
+	"t4 := t2;t6 := t2;a3 := a0;a5 := a0;"                           \
+	"a4 := a1;a6 := a1;a7 := a2;s1 := s0"
 
 // MONSOON/dataset/rules/rules.els.reduced.txt:1215, unchanged.
 #define GPOPT_DSL_UNION_CORPUS_PROJ_RULE                               \
@@ -800,6 +800,14 @@ CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
 		COperator::EOperatorId eopid;
 	};
 	const SCase cases[] = {
+		{"Union<a0 s0>(Input<t0>,Input<t1>)|Union<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalUnionAll},
+		{"Union*<a0 s0>(Input<t0>,Input<t1>)|Union*<a1 s1>"
+		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
+		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
+		 COperator::EopLogicalUnion},
 		{"Intersect*<a0 s0>(Input<t0>,Input<t1>)|Intersect*<a1 s1>"
 		 "(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);"
 		 "AttrsEq(a1,a0);SchemaEq(s1,s0)",
@@ -818,19 +826,34 @@ CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
 		 COperator::EopLogicalDifferenceAll}};
 
 	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(cases); ul++)
+	for (BOOL bindings : {false, true})
 	{
 		CAutoMemoryPool amp;
 		CMemoryPool *mp = amp.Pmp();
 		CDSLTestFixture fix(mp);
-		CDSLRule *prule = PdslruleParseLocal(mp, cases[ul].rule);
+		std::string text = cases[ul].rule;
+		if (bindings)
+		{
+			text.replace(text.rfind('|') + 1, std::string::npos,
+				"t2 := t0;t3 := t1;a1 := a0;s1 := s0");
+			// A typed target must still declare its ordered output contract.
+			std::string unspecified = text;
+			unspecified.erase(unspecified.find("<a1 s1>"), 7);
+			CAutoRef<CDSLRule> rejected(PdslruleParseLocal(mp, unspecified.c_str()));
+			GPOS_UNITTEST_ASSERT(nullptr == rejected.Value());
+		}
+		CDSLRule *prule = PdslruleParseLocal(mp, text.c_str());
 		CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
 		CExpression *pexprLeft =
 			fix.PexprLogicalGet("set_left", 2, &pdrgpcrLeft);
 		CExpression *pexprRight =
 			fix.PexprLogicalGet("set_right", 2, &pdrgpcrRight);
+		CAutoRef<CColRefArray> right_map(GPOS_NEW(mp) CColRefArray(mp));
+		right_map->Append((*pdrgpcrRight)[1]);
+		right_map->Append((*pdrgpcrRight)[0]);
 		CExpression *pexprSource = PexprSetOpById(
 			mp, cases[ul].eopid, pexprLeft, pdrgpcrLeft, pexprRight,
-			pdrgpcrRight);
+			right_map.Value());
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, prule);
 		CDSLConstraintChecker checker(mp);
@@ -842,8 +865,15 @@ CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate()
 			CDSLInstantiator instantiator(mp);
 			pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
 		}
-		const BOOL ok = nullptr != pexprTarget &&
+		BOOL ok = nullptr != pexprTarget &&
 			pexprTarget->Pop()->Eopid() == cases[ul].eopid;
+		if (ok)
+		{
+			auto *op = CLogicalSetOp::PopConvert(pexprTarget->Pop());
+			ok = CColRef::Equals(op->PdrgpcrOutput(), pdrgpcrLeft) &&
+				CColRef::Equals((*op->PdrgpdrgpcrInput())[0], pdrgpcrLeft) &&
+				CColRef::Equals((*op->PdrgpdrgpcrInput())[1], right_map.Value());
+		}
 		CRefCount::SafeRelease(pexprTarget);
 		pmodel->Release();
 		pexprSource->Release();
@@ -1105,6 +1135,7 @@ CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion()
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule =
 		PdslruleParseLocal(mp, GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE);
+	GPOS_UNITTEST_ASSERT(nullptr != prule);
 	CColRefArray *pdrgpcrLeft0 = nullptr, *pdrgpcrLeft1 = nullptr,
 		*pdrgpcrOther = nullptr;
 	CExpression *pexprLeft0 =

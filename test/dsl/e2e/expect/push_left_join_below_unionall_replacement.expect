@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule distributes LeftJoin over its preserved left UnionAll input",
+  "description": "The existing equality-only DSL rule distributes LeftJoin over its preserved left UnionAll input; native expression proof remains UNKNOWN",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowLeftUnionAll"
     ],
-    "scope": "LeftJoin with exactly one left UnionAll input and no outer references or scalar subqueries",
+    "scope": "equality-only LeftJoin with exactly one left UnionAll input and no outer references or scalar subqueries",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "44c687f715ecbe0b"
+      "b2f799f43c075320"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"44c687f715ecbe0b\""
+        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll",
@@ -49,7 +49,7 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"44c687f715ecbe0b\""
+        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
       ],
       "provenance": {
         "required_sources": [
