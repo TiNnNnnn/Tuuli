@@ -1936,11 +1936,12 @@ EresKeyedJoinRoundTrip(const CHAR *rule, BOOL leftJoin, BOOL residual)
 	CExpression *pexprTgt = nullptr;
 
 	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel))
+	const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel);
+	if (matched == residual)
 	{
 		eres = GPOS_FAILED;
 	}
-	else
+	else if (matched)
 	{
 		CDSLInstantiator inst(mp);
 		pexprTgt = inst.PexprInstantiate(prule, pmodel);
@@ -1985,12 +1986,25 @@ CDSLJoinTest::EresUnittest_InstantiatePreservesJoin()
 		"TableEq(t4,t0);TableEq(t5,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
 		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|"
 		"LeftJoin<a2 a3>(Input<t4>,Input<t5>)|"
-		"t4 := t0;t5 := t1;a2 := a0;a3 := a1"
+		"t4 := t0;t5 := t1;a2 := a0;a3 := a1",
+		"InnerJoin<a0 a1 a4 s0>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a2 a3 a5 s1>(Input<t4>,Input<t5>)|"
+		"TableEq(t4,t0);TableEq(t5,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);AttrsEq(a5,a4);SchemaEq(s1,s0)",
+		"InnerJoin<a0 a1 a4 s0>(Input<t0>,Input<t1>)|"
+		"InnerJoin<a2 a3 a5 s1>(Input<t4>,Input<t5>)|"
+		"t4 := t0;t5 := t1;a2 := a0;a3 := a1;a5 := a4;s1 := s0",
+		"LeftJoin<a0 a1 a4 s0>(Input<t0>,Input<t1>)|"
+		"LeftJoin<a2 a3 a5 s1>(Input<t4>,Input<t5>)|"
+		"TableEq(t4,t0);TableEq(t5,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);AttrsEq(a5,a4);SchemaEq(s1,s0)",
+		"LeftJoin<a0 a1 a4 s0>(Input<t0>,Input<t1>)|"
+		"LeftJoin<a2 a3 a5 s1>(Input<t4>,Input<t5>)|"
+		"t4 := t0;t5 := t1;a2 := a0;a3 := a1;a5 := a4;s1 := s0"
 	};
-	// Key aliases retain the complete captured ON, including unnamed residuals.
+	// Equality-only forms preserve exact key comparisons but reject unnamed
+	// residuals, for both legacy aliases and expression bindings.
 	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(rules); i++)
 		for (ULONG residual = 0; residual < 2; residual++)
-			if (GPOS_OK != EresKeyedJoinRoundTrip(rules[i], i >= 2, residual))
+			if (GPOS_OK != EresKeyedJoinRoundTrip(rules[i], i % 4 >= 2, residual))
 				return GPOS_FAILED;
 	return GPOS_OK;
 }

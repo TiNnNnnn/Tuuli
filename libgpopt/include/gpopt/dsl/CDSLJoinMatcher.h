@@ -22,7 +22,7 @@
 //		     For each PLAIN-EQUALITY conjunct (both sides CScalarIdent), extract the
 //		     two CColRefs and split them into left/right key sets by which side's
 //		     column belongs to the left subtree's output columns. NON-equi conjuncts
-//		     remain in the complete predicate recorded for this Join node.
+//		     require explicit residual slots; equality-only forms reject them.
 //		  3. Recurse child[0] and child[1] back through the generic matcher.
 //		  4. Bind the first <a> to the left key columns, the second <a> to the right
 //		     key columns (CDSLModel::FBind, arrays — same as Filter's <a>). Once the

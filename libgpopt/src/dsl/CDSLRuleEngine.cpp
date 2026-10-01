@@ -28,6 +28,8 @@
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/operators/CExpressionHandle.h"
+#include "gpopt/operators/CLogical.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -871,14 +873,27 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		GPOS_DELETE(pdecision);
 		return nullptr;
 	}
+	BOOL missingOutputs = false;
+	if (EdsldecisionReady == pdecision->Status() && prule->Pexprdefs()->FHasBindings())
+	{
+		// Extracted expressions inherit cached group properties, which can be
+		// wider than this alternative after native column pruning. Preserve the
+		// selected source operator's outputs, not columns it no longer produces.
+		// Children retain their memo interfaces; physical required-column checks
+		// still decide which alternatives can serve each optimization context.
+		CExpressionHandle handle(mp);
+		handle.Attach(pexpr);
+		CColRefSet *outputs = CLogical::PopConvert(pexpr->Pop())->DeriveOutputColumns(mp, handle);
+		missingOutputs = !pexprTgt->DeriveOutputColumns()->ContainsAll(outputs);
+		outputs->Release();
+	}
 	if (EdsldecisionReady == pdecision->Status() &&
-		((prule->Pexprdefs()->FHasBindings() &&
-		  !pexprTgt->DeriveOutputColumns()->ContainsAll(pexpr->DeriveOutputColumns())) ||
+		(missingOutputs ||
 		 (nullptr != pexpr->Pgexpr() &&
 		  FTargetDependsOnGroup(mp, pexprTgt, pexpr->Pgexpr()->Pgroup()))))
 	{
 		// This is a valid algebraic result but not a legal Cascades insertion
-		// if an exact expression binding loses source-group outputs (including
+		// if an exact expression binding loses source-operator outputs (including
 		// Project pass-through columns), or reuses an ancestor of that group.
 		// ponytail: legacy compatibility views retain their existing schema
 		// contract until migrated to exact bindings. RBO checks its whole tree.
@@ -887,8 +902,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 			GPOS_TRACE_FORMAT(
 				"DSL_INSTANTIATE_TRACE rule_hash=%s status=rejected reason=%s",
 				prule->SzIdentity(),
-				!pexprTgt->DeriveOutputColumns()->ContainsAll(pexpr->DeriveOutputColumns())
-					? "missing_source_group_outputs" : "target_depends_on_source_group");
+				missingOutputs ? "missing_source_operator_outputs" : "target_depends_on_source_group");
 		}
 		TraceDSLRule(mp, ulRuleId, EdsltraceInstantiateRejected, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
@@ -1165,6 +1179,20 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	CDSLTargetInputOriginArray inputOrigins;
 	CExpression *pexprTarget = PexprInstantiate(
 		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr);
+	if (nullptr != pexprTarget &&
+		!pexpr->DeriveOuterReferences()->ContainsAll(
+			pexprTarget->DeriveOuterReferences()))
+	{
+		// A lost local column must not silently become an external parameter.
+		// Apply may discharge source correlations, but cannot invent new ones.
+		if (fTrace)
+		{
+			GPOS_TRACE_FORMAT("DSL_INSTANTIATE_TRACE rule_hash=%s status=rejected "
+				"reason=introduced_outer_references", prule->SzIdentity());
+		}
+		pexprTarget->Release();
+		pexprTarget = nullptr;
+	}
 	if (nullptr != pexprTarget && nullptr != pexpr->Pgexpr() &&
 		!pexprTarget->Matches(pexpr) &&
 		FMatchesMemoDescendant(pexpr, pexprTarget))

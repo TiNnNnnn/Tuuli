@@ -7,7 +7,7 @@
     "scope": "Outer grouping attrs contain a nullable FK and every outer residual dependency",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "dc768bb1f1a116ef"
+      "8fc316909dea509a"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
+        "\"status\":\"applied\",\"rule_hash\":\"8fc316909dea509a\""
       ],
       "alternative": [
         "CXformPushGbDedupBelowJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"dc768bb1f1a116ef\""
+        "\"status\":\"applied\",\"rule_hash\":\"8fc316909dea509a\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
