@@ -7,7 +7,7 @@
     "scope": "Uncorrelated single-column NOT IN across empty, match, inner-NULL, outer-NULL and nonmatching inputs",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "5fd635f26b08fa62"
+      "e408be40e1d7fadb"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fd635f26b08fa62\""
+        "\"status\":\"applied\",\"rule_hash\":\"e408be40e1d7fadb\""
       ],
       "alternative": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
@@ -49,7 +49,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fd635f26b08fa62\""
+        "\"status\":\"applied\",\"rule_hash\":\"e408be40e1d7fadb\""
       ],
       "provenance": {
         "required_sources": [

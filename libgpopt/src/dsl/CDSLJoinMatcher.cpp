@@ -730,10 +730,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		BOOL fMatched = fComparisonDeps && fQualifierDeps &&
 			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
 			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel) &&
-			pmodel->FBind((*pdrgpsym)[0], pexprComparison) &&
+			m_pmatcher->FMatchPredicate((*pdrgpsym)[0], pexprComparison, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[1], pdrgpcrComparisonLeft) &&
 			pmodel->FBind((*pdrgpsym)[2], pdrgpcrComparisonRight) &&
-			pmodel->FBind((*pdrgpsym)[3], pexprQualifier) &&
+			m_pmatcher->FMatchPredicate((*pdrgpsym)[3], pexprQualifier, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[4], pdrgpcrQualifierLeft) &&
 			pmodel->FBind((*pdrgpsym)[5], pdrgpcrQualifierRight);
 		pexprComparison->Release();
