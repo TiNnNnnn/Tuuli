@@ -837,7 +837,7 @@ FBindingTree(const CDSLOp *op, BOOL source)
 {
 	// A consumer captures its eligible, column-remapped inline definition;
 	// it is a source boundary, not a target CTE constructor.
-	if (EdslopInput == op->Edslop() ||
+	if (EdslopInput == op->Edslop() || EdslopEmpty == op->Edslop() ||
 		(source && EdslopCTEConsumer == op->Edslop()))
 	{
 		return true;
@@ -917,7 +917,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
+			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
@@ -1048,7 +1048,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		}
 		// Safety checks consume captured or constructed values; they never bind
 		// one. The runtime checker must still establish the property.
-		if (EdslconErrorFree == kind || EdslconDeterministic == kind)
+		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
+			EdslconPredicateNullRejecting == kind)
 			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
@@ -1190,12 +1191,16 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
 		const auto *con = (*constraints)[i];
-		if ((EdslconErrorFree == con->Edslcon() ||
-			 EdslconDeterministic == con->Edslcon()) &&
-			!available.count((*con->Pdrgpsym())[0]))
+		if (EdslconErrorFree == con->Edslcon() ||
+			EdslconDeterministic == con->Edslcon() ||
+			EdslconPredicateNullRejecting == con->Edslcon())
 		{
-			bctx.Fail("safety check depends on an unbound expression");
-			return false;
+			for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
+				if (!available.count((*con->Pdrgpsym())[slot]))
+				{
+					bctx.Fail("safety check depends on an unbound expression or metadata");
+					return false;
+				}
 		}
 	}
 	for (const CDSLFragment *fragment : {source, target})

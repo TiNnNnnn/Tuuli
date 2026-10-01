@@ -7,8 +7,8 @@
     "scope": "The complete native promise plus its real preprocess routing shape",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "0a49982c5c679d38",
-      "ffb6e215e00b6e40"
+      "2823df41d0289615",
+      "ba79778a6a05d4ed"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ffb6e215e00b6e40\""
+        "\"status\":\"applied\",\"rule_hash\":\"ba79778a6a05d4ed\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
@@ -48,7 +48,7 @@
         "CXformSimplifyLeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ffb6e215e00b6e40\""
+        "\"status\":\"applied\",\"rule_hash\":\"ba79778a6a05d4ed\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"

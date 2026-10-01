@@ -3260,7 +3260,10 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateNot:
 			return FCheckPredicateNegation(pcon, pmodel);
 		case EdslconPredicateNullRejecting:
-			return FCheckPredicateNullRejecting(pcon, pmodel);
+			// Both operands are observations, never constructive outputs. Resolve
+			// typed aliases and metadata before checking, independent of clause order.
+			return materializer.FMaterializeConstraintBindings(prule, pcon, pmodel, true) &&
+				FCheckPredicateNullRejecting(pcon, pmodel);
 		case EdslconPredicateNullSafeEq:
 			return FCheckPredicateNullSafeEq(pcon, pmodel);
 		case EdslconPredicateExists:

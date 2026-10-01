@@ -7,7 +7,7 @@
     "scope": "Deterministic, error-free semi predicate independent of the inner input, matched directly on CLogicalLeftSemiJoin",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "513f8737ae6c43ba"
+      "b349a5d2eca81153"
     ]
   },
   "plans": [
@@ -20,7 +20,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"513f8737ae6c43ba\""
+        "\"status\":\"applied\",\"rule_hash\":\"b349a5d2eca81153\""
       ]
     },
     {
@@ -41,7 +41,7 @@
         "CXformLeftSemiJoin2CrossProduct"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"513f8737ae6c43ba\""
+        "\"status\":\"applied\",\"rule_hash\":\"b349a5d2eca81153\""
       ],
       "provenance": {
         "required_sources": [

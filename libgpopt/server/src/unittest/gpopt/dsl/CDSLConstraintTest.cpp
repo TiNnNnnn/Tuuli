@@ -305,6 +305,7 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLConstraintTest::EresUnittest_NotNullThroughLeftJoin),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NotNullReject),
+		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_NullRejectingBindings),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -1083,6 +1084,59 @@ CDSLConstraintTest::EresUnittest_NotNullReject()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLConstraintTest::EresUnittest_NullRejectingBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("nullable_input", 2, &columns);
+	for (ULONG i = 0; i < columns->Size(); i++)
+		(*columns)[i]->MarkAsUsed();
+	// Use a native null test: this fixture deliberately gives comparison
+	// operators conservative non-strict metadata.
+	CExpression *predicate = CUtils::PexprNegate(mp, fix.PexprPredAtom((*columns)[0]));
+	CExpression *source = fix.PexprLogicalSelect(input, predicate);
+	BOOL valid = true;
+	for (BOOL checkFirst : {false, true})
+	for (BOOL notTrue : {false, true})
+	for (BOOL empty : {false, true})
+	{
+		const std::string check = "PredicateNullRejecting(p1,a2)";
+		const std::string metadata = empty ? "AttrsEmpty(a2)" : "OutputAttrs(a2,t0)";
+		const std::string text =
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"t1 := t0;a1 := a0;p1 := " + std::string(notTrue ? "NotTrue(p0);" : "p0;") +
+			(checkFirst ? check + ";" + metadata : metadata + ";" + check);
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		if (nullptr == rule)
+		{
+			valid = false;
+			continue;
+		}
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		CDSLConstraintChecker checker(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		ULONG failed = gpos::ulong_max;
+		const BOOL accepted = matched && checker.FCheck(rule, model, nullptr, &failed);
+		// IS NOT NULL rejects NULL; IS NOT TRUE accepts it. An empty null-extension
+		// domain cannot establish null rejection, even for a well-formed predicate.
+		const BOOL expected = matched && accepted == (!notTrue && !empty);
+		if (!expected)
+			GPOS_TRACE_FORMAT("null rejection checkFirst=%d notTrue=%d empty=%d matched=%d failed=%lu",
+				checkFirst, notTrue, empty, matched, failed);
+		valid &= expected;
+		model->Release();
+		rule->Release();
+	}
+	source->Release();
+	predicate->Release();
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 // EOF

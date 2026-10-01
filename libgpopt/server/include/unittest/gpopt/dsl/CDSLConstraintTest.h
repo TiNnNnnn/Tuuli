@@ -38,6 +38,7 @@ public:
 	static GPOS_RESULT EresUnittest_ExactBindingEquality();
 	static GPOS_RESULT EresUnittest_SliceCompose();
 	static GPOS_RESULT EresUnittest_DeterministicSubqueryBoundary();
+	static GPOS_RESULT EresUnittest_NullRejectingBindings();
 
 	// AttrsSub(a,t): admit when a's columns ⊆ t's output; reject otherwise
 	static GPOS_RESULT EresUnittest_AttrsSubAdmit();

@@ -50,7 +50,9 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pcon);
 	GPOS_ASSERT(nullptr != pmodel);
-	if (before_check && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
+	const BOOL nullRejecting = EdslconPredicateNullRejecting == pcon->Edslcon();
+	if (before_check && !nullRejecting &&
+		!CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
 	{
 		return false;
 	}
@@ -208,7 +210,7 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		const CDSLSymbol *psym = (*pdrgpsym)[ul];
 		// An alias is a check on an existing capture, not a fresh output. Resolve
 		// it before checking in both syntaxes; retain legacy input scheduling.
-		if (before_check && ((0 == ul && PsymResolve(psym) == psym) ||
+		if (before_check && !nullRejecting && ((0 == ul && PsymResolve(psym) == psym) ||
 			(0 < ul && !prule->Pexprdefs()->FHasBindings()))) continue;
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
@@ -219,7 +221,7 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		// A column derivation can consume another derivation or a typed
 		// reference. Publish those resolved inputs for the independent checker,
 		// not merely the output; never replace an existing source capture.
-		if (before_check && EdslsideTarget == psym->Eside())
+		if (before_check && (nullRejecting || EdslsideTarget == psym->Eside()))
 		{
 			esymkind = psym->Esymkind();
 		}
