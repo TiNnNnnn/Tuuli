@@ -785,10 +785,15 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 	// (doc §2) and is why Filter does not go through the generic child recursion.
 	if (EdslopFilter == pop->Edslop())
 	{
-		if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+		if (nullptr != m_prule &&
+			m_prule->Pexprdefs()->FHasBindings() &&
+			(m_prule->Pexprdefs()->FHasExpressionBindings() ||
+			 COperator::EopLogicalSelect == pexpr->Pop()->Eopid()))
 		{
 			// Oriented scalar patterns match the actual tree. In particular,
 			// do not split/reorder predicates through the legacy filter views.
+			// Pure references also admit non-Select carriers through the existing
+			// views below, but a live Select retains its typed, complete predicate.
 			CDSLSymbolArray *symbols = pop->Pdrgpsym();
 			if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
 				2 != pexpr->Arity() ||

@@ -3179,6 +3179,45 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 profile_targets(args)
 
+    def test_reference_only_migrations_preserve_the_complete_legacy_rule(self) -> None:
+        import re
+
+        kinds = {'t': 'Table', 'p': 'Predicate', 'a': 'Attrs',
+                 's': 'Schema', 'e': 'ExprList'}
+        pending = None
+        checked = 0
+        for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
+            if line.startswith('# SYNTAX_ONLY legacy_hash='):
+                self.assertIsNone(pending)
+                self.assertIn('native expression proof: UNKNOWN', line)
+                pending = re.search(r'legacy_hash=([0-9a-f]{16});', line).group(1)
+            elif line and not line.startswith('#') and pending:
+                source, target, clauses = line.split('|')
+                captured = set(re.findall(r'\b[a-z]\d+\b', source))
+                defined = set()
+                legacy = []
+                for clause in clauses.split(';'):
+                    if ':=' not in clause:
+                        legacy.append(clause)
+                        continue
+                    ref = re.fullmatch(r'([a-z]\d+) := ([a-z]\d+)', clause)
+                    self.assertIsNotNone(ref, 'syntax-only migration cannot introduce constructors')
+                    lhs, rhs = ref.groups()
+                    self.assertNotIn(lhs, captured | defined)
+                    self.assertIn(rhs, captured)
+                    self.assertEqual(lhs[0], rhs[0])
+                    defined.add(lhs)
+                    legacy.append(f'{kinds[lhs[0]]}Eq({lhs},{rhs})')
+                self.assertTrue(defined)
+                identity = 0xcbf29ce484222325
+                for byte in '|'.join((source, target, ';'.join(legacy))).encode('ascii'):
+                    identity = ((identity ^ byte) * 0x100000001b3) & ((1 << 64) - 1)
+                self.assertEqual(f'{identity:016x}', pending, 'operator tree or premises changed')
+                pending = None
+                checked += 1
+        self.assertIsNone(pending)
+        self.assertGreater(checked, 0)
+
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
         identities, errors = audit_rule_file(rule_file)

@@ -6,7 +6,7 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"c7d161295e62caa0\""
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
       ],
       "not_contains": [
         "Falling back to Postgres"

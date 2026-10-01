@@ -16,7 +16,7 @@
         "Optimizer: pg_orca",
         "Custom Scan (Assert)",
         "WindowAgg",
-        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+        "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ],
       "not_contains": [
         "Xform: CXformMaxOneRow2Assert"

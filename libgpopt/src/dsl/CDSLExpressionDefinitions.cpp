@@ -291,6 +291,18 @@ CDSLExpressionDefinitions::FHasBindings() const
 	return false;
 }
 
+BOOL
+CDSLExpressionDefinitions::FHasExpressionBindings() const
+{
+	for (ULONG i = 0; i < UlDefinitions(); ++i)
+	{
+		const CDefinition *definition = PdefAt(i);
+		if (ELegacy != definition->Binding() && EdslexprRef != definition->Edslexpr())
+			return true;
+	}
+	return false;
+}
+
 const CDSLExpressionDefinitions::SBindingSignature *
 CDSLExpressionDefinitions::PsigBinding(const CHAR *name, ULONG arity)
 {

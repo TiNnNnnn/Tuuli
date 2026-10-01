@@ -542,9 +542,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
 	const BOOL bindings = nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings();
-	// IN carriers can hide the comparison inside their inner tree. New binding
-	// templates require the literal EXISTS-style Apply predicate, not that view.
-	if (bindings && fSemiApply &&
+	// IN carriers can hide the comparison inside their inner tree. Structural
+	// expression patterns need the literal Apply, but references alone preserve
+	// the existing complete-predicate view and must not narrow its domain.
+	if (bindings && m_prule->Pexprdefs()->FHasExpressionBindings() && fSemiApply &&
 		(COperator::EopLogicalLeftSemiApplyIn == eopid ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopid))
 		return false;

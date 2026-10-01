@@ -155,7 +155,7 @@ private:
 	// caused conservative early termination.
 	SNode *PnodeInsertOp(SNode *pnode, const CDSLOp *pop, BOOL fSourceRoot,
 						 BOOL *pfComplete, ULONG ulAdapterFlags = 0,
-						 BOOL fLiteral = false);
+						 BOOL fLiteral = false, BOOL fFilterViews = false);
 
 	static BOOL FRuleAvailable(const SRuleEntry *pentry);
 	static BOOL FNodeHasAvailableTerminal(const SNode *pnode);

@@ -222,7 +222,7 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 CDSLRulePrefixIndex::SNode *
 CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 								   BOOL fSourceRoot, BOOL *pfComplete,
-								   ULONG ulAdapterFlags, BOOL fLiteral)
+								   ULONG ulAdapterFlags, BOOL fLiteral, BOOL fFilterViews)
 {
 	GPOS_ASSERT(nullptr != pnode);
 	GPOS_ASSERT(nullptr != pop);
@@ -236,7 +236,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	{
 		SNode *limit = PnodeExact(pnode, COperator::EopLogicalLimit, 1);
 		return PnodeInsertOp(limit, (*(*pop)[0])[0], false, pfComplete,
-			0, true /*literal*/);
+			0, true /*literal*/, fFilterViews);
 	}
 
 	// Root-level adapters still have a stable physical prefix in their direct
@@ -360,6 +360,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 	// with explicit bindings. It is not a literal one-node physical prefix.
 	// ponytail: stop here; index optional wrappers if candidate volume warrants it.
 	if (subqueryView || EdslopAgg == pop->Edslop() ||
+		(fFilterViews && EdslopFilter == pop->Edslop()) ||
 		(!fLiteral && !FStructurallyExact(pop)))
 	{
 		*pfComplete = false;
@@ -392,7 +393,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		BOOL fChildComplete = false;
 		pnodeCurrent =
 			PnodeInsertOp(pnodeCurrent, (*pop)[ul], false, &fChildComplete,
-						 0, fLiteral);
+						 0, fLiteral, fFilterViews);
 		if (!fChildComplete)
 		{
 			*pfComplete = false;
@@ -451,8 +452,11 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 	{
 		// Retain literal relational levels, including Filters below both Join
 		// branches, but honor operators with multiple native representations.
+		// Pure references stop at Filter view boundaries without changing the
+		// exact adapters of other operators (e.g. Proj* and fused Limit/Sort).
 		pnodeTerminal = PnodeInsertOp(pnodeTerminal, popRoot, false,
-			&fComplete, 0, true /*literal*/);
+			&fComplete, 0, true /*literal*/,
+			!prule->Pexprdefs()->FHasExpressionBindings());
 	}
 	else if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
 			 fCorrelatedNotInApplyView || fSemiApplyView || fAntiApplyView)
