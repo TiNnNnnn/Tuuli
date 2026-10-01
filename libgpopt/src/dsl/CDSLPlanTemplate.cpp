@@ -13,6 +13,7 @@
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -72,6 +73,68 @@ OperatorText(CMemoryPool *mp, const CExpression *expr)
 	return result;
 }
 
+std::string
+TypeId(CMemoryPool *mp, IMDId *id)
+{
+	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
+		mp, const_cast<WCHAR *>(id->GetBuffer()));
+	std::string result = JsonString(text);
+	GPOS_DELETE_ARRAY(text);
+	return result;
+}
+
+void
+AppendColumns(CMemoryPool *mp, std::ostringstream *out, const CColRefSet *columns)
+{
+	*out << '[';
+	CColRefSetIter iter(*columns);
+	BOOL first = true;
+	while (iter.Advance())
+	{
+		const CColRef *column = iter.Pcr();
+		if (!first)
+			*out << ',';
+		first = false;
+		*out << "{\"id\":" << column->Id() << ",\"type\":"
+			<< TypeId(mp, column->RetrieveType()->MDId())
+			<< ",\"typmod\":" << column->TypeModifier() << '}';
+	}
+	*out << ']';
+}
+
+// These are native metadata facts, not a certificate of row layout or rule
+// equivalence. Column sets have no SELECT-list order; ProjectElement paths do.
+void
+AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *expr)
+{
+	if (!expr->Pop()->FLogical() && !expr->Pop()->FScalar())
+		return;
+	// Property derivation populates caches without changing the source tree.
+	CExpression *derived = const_cast<CExpression *>(expr);
+	*out << ",\"column_facts\":{";
+	if (expr->Pop()->FLogical())
+	{
+		*out << "\"output\":";
+		AppendColumns(mp, out, derived->DeriveOutputColumns());
+		*out << ",\"outer\":";
+		AppendColumns(mp, out, derived->DeriveOuterReferences());
+	}
+	else
+	{
+		*out << "\"used\":";
+		AppendColumns(mp, out, derived->DeriveUsedColumns());
+		*out << ",\"defined\":";
+		AppendColumns(mp, out, derived->DeriveDefinedColumns());
+		if (CDSLMatchView::FScalarValue(expr))
+		{
+			const CScalar *scalar = CScalar::PopConvert(expr->Pop());
+			*out << ",\"value_type\":" << TypeId(mp, scalar->MdidType())
+				<< ",\"value_typmod\":" << scalar->TypeModifier();
+		}
+	}
+	*out << '}';
+}
+
 void
 AppendExpressionTree(CMemoryPool *mp, std::ostringstream *out,
 	const CExpression *root, const std::string &root_path)
@@ -88,7 +151,9 @@ AppendExpressionTree(CMemoryPool *mp, std::ostringstream *out,
 		*out << "{\"path\":" << JsonString(current.second)
 			<< ",\"operator\":" << JsonString(current.first->Pop()->SzId())
 			<< ",\"operator_text\":" << JsonString(OperatorText(mp, current.first))
-			<< ",\"arity\":" << current.first->Arity() << "}";
+			<< ",\"arity\":" << current.first->Arity();
+		AppendColumnFacts(mp, out, current.first);
+		*out << '}';
 		for (ULONG i = current.first->Arity(); i > 0; --i)
 			pending.emplace_back((*current.first)[i - 1], current.second + "/" +
 				std::to_string(i - 1));
@@ -803,7 +868,9 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 			AppendExpressionTree(mp, &out, child, "s" + std::to_string(i));
 			out << "]}";
 		}
-		out << "]}";
+		out << ']';
+		AppendColumnFacts(mp, &out, node);
+		out << '}';
 		for (ULONG i = relational.size(); i > 0; --i)
 			pending.emplace_back(relational[i - 1], path + "/" + std::to_string(i - 1));
 	}
