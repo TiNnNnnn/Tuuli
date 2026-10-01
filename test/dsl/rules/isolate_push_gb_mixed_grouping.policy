@@ -2,9 +2,9 @@
 # unique-output siblings that share the same Proj*/InnerJoin source prefix.
 - rule: c602af3fe55f92f7
   enabled: false
-- rule: abbf8a73e6365f11
+- rule: 8508e8910d0784eb
   enabled: false
-- rule: 43379498a899178d
+- rule: a93a21a037a81e17
   enabled: false
 - rule: dc768bb1f1a116ef
   enabled: false

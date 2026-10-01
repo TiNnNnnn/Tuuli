@@ -7,7 +7,7 @@
     "scope": "Aggregate grouping contains the outer FK and aggregate inputs use only the outer child; ordinary integer MIN only",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "78c046d1ea440878"
+      "a6c78fb8157c63ef"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions"
@@ -26,7 +26,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\""
+        "\"status\":\"applied\",\"rule_hash\":\"a6c78fb8157c63ef\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -52,7 +52,7 @@
         "CXformPushGbBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"78c046d1ea440878\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a6c78fb8157c63ef\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

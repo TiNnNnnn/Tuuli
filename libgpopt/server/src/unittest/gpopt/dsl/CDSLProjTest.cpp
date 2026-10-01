@@ -2122,6 +2122,19 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 
 	// The same provenance-marked aggregate cannot be deleted by a rule whose
 	// source root itself is Proj*.
+	for (BOOL preserve : {false, true})
+	{
+		const std::string text = "Proj*<a0 s0>(Input<t0>)|" +
+			std::string(preserve ? "Proj*" : "Proj") +
+			"<a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		if (nullptr == rule || CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), pexprGeneratedDedup, model) != preserve)
+			eres = GPOS_FAILED;
+		model->Release();
+		CRefCount::SafeRelease(rule);
+	}
 	CDSLModel *pmodelRoot = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcherRoot(mp, pruleRoot);
 	if (matcherRoot.FMatch(

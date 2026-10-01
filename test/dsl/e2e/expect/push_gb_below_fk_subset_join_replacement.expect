@@ -7,7 +7,7 @@
     "scope": "Pure outer grouping attrs contain a nullable FK joined to a unique referred key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "43379498a899178d"
+      "a93a21a037a81e17"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
+        "\"status\":\"applied\",\"rule_hash\":\"a93a21a037a81e17\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -51,7 +51,7 @@
       ],
       "policy": "isolate_push_gb_dedup_fk.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"43379498a899178d\""
+        "\"status\":\"applied\",\"rule_hash\":\"a93a21a037a81e17\""
       ],
       "provenance": {
         "required_sources": [

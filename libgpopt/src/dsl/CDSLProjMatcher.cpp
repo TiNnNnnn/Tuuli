@@ -508,6 +508,13 @@ CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 		return false;
 	CLogicalGbAgg *agg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
 	CColRefArray *keys = agg->Pdrgpcr();
+	const CDSLRule *rule = m_pmatcher->Prule();
+	// Retain the legacy dedup promise guard: a provenance-marked root may be
+	// consumed by a DISTINCT-preserving rule, but not dropped in its own group.
+	// Nested captures still describe the complete Global dedup.
+	if (nullptr != rule && popProj == rule->PfragSrc()->PopRoot() &&
+		!rule->PfragTgt()->PopRoot()->FDistinct() && nullptr != agg->PdrgpcrMinimal())
+		return false;
 	// Global aggregation with no keys emits a row on empty input, unlike
 	// DISTINCT. Local/intermediate aggregation is not a relational DISTINCT.
 	if (COperator::EgbaggtypeGlobal != agg->Egbaggtype() || 0 == keys->Size())
