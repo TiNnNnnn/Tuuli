@@ -193,7 +193,8 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input
 # SYNTAX_ONLY legacy_hash=c602af3fe55f92f7; native expression proof: UNKNOWN (native residual Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s1 := s0
 
-Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)
+# SYNTAX_ONLY legacy_hash=9cab8c80b6430c16; native expression proof: UNKNOWN (native keyed membership proof pending).
+Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);t2 := t0;t3 := t1;a5 := a1;a6 := a0;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s2 := s1
 
 Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a4,a1);AttrsEq(a5,a2);AttrsEq(a3,a0);SchemaEq(s1,s0)
 

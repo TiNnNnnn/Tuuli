@@ -12,6 +12,7 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -389,7 +390,7 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 		pcrsInnerDeps->Release();
 
 		fMatched = pmodel->FBind((*pdrgpsym)[1], pdrgpcrInner) &&
-			pmodel->FBind((*pdrgpsym)[2], pexprResidual) &&
+			m_pmatcher->FMatchPredicate((*pdrgpsym)[2], pexprResidual, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[3], pdrgpcrOuterDeps) &&
 			pmodel->FBind((*pdrgpsym)[4], pdrgpcrInnerDeps);
 		pexprResidual->Release();
@@ -547,6 +548,13 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
+		// The explicit five-slot form is the decorrelated keyed SemiJoin
+		// contract, not a scalar IN carrier. Share its existing exact decoder.
+		if (fExtended)
+			return COperator::EopLogicalLeftSemiJoin == pexpr->Pop()->Eopid() &&
+				3 == pexpr->Arity() &&
+				CDSLExprListUtils::FRowScalar((*pexpr)[2]) &&
+				FMatchSemiJoin(pop, pexpr, pmodel);
 		if (!fExtended && (COperator::EopLogicalLeftSemiApplyIn == pexpr->Pop()->Eopid() ||
 			COperator::EopLogicalLeftSemiCorrelatedApplyIn == pexpr->Pop()->Eopid()))
 		{

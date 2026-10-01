@@ -31,6 +31,7 @@ public:
 	static GPOS_RESULT EresUnittest_SemiJoinComputedKeyToInnerJoin();
 	static GPOS_RESULT EresUnittest_ResidualSemiJoinBindings();
 	static GPOS_RESULT EresUnittest_ResidualInSubTarget();
+	static GPOS_RESULT EresUnittest_ResidualExpressionBindings();
 	static GPOS_RESULT EresUnittest_RejectsCorrelatedSemiJoinView();
 	static GPOS_RESULT EresUnittest_RejectsSameSideSemiJoinPredicate();
 	static GPOS_RESULT EresUnittest_InSubAsSimpleFilterCarrier();

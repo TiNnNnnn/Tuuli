@@ -248,6 +248,10 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
+	// Keyed membership has the same equality/residual construction contract as
+	// Join; only its result operator differs. Keep scalar IN on its own path.
+	if (m_prule->Pexprdefs()->FHasBindings() && 5 == pop->Pdrgpsym()->Size())
+		return PexprBuildJoin(pop, pmodel);
 
 	CExpression *pexprOuter = PexprBuild((*pop)[0], pmodel);
 	CExpression *pexprInner = PexprBuild((*pop)[1], pmodel);
