@@ -15,6 +15,7 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CColRefSetIter.h"
+#include "gpopt/dsl/CDSLAggMatcher.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -501,6 +502,10 @@ BOOL
 CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 								CDSLModel *pmodel) const
 {
+	// Reuse the existing source-root identity view when the SemiJoin output
+	// proves a key. It checks uniqueness and admits only the two-slot form.
+	if (COperator::EopLogicalLeftSemiJoin == pexprAgg->Pop()->Eopid())
+		return CDSLAggMatcher(m_mp, m_pmatcher).FMatch(popProj, pexprAgg, pmodel);
 	if ((COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() &&
 		 COperator::EopLogicalGbAggDeduplicate != pexprAgg->Pop()->Eopid()) ||
 		2 != pexprAgg->Arity() ||

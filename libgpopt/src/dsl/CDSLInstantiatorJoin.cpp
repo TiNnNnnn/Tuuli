@@ -394,12 +394,16 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	// An ordinary Join has independent inputs. Moving one correlated Filter
 	// into ON does not remove references hidden deeper in either input, even
 	// when they use the same columns as that Filter. References to an enclosing
-	// scope remain valid; only dependencies on the sibling input are forbidden.
+	// scope remain valid for ordinary joins; keyed InSubFilter has no external
+	// dependency domain, matching its source-side uncorrelated contract.
 	if (!fPredicateApply &&
 		(!pexprRight->DeriveOuterReferences()->IsDisjoint(
 			 pexprLeft->DeriveOutputColumns()) ||
 		 !pexprLeft->DeriveOuterReferences()->IsDisjoint(
-			 pexprRight->DeriveOutputColumns())))
+			 pexprRight->DeriveOutputColumns()) ||
+		 (EdslopInSubFilter == pop->Edslop() &&
+		  (0 != pexprLeft->DeriveOuterReferences()->Size() ||
+		   0 != pexprRight->DeriveOuterReferences()->Size()))))
 	{
 		if (GPOS_FTRACE(EopttracePrintDSLRule))
 		{
@@ -726,6 +730,16 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		case EdslopExists:
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp);
 			break;
+		case EdslopInSubFilter:
+		{
+			CExpression *carrier = pmodel->PexprInSubCarrier(psymLeft);
+			CXform::EXformId origin = nullptr != carrier &&
+				carrier->Pop()->Eopid() == COperator::EopLogicalLeftSemiJoin
+				? CLogicalLeftSemiJoin::PopConvert(carrier->Pop())->OriginXform()
+				: CXform::ExfInvalid;
+			popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp, origin);
+			break;
+		}
 		case EdslopSemiApply:
 			if (nullptr == popJoin)
 				popJoin = GPOS_NEW(m_mp) CLogicalLeftSemiApply(m_mp);

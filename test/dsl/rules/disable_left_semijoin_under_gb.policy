@@ -1,5 +1,5 @@
 # Isolate the PushGbDedupBelowJoin replacement matrix from the earlier
 # LeftSemiJoin2InnerJoinUnderGb replacement. All unspecified rules retain the
 # default CBO policy.
-- rule: 9cab8c80b6430c16
+- rule: 83e7dc664eb77128
   enabled: false

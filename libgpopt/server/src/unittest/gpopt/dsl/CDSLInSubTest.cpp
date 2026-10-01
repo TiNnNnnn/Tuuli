@@ -6,6 +6,8 @@
 #include "unittest/gpopt/dsl/CDSLInSubTest.h"
 
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/common/CAutoRef.h"
+#include <string>
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -16,6 +18,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
+#include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -26,6 +29,7 @@
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCoalesce.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -152,6 +156,8 @@ CDSLInSubTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_ResidualInSubTarget),
 		GPOS_UNITTEST_FUNC(
+			CDSLInSubTest::EresUnittest_ResidualExpressionBindings),
+		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_RejectsCorrelatedSemiJoinView),
 		GPOS_UNITTEST_FUNC(
 			CDSLInSubTest::EresUnittest_RejectsSameSideSemiJoinPredicate),
@@ -167,6 +173,135 @@ CDSLInSubTest::EresUnittest()
 			CDSLInSubTest::EresUnittest_PostApplyDistinctDrop),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_PostApplyIdentity)};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLInSubTest::EresUnittest_ResidualExpressionBindings()
+{
+	// Exercise the shared predicate contract, not equivalence of these test
+	// rewrites: source patterns, aliases and changed target residuals must each
+	// mean what the template says, independently of the join kind.
+	for (BOOL source_semi : {false, true})
+	for (BOOL target_semi : {false, true})
+	for (BOOL unique : {false, true})
+	for (ULONG mode = 0; mode < 3; ++mode)
+	for (ULONG scope = 0; scope < 3; ++scope)
+	{
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		std::string text = std::string(source_semi ? "InSubFilter" : "InnerJoin") +
+			"<a0 a1 " + (mode == 2 ? "Not(p0)" : "p0") +
+			" a2 a3>(Input<t0>,Input<t1>)|" +
+			(target_semi ? "InSubFilter" : "InnerJoin") +
+			"<a4 a5 " + (mode == 1 ? "Not(p0)" : "p1") +
+			" a6 a7>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;"
+			"a4 := a0;a5 := a1;" +
+			(scope == 1 ? "a6 := a3;a7 := a2" : "a6 := a2;a7 := a3") +
+			(mode == 1 ? "" : ";p1 := p0");
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *left_cols = nullptr, *right_cols = nullptr;
+		// Real constant rows let key derivation run without synthetic table
+		// metadata: one row is unique; two identical rows have no key.
+		const auto input = [&](ULONG count, CColRefArray **columns) {
+			*columns = GPOS_NEW(mp) CColRefArray(mp);
+			(*columns)->Append(fix.PcrCreateInt4("k"));
+			(*columns)->Append(fix.PcrCreateInt4("v"));
+			auto *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+			for (ULONG i = 0; i < count; ++i)
+			{
+				auto *row = GPOS_NEW(mp) IDatumArray(mp);
+				for (ULONG col = 0; col < 2; ++col)
+				{
+					CAutoRef<CExpression> value(CUtils::PexprScalarConstInt4(mp, 1));
+					IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+					datum->AddRef();
+					row->Append(datum);
+				}
+				rows->Append(row);
+			}
+			return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(mp, *columns, rows));
+		};
+		CExpression *left_input = input(unique ? 1 : 2, &left_cols);
+		if (scope == 2)
+		{
+			CAutoRef<CExpression> outer_predicate(fix.PexprEqPred(
+				(*left_cols)[0], fix.PcrCreateInt4("outside")));
+			CExpression *dependent = fix.PexprLogicalSelect(left_input, outer_predicate.Value());
+			left_input->Release();
+			left_input = dependent;
+		}
+		CAutoRef<CExpression> left(left_input);
+		CAutoRef<CExpression> right(input(2, &right_cols));
+		CAutoRef<CExpression> key(fix.PexprEqPred((*left_cols)[0], (*right_cols)[0]));
+		CAutoRef<CExpression> atom(fix.PexprEqPred((*left_cols)[1], (*left_cols)[0]));
+		atom->AddRef();
+		CAutoRef<CExpression> negated(CUtils::PexprNegate(mp, atom.Value()));
+		CAutoRef<CExpression> predicate(CPredicateUtils::PexprConjunction(
+			mp, key.Value(), mode == 2 ? negated.Value() : atom.Value()));
+		CExpression *source = nullptr;
+		if (source_semi)
+		{
+			left->AddRef();
+			right->AddRef();
+			predicate->AddRef();
+			source = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLeftSemiJoin(mp, CXform::ExfLeftSemiJoin2InnerJoin),
+				left.Value(), right.Value(), predicate.Value());
+		}
+		else
+			source = fix.PexprLogicalInnerJoin(left.Value(), right.Value(), predicate.Value());
+		CAutoRef<CExpression> source_ref(source);
+		if (source_semi && scope == 0)
+		{
+			const auto separator = text.find('|');
+			const std::string wrapped = "Proj*<a8 s0>(" + text.substr(0, separator) +
+				")" + text.substr(separator);
+			CAutoRef<CDSLRule> dedup_rule(PruleParse(mp, wrapped.c_str()));
+			GPOS_UNITTEST_ASSERT(nullptr != dedup_rule.Value());
+			CAutoRef<CDSLModel> dedup_model(GPOS_NEW(mp) CDSLModel(mp));
+			CDSLMatcher dedup_matcher(mp, dedup_rule.Value());
+			GPOS_UNITTEST_ASSERT(dedup_matcher.FMatch(dedup_rule->PfragSrc()->PopRoot(),
+				source, dedup_model.Value()) == unique);
+			CAutoRef<CExpression> explicit_dedup(fix.PexprLogicalGbAgg(source, left_cols));
+			CDSLRulePrefixIndex index(mp);
+			index.Insert(dedup_rule.Value(), 0, explicit_dedup->Pop()->Eopid());
+			CAutoRef<CDSLRuleArray> candidates(index.PdrgpruleCandidates(mp, explicit_dedup.Value()));
+			GPOS_UNITTEST_ASSERT(candidates->Size() == 1);
+		}
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		CDSLMatcher matcher(mp, rule.Value());
+		CDSLConstraintChecker checker(mp);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model.Value());
+		if (scope == 2 && source_semi)
+		{
+			GPOS_UNITTEST_ASSERT(!matched);
+			continue;
+		}
+		GPOS_UNITTEST_ASSERT(matched);
+		GPOS_UNITTEST_ASSERT(checker.FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator instantiator(mp);
+		CAutoRef<CExpression> target(instantiator.PexprInstantiate(rule.Value(), model.Value()));
+		if (scope == 1 || (scope == 2 && target_semi))
+		{
+			GPOS_UNITTEST_ASSERT(nullptr == target.Value());
+			continue;
+		}
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		GPOS_UNITTEST_ASSERT(target->Pop()->Eopid() == (target_semi
+			? COperator::EopLogicalLeftSemiJoin : COperator::EopLogicalInnerJoin));
+		CAutoRef<CExpressionArray> conjuncts(
+			CPredicateUtils::PdrgpexprConjuncts(mp, (*target)[2]));
+		CExpression *expected = mode == 1 ? negated.Value() : atom.Value();
+		GPOS_UNITTEST_ASSERT(conjuncts->Size() == 2 &&
+			(((*conjuncts)[0]->Matches(key.Value()) && (*conjuncts)[1]->Matches(expected)) ||
+			 ((*conjuncts)[1]->Matches(key.Value()) && (*conjuncts)[0]->Matches(expected))));
+		if (target_semi && source_semi)
+			GPOS_UNITTEST_ASSERT(CLogicalLeftSemiJoin::PopConvert(target->Pop())->OriginXform() ==
+				CXform::ExfLeftSemiJoin2InnerJoin);
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

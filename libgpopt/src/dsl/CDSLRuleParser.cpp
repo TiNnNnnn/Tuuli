@@ -882,7 +882,8 @@ FBindingTree(const CDSLOp *op, BOOL source)
 						   (EdslopExists == op->Edslop() && 3 == op->Pdrgpsym()->Size())) &&
 						  2 == op->UlChildren()
 			   : EdslopInSubFilter == op->Edslop()
-				   ? 1 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+				   ? (1 == op->Pdrgpsym()->Size() || 5 == op->Pdrgpsym()->Size()) &&
+					 2 == op->UlChildren()
 			   : 1 == op->UlChildren() &&
 				 ((((source && EdslopMaxOneRow == op->Edslop()) ||
 				    (!source && EdslopAssertMaxOneRow == op->Edslop())) &&
@@ -928,7 +929,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and Set templates with declared target outputs");
+			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-/five-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and Set templates with declared target outputs");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

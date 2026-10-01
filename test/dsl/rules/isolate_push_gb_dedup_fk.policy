@@ -2,5 +2,5 @@
 # that can remove the same unique-output Dedup or convert its source semi join.
 - rule: 49a0c7c4c7608241
   enabled: false
-- rule: 9cab8c80b6430c16
+- rule: 83e7dc664eb77128
   enabled: false

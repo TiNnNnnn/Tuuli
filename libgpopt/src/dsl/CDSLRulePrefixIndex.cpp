@@ -373,7 +373,11 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return PnodeInput(pnode);
 	}
 
-	const COperator::EOperatorId eopid = pop->Eopid();
+	// The explicit keyed membership form is a decorrelated SemiJoin, unlike
+	// the scalar/tagged-Apply carriers used by the single-slot form.
+	const COperator::EOperatorId eopid =
+		EdslopInSubFilter == pop->Edslop() && 5 == pop->Pdrgpsym()->Size()
+			? COperator::EopLogicalLeftSemiJoin : pop->Eopid();
 	if (COperator::EopSentinel == eopid)
 	{
 		*pfComplete = false;
