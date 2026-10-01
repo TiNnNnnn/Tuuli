@@ -1,0 +1,37 @@
+{
+  "description": "Dedup pushdown must not let an equality-only FK elimination erase a rejecting residual",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8fc316909dea509a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin"
+    ],
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

@@ -1,15 +1,5 @@
 {
-  "description": "Join distribution remaps a preserved non-equality residual predicate without rule-specific handling",
-  "replacement": {
-    "xforms": [
-      "CXformPushJoinBelowLeftUnionAll"
-    ],
-    "scope": "InnerJoin with a non-equality predicate over a left UnionAll",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "e99bceacc9aaf130"
-    ]
-  },
+  "description": "Safety boundary: an equality-only Join distribution rule must not match a non-equality residual; explicit residual distribution still needs proof",
   "plans": [
     {
       "name": "native",
@@ -22,12 +12,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "contains": [
+      "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
       ],
       "alternative": [
-        "CXformPushJoinBelowLeftUnionAll",
-        "CXformDSLRule_InnerJoin"
+        "CXformPushJoinBelowLeftUnionAll"
       ]
     },
     {
@@ -49,12 +38,13 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"e99bceacc9aaf130\""
       ],
       "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
+        "required_sources": [],
         "required_origins": [],
         "forbidden_origins": [
           "CXformPushJoinBelowLeftUnionAll"

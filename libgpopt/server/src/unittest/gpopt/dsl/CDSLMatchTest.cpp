@@ -366,9 +366,8 @@ CDSLMatchTest::EresUnittest_SelectRootMatchesAndRecurses()
 //	@doc:
 //		InnerJoin<a0 a1>(Input<t0>,Input<t1>) matches a live InnerJoin(Get,Get,
 //		pred): both relational children recurse and bind, and the two <a> join-key
-//		symbols bind (M2 — CDSLJoinMatcher). Here the predicate is opaque IsNull
-//		atoms (non-equi), so no equi keys are extracted (<a0>/<a1> bind empty
-//		column arrays) and the atoms are kept as residual; the model still binds
+//		symbols bind (M2 — CDSLJoinMatcher). The predicate is a cross-input
+//		equality, as required by the two-slot form; the model binds
 //		t0, t1, a0, a1 (4 symbols). WeTune: Match.matchOne join branch.
 //---------------------------------------------------------------------------
 GPOS_RESULT
@@ -387,9 +386,9 @@ CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren()
 
 	CColRefArray *pdrgpcrLeft = nullptr;
 	CExpression *pexprLeft = fix.PexprLogicalGet("t0", 2, &pdrgpcrLeft);
-	CExpression *pexprRight = fix.PexprLogicalGet("t1", 2, nullptr);
-	CColRef *rgpcr[1] = {(*pdrgpcrLeft)[0]};
-	CExpression *pexprPred = fix.PexprConjunctionOfAtoms(rgpcr, 1);
+	CColRefArray *pdrgpcrRight = nullptr;
+	CExpression *pexprRight = fix.PexprLogicalGet("t1", 2, &pdrgpcrRight);
+	CExpression *pexprPred = fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprJoin =
 		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
 
@@ -486,8 +485,7 @@ CDSLMatchTest::EresUnittest_DeepestFailure()
 	CExpression *pexprRight = fix.PexprLogicalGet("right", 2, &pdrgpcrRight);
 	CExpression *pexprProject =
 		fix.PexprLogicalProject(pexprRight, pdrgpcrRight);
-	CColRef *rgpcr[1] = {(*pdrgpcrLeft)[0]};
-	CExpression *pexprPred = fix.PexprConjunctionOfAtoms(rgpcr, 1);
+	CExpression *pexprPred = fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
 	CExpression *pexprJoin =
 		fix.PexprLogicalInnerJoin(pexprLeft, pexprProject, pexprPred);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);

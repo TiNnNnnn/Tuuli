@@ -32,6 +32,8 @@ Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 a3 a4>(RowNu
 # SYNTAX_ONLY legacy_hash=2ee9916a64de7345; native expression proof: UNKNOWN (native set/join proof pending).
 Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a5 := a1;a6 := a2;OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);p0 := NullSafeEq(a3,a4);a9 := a5;s1 := s0;ErrorFree(r0);ErrorFree(r1)
 
+# Key-only Join distribution covers equality predicates, not an implicit
+# non-equality residual. Wider predicate distribution needs an explicit proof.
 InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
 
 LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
@@ -201,12 +203,14 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 # SYNTAX_ONLY legacy_hash=43379498a899178d; native expression proof: UNKNOWN (native keyed Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2;s1 := s0;a7 := a2;s2 := s0
 
-Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a7,a3);AttrsEq(a8,a4);AttrsEq(a9,a2);SchemaEq(s1,s0);AttrsEq(a10,a2);SchemaEq(s2,s0)
+# SYNTAX_ONLY legacy_hash=dc768bb1f1a116ef; native expression proof: UNKNOWN (native residual Join proof pending).
+Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a7 := a3;a8 := a4;a9 := a2;s1 := s0;a10 := a2;s2 := s0
 
 # SYNTAX_ONLY legacy_hash=6f1d9b45630f2aa2; native expression proof: UNKNOWN (native keyed Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0
 
-Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a7,a3);AttrsEq(a8,a4);AttrsIntersect(a9,a2,t0);AttrsIntersect(s1,s0,t0);AttrsEq(a10,a2);SchemaEq(s2,s0)
+# SYNTAX_ONLY legacy_hash=c29e145d47af5690; native expression proof: UNKNOWN (native residual Join proof pending).
+Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a7 := a3;a8 := a4;AttrsIntersect(a9,a2,t0);AttrsIntersect(s1,s0,t0);a10 := a2;s2 := s0
 
 # Push a complete real aggregate through the referencing side of an equality
 # join. The target grouping is the source grouping intersected with the outer
@@ -286,6 +290,9 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(P
 # arbitrary-right-tree CorrelationEquality law as the rule above.  Local filter
 # dependencies must already be grouping keys, so this rule neither widens the
 # aggregate schema nor depends on an xform-specific exception.
+# PredicateDomainSplit below names the base input t1, not the aggregate output.
+# An ON predicate using a produced aggregate column can therefore generate an
+# out-of-scope target; the shared runtime scope guard rejects that application.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p5,p1);PredicateAnd(p6,p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 

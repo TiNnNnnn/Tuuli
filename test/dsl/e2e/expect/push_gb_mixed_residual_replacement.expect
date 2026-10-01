@@ -7,7 +7,7 @@
     "scope": "Mixed grouping contains the FK and all residual outer dependencies",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "c29e145d47af5690"
+      "afbbeaf088e13590"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_mixed_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c29e145d47af5690\""
+        "\"status\":\"applied\",\"rule_hash\":\"afbbeaf088e13590\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -51,7 +51,7 @@
       ],
       "policy": "isolate_push_gb_mixed_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c29e145d47af5690\""
+        "\"status\":\"applied\",\"rule_hash\":\"afbbeaf088e13590\""
       ],
       "provenance": {
         "required_sources": [

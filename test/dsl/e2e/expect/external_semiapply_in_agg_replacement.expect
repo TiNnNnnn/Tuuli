@@ -1,5 +1,5 @@
 {
-  "description": "The grouped external SemiApply rules also expand the IN carrier",
+  "description": "External IN retains a safe DSL expansion and rejects the grouped candidate that leaks a locally produced aggregate result as an outer reference",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
@@ -7,8 +7,7 @@
     "scope": "External IN equality below an aggregate whose grouping contains the local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5ea2046b8dd2a967",
-      "783c620153b85545"
+      "5ea2046b8dd2a967"
     ]
   },
   "plans": [
@@ -25,6 +24,9 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\"",
+        "DSL_INSTANTIATE_TRACE rule_hash=783c620153b85545 status=rejected reason=introduced_outer_references"
+      ],
+      "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ]
     },
@@ -49,6 +51,9 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\"",
+        "DSL_INSTANTIATE_TRACE rule_hash=783c620153b85545 status=rejected reason=introduced_outer_references"
+      ],
+      "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"783c620153b85545\""
       ],
       "provenance": {

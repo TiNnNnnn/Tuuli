@@ -607,6 +607,127 @@ EresComputedResultOutputContract()
 }
 
 static GPOS_RESULT
+EresMemoSourceOutputContract()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Filter<p0 a2>(Input<t0>))|"
+		"Proj*<a1 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
+		"t1 := t0;a1 := a0;s1 := s0;a3 := a2");
+	if (nullptr == rule) return GPOS_FAILED;
+	BOOL ok = true;
+	{
+		CMemo memo(mp);
+		const auto insert = [&](const auto &self, CExpression *expr,
+			CGroup *group) -> CGroupExpression * {
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				children->Append(self(self, (*expr)[i], nullptr)->Pgroup());
+			expr->Pop()->AddRef();
+			CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+				expr->Pop(), children, CXform::ExfInvalid, nullptr, false);
+			CGroupExpression *canonical = nullptr;
+			memo.PgroupInsert(group, expr, entry, &canonical);
+			if (entry != canonical) entry->Release();
+			return canonical;
+		};
+		CColRefArray *cols = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < 3; ++i) cols->Append(fix.PcrCreateInt4("memo_output"));
+		CExpression *input = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, cols, GPOS_NEW(mp) IDatum2dArray(mp)));
+		CExpression *predicate = fix.PexprPredAtom((*cols)[0]);
+		CExpression *filtered = fix.PexprLogicalSelect(input, predicate);
+		predicate->Release();
+		CExpression *wide = fix.PexprLogicalGbAgg(filtered, cols);
+		CGroup *group = insert(insert, wide, nullptr)->Pgroup();
+		CColRefArray *key = GPOS_NEW(mp) CColRefArray(mp);
+		key->Append((*cols)[0]);
+		CExpression *narrow = fix.PexprLogicalGbAgg(filtered, key);
+		key->Release();
+		CGroupExpression *entry = insert(insert, narrow, group);
+		// Model native column pruning: the selected alternative emits one column,
+		// while extraction inherits the original group's three-column properties.
+		narrow->Pop()->AddRef();
+		narrow->PdrgPexpr()->AddRef();
+		CExpression *bound = GPOS_NEW(mp) CExpression(mp, narrow->Pop(), entry,
+			narrow->PdrgPexpr(), nullptr, nullptr);
+		ok &= 3 == bound->DeriveOutputColumns()->Size() &&
+			1 == narrow->DeriveOutputColumns()->Size();
+		if (!ok) GPOS_TRACE_FORMAT("memo output source widths: %lu/%lu",
+			bound->DeriveOutputColumns()->Size(), narrow->DeriveOutputColumns()->Size());
+		for (CExpression *source : {narrow, bound})
+		{
+			CExpression *target = CDSLRuleEngine::Instance()->PexprApply(mp, rule, source);
+			if (nullptr == target) GPOS_TRACE_FORMAT("memo output target rejected: bound=%d", source == bound);
+			ok &= nullptr != target && target->DeriveOutputColumns()->Equals(
+				narrow->DeriveOutputColumns());
+			CRefCount::SafeRelease(target);
+		}
+		// An invalid target that really removes grouping columns must still fail.
+		// This tests the runtime contract, not an admitted/proved rewrite rule.
+		CDSLRule *lossy = PdslruleParseLocal(mp,
+			"Proj*<a0 s0>(Filter<p0 a2>(Input<t0>))|"
+			"Proj*<a1 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
+			"t1 := t0;AttrsIntersect(a1,a0,a2);SchemaFromAttrs(s1,a1);a3 := a2");
+		ok &= nullptr != lossy;
+		if (nullptr != lossy)
+		{
+			CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, lossy, wide);
+			ok &= EdsldecisionReady == decision->Status() &&
+				nullptr != decision->PexprTarget() && 1 == decision->PexprTarget()->DeriveOutputColumns()->Size();
+			GPOS_DELETE(decision);
+			CExpression *target = CDSLRuleEngine::Instance()->PexprApply(mp, lossy, wide);
+			ok &= nullptr == target;
+			CRefCount::SafeRelease(target);
+			lossy->Release();
+		}
+		bound->Release(); narrow->Release(); wide->Release(); filtered->Release(); input->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
+EresIntroducedOuterReference()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Runtime boundary check, not a generally valid admitted rule: a predicate
+	// may move above grouping only if its columns survive that grouping.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Filter<p0 a2 a4>(Input<t0>))|"
+		"Filter<p1 a3 a5>(Proj*<a1 s1>(Input<t1>))|"
+		"TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0);"
+		"PredicateEq(p1,p0);AttrsEq(a3,a2);AttrsEq(a5,a4)");
+	if (nullptr == rule) return GPOS_FAILED;
+	CColRefArray *cols = nullptr;
+	CExpression *input = fix.PexprLogicalGet("outer_reference", 2, &cols);
+	CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+	keys->Append((*cols)[0]);
+	CColRef *external = fix.PcrCreateInt4("existing_outer_reference");
+	BOOL ok = true;
+	for (ULONG i = 0; i < 3; ++i)
+	{
+		CExpression *predicate =
+			fix.PexprPredAtom(2 == i ? external : (*cols)[i]);
+		CExpression *filtered = fix.PexprLogicalSelect(input, predicate);
+		CExpression *source = fix.PexprLogicalGbAgg(filtered, keys);
+		CDSLRewriteDecision *decision =
+			CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		// Existing correlations remain legal; only the lost local column fails.
+		ok &= decision->Status() ==
+			(1 == i ? EdsldecisionInstantiateRejected : EdsldecisionReady);
+		GPOS_DELETE(decision);
+		source->Release(); filtered->Release(); predicate->Release();
+	}
+	keys->Release(); input->Release(); rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresColumnProjectionFusion()
 {
 	CAutoMemoryPool amp;
@@ -690,6 +811,8 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
+		GPOS_UNITTEST_FUNC(EresMemoSourceOutputContract),
+		GPOS_UNITTEST_FUNC(EresIntroducedOuterReference),
 		GPOS_UNITTEST_FUNC(EresComputedResultOutputContract),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary),

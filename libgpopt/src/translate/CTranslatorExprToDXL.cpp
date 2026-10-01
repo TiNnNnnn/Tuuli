@@ -4104,14 +4104,21 @@ CTranslatorExprToDXL::BuildScalarSubplans(
 	const ULONG size = pdrgpcrInner->Size();
 
 	CDXLNodeArray *pdrgpdxlnInner = GPOS_NEW(m_mp) CDXLNodeArray(m_mp);
+	CAutoRef<CDXLNode> translatedInner;
 	for (ULONG ul = 0; ul < size; ul++)
 	{
-		// for each subplan, we need to re-translate inner expression
-		CDXLNode *pdxlnInnerChild = CreateDXLNode(
-			pexprInner, nullptr /*colref_array*/, pdrgpdsBaseTables,
-			pulNonGatherMotions, pfDML, false /*fRemap*/, false /*fRoot*/);
+		// Translate once: repeated translation registers nested subplan columns
+		// twice. Each output still gets its own Result and scalar SubPlan; only
+		// the immutable inner DXL is shared, not execution of the subplans.
+		if (0 == ul)
+		{
+			translatedInner = CreateDXLNode(
+				pexprInner, nullptr /*colref_array*/, pdrgpdsBaseTables,
+				pulNonGatherMotions, pfDML, false /*fRemap*/, false /*fRoot*/);
+		}
+		translatedInner->AddRef();
 		CDXLNode *inner_dxlnode =
-			PdxlnRestrictResult(pdxlnInnerChild, (*pdrgpcrInner)[ul]);
+			PdxlnRestrictResult(translatedInner.Value(), (*pdrgpcrInner)[ul]);
 		if (nullptr == inner_dxlnode)
 		{
 			GPOS_RAISE(

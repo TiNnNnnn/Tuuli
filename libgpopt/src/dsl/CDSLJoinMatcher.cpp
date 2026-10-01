@@ -830,8 +830,12 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 
 	CAutoRef<CExpressionArray> equalities(GPOS_NEW(m_mp) CExpressionArray(m_mp));
 	if (!CDSLMatchView::FSplitJoinPredicate(m_mp, (*pexprJoin)[2], pexprLeftRel,
-			pdrgpcrLeft, pdrgpcrRight, pdrgpexprResidual, equalities.Value()))
+			pdrgpcrLeft, pdrgpcrRight, pdrgpexprResidual, equalities.Value()) ||
+		((2 == ulSymbols || 4 == ulSymbols) && 0 != pdrgpexprResidual->Size()))
 	{
+		// Equality-only templates cannot silently capture an extra filter: a
+		// target that removes this Join would discard it. Residuals require the
+		// existing five/seven-slot form (or the complete three-slot ON form).
 		pdrgpcrLeft->Release();
 		pdrgpcrRight->Release();
 		pdrgpexprResidual->Release();
@@ -975,7 +979,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	}
 	else
 	{
-		// The complete predicate retained below already carries every residual.
+		// Equality-only forms have already rejected unbound residuals.
 		pdrgpexprResidual->Release();
 	}
 
