@@ -416,6 +416,7 @@ EresExpressionBindings()
 		"Not(p2) := p0;p1 := p2;ErrorFree(p2);Deterministic(p2)",
 		"Not(p2) := p0;p1 := p2;AttrsSub(a0,t0);Unique(t0,a0)",
 		"p1 := p0;PredicateFalse(p0)",
+		"p1 := p0;PredicateNullRejecting(p1,a2);OutputAttrs(a2,t0)",
 	};
 	for (const CHAR *bindings : valid)
 	{
@@ -487,6 +488,8 @@ EresExpressionBindings()
 		"p1 := p0;AttrsEq(a1,t0)",
 		"p1 := p0;AttrsNonEmpty(a1)",
 		"p1 := p0;AttrsNonEmpty(a9)",
+		"p1 := p0;PredicateNullRejecting(p1,a9)",
+		"p1 := p0;PredicateNullRejecting(p9,a0)",
 		"Not(p2) := p3;p1 := p0;PredicateEq(p2,p0)",
 		"Not(p2) := p0;p1 := p0;PredicateAnd(p3,p0,p2)",
 	};

@@ -1,8 +1,8 @@
 - rule: '*'
   enabled: false
-- rule: f169b79b650c81ee
+- rule: 029bd16d63f81a56
   enabled: true
 - rule: c322bc8ad878cca8
   enabled: true
-- rule: e7ded0e32f745546
+- rule: 5e87dc02d937835e
   enabled: true

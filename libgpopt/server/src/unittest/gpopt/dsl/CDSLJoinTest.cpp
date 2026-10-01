@@ -1627,14 +1627,14 @@ CDSLJoinTest::EresUnittest_ExplicitSemiJoinBindsCompletePredicate()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput()
+static GPOS_RESULT
+EresTestFalseLeftJoinBuildsEmptyInput(const CHAR *text)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE);
+		PdslruleParseLocal(mp, text);
 	if (nullptr == prule)
 	{
 		return GPOS_FAILED;
@@ -1698,6 +1698,56 @@ CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput()
 	pexprRight->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput()
+{
+	for (const CHAR *text : {
+		GPOPT_DSL_FALSE_LEFT_JOIN_EMPTY_RULE,
+		"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
+		"LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);"
+		"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1"})
+	{
+		if (GPOS_OK != EresTestFalseLeftJoinBuildsEmptyInput(text))
+			return GPOS_FAILED;
+	}
+	// Empty is also a source constructor: a zero-column singleton is not an
+	// empty relation. Keep this cardinality check independent of the schema.
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp, "Empty<t0>|Empty<t1>|t1 := t0");
+	if (nullptr == rule)
+		return GPOS_FAILED;
+	BOOL valid = true;
+	for (BOOL hasRow : {false, true})
+	{
+		IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+		if (hasRow)
+			rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp,
+				GPOS_NEW(mp) CColRefArray(mp), rows));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		valid &= matched == !hasRow;
+		if (matched)
+		{
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			valid &= nullptr != target && target->Matches(source);
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+		source->Release();
+	}
+	rule->Release();
+	if (!valid)
+		return GPOS_FAILED;
+	return GPOS_OK;
 }
 
 GPOS_RESULT
