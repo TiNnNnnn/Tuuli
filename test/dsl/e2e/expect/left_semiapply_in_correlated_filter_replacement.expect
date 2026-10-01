@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "397081c4258773d1",
-      "977b505669323220"
+      "1aa6c75171ce9678"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"397081c4258773d1\"",
-        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
       ]
     },
     {
@@ -48,7 +48,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"397081c4258773d1\"",
-        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
       ],
       "provenance": {
         "required_sources": [

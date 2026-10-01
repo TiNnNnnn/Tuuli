@@ -292,12 +292,12 @@ CDSLExpressionDefinitions::FHasBindings() const
 }
 
 BOOL
-CDSLExpressionDefinitions::FHasExpressionBindings() const
+CDSLExpressionDefinitions::FHasMatchBindings() const
 {
 	for (ULONG i = 0; i < UlDefinitions(); ++i)
 	{
 		const CDefinition *definition = PdefAt(i);
-		if (ELegacy != definition->Binding() && EdslexprRef != definition->Edslexpr())
+		if (EMatch == definition->Binding())
 			return true;
 	}
 	return false;

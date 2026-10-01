@@ -30,6 +30,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -481,7 +482,8 @@ CDSLJoinTest::EresUnittest_PhysicalApply()
 }
 
 static GPOS_RESULT
-EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0)
+EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0,
+										 BOOL true_predicate = false)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -516,7 +518,8 @@ EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0)
 		child->Release();
 		child = filtered;
 	}
-	CExpression *pexprApplyPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+	CExpression *pexprApplyPred = true_predicate ? CUtils::PexprScalarConstBool(mp, true)
+		: fix.PexprPredAtom((*pdrgpcrOuter)[1]);
 	CExpressionArray *pdrgpexprOr = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprOr->Append(fix.PexprPredAtom((*pdrgpcrOuter)[0]));
 	pdrgpexprOr->Append(fix.PexprPredAtom((*pdrgpcrInner)[0]));
@@ -555,12 +558,13 @@ EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0)
 			pdrgpexprConjuncts =
 				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
 		}
+		const BOOL simplified = true_predicate && !prule->Pexprdefs()->FHasBindings();
 		if (residual ? nullptr != pexprTarget : (nullptr == pexprTarget ||
 			COperator::EopLogicalLeftSemiJoin !=
 				pexprTarget->Pop()->Eopid() ||
-			nullptr == pdrgpexprConjuncts || 2 != pdrgpexprConjuncts->Size() ||
-			!(*pdrgpexprConjuncts)[0]->Matches(pexprApplyPred) ||
-			!(*pdrgpexprConjuncts)[1]->Matches(pexprFilterPred)))
+			nullptr == pdrgpexprConjuncts || (simplified ? 1UL : 2UL) != pdrgpexprConjuncts->Size() ||
+			(!simplified && !(*pdrgpexprConjuncts)[0]->Matches(pexprApplyPred)) ||
+			!(*pdrgpexprConjuncts)[simplified ? 0 : 1]->Matches(pexprFilterPred)))
 		{
 			eres = GPOS_FAILED;
 		}
@@ -681,13 +685,17 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		"Deterministic(p0);"
 		"Deterministic(p1);"
 		"ErrorFree(p0);"
-		"ErrorFree(p1)"
+		"ErrorFree(p1);Deterministic(p2);ErrorFree(p2)"
 	};
 	for (const CHAR *rule : rules)
 	{
 		for (ULONG scope = 0; scope < 4; ++scope)
 			if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule, scope))
 				return GPOS_FAILED;
+		// Explicit And retains TRUE and operand nesting; the legacy helper
+		// simplifies it. Both retain the complete correlated filter predicate.
+		if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule, 0, true))
+			return GPOS_FAILED;
 	}
 	return GPOS_OK;
 }
@@ -713,7 +721,7 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
 		"Deterministic(p0);"
 		"Deterministic(p1);"
 		"ErrorFree(p0);"
-		"ErrorFree(p1)"
+		"ErrorFree(p1);Deterministic(p2);ErrorFree(p2)"
 	};
 	for (const CHAR *rule : rules)
 	{
@@ -865,18 +873,41 @@ CDSLJoinTest::EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin()
 		}
 	}
 
-	// Only aliases preserve the IN view. An expression constructor still
-	// requires the literal Apply predicate instead of a relocated comparison.
-	CDSLRule *structural = PdslruleParseLocal(mp,
-		"SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
-		"SemiJoin<Not(Not(p0)) a3 a4>(Input<t2>,Input<t3>)|"
-		"t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsEmpty(a2)");
-	CDSLModel *structural_model = GPOS_NEW(mp) CDSLModel(mp);
-	if (nullptr == structural || CDSLMatcher(mp, structural).FMatch(
-			structural->PfragSrc()->PopRoot(), pexprApplyIn, structural_model))
-		eres = GPOS_FAILED;
-	structural_model->Release();
-	CRefCount::SafeRelease(structural);
+	// Source structure requires a literal match. A target-only constructor
+	// must not disable the complete-predicate IN view used to capture p0.
+	for (BOOL source_pattern : {false, true})
+	{
+		const std::string text = std::string("SemiApply<") +
+			(source_pattern ? "Not(Not(p0))" : "p0") +
+			" a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<" +
+			(source_pattern ? "p3" : "Not(Not(p3))") +
+			" a3 a4>(Input<t2>,Input<t3>)|"
+			"t2 := t0;t3 := t1;a3 := a0;a4 := a1;p3 := p0;AttrsEmpty(a2)";
+		CWStringDynamic parse_error(mp);
+		CDSLRule *structural = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &parse_error);
+		if (nullptr == structural)
+			GPOS_TRACE_FORMAT("IN view parse: %ls", parse_error.GetBuffer());
+		CDSLModel *structural_model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = nullptr != structural && CDSLMatcher(mp, structural).FMatch(
+			structural->PfragSrc()->PopRoot(), pexprApplyIn, structural_model);
+		if (nullptr == structural || source_pattern == matched)
+		{
+			GPOS_TRACE_FORMAT("IN view source_pattern=%d matched=%d", source_pattern, matched);
+			eres = GPOS_FAILED;
+		}
+		if (!source_pattern && nullptr != structural)
+		{
+			CExpression *built = CDSLInstantiator(mp).PexprInstantiate(structural, structural_model);
+			if (nullptr == built || !(*(*(*built)[2])[0])[0]->Matches((*pexprApplyIn)[2]))
+			{
+				GPOS_TRACE_FORMAT("IN target construction null=%d", nullptr == built);
+				eres = GPOS_FAILED;
+			}
+			CRefCount::SafeRelease(built);
+		}
+		structural_model->Release();
+		CRefCount::SafeRelease(structural);
+	}
 
 	// The same template must expose, and therefore reject, an actual reference
 	// from the inner subtree to the current outer input.

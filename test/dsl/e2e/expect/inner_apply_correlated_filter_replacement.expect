@@ -7,7 +7,7 @@
     "scope": "InnerApply whose right child is one correlated Filter with safe deterministic predicates",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "22de86cebf7ac288"
+      "55521bf6de23449c"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\""
+        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformInnerApply2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"22de86cebf7ac288\""
+        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\""
       ],
       "provenance": {
         "required_sources": [

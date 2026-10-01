@@ -10,7 +10,7 @@
       "Assert decorrelation that changes strict error reachability"
     ],
     "dsl_rule_hashes": [
-      "9a5153fdbf92bd49"
+      "45e77a0e881d92ca"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
-        "\"status\":\"applied\",\"rule_hash\":\"9a5153fdbf92bd49\""
+        "\"status\":\"applied\",\"rule_hash\":\"45e77a0e881d92ca\""
       ]
     },
     {
@@ -50,7 +50,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9a5153fdbf92bd49\""
+        "\"status\":\"applied\",\"rule_hash\":\"45e77a0e881d92ca\""
       ],
       "provenance": {
         "required_sources": [

@@ -7,7 +7,7 @@
     "scope": "LeftApply whose right child is one correlated Filter with safe deterministic predicates",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "283d176f5bcef54e"
+      "e202032549ff305e"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"283d176f5bcef54e\""
+        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"283d176f5bcef54e\""
+        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
       ],
       "provenance": {
         "required_sources": [

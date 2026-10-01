@@ -787,12 +787,12 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 	{
 		if (nullptr != m_prule &&
 			m_prule->Pexprdefs()->FHasBindings() &&
-			(m_prule->Pexprdefs()->FHasExpressionBindings() ||
+			(m_prule->Pexprdefs()->FHasMatchBindings() ||
 			 COperator::EopLogicalSelect == pexpr->Pop()->Eopid()))
 		{
 			// Oriented scalar patterns match the actual tree. In particular,
 			// do not split/reorder predicates through the legacy filter views.
-			// Pure references also admit non-Select carriers through the existing
+			// Target-only bindings also admit non-Select carriers through the existing
 			// views below, but a live Select retains its typed, complete predicate.
 			CDSLSymbolArray *symbols = pop->Pdrgpsym();
 			if (COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||

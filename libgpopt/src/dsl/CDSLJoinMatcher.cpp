@@ -543,9 +543,9 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		fLeftOuterApply;
 	const BOOL bindings = nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings();
 	// IN carriers can hide the comparison inside their inner tree. Structural
-	// expression patterns need the literal Apply, but references alone preserve
-	// the existing complete-predicate view and must not narrow its domain.
-	if (bindings && m_prule->Pexprdefs()->FHasExpressionBindings() && fSemiApply &&
+	// source patterns need the literal Apply. Target-only construction does not
+	// change source capture and must preserve the complete-predicate view.
+	if (bindings && m_prule->Pexprdefs()->FHasMatchBindings() && fSemiApply &&
 		(COperator::EopLogicalLeftSemiApplyIn == eopid ||
 		 COperator::EopLogicalLeftSemiCorrelatedApplyIn == eopid))
 		return false;

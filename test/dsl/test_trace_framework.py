@@ -3203,12 +3203,14 @@ class TraceFrameworkTest(unittest.TestCase):
                         continue
                     # The existing positional constructor has identical arguments
                     # in both spellings; it is not a new semantic premise.
-                    constructor = re.fullmatch(r'(p\d+) := NullSafeEq\((a\d+),(a\d+)\)', clause)
+                    constructor = re.fullmatch(r'(p\d+) := (NullSafeEq|And)\(([ap]\d+),([ap]\d+)\)', clause)
                     if constructor:
-                        lhs, left, right = constructor.groups()
+                        lhs, kind, left, right = constructor.groups()
                         self.assertNotIn(lhs, captured | defined)
+                        self.assertEqual(left[0], 'a' if kind == 'NullSafeEq' else 'p')
+                        self.assertEqual(right[0], left[0])
                         defined.add(lhs)
-                        legacy.append(f'PredicateNullSafeEq({lhs},{left},{right})')
+                        legacy.append(f'Predicate{kind}({lhs},{left},{right})')
                         continue
                     ref = re.fullmatch(r'([a-z]\d+) := ([a-z]\d+)', clause)
                     self.assertIsNotNone(ref, 'syntax migration must retain the legacy definition')
