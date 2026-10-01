@@ -456,7 +456,7 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		// exact adapters of other operators (e.g. Proj* and fused Limit/Sort).
 		pnodeTerminal = PnodeInsertOp(pnodeTerminal, popRoot, false,
 			&fComplete, 0, true /*literal*/,
-			!prule->Pexprdefs()->FHasExpressionBindings());
+			!prule->Pexprdefs()->FHasMatchBindings());
 	}
 	else if (popRoot->Eopid() == eopidBucket || fDedupAggView ||
 			 fCorrelatedNotInApplyView || fSemiApplyView || fAntiApplyView)

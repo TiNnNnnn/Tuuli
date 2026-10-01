@@ -7,7 +7,7 @@
     "scope": "LeftSemiApplyIn whose inner relation contains a correlated InnerJoin predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "977b505669323220"
+      "1aa6c75171ce9678"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
       ]
     },
     {
@@ -45,7 +45,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"977b505669323220\""
+        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
       ],
       "provenance": {
         "required_sources": [
