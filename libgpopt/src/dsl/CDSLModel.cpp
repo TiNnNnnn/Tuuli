@@ -62,6 +62,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 	m_phmVirtualIdentityProj =
 		GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmJoinPred = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
+	m_phmJoinEqualities = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_phmWindowCarrier = GPOS_NEW(mp) CDSLSymbolToExpressionMap(mp);
 	m_pdrgpexprUnionBindings = GPOS_NEW(mp) CExpressionArray(mp);
 	m_pdrgpexprNaryUnionTails = GPOS_NEW(mp) CExpressionArray(mp);
@@ -89,6 +90,7 @@ CDSLModel::~CDSLModel()
 	m_phmAggBinding->Release();
 	m_phmVirtualIdentityProj->Release();
 	m_phmJoinPred->Release();
+	m_phmJoinEqualities->Release();
 	m_phmWindowCarrier->Release();
 	m_pdrgpexprUnionBindings->Release();
 	m_pdrgpexprNaryUnionTails->Release();
@@ -453,14 +455,15 @@ CDSLModel::FIsNaryUnionTail(CExpression *pexpr) const
 BOOL
 CDSLModel::FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
 						 const CDSLSymbol *psymRightAttrs,
-						 CExpression *pexpr)
+						 CExpression *pexpr, BOOL equalitiesOnly)
 {
 	GPOS_ASSERT(nullptr != psymLeftAttrs);
 	GPOS_ASSERT(nullptr != psymRightAttrs);
 	GPOS_ASSERT(nullptr != pexpr);
 
-	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
-	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
+	auto *predicates = equalitiesOnly ? m_phmJoinEqualities : m_phmJoinPred;
+	CExpression *pexprLeft = predicates->Find(psymLeftAttrs);
+	CExpression *pexprRight = predicates->Find(psymRightAttrs);
 	if ((nullptr != pexprLeft && !CDSLMatchView::FSameCapturedExpression(pexprLeft, pexpr)) ||
 		(nullptr != pexprRight && !CDSLMatchView::FSameCapturedExpression(pexprRight, pexpr)))
 	{
@@ -469,14 +472,14 @@ CDSLModel::FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
 	if (nullptr == pexprLeft)
 	{
 		pexpr->AddRef();
-		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmJoinPred->Insert(
+		BOOL fInserted GPOS_ASSERTS_ONLY = predicates->Insert(
 			const_cast<CDSLSymbol *>(psymLeftAttrs), pexpr);
 		GPOS_ASSERT(fInserted);
 	}
 	if (psymRightAttrs != psymLeftAttrs && nullptr == pexprRight)
 	{
 		pexpr->AddRef();
-		BOOL fInserted GPOS_ASSERTS_ONLY = m_phmJoinPred->Insert(
+		BOOL fInserted GPOS_ASSERTS_ONLY = predicates->Insert(
 			const_cast<CDSLSymbol *>(psymRightAttrs), pexpr);
 		GPOS_ASSERT(fInserted);
 	}
@@ -485,10 +488,11 @@ CDSLModel::FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
 
 CExpression *
 CDSLModel::PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
-						 const CDSLSymbol *psymRightAttrs) const
+						 const CDSLSymbol *psymRightAttrs, BOOL equalitiesOnly) const
 {
-	CExpression *pexprLeft = m_phmJoinPred->Find(psymLeftAttrs);
-	CExpression *pexprRight = m_phmJoinPred->Find(psymRightAttrs);
+	auto *predicates = equalitiesOnly ? m_phmJoinEqualities : m_phmJoinPred;
+	CExpression *pexprLeft = predicates->Find(psymLeftAttrs);
+	CExpression *pexprRight = predicates->Find(psymRightAttrs);
 	return nullptr != pexprLeft && nullptr != pexprRight &&
 			   CDSLMatchView::FSameCapturedExpression(pexprLeft, pexprRight)
 		   ? pexprLeft

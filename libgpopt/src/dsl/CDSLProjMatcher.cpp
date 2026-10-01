@@ -501,7 +501,8 @@ BOOL
 CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 								CDSLModel *pmodel) const
 {
-	if (COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() ||
+	if ((COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() &&
+		 COperator::EopLogicalGbAggDeduplicate != pexprAgg->Pop()->Eopid()) ||
 		2 != pexprAgg->Arity() ||
 		COperator::EopScalarProjectList != (*pexprAgg)[1]->Pop()->Eopid() ||
 		0 != (*pexprAgg)[1]->Arity())

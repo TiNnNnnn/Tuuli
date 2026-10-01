@@ -109,6 +109,7 @@ private:
 	CDSLSymbolToExpressionMap *m_phmAggBinding;
 	CDSLSymbolToExpressionMap *m_phmVirtualIdentityProj;
 	CDSLSymbolToExpressionMap *m_phmJoinPred;
+	CDSLSymbolToExpressionMap *m_phmJoinEqualities;
 	CDSLSymbolToExpressionMap *m_phmWindowCarrier;
 
 	// Every matched Union/Union* expression, in source-tree traversal order.
@@ -301,13 +302,17 @@ public:
 	// Record one source Join predicate under both of that node's attrs symbols.
 	// This keeps nested Join predicates independent while allowing target-side
 	// AttrsEq aliases (including swaps) to find the source predicate.
+	// Keyed targets with explicit residuals use the separately captured
+	// equality component; implicit residuals retain the complete ON.
 	BOOL FSetJoinPred(const CDSLSymbol *psymLeftAttrs,
-					  const CDSLSymbol *psymRightAttrs, CExpression *pexpr);
+					  const CDSLSymbol *psymRightAttrs, CExpression *pexpr,
+					  BOOL equalitiesOnly = false);
 
 	// Return the predicate shared by a resolved attrs pair, or NULL if the pair
 	// did not come from one matched source Join. Does not AddRef.
 	CExpression *PexprJoinPred(const CDSLSymbol *psymLeftAttrs,
-						   const CDSLSymbol *psymRightAttrs) const;
+						   const CDSLSymbol *psymRightAttrs,
+						   BOOL equalitiesOnly = false) const;
 
 	// Preserve the exact ORCA SequenceProject shell by its window-items symbol.
 	// Partition/order/frame symbols remain independently bound for constraints;

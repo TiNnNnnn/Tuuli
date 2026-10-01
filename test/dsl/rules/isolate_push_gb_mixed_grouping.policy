@@ -1,6 +1,6 @@
 # Isolate the mixed-child grouping replacement from the outer-only and
 # unique-output siblings that share the same Proj*/InnerJoin source prefix.
-- rule: c602af3fe55f92f7
+- rule: 49a0c7c4c7608241
   enabled: false
 - rule: 8508e8910d0784eb
   enabled: false

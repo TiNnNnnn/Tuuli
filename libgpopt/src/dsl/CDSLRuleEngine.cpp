@@ -882,6 +882,14 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		// Project pass-through columns), or reuses an ancestor of that group.
 		// ponytail: legacy compatibility views retain their existing schema
 		// contract until migrated to exact bindings. RBO checks its whole tree.
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+		{
+			GPOS_TRACE_FORMAT(
+				"DSL_INSTANTIATE_TRACE rule_hash=%s status=rejected reason=%s",
+				prule->SzIdentity(),
+				!pexprTgt->DeriveOutputColumns()->ContainsAll(pexpr->DeriveOutputColumns())
+					? "missing_source_group_outputs" : "target_depends_on_source_group");
+		}
 		TraceDSLRule(mp, ulRuleId, EdsltraceInstantiateRejected, prule, pmodel,
 					 pexpr, pexprTgt, nullptr, gpos::ulong_max, ulMatchUs,
 					 ulConstraintUs, ulInstantiateUs, pdecision);

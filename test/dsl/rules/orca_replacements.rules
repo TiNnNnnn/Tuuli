@@ -185,7 +185,8 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input
 # empty-set and three-valued semantics.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListAll(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
 
-Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a0);AttrsEq(a6,a1);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s1,s0)
+# SYNTAX_ONLY legacy_hash=c602af3fe55f92f7; native expression proof: UNKNOWN (native residual Join proof pending).
+Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s1 := s0
 
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a5,a1);AttrsEq(a6,a0);PredicateEq(p1,p0);AttrsEq(a8,a3);AttrsEq(a9,a4);AttrsEq(a7,a2);SchemaEq(s2,s1)
 
@@ -217,7 +218,8 @@ Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4>(Input<t0>,Input<t1>))|InnerJoin<a5 a6>(A
 # Residual-predicate sibling. The complete predicate and its exact dependency
 # split are preserved; every outer dependency must survive in the grouping.
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
-Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4 p1 a5 a6>(Input<t0>,Input<t1>))|InnerJoin<a7 a8 p2 a9 a10>(Agg<a11 a12 a13 f1 s1 p3>(Input<t2>),Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a7,a3);AttrsEq(a8,a4);PredicateEq(p2,p1);AttrsEq(a9,a5);AttrsEq(a10,a6);AttrsIntersect(a11,a0,t0);AttrsEq(a12,a1);AttrsEq(a13,a2);FuncEq(f1,f0);AttrsUnion(a14,a11,a13);SchemaFromAttrs(s1,a14);PredicateEq(p3,p0);AttrsSub(a1,t0);AttrsSub(a3,a11);AttrsSub(a3,t0);AttrsSub(a4,t1);AttrsSub(a5,a11);AttrsSub(a5,t0);AttrsSub(a6,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a12);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
+# SYNTAX_ONLY legacy_hash=c6147dd109512ce4; native expression proof: UNKNOWN (native residual Join proof pending).
+Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4 p1 a5 a6>(Input<t0>,Input<t1>))|InnerJoin<a7 a8 p2 a9 a10>(Agg<a11 a12 a13 f1 s1 p3>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a7 := a3;a8 := a4;p2 := p1;a9 := a5;a10 := a6;AttrsIntersect(a11,a0,t0);a12 := a1;a13 := a2;f1 := f0;AttrsUnion(a14,a11,a13);SchemaFromAttrs(s1,a14);p3 := p0;AttrsSub(a1,t0);AttrsSub(a3,a11);AttrsSub(a3,t0);AttrsSub(a4,t1);AttrsSub(a5,a11);AttrsSub(a5,t0);AttrsSub(a6,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a12);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # SYNTAX_ONLY legacy_hash=0a49982c5c679d38; native expression proof: UNKNOWN (native binding proof pending).
 LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1

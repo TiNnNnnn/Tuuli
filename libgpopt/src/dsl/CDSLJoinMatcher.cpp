@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "gpos/base.h"
+#include "gpos/common/CAutoRef.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CPropConstraint.h"
@@ -811,14 +812,25 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const CDSLSymbol *psymRight = (*pdrgpsym)[1];
 	CExpression *pexprLeftRel = (*pexprJoin)[0];
 	CExpression *pexprRightRel = (*pexprJoin)[1];
+	if (bindings)
+	{
+		CColRefSet *outside = GPOS_NEW(m_mp) CColRefSet(m_mp,
+			*(*pexprJoin)[2]->DeriveUsedColumns());
+		outside->Exclude(pexprLeftRel->DeriveOutputColumns());
+		outside->Exclude(pexprRightRel->DeriveOutputColumns());
+		const BOOL local = 0 == outside->Size();
+		outside->Release();
+		if (!local) return false;
+	}
 
 	// split the predicate into left/right equi-key columns + residual.
 	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CExpressionArray *pdrgpexprResidual = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 
-	if (!FSplitPredicate((*pexprJoin)[2], pexprLeftRel, pdrgpcrLeft,
-						 pdrgpcrRight, pdrgpexprResidual))
+	CAutoRef<CExpressionArray> equalities(GPOS_NEW(m_mp) CExpressionArray(m_mp));
+	if (!CDSLMatchView::FSplitJoinPredicate(m_mp, (*pexprJoin)[2], pexprLeftRel,
+			pdrgpcrLeft, pdrgpcrRight, pdrgpexprResidual, equalities.Value()))
 	{
 		pdrgpcrLeft->Release();
 		pdrgpcrRight->Release();
@@ -948,7 +960,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		pcrsLeftDeps->Release();
 		pcrsRightDeps->Release();
 
-		fBound = pmodel->FBind((*pdrgpsym)[ulPredOffset], pexprResidual) &&
+		fBound = m_pmatcher->FMatchPredicate((*pdrgpsym)[ulPredOffset], pexprResidual, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[ulPredOffset + 1],
 						  pdrgpcrLeftDeps) &&
 			pmodel->FBind((*pdrgpsym)[ulPredOffset + 2],
@@ -971,6 +983,13 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	// predicates and target-side AttrsEq aliases can find the right one.
 	CExpression *pexprPred = (*pexprJoin)[2];
 	BOOL fMatched = pmodel->FSetJoinPred(psymLeft, psymRight, pexprPred);
+	if (fMatched)
+	{
+		equalities.Value()->AddRef();
+		CExpression *keys = CPredicateUtils::PexprConjunction(m_mp, equalities.Value());
+		fMatched = pmodel->FSetJoinPred(psymLeft, psymRight, keys, true);
+		keys->Release();
+	}
 	if (fMatched && (fInnerApply || fLeftOuterApply))
 	{
 		// Apply operators carry optimizer-owned required-inner-column and

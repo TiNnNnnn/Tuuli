@@ -28,6 +28,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -2057,8 +2058,8 @@ CDSLProjTest::EresUnittest_PreservesHiddenLimitShell()
 //		A complete Global dedup with PdrgpcrMinimal is a valid nested Proj* view,
 //		but must not be eligible for root-level dedup deletion.
 //---------------------------------------------------------------------------
-GPOS_RESULT
-CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
+static GPOS_RESULT
+EresGeneratedDedup(BOOL specialized)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -2087,11 +2088,14 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 	pdrgpcrGroup->AddRef();
 	pdrgpcrGroup->AddRef();
 	pexprGet->AddRef();
+	if (specialized) pdrgpcrGroup->AddRef();
+	CLogicalGbAgg *aggregate = specialized
+		? GPOS_NEW(mp) CLogicalGbAggDeduplicate(mp, pdrgpcrGroup,
+			pdrgpcrGroup, COperator::EgbaggtypeGlobal, pdrgpcrGroup)
+		: GPOS_NEW(mp) CLogicalGbAgg(mp, pdrgpcrGroup,
+			pdrgpcrGroup, COperator::EgbaggtypeGlobal);
 	CExpression *pexprGeneratedDedup = GPOS_NEW(mp) CExpression(
-		mp,
-		GPOS_NEW(mp) CLogicalGbAgg(
-			mp, pdrgpcrGroup, pdrgpcrGroup,
-			COperator::EgbaggtypeGlobal),
+		mp, aggregate,
 		pexprGet, pexprEmptyList);
 	CExpression *pexprProject =
 		fix.PexprLogicalProject(pexprGeneratedDedup, pdrgpcrGroup);
@@ -2162,6 +2166,13 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 	prulePreserve->Release();
 	pruleNested->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
+{
+	return GPOS_OK == EresGeneratedDedup(false) && GPOS_OK == EresGeneratedDedup(true)
+		? GPOS_OK : GPOS_FAILED;
 }
 
 //---------------------------------------------------------------------------

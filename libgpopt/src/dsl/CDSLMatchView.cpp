@@ -394,7 +394,7 @@ BOOL
 CDSLMatchView::FSplitJoinPredicate(
 	CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeftRel,
 	CColRefArray *pdrgpcrLeft, CColRefArray *pdrgpcrRight,
-	CExpressionArray *pdrgpexprResidual)
+	CExpressionArray *pdrgpexprResidual, CExpressionArray *equalities)
 {
 	CColRefSet *pcrsLeft = pexprLeftRel->DeriveOutputColumns();
 	CExpressionArray *pdrgpexprConj =
@@ -434,6 +434,14 @@ CDSLMatchView::FSplitJoinPredicate(
 		{
 			pexprConj->AddRef();
 			pdrgpexprResidual->Append(pexprConj);
+			continue;
+		}
+		// Keep the actual comparison (casts, collation and operator metadata),
+		// not a newly synthesized equality over the extracted column names.
+		if (nullptr != equalities)
+		{
+			pexprConj->AddRef();
+			equalities->Append(pexprConj);
 		}
 	}
 	pdrgpexprConj->Release();
