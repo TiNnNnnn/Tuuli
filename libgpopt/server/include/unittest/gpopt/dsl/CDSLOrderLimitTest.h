@@ -19,6 +19,7 @@ public:
 	static GPOS_RESULT EresUnittest_ExactOrderSpecRoundTrip();
 	static GPOS_RESULT EresUnittest_TargetScalarConstants();
 	static GPOS_RESULT EresUnittest_WindowRowsRoundTrip();
+	static GPOS_RESULT EresUnittest_WindowFilterBindings();
 	static GPOS_RESULT EresUnittest_RowNumberConstructiveTarget();
 	static GPOS_RESULT EresUnittest_MaxOneRowReplacement();
 };

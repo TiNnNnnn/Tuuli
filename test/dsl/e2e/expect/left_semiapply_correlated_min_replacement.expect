@@ -7,7 +7,7 @@
     "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key; ordinary integer MIN only",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "acc0381a6ee39104"
+      "5ea2046b8dd2a967"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions"
@@ -45,7 +45,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"acc0381a6ee39104\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

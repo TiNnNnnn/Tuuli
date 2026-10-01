@@ -27,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"878a42451564c19e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
         "\"status\":\"applied\",\"rule_hash\":\"9a5153fdbf92bd49\""
       ]
     },

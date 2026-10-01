@@ -3183,7 +3183,8 @@ class TraceFrameworkTest(unittest.TestCase):
         import re
 
         kinds = {'t': 'Table', 'p': 'Predicate', 'a': 'Attrs',
-                 's': 'Schema', 'e': 'ExprList'}
+                 's': 'Schema', 'e': 'ExprList', 'f': 'Func',
+                 'o': 'Order', 'm': 'Frame', 'w': 'Window'}
         pending = None
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
