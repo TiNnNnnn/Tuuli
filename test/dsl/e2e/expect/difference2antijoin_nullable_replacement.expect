@@ -7,7 +7,7 @@
     "scope": "Binary Except distinct over equally typed ordered rows, including nullable composite rows",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "9d417e03361c377f"
+      "bff1959225b179d4"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_difference2antijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9d417e03361c377f\""
+        "\"status\":\"applied\",\"rule_hash\":\"bff1959225b179d4\""
       ],
       "alternative": [
         "CXformDifference2LeftAntiSemiJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_difference2antijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9d417e03361c377f\""
+        "\"status\":\"applied\",\"rule_hash\":\"bff1959225b179d4\""
       ],
       "alternative": [
         "CXformDSLRule_Difference"

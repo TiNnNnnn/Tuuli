@@ -3179,7 +3179,7 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 profile_targets(args)
 
-    def test_reference_only_migrations_preserve_the_complete_legacy_rule(self) -> None:
+    def test_syntax_migrations_preserve_the_complete_legacy_rule(self) -> None:
         import re
 
         kinds = {'t': 'Table', 'p': 'Predicate', 'a': 'Attrs',
@@ -3200,11 +3200,20 @@ class TraceFrameworkTest(unittest.TestCase):
                     if ':=' not in clause:
                         legacy.append(clause)
                         continue
+                    # The existing positional constructor has identical arguments
+                    # in both spellings; it is not a new semantic premise.
+                    constructor = re.fullmatch(r'(p\d+) := NullSafeEq\((a\d+),(a\d+)\)', clause)
+                    if constructor:
+                        lhs, left, right = constructor.groups()
+                        self.assertNotIn(lhs, captured | defined)
+                        defined.add(lhs)
+                        legacy.append(f'PredicateNullSafeEq({lhs},{left},{right})')
+                        continue
                     ref = re.fullmatch(r'([a-z]\d+) := ([a-z]\d+)', clause)
-                    self.assertIsNotNone(ref, 'syntax-only migration cannot introduce constructors')
+                    self.assertIsNotNone(ref, 'syntax migration must retain the legacy definition')
                     lhs, rhs = ref.groups()
                     self.assertNotIn(lhs, captured | defined)
-                    self.assertIn(rhs, captured)
+                    self.assertIn(rhs, captured | defined)
                     self.assertEqual(lhs[0], rhs[0])
                     defined.add(lhs)
                     legacy.append(f'{kinds[lhs[0]]}Eq({lhs},{rhs})')
