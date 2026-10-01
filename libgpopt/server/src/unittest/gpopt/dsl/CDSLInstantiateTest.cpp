@@ -2155,12 +2155,12 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 		GPOS_DELETE(decision);
 		rule->Release(); source->Release();
 	}
-	// NOT IN needs its own evaluation certificate;
+	// A NOT IN Apply target needs its correlated carrier metadata preserved;
 	// keyed/residual forms must not masquerade as one complete ON expression.
 	for (const CHAR *text : {
 		"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"
-		"AntiJoinNotIn<p1 a2 a3>(Input<t2>,Input<t3>)|"
-		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1);p1 := Not(p0)",
+		"AntiApplyNotIn<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;a2 := a0;a3 := a1;AttrsEmpty(a4);p1 := p0",
 		"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|"
 		"InnerJoin<a4 a5 p1 a6 a7>(Input<t2>,Input<t3>)|"
 		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"

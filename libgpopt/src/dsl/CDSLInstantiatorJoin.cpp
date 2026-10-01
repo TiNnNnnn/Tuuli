@@ -423,18 +423,17 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 	CExpression *pexprNotInComparison = nullptr;
-	if (m_prule->Pexprdefs()->FHasBindings() && fPredicateOnly)
-	{
+	const auto validScopes = [&](CExpression *predicate, ULONG offset) {
 		// Validate each scope after remapping. A correct union does not imply
 		// correct left/right partitions, and target inputs can be reordered.
 		CColRefArray *actual[2] = {nullptr, nullptr};
 		BOOL valid = CDSLJoinMatcher::FDerivePredicateDependencies(
-			m_mp, pexprTargetPred, pexprLeft, pexprRight, &actual[0], &actual[1]);
+			m_mp, predicate, pexprLeft, pexprRight, &actual[0], &actual[1]);
 		CExpression *children[2] = {pexprLeft, pexprRight};
 		for (ULONG i = 0; valid && i < 2; i++)
 		{
 			CColRefArray *declared = PdrgpcrResolveCols(
-				PsymResolve((*pdrgpsym)[i + 1]), pmodel);
+				PsymResolve((*pdrgpsym)[offset + i + 1]), pmodel);
 			CColRefArray *mapped = nullptr == declared ? nullptr :
 				PdrgpcrMapToTarget((*pop)[i], children[i], declared, pmodel);
 			CColRefSet *expected = GPOS_NEW(m_mp) CColRefSet(m_mp);
@@ -447,13 +446,15 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		}
 		actual[0]->Release();
 		actual[1]->Release();
-		if (!valid)
-		{
-			pexprTargetPred->Release();
-			pexprLeft->Release();
-			pexprRight->Release();
-			return nullptr;
-		}
+		return valid;
+	};
+	if (m_prule->Pexprdefs()->FHasBindings() && fPredicateOnly &&
+		!validScopes(pexprTargetPred, 0))
+	{
+		pexprTargetPred->Release();
+		pexprLeft->Release();
+		pexprRight->Release();
+		return nullptr;
 	}
 	if (fAntiJoinNotIn || fAntiApplyNotIn)
 	{
@@ -481,8 +482,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			(*pop)[0], pexprLeft, (*pop)[1], pexprRight,
 			pexprSourceQualifier, pmodel);
 		CRefCount::SafeRelease(pexprSourceQualifier);
-		if (nullptr == pexprTargetQualifier)
+		if (nullptr == pexprTargetQualifier ||
+			(m_prule->Pexprdefs()->FHasBindings() &&
+			 !validScopes(pexprTargetQualifier, 3)))
 		{
+			CRefCount::SafeRelease(pexprTargetQualifier);
 			pexprNotInComparison->Release();
 			pexprTargetPred->Release();
 			pexprLeft->Release();

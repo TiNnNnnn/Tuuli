@@ -1198,14 +1198,14 @@ CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
+static GPOS_RESULT
+EresTestUncorrelatedNotInApply(const CHAR *rule, BOOL reject = false)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_UNCORRELATED_NOT_IN_APPLY_RULE);
+		PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 		return GPOS_FAILED;
 
@@ -1244,10 +1244,10 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
 		if (nullptr == pexprLogicalAll ||
 			pexprLogicalAll->Matches((*pexprApply)[2]) ||
-			nullptr == pexprTarget ||
+			(reject ? nullptr != pexprTarget : nullptr == pexprTarget ||
 			COperator::EopLogicalLeftAntiSemiJoinNotIn !=
 				pexprTarget->Pop()->Eopid() ||
-			!(*pexprTarget)[2]->Matches((*pexprApply)[2]))
+			!(*pexprTarget)[2]->Matches((*pexprApply)[2])))
 		{
 			eres = GPOS_FAILED;
 		}
@@ -1260,6 +1260,28 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 	pexprInner->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
+{
+	const CHAR *rules[] = {
+		GPOPT_DSL_UNCORRELATED_NOT_IN_APPLY_RULE,
+		"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
+		"AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;"
+		"AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1)"
+	};
+	for (const CHAR *rule : rules)
+		if (GPOS_OK != EresTestUncorrelatedNotInApply(rule))
+			return GPOS_FAILED;
+	// Parsing a Boolean expression does not certify it as an invertible ALL
+	// comparison. The shared NOT IN constructor must still reject it.
+	return EresTestUncorrelatedNotInApply(
+		"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
+		"AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;p1 := Not(p0);a3 := a0;a4 := a1;"
+		"AttrsEmpty(a2)", true);
 }
 
 GPOS_RESULT
@@ -1332,14 +1354,13 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
+static GPOS_RESULT
+EresTestCorrelatedNotInFilter(const CHAR *rule, BOOL reject = false)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_CORRELATED_NOT_IN_FILTER_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 		return GPOS_FAILED;
 
@@ -1360,10 +1381,10 @@ CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
 	pexprOuter->AddRef();
 	pexprFilteredInner->AddRef();
 	pexprComparison->AddRef();
-	CExpression *pexprApply = CUtils::PexprLogicalApply<
-		CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
-		mp, pexprOuter, pexprFilteredInner, (*pdrgpcrInner)[1],
-		COperator::EopScalarSubqueryAll, pexprComparison);
+	CExpression *pexprApply =
+		CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(
+			mp, pexprOuter, pexprFilteredInner, (*pdrgpcrInner)[1],
+			COperator::EopScalarSubqueryAll, pexprComparison);
 
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
@@ -1379,86 +1400,119 @@ CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
 	{
 		CDSLInstantiator instantiator(mp);
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
-		CExpressionArray *pdrgpexprConjuncts = nullptr;
-		if (nullptr != pexprTarget)
+		if (reject)
 		{
-			pdrgpexprConjuncts =
-				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
-		}
-		if (nullptr == pexprTarget ||
-			COperator::EopLogicalLeftAntiSemiJoinNotIn !=
-				pexprTarget->Pop()->Eopid() ||
-			nullptr == pdrgpexprConjuncts ||
-			2 != pdrgpexprConjuncts->Size() ||
-			!(*pdrgpexprConjuncts)[0]->Matches(pexprViolation) ||
-			!(*pdrgpexprConjuncts)[1]->Matches(pexprQualifier) ||
-			!(*pexprTarget)[1]->Matches(pexprInner))
-		{
-			eres = GPOS_FAILED;
-		}
-		CRefCount::SafeRelease(pdrgpexprConjuncts);
-		if (GPOS_OK == eres)
-		{
-			UlongToColRefMap *colrefMapping =
-				GPOS_NEW(mp) UlongToColRefMap(mp);
-			CExpression *pexprCopy =
-				pexprTarget->PexprCopyWithRemappedColumns(
-					mp, colrefMapping, false /*must_exist*/);
-			colrefMapping->Release();
-			CExpression *pexprCopyComparison =
-				CLogicalLeftAntiSemiJoinNotIn::PopConvert(pexprCopy->Pop())
-					->PexprNotInComparison();
-			if (nullptr == pexprCopyComparison ||
-				!CUtils::Equals(pexprCopyComparison, pexprViolation))
-			{
-				eres = GPOS_FAILED;
-			}
-			pexprCopy->Release();
-		}
-
-		// A subsequent DSL rule must recover comparison and qualifier after the
-		// target enters the memo. Exercise the harder ordering explicitly: AND is
-		// commutative, so put the qualifier before the comparison while retaining
-		// the operator's semantic marker.
-		CDSLRule *pruleIdentity = PdslruleParseLocal(
-			mp, GPOPT_DSL_QUALIFIED_NOT_IN_IDENTITY_RULE);
-		CExpression *pexprReordered = nullptr;
-		CDSLModel *pmodelIdentity = nullptr;
-		if (GPOS_OK == eres && nullptr != pruleIdentity)
-		{
-			CExpression *pexprReorderedPred =
-				CPredicateUtils::PexprConjunction(mp, pexprQualifier,
-										  pexprViolation);
-			pexprTarget->Pop()->AddRef();
-			(*pexprTarget)[0]->AddRef();
-			(*pexprTarget)[1]->AddRef();
-			pexprReordered = GPOS_NEW(mp) CExpression(
-				mp, pexprTarget->Pop(), (*pexprTarget)[0], (*pexprTarget)[1],
-				pexprReorderedPred);
-			pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
-			CDSLMatcher matcherIdentity(mp, pruleIdentity);
-			CDSLSymbolArray *pdrgpsymIdentity =
-				pruleIdentity->PfragSrc()->PopRoot()->Pdrgpsym();
-			if (!matcherIdentity.FMatch(
-					pruleIdentity->PfragSrc()->PopRoot(), pexprReordered,
-					pmodelIdentity) ||
-				!CUtils::Equals(
-					pmodelIdentity->PexprPred((*pdrgpsymIdentity)[0]),
-					pexprComparison) ||
-				!CUtils::Equals(
-					pmodelIdentity->PexprPred((*pdrgpsymIdentity)[3]),
-					pexprQualifier))
-			{
-				eres = GPOS_FAILED;
-			}
+			eres = nullptr == pexprTarget ? GPOS_OK : GPOS_FAILED;
 		}
 		else
 		{
-			eres = GPOS_FAILED;
+			CExpressionArray *pdrgpexprConjuncts = nullptr;
+			if (nullptr != pexprTarget)
+			{
+				pdrgpexprConjuncts =
+					CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
+			}
+			if (nullptr == pexprTarget ||
+				COperator::EopLogicalLeftAntiSemiJoinNotIn !=
+					pexprTarget->Pop()->Eopid() ||
+				nullptr == pdrgpexprConjuncts ||
+				2 != pdrgpexprConjuncts->Size() ||
+				!(*pdrgpexprConjuncts)[0]->Matches(pexprViolation) ||
+				!(*pdrgpexprConjuncts)[1]->Matches(pexprQualifier) ||
+				!(*pexprTarget)[1]->Matches(pexprInner))
+			{
+				eres = GPOS_FAILED;
+			}
+			CRefCount::SafeRelease(pdrgpexprConjuncts);
+			if (GPOS_OK == eres)
+			{
+				UlongToColRefMap *colrefMapping =
+					GPOS_NEW(mp) UlongToColRefMap(mp);
+				CExpression *pexprCopy =
+					pexprTarget->PexprCopyWithRemappedColumns(
+						mp, colrefMapping, false /*must_exist*/);
+				colrefMapping->Release();
+				CExpression *pexprCopyComparison =
+					CLogicalLeftAntiSemiJoinNotIn::PopConvert(pexprCopy->Pop())
+						->PexprNotInComparison();
+				if (nullptr == pexprCopyComparison ||
+					!CUtils::Equals(pexprCopyComparison, pexprViolation))
+				{
+					eres = GPOS_FAILED;
+				}
+				pexprCopy->Release();
+			}
+
+			// A subsequent DSL rule must recover comparison and qualifier after the
+			// target enters the memo. Exercise the harder ordering explicitly: AND is
+			// commutative, so put the qualifier before the comparison while retaining
+			// the operator's semantic marker.
+			const CHAR *typedIdentity =
+				"AntiJoinNotIn<p0 a0 a1 p1 a2 a3>(Input<t0>,Input<t1>)|"
+				"AntiJoinNotIn<p2 a4 a5 p3 a6 a7>(Input<t2>,Input<t3>)|"
+				"t2 := t0;t3 := t1;p2 := p0;a4 := a0;a5 := a1;"
+				"p3 := p1;a6 := a2;a7 := a3";
+			CDSLRule *pruleIdentity = PdslruleParseLocal(
+				mp, prule->Pexprdefs()->FHasBindings()
+						? typedIdentity
+						: GPOPT_DSL_QUALIFIED_NOT_IN_IDENTITY_RULE);
+			CExpression *pexprReordered = nullptr;
+			CDSLModel *pmodelIdentity = nullptr;
+			if (GPOS_OK == eres && nullptr != pruleIdentity)
+			{
+				CExpression *pexprReorderedPred =
+					CPredicateUtils::PexprConjunction(mp, pexprQualifier,
+													  pexprViolation);
+				pexprTarget->Pop()->AddRef();
+				(*pexprTarget)[0]->AddRef();
+				(*pexprTarget)[1]->AddRef();
+				pexprReordered = GPOS_NEW(mp)
+					CExpression(mp, pexprTarget->Pop(), (*pexprTarget)[0],
+								(*pexprTarget)[1], pexprReorderedPred);
+				pmodelIdentity = GPOS_NEW(mp) CDSLModel(mp);
+				CDSLMatcher matcherIdentity(mp, pruleIdentity);
+				CDSLSymbolArray *pdrgpsymIdentity =
+					pruleIdentity->PfragSrc()->PopRoot()->Pdrgpsym();
+				if (!matcherIdentity.FMatch(
+						pruleIdentity->PfragSrc()->PopRoot(), pexprReordered,
+						pmodelIdentity) ||
+					!CUtils::Equals(
+						pmodelIdentity->PexprPred((*pdrgpsymIdentity)[0]),
+						pexprComparison) ||
+					!CUtils::Equals(
+						pmodelIdentity->PexprPred((*pdrgpsymIdentity)[3]),
+						pexprQualifier))
+				{
+					eres = GPOS_FAILED;
+				}
+				// Neither slot may bypass explicit source structure matching.
+				for (const CHAR *clause : {";Not(p9) := p0", ";Not(p9) := p1"})
+				{
+					CDSLRule *structured = PdslruleParseLocal(
+						mp, (std::string(typedIdentity) + clause).c_str());
+					if (nullptr == structured)
+					{
+						eres = GPOS_FAILED;
+						continue;
+					}
+					CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+					CDSLMatcher structuralMatcher(mp, structured);
+					if (structuralMatcher.FMatch(
+							structured->PfragSrc()->PopRoot(), pexprReordered,
+							model))
+						eres = GPOS_FAILED;
+					model->Release();
+					structured->Release();
+				}
+			}
+			else
+			{
+				eres = GPOS_FAILED;
+			}
+			CRefCount::SafeRelease(pmodelIdentity);
+			CRefCount::SafeRelease(pexprReordered);
+			CRefCount::SafeRelease(pruleIdentity);
 		}
-		CRefCount::SafeRelease(pmodelIdentity);
-		CRefCount::SafeRelease(pexprReordered);
-		CRefCount::SafeRelease(pruleIdentity);
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
@@ -1472,6 +1526,36 @@ CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
 	pexprInner->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin()
+{
+	const CHAR *rules[] = {
+		GPOPT_DSL_CORRELATED_NOT_IN_FILTER_RULE,
+		"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;p2 := p0;a5 := a0;a6 := a1;p3 := p1;"
+		"a7 := a4;a8 := a3;AttrsEq(a2,a4);AttrsSub(a0,t0);"
+		"AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)"
+	};
+	for (const CHAR *rule : rules)
+		if (GPOS_OK != EresTestCorrelatedNotInFilter(rule))
+			return GPOS_FAILED;
+	// The qualifier's union of dependencies is unchanged, but its partitions
+	// are wrong. Reject it just as we reject wrong comparison partitions.
+	for (const CHAR *partitions : {
+		"a5 := a1;a6 := a0;a7 := a4;a8 := a3",
+		"a5 := a0;a6 := a1;a7 := a3;a8 := a4"})
+	{
+		const std::string rule =
+			"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+			"AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|"
+			"t2 := t0;t3 := t1;p2 := p0;p3 := p1;" + std::string(partitions);
+		if (GPOS_OK != EresTestCorrelatedNotInFilter(rule.c_str(), true))
+			return GPOS_FAILED;
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

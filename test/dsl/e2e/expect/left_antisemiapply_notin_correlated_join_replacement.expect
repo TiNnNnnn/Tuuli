@@ -7,7 +7,7 @@
     "scope": "Correlated NOT IN whose qualification is carried by an inner Join ON predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "59a6d12ce1dd7d88"
+      "6983a8b616e4f37e"
     ]
   },
   "plans": [
@@ -20,7 +20,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+        "\"status\":\"applied\",\"rule_hash\":\"6983a8b616e4f37e\""
       ],
       "alternative": [
         "CXformDSLRule_All"
@@ -45,7 +45,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"59a6d12ce1dd7d88\""
+        "\"status\":\"applied\",\"rule_hash\":\"6983a8b616e4f37e\""
       ],
       "provenance": {
         "required_sources": [

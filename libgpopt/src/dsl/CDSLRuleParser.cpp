@@ -848,7 +848,8 @@ FBindingTree(const CDSLOp *op, BOOL source)
 	}
 	const BOOL join = EdslopInnerJoin == op->Edslop() ||
 		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
-		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop();
+		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop() ||
+		EdslopAntiJoinNotIn == op->Edslop();
 	const BOOL set = EdslopUnion == op->Edslop() ||
 		EdslopIntersect == op->Edslop() || EdslopExcept == op->Edslop();
 	const BOOL exists = EdslopExists == op->Edslop() ||
@@ -857,9 +858,12 @@ FBindingTree(const CDSLOp *op, BOOL source)
 		EdslopAll == op->Edslop();
 	const BOOL apply = EdslopInnerApply == op->Edslop() ||
 		EdslopLeftOuterApply == op->Edslop() || EdslopSemiApply == op->Edslop() ||
-		EdslopAntiApply == op->Edslop();
+		EdslopAntiApply == op->Edslop() ||
+		(source && EdslopAntiApplyNotIn == op->Edslop());
 	if (nullptr == op->Pdrgpsym() ||
-		!(join ? 3 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+		!(join ? (3 == op->Pdrgpsym()->Size() ||
+				  (EdslopAntiJoinNotIn == op->Edslop() && 6 == op->Pdrgpsym()->Size())) &&
+				 2 == op->UlChildren()
 			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : set ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
 			   : quantified ? 2 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
@@ -913,7 +917,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply and explicitly mapped Set templates");
+			"expression bindings support Input/Filter/Proj/Proj*/Compute/Agg/SortBy/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, comparison/qualifier AntiJoinNotIn and explicitly mapped Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

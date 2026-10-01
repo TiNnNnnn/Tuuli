@@ -10,7 +10,7 @@
       "Assert decorrelation that changes strict error reachability"
     ],
     "dsl_rule_hashes": [
-      "db7bcea9ff9c611d"
+      "580226362e729502"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"db7bcea9ff9c611d\""
+        "\"status\":\"applied\",\"rule_hash\":\"580226362e729502\""
       ],
       "alternative": [
         "CXformDSLRule_All"
@@ -50,7 +50,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"db7bcea9ff9c611d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"580226362e729502\"",
         "CLogicalLeftAntiSemiJoinNotIn"
       ],
       "provenance": {
