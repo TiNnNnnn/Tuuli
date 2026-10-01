@@ -238,6 +238,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
 		fPredicateOnly || 5 == ulSymbols || 7 == ulSymbols;
+	const BOOL explicitResidual = !fPredicateOnly && fBindsPredicate;
 	if (fBindsPredicate)
 	{
 		const ULONG ulPredOffset =
@@ -312,7 +313,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		: nullptr;
 	CExpression *pexprJoinPred =
 		fPredicateOnly ? pexprOwnedJoinPred
-					   : pmodel->PexprJoinPred(psymLeft, psymRight);
+					   : pmodel->PexprJoinPred(psymLeft, psymRight, explicitResidual);
 	if (!fPredicateOnly && nullptr == pexprJoinPred)
 	{
 		ULONG ulInSubMatches = 0;
@@ -320,6 +321,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			m_prule->PfragSrc()->PopRoot(), pmodel, &ulInSubMatches);
 		if (1 == ulInSubMatches && nullptr != popSourceInSub &&
 			nullptr != popSourceInSub->Pdrgpsym() &&
+			(!explicitResidual || 1 == popSourceInSub->Pdrgpsym()->Size()) &&
 			(1 == popSourceInSub->Pdrgpsym()->Size() ||
 			 5 == popSourceInSub->Pdrgpsym()->Size()))
 		{
@@ -448,6 +450,28 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		actual[1]->Release();
 		return valid;
 	};
+	if (explicitResidual)
+	{
+		const ULONG offset = 5 == ulSymbols ? 2 : 4;
+		CExpression *sourceResidual = PexprResolvePredicate((*pdrgpsym)[offset], pmodel);
+		CExpression *residual = PexprRemapPredicateToChildren(
+			(*pop)[0], pexprLeft, (*pop)[1], pexprRight, sourceResidual, pmodel);
+		CRefCount::SafeRelease(sourceResidual);
+		if (nullptr == residual || !validScopes(residual, offset))
+		{
+			CRefCount::SafeRelease(residual);
+			pexprTargetPred->Release();
+			pexprLeft->Release();
+			pexprRight->Release();
+			return nullptr;
+		}
+		// The cached component contains only the original equality comparisons.
+		// Never graft the source's old residual over an explicit target expression.
+		CExpression *complete = CPredicateUtils::PexprConjunction(m_mp, pexprTargetPred, residual);
+		pexprTargetPred->Release();
+		residual->Release();
+		pexprTargetPred = complete;
+	}
 	if (m_prule->Pexprdefs()->FHasBindings() && fPredicateOnly &&
 		!validScopes(pexprTargetPred, 0))
 	{

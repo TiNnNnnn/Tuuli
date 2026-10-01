@@ -116,12 +116,14 @@ public:
 	static EDslSortDir EdslsortDefault(const COrderSpec *pos);
 
 	// Split a join/semi-join predicate into ordered cross-child equality keys
-	// and the exact remaining conjuncts. The caller owns appended refs.
+	// and the exact remaining conjuncts. Optionally retain the original equality
+	// expressions as well as their column keys. The caller owns appended refs.
 	static BOOL FSplitJoinPredicate(CMemoryPool *mp, CExpression *pexprPred,
 								 CExpression *pexprLeftRel,
 								 CColRefArray *pdrgpcrLeft,
 								 CColRefArray *pdrgpcrRight,
-								 CExpressionArray *pdrgpexprResidual);
+								 CExpressionArray *pdrgpexprResidual,
+								 CExpressionArray *equalities = nullptr);
 
 	// Decode exactly the column-vector NullSafeEq constructor, including its
 	// default comparison metadata. No flattening, deduplication or reordering.

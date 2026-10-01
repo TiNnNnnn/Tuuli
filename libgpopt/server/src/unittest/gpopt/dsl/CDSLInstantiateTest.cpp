@@ -2155,16 +2155,88 @@ CDSLInstantiateTest::EresUnittest_JoinExpressionBindings()
 		GPOS_DELETE(decision);
 		rule->Release(); source->Release();
 	}
-	// A NOT IN Apply target needs its correlated carrier metadata preserved;
-	// keyed/residual forms must not masquerade as one complete ON expression.
+	// Keyed forms keep comparison metadata, but construct the named residual.
+	// Test both residual layouts, both join kinds and swapped dependency scopes.
+	for (BOOL outer : {false, true})
+	for (BOOL output : {false, true})
+	for (ULONG variant = 0; variant < 9; variant++)
+	{
+		auto check = [&](BOOL valid, const CHAR *reason) {
+			if (!valid) GPOS_TRACE_FORMAT("keyed residual outer=%d output=%d variant=%lu: %s",
+				outer, output, variant, reason);
+			ok &= valid;
+		};
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("residual_left", 2, &lc);
+		CExpression *right = fix.PexprLogicalGet("residual_right", 2, &rc);
+		CExpression *key = fix.PexprEqPred((*lc)[0], (*rc)[0]);
+		CExpression *atom = fix.PexprPredAtom(5 == variant
+			? fix.PcrCreateInt4("outside_join") : (*lc)[1]);
+		CExpression *residual = CUtils::PexprNegate(mp, atom);
+		CExpression *on = CPredicateUtils::PexprConjunction(mp, key, residual);
+		if (6 == variant)
+		{
+			on->Release(); key->AddRef(); on = key;
+		}
+		CExpression *source = outer
+			? fix.PexprLogicalLeftOuterJoin(left, right, on)
+			: fix.PexprLogicalInnerJoin(left, right, on);
+		const std::string name = outer ? "LeftJoin" : "InnerJoin";
+		std::string text = name + (output ? "<a0 a1 a10 s0 p0 a2 a3>" : "<a0 a1 p0 a2 a3>") +
+			"(Input<t0>,Input<t1>)|" + name +
+			(output ? "<a4 a5 a11 s1 p1 a6 a7>" : "<a4 a5 p1 a6 a7>") +
+			"(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a4 := a0;a5 := a1;" +
+			(3 == variant ? "a6 := a3;a7 := a2;" : "a6 := a2;a7 := a3;") +
+			(output ? "a11 := a10;s1 := s0;" : "") +
+			(0 == variant ? "p1 := p0" : "p1 := Not(p0)");
+		if (2 == variant) text += ";Not(p9) := p0";
+		if (4 == variant) text += ";And(p8,p9) := p0";
+		if (7 == variant)
+		{
+			const std::string keys = "a4 := a0;a5 := a1";
+			const std::string deps = "a6 := a2;a7 := a3";
+			const std::string children = "(Input<t2>,Input<t3>)";
+			text.replace(text.find(keys), keys.size(), "a4 := a1;a5 := a0");
+			text.replace(text.find(deps), deps.size(), "a6 := a3;a7 := a2");
+			text.replace(text.find(children), children.size(), "(Input<t3>,Input<t2>)");
+		}
+		if (8 == variant)
+		{
+			text.erase(text.find('|', text.find('|') + 1) + 1);
+			text += "TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"
+				"AttrsEq(a6,a2);AttrsEq(a7,a3);PredicateNot(p1,p0)";
+			if (output) text += ";AttrsEq(a11,a10);SchemaEq(s1,s0)";
+		}
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		check(nullptr != rule, "keyed residual parses");
+		if (nullptr != rule)
+		{
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+			check(matched == (variant < 4 || variant >= 7), "residual source structure/scope");
+			CExpression *target = matched ? CDSLInstantiator(mp).PexprInstantiate(rule, model) : nullptr;
+			if (3 <= variant && variant <= 6)
+				check(nullptr == target, "residual partition rejects");
+			else if (nullptr != target)
+			{
+				CExpression *expectedResidual = residual;
+				if (0 == variant) expectedResidual->AddRef();
+				else { residual->AddRef(); expectedResidual = CUtils::PexprNegate(mp, residual); }
+				CExpression *expected = CPredicateUtils::PexprConjunction(mp, key, expectedResidual);
+				check((*target)[2]->Matches(expected), "target uses new residual and original key");
+				expected->Release(); expectedResidual->Release();
+			}
+			else check(false, "keyed residual constructs");
+			CRefCount::SafeRelease(target); model->Release(); rule->Release();
+		}
+		source->Release(); on->Release(); residual->Release(); key->Release();
+		left->Release(); right->Release();
+	}
+	// A NOT IN Apply target needs its correlated carrier metadata preserved.
 	for (const CHAR *text : {
 		"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"
 		"AntiApplyNotIn<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"
-		"t2 := t0;t3 := t1;a2 := a0;a3 := a1;AttrsEmpty(a4);p1 := p0",
-		"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|"
-		"InnerJoin<a4 a5 p1 a6 a7>(Input<t2>,Input<t3>)|"
-		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a4,a0);AttrsEq(a5,a1);"
-		"AttrsEq(a6,a2);AttrsEq(a7,a3);p1 := Not(p0)"})
+		"t2 := t0;t3 := t1;a2 := a0;a3 := a1;AttrsEmpty(a4);p1 := p0"})
 	{
 		CDSLRule *unsupported = PdslruleParseLocal(mp, text);
 		ok &= nullptr == unsupported;

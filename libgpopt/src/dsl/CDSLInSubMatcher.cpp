@@ -5,6 +5,7 @@
 //		CDSLInSubMatcher.cpp
 //--------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInSubMatcher.h"
+#include "gpos/common/CAutoRef.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
@@ -342,9 +343,10 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 	CColRefArray *pdrgpcrInner = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CExpressionArray *pdrgpexprResidual =
 		GPOS_NEW(m_mp) CExpressionArray(m_mp);
+	CAutoRef<CExpressionArray> equalities(GPOS_NEW(m_mp) CExpressionArray(m_mp));
 	if (!CDSLMatchView::FSplitJoinPredicate(
 			m_mp, (*pexpr)[2], (*pexpr)[0], pdrgpcrOuter, pdrgpcrInner,
-			pdrgpexprResidual) ||
+			pdrgpexprResidual, equalities.Value()) ||
 		0 == pdrgpcrOuter->Size())
 	{
 		pdrgpcrOuter->Release();
@@ -406,6 +408,14 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 	}
 
 	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	if (fExtended)
+	{
+		equalities.Value()->AddRef();
+		CExpression *keys = CPredicateUtils::PexprConjunction(m_mp, equalities.Value());
+		const BOOL stored = pmodel->FSetJoinPred(psymAttrs, (*pdrgpsym)[1], keys, true);
+		keys->Release();
+		if (!stored) return false;
+	}
 	(*pexpr)[2]->AddRef();
 	BOOL fStored = pmodel->FSetInSubPred(psymAttrs, (*pexpr)[2]);
 	if (fStored)
