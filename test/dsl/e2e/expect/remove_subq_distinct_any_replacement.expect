@@ -57,7 +57,7 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"08ffb33b51ce9dd6\"",
         "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
       ],
       "rule_edges": [
         {
@@ -69,7 +69,7 @@
         {
           "scheduler": "cbo",
           "src_rule": "08ffb33b51ce9dd6",
-          "dst_rule": "e3458abf2b3167d5",
+          "dst_rule": "cf934dc15544cfa2",
           "target_path": "r"
         }
       ],

@@ -366,6 +366,43 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleNestedProjApply->Release();
 	pruleProjApply->Release();
 
+	// References preserve the Filter-on-Join view below Compute. Structural
+	// predicates still require the literal Select; the trie must distinguish them.
+	CDSLRule *reference = PrulePrefix(mp,
+		"Compute<e0 a0 s0>(Filter<p0 a1>(Input<t0>))|Input<t1>|t1 := t0");
+	CDSLRule *structural = PrulePrefix(mp,
+		"Compute<e0 a0 s0>(Filter<Not(Not(p0)) a1>(Input<t0>))|"
+		"Input<t1>|t1 := t0");
+	if (nullptr == reference || nullptr == structural)
+	{
+		CRefCount::SafeRelease(reference);
+		CRefCount::SafeRelease(structural);
+		return GPOS_FAILED;
+	}
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(reference, 0, COperator::EopLogicalProject);
+	pindex->Insert(structural, 1, COperator::EopLogicalProject);
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp),
+		PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)),
+		PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 0 == pindex->UlFallbackRules() &&
+		1 == pdrgprule->Size() && reference == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	pexpr = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp),
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)), PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 2 == pdrgprule->Size();
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	structural->Release();
+	reference->Release();
+
 	// Exact Apply prefixes accept their correlated runtime carrier.
 	CDSLRule *pruleComputeApply = PrulePrefix(
 		mp,

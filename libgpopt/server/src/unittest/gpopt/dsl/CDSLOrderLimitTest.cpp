@@ -358,7 +358,7 @@ CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement()
 		mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprGet);
 
 	CDSLRule *prule = Prule(mp,
-		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)");
+		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0");
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
 	GPOS_RESULT eres = GPOS_OK;

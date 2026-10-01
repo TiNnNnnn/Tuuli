@@ -869,6 +869,12 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 	{
 		return false;
 	}
+	// A representation view must pass the same typed scalar/scope checks as a
+	// live Select. Return to the shared matcher instead of the legacy splitter.
+	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+	{
+		return m_pmatcher->FMatch(popFilterRoot, pexprSelect, pmodel);
+	}
 
 	// 1. peel the DSL Filter chain down to its non-Filter base op.
 	const CDSLOp *rgpopFilters[GPOPT_DSL_MAX_FILTER_CHAIN];

@@ -7,7 +7,7 @@
     "scope": "LeftSemiApplyIn whose inner subtree has no references to its current outer child",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "e3458abf2b3167d5"
+      "cf934dc15544cfa2"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
       ],
       "alternative": [
         "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
@@ -48,7 +48,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3458abf2b3167d5\""
+        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

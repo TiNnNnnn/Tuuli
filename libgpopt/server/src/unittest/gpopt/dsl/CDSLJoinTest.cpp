@@ -147,15 +147,15 @@ using namespace gpopt;
 #define GPOPT_DSL_UNCORRELATED_SEMI_APPLY_RULE                        \
 	"SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                    \
 	"SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                        \
-	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
-	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);"                   \
+	"t2 := t0;t3 := t1;p1 := p0;"                                  \
+	"a3 := a0;a4 := a1;AttrsEmpty(a2);"                             \
 	"ErrorFree(p0);ErrorFree(p1)"
 
 #define GPOPT_DSL_UNCORRELATED_ANTI_APPLY_RULE                        \
 	"AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                    \
 	"AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                        \
-	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
-	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);"                   \
+	"t2 := t0;t3 := t1;p1 := p0;"                                  \
+	"a3 := a0;a4 := a1;AttrsEmpty(a2);"                             \
 	"ErrorFree(p0);ErrorFree(p1)"
 
 #define GPOPT_DSL_UNCORRELATED_NOT_IN_APPLY_RULE                     \
@@ -193,14 +193,14 @@ using namespace gpopt;
 #define GPOPT_DSL_UNCORRELATED_INNER_APPLY_RULE                       \
 	"InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                   \
 	"InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                       \
-	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
-	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)"
+	"t2 := t0;t3 := t1;p1 := p0;"                                  \
+	"a3 := a0;a4 := a1;AttrsEmpty(a2)"
 
 #define GPOPT_DSL_UNCORRELATED_LEFT_OUTER_APPLY_RULE                  \
 	"LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"                    \
 	"LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|"                        \
-	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"               \
-	"AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)"
+	"t2 := t0;t3 := t1;p1 := p0;"                                  \
+	"a3 := a0;a4 := a1;AttrsEmpty(a2)"
 
 #define GPOPT_DSL_BUILD_UNCORRELATED_SEMI_APPLY_RULE                  \
 	"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                        \
@@ -864,6 +864,19 @@ CDSLJoinTest::EresUnittest_UncorrelatedSemiApplyBuildsSemiJoin()
 			eres = GPOS_FAILED;
 		}
 	}
+
+	// Only aliases preserve the IN view. An expression constructor still
+	// requires the literal Apply predicate instead of a relocated comparison.
+	CDSLRule *structural = PdslruleParseLocal(mp,
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|"
+		"SemiJoin<Not(Not(p0)) a3 a4>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsEmpty(a2)");
+	CDSLModel *structural_model = GPOS_NEW(mp) CDSLModel(mp);
+	if (nullptr == structural || CDSLMatcher(mp, structural).FMatch(
+			structural->PfragSrc()->PopRoot(), pexprApplyIn, structural_model))
+		eres = GPOS_FAILED;
+	structural_model->Release();
+	CRefCount::SafeRelease(structural);
 
 	// The same template must expose, and therefore reject, an actual reference
 	// from the inner subtree to the current outer input.

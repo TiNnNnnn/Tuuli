@@ -10,7 +10,7 @@
     "dsl_rule_hashes": [
       "6fcbf4135eeb31ce",
       "4c1e72d5f2139d6e",
-      "4fbf993ef8bfe114"
+      "779f43bd677ca505"
     ]
   },
   "plans": [
@@ -64,7 +64,7 @@
         "CXformDSLRule_Select",
         "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
         "\"status\":\"applied\",\"rule_hash\":\"4c1e72d5f2139d6e\"",
-        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
+        "\"status\":\"applied\",\"rule_hash\":\"779f43bd677ca505\""
       ],
       "provenance": {
         "required_sources": [

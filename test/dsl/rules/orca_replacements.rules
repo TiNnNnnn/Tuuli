@@ -252,8 +252,9 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 # immediate outer/inner correlation separately from the top predicate's local
 # dependencies; AttrsEmpty therefore states the native xform's applicability
 # domain directly. This exact RuleIR was proved by the FormalSQL/Rocq kernel on
-# 2026-08-29.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
+# 2026-08-29 for the legacy RuleIR (BAG_EQ, not native OUTCOME_EQ).
+# SYNTAX_ONLY legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the base-input domain of
 # CXformLeftSemiApplyWithExternalCorrs2InnerJoin. PredicateDomainSplit
@@ -289,8 +290,9 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # binds the exact inner-to-outer dependency set; AttrsEmpty is therefore the
 # native promise expressed as data. AntiJoin is ordinary NOT EXISTS semantics,
 # distinct from the NULL-aware AntiJoinNotIn family. This exact RuleIR is
-# accepted by the FormalSQL/Rocq kernel.
-AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
+# accepted by the legacy FormalSQL/Rocq proof (BAG_EQ).
+# SYNTAX_ONLY legacy_hash=561de687652328df; native expression proof: UNKNOWN.
+AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
 # AntiApplyNotIn and AntiJoinNotIn are first-class NULL-aware operators rather
@@ -390,12 +392,14 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule
 # above. The generic dependency, error-freedom, and determinism facts imply the
 # Compute/Filter movement; no rewrite-shaped constraint is needed.
-Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|TableEq(t1,t0);ExprListEq(e1,e0);AttrsEq(a5,a0);SchemaEq(s1,s0);PredicateEq(p1,p0);AttrsEq(a3,a1);AttrsEq(a4,a2);DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
+# SYNTAX_ONLY legacy_hash=c7d161295e62caa0; native expression proof: UNKNOWN (source evidence).
+Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|t1 := t0;e1 := e0;a5 := a0;s1 := s0;p1 := p0;a3 := a1;a4 := a2;DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
 
 # The inverse movement pushes a predicate through any safe Compute whose
 # generated columns it does not reference. Reuse the existing FormalSQL/Rocq
-# OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
-Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|TableEq(t1,t0);AttrsEq(a4,a1);AttrsEq(a5,a2);AttrsEq(a3,a0);PredicateEq(p1,p0);SchemaEq(s1,s0);ExprListEq(e1,e0);ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
+# legacy OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
+# SYNTAX_ONLY legacy_hash=75cf2193e89d4afe; native expression proof: UNKNOWN (source evidence).
+Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := s0;e1 := e0;ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
@@ -443,18 +447,20 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
 # exact right-to-left dependency set separately from the scalar predicate's
 # ordinary child dependencies. AttrsEmpty states the native xform's complete
-# applicability condition. The exact RuleIR is an outcome-equivalence proof
+# applicability condition. The legacy RuleIR has an outcome-equivalence proof
 # accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
 # preserves scalar errors without an ErrorFree assumption.
-InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)
+# SYNTAX_ONLY legacy_hash=ebadfb129130abb8; native expression proof: UNKNOWN.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
 # the JoinApply correlation contract with InnerApply but retains NULL-extension
 # through an explicit LeftJoin target. AttrsEmpty excludes dependencies on the
 # current left row while permitting references supplied by an enclosing scope,
-# matching the native promise. This exact RuleIR is an outcome-equivalence
+# matching the native promise. The legacy RuleIR has an outcome-equivalence
 # proof accepted by FormalSQL/Rocq.
-LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEmpty(a2)
+# SYNTAX_ONLY legacy_hash=4fbf993ef8bfe114; native expression proof: UNKNOWN.
+LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
 # Apply predicate and the right Filter predicate become one Join predicate;
@@ -568,8 +574,9 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # Assert carrying ExmiSQLMaxOneRow.  The DSL target is intentionally a macro,
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
-# WeTune ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
-MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)
+# Legacy ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
+# SYNTAX_ONLY legacy_hash=770daa019ca274ae; native expression proof: UNKNOWN (lowering unsupported).
+MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
 # Replace CXformExpandFullOuterJoin with the same shared-input relational
 # identity: A FULL JOIN B = (A LEFT JOIN B) UNION ALL

@@ -116,6 +116,8 @@ public:
 	BOOL FAppendBinding(CMemoryPool *mp, EDslExpressionKind kind,
 						EBinding binding, const CDSLSymbolArray *symbols);
 	BOOL FHasBindings() const;
+	// References alone do not inspect or reconstruct scalar expression shape.
+	BOOL FHasExpressionBindings() const;
 	// Public constructors only; legacy constraints have different signatures.
 	struct SBindingSignature
 	{
