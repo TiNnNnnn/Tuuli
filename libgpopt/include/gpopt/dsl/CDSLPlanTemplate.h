@@ -23,6 +23,9 @@ public:
 	static std::vector<const CExpression *> RelationalChildren(
 		const CExpression *expr);
 	static std::string ExpressionShape(const CExpression *expr);
+	// Complete source trees only. Derives column metadata; Memo callers must
+	// pass a detached copy. Exported column sets are not ordered row layouts
+	// and do not certify source admissibility or rewrite equivalence.
 	static std::string Serialize(CMemoryPool *mp, const CExpression *expr);
 	static BOOL FValidateSelection(
 		const CExpression *expr, const std::string &root_path,

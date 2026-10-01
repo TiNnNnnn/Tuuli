@@ -28,6 +28,8 @@
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
@@ -94,6 +96,10 @@ CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext()
 				1 == trial ? "Filter<ValueBool(Call(h0,Args(Column(a2),Args(n0,Args())))) a0>(Input<t0>)" :
 				2 == trial ? "route fingerprint mismatch" : "root path does not exist";
 			valid &= context.find(expected) != std::string::npos;
+			if (trial < 2)
+				valid &= context.find("\"column_facts\":") != std::string::npos &&
+					context.find("\"output\":[{\"id\":" + std::to_string((*cols)[0]->Id()) + ',') !=
+					std::string::npos;
 			valid &= nullptr == select->Pstats() && nullptr == get->Pstats();
 		}
 		GPOS_DELETE(snapshot);
@@ -272,6 +278,49 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 			plain_select, &request_errors);
 	const std::string requested_slice = nullptr == request ? "" :
 		request->TemplateSelectionArtifact(plain_select);
+	// Equal SQL names do not mean equal columns. Preserve native identities and
+	// distinguish local inputs from correlations, including below a scalar query.
+	const auto column = [](const CColRef *col) {
+		return "{\"id\":" + std::to_string(col->Id()) +
+			",\"type\":\"0.23.1.0\",\"typmod\":-1}";
+	};
+	const std::string local_column = column((*right_cols)[0]);
+	const std::string outer_column = column((*cols)[0]);
+	CExpression *correlated = fixture.PexprLogicalSelect(right, join_predicate);
+	CColRef *first = fixture.PcrCreateInt4("value");
+	CColRef *second = fixture.PcrCreateInt4("value");
+	CExpression *project = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+		correlated, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+			CUtils::PexprScalarProjectElement(mp, second, CUtils::PexprScalarIdent(mp, (*cols)[0])),
+			CUtils::PexprScalarProjectElement(mp, first, CUtils::PexprScalarIdent(mp, (*right_cols)[0]))));
+	const std::string columns_artifact = CDSLPlanTemplate::Serialize(mp, project);
+	const auto item_has = [&columns_artifact](const char *path, const std::string &facts) {
+		const size_t start = columns_artifact.find(std::string("\"path\":\"") + path + '"');
+		if (std::string::npos == start)
+			return false;
+		const size_t end = columns_artifact.find("{\"path\":", start + 1);
+		return std::string::npos != columns_artifact.substr(start, end - start).find(facts);
+	};
+	const BOOL column_facts =
+		std::string::npos != columns_artifact.find("\"output\":[" + local_column + ',' +
+			column(first) + ',' + column(second) + "],\"outer\":[" + outer_column + ']') &&
+		item_has("s1/0", "\"used\":[" + outer_column + "],\"defined\":[" + column(second) + ']') &&
+		item_has("s1/1", "\"used\":[" + local_column + "],\"defined\":[" + column(first) + ']') &&
+		item_has("s1/0/0", "\"value_type\":\"0.23.1.0\",\"value_typmod\":-1") &&
+		std::string::npos != CDSLPlanTemplate::Serialize(mp, plain_select).find(
+			"\"output\":[" + outer_column + "],\"outer\":[]");
+	project->AddRef();
+	CExpression *correlated_exists = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubqueryExists(mp), project);
+	CExpression *outer_select = fixture.PexprLogicalSelect(get, correlated_exists);
+	const std::string nested_artifact = CDSLPlanTemplate::Serialize(mp, outer_select);
+	const BOOL nested_facts = std::string::npos != nested_artifact.find(
+		"\"arity\":1,\"column_facts\":{\"used\":[" + outer_column +
+		"],\"defined\":[],\"value_type\":\"0.16.1.0\",\"value_typmod\":-1}") &&
+		std::string::npos != nested_artifact.find("\"output\":[" + outer_column + "],\"outer\":[]");
+	outer_select->Release();
+	correlated_exists->Release();
+	project->Release();
 	const BOOL valid = std::string::npos != artifact.find(
 		"\"schema\":\"pgorca.dsl.plan-template.v1\"") &&
 		std::string::npos != artifact.find(
@@ -290,6 +339,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		std::string::npos != artifact.find("\"complete\":true}") &&
 		std::string::npos != query_context.find("\"plan_template\":" + artifact) &&
 		std::string::npos == candidate_context.find("\"plan_template\"") &&
+		column_facts && nested_facts &&
 		selection_valid && selection_error.empty() && exists_sliced &&
 		exists_slice == "Exists(Input<t0>,Input<t1>)" &&
 		exists_error.empty() &&

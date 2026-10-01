@@ -563,17 +563,17 @@ CDSLStatsExperimentSnapshot::RouteContext(const CExpression *expr,
 			out << ",\"template_error\":\"route fingerprint mismatch\"";
 		else
 		{
-			out << ",\"plan_template\":" << CDSLPlanTemplate::Serialize(snapshot->m_mp, expr);
+			// Both metadata export and matching derive properties. Observe a
+			// detached tree so neither populates live Memo properties.
+			UlongToColRefMap *columns = GPOS_NEW(snapshot->m_mp) UlongToColRefMap(snapshot->m_mp);
+			CExpression *copy = expr->PexprCopyWithRemappedColumns(snapshot->m_mp, columns, false);
+			columns->Release();
+			out << ",\"plan_template\":" << CDSLPlanTemplate::Serialize(snapshot->m_mp, copy);
 			if (snapshot->FHasTemplateSelection())
 			{
-				// The production matcher derives properties. Validate on a detached
-				// tree so observing a route cannot populate live Memo properties.
-				UlongToColRefMap *columns = GPOS_NEW(snapshot->m_mp) UlongToColRefMap(snapshot->m_mp);
-				CExpression *copy = expr->PexprCopyWithRemappedColumns(snapshot->m_mp, columns, false);
-				columns->Release();
 				out << ",\"plan_slice\":" << snapshot->TemplateSelectionArtifact(copy);
-				copy->Release();
 			}
+			copy->Release();
 		}
 	}
 	out << "}";
