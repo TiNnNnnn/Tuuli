@@ -34,15 +34,18 @@ Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumbe
 
 # Key-only Join distribution covers equality predicates, not an implicit
 # non-equality residual. Wider predicate distribution needs an explicit proof.
-InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
+# SYNTAX_ONLY legacy_hash=e99bceacc9aaf130; native expression proof: UNKNOWN (native Join/Set composition pending).
+InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
-LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);TableEq(t3,t0);TableEq(t5,t1);TableEq(t4,t2);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
+# SYNTAX_ONLY legacy_hash=44c687f715ecbe0b; native expression proof: UNKNOWN (native Join/Set composition pending).
+LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
 # Replace CXformPushJoinBelowRightUnionAll after correcting its native pattern
 # to the bag-equivalent InnerJoin domain. This is the mirror of the existing
 # left-input distribution and uses the same generic Union/Join path.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-06.
-InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t3,t0);TableEq(t5,t0);TableEq(t4,t1);TableEq(t6,t2);AttrsEq(a3,a0);AttrsEq(a5,a0);AttrsEq(a4,a1);AttrsEq(a6,a1);AttrsEq(a7,a2);SchemaEq(s1,s0)
+# SYNTAX_ONLY legacy_hash=71aee9b8ad124cf9; native expression proof: UNKNOWN (native Join/Set composition pending).
+InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t3 := t0;t5 := t0;t4 := t1;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
 

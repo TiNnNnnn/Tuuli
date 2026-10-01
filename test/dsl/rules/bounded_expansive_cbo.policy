@@ -5,12 +5,12 @@
     per_node: 1
     per_rule: 1
     per_query: 128
-- rule: e99bceacc9aaf130
+- rule: 8423cca3e71db53d
   budget:
     per_node: 1
     per_rule: 1
     per_query: 128
-- rule: 71aee9b8ad124cf9
+- rule: f2ac7b4091944c8e
   budget:
     per_node: 1
     per_rule: 1

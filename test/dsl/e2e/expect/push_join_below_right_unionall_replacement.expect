@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule distributes InnerJoin over its right UnionAll input",
+  "description": "The existing equality-only DSL rule distributes InnerJoin over its right UnionAll input; native expression proof remains UNKNOWN",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowRightUnionAll"
     ],
-    "scope": "InnerJoin with exactly one right UnionAll input and no outer references or scalar subqueries",
-    "status": "verified_full_replacement",
+    "scope": "equality-only InnerJoin with exactly one right UnionAll input and no outer references or scalar subqueries; residual predicates are not covered",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "71aee9b8ad124cf9"
+      "f2ac7b4091944c8e"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"71aee9b8ad124cf9\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2ac7b4091944c8e\""
       ],
       "alternative": [
         "CXformPushJoinBelowRightUnionAll",
@@ -49,7 +49,7 @@
         "CXformPushJoinBelowRightUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"71aee9b8ad124cf9\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2ac7b4091944c8e\""
       ],
       "provenance": {
         "required_sources": [
