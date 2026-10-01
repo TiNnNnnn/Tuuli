@@ -63,6 +63,7 @@
 #include "gpopt/operators/CScalarCmp.h"
 #include "naucrates/md/CMDIdGPDB.h"
 #include "naucrates/md/IMDTypeInt4.h"
+#include "naucrates/md/IMDTypeInt8.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
@@ -3284,6 +3285,8 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 	// These are constructor checks, not claimed equivalent rewrite rules.
 	CColRef *boolean = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
 		fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+	CColRef *wide = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		fix.Pmda()->PtMDType<IMDTypeInt8>(), default_type_modifier);
 	for (const CHAR *text : {
 		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Filter<p1 a2>(Input<t2>)|"
 		"TableEq(t2,t0);AttrsEq(a2,a0);PredicateNullSafeEq(p1,a0,a1)",
@@ -3298,14 +3301,16 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 			ok = false;
 			continue;
 		}
-		for (ULONG variant = 0; variant < 5; ++variant)
+		for (ULONG variant = 0; variant < 6; ++variant)
 		{
+			// Cross-type integer equality is available in the metadata catalog.
+			const BOOL comparable = 0 == variant || 5 == variant;
 			CColRefArray *left = GPOS_NEW(mp) CColRefArray(mp);
 			CColRefArray *right = GPOS_NEW(mp) CColRefArray(mp);
 			if (3 != variant)
 			{
 				left->Append((*columns)[0]);
-				right->Append(1 == variant ? boolean : (*columns)[1]);
+				right->Append(1 == variant ? boolean : 5 == variant ? wide : (*columns)[1]);
 			}
 			if (2 == variant) right->Append((*columns)[2]);
 			if (4 == variant)
@@ -3319,11 +3324,11 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 			CDSLInstantiator builder(mp);
 			CExpression *predicate = builder.PexprInstantiatePredicate(construction,
 				(*construction->PfragTgt()->PopRoot()->Pdrgpsym())[0], model);
-			if ((nullptr != predicate) != (0 == variant))
+			if ((nullptr != predicate) != comparable)
 				GPOS_TRACE_FORMAT("NullSafeEq construction variant=%d present=%d rule=%s",
 					variant, nullptr != predicate, text);
-			ok &= (nullptr != predicate) == (0 == variant);
-			if (nullptr != predicate && 0 == variant)
+			ok &= (nullptr != predicate) == comparable;
+			if (nullptr != predicate && comparable)
 			{
 				CExpression *expected = CPredicateUtils::PexprINDFConjunction(mp, left, right);
 				ok &= predicate->Matches(expected);
@@ -3333,19 +3338,19 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 			{
 				ok &= model->FBind((*(*construction->PfragSrc()->PopRoot())[0]->Pdrgpsym())[0], get);
 				CDSLConstraintChecker checker(mp);
-				ok &= checker.FCheck(construction, model) == (0 == variant);
+				ok &= checker.FCheck(construction, model) == comparable;
 				const CDSLSymbol *output = (*construction->PfragTgt()->PopRoot()->Pdrgpsym())[0];
 				// FCheck materializes a valid target predicate. Reuse that binding:
 				// FBind deliberately rejects even equivalent, separately built trees.
 				CExpression *bound = model->PexprPred(output);
-				ok &= (nullptr != bound) == (0 == variant);
+				ok &= (nullptr != bound) == comparable;
 				if (nullptr == bound)
 				{
 					bound = CUtils::PexprScalarConstBool(mp, true);
 					ok &= model->FBind(output, bound);
 					bound->Release();
 				}
-				ok &= checker.FCheck(construction, model) == (0 == variant);
+				ok &= checker.FCheck(construction, model) == comparable;
 			}
 			CRefCount::SafeRelease(predicate);
 			model->Release();

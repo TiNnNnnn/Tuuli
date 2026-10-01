@@ -703,17 +703,8 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		{
 			CColRefArray *left = PdrgpcrResolveCols(pdef->PsymOperand(0), pmodel);
 			CColRefArray *right = PdrgpcrResolveCols(pdef->PsymOperand(1), pmodel);
-			if (nullptr == left || nullptr == right || 0 == left->Size() ||
-				left->Size() != right->Size())
+			if (!CDSLMatchView::FNullSafeEqComparableColumns(left, right))
 				return nullptr;
-			for (ULONG i = 0; i < left->Size(); ++i)
-			{
-				if (!(*left)[i]->RetrieveType()->MDId()->Equals((*right)[i]->RetrieveType()->MDId()) ||
-					!IMDId::IsValid((*left)[i]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq)))
-				{
-					return nullptr;
-				}
-			}
 			// The existing constructor retains these non-constant comparison
 			// leaves in order, including duplicates; no conjunct extraction.
 			return CPredicateUtils::PexprINDFConjunction(m_mp, left, right);

@@ -35,10 +35,12 @@
 #include "naucrates/md/CMDAggregateGPDB.h"
 #include "naucrates/md/CMDFunctionGPDB.h"
 #include "naucrates/md/CMDIdGPDB.h"
+#include "naucrates/md/CMDIdScCmp.h"
 #include "naucrates/md/CMDName.h"
 #include "naucrates/md/CMDProviderGeneric.h"
 #include "naucrates/md/CMDProviderMemory.h"
 #include "naucrates/md/CMDScalarOpGPDB.h"
+#include "naucrates/md/CMDScCmpGPDB.h"
 #include "naucrates/md/CMDTypeBoolGPDB.h"
 #include "naucrates/md/CMDTypeInt2GPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
@@ -247,6 +249,34 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_EQ_OP),
 			IMDType::EcmptNEq, false /*returns null*/,
 			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+	}
+
+	// PostgreSQL's int4 = int8 comparison tests metadata-supported mixed types.
+	{
+		auto *left = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID);
+		auto *right = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID);
+		left->AddRef();
+		right->AddRef();
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScCmpGPDB(mp,
+			GPOS_NEW(mp) CMDIdScCmp(left, right, IMDType::EcmptEq),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true),
+			left, right, IMDType::EcmptEq,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 15)));
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 15),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 852 /*int48eq*/),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 416 /*int84eq*/),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 36 /*int48ne*/),
+			IMDType::EcmptEq, false, GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 852),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("int48eq")), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), false, IMDFunction::EfsImmutable, true, false, false));
 	}
 
 	// Operator stability comes from its real implementation function, not

@@ -7,7 +7,7 @@
     "scope": "Except All over equally typed ordered input rows, including nullable duplicates",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "2ee9916a64de7345"
+      "278225090671ec4c"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_differenceall2antijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"2ee9916a64de7345\""
+        "\"status\":\"applied\",\"rule_hash\":\"278225090671ec4c\""
       ],
       "alternative": [
         "CXformDifferenceAll2LeftAntiSemiJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_differenceall2antijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"2ee9916a64de7345\""
+        "\"status\":\"applied\",\"rule_hash\":\"278225090671ec4c\""
       ],
       "alternative": [
         "CXformDSLRule_DifferenceAll"

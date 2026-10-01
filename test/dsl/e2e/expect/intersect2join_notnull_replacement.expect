@@ -7,7 +7,7 @@
     "scope": "Intersect distinct over equally typed ordered input rows, including nullable composite rows",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "7c3febf0a7602119"
+      "ef62e6e47be5c6d6"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_intersect2join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
+        "\"status\":\"applied\",\"rule_hash\":\"ef62e6e47be5c6d6\""
       ],
       "alternative": [
         "CXformIntersect2Join",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_intersect2join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"7c3febf0a7602119\""
+        "\"status\":\"applied\",\"rule_hash\":\"ef62e6e47be5c6d6\""
       ],
       "alternative": [
         "CXformDSLRule_Intersect"
