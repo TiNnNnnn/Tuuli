@@ -32,6 +32,7 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
@@ -323,6 +324,8 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_ConstraintLocalValueChain),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopyDedupGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_DedupConstructionIdempotence),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_LowerSubqueryPreservesGrouping),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
@@ -350,6 +353,119 @@ CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip()
 		return GPOS_FAILED;
 	}
 	prule->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_DedupConstructionIdempotence()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const CHAR *rules[] = {"Proj*<a0 s0>(Input<t0>)|Proj*<a1 s1>(Input<t1>)|"
+						   "TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)",
+						   "Proj*<a0 s0>(Input<t0>)|Proj*<a1 s1>(Input<t1>)|"
+						   "t1 := t0;a1 := a0;s1 := s0"};
+	for (const CHAR *text : rules)
+		for (ULONG kind = 0; kind < 6; ++kind)
+		{
+			CDSLRule *rule = PdslruleParseLocal(mp, text);
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CColRefArray *columns = nullptr;
+			CExpression *input = fix.PexprLogicalGet("dedup_identity", 2, &columns);
+			CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+			grouping->Append((*columns)[0]);
+			(*columns)[0]->MarkAsUsed();
+			CExpression *child;
+			if (kind < 4)
+			{
+				const auto stage =
+					kind < 2 ? COperator::EgbaggtypeGlobal : COperator::EgbaggtypeLocal;
+				grouping->AddRef();
+				CLogicalGbAgg *op;
+				if (kind % 2)
+				{
+					grouping->AddRef();
+					op = GPOS_NEW(mp) CLogicalGbAggDeduplicate(mp, grouping, stage, grouping);
+				}
+				else
+					op = GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, stage);
+				input->AddRef();
+				child = GPOS_NEW(mp)
+					CExpression(mp, op, input,
+								GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
+			}
+			else
+				child = fix.PexprLogicalGbAgg(
+					input, kind == 5 ? columns : grouping,
+					kind == 4 ? fix.PcrCreateInt4("computed_max") : nullptr, (*columns)[1]);
+			CExpression *source = fix.PexprLogicalGbAgg(child, grouping);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(
+				CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+			CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+			GPOS_UNITTEST_ASSERT(nullptr != target);
+			// Only a pure, global, same-key dedup can replace the outer DISTINCT.
+			GPOS_UNITTEST_ASSERT((target == child) == (kind < 2));
+			if (kind >= 2)
+				GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == target->Pop()->Eopid() &&
+									 CLogicalGbAgg::PopConvert(target->Pop())->FGlobal());
+			target->Release();
+			model->Release();
+			source->Release();
+			child->Release();
+			grouping->Release();
+			input->Release();
+			rule->Release();
+		}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_CopyDedupGbAgg()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRef *key = fix.PcrCreateInt4("dedup_key");
+	CColRef *mapped = fix.PcrCreateInt4("mapped_key");
+	const auto columns = [&]()
+	{
+		CColRefArray *result = GPOS_NEW(mp) CColRefArray(mp);
+		result->Append(key);
+		return result;
+	};
+	for (auto stage : {COperator::EgbaggtypeGlobal, COperator::EgbaggtypeLocal})
+		for (BOOL minimal : {false, true})
+		{
+			CLogicalGbAggDeduplicate *original =
+				minimal ? GPOS_NEW(mp)
+							  CLogicalGbAggDeduplicate(mp, columns(), columns(), stage, columns())
+						: GPOS_NEW(mp) CLogicalGbAggDeduplicate(mp, columns(), stage, columns());
+			for (BOOL remap : {false, true})
+			{
+				UlongToColRefMap *mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+				if (remap)
+					mapping->Insert(GPOS_NEW(mp) ULONG(key->Id()), mapped);
+				CLogicalGbAggDeduplicate *copy = CLogicalGbAggDeduplicate::PopConvert(
+					original->PopCopyWithRemappedColumns(mp, mapping, remap));
+				GPOS_UNITTEST_ASSERT(copy->FGeneratesDuplicates() ==
+									 original->FGeneratesDuplicates());
+				GPOS_UNITTEST_ASSERT(copy->Egbaggtype() == stage);
+				GPOS_UNITTEST_ASSERT((remap ? mapped : key) == (*copy->Pdrgpcr())[0]);
+				GPOS_UNITTEST_ASSERT((remap ? mapped : key) == (*copy->PdrgpcrKeys())[0]);
+				GPOS_UNITTEST_ASSERT(minimal == (nullptr != copy->PdrgpcrMinimal()));
+				if (minimal)
+					GPOS_UNITTEST_ASSERT((remap ? mapped : key) == (*copy->PdrgpcrMinimal())[0]);
+				if (!remap)
+					GPOS_UNITTEST_ASSERT(original->Matches(copy) &&
+										 original->HashValue() == copy->HashValue());
+				copy->Release();
+				mapping->Release();
+			}
+			original->Release();
+		}
 	return GPOS_OK;
 }
 

@@ -87,6 +87,24 @@ FColArraysSameSet(CMemoryPool *mp, const CColRefArray *pdrgpcrFirst,
 	return fEqual;
 }
 
+// Both regular and semi-join dedup operators implement DISTINCT. Reusing a
+// same-key global dedup is idempotence, not a bound on rule application depth.
+BOOL
+FSameGlobalDedup(CMemoryPool *mp, CExpression *expression,
+				 CColRefArray *grouping)
+{
+	const auto id = expression->Pop()->Eopid();
+	if ((COperator::EopLogicalGbAgg != id &&
+		 COperator::EopLogicalGbAggDeduplicate != id) ||
+		2 != expression->Arity() ||
+		COperator::EopScalarProjectList != (*expression)[1]->Pop()->Eopid() ||
+		0 != (*expression)[1]->Arity())
+		return false;
+	const auto *aggregate = CLogicalGbAgg::PopConvert(expression->Pop());
+	return aggregate->FGlobal() &&
+		FColArraysSameSet(mp, aggregate->Pdrgpcr(), grouping);
+}
+
 // A project list made exclusively of column references can be deduplicated on
 // those referenced columns directly. Besides avoiding a redundant Project, this
 // preserves the dependency columns that existing parents may still require.
@@ -755,6 +773,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			project->Release();
 			project = pexprChild;
 		}
+		if (FSameGlobalDedup(m_mp, project, schema))
+			return project;
 		// Group by SELECT outputs, not its dependencies or pass-through columns.
 		schema->AddRef();
 		return GPOS_NEW(m_mp) CExpression(m_mp,
@@ -1001,23 +1021,11 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		// DISTINCT is idempotent. Reuse an existing pure global dedup with the
 		// same grouping set instead of manufacturing an indefinitely deep chain
 		// when a bottom-up or Cascade rule reaches its own result again.
-		if (COperator::EopLogicalGbAgg == pexprChild->Pop()->Eopid() &&
-			2 == pexprChild->Arity() && 0 == (*pexprChild)[1]->Arity())
+		if (FSameGlobalDedup(m_mp, pexprChild, pdrgpcrAttrs) &&
+			FColSetContainsArray(pexprChild->DeriveOutputColumns(), pdrgpcrSchema))
 		{
-			CLogicalGbAgg *popChildGbAgg =
-				CLogicalGbAgg::PopConvert(pexprChild->Pop());
-			CColRefSet *pcrsSchema = GPOS_NEW(m_mp) CColRefSet(m_mp);
-			pcrsSchema->Include(pdrgpcrSchema);
-			const BOOL fSameDedup = popChildGbAgg->FGlobal() &&
-				FColArraysSameSet(m_mp, popChildGbAgg->Pdrgpcr(),
-								 pdrgpcrAttrs) &&
-				pexprChild->DeriveOutputColumns()->ContainsAll(pcrsSchema);
-			pcrsSchema->Release();
-			if (fSameDedup)
-			{
-				pcrsGrouping->Release();
-				return pexprChild;
-			}
+			pcrsGrouping->Release();
+			return pexprChild;
 		}
 
 		// The rewritten key is already the rule-selected minimal grouping. Keep
