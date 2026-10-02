@@ -312,21 +312,11 @@ CDSLRuleEngine::BucketByRoot()
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalLeftSemiJoin;
 			}
-			const CDSLOp *popTargetBase = prule->PfragTgt()->PopRoot();
-			while (EdslopFilter == popTargetBase->Edslop() &&
-				   1 == popTargetBase->UlChildren())
+			if (EdslopInput == popBase->Edslop())
 			{
-				popTargetBase = (*popTargetBase)[0];
-			}
-			const EDslOpKind edslopTargetBase = popTargetBase->Edslop();
-			if (EdslopInput == popBase->Edslop() &&
-				(EdslopInnerApply == edslopTargetBase ||
-				 EdslopLeftOuterApply == edslopTargetBase ||
-				 CDSLOpKindTable::FHasPreUnnestRepresentation(edslopTargetBase)))
-			{
-				// A subquery may remain inside an InnerJoin ON predicate. The Filter
-				// matcher exposes the exact predicate view before applying the same
-				// generic subquery rule used outside joins.
+				// Route by the source view, not the target operator: a subquery ON
+				// predicate may first need ordinary Filter decomposition before
+				// Apply lowering. The matcher still validates the exact join view.
 				rgulOpid[ulBuckets++] =
 					(ULONG) COperator::EopLogicalInnerJoin;
 			}

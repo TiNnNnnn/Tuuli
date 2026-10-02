@@ -808,6 +808,16 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 	// (doc §2) and is why Filter does not go through the generic child recursion.
 	if (EdslopFilter == pop->Edslop())
 	{
+		if (nullptr != m_prule && m_prule->Pexprdefs()->FHasMatchBindings() &&
+			COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid())
+		{
+			CExpression *view = CDSLMatchView::PexprCorrelatedInnerJoinFilter(
+				m_mp, pexpr, true /*complete predicate*/);
+			if (nullptr == view) return false;
+			const BOOL matched = FMatch(pop, view, pmodel);
+			view->Release();
+			return matched;
+		}
 		if (nullptr != m_prule &&
 			m_prule->Pexprdefs()->FHasBindings() &&
 			(m_prule->Pexprdefs()->FHasMatchBindings() ||

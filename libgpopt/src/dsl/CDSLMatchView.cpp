@@ -1082,7 +1082,8 @@ CDSLMatchView::PexprNullRejectedInnerJoin(CMemoryPool *mp,
 
 CExpression *
 CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
-										  CExpression *pexprJoin)
+										  CExpression *pexprJoin,
+										  BOOL fCompletePredicate)
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != pexprJoin);
@@ -1092,9 +1093,18 @@ CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
 	{
 		return nullptr;
 	}
-	if ((*pexprJoin)[2]->DeriveHasSubquery())
+	const BOOL fSubquery = (*pexprJoin)[2]->DeriveHasSubquery();
+	if (fSubquery && !fCompletePredicate)
 	{
 		return CXformUtils::PexprSeparateSubqueryPreds(mp, pexprJoin);
+	}
+	// Typed patterns must retain the entire ON tree, including operand order.
+	// Moving it to WHERE changes its evaluation site; require the shared
+	// total/repeatable contract rather than silently using legacy splitting.
+	if (fCompletePredicate &&
+		!CDSLConstraintChecker::FQueryDemandInsensitive(pexprJoin))
+	{
+		return nullptr;
 	}
 
 	CColRefSet *pcrsInputs = GPOS_NEW(mp) CColRefSet(
@@ -1106,7 +1116,7 @@ CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
 	const BOOL fCorrelated = 0 < pcrsOuter->Size();
 	pcrsOuter->Release();
 	pcrsInputs->Release();
-	if (!fCorrelated)
+	if (!fCorrelated && !fSubquery)
 	{
 		return nullptr;
 	}
