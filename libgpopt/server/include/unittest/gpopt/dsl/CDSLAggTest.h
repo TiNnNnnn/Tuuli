@@ -107,6 +107,7 @@ public:
 	// Copying a split-like Global aggregate preserves the constructor domain
 	// which permits duplicate-generating partial aggregate state.
 	static GPOS_RESULT EresUnittest_CopySplitGlobalGbAgg();
+	static GPOS_RESULT EresUnittest_LowerSubqueryPreservesGrouping();
 	static GPOS_RESULT EresUnittest_SplitAggregateCopyNotResplit();
 
 	// ORCA Select(GbAgg,HAVING) binds p to the real predicate and reconstructs

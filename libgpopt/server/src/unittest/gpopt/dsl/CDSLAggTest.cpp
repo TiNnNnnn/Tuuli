@@ -38,6 +38,8 @@
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarValuesList.h"
 #include "gpopt/xforms/CXformContext.h"
 #include "gpopt/xforms/CXformResult.h"
 #include "gpopt/xforms/CXformSplitGbAgg.h"
@@ -321,6 +323,7 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_ConstraintLocalValueChain),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_LowerSubqueryPreservesGrouping),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
@@ -347,6 +350,59 @@ CDSLAggTest::EresUnittest_AggExternalSemiApplyRuleRoundTrip()
 		return GPOS_FAILED;
 	}
 	prule->Release();
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_LowerSubqueryPreservesGrouping()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr, *inner_columns = nullptr;
+	CExpression *outer = fix.PexprLogicalGet("grouping_outer", 2, &columns, 0);
+	CExpression *inner = fix.PexprLogicalGet("grouping_inner", 1, &inner_columns);
+	CColRef *selected = fix.PcrCreateInt4("inner_max");
+	CColRefArray *empty = GPOS_NEW(mp) CColRefArray(mp);
+	CExpression *query = fix.PexprLogicalGbAgg(inner, empty, selected, (*inner_columns)[0]);
+	inner->Release();
+	empty->Release();
+	CExpression *subquery = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubquery(mp, selected, false, false), query);
+	// MAX((SELECT MAX(...))) exercises actual subquery lowering inside an
+	// aggregate argument without changing the outer grouping contract.
+	CExpression *prototype = CUtils::PexprAgg(mp, fix.Pmda(), IMDType::EaggMax,
+		selected, false, false);
+	CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
+	arguments->Append(GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarValuesList(mp), subquery));
+	for (ULONG i = 1; i < prototype->Arity(); ++i)
+	{
+		(*prototype)[i]->AddRef();
+		arguments->Append((*prototype)[i]);
+	}
+	prototype->Pop()->AddRef();
+	CExpression *aggregate = GPOS_NEW(mp) CExpression(mp, prototype->Pop(), arguments);
+	prototype->Release();
+	CExpression *projects = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarProjectList(mp), CUtils::PexprScalarProjectElement(mp,
+			fix.PcrCreateInt4("outer_max"), aggregate));
+	CColRefArray *minimal = GPOS_NEW(mp) CColRefArray(mp);
+	minimal->Append((*columns)[0]);
+	columns->AddRef();
+	CLogicalGbAgg *op = GPOS_NEW(mp) CLogicalGbAgg(mp, columns, minimal,
+		COperator::EgbaggtypeGlobal, false, nullptr);
+	CExpression *source = GPOS_NEW(mp) CExpression(mp, op, outer, projects);
+	CExpression *lowered = CDSLMatchView::PexprLowerSubqueries(mp, source);
+	GPOS_UNITTEST_ASSERT(nullptr != lowered &&
+		COperator::EopLogicalGbAgg == lowered->Pop()->Eopid());
+	const auto *result = CLogicalGbAgg::PopConvert(lowered->Pop());
+	GPOS_UNITTEST_ASSERT(nullptr != result->PdrgpcrMinimal() &&
+		1 == result->PdrgpcrMinimal()->Size() &&
+		(*minimal)[0] == (*result->PdrgpcrMinimal())[0]);
+	GPOS_UNITTEST_ASSERT(result->Matches(op));
+	lowered->Release();
+	source->Release();
 	return GPOS_OK;
 }
 
