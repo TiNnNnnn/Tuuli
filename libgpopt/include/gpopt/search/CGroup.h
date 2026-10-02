@@ -200,6 +200,9 @@ private:
 	// of all duplicate groups
 	CGroup *m_pgroupDuplicate;
 
+	// Non-owning ring of equivalent groups, including expressions not moved yet.
+	CGroup *m_pgroupNextDuplicate;
+
 	// map of processed links
 	LinkMap *m_plinkmap;
 
@@ -502,6 +505,12 @@ public:
 	PgroupDuplicate() const
 	{
 		return m_pgroupDuplicate;
+	}
+
+	CGroup *
+	PgroupNextDuplicate() const
+	{
+		return m_pgroupNextDuplicate;
 	}
 
 	// resolve master duplicate group;

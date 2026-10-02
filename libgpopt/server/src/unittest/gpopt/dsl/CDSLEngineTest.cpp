@@ -699,6 +699,7 @@ CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup()
 	CGroup *pgroupParent = GPOS_NEW(mp) CGroup(mp);
 	CGroup *pgroupEmpty = GPOS_NEW(mp) CGroup(mp);
 	CGroup *pgroupOther = GPOS_NEW(mp) CGroup(mp);
+	CGroup *pgroupLast = GPOS_NEW(mp) CGroup(mp);
 	{
 		CGroupProxy gp(pgroupParent);
 		gp.SetId(0);
@@ -711,6 +712,10 @@ CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup()
 		CGroupProxy gp(pgroupOther);
 		gp.SetId(2);
 	}
+	{
+		CGroupProxy gp(pgroupLast);
+		gp.SetId(3);
+	}
 
 	CGroupArray *pdrgpgroup = GPOS_NEW(mp) CGroupArray(mp);
 	pdrgpgroup->Append(pgroupEmpty);
@@ -722,9 +727,33 @@ CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup()
 		gp.Insert(pgexpr);
 	}
 
-	const BOOL fValid = CGroup::FReachable(mp, pgroupParent, pgroupEmpty) &&
+	BOOL fValid = CGroup::FReachable(mp, pgroupParent, pgroupEmpty) &&
 						!CGroup::FReachable(mp, pgroupParent, pgroupOther);
+	// Marking duplicates does not move expressions yet. Reachability must
+	// retain the alias's edges until MergeGroup transfers them to the master.
+	pgroupParent->AddDuplicateGrp(pgroupOther);
+	pgroupParent->ResolveDuplicateMaster();
+	fValid &= CGroup::FReachable(mp, pgroupParent, pgroupEmpty) &&
+		CGroup::FReachable(mp, pgroupOther, pgroupEmpty) &&
+		CGroup::FReachable(mp, pgroupParent, pgroupOther) &&
+		CGroup::FReachable(mp, pgroupOther, pgroupParent) &&
+		!CGroup::FReachable(mp, pgroupEmpty, pgroupParent);
+	// Compress a longer alias chain and join an already equivalent pair.
+	// Neither operation may lose members or split their traversal ring.
+	pgroupOther->AddDuplicateGrp(pgroupLast);
+	pgroupParent->ResolveDuplicateMaster();
+	pgroupParent->AddDuplicateGrp(pgroupLast);
+	pgroupLast->AddDuplicateGrp(pgroupParent);
+	fValid &= CGroup::FReachable(mp, pgroupLast, pgroupEmpty) &&
+		CGroup::FReachable(mp, pgroupOther, pgroupEmpty) &&
+		!CGroup::FReachable(mp, pgroupEmpty, pgroupLast);
+	pgroupParent->MergeGroup();
+	pgroupOther->MergeGroup();
+	fValid &= CGroup::FReachable(mp, pgroupOther, pgroupEmpty) &&
+		CGroup::FReachable(mp, pgroupParent, pgroupEmpty) &&
+		CGroup::FReachable(mp, pgroupLast, pgroupEmpty);
 
+	pgroupLast->Release();
 	pgroupOther->Release();
 	pgroupEmpty->Release();
 	pgroupParent->Release();
