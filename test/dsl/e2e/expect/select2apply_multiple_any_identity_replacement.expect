@@ -1,13 +1,14 @@
 {
-  "description": "The atomic ANY expression definition applies twice to lower multiple quantified conjuncts",
+  "description": "Proved safe conjunct splitting and explicit ANY lowering replace the legacy multi-output expression macro",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
-    "scope": "Two correlated ANY conjuncts with distinct comparison predicates",
-    "status": "verified_full_replacement",
+    "scope": "Two deterministic, error-free correlated ANY conjuncts with distinct comparison predicates",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "ac0317d6092101d7"
+      "ae0c3fdea5be2ed5",
+      "eb808b80935652d6"
     ]
   },
   "plans": [
@@ -23,11 +24,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_predicate_any_chain_direct.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"ac0317d6092101d7\""
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -51,11 +52,20 @@
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_select2apply_predicate_any_chain_direct.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "ae0c3fdea5be2ed5",
+          "dst_rule": "eb808b80935652d6",
+          "target_path": "r/0"
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -74,7 +84,7 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_select2apply_predicate_any_chain_direct.policy",
+    "policy": "isolate_explicit_quantified_apply.policy",
     "output": [
       "2"
     ],

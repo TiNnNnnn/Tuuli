@@ -1,13 +1,13 @@
 {
-  "description": "A proved PredicateAll rule preserves inverse-predicate polarity in a regular NotIn Apply",
+  "description": "Explicit ALL comparison lowering preserves inverse-predicate polarity and NULL-aware semantics in a regular NotIn Apply",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
-    "scope": "Uncorrelated single-column ALL with an arbitrary comparison predicate",
-    "status": "verified_full_replacement",
+    "scope": "Uncorrelated single-column ALL with an audited strict built-in comparison and demand-insensitive input",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a08e24d9155e2f5c"
+      "2a403f8d75cfe226"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -51,11 +51,11 @@
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftAntiSemiApplyNotIn",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -77,7 +77,7 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_explicit_quantified_apply.policy",
     "output": [
       "2",
       "3"

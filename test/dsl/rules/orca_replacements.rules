@@ -116,6 +116,23 @@ Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExi
 # The same arbitrary-input migration boundary applies here.
 Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
 
+# Native FormalSQL OUTCOME_EQ: the same safe conjunction split as EXISTS,
+# with an explicit quantified capture. This also exposes ANY behind a derived
+# NOT NULL conjunct without changing preprocessing or silently extracting it.
+# ANY certificate: 5370203608778ac82252406c22e98e0c9d21de732cfeed541a45697f2ec13003
+Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t2>))|Any(c0,v0,a3,t1) := p1;t2 := t0;p2 := p0;p3 := p1;n0 := BoolValue(p0);n1 := BoolValue(p1);a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)
+# ALL certificate: 1953dd29b95d218d80a22aef147fb632939ad51ce5416aa566123a619b97dd06
+Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t2>))|All(c0,v0,a3,t1) := p1;t2 := t0;p2 := p0;p3 := p1;n0 := BoolValue(p0);n1 := BoolValue(p1);a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)
+
+# Native FormalSQL OUTCOME_EQ: capture the quantified comparison and scalar
+# argument explicitly, derive its dependencies, and retain the complete inner
+# input. The native adapter still checks input demand and comparison safety;
+# these rules do not silently broaden that audited domain.
+# ANY certificate: ad8abf9f7f443c9a98b34b3c21dc3f509a523d52e22705395e8bfd33de44b0c1
+Filter<Any(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|Any<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)
+# ALL certificate: ca7c19247f80ef46c8c4e3cc264be81b5117e89effaaefe5e232f034f2c502ba
+Filter<All(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|All<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)
+
 # DIRECT(expression-rewrite): PredicateAny binds the comparison, exact outer
 # dependencies, and quantified relation from the scalar ANY predicate.
 # Keep this compatibility entry: the typed quantifier bridge currently requires

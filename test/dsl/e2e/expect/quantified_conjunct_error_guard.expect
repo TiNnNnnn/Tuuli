@@ -1,0 +1,32 @@
+{
+  "description": "ANY 合取的其他分支可能除零时，不得用安全拆分改变求值顺序；保留原生路径的可观察错误",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"ae0c3fdea5be2ed5\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d367a50f1a60c6d4\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
