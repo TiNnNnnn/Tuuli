@@ -3204,7 +3204,7 @@ class TraceFrameworkTest(unittest.TestCase):
         pending = None
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
-            if line.startswith('# SYNTAX_ONLY legacy_hash='):
+            if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=')):
                 self.assertIsNone(pending)
                 self.assertIn('native expression proof: UNKNOWN', line)
                 pending = re.search(r'legacy_hash=([0-9a-f]{16});', line).group(1)

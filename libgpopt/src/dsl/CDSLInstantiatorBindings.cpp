@@ -52,9 +52,13 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 	GPOS_ASSERT(nullptr != pcon);
 	GPOS_ASSERT(nullptr != pmodel);
 	const BOOL consuming = EdslconPredicateNullRejecting == pcon->Edslcon() ||
-		(prule->Pexprdefs()->FHasBindings() && EdslconAttrsSub == pcon->Edslcon());
+		(prule->Pexprdefs()->FHasBindings() &&
+		 (EdslconAttrsSub == pcon->Edslcon() || EdslconUnique == pcon->Edslcon() ||
+		  EdslconCorrelationEquality == pcon->Edslcon()));
+	const BOOL partition = prule->Pexprdefs()->FHasBindings() &&
+		EdslconPredicateDomainSplit == pcon->Edslcon();
 	if (before_check && !consuming &&
-		!CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
+		!partition && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
 	{
 		return false;
 	}
@@ -212,10 +216,12 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		const CDSLSymbol *psym = (*pdrgpsym)[ul];
 		// An alias is a check on an existing capture, not a fresh output. Resolve
 		// it before checking in both syntaxes; retain legacy input scheduling.
-		if (before_check && !consuming && ((0 == ul && PsymResolve(psym) == psym) ||
-			(0 < ul && !prule->Pexprdefs()->FHasBindings()))) continue;
 		EDslSymbolKind esymkind =
 			CDSLConstraintKindTable::EsymkindDerivedOutput(pcon->Edslcon(), ul);
+		if (before_check && !consuming &&
+			(partition ? EdslsymSentinel != esymkind :
+			 ((0 == ul && PsymResolve(psym) == psym) ||
+			  (0 < ul && !prule->Pexprdefs()->FHasBindings())))) continue;
 		if (EdslconAttrsIntersect == pcon->Edslcon() && 0 == ul)
 		{
 			esymkind = (*pdrgpsym)[0]->Esymkind();

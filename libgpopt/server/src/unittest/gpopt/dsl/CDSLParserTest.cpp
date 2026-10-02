@@ -325,6 +325,25 @@ EresExpressionBindings()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
+	const std::string partition =
+		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
+		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
+		"t2 := t0;t3 := t1;";
+	for (const CHAR *invalid : {
+		"p4 := And(p2,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1)",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t9)",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a6,t0,t1)",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);p2 := p0",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);AttrsEmpty(a4)",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p0,p3,a4,a5,a6,a7,t0,t1)"})
+	{
+		CDSLRule *rule = Parse(mp, (partition + invalid).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	const std::string concat = "Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
 		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,s1);";
 	const std::string nulls = "Proj<a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;";

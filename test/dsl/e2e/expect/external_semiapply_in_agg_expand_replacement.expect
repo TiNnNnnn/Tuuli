@@ -14,10 +14,10 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_INSTANTIATE_TRACE rule_hash=c865e55a4672d788 status=rejected reason=introduced_outer_references"
+        "DSL_INSTANTIATE_TRACE rule_hash=0931fb9fe15950c9 status=rejected reason=introduced_outer_references"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c865e55a4672d788\""
+        "\"status\":\"applied\",\"rule_hash\":\"0931fb9fe15950c9\""
       ]
     },
     {
@@ -41,10 +41,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "SubPlan",
-        "DSL_INSTANTIATE_TRACE rule_hash=c865e55a4672d788 status=rejected reason=introduced_outer_references"
+        "DSL_INSTANTIATE_TRACE rule_hash=0931fb9fe15950c9 status=rejected reason=introduced_outer_references"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c865e55a4672d788\""
+        "\"status\":\"applied\",\"rule_hash\":\"0931fb9fe15950c9\""
       ],
       "provenance": {
         "required_sources": [

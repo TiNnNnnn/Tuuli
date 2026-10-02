@@ -348,7 +348,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 	}
 	// Metadata definitions and typed bindings form one dependency graph. Declare
 	// fixed-type outputs first; FBuildBindings later rejects cycles/free inputs.
-	// Keep legacy expression decomposition on its existing parsing path.
+	// Other legacy expression decompositions keep their existing parsing path.
 	if (!cons_ctx->binding().empty())
 	{
 		for (auto *con : cons_ctx->constraint())
@@ -357,13 +357,16 @@ PdrgpconBuild(SBuildCtx &bctx,
 			const auto symbols = con->SYMBOL();
 			if (!CDSLConstraintKindTable::FBindingMetadata(kind) ||
 				symbols.size() != CDSLConstraintKindTable::UlArity(kind)) continue;
-			const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, 0);
-			const std::string name = symbols[0]->getText();
-			if (EdslsymSentinel == type || bctx.symtab.count(name)) continue;
-			CDSLSymbol *symbol = GPOS_NEW(mp) CDSLSymbol(mp, type, name.c_str(),
-				bctx.next_id++, EdslsideTarget);
-			pdrgpsymTarget->Append(symbol);
-			bctx.symtab.emplace(name, symbol);
+			for (ULONG slot = 0; slot < symbols.size(); slot++)
+			{
+				const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot);
+				const std::string name = symbols[slot]->getText();
+				if (EdslsymSentinel == type || bctx.symtab.count(name)) continue;
+				CDSLSymbol *symbol = GPOS_NEW(mp) CDSLSymbol(mp, type, name.c_str(),
+					bctx.next_id++, EdslsideTarget);
+				pdrgpsymTarget->Append(symbol);
+				bctx.symtab.emplace(name, symbol);
+			}
 		}
 	}
 
@@ -1049,8 +1052,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	{
 		available.insert((*source->Pdrgpsym())[i]);
 	}
-	// Column derivations and literals share the checked runtime resolver. Other
-	// constructive legacy constraints are not expression-binding premises.
+	// Metadata, domain partitions and literals share the checked runtime
+	// resolver. Other legacy constructions are not binding premises.
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
 		const CDSLConstraint *con = (*constraints)[i];
@@ -1064,7 +1067,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		// one. The runtime checker must still establish the property.
 		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
 			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind ||
-			EdslconTableShared == kind)
+			EdslconTableShared == kind || EdslconUnique == kind ||
+			EdslconCorrelationEquality == kind)
 			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
@@ -1112,13 +1116,25 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			if (EdslsideTarget == rank->Eside() && !aliases.count(rank) &&
 				!constructed.count(rank)) available.insert(rank);
 		}
-		const auto *output = (*con->Pdrgpsym())[0];
-		// Captures and cross-side aliases are checked, never redefined.
-		if (EdslsideSource == output->Eside() || aliases.count(output)) continue;
-		if (!columnDerivations.emplace(output, con).second)
+		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
-			bctx.Fail("target metadata symbol has multiple definitions");
-			return false;
+			if (EdslsymSentinel == CDSLConstraintKindTable::EsymkindDerivedOutput(con->Edslcon(), slot)) continue;
+			const auto *output = (*con->Pdrgpsym())[slot];
+			// A domain partition is atomic: none of its outputs may overwrite a
+			// capture or be supplied independently by an alias/construction.
+			if (EdslconPredicateDomainSplit == con->Edslcon() &&
+				(EdslsideSource == output->Eside() || aliases.count(output) || constructed.count(output)))
+			{
+				bctx.Fail("domain partition requires independent target outputs");
+				return false;
+			}
+			// Ordinary metadata can check captures and cross-side aliases.
+			if (EdslsideSource == output->Eside() || aliases.count(output)) continue;
+			if (!columnDerivations.emplace(output, con).second)
+			{
+				bctx.Fail("target metadata symbol has multiple definitions");
+				return false;
+			}
 		}
 	}
 	for (auto *binding : ctx->binding())
@@ -1185,8 +1201,9 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		{
 			const auto *symbols = entry.second->Pdrgpsym();
 			BOOL ready = true;
-			for (ULONG i = 1; i < symbols->Size(); i++)
-				ready &= 0 != available.count((*symbols)[i]);
+			for (ULONG i = 0; i < symbols->Size(); i++)
+				if (EdslsymSentinel == CDSLConstraintKindTable::EsymkindDerivedOutput(entry.second->Edslcon(), i))
+					ready &= 0 != available.count((*symbols)[i]);
 			if (ready) available.insert(entry.first);
 		}
 		for (ULONG i = 0; i < definitions->UlDefinitions(); i++)
@@ -1212,7 +1229,9 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			EdslconDeterministic == con->Edslcon() ||
 			EdslconPredicateNullRejecting == con->Edslcon() ||
 			EdslconAttrsSub == con->Edslcon() ||
-			EdslconTableShared == con->Edslcon())
+			EdslconTableShared == con->Edslcon() ||
+			EdslconUnique == con->Edslcon() ||
+			EdslconCorrelationEquality == con->Edslcon())
 		{
 			for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 				if (!available.count((*con->Pdrgpsym())[slot]))

@@ -20,7 +20,8 @@ BOOL
 CDSLConstraintKindTable::FBindingMetadata(EDslConstraintKind kind)
 {
 	return FColumnDerivation(kind) || FScalarLiteral(kind) ||
-		EdslconOrderEmpty == kind || EdslconRankAttrs == kind;
+		EdslconOrderEmpty == kind || EdslconRankAttrs == kind ||
+		EdslconPredicateDomainSplit == kind;
 }
 
 BOOL

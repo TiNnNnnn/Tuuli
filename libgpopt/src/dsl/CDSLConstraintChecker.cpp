@@ -3284,11 +3284,15 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconSchemaUnion:
 			return FCheckAttrsUnion(pcon, pmodel);
 		case EdslconCorrelationEquality:
-			return FCheckCorrelationEquality(pcon, pmodel);
+			return (!prule->Pexprdefs()->FHasBindings() ||
+				materializer.FMaterializeConstraintBindings(prule, pcon, pmodel, true)) &&
+				FCheckCorrelationEquality(pcon, pmodel);
 		case EdslconMinimalGrouping:
 			return FCheckMinimalGrouping(pcon, pmodel);
 		case EdslconUnique:
-			return FCheckUnique(pcon, pmodel);
+			return (!prule->Pexprdefs()->FHasBindings() ||
+				materializer.FMaterializeConstraintBindings(prule, pcon, pmodel, true)) &&
+				FCheckUnique(pcon, pmodel);
 		case EdslconNotNull:
 			return FCheckNotNull(pcon, pmodel);
 		case EdslconPredicateFalse:
@@ -3417,7 +3421,9 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 		// In particular, OutputAttrs checks the logical source schema before
 		// construction narrows an unbound target to ORCA's live columns.
 		const BOOL columns =
-			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon());
+			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon()) ||
+			(prule->Pexprdefs()->FHasBindings() &&
+			 EdslconPredicateDomainSplit == constraint->Edslcon());
 		if ((columns && !materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, true)) ||
 			!FCheckOne(prule, constraint, pmodel, materializer) ||
 			!materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, false) ||

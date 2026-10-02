@@ -12,7 +12,7 @@
     "dsl_rule_hashes": [
       "7ac97a55ff9b47c8",
       "397081c4258773d1",
-      "611555770f814299"
+      "a37ff381f87c49e3"
     ]
   },
   "plans": [
@@ -31,7 +31,7 @@
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
         "\"status\":\"applied\",\"rule_hash\":\"397081c4258773d1\"",
-        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -61,7 +61,7 @@
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
         "\"status\":\"applied\",\"rule_hash\":\"397081c4258773d1\"",
-        "\"status\":\"applied\",\"rule_hash\":\"611555770f814299\""
+        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
       ],
       "provenance": {
         "required_sources": [
