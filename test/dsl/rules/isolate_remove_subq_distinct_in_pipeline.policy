@@ -1,8 +1,10 @@
+# Native-demand DISTINCT removal, explicit quantified lowering, then existing
+# no-correlation decorrelation. No PredicateAny/ExprListAny compatibility macros.
 - rule: '*'
   enabled: false
 - rule: 0ac51b2f5bf779aa
   enabled: true
-- rule: b1d9ece967912f1c
+- rule: eb808b80935652d6
   enabled: true
 - rule: cf934dc15544cfa2
   enabled: true
