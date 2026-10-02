@@ -1791,6 +1791,57 @@ CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
 		templates->Release();
 	}
 	prule->Release();
+	// The public builder allocates once even when output metadata is resolved
+	// first through an alias. Width, type modifiers and order are not fixed.
+	prule = PdslruleParseLocal(mp,
+		"Proj<a0 s0>(Input<t0>)|Compute<e0 a1 s1>(Input<t1>)|"
+		"OutputAttrs(a2,e1);e1 := e0;e0 := ExprNulls(a0);"
+		"AttrsEmpty(a1);SchemaFromAttrs(s1,a2);t1 := t0");
+	if (nullptr == prule) return GPOS_FAILED;
+	const auto *attrs = (*prule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+	const auto *outputs = (*(*prule->Pdrgpcon())[0]->Pdrgpsym())[0];
+	const auto *expr = (*prule->PfragTgt()->PopRoot()->Pdrgpsym())[0];
+	for (ULONG width : {0, 1, 3, 7})
+	{
+		CColRefArray *templates = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < width; ++i)
+			templates->Append(COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(types[i % 2], 42));
+		pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		pmodel->FBind(attrs, templates);
+		ULONG failed = gpos::ulong_max;
+		if (!checker.FCheck(prule, pmodel, nullptr, &failed))
+		{
+			GPOS_TRACE_FORMAT("Null binding width=%lu failed constraint=%lu", width, failed);
+			eres = GPOS_FAILED;
+		}
+		CExpression *list = pmodel->PexprExpr(expr);
+		CColRefArray *cols = pmodel->PdrgpcrAttrs(outputs);
+		if (nullptr == list || nullptr == cols || width != list->Arity() || width != cols->Size())
+		{
+			GPOS_TRACE_FORMAT("Null binding width=%lu missing list=%d cols=%d", width, nullptr == list, nullptr == cols);
+			eres = GPOS_FAILED;
+		}
+		else
+		{
+			for (ULONG i = 0; i < width; ++i)
+				if ((*cols)[i] != CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() ||
+					(*cols)[i] == (*templates)[i] || 42 != (*cols)[i]->TypeModifier() ||
+					!(*cols)[i]->RetrieveType()->MDId()->Equals(types[i % 2]->MDId()) ||
+					!CScalarConst::PopConvert((*(*list)[i])[0]->Pop())->GetDatum()->IsNull())
+					eres = GPOS_FAILED;
+			if (!checker.FCheck(prule, pmodel) || list != pmodel->PexprExpr(expr)) eres = GPOS_FAILED;
+			if (1 < width)
+			{
+				CColRef *first = (*cols)[0];
+				cols->Replace(0, (*cols)[1]);
+				cols->Replace(1, first);
+				if (checker.FCheck(prule, pmodel)) eres = GPOS_FAILED;
+			}
+		}
+		pmodel->Release();
+		templates->Release();
+	}
+	prule->Release();
 	return eres;
 }
 

@@ -775,9 +775,10 @@ PdrgpconBuild(SBuildCtx &bctx,
 		}
 		if (EdslconOutputAttrs == edslcon &&
 			(EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
+			 (EdslsymTable != (*pdrgpsym)[1]->Esymkind() &&
+			  EdslsymExpr != (*pdrgpsym)[1]->Esymkind())))
 		{
-			bctx.Fail("OutputAttrs expects attrs and table symbols");
+			bctx.Fail("OutputAttrs expects attrs and a table or expression list");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
@@ -1150,7 +1151,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			call->ID()->getText().c_str(), operands.size());
 		GPOS_ASSERT(nullptr == call || nullptr != signature);
 		if (match && nullptr != signature &&
-			(EdslexprScalarDeps == signature->kind || EdslexprConcat == signature->kind))
+			(EdslexprScalarDeps == signature->kind || EdslexprConcat == signature->kind ||
+			 EdslexprNulls == signature->kind))
 		{
 			bctx.Fail("this constructor supports target bindings only");
 			symbols->Release();
