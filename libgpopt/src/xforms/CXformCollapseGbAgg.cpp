@@ -121,18 +121,20 @@ CXformCollapseGbAgg::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		return;
 	}
 
-#ifdef GPOS_DEBUG
-	// for two cascaded GbAgg ops with no agg functions, top grouping
-	// columns must be a subset of bottom grouping columns
+	// Memo alternatives may prune different columns. Only collapse this
+	// extracted binding when the bottom actually supplies every top key.
 	CColRefSet *pcrsTopGrpCols =
 		GPOS_NEW(mp) CColRefSet(mp, popTopGbAgg->Pdrgpcr());
 	CColRefSet *pcrsBottomGrpCols =
 		GPOS_NEW(mp) CColRefSet(mp, popBottomGbAgg->Pdrgpcr());
-	GPOS_ASSERT(pcrsBottomGrpCols->ContainsAll(pcrsTopGrpCols));
+	const BOOL fKeysAvailable = pcrsBottomGrpCols->ContainsAll(pcrsTopGrpCols);
 
 	pcrsTopGrpCols->Release();
 	pcrsBottomGrpCols->Release();
-#endif	// GPOS_DEBUG
+	if (!fKeysAvailable)
+	{
+		return;
+	}
 
 	pexprChild->AddRef();
 	CExpression *pexprSelect = CUtils::PexprLogicalSelect(

@@ -373,10 +373,11 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		return PnodeInput(pnode);
 	}
 
-	// The explicit keyed membership form is a decorrelated SemiJoin, unlike
-	// the scalar/tagged-Apply carriers used by the single-slot form.
+	// Explicit keyed membership and predicate existence are decorrelated
+	// SemiJoins, unlike the scalar/tagged-Apply existential forms.
 	const COperator::EOperatorId eopid =
-		EdslopInSubFilter == pop->Edslop() && 5 == pop->Pdrgpsym()->Size()
+		((EdslopInSubFilter == pop->Edslop() && 5 == pop->Pdrgpsym()->Size()) ||
+		 (EdslopExists == pop->Edslop() && 3 == pop->Pdrgpsym()->Size()))
 			? COperator::EopLogicalLeftSemiJoin : pop->Eopid();
 	if (COperator::EopSentinel == eopid)
 	{

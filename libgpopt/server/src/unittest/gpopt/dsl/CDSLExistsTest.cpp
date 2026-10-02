@@ -805,55 +805,94 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 GPOS_RESULT
 CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
 {
-	CAutoMemoryPool amp;
-	CMemoryPool *mp = amp.Pmp();
-	CDSLTestFixture fix(mp);
-
-	CColRefArray *pdrgpcrOuter = nullptr;
-	CColRefArray *pdrgpcrInner = nullptr;
-	CExpression *pexprOuter =
-		fix.PexprLogicalGet("predicate_exists_outer", 2, &pdrgpcrOuter);
-	CExpression *pexprInner =
-		fix.PexprLogicalGet("predicate_exists_inner", 2, &pdrgpcrInner);
-	CExpression *pexprPred = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
-	CExpression *pexprSemiJoin =
-		CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
-			mp, pexprOuter, pexprInner, pexprPred);
-
-	CWStringDynamic strErr(mp);
-	CDSLRule *prule = CDSLRuleParser::PdslruleParse(
-		mp, GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE, "EQ", &strErr);
-	if (nullptr == prule)
+	const CHAR *rules[] = {
+		GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE,
+		"Exists<p0 a0 a1>(Input<t0>,Input<t1>)|"
+		"Exists<p1 a2 a3>(Input<t2>,Input<t3>)|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+		"p1 := p0;a2 := a0;a3 := a1",
+		"Proj*<a6 s0>(Exists<p0 a0 a1>(Input<t0>,Input<t1>))|"
+		"Proj*<a7 s1>(Exists<p1 a2 a3>(Input<t2>,Input<t3>))|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+		"p1 := p0;a2 := a0;a3 := a1;a7 := a6;s1 := s0"};
+	// Typed predicate existence captures the complete ON, including equality.
+	// Repeat the nested case with both-sided dependencies as well.
+	for (ULONG mode = 0; mode < GPOS_ARRAY_SIZE(rules) + 1; ++mode)
 	{
-		pexprSemiJoin->Release();
-		return GPOS_FAILED;
-	}
+		const BOOL nested = mode >= 2;
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
 
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
-	CExpression *pexprTarget = nullptr;
-	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSemiJoin, pmodel))
-	{
-		eres = GPOS_FAILED;
-	}
-	else
-	{
-		CDSLInstantiator inst(mp);
-		pexprTarget = inst.PexprInstantiate(prule, pmodel);
-		if (nullptr == pexprTarget ||
-			COperator::EopLogicalLeftSemiJoin != pexprTarget->Pop()->Eopid() ||
-			!(*pexprTarget)[2]->Matches((*pexprSemiJoin)[2]))
+		CColRefArray *pdrgpcrOuter = nullptr;
+		CColRefArray *pdrgpcrInner = nullptr;
+		CExpression *pexprOuter =
+			fix.PexprLogicalGet("predicate_exists_outer", 2, &pdrgpcrOuter);
+		CExpression *pexprInner =
+			fix.PexprLogicalGet("predicate_exists_inner", 2, &pdrgpcrInner);
+		CExpression *pexprPred = mode == 3
+			? CUtils::PexprScalarEqCmp(mp, (*pdrgpcrOuter)[1], (*pdrgpcrInner)[1])
+			: fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+		CExpression *pexprSemiJoin =
+			CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
+				mp, pexprOuter, pexprInner, pexprPred);
+		CExpression *source = pexprSemiJoin;
+		if (nested)
+			source = fix.PexprLogicalGbAgg(pexprSemiJoin, pdrgpcrOuter);
+		else
+			source->AddRef();
+
+		CWStringDynamic strErr(mp);
+		CDSLRule *prule =
+			CDSLRuleParser::PdslruleParse(mp, rules[nested ? 2 : mode], "EQ", &strErr);
+		if (nullptr == prule)
+		{
+			source->Release();
+			pexprSemiJoin->Release();
+			return GPOS_FAILED;
+		}
+
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		CExpression *pexprTarget = nullptr;
+		GPOS_RESULT eres = GPOS_OK;
+		if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), source, pmodel))
 		{
 			eres = GPOS_FAILED;
 		}
-	}
+		else
+		{
+			CDSLRulePrefixIndex index(mp);
+			index.Insert(prule, 0, source->Pop()->Eopid());
+			CDSLRuleArray *candidates = index.PdrgpruleCandidates(mp, source);
+			const BOOL indexed =
+				candidates->Size() == 1 && (*candidates)[0] == prule;
+			candidates->Release();
+			if (!indexed)
+				eres = GPOS_FAILED;
+			CDSLInstantiator inst(mp);
+			pexprTarget = inst.PexprInstantiate(prule, pmodel);
+			CExpression *targetSemi = nested && nullptr != pexprTarget
+										  ? (*pexprTarget)[0]
+										  : pexprTarget;
+			if (nullptr == pexprTarget ||
+				COperator::EopLogicalLeftSemiJoin !=
+					targetSemi->Pop()->Eopid() ||
+				!(*targetSemi)[2]->Matches((*pexprSemiJoin)[2]))
+			{
+				eres = GPOS_FAILED;
+			}
+		}
 
-	CRefCount::SafeRelease(pexprTarget);
-	pmodel->Release();
-	prule->Release();
-	pexprSemiJoin->Release();
-	return eres;
+		CRefCount::SafeRelease(pexprTarget);
+		pmodel->Release();
+		prule->Release();
+		source->Release();
+		pexprSemiJoin->Release();
+		if (eres != GPOS_OK)
+			return eres;
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT
