@@ -38,6 +38,9 @@
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
+#include "gpopt/xforms/CXformContext.h"
+#include "gpopt/xforms/CXformResult.h"
+#include "gpopt/xforms/CXformSplitGbAgg.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 #include <string>
@@ -318,6 +321,7 @@ CDSLAggTest::EresUnittest()
 			CDSLAggTest::EresUnittest_ConstraintLocalValueChain),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MinimalGroupingMetadata),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterMovementGroupingGuard),
@@ -412,6 +416,43 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 			original->Release();
 		}
 	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CExpression> aggregate(CUtils::PexprCountStar(
+		mp, fix.PexprLogicalGet("split_count", 1)));
+	CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+	split->Transform(context.Value(), result.Value(), aggregate.Value());
+	GPOS_UNITTEST_ASSERT(result->Size() == 1);
+	CExpression *global = (*result->Pdrgpexpr())[0];
+	GPOS_UNITTEST_ASSERT(CScalarAggFunc::PopConvert(
+		(*(*(*global)[1])[0])[0]->Pop())->FSplit());
+	// Copying an operator tree does not carry a Memo xform origin. The scalar
+	// stage must still prevent interpreting intermediate values as raw inputs.
+	for (BOOL rename : {false, true})
+	{
+		CAutoRef<UlongToColRefMap> mapping(GPOS_NEW(mp) UlongToColRefMap(mp));
+		if (rename)
+		{
+			CAutoRef<CColRefArray> columns(
+				global->DeriveOutputColumns()->Pdrgpcr(mp));
+			CAutoRef<CColRefArray> renamed(CUtils::PdrgpcrCopy(
+				mp, columns.Value(), false /*all computed*/, mapping.Value()));
+		}
+		CAutoRef<CExpression> copied(global->PexprCopyWithRemappedColumns(
+			mp, mapping.Value(), false /*must_exist*/));
+		CAutoRef<CXformResult> again(GPOS_NEW(mp) CXformResult(mp));
+		split->Transform(context.Value(), again.Value(), copied.Value());
+		GPOS_UNITTEST_ASSERT(again->Size() == 0);
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

@@ -313,7 +313,9 @@ CXformSplitGbAgg::FApplicable(CExpression *pexpr)
 		// input in order; combining partial results computed on different
 		// parts of the input would lose the global ordering, even if the
 		// aggregate has a combine function (e.g. string_agg since PG16).
-		if (popScAggFunc->IsDistinct() ||
+		// Copied finalizers already consume intermediate aggregate states.
+		if (!popScAggFunc->FGlobal() || popScAggFunc->FSplit() ||
+			popScAggFunc->IsDistinct() ||
 			!md_accessor->RetrieveAgg(popScAggFunc->MDId())->IsSplittable() ||
 			(CUtils::FAggHasOrderBy(pexprAggFunc) &&
 			 CUtils::FOrderSensitiveAgg(popScAggFunc->MDId())))
