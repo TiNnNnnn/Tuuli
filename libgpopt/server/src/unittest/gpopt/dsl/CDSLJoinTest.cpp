@@ -1284,14 +1284,13 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 		"AttrsEmpty(a2)", true);
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
+static GPOS_RESULT
+EresIndependentNotInRoutesAndMatches(const CHAR *rule)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_INDEPENDENT_NOT_IN_EXPANSION_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, rule);
 	if (nullptr == prule)
 		return GPOS_FAILED;
 
@@ -1352,6 +1351,22 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 	pexprInner->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
+{
+	for (const CHAR *rule : {GPOPT_DSL_INDEPENDENT_NOT_IN_EXPANSION_RULE,
+		"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"
+		"Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),"
+		"NotExists(Input<t4>,Input<t5>))|"
+		"t2 := t0;t4 := t0;TableShared(t2,t4);"
+		"t3 := t1;t5 := t1;TableShared(t3,t5);"
+		"p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);"
+		"OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;"
+		"a4 := a2;Deterministic(p0);ErrorFree(p0)"})
+		if (GPOS_OK != EresIndependentNotInRoutesAndMatches(rule)) return GPOS_FAILED;
+	return GPOS_OK;
 }
 
 static GPOS_RESULT

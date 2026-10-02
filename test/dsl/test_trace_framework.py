@@ -3216,6 +3216,10 @@ class TraceFrameworkTest(unittest.TestCase):
                 for clause in clauses.split(';'):
                     if ':=' not in clause:
                         legacy.append(clause)
+                        output = re.fullmatch(r'OutputAttrs\((a\d+),(t\d+)\)', clause)
+                        if output:
+                            self.assertIn(output[2], captured | defined)
+                            defined.add(output[1])
                         continue
                     # The existing positional constructor has identical arguments
                     # in both spellings; it is not a new semantic premise.
@@ -3227,6 +3231,14 @@ class TraceFrameworkTest(unittest.TestCase):
                         self.assertEqual(right[0], left[0])
                         defined.add(lhs)
                         legacy.append(f'Predicate{kind}({lhs},{left},{right})')
+                        continue
+                    not_true = re.fullmatch(r'(p\d+) := NotTrue\((p\d+)\)', clause)
+                    if not_true:
+                        lhs, rhs = not_true.groups()
+                        self.assertNotIn(lhs, captured | defined)
+                        self.assertIn(rhs, captured | defined)
+                        defined.add(lhs)
+                        legacy.append(f'PredicateNotTrue({lhs},{rhs})')
                         continue
                     ref = re.fullmatch(r'([a-z]\d+) := ([a-z]\d+)', clause)
                     self.assertIsNotNone(ref, 'syntax migration must retain the legacy definition')

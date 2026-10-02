@@ -27,6 +27,7 @@
 #include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/optimizer/COptimizerConfig.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CExpressionHandle.h"
 #include "gpopt/operators/CLogical.h"
@@ -884,7 +885,22 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		CExpressionHandle handle(mp);
 		handle.Attach(pexpr);
 		CColRefSet *outputs = CLogical::PopConvert(pexpr->Pop())->DeriveOutputColumns(mp, handle);
-		missingOutputs = !pexprTgt->DeriveOutputColumns()->ContainsAll(outputs);
+		CColRefSetIter iter(*outputs);
+		while (iter.Advance())
+		{
+			CColRef *col = iter.Pcr();
+			// Get exposes implicit storage columns even when SQL never refers
+			// to them. Translation leaves these EUnknown (GetUsage() normally
+			// treats system columns as used). They are not DSL row attributes.
+			// Explicit system-column references and every ordinary column,
+			// including unused Project outputs, still require preservation.
+			if ((!col->IsSystemCol() || CColRef::EUsed == col->GetUsage(true, true)) &&
+				!pexprTgt->DeriveOutputColumns()->FMember(col))
+			{
+				missingOutputs = true;
+				break;
+			}
+		}
 		outputs->Release();
 	}
 	if (EdsldecisionReady == pdecision->Status() &&
