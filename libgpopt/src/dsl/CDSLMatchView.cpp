@@ -370,11 +370,11 @@ CDSLMatchView::PexprLowerSubqueries(CMemoryPool *mp,
 	}
 	else if (COperator::EopLogicalGbAgg == eopid)
 	{
-		CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprUnary->Pop());
-		popGbAgg->Pdrgpcr()->AddRef();
-		pexprLowered = CUtils::PexprLogicalGbAgg(
-			mp, popGbAgg->Pdrgpcr(), pexprNewOuter, pexprResidual,
-			popGbAgg->Egbaggtype());
+		// Only the children changed. Preserve grouping, minimal keys and all
+		// aggregate-stage metadata instead of recreating a default GbAgg.
+		pexprUnary->Pop()->AddRef();
+		pexprLowered = GPOS_NEW(mp) CExpression(
+			mp, pexprUnary->Pop(), pexprNewOuter, pexprResidual);
 	}
 	else
 	{
