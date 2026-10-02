@@ -293,10 +293,69 @@ EresAggregateExpressionBindings()
 //	@function:
 //		CDSLAggTest::EresUnittest
 //---------------------------------------------------------------------------
+static GPOS_RESULT
+EresAggregateIdentityMetadata()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (const CHAR *text : {GPOPT_DSL_AGG_IDENTITY_RULE,
+		"Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|"
+		"t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0"})
+	for (ULONG kind = 0; kind < 3; ++kind)
+	{
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CExpression> original(CUtils::PexprCountStar(
+			mp, fix.PexprLogicalGet("identity_count", 1)));
+		CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+		CAutoRef<CXformResult> splitResult(GPOS_NEW(mp) CXformResult(mp));
+		CExpression *source = original.Value();
+		if (kind == 1)
+		{
+			// An ordinary global COUNT can have known (empty) minimal keys.
+			CColRefArray *grouping = CLogicalGbAgg::PopConvert(source->Pop())->Pdrgpcr();
+			grouping->AddRef();
+			(*source)[0]->AddRef();
+			(*source)[1]->AddRef();
+			source = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, GPOS_NEW(mp) CColRefArray(mp),
+					COperator::EgbaggtypeGlobal, false, nullptr), (*source)[0], (*source)[1]);
+		}
+		else if (kind == 2)
+		{
+			CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
+			split->Transform(context.Value(), splitResult.Value(), source);
+			GPOS_UNITTEST_ASSERT(splitResult->Size() == 1);
+			source = (*splitResult->Pdrgpexpr())[0];
+			source->AddRef();
+		}
+		else
+		{
+			source->AddRef();
+		}
+		CAutoRef<CExpression> ownedSource(source);
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source, model.Value()));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		CLogicalGbAgg *before = CLogicalGbAgg::PopConvert(source->Pop());
+		CLogicalGbAgg *after = CLogicalGbAgg::PopConvert(target->Pop());
+		GPOS_UNITTEST_ASSERT(before->FGeneratesDuplicates() == after->FGeneratesDuplicates());
+		GPOS_UNITTEST_ASSERT(before->AggStage() == after->AggStage());
+		GPOS_UNITTEST_ASSERT(source->Matches(target.Value()));
+		GPOS_UNITTEST_ASSERT(source->Pop()->HashValue() == target->Pop()->HashValue());
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLAggTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresAggregateIdentityMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchSplitDedupInput),
