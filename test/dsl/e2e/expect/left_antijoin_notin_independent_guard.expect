@@ -1,0 +1,47 @@
+{
+  "description": "A constant selected value still has a right-side column identity; independent AntiJoinNotIn must reject AttrsEmpty without losing NULL or empty-input behavior",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoinNotIn2CrossProduct"
+      ],
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"ab752d714b030999\"",
+        "\"failed_constraint\":\"AttrsEmpty\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ab752d714b030999\"",
+        "Xform: CXformLeftAntiSemiJoinNotIn2CrossProduct",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoinNotIn2CrossProduct"
+    ],
+    "output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,2,2",
+      "nonempty,2,"
+    ],
+    "postgres_output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,2,2",
+      "nonempty,2,"
+    ]
+  }
+}
