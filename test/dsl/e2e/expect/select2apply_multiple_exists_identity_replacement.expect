@@ -1,13 +1,15 @@
 {
-  "description": "The atomic existential definition applies twice to construct the full semi-Apply chain",
+  "description": "Safe explicit conjunction splitting, Compute elimination and SemiApply lowering replace the legacy existential macro for two correlated EXISTS",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
     ],
-    "scope": "Two distinct correlated EXISTS conjuncts in one Select",
+    "scope": "Two distinct deterministic, error-free correlated EXISTS conjuncts in one Select",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "dec0eb1e99571556"
+      "235e16002a86b0d0",
+      "f91ba8ce73b0da11",
+      "07bc74ac0afe2295"
     ]
   },
   "plans": [
@@ -23,10 +25,10 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_exists_chain_direct.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"dec0eb1e99571556\""
+        "\"rule_hash\":\"235e16002a86b0d0\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -50,11 +52,29 @@
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_select2apply_exists_chain_direct.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\""
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
+        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "235e16002a86b0d0",
+          "dst_rule": "f91ba8ce73b0da11",
+          "target_path": "r/0",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "f91ba8ce73b0da11",
+          "dst_rule": "07bc74ac0afe2295",
+          "target_path": "r"
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -73,7 +93,7 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_select2apply_exists_chain_direct.policy",
+    "policy": "isolate_explicit_existential_apply.policy",
     "output": [
       "2"
     ],

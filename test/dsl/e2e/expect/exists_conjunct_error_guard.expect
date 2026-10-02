@@ -1,0 +1,31 @@
+{
+  "description": "存在可能除零的合取项时不得以安全拆分改变求值顺序；原生路径保留可观察错误",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "policy": "isolate_explicit_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"235e16002a86b0d0\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_explicit_existential_apply.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
