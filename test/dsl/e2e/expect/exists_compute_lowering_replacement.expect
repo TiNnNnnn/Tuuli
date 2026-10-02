@@ -1,0 +1,71 @@
+{
+  "description": "EXISTS/NOT EXISTS 忽略 Compute 中的除零表达式，显式移除 Compute 后串联 Apply lowering；禁用旧宏和原生 lowering",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3ac742c807fd9c27\"",
+        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\"",
+        "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "f91ba8ce73b0da11",
+          "dst_rule": "07bc74ac0afe2295",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "3ac742c807fd9c27",
+          "dst_rule": "78963540e9d42c30",
+          "target_path": "r"
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_existential_apply.policy",
+    "output": [
+      "anti,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2"
+    ],
+    "postgres_output": [
+      "anti,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2"
+    ]
+  }
+}
