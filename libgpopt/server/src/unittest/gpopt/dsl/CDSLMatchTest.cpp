@@ -77,9 +77,75 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_DeepestFailure),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedPredicateResultTypes),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedScalarValueKinds),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ModelOptionalBindings),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_ModelOptionalBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+	struct Binding
+	{
+		EDslSymbolKind kind;
+		BOOL (CDSLModel::*set)(const CDSLSymbol *, CExpression *);
+		CExpression *(CDSLModel::*get)(const CDSLSymbol *) const;
+	} bindings[] = {
+		{EdslsymAttrs, &CDSLModel::FSetInSubPred, &CDSLModel::PexprInSubPred},
+		{EdslsymAttrs, &CDSLModel::FSetInSubCarrier, &CDSLModel::PexprInSubCarrier},
+		{EdslsymPred, &CDSLModel::FSetFilterCarrier, &CDSLModel::PexprFilterCarrier},
+		{EdslsymExpr, &CDSLModel::FSetComputeCarrier, &CDSLModel::PexprComputeCarrier},
+		{EdslsymPred, &CDSLModel::FSetApplyCarrier, &CDSLModel::PexprApplyCarrier},
+		{EdslsymSchema, &CDSLModel::FSetProjList, &CDSLModel::PexprProjList},
+		{EdslsymSchema, &CDSLModel::FSetProjLimitShell, &CDSLModel::PexprProjLimitShell},
+		{EdslsymSchema, &CDSLModel::FSetProjAggShell, &CDSLModel::PexprProjAggShell},
+		{EdslsymSchema, &CDSLModel::FSetAggBinding, &CDSLModel::PexprAggBinding},
+		{EdslsymWindow, &CDSLModel::FSetWindowCarrier, &CDSLModel::PexprWindowCarrier}};
+	CDSLSymbolArray *symbols = GPOS_NEW(mp) CDSLSymbolArray(mp);
+	CExpression *value = CUtils::PexprScalarConstBool(mp, true);
+	for (const auto &binding : bindings)
+	{
+		CDSLSymbol *key = GPOS_NEW(mp) CDSLSymbol(mp, binding.kind,
+			"key", symbols->Size(), EdslsideSource);
+		symbols->Append(key);
+		GPOS_UNITTEST_ASSERT(nullptr == (model->*binding.get)(key));
+		value->AddRef();
+		GPOS_UNITTEST_ASSERT((model->*binding.set)(key, value));
+		value->AddRef();
+		GPOS_UNITTEST_ASSERT((model->*binding.set)(key, value));
+		GPOS_UNITTEST_ASSERT(!(model->*binding.set)(key,
+			CUtils::PexprScalarConstBool(mp, false)));
+		GPOS_UNITTEST_ASSERT(value == (model->*binding.get)(key));
+		for (ULONG i = 0; i + 1 < symbols->Size(); ++i)
+			if ((*symbols)[i]->Esymkind() == binding.kind)
+				GPOS_UNITTEST_ASSERT(nullptr == (model->*binding.get)((*symbols)[i]));
+	}
+	CDSLSymbol *left = (*symbols)[0], *right = (*symbols)[1];
+	GPOS_UNITTEST_ASSERT(nullptr == model->PexprJoinPred(left, right));
+	GPOS_UNITTEST_ASSERT(nullptr == model->PexprJoinPred(left, right, true));
+	GPOS_UNITTEST_ASSERT(model->FSetJoinPred(left, right, value));
+	GPOS_UNITTEST_ASSERT(value == model->PexprJoinPred(right, left));
+	GPOS_UNITTEST_ASSERT(nullptr == model->PexprJoinPred(left, right, true));
+	CExpression *different = CUtils::PexprScalarConstBool(mp, false);
+	GPOS_UNITTEST_ASSERT(model->FSetJoinPred(left, right, different, true));
+	GPOS_UNITTEST_ASSERT(!model->FSetJoinPred(left, right, different));
+	GPOS_UNITTEST_ASSERT(different == model->PexprJoinPred(right, left, true));
+	GPOS_UNITTEST_ASSERT(value == model->PexprJoinPred(left, right));
+	CDSLSymbol *schema = (*symbols)[5];
+	GPOS_UNITTEST_ASSERT(!model->FVirtualIdentityProj(schema));
+	value->AddRef();
+	GPOS_UNITTEST_ASSERT(model->FSetVirtualIdentityProj(schema, value));
+	GPOS_UNITTEST_ASSERT(model->FVirtualIdentityProj(schema));
+	different->Release();
+	value->Release();
+	model->Release();
+	symbols->Release();
+	return GPOS_OK;
 }
 
 GPOS_RESULT
