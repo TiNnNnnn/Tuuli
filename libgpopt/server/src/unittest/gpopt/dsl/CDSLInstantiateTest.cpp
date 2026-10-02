@@ -79,6 +79,7 @@
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CMemo.h"
+#include "gpopt/xforms/CXformCollapseGbAgg.h"
 #include "naucrates/md/IMDTypeBool.h"
 
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
@@ -682,6 +683,19 @@ EresMemoSourceOutputContract()
 			ok &= nullptr == target;
 			CRefCount::SafeRelease(target);
 			lossy->Release();
+		}
+		// Logical binding enumeration can pair a wide top grouping with a
+		// pruned bottom alternative. Collapse must test its own subset premise.
+		for (CExpression *bottom : {narrow, wide})
+		{
+			CExpression *source = fix.PexprLogicalGbAgg(bottom, cols);
+			CXformCollapseGbAgg *collapse = GPOS_NEW(mp) CXformCollapseGbAgg(mp);
+			CXformContext *context = GPOS_NEW(mp) CXformContext(mp);
+			CXformResult *result = GPOS_NEW(mp) CXformResult(mp);
+			collapse->Transform(context, result, source);
+			ok &= result->Size() == (bottom == wide ? 1 : 0);
+			result->Release(); context->Release(); collapse->Release();
+			source->Release();
 		}
 		bound->Release(); narrow->Release(); wide->Release(); filtered->Release(); input->Release();
 	}
