@@ -11,6 +11,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
@@ -816,6 +817,19 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
+		if (EdslexprConcat == binding->Edslexpr())
+		{
+			CExpression *left = PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
+			CExpression *right = PexprResolveExpr(binding->PsymOperand(1), pmodel, ulDepth + 1);
+			// Typed Compute is row-scalar. Keep SRF cohorts in the legacy adapter;
+			// within this domain the shared constructor preserves list order.
+			CExpression *result = nullptr;
+			if (CDSLExprListUtils::FComputeList(left) && CDSLExprListUtils::FComputeList(right))
+				result = CDSLExprListUtils::PexprConcat(m_mp, left, right);
+			CRefCount::SafeRelease(left);
+			CRefCount::SafeRelease(right);
+			return result;
+		}
 		if (EdslexprItem != binding->Edslexpr())
 			return nullptr;
 		if (0 == binding->Arity())

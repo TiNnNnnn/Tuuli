@@ -584,7 +584,8 @@ CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLMod
 			(!fAttrsUnion &&
 			 (EdslsymSchema != psym->Esymkind() ||
 			  EdslsymSchema != psymLeft->Esymkind() ||
-			  EdslsymAttrs != psymRight->Esymkind())))
+			  (EdslsymAttrs != psymRight->Esymkind() &&
+			   EdslsymSchema != psymRight->Esymkind()))))
 		{
 			return nullptr;
 		}

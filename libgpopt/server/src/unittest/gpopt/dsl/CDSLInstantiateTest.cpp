@@ -445,6 +445,69 @@ EresComputeColumnDerivations()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresComputeConcatBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const std::string pair = "Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
+		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;"
+		"e2 := ExprConcat(e3,e1);e3 := ExprConcat(e0,e4);e4 := Item();";
+	for (ULONG width : {1UL, 3UL, 7UL})
+	for (ULONG trial = 0; trial < 5; ++trial)
+	{
+		const std::string metadata = trial == 3
+			? "SchemaUnion(s2,s1,s0);AttrsUnion(a2,a0,a1)"
+			: trial == 4 ? "SchemaUnion(s2,s0,s1);a2 := a0"
+			: "SchemaUnion(s2,s0,s1);AttrsUnion(a2,a0,a1)";
+		CDSLRule *rule = PdslruleParseLocal(mp, (pair + metadata).c_str());
+		if (nullptr == rule) return GPOS_FAILED;
+		CColRefArray *inputs = nullptr;
+		CExpression *input = fix.PexprLogicalGet("concat_inputs", 2, &inputs);
+		CColRef *outer = fix.PcrCreateInt4("external");
+		CExpression *lists[2];
+		for (ULONG side = 0; side < 2; ++side)
+		{
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			for (ULONG i = 0; i < width + side; ++i)
+			{
+				CColRef *value = (trial == 1 || (trial == 2 && side == 1))
+					? outer : (*inputs)[side];
+				items->Append(GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")),
+					CUtils::PexprScalarIdent(mp, value)));
+			}
+			lists[side] = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectList(mp), items);
+		}
+		input->AddRef();
+		CExpression *lower = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), input, lists[1]);
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), lower, lists[0]);
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		const BOOL ready = EdsldecisionReady == decision->Status();
+		BOOL ok = ready == (trial < 3);
+		if (ready)
+		{
+			CExpression *target = decision->PexprTarget();
+			ok &= (*target)[0]->Matches(input) && (*target)[1]->Arity() == 2 * width + 1 &&
+				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
+			for (ULONG i = 0; ok && i < (*target)[1]->Arity(); ++i)
+				ok &= (*(*target)[1])[i]->Matches(i < width ? (*lists[0])[i] : (*lists[1])[i - width]);
+		}
+		GPOS_DELETE(decision);
+		source->Release(); input->Release(); rule->Release();
+		if (!ok)
+		{
+			GPOS_TRACE_FORMAT("Compute concat width=%lu trial=%lu failed", width, trial);
+			return GPOS_FAILED;
+		}
+	}
+	return GPOS_OK;
+}
+
 enum class ComputeAliasValue { Column, Call, And, Or };
 
 static GPOS_RESULT
@@ -889,6 +952,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
+		GPOS_UNITTEST_FUNC(EresComputeConcatBindings),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
 		GPOS_UNITTEST_FUNC(EresMemoSourceOutputContract),
 		GPOS_UNITTEST_FUNC(EresSystemColumnOutputContract),

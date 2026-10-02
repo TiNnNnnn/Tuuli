@@ -605,9 +605,10 @@ PdrgpconBuild(SBuildCtx &bctx,
 		if (EdslconSchemaUnion == edslcon &&
 			(EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
 			 EdslsymSchema != (*pdrgpsym)[1]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind()))
+			 (EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() &&
+			  EdslsymSchema != (*pdrgpsym)[2]->Esymkind())))
 		{
-			bctx.Fail("SchemaUnion expects output schema, input schema, and attrs symbols");
+			bctx.Fail("SchemaUnion expects output schema, input schema, and attrs or schema symbols");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
@@ -1148,9 +1149,10 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		const auto *signature = nullptr == call ? nullptr : Definitions::PsigBinding(
 			call->ID()->getText().c_str(), operands.size());
 		GPOS_ASSERT(nullptr == call || nullptr != signature);
-		if (match && nullptr != signature && EdslexprScalarDeps == signature->kind)
+		if (match && nullptr != signature &&
+			(EdslexprScalarDeps == signature->kind || EdslexprConcat == signature->kind))
 		{
-			bctx.Fail("ScalarDeps is a target-only constructor");
+			bctx.Fail("this constructor supports target bindings only");
 			symbols->Release();
 			return false;
 		}

@@ -1,0 +1,85 @@
+{
+  "description": "Explicit arbitrary-length Compute concat fires with native collapse and every legacy DSL rule disabled; native proof remains uncertified",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "scope": "independent total deterministic row-scalar project lists; SRFs retain legacy coverage",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "8c88a4df159bc8be"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_compute_concat_bindings.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "isolate_compute_concat_bindings.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "isolate_compute_concat_bindings.policy",
+    "output": [
+      "1,t,f,f,f",
+      "2,t,f,t,f",
+      "3,t,t,t,f"
+    ],
+    "postgres_output": [
+      "1,t,f,f,f",
+      "2,t,f,t,f",
+      "3,t,t,t,f"
+    ]
+  }
+}

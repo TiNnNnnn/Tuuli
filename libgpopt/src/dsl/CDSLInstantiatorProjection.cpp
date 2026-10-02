@@ -581,6 +581,38 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 		available->Include(outer);
 		outer->Release();
 	}
+	else if (m_prule->Pexprdefs()->FHasBindings())
+	{
+		// A composed list has several source scopes, not one arbitrarily chosen
+		// carrier. Validate each captured list before combining its outer refs.
+		const auto addScopes = [&](const auto &self, const CDSLSymbol *symbol) -> BOOL {
+			GPOS_CHECK_STACK_SIZE;
+			symbol = PsymResolve(symbol);
+			CExpression *source = pmodel->PexprComputeCarrier(symbol);
+			if (nullptr != source)
+			{
+				CColRefSet *outer = GPOS_NEW(m_mp) CColRefSet(m_mp);
+				outer->Include((*source)[1]->DeriveUsedColumns());
+				outer->Exclude((*source)[0]->DeriveOutputColumns());
+				CColRefSet *local = GPOS_NEW(m_mp) CColRefSet(m_mp);
+				local->Include((*source)[1]->DeriveUsedColumns());
+				local->Exclude(outer);
+				local->Exclude(pexprChild->DeriveOutputColumns());
+				const BOOL valid = 0 == local->Size() &&
+					outer->IsDisjoint(pexprChild->DeriveOutputColumns());
+				if (valid) available->Include(outer);
+				local->Release();
+				outer->Release();
+				return valid;
+			}
+			const auto *definition = m_prule->Pexprdefs()->Pdef(symbol);
+			if (nullptr == definition || EdslexprConcat != definition->Edslexpr())
+				return true; // Uncaptured columns still face the final scope check.
+			return self(self, definition->PsymOperand(0)) &&
+				self(self, definition->PsymOperand(1));
+		};
+		scope_valid = scope_valid && addScopes(addScopes, psymExpr);
+	}
 	scope_valid = scope_valid && FColSetContainsArray(available, pdrgpcrAttrs);
 	available->Release();
 	if (!scope_valid ||

@@ -1578,7 +1578,8 @@ CDSLConstraintChecker::FCheckAttrsUnion(const CDSLConstraint *pcon,
 		(!fAttrsUnion &&
 		 (EdslsymSchema != (*pdrgpsym)[0]->Esymkind() ||
 		  EdslsymSchema != (*pdrgpsym)[1]->Esymkind() ||
-		  EdslsymAttrs != (*pdrgpsym)[2]->Esymkind())))
+		  (EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() &&
+		   EdslsymSchema != (*pdrgpsym)[2]->Esymkind()))))
 	{
 		return false;
 	}
