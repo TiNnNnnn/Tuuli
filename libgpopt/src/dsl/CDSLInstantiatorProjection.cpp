@@ -5,6 +5,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLMatchView.h"
 #include "CDSLInstantiatorUtils.h"
 
 #include "gpos/common/CAutoRef.h"
@@ -42,35 +43,6 @@ PopSetProjectionSource(const CDSLOp *pop, const CDSLSymbol *attrs,
 			return found;
 	}
 	return nullptr;
-}
-
-BOOL
-FAggNameEquals(CMemoryPool *mp, const CWStringConst *pstrActual,
-			   const CHAR *szExpected)
-{
-	CWStringConst strExpected(mp, szExpected);
-	return pstrActual->Equals(&strExpected);
-}
-
-BOOL
-FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
-				const CScalarAggFunc *popFunc)
-{
-	// WeTune's Agg does not encode DISTINCT; it is part of the bound function.
-	switch (popAgg->Edslaggfunc())
-	{
-		case EdslaggfuncUnknown:
-			return true;
-		case EdslaggfuncSentinel:
-			return false;
-		case EdslaggfuncAverage:
-			return FAggNameEquals(mp, popFunc->PstrAggFunc(), "avg") ||
-				   FAggNameEquals(mp, popFunc->PstrAggFunc(), "average");
-		default:
-			return FAggNameEquals(
-				mp, popFunc->PstrAggFunc(),
-				CDSLOpKindTable::SzAggFuncName(popAgg->Edslaggfunc()));
-	}
 }
 
 BOOL
@@ -1231,8 +1203,8 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	{
 		CExpression *pexprFunc = (*pdrgpexprFuncs)[ul];
 		if (COperator::EopScalarAggFunc != pexprFunc->Pop()->Eopid() ||
-			!FAggFuncMatches(
-				m_mp, pop,
+			!CDSLMatchView::FAggFuncMatches(
+				m_mp, pop->Edslaggfunc(),
 				CScalarAggFunc::PopConvert(pexprFunc->Pop())))
 		{
 			pcrsGroup->Release();

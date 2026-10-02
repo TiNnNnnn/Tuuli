@@ -28,35 +28,6 @@ using namespace gpopt;
 namespace
 {
 BOOL
-FAggNameEquals(CMemoryPool *mp, const CWStringConst *pstrActual,
-			   const CHAR *szExpected)
-{
-	CWStringConst strExpected(mp, szExpected);
-	return pstrActual->Equals(&strExpected);
-}
-
-BOOL
-FAggFuncMatches(CMemoryPool *mp, const CDSLOp *popAgg,
-				const CScalarAggFunc *popFunc)
-{
-	// WeTune's Agg does not encode DISTINCT; it is part of the bound function.
-	switch (popAgg->Edslaggfunc())
-	{
-		case EdslaggfuncUnknown:
-			return true;
-		case EdslaggfuncSentinel:
-			return false;
-		case EdslaggfuncAverage:
-			return FAggNameEquals(mp, popFunc->PstrAggFunc(), "avg") ||
-				   FAggNameEquals(mp, popFunc->PstrAggFunc(), "average");
-		default:
-			return FAggNameEquals(
-				mp, popFunc->PstrAggFunc(),
-				CDSLOpKindTable::SzAggFuncName(popAgg->Edslaggfunc()));
-	}
-}
-
-BOOL
 FCompensationChainEndsInLeftApply(const CDSLOp *pop)
 {
 	while (nullptr != pop &&
@@ -394,8 +365,8 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 
 		CExpression *pexprFunc = (*pexprPrEl)[0];
 		if (COperator::EopScalarAggFunc != pexprFunc->Pop()->Eopid() ||
-			!FAggFuncMatches(
-				m_mp, popAgg,
+			!CDSLMatchView::FAggFuncMatches(
+				m_mp, popAgg->Edslaggfunc(),
 				CScalarAggFunc::PopConvert(pexprFunc->Pop())))
 		{
 			fValid = false;

@@ -28,6 +28,7 @@
 #include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -582,6 +583,29 @@ CDSLMatchView::PexprDistinctUnion(CMemoryPool *mp,
 		GPOS_NEW(mp) CLogicalUnion(mp, pdrgpcrOutput,
 									pdrgpdrgpcrInput),
 		pdrgpexprChildren);
+}
+
+BOOL
+CDSLMatchView::FAggFuncMatches(CMemoryPool *mp, EDslAggFuncKind kind,
+							 const CScalarAggFunc *function)
+{
+	// DISTINCT remains part of the captured function, not the Agg suffix.
+	if (EdslaggfuncUnknown == kind)
+		return true;
+	if (!function->FGlobal() || function->FSplit())
+		return false;
+	const CHAR *name = CDSLOpKindTable::SzAggFuncName(kind);
+	if (nullptr == name)
+		return false;
+	CWStringConst expected(mp, name);
+	if (function->PstrAggFunc()->Equals(&expected))
+		return true;
+	if (EdslaggfuncAverage == kind)
+	{
+		CWStringConst average(mp, "avg");
+		return function->PstrAggFunc()->Equals(&average);
+	}
+	return false;
 }
 
 BOOL
