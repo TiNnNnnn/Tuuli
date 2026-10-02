@@ -1313,7 +1313,21 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	}
 	pdrgpcrGroup->AddRef();
 	CLogicalGbAgg *popTargetAgg = nullptr;
-	if (nullptr == pdrgpcrMinimal)
+	if (nullptr != pexprSourceAgg &&
+		COperator::EopLogicalGbAgg == pexprSourceAgg->Pop()->Eopid() &&
+		pdrgpcrMinimal == CLogicalGbAgg::PopConvert(pexprSourceAgg->Pop())->PdrgpcrMinimal() &&
+		CColRef::Equals(CLogicalGbAgg::PopConvert(pexprSourceAgg->Pop())->Pdrgpcr(), pdrgpcrGroup) &&
+		((*pexprSourceAgg)[0] == pexprChild || (*pexprSourceAgg)[0]->Matches(pexprChild)) &&
+		(*pexprSourceAgg)[1]->Matches(pexprAggList))
+	{
+		// An unchanged aggregate body must retain its complete operator identity.
+		// The minimal-key constructor alone changes duplicate/stage metadata.
+		pdrgpcrGroup->Release();
+		CRefCount::SafeRelease(pdrgpcrMinimal);
+		popTargetAgg = CLogicalGbAgg::PopConvert(pexprSourceAgg->Pop());
+		popTargetAgg->AddRef();
+	}
+	else if (nullptr == pdrgpcrMinimal)
 	{
 		popTargetAgg = GPOS_NEW(m_mp) CLogicalGbAgg(
 			m_mp, pdrgpcrGroup, COperator::EgbaggtypeGlobal);
