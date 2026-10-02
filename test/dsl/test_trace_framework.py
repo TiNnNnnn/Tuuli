@@ -266,17 +266,22 @@ class TraceFrameworkTest(unittest.TestCase):
             (0, "", False),
             (1, "ERROR:  XX000\n", False),
             (2, "server closed the connection unexpectedly", False),
+            (1, "Failed assertion: invalid column\nERROR:  21000\n", False),
         ):
-            with self.subTest(code=code, output=output), patch(
-                "run_e2e_cases.subprocess.run",
-                return_value=SimpleNamespace(returncode=code, stdout=output),
-            ):
-                if accepted:
-                    self.assertEqual(run_e2e_sql(args, "SELECT 1", error_sqlstate="21000"),
-                                     "SQLSTATE 21000")
-                else:
-                    with self.assertRaises(RuntimeError):
-                        run_e2e_sql(args, "SELECT 1", error_sqlstate="21000")
+            for tuples_only in (False, True):
+                with self.subTest(code=code, output=output, tuples_only=tuples_only), patch(
+                    "run_e2e_cases.subprocess.run",
+                    return_value=SimpleNamespace(
+                        returncode=code, stdout="" if tuples_only else output,
+                        stderr=output if tuples_only else None),
+                ):
+                    if accepted:
+                        self.assertEqual(run_e2e_sql(args, "SELECT 1", tuples_only,
+                                                    error_sqlstate="21000"),
+                                         "SQLSTATE 21000")
+                    else:
+                        with self.assertRaises(RuntimeError):
+                            run_e2e_sql(args, "SELECT 1", tuples_only, error_sqlstate="21000")
         with self.assertRaises(ValueError):
             run_e2e_sql(args, "SELECT 1", error_sqlstate=".*")
 
@@ -287,7 +292,7 @@ class TraceFrameworkTest(unittest.TestCase):
                              ("1\n\n", ["1", ""]), ('""\n', ['""'])):
             with self.subTest(output=output), patch(
                 "run_e2e_cases.subprocess.run",
-                return_value=SimpleNamespace(returncode=0, stdout=output),
+                return_value=SimpleNamespace(returncode=0, stdout=output, stderr="LOG: harmless diagnostic\n"),
             ):
                 result = actual_rows(args, "SELECT NULL", {"off_output": rows})
                 for state in ("output", "postgres_output", "off_output"):
@@ -295,11 +300,21 @@ class TraceFrameworkTest(unittest.TestCase):
 
     def test_e2e_rejects_assertion_hidden_by_planner_fallback(self) -> None:
         args = SimpleNamespace(psql="psql", host="socket", port="1")
+        for tuples_only in (False, True):
+            with self.subTest(tuples_only=tuples_only), patch(
+                "run_e2e_cases.subprocess.run", return_value=SimpleNamespace(
+                    returncode=0,
+                    stdout="1\n" if tuples_only else 'ERROR,"Failed assertion: invalid column\nSeq Scan',
+                    stderr='ERROR,"Failed assertion: invalid column\n' if tuples_only else None,
+                )
+            ):
+                with self.assertRaisesRegex(RuntimeError, "Failed assertion"):
+                    run_e2e_sql(args, "SELECT 1", tuples_only=tuples_only)
         with patch("run_e2e_cases.subprocess.run", return_value=SimpleNamespace(
-            returncode=0, stdout='ERROR,"Failed assertion: invalid column\nSeq Scan'
+            returncode=0, stdout="Failed assertion: this is a row value\n", stderr=""
         )):
-            with self.assertRaisesRegex(RuntimeError, "Failed assertion"):
-                run_e2e_sql(args, "EXPLAIN SELECT 1")
+            self.assertEqual(run_e2e_sql(args, "SELECT text", tuples_only=True),
+                             "Failed assertion: this is a row value\n")
 
     def test_e2e_result_rows_honor_dsl_switch(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
@@ -311,6 +326,7 @@ class TraceFrameworkTest(unittest.TestCase):
             enabled = "on" if expected.get("dsl", True) else "off"
             self.assertIn(f"SET pg_orca.enable_dsl_rule={enabled};",
                           run.call_args_list[0].args[1])
+            self.assertIn("SET client_min_messages=log;", run.call_args_list[0].args[1])
             self.assertEqual(result.get("dsl"), expected.get("dsl"))
             self.assertIn("SET pg_orca.enable_orca=off;", run.call_args_list[1].args[1])
             self.assertEqual(result["output"], result["postgres_output"])
