@@ -25,6 +25,7 @@ namespace gpopt
 using namespace gpos;
 
 class COrderSpec;
+class CScalarAggFunc;
 
 class CDSLMatchView
 {
@@ -106,6 +107,10 @@ public:
 	// Select(GbAgg, HAVING).
 	static BOOL FAggregate(CExpression *pexpr, BOOL fAllowHaving,
 						 SAggregate *pview);
+	// Named SQL aggregates consume rows, not partial transition states.
+	// An opaque function binding instead retains the complete native function.
+	static BOOL FAggFuncMatches(CMemoryPool *mp, EDslAggFuncKind kind,
+							const CScalarAggFunc *function);
 
 	// Decode one safe global LogicalLimit, including its fused order property.
 	static BOOL FOrderLimit(CExpression *pexpr, SOrderLimit *pview);

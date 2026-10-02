@@ -351,10 +351,56 @@ EresAggregateIdentityMetadata()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresNamedAggregateStage()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CExpression> original(CUtils::PexprCountStar(
+		mp, fix.PexprLogicalGet("named_count", 1)));
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+	CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
+	split->Transform(context.Value(), result.Value(), original.Value());
+	GPOS_UNITTEST_ASSERT(result->Size() == 1);
+	CExpression *finalizer = (*result->Pdrgpexpr())[0];
+	// The finalizer is still named count, but combines transition states;
+	// counting its input rows would have different semantics.
+	GPOS_UNITTEST_ASSERT(CScalarAggFunc::PopConvert(
+		(*(*(*finalizer)[1])[0])[0]->Pop())->FSplit());
+	for (BOOL explicit_outputs : {false, true})
+	for (BOOL named_source : {false, true})
+	for (CExpression *source : {original.Value(), finalizer})
+	{
+		const std::string text = std::string(named_source ? "Agg_count" : "Agg") +
+			"<a0 a1 " + (explicit_outputs ? "a2 " : "") +
+			"f0 s0 p0>(Input<t0>)|Agg_count<a3 a4 " +
+			(explicit_outputs ? "a5 " : "") + "f1 s1 p1>(Input<t1>)|"
+			"t1 := t0;a3 := a0;a4 := a1;" +
+			(explicit_outputs ? "a5 := a2;" : "") + "f1 := f0;s1 := s0;p1 := p0";
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		const BOOL matched = CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source, model.Value());
+		GPOS_UNITTEST_ASSERT(matched == (!named_source || source == original.Value()));
+		if (!matched)
+			continue;
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT((nullptr != target.Value()) == (source == original.Value()));
+		if (nullptr != target.Value())
+			GPOS_UNITTEST_ASSERT(source->Matches(target.Value()));
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLAggTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresNamedAggregateStage),
 		GPOS_UNITTEST_FUNC(EresAggregateIdentityMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
