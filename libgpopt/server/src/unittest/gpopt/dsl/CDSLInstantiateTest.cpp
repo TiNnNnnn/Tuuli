@@ -3186,6 +3186,58 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 		get->Release();
 		orRule->Release();
 	}
+	// Flat, audited Boolean inputs expose one ordered prefix and one last
+	// operand. Rebuilding them must not lose NULLs, duplicates or child identity.
+	for (BOOL disjunction : {false, true})
+	for (ULONG count : {3UL, 4UL})
+	for (BOOL unsafe : {false, true})
+	{
+		const std::string op = disjunction ? "Or" : "And";
+		const auto kind = disjunction ? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopAnd;
+		CDSLRule *flatRule = PdslruleParseLocal(mp, ("Filter<" + op + "(p0,p1) a0>(Input<t0>)|"
+			"Filter<" + op + "(p2,p3) a1>(Input<t1>)|t1 := t0;a1 := a0;p2 := p0;p3 := p1").c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != flatRule);
+		CColRefArray *cols = nullptr;
+		CExpression *get = fix.PexprLogicalGet("flat_boolean", 1, &cols);
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < count; ++i)
+		{
+			CExpression *child = i + 1 == count
+				? CUtils::PexprScalarConstBool(mp, false, true)
+				: fix.PexprPredAtom((*cols)[0]);
+			if (unsafe && 0 == i)
+			{
+				child->Release();
+				child = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarCmp(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100402),
+					GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), IMDType::EcmptEq),
+					CUtils::PexprScalarIdent(mp, (*cols)[0]), CUtils::PexprScalarConstInt4(mp, 7));
+			}
+			children->Append(child);
+		}
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBoolOp(mp, kind), children);
+		CExpression *source = fix.PexprLogicalSelect(get, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, flatRule).FMatch(flatRule->PfragSrc()->PopRoot(), source, model);
+		ok &= matched == !unsafe;
+		CExpression *target = matched ? CDSLInstantiator(mp).PexprInstantiate(flatRule, model) : nullptr;
+		if (!unsafe)
+		{
+			ok &= nullptr != target;
+			if (nullptr != target)
+			{
+				CExpression *result = (*target)[1];
+				ok &= CUtils::FScalarBoolOp(result, kind) && 2 == result->Arity() &&
+					CUtils::FScalarBoolOp((*result)[0], kind) && count - 1 == (*result)[0]->Arity() &&
+					(*result)[1] == (*predicate)[count - 1];
+				for (ULONG i = 0; i + 1 < count; ++i)
+					ok &= (*(*result)[0])[i] == (*predicate)[i];
+			}
+		}
+		ok &= count == predicate->Arity();
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); predicate->Release(); get->Release(); flatRule->Release();
+	}
 	CDSLRule *sharedAnd = PdslruleParseLocal(
 		mp, "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 			"TableEq(t1,t0);AttrsEq(a1,a0);And(p2,p2) := p0;p1 := p0");
@@ -3213,13 +3265,13 @@ CDSLInstantiateTest::EresUnittest_ExpressionBindings()
 			CExpression *source = fix.PexprLogicalSelect(get, predicate);
 			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 			// Distinct copies with identical column identities match; different
-			// columns and a flattened three-operand AND do not match a binary pattern.
+			// columns and a prefix unequal to the last operand cannot share a capture.
 			ok &= (0 == trial) == CDSLMatcher(mp, sharedAnd).FMatch(
 				sharedAnd->PfragSrc()->PopRoot(), source, model);
 			model->Release();
 			CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, equalAnd, source);
 			ok &= (0 == trial ? EdsldecisionDuplicate :
-				1 == trial ? EdsldecisionConstraintRejected : EdsldecisionMatchRejected)
+				EdsldecisionConstraintRejected)
 				== decision->Status();
 			if (0 == trial)
 				ok &= nullptr != decision->PexprTarget() &&

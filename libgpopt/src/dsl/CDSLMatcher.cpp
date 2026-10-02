@@ -17,6 +17,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLAggMatcher.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExistsMatcher.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -298,6 +299,28 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		}
 		left->Release();
 		right->Release();
+		return matched;
+	}
+	if ((EdslexprAnd == def->Edslexpr() || EdslexprOr == def->Edslexpr()) &&
+		2 < expression->Arity() && CUtils::FScalarBoolOp(expression,
+			EdslexprAnd == def->Edslexpr() ? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr))
+	{
+		// Expose a flat native Boolean as (ordered prefix, last operand).
+		// Only the audited total/repeatable domain admits this association;
+		// opaque, error-producing or volatile children retain exact matching.
+		if (!CDSLConstraintChecker::FQueryDemandInsensitive(expression)) return false;
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i + 1 < expression->Arity(); ++i)
+		{
+			(*expression)[i]->AddRef();
+			children->Append((*expression)[i]);
+		}
+		expression->Pop()->AddRef();
+		CExpression *prefix = GPOS_NEW(mp) CExpression(mp, expression->Pop(), children);
+		const BOOL matched = FMatchExpressionBinding(mp, definitions, def->PsymOperand(0),
+			prefix, model, depth + 1) && FMatchExpressionBinding(mp, definitions,
+			def->PsymOperand(1), (*expression)[expression->Arity() - 1], model, depth + 1);
+		prefix->Release();
 		return matched;
 	}
 	if (def->Arity() != expression->Arity() ||

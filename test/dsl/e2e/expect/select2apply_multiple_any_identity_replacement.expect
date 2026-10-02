@@ -4,7 +4,7 @@
     "xforms": [
       "CXformSelect2Apply"
     ],
-    "scope": "Two deterministic, error-free correlated ANY conjuncts with distinct comparison predicates",
+    "scope": "Three deterministic, error-free correlated ANY conjuncts with distinct comparison predicates, matched through an ordered flat-Boolean prefix",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "ae0c3fdea5be2ed5",
@@ -60,6 +60,12 @@
         "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
       ],
       "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "ae0c3fdea5be2ed5",
+          "dst_rule": "ae0c3fdea5be2ed5",
+          "target_path": "r"
+        },
         {
           "scheduler": "cbo",
           "src_rule": "ae0c3fdea5be2ed5",
