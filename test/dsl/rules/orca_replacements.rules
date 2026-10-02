@@ -70,16 +70,31 @@ Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(I
 
 All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
 
+# Native FormalSQL OUTCOME_EQ: explicit existential Apply lowering. The inner
+# Filter supplies the ON predicate; arbitrary inputs remain opaque. These
+# compositional rules cover the filtered domain of the legacy macros below,
+# not unconditional EXISTS lowering (which has a different demand contract).
+# Semi certificate: 3471afc72c62eda95920928be99f0f06f66549b1ca1e39a606ace569f9992a70
+Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
+# Anti certificate: f944509c477ab50695b091d43e7210ca8aef95c50697aa89cb3ada5b1c354134
+NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
+
+# Keep the remaining Filter and its actual correlation vector explicitly.
+# Semi certificate: 23e485f593f35f9100e437063cae79c2a84bdf2dfe7db701a6e5d4ac13b9ad38
+Exists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|SemiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3
+# Anti certificate: 01105e59d373e34f347f7da7de23b7e7c6b146e93945a9cf61845ba636d88e0e
+NotExists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|AntiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3
+
 # DIRECT(expression-rewrite): PredicateExists destructures a scalar EXISTS
 # predicate into its relational operand; the target then uses the ordinary
 # Exists builder. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-# Compatibility: typed Exists(t) -> Exists preserves the scalar tree; replacing
-# this entry also requires the separate, explicit Apply lowering rules.
+# Compatibility: the explicit rules above cover filtered inputs only. Keep
+# this macro until arbitrary-input, demand-sensitive lowering is represented.
 Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
 
 # DIRECT(expression-rewrite): typed NOT EXISTS sibling of PredicateExists;
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-# The same explicit-lowering migration requirement applies here.
+# The same arbitrary-input migration boundary applies here.
 Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
 
 # DIRECT(expression-rewrite): PredicateAny binds the comparison, exact outer
