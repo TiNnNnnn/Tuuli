@@ -105,17 +105,21 @@ def run_sql(args: argparse.Namespace, sql: str, tuples_only: bool = False,
         check=False,
         text=True,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
+        stderr=subprocess.PIPE if tuples_only else subprocess.STDOUT,
         timeout=60,
     )
+    diagnostics = (process.stderr or "") if tuples_only else process.stdout
+    output = process.stdout + (process.stderr or "")
+    if "Failed assertion:" in diagnostics:
+        raise RuntimeError(output.rstrip())
     if error_sqlstate is not None:
         if process.returncode != 0 and re.search(
-            rf"^ERROR:\s+{error_sqlstate}\s*$", process.stdout, re.MULTILINE
+            rf"^ERROR:\s+{error_sqlstate}\s*$", output, re.MULTILINE
         ):
             return f"SQLSTATE {error_sqlstate}"
-        raise RuntimeError(f"Expected SQLSTATE {error_sqlstate}, got:\n{process.stdout}")
-    if process.returncode != 0 or "Failed assertion:" in process.stdout:
-        raise RuntimeError(process.stdout.rstrip())
+        raise RuntimeError(f"Expected SQLSTATE {error_sqlstate}, got:\n{output}")
+    if process.returncode != 0:
+        raise RuntimeError(output.rstrip())
     # COPY CSV represents a single-column NULL row as a bare newline. Keep
     # every row terminator until splitlines(), including trailing NULL rows.
     return process.stdout if tuples_only else process.stdout.rstrip("\n")
@@ -333,6 +337,7 @@ SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000)
 SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {native_setting(bool(expected.get('native', True)))}
 {disabled_xform_settings(expected, args.disable_xform)}
+SET client_min_messages=log;
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
             tuples_only=True,

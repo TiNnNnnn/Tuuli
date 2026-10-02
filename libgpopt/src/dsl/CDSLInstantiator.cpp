@@ -248,8 +248,11 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 		const CDSLSymbol *source = PsymResolve(targets[0]);
 		if (source != PsymResolve(targets[1]) ||
 			EdslsideSource != source->Eside() ||
-			nullptr == pmodel->PexprTable(source))
+			nullptr == pmodel->PexprTable(source) ||
+			0 != pmodel->PexprTable(source)->DeriveOuterReferences()->Size())
 		{
+			// A shared CTE is evaluated outside the source's correlation scope.
+			// Parameter-dependent inputs cannot be materialized as global producers.
 			return false;
 		}
 		for (const CDSLSymbol *target : targets)

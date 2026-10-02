@@ -371,7 +371,47 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 
 	popCopy->Release();
 	popOriginal->Release();
-	return GPOS_OK;
+
+	CDSLTestFixture fix(mp);
+	CColRef *key = fix.PcrCreateInt4("copy_grouping");
+	CColRef *replacement = fix.PcrCreateInt4("new_grouping");
+	const auto columns = [&](CColRef *col) {
+		CColRefArray *result = GPOS_NEW(mp) CColRefArray(mp);
+		result->Append(col);
+		return result;
+	};
+	BOOL ok = true;
+	for (auto type : {COperator::EgbaggtypeLocal, COperator::EgbaggtypeGlobal,
+					 COperator::EgbaggtypeIntermediate})
+		for (auto stage : {CLogicalGbAgg::EasOthers,
+						   CLogicalGbAgg::EasTwoStageScalarDQA,
+						   CLogicalGbAgg::EasThreeStageScalarDQA})
+		{
+			const BOOL hasDqa = type == COperator::EgbaggtypeIntermediate ||
+				stage != CLogicalGbAgg::EasOthers;
+			CLogicalGbAgg *original = GPOS_NEW(mp) CLogicalGbAgg(mp, columns(key),
+				type, type == COperator::EgbaggtypeLocal,
+				hasDqa ? columns(key) : nullptr, stage);
+			UlongToColRefMap *mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+			CLogicalGbAgg *remapped = CLogicalGbAgg::PopConvert(
+				original->PopCopyWithRemappedColumns(mp, mapping, false));
+			mapping->Release();
+			CLogicalGbAgg *regrouped = original->PopCopyWithAggregateColumns(mp,
+				columns(replacement), columns(replacement),
+				hasDqa ? columns(key) : nullptr);
+			for (CLogicalGbAgg *copy : {remapped, regrouped})
+			{
+				ok &= copy->Egbaggtype() == type && copy->AggStage() == stage &&
+					copy->FGeneratesDuplicates() == original->FGeneratesDuplicates() &&
+					(hasDqa == (nullptr != copy->PdrgpcrArgDQA())) &&
+					(!hasDqa || (*copy->PdrgpcrArgDQA())[0] == key) &&
+					(*copy->Pdrgpcr())[0] == (copy == remapped ? key : replacement) &&
+					(*copy->PdrgpcrMinimal())[0] == (*copy->Pdrgpcr())[0];
+				copy->Release();
+			}
+			original->Release();
+		}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

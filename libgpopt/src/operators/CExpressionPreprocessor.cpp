@@ -600,9 +600,8 @@ CExpressionPreprocessor::PexprRemoveSuperfluousOuterRefs(CMemoryPool *mp,
 				}
 
 				pop->Release();
-				pop = GPOS_NEW(mp) CLogicalGbAgg(
-					mp, colref_array, pdrgpcrMinimal, popAgg->Egbaggtype(),
-					popAgg->FGeneratesDuplicates(), pdrgpcrArgDQA);
+				pop = popAgg->PopCopyWithAggregateColumns(
+					mp, colref_array, pdrgpcrMinimal, pdrgpcrArgDQA);
 			}
 			else
 			{
@@ -645,11 +644,8 @@ CExpressionPreprocessor::PexprRemoveSuperfluousOuterRefs(CMemoryPool *mp,
 						CUtils::PcrFromProjElem((*new_projected_cols)[ul]));
 				}
 				GPOS_ASSERT(nullptr == popAgg->PdrgpcrArgDQA());
-				pop = GPOS_NEW(mp) CLogicalGbAgg(mp, new_grouping_cols, nullptr,
-												 popAgg->Egbaggtype(),
-												 popAgg->FGeneratesDuplicates(),
-												 nullptr  // no DQA cols
-				);
+				pop = popAgg->PopCopyWithAggregateColumns(
+					mp, new_grouping_cols, nullptr, nullptr /*no DQA cols*/);
 				// release the previous pop
 				popAgg->Release();
 				popAgg = nullptr;

@@ -1797,6 +1797,29 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
+	// A correlation parameter cannot escape into an unparameterized CTE.
+	CExpression *predicate = fix.PexprPredAtom(fix.PcrCreateInt4("outer_parameter"));
+	CExpression *correlated = fix.PexprLogicalSelect(pexprSource, predicate);
+	predicate->Release();
+	CDSLModel *correlatedModel = GPOS_NEW(mp) CDSLModel(mp);
+	const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(),
+		correlated, correlatedModel) && checker.FCheck(prule, correlatedModel);
+	if (!matched || correlated->DeriveOuterReferences()->Size() != 1)
+	{
+		eres = GPOS_FAILED;
+	}
+	else
+	{
+		CDSLInstantiator instantiator(mp);
+		CExpression *shared = instantiator.PexprInstantiate(prule, correlatedModel);
+		if (nullptr != shared)
+		{
+			eres = GPOS_FAILED;
+		}
+		CRefCount::SafeRelease(shared);
+	}
+	correlatedModel->Release();
+	correlated->Release();
 	pexprSource->Release();
 	CRefCount::SafeRelease(prule);
 	CRefCount::SafeRelease(pruleInline);

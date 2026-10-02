@@ -172,6 +172,10 @@ public:
 		return m_pdrgpcrMinimal;
 	}
 
+	// Takes ownership of the replacement column arrays and preserves stage flags.
+	CLogicalGbAgg *PopCopyWithAggregateColumns(CMemoryPool *mp,
+		CColRefArray *grouping, CColRefArray *minimal, CColRefArray *dqa) const;
+
 	// return a copy of the operator with remapped columns
 	COperator *PopCopyWithRemappedColumns(CMemoryPool *mp,
 										  UlongToColRefMap *colref_mapping,
