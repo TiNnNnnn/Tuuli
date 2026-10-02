@@ -7,7 +7,7 @@
     "scope": "One correlated ANY in an inner-join predicate with references to both inputs; deterministic, error-free inputs admitted by the explicit binding adapter",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "ae0c3fdea5be2ed5",
+      "4f3da4063a3836ad",
       "eb808b80935652d6"
     ]
   },
@@ -56,7 +56,7 @@
       "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
       ],
       "not_contains": [
@@ -65,7 +65,7 @@
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "ae0c3fdea5be2ed5",
+          "src_rule": "4f3da4063a3836ad",
           "dst_rule": "eb808b80935652d6",
           "target_path": "r/0"
         }

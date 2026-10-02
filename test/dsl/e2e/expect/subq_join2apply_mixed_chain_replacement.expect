@@ -6,11 +6,13 @@
       "CXformSelect2Apply",
       "CXformSimplifySelectWithSubquery"
     ],
-    "scope": "One scalar and one EXISTS subquery in an inner-join predicate",
-    "status": "verified_full_replacement",
+    "scope": "One scalar and one EXISTS subquery in an inner-join predicate; existential lowering uses explicit bindings, scalar-value lowering retains its legacy definition",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "6fcbf4135eeb31ce",
-      "907450491e456d45"
+      "4f3da4063a3836ad",
+      "f91ba8ce73b0da11",
+      "593ad0723f91cfd4"
     ]
   },
   "plans": [
@@ -30,7 +32,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"rule_hash\":\"907450491e456d45\""
+        "\"rule_hash\":\"593ad0723f91cfd4\""
       ],
       "alternative": []
     },
@@ -43,7 +45,9 @@
         "CXformSimplifySelectWithSubquery",
         "CXformSubquery2CorrelatedApply"
       ],
-      "not_contains": []
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
     },
     {
       "name": "replacement",
@@ -58,7 +62,32 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\""
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
+        "\"status\":\"applied\",\"rule_hash\":\"593ad0723f91cfd4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "6fcbf4135eeb31ce",
+          "dst_rule": "4f3da4063a3836ad",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "4f3da4063a3836ad",
+          "dst_rule": "f91ba8ce73b0da11",
+          "target_path": "r/0"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "f91ba8ce73b0da11",
+          "dst_rule": "593ad0723f91cfd4",
+          "target_path": "r"
+        }
       ],
       "alternative": [],
       "provenance": {
