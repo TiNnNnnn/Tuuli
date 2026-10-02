@@ -70,33 +70,38 @@ FReachable(CGroup *pgroupStart, CGroup *pgroupTarget, CBitSet *pbsVisited)
 		return false;
 	}
 
-	CGroupExpression *pgexpr = nullptr;
+	// MarkDuplicates changes equivalence before MergeGroup moves expressions.
+	// Inspect every member, not just the master's current expression list.
+	CGroup *member = pgroupStart;
+	do
 	{
-		CGroupProxy gp(pgroupStart);
-		pgexpr = gp.PgexprNextLogical(nullptr);
-	}
-	while (nullptr != pgexpr)
-	{
-		for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
+		CGroupExpression *pgexpr = nullptr;
 		{
-			// Read the dependency edge directly.  FReachable is also called
-			// while FRehash is moving duplicate expressions between lists; at
-			// that point a child group may temporarily have no expressions and
-			// no duplicate link yet.  CGroupExpression::operator[] is intended
-			// for the stable optimization phase and asserts in that transient
-			// state.  Duplicate masters are resolved at the next recursive call.
-			CGroup *pgroupChild = (*pgexpr->Pdrgpgroup())[ul];
-			if (!pgroupChild->FScalar() &&
-				FReachable(pgroupChild, pgroupTarget, pbsVisited))
+			CGroupProxy gp(member);
+			pgexpr = gp.PgexprNextLogical(nullptr);
+		}
+		while (nullptr != pgexpr)
+		{
+			for (ULONG ul = 0; ul < pgexpr->Arity(); ul++)
 			{
-				return true;
+				// Use the raw edge: rehash can temporarily leave a child empty,
+				// when CGroupExpression::operator[] is not safe to call yet.
+				CGroup *pgroupChild = (*pgexpr->Pdrgpgroup())[ul];
+				if (!pgroupChild->FScalar() &&
+					FReachable(pgroupChild, pgroupTarget, pbsVisited))
+				{
+					return true;
+				}
 			}
+			{
+				CGroupProxy gp(member);
+				pgexpr = gp.PgexprNextLogical(pgexpr);
+			}
+			GPOS_CHECK_ABORT;
 		}
-		{
-			CGroupProxy gp(pgroupStart);
-			pgexpr = gp.PgexprNextLogical(pgexpr);
-		}
+		member = member->PgroupNextDuplicate();
 	}
+	while (member != pgroupStart);
 	return false;
 }
 }  // namespace
@@ -223,6 +228,7 @@ CGroup::CGroup(CMemoryPool *mp, BOOL fScalar)
 	  m_pexprScalarRepIsExact(false),
 	  m_pccDummy(nullptr),
 	  m_pgroupDuplicate(nullptr),
+	  m_pgroupNextDuplicate(this),
 	  m_plinkmap(nullptr),
 	  m_pstatsmap(nullptr),
 	  m_ulGExprs(0),
@@ -996,6 +1002,10 @@ CGroup::AddDuplicateGrp(CGroup *pgroup)
 	{
 		if (nullptr == pgroupSrc->m_pgroupDuplicate)
 		{
+			// Joining two classes splices their member rings in constant time.
+			// Path compression and expression movement do not change membership.
+			std::swap(pgroupSrc->m_pgroupNextDuplicate,
+					  pgroupDest->m_pgroupNextDuplicate);
 			pgroupSrc->m_pgroupDuplicate = pgroupDest;
 		}
 		else
