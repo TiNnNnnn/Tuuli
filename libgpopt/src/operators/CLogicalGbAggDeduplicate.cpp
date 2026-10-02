@@ -106,8 +106,16 @@ CLogicalGbAggDeduplicate::PopCopyWithRemappedColumns(
 	CColRefArray *pdrgpcrKeys =
 		CUtils::PdrgpcrRemap(mp, m_pdrgpcrKeys, colref_mapping, must_exist);
 
-	return GPOS_NEW(mp) CLogicalGbAggDeduplicate(
-		mp, colref_array, pdrgpcrMinimal, Egbaggtype(), pdrgpcrKeys);
+	CLogicalGbAggDeduplicate *copy = nullptr == pdrgpcrMinimal
+		? GPOS_NEW(mp) CLogicalGbAggDeduplicate(
+			mp, colref_array, Egbaggtype(), pdrgpcrKeys)
+		: GPOS_NEW(mp) CLogicalGbAggDeduplicate(
+			mp, colref_array, pdrgpcrMinimal, Egbaggtype(), pdrgpcrKeys);
+	// The minimal-grouping constructor defaults this flag to true, even for
+	// global aggregates, and fills null minimal keys with the full grouping.
+	// Column remapping must preserve both parts of the original contract.
+	copy->m_fGeneratesDuplicates = m_fGeneratesDuplicates;
+	return copy;
 }
 
 //---------------------------------------------------------------------------
