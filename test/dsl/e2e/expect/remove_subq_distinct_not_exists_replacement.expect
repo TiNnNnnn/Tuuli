@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule removes pure DISTINCT from a NOT EXISTS subquery",
+  "description": "Explicit DISTINCT removal, Compute elimination and AntiApply lowering replace the legacy NOT EXISTS macro before DSL decorrelation",
   "replacement": {
     "xforms": [
       "CXformRemoveSubqDistinct"
@@ -54,20 +54,27 @@
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\"",
-        "\"status\":\"applied\",\"rule_hash\":\"a586c9b617a6d998\"",
-        "\"status\":\"applied\",\"rule_hash\":\"8997b6b881960090\""
+        "\"status\":\"applied\",\"rule_hash\":\"3ac742c807fd9c27\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c6451f8634950f93\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "a586c9b617a6d998",
-          "dst_rule": "c21c58ba5e91d0c6",
+          "src_rule": "c21c58ba5e91d0c6",
+          "dst_rule": "3ac742c807fd9c27",
           "target_path": "r"
         },
         {
           "scheduler": "cbo",
-          "src_rule": "c21c58ba5e91d0c6",
-          "dst_rule": "a586c9b617a6d998",
+          "src_rule": "3ac742c807fd9c27",
+          "dst_rule": "c6451f8634950f93",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "c6451f8634950f93",
+          "dst_rule": "4df97bead45bc844",
           "target_path": "r"
         }
       ],

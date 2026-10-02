@@ -2,7 +2,9 @@
   enabled: false
 - rule: c21c58ba5e91d0c6
   enabled: true
-- rule: a586c9b617a6d998
+- rule: 3ac742c807fd9c27
   enabled: true
-- rule: 8997b6b881960090
+- rule: c6451f8634950f93
+  enabled: true
+- rule: 4df97bead45bc844
   enabled: true
