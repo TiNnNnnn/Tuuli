@@ -54,6 +54,7 @@
 #include "gpopt/operators/CScalarNullIf.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "naucrates/md/CMDForeignKey.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -331,6 +332,16 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 		case COperator::EopScalarSubqueryNotExists:
 			return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
 				FRelationalTreeProvablyErrorFree((*pexpr)[0]);
+		case COperator::EopScalarSubqueryAny:
+		case COperator::EopScalarSubqueryAll:
+			// Quantifiers add no cardinality assertion. Audit both the query
+			// and scalar argument, not just the comparison's function metadata.
+			return 2 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
+				(*pexpr)[1]->Pop()->FScalar() &&
+				CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					CScalarSubqueryQuantified::PopConvert(pexpr->Pop())->MdIdOp()) &&
+				FRelationalTreeProvablyErrorFree((*pexpr)[0]) &&
+				FScalarTreeProvablyErrorFree((*pexpr)[1]);
 		case COperator::EopScalarCmp:
 		case COperator::EopScalarIsDistinctFrom:
 			// Admit every comparison in ORCA's explicit built-in strict whitelist.
@@ -493,6 +504,13 @@ BOOL
 FScalarTreeProvablyDeterministic(CExpression *pexpr)
 {
 	if (!pexpr->Pop()->FScalar()) return false;
+	if (COperator::EopScalarSubqueryAny == pexpr->Pop()->Eopid() ||
+		COperator::EopScalarSubqueryAll == pexpr->Pop()->Eopid())
+	{
+		return FScalarTreeProvablyErrorFree(pexpr) &&
+			FRelationalTreeProvablyErrorFree((*pexpr)[0], true) &&
+			FScalarTreeProvablyDeterministic((*pexpr)[1]);
+	}
 	if (COperator::EopScalarSubqueryExists == pexpr->Pop()->Eopid() ||
 		COperator::EopScalarSubqueryNotExists == pexpr->Pop()->Eopid())
 	{

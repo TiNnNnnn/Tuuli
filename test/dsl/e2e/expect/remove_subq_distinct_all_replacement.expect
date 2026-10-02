@@ -1,15 +1,15 @@
 {
-  "description": "A generic quantified ALL DSL rule removes pure DISTINCT and preserves correlated NULL/empty-set semantics",
+  "description": "Explicit ALL capture replaces the legacy macro and feeds generic DISTINCT removal, preserving correlated NULL/empty-set semantics",
   "replacement": {
     "xforms": [
       "CXformRemoveSubqDistinct",
       "CXformSelect2Apply"
     ],
-    "scope": "Full native promise, together with EXISTS, NOT EXISTS and ANY companion cases",
-    "status": "verified_full_replacement",
+    "scope": "Correlated single-column ALL with an audited strict built-in comparison over pure DISTINCT",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "e8caecf37f4a8a22",
-      "a08e24d9155e2f5c"
+      "2a403f8d75cfe226"
     ]
   },
   "plans": [
@@ -57,12 +57,12 @@
       "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"e8caecf37f4a8a22\"",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "a08e24d9155e2f5c",
+          "src_rule": "2a403f8d75cfe226",
           "dst_rule": "e8caecf37f4a8a22",
           "target_path": "r"
         }

@@ -1,0 +1,102 @@
+{
+  "description": "正式库显式 ANY/ALL lowering：完整规则库与隔离替换均可规划；旧宏和原生 lowering 关闭时保留 NULL、空集、重复行、相关输入及复合标量参数",
+  "plans": [
+    {
+      "name": "full-library",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d367a50f1a60c6d4\"",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "ae0c3fdea5be2ed5",
+          "dst_rule": "eb808b80935652d6",
+          "target_path": "r/0"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "d367a50f1a60c6d4",
+          "dst_rule": "2a403f8d75cfe226",
+          "target_path": "r/0"
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "all,1",
+      "all,2",
+      "all,5",
+      "any,3",
+      "any,4",
+      "any,5",
+      "any_compound,2",
+      "any_compound,3",
+      "any_compound,4",
+      "any_compound,5",
+      "bag,1",
+      "bag,1",
+      "bag,1",
+      "bag,2",
+      "bag,2"
+    ],
+    "postgres_output": [
+      "all,1",
+      "all,2",
+      "all,5",
+      "any,3",
+      "any,4",
+      "any,5",
+      "any_compound,2",
+      "any_compound,3",
+      "any_compound,4",
+      "any_compound,5",
+      "bag,1",
+      "bag,1",
+      "bag,1",
+      "bag,2",
+      "bag,2"
+    ]
+  }
+}

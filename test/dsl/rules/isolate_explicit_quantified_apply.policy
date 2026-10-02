@@ -1,0 +1,11 @@
+# Explicit ANY/ALL lowering only: no legacy capture macros or budget limits.
+- rule: '*'
+  enabled: false
+- rule: ae0c3fdea5be2ed5
+  enabled: true
+- rule: d367a50f1a60c6d4
+  enabled: true
+- rule: eb808b80935652d6
+  enabled: true
+- rule: 2a403f8d75cfe226
+  enabled: true

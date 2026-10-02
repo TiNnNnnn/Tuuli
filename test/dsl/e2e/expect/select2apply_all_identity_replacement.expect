@@ -1,14 +1,14 @@
 {
-  "description": "A proved PredicateAll rule lowers a correlated scalar predicate to NULL-aware Apply without native Select2Apply",
+  "description": "A native OUTCOME_EQ rule lowers an explicitly captured ALL comparison without legacy PredicateAll or native unnesting",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply",
       "CXformSimplifySelectWithSubquery"
     ],
-    "scope": "Correlated single-column ALL with an arbitrary comparison predicate",
-    "status": "verified_full_replacement",
+    "scope": "Correlated single-column ALL with an audited strict built-in comparison and demand-insensitive input",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a08e24d9155e2f5c"
+      "2a403f8d75cfe226"
     ]
   },
   "plans": [
@@ -25,11 +25,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -55,10 +55,10 @@
         "CXformSimplifySelectWithSubquery",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -82,7 +82,7 @@
       "CXformSimplifySelectWithSubquery",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_explicit_quantified_apply.policy",
     "output": [
       "2",
       "3"

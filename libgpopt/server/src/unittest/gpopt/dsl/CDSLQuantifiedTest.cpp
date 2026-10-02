@@ -1000,10 +1000,62 @@ EresMarkerSequenceReplay()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresQuantifiedSafety()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL all : {false, true})
+	for (ULONG shape = 0; shape < 6; ++shape)
+	{
+		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
+		CExpression *outer = fix.PexprLogicalGet("quantified_safety_outer", 1, &outerCols);
+		CExpression *inner = fix.PexprLogicalGet("quantified_safety_inner", 1, &innerCols);
+		if (1 == shape)
+			inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), inner);
+		else if (2 == shape)
+			inner = CUtils::PexprLimit(mp, inner, 0, 1);
+		else if (5 == shape)
+		{
+			CColRefArray *nestedCols = nullptr;
+			CExpression *nested = fix.PexprLogicalGet("quantified_safety_nested", 1, &nestedCols);
+			CExpression *predicate = PexprQuantified(mp, fix, !all, nested,
+				(*innerCols)[0], (*nestedCols)[0]);
+			inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), inner, predicate);
+		}
+		CExpression *quantified = PexprQuantified(mp, fix, all, inner, (*outerCols)[0], (*innerCols)[0]);
+		if (3 == shape || 4 == shape)
+		{
+			(*quantified)[0]->AddRef();
+			CExpression *argument = 3 == shape
+				? CUtils::PexprScalarIdent(mp, (*outerCols)[0])
+				: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300),
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+					default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false));
+			IMDId *comparison = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral,
+				3 == shape ? 100400 : GPDB_INT4_EQ_OP);
+			CWStringConst *name = GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("="));
+			COperator *op = all
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryAll(mp, comparison, name, (*innerCols)[0]))
+				: GPOS_NEW(mp) CScalarSubqueryAny(mp, comparison, name, (*innerCols)[0]);
+			CExpression *replacement = GPOS_NEW(mp) CExpression(mp, op, (*quantified)[0], argument);
+			quantified->Release();
+			quantified = replacement;
+		}
+		ok &= CDSLConstraintChecker::FQueryDemandInsensitive(quantified) == (0 == shape || 5 == shape);
+		quantified->Release(); outer->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresQuantifiedSafety),
 		GPOS_UNITTEST_FUNC(EresSubqueryOutputBindings),
 		GPOS_UNITTEST_FUNC(EresMarkerSequenceReplay),
 		GPOS_UNITTEST_FUNC(EresSharedComparisonHead),
