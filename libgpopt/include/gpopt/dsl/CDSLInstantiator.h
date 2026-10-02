@@ -97,8 +97,8 @@ private:
 	// CColRefArray objects owned by this per-instantiation cache.
 	mutable CDSLSymbolToRefMap *m_phmDerivedCols;
 
-	// Target predicates materialized by multi-output predicate algebra such as
-	// PredicateDomainSplit. Values are owned by this instantiation.
+	// Constructed predicates and fresh expression lists. Values are owned by
+	// this instantiation; repeated resolutions must preserve fresh column IDs.
 	mutable CDSLSymbolToExpressionMap *m_phmDerivedPreds;
 
 	// Rule currently being instantiated (not owned). Used to associate a target

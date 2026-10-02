@@ -6,6 +6,8 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CFunctionProp.h"
+#include "gpopt/base/CUtils.h"
+#include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
 
@@ -83,6 +85,25 @@ CDSLExprListUtils::FConcatSafe(CExpression *pexprUpper,
 	return FReorderableProjectList(pexprUpper) && FReorderableProjectList(pexprLower) &&
 		!(pexprUpper->DeriveHasNonScalarFunction() &&
 		  pexprLower->DeriveHasNonScalarFunction());
+}
+
+CExpression *
+CDSLExprListUtils::PexprNulls(CMemoryPool *mp, CColRefArray *columns)
+{
+	IDatumArray *datums = CTranslatorExprToDXLUtils::PdrgpdatumNulls(mp, columns);
+	CExpression *list = CUtils::PexprScalarProjListConst(mp, columns, datums, nullptr);
+	datums->Release();
+	return list;
+}
+
+CColRefArray *
+CDSLExprListUtils::PdrgpcrOutput(CMemoryPool *mp, CExpression *list)
+{
+	if (!FTypedProjectList(list)) return nullptr;
+	CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+	for (ULONG i = 0; i < list->Arity(); ++i)
+		columns->Append(CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr());
+	return columns;
 }
 
 BOOL

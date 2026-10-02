@@ -327,6 +327,18 @@ EresExpressionBindings()
 	CMemoryPool *mp = amp.Pmp();
 	const std::string concat = "Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
 		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,s1);";
+	const std::string nulls = "Proj<a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;";
+	for (const CHAR *invalid : {"ExprNulls(a0) := e1", "e1 := ExprNulls(t0)",
+		"e1 := ExprNulls(a0,a1)", "e1 := ExprNulls(a1);OutputAttrs(a1,e1)",
+		"e1 := ExprNulls(a0);OutputAttrs(a1,s0)"})
+	{
+		CDSLRule *rule = Parse(mp, (nulls + invalid).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	for (const CHAR *binding : {"ExprConcat(e0,e1) := e2", "e2 := ExprConcat(e0,e2)",
 		"e2 := ExprConcat(e0,e9)", "e2 := ExprConcat(a0,e1)", "e2 := ExprConcat(e0)",
 		"e2 := ExprConcat(e0,e1);e2 := e0"})

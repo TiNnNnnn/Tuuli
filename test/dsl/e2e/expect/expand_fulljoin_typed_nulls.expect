@@ -12,7 +12,7 @@
       "policy": "isolate_expand_fulljoin.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"ce7a7b473a32e273\""
+        "\"status\":\"applied\",\"rule_hash\":\"10374576f419c6c6\""
       ],
       "not_contains": [
         "Falling back to Postgres"

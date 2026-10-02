@@ -3213,13 +3213,33 @@ class TraceFrameworkTest(unittest.TestCase):
                 captured = set(re.findall(r'\b[a-z]\d+\b', source))
                 defined = set()
                 legacy = []
+                nulls = dict(re.findall(r'(e\d+) := ExprNulls\((a\d+)\)', clauses))
+                list_outputs = dict((expr, attrs) for attrs, expr in
+                                    re.findall(r'OutputAttrs\((a\d+),(e\d+)\)', clauses))
                 for clause in clauses.split(';'):
                     if ':=' not in clause:
+                        output = re.fullmatch(r'OutputAttrs\((a\d+),(e\d+)\)', clause)
+                        if output and output[2] in nulls:
+                            self.assertIn(output[2], defined)
+                            defined.add(output[1])
+                            continue  # Reassembled into the legacy multi-output constructor below.
                         legacy.append(clause)
                         output = re.fullmatch(r'OutputAttrs\((a\d+),(t\d+)\)', clause)
                         if output:
                             self.assertIn(output[2], captured | defined)
                             defined.add(output[1])
+                        metadata = re.fullmatch(r'(?:AttrsUnion|SchemaFromAttrs)\(([as]\d+),.*\)', clause)
+                        if metadata:
+                            defined.add(metadata[1])
+                        continue
+                    null_constructor = re.fullmatch(r'(e\d+) := ExprNulls\((a\d+)\)', clause)
+                    if null_constructor:
+                        expr, template = null_constructor.groups()
+                        self.assertNotIn(expr, captured | defined)
+                        self.assertIn(template, captured | defined)
+                        self.assertIn(expr, list_outputs)
+                        defined.add(expr)
+                        legacy.append(f'ExprNulls({expr},{template},{list_outputs[expr]})')
                         continue
                     # The existing positional constructor has identical arguments
                     # in both spellings; it is not a new semantic premise.

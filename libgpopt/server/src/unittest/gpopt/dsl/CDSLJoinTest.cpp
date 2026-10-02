@@ -232,7 +232,9 @@ static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
 	CWStringDynamic strErr(mp);
-	return CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	if (nullptr == rule) GPOS_TRACE_FORMAT("Join rule parse failed: %ls", strErr.GetBuffer());
+	return rule;
 }
 
 // build InnerJoin(Get t0[2], Get t1[2], t0.c0 = t1.c0). Returns the two Gets and
@@ -2081,14 +2083,20 @@ CDSLJoinTest::EresUnittest_FullJoinRoundTrip()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLJoinTest::EresUnittest_FullJoinExpansion()
+static GPOS_RESULT
+EresFullJoinExpansion(BOOL bindings)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_FULL_JOIN_EXPANSION_RULE);
+	std::string text = GPOPT_DSL_FULL_JOIN_EXPANSION_RULE;
+	if (bindings)
+	{
+		text.replace(text.find("ExprNulls(e0,a10,a12)"), strlen("ExprNulls(e0,a10,a12)"),
+			"e0 := ExprNulls(a10);OutputAttrs(a12,e0)");
+		text.replace(text.find("AttrsEq(a3,a2)"), strlen("AttrsEq(a3,a2)"), "a3 := a2");
+	}
+	CDSLRule *prule = PdslruleParseLocal(mp, text.c_str());
 	CExpression *pexprLeft = CUtils::PexprLogicalCTGDummy(mp);
 	CExpression *pexprRight = CUtils::PexprLogicalCTGDummy(mp);
 	CExpression *pexprPred = CUtils::PexprScalarConstBool(mp, true);
@@ -2103,9 +2111,10 @@ CDSLJoinTest::EresUnittest_FullJoinExpansion()
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_FAILED;
-	if (nullptr != prule &&
-		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel) &&
-		checker.FCheck(prule, pmodel))
+	ULONG failed = gpos::ulong_max;
+	const BOOL matched = nullptr != prule && matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel);
+	const BOOL checked = matched && checker.FCheck(prule, pmodel, nullptr, &failed);
+	if (checked)
 	{
 		CDSLInstantiator instantiator(mp);
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
@@ -2163,17 +2172,35 @@ CDSLJoinTest::EresUnittest_FullJoinExpansion()
 	pexprLeft->Release();
 	pexprRight->Release();
 	CRefCount::SafeRelease(prule);
+	if (GPOS_OK != eres)
+	{
+		GPOS_TRACE_FORMAT("FullJoin expansion bindings=%d matched=%d checked=%d constraint=%lu target=%d",
+			bindings, matched, checked, failed, nullptr != pexprTarget);
+	}
 	return eres;
 }
 
 GPOS_RESULT
-CDSLJoinTest::EresUnittest_LeftJoinExpansion()
+CDSLJoinTest::EresUnittest_FullJoinExpansion()
+{
+	return GPOS_OK == EresFullJoinExpansion(false)
+		? EresFullJoinExpansion(true) : GPOS_FAILED;
+}
+
+static GPOS_RESULT
+EresLeftJoinExpansion(BOOL bindings)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_LEFT_JOIN_EXPANSION_RULE);
+	std::string text = GPOPT_DSL_LEFT_JOIN_EXPANSION_RULE;
+	if (bindings)
+	{
+		text.replace(text.find("ExprNulls(e0,a11,a12)"), strlen("ExprNulls(e0,a11,a12)"),
+			"e0 := ExprNulls(a11);OutputAttrs(a12,e0)");
+		text.replace(text.find("AttrsEq(a3,a2)"), strlen("AttrsEq(a3,a2)"), "a3 := a2");
+	}
+	CDSLRule *prule = PdslruleParseLocal(mp, text.c_str());
 	CExpression *pexprLeft = CUtils::PexprLogicalCTGDummy(mp);
 	CExpression *pexprRight = CUtils::PexprLogicalCTGDummy(mp);
 	CExpression *pexprPred = CUtils::PexprScalarConstBool(mp, true);
@@ -2246,6 +2273,13 @@ CDSLJoinTest::EresUnittest_LeftJoinExpansion()
 	pexprRight->Release();
 	CRefCount::SafeRelease(prule);
 	return eres;
+}
+
+GPOS_RESULT
+CDSLJoinTest::EresUnittest_LeftJoinExpansion()
+{
+	return GPOS_OK == EresLeftJoinExpansion(false)
+		? EresLeftJoinExpansion(true) : GPOS_FAILED;
 }
 
 static GPOS_RESULT

@@ -288,8 +288,13 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 				return false;
 		}
 
-		const BOOL fBound =
-			nullptr != pval && pmodel->FBindDerived(psym, pval);
+		// A reference to a constructed value must publish its root as well.
+		// Subsequent checker/instantiator instances cannot repeat a fresh
+		// allocation merely because the first consumer used an alias.
+		const CDSLSymbol *root = PsymResolve(psym);
+		const BOOL fBound = nullptr != pval &&
+			(root == psym || EdslsideSource == root->Eside() || pmodel->FBindDerived(root, pval)) &&
+			pmodel->FBindDerived(psym, pval);
 		if (fOwned)
 		{
 			CRefCount::SafeRelease(pval);
@@ -805,6 +810,8 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 	}
 	psym = PsymResolve(psym);
 	CExpression *pexprBound = pmodel->PexprExpr(psym);
+	if (nullptr == pexprBound)
+		pexprBound = m_phmDerivedPreds->Find(psym);
 	if (nullptr != pexprBound)
 	{
 		pexprBound->AddRef();
@@ -817,6 +824,21 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
+		if (EdslexprNulls == binding->Edslexpr())
+		{
+			CColRefArray *columns = PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1);
+			if (nullptr == columns) return nullptr;
+			CExpression *list = CDSLExprListUtils::PexprNulls(m_mp, columns);
+			// Metadata derivation and target construction must share one fresh
+			// allocation per binding, regardless of their resolution order.
+			if (!m_phmDerivedPreds->Insert(const_cast<CDSLSymbol *>(psym), list))
+			{
+				list->Release();
+				return nullptr;
+			}
+			list->AddRef();
+			return list;
+		}
 		if (EdslexprConcat == binding->Edslexpr())
 		{
 			CExpression *left = PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);

@@ -17,7 +17,6 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "naucrates/traceflags/traceflags.h"
-#include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 
 using namespace gpopt;
 using namespace gpopt::dslinstantiator;
@@ -502,18 +501,22 @@ CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLMod
 	{
 		const CDSLSymbol *psymTable =
 			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		if (EdslsymTable != psymTable->Esymkind())
+		CColRefArray *pdrgpcrResult = nullptr;
+		if (EdslsymExpr == psymTable->Esymkind())
 		{
-			return nullptr;
+			CExpression *list = PexprResolveExpr(psymTable, pmodel, ulDepth + 1);
+			pdrgpcrResult = CDSLExprListUtils::PdrgpcrOutput(m_mp, list);
+			CRefCount::SafeRelease(list);
 		}
-		CExpression *pexprTable = pmodel->PexprTable(psymTable);
-		if (nullptr == pexprTable)
+		else if (EdslsymTable == psymTable->Esymkind())
 		{
-			return nullptr;
+			CExpression *pexprTable = pmodel->PexprTable(psymTable);
+			// Executable alternatives carry only live columns, including used
+			// system columns. List outputs instead retain their exact order.
+			if (nullptr != pexprTable)
+				pdrgpcrResult = PdrgpcrLiveOutput(m_mp, pexprTable);
 		}
-		// Proof sees the logical schema; executable alternatives carry only
-		// columns ORCA marked used, including explicitly used system columns.
-		CColRefArray *pdrgpcrResult = PdrgpcrLiveOutput(m_mp, pexprTable);
+		if (nullptr == pdrgpcrResult) return nullptr;
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
 									 pdrgpcrResult))
 		{
@@ -742,18 +745,8 @@ CDSLInstantiator::PexprResolveLegacyExpr(const CDSLSymbol *psym, const CDSLModel
 		{
 			return nullptr;
 		}
-		IDatumArray *pdrgpdatum =
-			CTranslatorExprToDXLUtils::PdrgpdatumNulls(m_mp, pdrgpcrTemplate);
-		CExpression *pexprResult = CUtils::PexprScalarProjListConst(
-			m_mp, pdrgpcrTemplate, pdrgpdatum, nullptr);
-		pdrgpdatum->Release();
-
-		CColRefArray *pdrgpcrOutput = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		for (ULONG ul = 0; ul < pexprResult->Arity(); ul++)
-		{
-			pdrgpcrOutput->Append(
-				CScalarProjectElement::PopConvert((*pexprResult)[ul]->Pop())->Pcr());
-		}
+		CExpression *pexprResult = CDSLExprListUtils::PexprNulls(m_mp, pdrgpcrTemplate);
+		CColRefArray *pdrgpcrOutput = CDSLExprListUtils::PdrgpcrOutput(m_mp, pexprResult);
 		const CDSLSymbol *psymOutputAttrs = (*pconDef->Pdrgpsym())[2];
 		if (!m_phmDerivedCols->Insert(
 				const_cast<CDSLSymbol *>(psymOutputAttrs), pdrgpcrOutput))

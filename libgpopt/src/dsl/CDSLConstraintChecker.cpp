@@ -1263,6 +1263,7 @@ CDSLConstraintChecker::FCheckRankAttrs(const CDSLConstraint *pcon,
 //		become grouping columns.
 //		The attrs symbol is normally target-only, so matching leaves materialization
 //		to CDSLInstantiator. Key requirements use the independent Unique constraint.
+//		For expression lists, OutputAttrs is the exact ordered output vector.
 //---------------------------------------------------------------------------
 BOOL
 CDSLConstraintChecker::FCheckOutputAttrs(const CDSLConstraint *pcon,
@@ -1271,12 +1272,24 @@ CDSLConstraintChecker::FCheckOutputAttrs(const CDSLConstraint *pcon,
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (2 != pdrgpsym->Size() ||
 		EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() ||
-		EdslsymTable != (*pdrgpsym)[1]->Esymkind())
+		(EdslsymTable != (*pdrgpsym)[1]->Esymkind() &&
+		 EdslsymExpr != (*pdrgpsym)[1]->Esymkind()))
 	{
 		return false;
 	}
 
 	const CDSLSymbol *psymAttrs = (*pdrgpsym)[0];
+	if (EdslsymExpr == (*pdrgpsym)[1]->Esymkind())
+	{
+		CExpression *list = pmodel->PexprExpr((*pdrgpsym)[1]);
+		CColRefArray *outputs = CDSLExprListUtils::PdrgpcrOutput(m_mp, list);
+		if (nullptr == outputs) return false;
+		CColRefArray *attrs = pmodel->PdrgpcrAttrs(psymAttrs);
+		const BOOL valid = nullptr == attrs ? EdslsideTarget == psymAttrs->Eside()
+			: CColRef::Equals(attrs, outputs);
+		outputs->Release();
+		return valid;
+	}
 	CExpression *pexprTable = pmodel->PexprTable((*pdrgpsym)[1]);
 	if (nullptr == pexprTable)
 	{

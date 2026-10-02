@@ -18,6 +18,7 @@ const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprNullSafeEq, "NullSafeEq", 2, {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslexprItem, "Item", 0, {EdslsymExpr}},
 	{EdslexprConcat, "ExprConcat", 2, {EdslsymExpr, EdslsymExpr, EdslsymExpr}},
+	{EdslexprNulls, "ExprNulls", 1, {EdslsymExpr, EdslsymAttrs}},
 	{EdslexprItem, "Item", 3, {EdslsymExpr, EdslsymScalar, EdslsymAttrs, EdslsymExpr}},
 	{EdslexprBoolValue, "BoolValue", 1, {EdslsymScalar, EdslsymPred}},
 	{EdslexprCase, "Case", 3, {EdslsymScalar, EdslsymPred, EdslsymScalar, EdslsymScalar}},
