@@ -3963,9 +3963,9 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 		mp,
 		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
 		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
-		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateAnd(p4,p0,p1);"
-		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);"
+		"t2 := t0;t3 := t1;"
+		"p4 := And(p0,p1);"
+		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t2,t3);"
 		"ErrorFree(p4);Deterministic(p4)");
 	if (nullptr == prule)
 	{
@@ -4065,9 +4065,9 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplit()
 		mp,
 		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
 		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
-		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateAnd(p4,p0,p1);"
-		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1)");
+		"t2 := t0;t3 := t1;"
+		"p4 := And(p0,p1);"
+		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t2,t3)");
 	CDSLModel *pmodelUnsafe = GPOS_NEW(mp) CDSLModel(mp);
 	if (nullptr == pruleUnsafe ||
 		!CDSLMatcher(mp, pruleUnsafe)
@@ -4108,9 +4108,9 @@ CDSLInstantiateTest::EresUnittest_PredicateDomainSplitRejectsMixedAtom()
 		mp,
 		"Filter<p0 a2 a3>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
 		"Filter<p3 a6 a7>(InnerJoin<p2 a4 a5>(Input<t2>,Input<t3>))|"
-		"TableEq(t2,t0);TableEq(t3,t1);"
-		"PredicateAnd(p4,p0,p1);"
-		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);"
+		"t2 := t0;t3 := t1;"
+		"p4 := And(p0,p1);"
+		"PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t2,t3);"
 		"ErrorFree(p4);Deterministic(p4)");
 	if (nullptr == prule)
 	{
