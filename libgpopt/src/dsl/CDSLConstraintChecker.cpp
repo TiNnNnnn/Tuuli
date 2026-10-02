@@ -2646,7 +2646,10 @@ CDSLConstraintChecker::FCheckTableShared(const CDSLRule *prule,
 		return false;
 	}
 
-	std::unordered_set<const CDSLSymbol *> reachable{(*pdrgpsym)[0]};
+	// References and legacy equalities describe the same shared-input identity.
+	const auto *definitions = prule->Pexprdefs();
+	std::unordered_set<const CDSLSymbol *> reachable{
+		definitions->PsymRefRoot((*pdrgpsym)[0])};
 	BOOL fChanged = true;
 	while (fChanged)
 	{
@@ -2658,8 +2661,10 @@ CDSLConstraintChecker::FCheckTableShared(const CDSLRule *prule,
 			{
 				continue;
 			}
-			const CDSLSymbol *left = (*peq->Pdrgpsym())[0];
-			const CDSLSymbol *right = (*peq->Pdrgpsym())[1];
+			const CDSLSymbol *left =
+				definitions->PsymRefRoot((*peq->Pdrgpsym())[0]);
+			const CDSLSymbol *right =
+				definitions->PsymRefRoot((*peq->Pdrgpsym())[1]);
 			if (reachable.count(left))
 			{
 				fChanged = reachable.insert(right).second || fChanged;
@@ -2670,7 +2675,7 @@ CDSLConstraintChecker::FCheckTableShared(const CDSLRule *prule,
 			}
 		}
 	}
-	return 0 < reachable.count((*pdrgpsym)[1]);
+	return 0 < reachable.count(definitions->PsymRefRoot((*pdrgpsym)[1]));
 }
 
 BOOL

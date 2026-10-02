@@ -1061,7 +1061,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		// Property checks consume captured or constructed values; they never bind
 		// one. The runtime checker must still establish the property.
 		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
-			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind)
+			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind ||
+			EdslconTableShared == kind)
 			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
@@ -1206,7 +1207,8 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		if (EdslconErrorFree == con->Edslcon() ||
 			EdslconDeterministic == con->Edslcon() ||
 			EdslconPredicateNullRejecting == con->Edslcon() ||
-			EdslconAttrsSub == con->Edslcon())
+			EdslconAttrsSub == con->Edslcon() ||
+			EdslconTableShared == con->Edslcon())
 		{
 			for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 				if (!available.count((*con->Pdrgpsym())[slot]))

@@ -1691,17 +1691,21 @@ CDSLUnionTest::EresUnittest_CorpusNestedDistinctProjects()
 	return EresCorpusProjectRule(true);
 }
 
-GPOS_RESULT
-CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
+static GPOS_RESULT
+EresSharedBranchesUseCTE(const CHAR *text)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_SHARED_UNION_RULE);
+	CWStringDynamic error(mp);
+	CDSLRule *prule = CDSLRuleParser::PdslruleParse(mp, text, "EQ", &error);
+	if (nullptr == prule)
+		GPOS_TRACE_FORMAT("shared input parse failed: %ls", error.GetBuffer());
 	CDSLRule *pruleInline =
 		PdslruleParseLocal(mp, GPOPT_DSL_INLINE_CTE_CONSUMER_RULE);
 	CDSLRule *pruleAnchor = PdslruleParseLocal(
 		mp, "CTEAnchor(Input<t0>)|Input<t1>|t1 := t0");
+	GPOS_UNITTEST_ASSERT(nullptr != prule);
 	if (nullptr == prule || nullptr == pruleInline || nullptr == pruleAnchor)
 	{
 		CRefCount::SafeRelease(pruleAnchor);
@@ -1711,7 +1715,7 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	}
 	CExpression *pexprSource = CUtils::PexprLogicalCTGDummy(mp);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
+	CDSLMatcher matcher(mp, prule);
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_FAILED;
@@ -1721,6 +1725,7 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	{
 		CDSLInstantiator instantiator(mp);
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
 		CExpression *pexprUnion = nullptr == pexprTarget
 			? nullptr
 			: (*pexprTarget)[0];
@@ -1741,6 +1746,7 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 				? GPOS_OK
 				: GPOS_FAILED;
 		}
+		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
 		if (GPOS_OK == eres)
 		{
 			CExpression *pexprConsumer = (*pexprUnion)[0];
@@ -1769,6 +1775,7 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 			CRefCount::SafeRelease(pexprInlined);
 			pmodelInline->Release();
 		}
+		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
 		if (GPOS_OK == eres)
 		{
 			CDSLModel *pmodelAnchor = GPOS_NEW(mp) CDSLModel(mp);
@@ -1825,4 +1832,50 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	CRefCount::SafeRelease(pruleInline);
 	pruleAnchor->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
+{
+	for (const CHAR *text : {
+		GPOPT_DSL_SHARED_UNION_RULE,
+		"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"
+		"t1 := t0;t2 := t0;OutputAttrs(a0,t0);"
+		"SchemaFromAttrs(s0,a0);TableShared(t1,t2)",
+		"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"
+		"t1 := t0;t2 := t1;OutputAttrs(a0,t0);"
+		"SchemaFromAttrs(s0,a0);TableShared(t1,t2)",
+		"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"
+		"TableEq(t1,t0);t2 := t1;OutputAttrs(a0,t0);"
+		"SchemaFromAttrs(s0,a0);TableShared(t1,t2)"})
+	{
+		const auto result = EresSharedBranchesUseCTE(text);
+		if (GPOS_OK != result)
+			GPOS_TRACE_FORMAT("shared input round-trip failed: %s", text);
+		GPOS_UNITTEST_ASSERT(GPOS_OK == result);
+	}
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CExpression> left(CUtils::PexprLogicalCTGDummy(mp));
+	CAutoRef<CExpression> right(CUtils::PexprLogicalCTGDummy(mp));
+	CAutoRef<CExpression> predicate(CUtils::PexprScalarConstBool(mp, true));
+	CAutoRef<CExpression> source(fix.PexprLogicalInnerJoin(
+		left.Value(), right.Value(), predicate.Value()));
+	for (const CHAR *shared : {"TableShared(t2,t3)",
+		"TableShared(t0,t2)", "TableShared(t2,t2)"})
+	{
+		const std::string text = std::string(
+			"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
+			"InnerJoin<p1 a2 a3>(Input<t2>,Input<t3>)|"
+			"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;") + shared;
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		// Different captures, source-side names, and self-sharing remain invalid.
+		GPOS_UNITTEST_ASSERT(!CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+	}
+	return GPOS_OK;
 }
