@@ -284,22 +284,14 @@ CLogicalGbAgg *
 CLogicalGbAgg::PopCopyWithAggregateColumns(CMemoryPool *mp,
 	CColRefArray *grouping, CColRefArray *minimal, CColRefArray *dqa) const
 {
-	// CXformSplitGbAgg builds both Local and Global stages with the
-	// minimal-grouping constructor. That constructor intentionally marks both
-	// stages as duplicate-generating; the explicit-bool constructor below has a
-	// narrower invariant which accepts that flag only for Local stages. Preserve
-	// the original constructor domain when no DQA argument vector is present so
-	// a legal split Global aggregate can also be copied during preprocessing.
-	CLogicalGbAgg *copy = nullptr;
-	if (m_fGeneratesDuplicates && nullptr == dqa)
-	{
-		copy = GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, minimal, Egbaggtype());
-	}
-	else
-	{
-		copy = GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, minimal, Egbaggtype(),
-									   m_fGeneratesDuplicates, dqa);
-	}
+	// Both minimal-key constructors replace null with the full grouping set.
+	// Copy unknown metadata as unknown, not as a newly derived annotation.
+	CLogicalGbAgg *copy = nullptr == minimal
+		? GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, Egbaggtype(), false, dqa)
+		: GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, minimal, Egbaggtype(), false, dqa);
+	// Split Global aggregates can carry this flag too, although the explicit
+	// bool constructors only accept it for Local. Retain the source contract.
+	copy->m_fGeneratesDuplicates = m_fGeneratesDuplicates;
 	copy->m_aggStage = m_aggStage;
 	return copy;
 }

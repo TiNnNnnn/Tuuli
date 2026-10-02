@@ -658,6 +658,22 @@ EresMemoSourceOutputContract()
 			1 == narrow->DeriveOutputColumns()->Size();
 		if (!ok) GPOS_TRACE_FORMAT("memo output source widths: %lu/%lu",
 			bound->DeriveOutputColumns()->Size(), narrow->DeriveOutputColumns()->Size());
+		// Re-root a memo Input without remapping its operator or children. Only
+		// the expression's Memo origin/properties must be detached.
+		CDSLRule *identity = PdslruleParseLocal(mp, "Input<t0>|Input<t1>|t1 := t0");
+		GPOS_UNITTEST_ASSERT(nullptr != identity);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, identity).FMatch(
+			identity->PfragSrc()->PopRoot(), bound, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(identity, model));
+		CExpression *fresh = CDSLInstantiator(mp).PexprInstantiate(identity, model);
+		GPOS_UNITTEST_ASSERT(nullptr != fresh && fresh != bound && nullptr == fresh->Pgexpr());
+		GPOS_UNITTEST_ASSERT(fresh->Pop() == bound->Pop());
+		GPOS_UNITTEST_ASSERT((*fresh)[0] == (*bound)[0] && (*fresh)[1] == (*bound)[1]);
+		GPOS_UNITTEST_ASSERT(fresh->DeriveOutputColumns()->Equals(narrow->DeriveOutputColumns()));
+		fresh->Release();
+		model->Release();
+		identity->Release();
 		for (CExpression *source : {narrow, bound})
 		{
 			CExpression *target = CDSLRuleEngine::Instance()->PexprApply(mp, rule, source);

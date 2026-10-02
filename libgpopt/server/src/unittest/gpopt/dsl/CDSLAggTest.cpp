@@ -631,6 +631,21 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 			CLogicalGbAgg *remapped = CLogicalGbAgg::PopConvert(
 				original->PopCopyWithRemappedColumns(mp, mapping, false));
 			mapping->Release();
+			// A no-op column copy must not derive a previously unknown annotation.
+			GPOS_UNITTEST_ASSERT(nullptr == remapped->PdrgpcrMinimal());
+			GPOS_UNITTEST_ASSERT(original->Matches(remapped));
+			GPOS_UNITTEST_ASSERT(original->HashValue() == remapped->HashValue());
+			mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+			mapping->Insert(GPOS_NEW(mp) ULONG(key->Id()), replacement);
+			CLogicalGbAgg *renamed = CLogicalGbAgg::PopConvert(
+				original->PopCopyWithRemappedColumns(mp, mapping, true));
+			mapping->Release();
+			GPOS_UNITTEST_ASSERT(nullptr == renamed->PdrgpcrMinimal());
+			GPOS_UNITTEST_ASSERT((*renamed->Pdrgpcr())[0] == replacement);
+			GPOS_UNITTEST_ASSERT(!hasDqa || (*renamed->PdrgpcrArgDQA())[0] == replacement);
+			GPOS_UNITTEST_ASSERT(renamed->AggStage() == original->AggStage());
+			GPOS_UNITTEST_ASSERT(renamed->FGeneratesDuplicates() == original->FGeneratesDuplicates());
+			renamed->Release();
 			CLogicalGbAgg *regrouped = original->PopCopyWithAggregateColumns(mp,
 				columns(replacement), columns(replacement),
 				hasDqa ? columns(key) : nullptr);
@@ -641,7 +656,8 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 					(hasDqa == (nullptr != copy->PdrgpcrArgDQA())) &&
 					(!hasDqa || (*copy->PdrgpcrArgDQA())[0] == key) &&
 					(*copy->Pdrgpcr())[0] == (copy == remapped ? key : replacement) &&
-					(*copy->PdrgpcrMinimal())[0] == (*copy->Pdrgpcr())[0];
+					(copy == remapped ? nullptr == copy->PdrgpcrMinimal() :
+						(*copy->PdrgpcrMinimal())[0] == (*copy->Pdrgpcr())[0]);
 				copy->Release();
 			}
 			original->Release();
