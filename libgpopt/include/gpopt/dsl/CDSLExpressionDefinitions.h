@@ -40,6 +40,7 @@ enum EDslExpressionKind
 	EdslexprArgs,
 	EdslexprColumn,
 	EdslexprScalarDeps,
+	EdslexprConcat,
 	EdslexprSentinel
 };
 

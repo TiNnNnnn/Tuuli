@@ -1,0 +1,5 @@
+# Isolate the explicit row-scalar list rule from every compatibility rule.
+- rule: '*'
+  enabled: false
+- rule: 8c88a4df159bc8be
+  enabled: true

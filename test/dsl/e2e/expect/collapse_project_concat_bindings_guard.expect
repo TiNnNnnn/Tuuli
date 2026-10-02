@@ -1,0 +1,43 @@
+{
+  "description": "Typed concat does not reorder possibly failing integer additions; the old compatibility rule is disabled",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "isolate_compute_concat_bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8c88a4df159bc8be\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "isolate_compute_concat_bindings.policy",
+    "output": [
+      "1,11,110",
+      "2,21,120",
+      "3,31,130"
+    ],
+    "postgres_output": [
+      "1,11,110",
+      "2,21,120",
+      "3,31,130"
+    ],
+    "off_output": [
+      "1,11,110",
+      "2,21,120",
+      "3,31,130"
+    ]
+  }
+}

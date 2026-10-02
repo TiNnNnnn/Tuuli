@@ -325,6 +325,19 @@ EresExpressionBindings()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
+	const std::string concat = "Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
+		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,s1);";
+	for (const CHAR *binding : {"ExprConcat(e0,e1) := e2", "e2 := ExprConcat(e0,e2)",
+		"e2 := ExprConcat(e0,e9)", "e2 := ExprConcat(a0,e1)", "e2 := ExprConcat(e0)",
+		"e2 := ExprConcat(e0,e1);e2 := e0"})
+	{
+		CDSLRule *rule = Parse(mp, (concat + binding).c_str());
+		if (nullptr != rule)
+		{
+			rule->Release();
+			return GPOS_FAILED;
+		}
+	}
 	// References preserve every declared type, including frame boundaries;
 	// no operator-specific whitelist belongs in the shared definition graph.
 	for (ULONG output = 0; output < EdslsymSentinel; ++output)
