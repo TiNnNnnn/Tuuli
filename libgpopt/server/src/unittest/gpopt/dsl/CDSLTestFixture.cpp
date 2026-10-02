@@ -251,6 +251,23 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
 	}
 
+	// EXISTS/ANY simplification compares its COUNT result to zero.
+	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(
+		mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 413 /*int8 >*/),
+		GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT(">")), true),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 470 /*int8gt*/),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 412 /*commute <*/),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 414 /*inverse <=*/),
+		IMDType::EcmptG, true /*strict*/, GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(
+		mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 470),
+		GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("int8gt")), true),
+		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+		GPOS_NEW(mp) IMdIdArray(mp), false, IMDFunction::EfsImmutable, true, false, false));
+
 	// PostgreSQL's int4 = int8 comparison tests metadata-supported mixed types.
 	{
 		auto *left = GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID);
