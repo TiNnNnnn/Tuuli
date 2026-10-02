@@ -7,7 +7,7 @@
     "scope": "One correlated EXISTS in an inner-join predicate with references to both inputs; deterministic, error-free inputs admitted by the explicit binding adapter",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "235e16002a86b0d0",
+      "4f3da4063a3836ad",
       "f91ba8ce73b0da11",
       "593ad0723f91cfd4"
     ]
@@ -57,7 +57,7 @@
       "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
         "\"status\":\"applied\",\"rule_hash\":\"593ad0723f91cfd4\""
       ],
@@ -67,7 +67,7 @@
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "235e16002a86b0d0",
+          "src_rule": "4f3da4063a3836ad",
           "dst_rule": "f91ba8ce73b0da11",
           "target_path": "r/0"
         },

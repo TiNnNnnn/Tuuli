@@ -1,9 +1,7 @@
 # Compose the existing proved rules; every legacy subquery macro stays off.
 - rule: '*'
   enabled: false
-- rule: '235e16002a86b0d0'
-  enabled: true
-- rule: 'f489170cc9013ac8'
+- rule: '4f3da4063a3836ad'
   enabled: true
 - rule: 'f91ba8ce73b0da11'
   enabled: true
@@ -16,10 +14,6 @@
 - rule: '07bc74ac0afe2295'
   enabled: true
 - rule: '78963540e9d42c30'
-  enabled: true
-- rule: 'ae0c3fdea5be2ed5'
-  enabled: true
-- rule: 'd367a50f1a60c6d4'
   enabled: true
 - rule: 'eb808b80935652d6'
   enabled: true

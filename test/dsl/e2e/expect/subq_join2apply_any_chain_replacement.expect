@@ -1,29 +1,127 @@
 {
   "description": "A correlated ANY inside a join region chains through DSL unnest, decorrelation, and semi-join elimination",
+  "replacement": {
+    "xforms": [
+      "CXformSubqJoin2Apply"
+    ],
+    "scope": "Correlated ANY in a three-input inner-join region with safe AND splitting and explicit quantified lowering; downstream decorrelation and keyed IN elimination retain their existing definitions",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "4f3da4063a3836ad",
+      "eb808b80935652d6",
+      "1aa6c75171ce9678",
+      "9dc5c70cd1245677"
+    ]
+  },
   "plans": [
     {
-      "name": "chain",
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_subq_join2apply_any_chain.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformLeftSemiApplyIn2LeftSemiJoin",
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
       "trace": true,
       "disable_xforms": [
         "CXformSubqJoin2Apply",
         "CXformLeftSemiApplyIn2LeftSemiJoin",
-        "CXformLeftSemiJoin2InnerJoin"
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
+      "policy": "isolate_subq_join2apply_any_chain.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
         "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\"",
         "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
       ],
-      "alternative": []
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "4f3da4063a3836ad",
+          "dst_rule": "4f3da4063a3836ad",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "4f3da4063a3836ad",
+          "dst_rule": "eb808b80935652d6",
+          "target_path": "r/0"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "eb808b80935652d6",
+          "dst_rule": "1aa6c75171ce9678",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "1aa6c75171ce9678",
+          "dst_rule": "9dc5c70cd1245677",
+          "target_path": "r"
+        }
+      ],
+      "alternative": [],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSubqJoin2Apply",
+          "CXformLeftSemiApplyIn2LeftSemiJoin",
+          "CXformLeftSemiJoin2InnerJoin",
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
       "CXformSubqJoin2Apply",
       "CXformLeftSemiApplyIn2LeftSemiJoin",
-      "CXformLeftSemiJoin2InnerJoin"
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
+    "policy": "isolate_subq_join2apply_any_chain.policy",
     "output": [
       "1,1,1",
       "1,1,1",

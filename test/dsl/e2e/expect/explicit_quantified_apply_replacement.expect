@@ -22,8 +22,7 @@
       "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
-        "\"status\":\"applied\",\"rule_hash\":\"d367a50f1a60c6d4\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
         "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
       ],
@@ -33,13 +32,13 @@
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "ae0c3fdea5be2ed5",
+          "src_rule": "4f3da4063a3836ad",
           "dst_rule": "eb808b80935652d6",
           "target_path": "r/0"
         },
         {
           "scheduler": "cbo",
-          "src_rule": "d367a50f1a60c6d4",
+          "src_rule": "4f3da4063a3836ad",
           "dst_rule": "2a403f8d75cfe226",
           "target_path": "r/0"
         }

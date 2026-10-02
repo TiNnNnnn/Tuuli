@@ -2,9 +2,7 @@
 # No search budget cap: these rules must work under ordinary CBO exploration.
 - rule: '*'
   enabled: false
-- rule: '235e16002a86b0d0'
-  enabled: true
-- rule: 'f489170cc9013ac8'
+- rule: '4f3da4063a3836ad'
   enabled: true
 - rule: 'f91ba8ce73b0da11'
   enabled: true

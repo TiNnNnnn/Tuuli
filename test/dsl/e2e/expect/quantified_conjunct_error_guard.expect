@@ -7,11 +7,10 @@
       "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"ae0c3fdea5be2ed5\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4f3da4063a3836ad\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
-        "\"status\":\"applied\",\"rule_hash\":\"d367a50f1a60c6d4\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "Falling back to Postgres"
       ]
     }
