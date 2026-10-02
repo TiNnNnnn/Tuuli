@@ -10,6 +10,7 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLExistsTest.h"
 
+#include "gpos/common/CAutoRef.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
@@ -38,6 +39,12 @@
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/xforms/CXformContext.h"
+#include "gpopt/xforms/CXformResult.h"
+#include "gpopt/xforms/CXformSimplifyProjectWithSubquery.h"
+#include "gpopt/xforms/CXformSimplifySelectWithSubquery.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -458,10 +465,85 @@ EresTypedDistinctExistence()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresSubquerySimplificationAlternatives()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL project : {false, true})
+	for (ULONG kind = 0; kind < 4; ++kind)
+	{
+		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
+		CAutoRef<CExpression> outer(fix.PexprLogicalGet("simplify_outer", 1, &outerCols));
+		CAutoRef<CExpression> inner(fix.PexprLogicalGet("simplify_inner", 1, &innerCols));
+		CAutoRef<CExpression> eq(fix.PexprEqPred((*outerCols)[0], (*innerCols)[0]));
+		CAutoRef<CExpression> correlated(fix.PexprLogicalSelect(inner.Value(), eq.Value()));
+		CExpression *scalar = nullptr;
+		if (kind == 0)
+		{
+			// Scalar-only inputs must not emit normalized copies of themselves.
+			correlated->AddRef();
+			scalar = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarNullTest(mp),
+				GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, (*innerCols)[0], false, false),
+					correlated.Value()));
+		}
+		if (kind & 1)
+		{
+			correlated->AddRef();
+			scalar = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubqueryExists(mp), correlated.Value());
+		}
+		if (kind & 2)
+		{
+			CScalarCmp *cmp = CScalarCmp::PopConvert(eq->Pop());
+			cmp->MdIdOp()->AddRef();
+			correlated->AddRef();
+			CExpression *any = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubqueryAny(mp, cmp->MdIdOp(),
+					GPOS_NEW(mp) CWStringConst(mp, cmp->Pstr()->GetBuffer()), (*innerCols)[0]),
+				correlated.Value(), CUtils::PexprScalarConstInt4(mp, 1));
+			scalar = scalar == nullptr ? any : GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd), scalar, any);
+		}
+		outer->AddRef();
+		CAutoRef<CExpression> source(project
+			? CUtils::PexprAddProjection(mp, outer.Value(), scalar)
+			: CUtils::PexprLogicalSelect(mp, outer.Value(), scalar));
+		CAutoRef<CXform> xform(project
+			? static_cast<CXform *>(GPOS_NEW(mp) CXformSimplifyProjectWithSubquery(mp))
+			: GPOS_NEW(mp) CXformSimplifySelectWithSubquery(mp));
+		CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		xform->Transform(context.Value(), result.Value(), source.Value());
+		// Mixed inputs retain all three real choices: EXISTS only, ANY only,
+		// and both. A single kind must not be converted twice with fresh columns.
+		const ULONG expected = kind == 3 ? 3 : kind == 0 ? 0 : 1;
+		GPOS_UNITTEST_ASSERT(result->Size() == expected);
+		for (ULONG i = 0; i < result->Size(); ++i)
+		{
+			CExpression *target = (*result->Pdrgpexpr())[i];
+			const ULONG exists = CUtils::UlCountOperator(target, COperator::EopScalarSubqueryExists);
+			const ULONG any = CUtils::UlCountOperator(target, COperator::EopScalarSubqueryAny);
+			GPOS_UNITTEST_ASSERT(exists == (kind == 3 && i == 1 ? 1 : 0));
+			GPOS_UNITTEST_ASSERT(any == (kind == 3 && i == 0 ? 1 : 0));
+			if (exists == 0 && any == 0)
+			{
+				CAutoRef<CXformResult> again(GPOS_NEW(mp) CXformResult(mp));
+				xform->Transform(context.Value(), again.Value(), target);
+				GPOS_UNITTEST_ASSERT(again->Size() == 0);
+			}
+		}
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLExistsTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresSubquerySimplificationAlternatives),
 		GPOS_UNITTEST_FUNC(EresSafeFilterMerge),
 		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),

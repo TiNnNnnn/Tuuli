@@ -296,6 +296,15 @@ CXformSimplifySubquery::FSimplifySubquery(CMemoryPool *mp,
 		return nullptr;
 	}
 
+	// A traversal without the requested subquery kind is not a rewrite.
+	// In particular, an unchanged quantified pass must not run the existential
+	// conversion again and create another COUNT with a fresh output column.
+	if (pexprScalar == pexprNewScalar || pexprScalar->Matches(pexprNewScalar))
+	{
+		pexprNewScalar->Release();
+		return nullptr;
+	}
+
 	pexprOuter->AddRef();
 	CExpression *pexprResult = nullptr;
 	if (COperator::EopLogicalSelect == pexprInput->Pop()->Eopid())
