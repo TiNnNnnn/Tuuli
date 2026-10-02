@@ -43,6 +43,7 @@ public:
 	static GPOS_RESULT EresUnittest_DeepestFailure();
 	static GPOS_RESULT EresUnittest_TypedPredicateResultTypes();
 	static GPOS_RESULT EresUnittest_TypedScalarValueKinds();
+	static GPOS_RESULT EresUnittest_ModelOptionalBindings();
 };	// class CDSLMatchTest
 }  // namespace gpopt
 
