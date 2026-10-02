@@ -23,6 +23,7 @@
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/metadata/CColumnDescriptor.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
@@ -608,6 +609,54 @@ EresComputedResultOutputContract()
 }
 
 static GPOS_RESULT
+EresSystemColumnOutputContract()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Deliberately lossy rule, only for testing the output boundary. Never
+	// admit this as an equivalence: the schema guard is not a rule prover.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Filter<p0 a2>(Input<t0>))|"
+		"Proj*<a1 s1>(Filter<Not(Not(p0)) a3>(Input<t1>))|"
+		"t1 := t0;AttrsIntersect(a1,a0,a2);SchemaFromAttrs(s1,a1);a3 := a2");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	BOOL ok = true;
+	for (INT attno : {-1, 2})
+	{
+		for (CColRef::EUsedStatus usage : {CColRef::EUnknown, CColRef::EUnused, CColRef::EUsed})
+		{
+			CColRef *key = fix.PcrCreateInt4("key");
+			CColumnDescriptor *descriptor = GPOS_NEW(mp) CColumnDescriptor(
+				mp, key->RetrieveType(), default_type_modifier, key->Name(), attno, false);
+			CColRef *extra = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				descriptor, key->Name(), 0, false, nullptr);
+			descriptor->Release();
+			if (CColRef::EUnused == usage) extra->MarkAsUnused();
+			if (CColRef::EUsed == usage) extra->MarkAsUsed();
+			CColRefArray *cols = GPOS_NEW(mp) CColRefArray(mp);
+			cols->Append(key); cols->Append(extra);
+			CExpression *input = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, cols, GPOS_NEW(mp) IDatum2dArray(mp)));
+			CExpression *predicate = fix.PexprPredAtom(key);
+			CExpression *filtered = fix.PexprLogicalSelect(input, predicate);
+			CExpression *source = fix.PexprLogicalGbAgg(filtered, cols);
+			CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+			ok &= EdsldecisionReady == decision->Status() &&
+				nullptr != decision->PexprTarget() &&
+				!decision->PexprTarget()->DeriveOutputColumns()->FMember(extra);
+			CExpression *target = CDSLRuleEngine::Instance()->PexprApply(mp, rule, source);
+			ok &= (nullptr != target) == (attno < 0 && CColRef::EUsed != usage);
+			CRefCount::SafeRelease(target);
+			GPOS_DELETE(decision);
+			source->Release(); filtered->Release(); predicate->Release(); input->Release();
+		}
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresMemoSourceOutputContract()
 {
 	CAutoMemoryPool amp;
@@ -842,6 +891,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
 		GPOS_UNITTEST_FUNC(EresMemoSourceOutputContract),
+		GPOS_UNITTEST_FUNC(EresSystemColumnOutputContract),
 		GPOS_UNITTEST_FUNC(EresIntroducedOuterReference),
 		GPOS_UNITTEST_FUNC(EresComputedResultOutputContract),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),

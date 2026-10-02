@@ -163,20 +163,32 @@ CLogicalCTEConsumer::DeriveNotNullColumns(CMemoryPool *mp,
 //
 //---------------------------------------------------------------------------
 CKeyCollection *
-CLogicalCTEConsumer::DeriveKeyCollection(CMemoryPool *,		  //mp,
+CLogicalCTEConsumer::DeriveKeyCollection(CMemoryPool *mp,
 										 CExpressionHandle &  //exprhdl
 ) const
 {
-	CExpression *pexpr =
-		COptCtxt::PoctxtFromTLS()->Pcteinfo()->PexprCTEProducer(m_id);
-	GPOS_ASSERT(nullptr != pexpr);
-	CKeyCollection *pkc = pexpr->DeriveKeyCollection();
-	if (nullptr != pkc)
+	// The inline definition already uses consumer column identities. Only
+	// exported keys survive the CTE boundary; hidden producer columns do not.
+	CKeyCollection *pkc = m_pexprInlined->DeriveKeyCollection();
+	if (nullptr == pkc)
 	{
-		pkc->AddRef();
+		return nullptr;
 	}
-
-	return pkc;
+	CKeyCollection *keys = GPOS_NEW(mp) CKeyCollection(mp);
+	CColRefSet *output = GPOS_NEW(mp) CColRefSet(mp, m_pdrgpcr);
+	for (ULONG i = 0; i < pkc->Keys(); ++i)
+	{
+		CColRefSet *key = pkc->PcrsKey(mp, i);
+		if (output->ContainsAll(key)) keys->Add(key);
+		else key->Release();
+	}
+	output->Release();
+	if (0 == keys->Keys())
+	{
+		keys->Release();
+		return nullptr;
+	}
+	return keys;
 }
 
 //---------------------------------------------------------------------------

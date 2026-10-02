@@ -1,0 +1,46 @@
+{
+  "description": "Shared-input AntiJoin migration retains explicitly requested system columns",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiJoin2CrossProduct"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "output": [
+      "1,1,t,t",
+      "1,1,t,t",
+      "1,2,t,t",
+      ",3,t,t"
+    ],
+    "postgres_output": [
+      "1,1,t,t",
+      "1,1,t,t",
+      "1,2,t,t",
+      ",3,t,t"
+    ]
+  }
+}

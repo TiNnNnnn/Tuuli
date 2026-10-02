@@ -2628,13 +2628,14 @@ CUtils::PdrgpcrGroupingKey(
 	CColRefSet *pcrsUsedOuter = GPOS_NEW(mp) CColRefSet(mp);
 
 	// remove any columns that are not referenced in the query from pcrsOuterOutput
-	// filter out system columns since they may introduce columns with undefined sort/hash operators
+	// Implicit system columns are not requested, but explicitly referenced
+	// ones must survive this rewrite just like ordinary output columns.
 	CColRefSetIter it(*pcrsOutput);
 	while (it.Advance())
 	{
 		CColRef *pcr = it.Pcr();
 
-		if (CColRef::EUsed == pcr->GetUsage() && !pcr->IsSystemCol())
+		if (CColRef::EUsed == pcr->GetUsage(true /*check_system_col*/))
 		{
 			pcrsUsedOuter->Include(pcr);
 		}

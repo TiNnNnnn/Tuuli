@@ -11,6 +11,8 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/CCTEInfo.h"
 #include "gpopt/base/CReqdPropRelational.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
@@ -39,6 +41,7 @@
 #include "gpopt/operators/CPhysicalUnion.h"
 #include "gpopt/operators/CPhysicalSetOp.h"
 #include "gpopt/xforms/CXformImplementSetOp.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "gpos/io/COstreamString.h"
 #include "naucrates/dxl/CDXLUtils.h"
 #include "naucrates/dxl/operators/CDXLPhysicalSetOp.h"
@@ -1713,7 +1716,10 @@ EresSharedBranchesUseCTE(const CHAR *text)
 		CRefCount::SafeRelease(prule);
 		return GPOS_FAILED;
 	}
-	CExpression *pexprSource = CUtils::PexprLogicalCTGDummy(mp);
+	CExpression *input = CUtils::PexprLogicalCTGDummy(mp);
+	CExpression *pexprSource = fix.PexprLogicalGbAgg(input,
+		CLogicalConstTableGet::PopConvert(input->Pop())->PdrgpcrOutput());
+	input->Release();
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
 	CDSLConstraintChecker checker(mp);
@@ -1747,6 +1753,33 @@ EresSharedBranchesUseCTE(const CHAR *text)
 				: GPOS_FAILED;
 		}
 		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
+		if (GPOS_OK == eres)
+		{
+			// Shared consumers must expose their own remapped keys, never a
+			// producer's column identity or the sibling consumer's columns.
+			for (ULONG child = 0; child < 2; ++child)
+			{
+				CExpression *consumer = (*pexprUnion)[child];
+				CKeyCollection *keys = consumer->DeriveKeyCollection();
+				GPOS_UNITTEST_ASSERT(nullptr != keys && 0 < keys->Keys());
+				CColRefSet *key = keys->PcrsKey(mp, 0);
+				eres = consumer->DeriveOutputColumns()->ContainsAll(key) &&
+					(*pexprUnion)[1 - child]->DeriveOutputColumns()->IsDisjoint(key)
+					? GPOS_OK : GPOS_FAILED;
+				key->Release();
+				GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
+			}
+			// A key retained inside the producer is not a consumer key when
+			// its columns were not exported (for example EXISTS(Input)).
+			CCTEInfo *ctes = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+			const ULONG id = ctes->next_id();
+			CColRefArray *empty = GPOS_NEW(mp) CColRefArray(mp);
+			(void) CXformUtils::PexprAddCTEProducer(mp, id, empty, pexprSource);
+			CExpression *consumer = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalCTEConsumer(mp, id, empty));
+			GPOS_UNITTEST_ASSERT(nullptr == consumer->DeriveKeyCollection());
+			consumer->Release();
+		}
 		if (GPOS_OK == eres)
 		{
 			CExpression *pexprConsumer = (*pexprUnion)[0];
