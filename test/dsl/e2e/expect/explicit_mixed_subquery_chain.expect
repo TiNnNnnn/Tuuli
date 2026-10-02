@@ -1,0 +1,70 @@
+{
+  "description": "显式 EXISTS/NOT EXISTS/ANY/ALL 混合链，旧宏与原生 lowering 关闭；覆盖合取顺序、NULL 和空集",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_subquery_chain.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "f489170cc9013ac8",
+          "dst_rule": "d367a50f1a60c6d4",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "ae0c3fdea5be2ed5",
+          "dst_rule": "f91ba8ce73b0da11",
+          "target_path": "r"
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_subquery_chain.policy",
+    "output": [
+      "exists_first,5",
+      "exists_last,5",
+      "not_exists,2",
+      "not_exists,5"
+    ],
+    "postgres_output": [
+      "exists_first,5",
+      "exists_last,5",
+      "not_exists,2",
+      "not_exists,5"
+    ]
+  }
+}

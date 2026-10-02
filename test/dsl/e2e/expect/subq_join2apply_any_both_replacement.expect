@@ -1,13 +1,14 @@
 {
-  "description": "An ANY predicate depending on both join inputs is lowered without native SubqJoin2Apply",
+  "description": "Explicit ANY bindings lower an inner-join ON subquery without legacy macros or native subquery lowering",
   "replacement": {
     "xforms": [
       "CXformSubqJoin2Apply"
     ],
-    "scope": "One correlated ANY in an inner-join predicate with references to both inputs",
-    "status": "verified_full_replacement",
+    "scope": "One correlated ANY in an inner-join predicate with references to both inputs; deterministic, error-free inputs admitted by the explicit binding adapter",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b1d9ece967912f1c"
+      "ae0c3fdea5be2ed5",
+      "eb808b80935652d6"
     ]
   },
   "plans": [
@@ -23,10 +24,10 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"b1d9ece967912f1c\""
+        "\"rule_hash\":\"eb808b80935652d6\""
       ],
       "alternative": []
     },
@@ -34,20 +35,40 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSubqJoin2Apply"
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
-      "not_contains": []
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
     },
     {
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSubqJoin2Apply"
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "policy": "isolate_explicit_quantified_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b1d9ece967912f1c\""
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "ae0c3fdea5be2ed5",
+          "dst_rule": "eb808b80935652d6",
+          "target_path": "r/0"
+        }
       ],
       "alternative": [],
       "provenance": {
@@ -56,15 +77,22 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformSubqJoin2Apply"
+          "CXformSubqJoin2Apply",
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSubqJoin2Apply"
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
+    "policy": "isolate_explicit_quantified_apply.policy",
     "output": [
       "1,1",
       "1,1",

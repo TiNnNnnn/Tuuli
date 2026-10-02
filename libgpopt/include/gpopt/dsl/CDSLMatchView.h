@@ -202,9 +202,11 @@ public:
 	// Expose correlated or subquery InnerJoin ON conjuncts as a Filter, retaining
 	// ordinary local conjuncts in the InnerJoin. This exact relational identity
 	// gives the DSL one canonical predicate view.
+	// Complete-predicate mode keeps the original ON tree and requires a total,
+	// deterministic input, so typed patterns never inherit conjunct extraction.
 	// The caller owns the transient expression.
 	static CExpression *PexprCorrelatedInnerJoinFilter(
-		CMemoryPool *mp, CExpression *pexprJoin);
+		CMemoryPool *mp, CExpression *pexprJoin, BOOL fCompletePredicate = false);
 
 	// Expose an n-ary Union/UnionAll as a binary head plus a UnionAll tail.
 	// Set-op associativity makes this view exact, and using a bag-union tail is

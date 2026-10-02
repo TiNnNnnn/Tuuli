@@ -1,13 +1,15 @@
 {
-  "description": "A NOT EXISTS predicate depending on both join inputs is lowered without native SubqJoin2Apply",
+  "description": "Explicit NOTEXISTS bindings lower an inner-join ON subquery without legacy macros or native subquery lowering",
   "replacement": {
     "xforms": [
       "CXformSubqJoin2Apply"
     ],
-    "scope": "One correlated NOT EXISTS in an inner-join predicate with references to both inputs",
-    "status": "verified_full_replacement",
+    "scope": "One correlated NOT EXISTS in an inner-join predicate with references to both inputs; deterministic, error-free inputs admitted by the explicit binding adapter",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a586c9b617a6d998"
+      "f489170cc9013ac8",
+      "3ac742c807fd9c27",
+      "c6451f8634950f93"
     ]
   },
   "plans": [
@@ -23,10 +25,10 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"a586c9b617a6d998\""
+        "\"rule_hash\":\"78963540e9d42c30\""
       ],
       "alternative": []
     },
@@ -34,20 +36,47 @@
       "name": "negative",
       "dsl": false,
       "disable_xforms": [
-        "CXformSubqJoin2Apply"
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
-      "not_contains": []
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
     },
     {
       "name": "replacement",
       "trace": true,
       "disable_xforms": [
-        "CXformSubqJoin2Apply"
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_subq_join2apply_predicates_direct.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"a586c9b617a6d998\""
+        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3ac742c807fd9c27\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c6451f8634950f93\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "f489170cc9013ac8",
+          "dst_rule": "3ac742c807fd9c27",
+          "target_path": "r/0"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "3ac742c807fd9c27",
+          "dst_rule": "c6451f8634950f93",
+          "target_path": "r"
+        }
       ],
       "alternative": [],
       "provenance": {
@@ -56,15 +85,22 @@
         ],
         "required_origins": [],
         "forbidden_origins": [
-          "CXformSubqJoin2Apply"
+          "CXformSubqJoin2Apply",
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
         ]
       }
     }
   ],
   "rows": {
     "disable_xforms": [
-      "CXformSubqJoin2Apply"
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
     ],
+    "policy": "isolate_explicit_existential_apply.policy",
     "output": [
       "1,1",
       "1,1",

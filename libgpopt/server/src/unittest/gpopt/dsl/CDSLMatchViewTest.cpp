@@ -10,7 +10,9 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarSubqueryExists.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -71,6 +73,39 @@ CDSLMatchViewTest::EresUnittest_CorrelatedInnerJoinFilterView()
 	GPOS_ASSERT((*pexprView)[1]->Matches((*pexprJoin)[2]));
 
 	pexprView->Release();
+	pexprView = CDSLMatchView::PexprCorrelatedInnerJoinFilter(mp, pexprJoin, true);
+	GPOS_ASSERT(nullptr != pexprView && (*pexprView)[1] == (*pexprJoin)[2]);
+	pexprView->Release();
+
+	for (BOOL unsafe : {false, true})
+	{
+		CExpression *query = fix.PexprLogicalGet("match_view_exists", 1, nullptr);
+		if (unsafe)
+			query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
+		CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+		conjuncts->Append(fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]));
+		conjuncts->Append(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubqueryExists(mp), query));
+		CExpression *predicate = CPredicateUtils::PexprConjunction(mp, conjuncts);
+		CExpression *join = fix.PexprLogicalInnerJoin(
+			(*pexprJoin)[0], (*pexprJoin)[1], predicate);
+		predicate->Release();
+		CExpression *view = CDSLMatchView::PexprCorrelatedInnerJoinFilter(mp, join, true);
+		GPOS_ASSERT((nullptr == view) == unsafe);
+		if (nullptr != view)
+		{
+			GPOS_ASSERT((*view)[1] == (*join)[2]);
+			GPOS_ASSERT((*(*view)[0])[0] == (*join)[0]);
+			GPOS_ASSERT((*(*view)[0])[1] == (*join)[1]);
+			GPOS_ASSERT(CUtils::FScalarConstTrue((*(*view)[0])[2]));
+			view->Release();
+			// Legacy extraction retains the local comparison inside the Join.
+			view = CDSLMatchView::PexprCorrelatedInnerJoinFilter(mp, join);
+			GPOS_ASSERT(nullptr != view && (*view)[1] == (*(*join)[2])[1]);
+			view->Release();
+		}
+		join->Release();
+	}
 	pexprJoin->Release();
 	pexprOuter->Release();
 	return GPOS_OK;
