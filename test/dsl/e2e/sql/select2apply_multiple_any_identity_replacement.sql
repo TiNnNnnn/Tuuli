@@ -8,4 +8,8 @@ WHERE o.v < ANY (
         SELECT i.payload
         FROM dsl_correlated_exists AS i
         WHERE i.k = o.id)
+  AND o.v <> ANY (
+        SELECT i.payload
+        FROM dsl_correlated_exists AS i
+        WHERE i.k = o.id)
 ORDER BY o.id;

@@ -1,0 +1,33 @@
+{
+  "description": "三项合取中含除零表达式时拒绝二叉匹配视图，保留原生路径的可观察错误",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"d367a50f1a60c6d4\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ae0c3fdea5be2ed5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d367a50f1a60c6d4\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
