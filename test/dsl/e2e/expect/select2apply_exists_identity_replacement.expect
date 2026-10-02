@@ -1,5 +1,5 @@
 {
-  "description": "A proved PredicateExists rule lowers a correlated scalar predicate to Apply without native Select2Apply",
+  "description": "Proved Compute elimination and explicit SemiApply lowering replace the legacy PredicateExists path for a filtered correlated subquery",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply",
@@ -8,7 +8,8 @@
     "scope": "Correlated EXISTS with one outer key and an inner-only residual predicate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "dec0eb1e99571556"
+      "f91ba8ce73b0da11",
+      "07bc74ac0afe2295"
     ]
   },
   "plans": [
@@ -25,7 +26,7 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select"
@@ -54,10 +55,11 @@
         "CXformSimplifySelectWithSubquery",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_select2apply_identity.policy",
+      "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\""
+        "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
+        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -81,7 +83,7 @@
       "CXformSimplifySelectWithSubquery",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_select2apply_identity.policy",
+    "policy": "isolate_explicit_existential_apply.policy",
     "output": [
       "2"
     ],

@@ -1,0 +1,45 @@
+{
+  "description": "改变行数的 SRF 不是 Compute：EXISTS/NOT EXISTS 不能移除空 generate_series",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "policy": "isolate_explicit_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3ac742c807fd9c27\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_explicit_existential_apply.policy",
+    "output": [
+      "anti,,3",
+      "anti,1,1",
+      "anti,1,1",
+      "anti,1,2",
+      "anti,2,",
+      "anti,2,2"
+    ],
+    "postgres_output": [
+      "anti,,3",
+      "anti,1,1",
+      "anti,1,1",
+      "anti,1,2",
+      "anti,2,",
+      "anti,2,2"
+    ],
+    "off_output": [
+      "anti,,3",
+      "anti,1,1",
+      "anti,1,1",
+      "anti,1,2",
+      "anti,2,",
+      "anti,2,2"
+    ]
+  }
+}
