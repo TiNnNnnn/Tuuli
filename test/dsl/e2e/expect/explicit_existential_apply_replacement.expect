@@ -1,0 +1,91 @@
+{
+  "description": "正式规则库的四条显式 EXISTS/NOT EXISTS lowering：禁用旧宏和原生 lowering，无额外预算限制，保留 NULL、重复行和相关输入",
+  "plans": [
+    {
+      "name": "full-library",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4dc7af6d79b6ff6c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5f1c4f2055039d99\"",
+        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\"",
+        "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_existential_apply.policy",
+    "output": [
+      "anti_correlated,,3",
+      "anti_empty,,3",
+      "anti_empty,1,1",
+      "anti_empty,1,1",
+      "anti_empty,1,2",
+      "anti_empty,2,",
+      "anti_empty,2,2",
+      "semi,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2",
+      "semi_correlated,1,1",
+      "semi_correlated,1,1",
+      "semi_correlated,1,2",
+      "semi_correlated,2,",
+      "semi_correlated,2,2"
+    ],
+    "postgres_output": [
+      "anti_correlated,,3",
+      "anti_empty,,3",
+      "anti_empty,1,1",
+      "anti_empty,1,1",
+      "anti_empty,1,2",
+      "anti_empty,2,",
+      "anti_empty,2,2",
+      "semi,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2",
+      "semi_correlated,1,1",
+      "semi_correlated,1,1",
+      "semi_correlated,1,2",
+      "semi_correlated,2,",
+      "semi_correlated,2,2"
+    ]
+  }
+}
