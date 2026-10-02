@@ -309,7 +309,11 @@ CXformSplitGbAgg::FApplicable(CExpression *pexpr)
 		CScalarAggFunc *popScAggFunc =
 			CScalarAggFunc::PopConvert(pexprAggFunc->Pop());
 
-		if (popScAggFunc->IsDistinct() ||
+		// A copied/remapped tree need not retain the originating xform. Split
+		// finalizers consume intermediate states, not raw aggregate arguments;
+		// splitting them again is not the same algebraic transformation.
+		if (!popScAggFunc->FGlobal() || popScAggFunc->FSplit() ||
+			popScAggFunc->IsDistinct() ||
 			!md_accessor->RetrieveAgg(popScAggFunc->MDId())->IsSplittable())
 		{
 			return false;
