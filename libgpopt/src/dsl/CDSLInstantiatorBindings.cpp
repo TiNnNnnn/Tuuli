@@ -469,6 +469,20 @@ CDSLInstantiator::PdrgpexprResolveArguments(const CDSLSymbol *symbol,
 }
 
 CExpression *
+CDSLInstantiator::PexprResolveContext(const CDSLSymbol *symbol,
+	const CDSLModel *model, ULONG depth) const
+{
+	const auto *binding = m_prule->Pexprdefs()->Pdef(symbol);
+	const auto *origin = m_prule->Pexprdefs()->PsymRefRoot(binding->PsymOperand(0));
+	const auto *context = model->PcontextScalar(origin);
+	CExpression *replacement = PexprResolveScalar(binding->PsymOperand(1), model, depth + 1);
+	CExpression *result = nullptr == context || nullptr == replacement ? nullptr :
+		context->PexprPlug(m_mp, replacement);
+	CRefCount::SafeRelease(replacement);
+	return result;
+}
+
+CExpression *
 CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 									const CDSLModel *pmodel, ULONG depth) const
 {
@@ -498,15 +512,7 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveScalar(binding->PsymOperand(0), pmodel, depth + 1);
 		if (EdslexprContext == binding->Edslexpr())
-		{
-			const auto *origin = m_prule->Pexprdefs()->PsymRefRoot(binding->PsymOperand(0));
-			const auto *context = pmodel->PcontextScalar(origin);
-			CExpression *replacement = PexprResolveScalar(binding->PsymOperand(1), pmodel, depth + 1);
-			CExpression *result = nullptr == context || nullptr == replacement ? nullptr :
-				context->PexprPlug(m_mp, replacement);
-			CRefCount::SafeRelease(replacement);
-			return result;
-		}
+			return PexprResolveContext(psymResolved, pmodel, depth);
 		if (EdslexprColumn == binding->Edslexpr())
 		{
 			const auto *columns = PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, depth + 1);
@@ -840,6 +846,8 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveExpr(binding->PsymOperand(0), pmodel, ulDepth + 1);
+		if (EdslexprContext == binding->Edslexpr())
+			return PexprResolveContext(psym, pmodel, ulDepth);
 		if (EdslexprNulls == binding->Edslexpr())
 		{
 			CColRefArray *columns = PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1);

@@ -1130,6 +1130,58 @@ EresScalarContextBindings()
 }
 
 static GPOS_RESULT
+EresSelectContextBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PruleParse(mp,
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;BoolValue(p0) := n0;"
+		"Not(p1) := p0;Not(p2) := p1;Exists(t2) := p2;n1 := BoolValue(p2);"
+		"e3 := Context(e2,n1);e1 := e3;e2 := e0");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	CExpression *exists = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp),
+		fix.PexprLogicalGet("list_context_inner", 1));
+	exists->AddRef();
+	CExpression *single = CUtils::PexprNegate(mp, exists);
+	CExpression *twice = CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, exists));
+	CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+	for (CExpression *value : {single, twice, twice})
+	{
+		value->AddRef();
+		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+		items->Append(CUtils::PexprScalarProjectElement(mp, output, value));
+	}
+	single->Release(); twice->Release();
+	CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
+	CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+		fix.PexprLogicalGet("list_context_outer", 1), list);
+	CDSLMatcher matcher(mp, rule);
+	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+	CDSLConstraintChecker checker(mp);
+	GPOS_UNITTEST_ASSERT(checker.FCheck(rule, model));
+	CDSLInstantiator inst(mp);
+	CExpression *target = inst.PexprInstantiate(rule, model);
+	GPOS_UNITTEST_ASSERT(nullptr != target);
+	CExpression *changed = (*target)[1];
+	GPOS_UNITTEST_ASSERT(3 == changed->Arity() && (*changed)[0] == (*list)[0] &&
+		(*changed)[2] == (*list)[2] && (*(*changed)[1])[0] == exists && (*(*list)[1])[0] == twice);
+	for (ULONG i = 0; i < 3; ++i)
+		GPOS_UNITTEST_ASSERT(CScalarProjectElement::PopConvert((*changed)[i]->Pop())->Pcr() ==
+			CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr());
+	target->Release(); model->Release(); source->Release(); rule->Release();
+	for (const CHAR *invalid : {
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;e1 := Context(n0,n0)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;e1 := Context(e0,e0)",
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;e1 := Context(e0,n0);Context(n9) := n8"})
+		GPOS_UNITTEST_ASSERT(nullptr == PruleParse(mp, invalid));
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresMarkerSequenceReplay()
 {
 	CAutoMemoryPool amp;
@@ -1257,6 +1309,7 @@ CDSLQuantifiedTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresScalarContextPaths),
 		GPOS_UNITTEST_FUNC(EresScalarContextBindings),
+		GPOS_UNITTEST_FUNC(EresSelectContextBindings),
 		GPOS_UNITTEST_FUNC(EresQuantifiedSafety),
 		GPOS_UNITTEST_FUNC(EresSubqueryOutputBindings),
 		GPOS_UNITTEST_FUNC(EresMarkerSequenceReplay),
