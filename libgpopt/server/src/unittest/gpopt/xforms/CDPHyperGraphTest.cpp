@@ -17,6 +17,7 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/CDrvdPropRelational.h"
+#include "gpopt/operators/CExpressionFactorizer.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoinNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -509,6 +510,31 @@ EresNestedPredicateHash()
 		CExpressionArray *dedup = CUtils::PdrgpexprDedup(mp, predicates);
 		valid &= 2 == dedup->Size();
 		dedup->Release();
+		// Shared transformation maps use the same recursive equality contract.
+		// Exercise an actual lookup: equal hashes alone do not check the map's
+		// selected hash function.
+		ExprToExprArrayMap *map = GPOS_NEW(mp) ExprToExprArrayMap(mp);
+		(*predicates)[0]->AddRef();
+		CExpressionArray *value = GPOS_NEW(mp) CExpressionArray(mp);
+		valid &= map->Insert((*predicates)[0], value);
+		valid &= value == map->Find((*predicates)[1]) &&
+			nullptr == map->Find((*predicates)[2]);
+		map->Release();
+		// A commuted common predicate must still factor out of two disjuncts.
+		CExpressionArray *disjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG variant = 0; variant < 2; ++variant)
+		{
+			(*predicates)[variant]->AddRef();
+			disjuncts->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
+				(*predicates)[variant], fix.PexprEqConst((*left)[0], 8 + variant)));
+		}
+		CExpression *input = CPredicateUtils::PexprDisjunction(mp, disjuncts);
+		CExpression *factored = CExpressionFactorizer::PexprFactorize(mp, input);
+		valid &= CPredicateUtils::FAnd(factored) &&
+			0 < CUtils::UlOccurrences((*predicates)[0], factored->PdrgPexpr());
+		factored->Release();
+		input->Release();
 		predicates->Release();
 	}
 	atoms->Release();

@@ -34,7 +34,7 @@ class CXformSplitDQA : public CXformExploration
 private:
 	// hash map between expression and a column reference
 	using ExprToColRefMap =
-		CHashMap<CExpression, CColRef, CExpression::HashValue, CUtils::Equals,
+		CHashMap<CExpression, CColRef, CExpression::UlHashDedup, CUtils::Equals,
 				 CleanupRelease<CExpression>, CleanupNULL<CColRef>>;
 
 	// generate an expression with multi-level aggregation

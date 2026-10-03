@@ -19,7 +19,7 @@
 namespace gpopt
 {
 using ExprPredToExprPredPartMap =
-	CHashMap<CExpression, CExpression, CExpression::HashValue, CUtils::Equals,
+	CHashMap<CExpression, CExpression, CExpression::UlHashDedup, CUtils::Equals,
 			 CleanupRelease<CExpression>, CleanupRelease<CExpression>>;
 
 //---------------------------------------------------------------------------
