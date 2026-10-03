@@ -1243,6 +1243,69 @@ CDSLInSubTest::EresUnittest_CorrelatedExistsCanonicalization()
 	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
 		pexprTarget->DeriveOutputColumns()));
 
+	// The registered binding rule must share the correlated EXISTS view, not
+	// require native decorrelation before it can replace membership with Join.
+	CDSLRule *typed = PruleParse(mp, GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE);
+	(*pexprSource)[0]->AddRef();
+	pexprExistsProject->AddRef();
+	CExpression *apply = CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp,
+		(*pexprSource)[0], pexprExistsProject, (*pdrgpcrInner)[0], COperator::EopScalarSubqueryExists);
+	for (CExpression *input : {pexprSource, apply})
+	{
+		CExpression *projected = fix.PexprLogicalProject(input, pdrgpcrOuter);
+		CDSLModel *typedModel = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), projected, typedModel));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, typedModel));
+		CDSLInstantiator typedBuilder(mp);
+		CExpression *typedTarget = typedBuilder.PexprInstantiate(typed, typedModel);
+		GPOS_UNITTEST_ASSERT(nullptr != typedTarget);
+		CExpression *join = (*typedTarget)[0];
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == join->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(0 == typedTarget->DeriveOuterReferences()->Size());
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == (*join)[0]->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CPredicateUtils::FNotNullCheckOnColumn((*(*join)[0])[1], (*pdrgpcrOuter)[0]));
+		CExpression *inner = (*(*join)[1])[0];
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == inner->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CPredicateUtils::FNotNullCheckOnColumn((*inner)[1], (*pdrgpcrInner)[0]));
+		typedTarget->Release();
+		typedModel->Release();
+		projected->Release();
+	}
+	apply->Release();
+	// A LIMIT, SRF target list, or correlation left below the extracted
+	// equality must not be hidden by the membership representation adapter.
+	for (ULONG shape = 0; shape < 3; ++shape)
+	{
+		pexprExistsProject->AddRef();
+		CExpression *unsafeInner = pexprExistsProject;
+		if (0 == shape)
+			unsafeInner = CUtils::PexprLimit(mp, unsafeInner, 0, 1);
+		else if (1 == shape)
+			unsafeInner = CUtils::PexprAddProjection(mp, unsafeInner,
+				fix.PexprGenerateSeries((*pdrgpcrInner)[0]));
+		else
+		{
+			CExpression *outside = fix.PexprEqPred((*pdrgpcrInner)[0], fix.PcrCreateInt4("outside"));
+			CExpression *both = CPredicateUtils::PexprConjunction(mp, (*pexprInnerSelect)[1], outside);
+			CExpression *filtered = fix.PexprLogicalSelect((*pexprInnerSelect)[0], both);
+			both->Release();
+			outside->Release();
+			unsafeInner->Release();
+			unsafeInner = filtered;
+		}
+		CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubqueryExists(mp), unsafeInner);
+		CExpression *select = fix.PexprLogicalSelect((*pexprSource)[0], exists);
+		CExpression *source = fix.PexprLogicalProject(select, pdrgpcrOuter);
+		exists->Release();
+		select->Release();
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(!CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), source, model));
+		model->Release();
+		source->Release();
+	}
+	typed->Release();
+
 	pexprTarget->Release();
 	pmodel->Release();
 	prule->Release();
