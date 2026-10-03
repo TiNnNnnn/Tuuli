@@ -1,0 +1,67 @@
+{
+  "description": "纯显式 DSL 去重消除与 Apply 链：保持相关性、空集、重复行和错误",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct",
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "distinct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"30c5e7be96881a14\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5f1c4f2055039d99\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "30c5e7be96881a14",
+          "dst_rule": "5f1c4f2055039d99",
+          "target_path": "r"
+        }
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct",
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "distinct.policy",
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

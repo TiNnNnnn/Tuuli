@@ -1,4 +1,8 @@
 # Existing compositional FormalSQL OUTCOME_EQ proofs; explicit ordinary Apply, no implicit unnesting.
+# Expose a DISTINCT subquery's actual input, including any Filter. No legacy
+# PredicateExists/NotExists or ExprList* constructor participates in this suite.
+Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
+NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
 # Safe conjunction split with explicit EXISTS capture and independently derived dependencies.
 # db63fb9399c5830db5de6cf9c873b4ec79a327d87aa8cf003dac8aa25840b5fa
 Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t2>))|Exists(t1) := p1;t2 := t0;p2 := p0;p3 := p1;n0 := BoolValue(p0);n1 := BoolValue(p1);a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)
