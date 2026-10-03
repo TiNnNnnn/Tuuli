@@ -14,6 +14,19 @@
 
 using namespace gpopt;
 
+BOOL
+CDSLScalarContext::Matches(const CDSLScalarContext *other) const
+{
+	return nullptr != other && m_path == other->m_path &&
+		CDSLMatchView::FSameCapturedExpression(m_root, other->m_root);
+}
+
+CExpression *
+CDSLScalarContext::PexprPlug(CMemoryPool *mp, CExpression *replacement) const
+{
+	return CDSLExprListUtils::PexprReplaceAt(mp, m_root, m_path, replacement);
+}
+
 namespace
 {
 INT

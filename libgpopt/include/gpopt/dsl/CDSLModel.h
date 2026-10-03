@@ -45,6 +45,7 @@ namespace gpopt
 {
 using namespace gpos;
 
+class CDSLScalarContext;
 class CDSLFrameBound : public CRefCount
 {
 private:
@@ -88,6 +89,7 @@ class CDSLModel : public CRefCount
 private:
 	CMemoryPool *m_mp;
 	CDSLSymbolToRefMap *m_phmSymToRef;
+	CDSLSymbolToRefMap *m_phmScalarContexts;
 	// Symbols synthesized by constructive constraints during checking. Keeping
 	// provenance makes repeated checks idempotent without treating arbitrary
 	// target bindings as trusted matcher evidence.
@@ -176,6 +178,11 @@ public:
 
 	// look up a bound artifact (NULL if unbound). Does NOT AddRef.
 	CRefCount *PvalLookup(const CDSLSymbol *psym) const;
+	CDSLScalarContext *PcontextScalar(const CDSLSymbol *symbol) const;
+	BOOL FBindScalarContext(const CDSLSymbol *symbol, CDSLScalarContext *context);
+	// Scalar-pattern alternatives only: copy bindings and occurrence witnesses,
+	// NOT relation match views or checker-derived state. Conflicts change nothing.
+	BOOL FCopyExpressionBindingsTo(CDSLModel *target) const;
 
 	// typed convenience accessors; NULL if unbound. Do NOT AddRef.
 	CExpression *PexprTable(const CDSLSymbol *psym) const;

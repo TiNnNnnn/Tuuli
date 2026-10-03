@@ -1185,6 +1185,19 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			return false;
 		}
 	}
+	// Replugging requires the occurrence witness, not merely an equal scalar.
+	for (ULONG i = 0; i < definitions->UlDefinitions(); ++i)
+	{
+		const auto *def = definitions->PdefAt(i);
+		if (EdslexprContext != def->Edslexpr() || Definitions::EBuild != def->Binding()) continue;
+		const auto *origin = definitions->Pdef(definitions->PsymRefRoot(def->PsymOperand(0)));
+		if (nullptr == origin || EdslexprContext != origin->Edslexpr() ||
+			Definitions::EMatch != origin->Binding())
+		{
+			bctx.Fail("Context construction requires a source Context occurrence capture");
+			return false;
+		}
+	}
 	// Dataflow, not declaration order, determines availability. Source matches
 	// produce captures; target constructions consume them. Reject disconnected
 	// patterns and undefined leaves instead of admitting non-executable rules.
