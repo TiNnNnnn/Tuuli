@@ -197,6 +197,28 @@ EresDeterministicOperatorHeads()
 			ok &= accepted == (0 == stability);
 			model->Release(); rule->Release();
 		}
+		// Constructed scalar/list properties inspect their actual tree too.
+		for (const CHAR *symbol : {"n0", "e0"})
+		for (BOOL deterministic : {false, true})
+		{
+			const std::string text = std::string(
+				"Filter<p0 a0>(Input<t0>)|Compute<e0 a1 s0>(Input<t1>)|"
+				"t1 := t0;a1 := a0;SchemaFromAttrs(s0,a0);n1 := Column(a0);n0 := Case(p0,n1,n1);"
+				"e1 := Item();e0 := Item(n0,a0,e1);") +
+				(deterministic ? "Deterministic(" : "ErrorFree(") + symbol + ")";
+			CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			BindTableAndAttr(model, PsymByName(rule, "t0"), input,
+				PsymByName(rule, "a0"), (*cols)[0], mp);
+			model->FBind(PsymByName(rule, "p0"), predicate);
+			const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+			ok &= accepted == (deterministic && 0 == stability);
+			if (accepted != (deterministic && 0 == stability))
+				GPOS_TRACE_FORMAT("constructed safety stability=%lu symbol=%s deterministic=%d accepted=%d",
+					stability, symbol, deterministic, accepted);
+			model->Release(); rule->Release();
+		}
 		// An attrs alias must retain its source projection's scalar program,
 		// even if another metadata check has already materialized the vector.
 		for (BOOL materialized : {false, true})

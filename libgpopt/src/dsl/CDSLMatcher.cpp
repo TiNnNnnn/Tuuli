@@ -137,7 +137,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	if (depth > definitions->UlDefinitions() ||
 		(EdslsymScalar == symbol->Esymkind() && !CDSLMatchView::FScalarValue(expression)) ||
 		(EdslsymPred == symbol->Esymkind() && !CDSLMatchView::FBooleanValue(expression)) ||
-		(EdslsymExpr == symbol->Esymkind() && !CDSLExprListUtils::FTypedProjectList(expression)))
+		((EdslsymExpr == symbol->Esymkind() || EdslsymWindow == symbol->Esymkind()) &&
+		 !CDSLExprListUtils::FTypedProjectList(expression)))
 	{
 		return false;
 	}
@@ -156,6 +157,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		return EdslsymTable == symbol->Esymkind() ||
 			(EdslsymPred == symbol->Esymkind() && expression->Pop()->FScalar()) ||
 			EdslsymScalar == symbol->Esymkind() || EdslsymExpr == symbol->Esymkind() ||
+			EdslsymWindow == symbol->Esymkind() ||
 			!expression->DeriveHasSubquery();
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
@@ -541,7 +543,7 @@ CDSLMatcher::FMatchWindow(const CDSLOp *pop, CExpression *pexpr,
 		fBound = fBound &&
 			pmodel->FBind((*pdrgpsym)[2], popWindow->Pdrgpwf());
 	}
-	fBound = fBound && pmodel->FBind((*pdrgpsym)[ulWindow], (*pexpr)[1]);
+	fBound = fBound && FMatchExpression((*pdrgpsym)[ulWindow], (*pexpr)[1], pmodel);
 	if (!fBound)
 	{
 		return false;

@@ -2887,14 +2887,9 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 	{
 		// Inspect exactly what target construction would build, including nested
 		// definitions and aliases. Do not manufacture missing source captures.
-		if (EdslsymPred == psym->Esymkind())
+		CExpression *pexpr = materializer.PexprInstantiateBinding(prule, psym, pmodel);
+		if (nullptr != pexpr)
 		{
-			CExpression *pexpr =
-				materializer.PexprInstantiatePredicate(prule, psym, pmodel);
-			if (nullptr == pexpr)
-			{
-				return false;
-			}
 			const BOOL safe = EdslconErrorFree == pcon->Edslcon()
 				? FScalarTreeProvablyErrorFree(pexpr)
 				: FScalarTreeProvablyDeterministic(pexpr);

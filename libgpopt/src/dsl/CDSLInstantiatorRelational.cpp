@@ -4,6 +4,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "CDSLInstantiatorUtils.h"
+#include "gpos/common/CAutoRef.h"
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
@@ -1012,9 +1013,19 @@ CDSLInstantiator::PexprBuildWindow(const CDSLOp *pop,
 	const ULONG ulWindow = fFrame ? 3 : 2;
 	const CDSLSymbol *psymWindow =
 		PsymResolve((*pop->Pdrgpsym())[ulWindow]);
-	CExpression *pexprProjectList = pmodel->PexprWindow(psymWindow);
-	CExpression *pexprCarrier = pmodel->PexprWindowCarrier(psymWindow);
+	CAutoRef<CExpression> projectList(PexprResolveWindow(psymWindow, pmodel));
+	CExpression *pexprProjectList = projectList.Value();
 	const CDSLSymbol *psymCarrier = psymWindow;
+	const auto *binding = nullptr == m_prule ? nullptr : m_prule->Pexprdefs()->Pdef(psymWindow);
+	if (nullptr != binding &&
+		binding->Binding() == CDSLExpressionDefinitions::EBuild &&
+		binding->Edslexpr() == EdslexprContext)
+	{
+		// Context changes one occurrence, not the window's partition/order/frame
+		// carrier. Typed aliases must resolve to that same captured window.
+		psymCarrier = m_prule->Pexprdefs()->PsymRefRoot(binding->PsymOperand(0));
+	}
+	CExpression *pexprCarrier = pmodel->PexprWindowCarrier(psymCarrier);
 	for (ULONG ulDepth = 0;
 		 nullptr == pexprCarrier && nullptr != m_prule &&
 		 ulDepth < m_prule->Pexprdefs()->UlDefinitions(); ulDepth++)
