@@ -1,0 +1,48 @@
+{
+  "description": "新绑定 IN-to-Join 直接处理相关 EXISTS，保留两侧残留、重复行和 NULL 语义，不依赖原生展开或旧 DSL",
+  "plans": [
+    {
+      "name": "before-unnesting",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply",
+          "CXformLeftSemiJoin2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership.policy",
+    "output": [
+      "10"
+    ],
+    "postgres_output": [
+      "10"
+    ]
+  }
+}

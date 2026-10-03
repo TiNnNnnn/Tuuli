@@ -195,6 +195,12 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 							  CExpression *pexpr,
 							  CDSLModel *pmodel) const
 {
+	const BOOL typed = nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
+	// Decorrelation changes evaluation demand. Audit the complete predicate,
+	// including ignored SELECT items and any residual conjuncts, before peeling.
+	if (typed && !CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+		return false;
 	CExpressionArray *pdrgpexprOuterConj =
 		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
 	CExpression *pexprExists = nullptr;
@@ -309,6 +315,21 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 		m_mp, pexprOuterRel, pdrgpexprOuterResidual, pcrOuter);
 	CExpression *pexprInnerInput = PexprSelectWithNotNull(
 		m_mp, pexprInnerRel, pdrgpexprInnerResidual, pcrInner);
+
+	if (typed)
+	{
+		// Reuse the exact membership decoder for comparison metadata, selected
+		// outputs and remaining correlations instead of duplicating its contract.
+		pexprCorrelation->AddRef();
+		CExpression *view = GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CLogicalLeftSemiJoin(m_mp),
+			pexprOuterInput, pexprInnerInput, pexprCorrelation);
+		const BOOL matched = FMatch(pop, view, pmodel);
+		view->Release();
+		pdrgpexprOuterConj->Release();
+		pdrgpexprInnerConj->Release();
+		return matched;
+	}
 
 	CColRefArray *pdrgpcrOuter = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	pdrgpcrOuter->Append(pcrOuter);
@@ -582,6 +603,24 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	}
 	const BOOL fExtended = 5 == pop->Pdrgpsym()->Size();
 	const CDSLRule *rule = m_pmatcher->Prule();
+	// Re-expose an origin-tagged EXISTS Apply for both syntaxes. The shared
+	// decoder retains residuals and applies typed demand/scope checks.
+	if (!fExtended && COperator::EopLogicalLeftSemiApply == pexpr->Pop()->Eopid())
+	{
+		if (3 != pexpr->Arity() || !CUtils::FScalarConstTrue((*pexpr)[2]) ||
+			COperator::EopScalarSubqueryExists !=
+				CLogicalApply::PopConvert(pexpr->Pop())->EopidOriginSubq())
+			return false;
+		(*pexpr)[1]->AddRef();
+		CExpression *exists = GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CScalarSubqueryExists(m_mp), (*pexpr)[1]);
+		(*pexpr)[0]->AddRef();
+		CExpression *view = GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CLogicalSelect(m_mp), (*pexpr)[0], exists);
+		const BOOL matched = FMatchCorrelatedExists(pop, view, pmodel);
+		view->Release();
+		return matched;
+	}
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
 		// An already decorrelated equality semi join is the relational form of
@@ -627,12 +666,15 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			view->Release();
 			return matched;
 		}
-		// Bind the native IN value and selected result, never dependency sets
-		// or a conjunct view. FormalSQL evaluates the full inner query;
+		// Bind the native IN value and selected result, never dependency sets.
+		// The correlated EXISTS adapter has its own demand/scope checks.
+		// FormalSQL evaluates the full inner query;
 		// PostgreSQL may stop on a match, so require demand-insensitive input.
 		if (fExtended || COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
-			2 != pexpr->Arity() || !CDSLMatchView::FPlainEqAny((*pexpr)[1]))
+			2 != pexpr->Arity())
 			return false;
+		if (!CDSLMatchView::FPlainEqAny((*pexpr)[1]))
+			return FMatchCorrelatedExists(pop, pexpr, pmodel);
 		CExpression *any = (*pexpr)[1];
 		CScalarSubqueryAny *opAny = CScalarSubqueryAny::PopConvert(any->Pop());
 		const BOOL projected = EdslopProj == (*pop)[1]->Edslop() && !(*pop)[1]->FDistinct();
@@ -790,35 +832,6 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		}
 
 		pdrgpexprConj->Release();
-		return fMatched;
-	}
-
-	// Post-Apply: LeftSemiApplyIn(outer, inner, equality-predicate).
-	// A correlated EXISTS equality reaches the sibling LeftSemiApply shape after
-	// native unnesting. Recreate its pre-unnest view transiently and feed it to
-	// the same representation adapter, keeping one canonical implementation of
-	// predicate extraction, NULL guards and symbol binding.
-	if (COperator::EopLogicalLeftSemiApply == pexpr->Pop()->Eopid())
-	{
-		if (3 != pexpr->Arity() || !CUtils::FScalarConstTrue((*pexpr)[2]))
-		{
-			return false;
-		}
-		CLogicalApply *popApply = CLogicalApply::PopConvert(pexpr->Pop());
-		if (COperator::EopScalarSubqueryExists != popApply->EopidOriginSubq())
-		{
-			return false;
-		}
-
-		(*pexpr)[1]->AddRef();
-		CExpression *pexprExists = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CScalarSubqueryExists(m_mp), (*pexpr)[1]);
-		(*pexpr)[0]->AddRef();
-		CExpression *pexprSelect = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), (*pexpr)[0],
-			pexprExists);
-		BOOL fMatched = FMatchCorrelatedExists(pop, pexprSelect, pmodel);
-		pexprSelect->Release();
 		return fMatched;
 	}
 
