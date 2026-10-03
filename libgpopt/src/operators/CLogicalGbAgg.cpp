@@ -166,7 +166,7 @@ CLogicalGbAgg::CLogicalGbAgg(CMemoryPool *mp, CColRefArray *colref_array,
 							 CColRefArray *pdrgpcrMinimal,
 							 COperator::EGbAggType egbaggtype)
 	: CLogicalUnary(mp),
-	  m_fGeneratesDuplicates(true),
+	  m_fGeneratesDuplicates(COperator::EgbaggtypeLocal == egbaggtype),
 	  m_pdrgpcrArgDQA(nullptr),
 	  m_pdrgpcr(colref_array),
 	  m_pdrgpcrMinimal(pdrgpcrMinimal),
@@ -289,8 +289,7 @@ CLogicalGbAgg::PopCopyWithAggregateColumns(CMemoryPool *mp,
 	CLogicalGbAgg *copy = nullptr == minimal
 		? GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, Egbaggtype(), false, dqa)
 		: GPOS_NEW(mp) CLogicalGbAgg(mp, grouping, minimal, Egbaggtype(), false, dqa);
-	// Split Global aggregates can carry this flag too, although the explicit
-	// bool constructors only accept it for Local. Retain the source contract.
+	// Retain explicit Local duplicate behavior and the aggregate-stage contract.
 	copy->m_fGeneratesDuplicates = m_fGeneratesDuplicates;
 	copy->m_aggStage = m_aggStage;
 	return copy;

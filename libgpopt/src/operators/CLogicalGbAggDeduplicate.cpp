@@ -111,9 +111,8 @@ CLogicalGbAggDeduplicate::PopCopyWithRemappedColumns(
 			mp, colref_array, Egbaggtype(), pdrgpcrKeys)
 		: GPOS_NEW(mp) CLogicalGbAggDeduplicate(
 			mp, colref_array, pdrgpcrMinimal, Egbaggtype(), pdrgpcrKeys);
-	// The minimal-grouping constructor defaults this flag to true, even for
-	// global aggregates, and fills null minimal keys with the full grouping.
-	// Column remapping must preserve both parts of the original contract.
+	// Column remapping must preserve explicit duplicate behavior as well as
+	// the distinction between unknown and known minimal grouping keys.
 	copy->m_fGeneratesDuplicates = m_fGeneratesDuplicates;
 	return copy;
 }
