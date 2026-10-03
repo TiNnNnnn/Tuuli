@@ -14,6 +14,20 @@ namespace gpopt
 {
 using namespace gpos;
 
+// One occurrence owned by a source Context binding. Never equate occurrences
+// just because their selected expression pointers or printed trees agree.
+class CDSLScalarContext : public CRefCount
+{
+	CExpression *m_root;
+	std::vector<ULONG> m_path;
+public:
+	CDSLScalarContext(CExpression *root, const std::vector<ULONG> &path)
+		: m_root(root), m_path(path) { m_root->AddRef(); }
+	~CDSLScalarContext() override { m_root->Release(); }
+	BOOL Matches(const CDSLScalarContext *other) const;
+	CExpression *PexprPlug(CMemoryPool *mp, CExpression *replacement) const;
+};
+
 class CDSLExprListUtils
 {
 public:

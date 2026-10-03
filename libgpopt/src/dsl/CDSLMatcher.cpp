@@ -55,6 +55,43 @@ BOOL FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *d
 	const CDSLSymbol *symbol, CExpression *expression, CDSLModel *model, ULONG depth = 0);
 
 BOOL
+FMatchScalarContext(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+	const CDSLSymbol *root_symbol, const CDSLSymbol *hole, CExpression *root,
+	CExpression *candidate, std::vector<ULONG> *path, CDSLModel *model, ULONG depth)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (!candidate->Pop()->FScalar()) return false;
+	if (CDSLMatchView::FScalarValue(candidate))
+	{
+		// A failed structural candidate must not bind symbols used by its next
+		// sibling. Only scalar bindings participate, never Cascades search state.
+		CDSLModel *trial = GPOS_NEW(mp) CDSLModel(mp);
+		BOOL matched = model->FCopyExpressionBindingsTo(trial) &&
+			FMatchExpressionBinding(mp, definitions, hole, candidate, trial, depth);
+		if (matched)
+		{
+			CDSLScalarContext *context = GPOS_NEW(mp) CDSLScalarContext(root, *path);
+			matched = trial->FBindScalarContext(root_symbol, context) &&
+				trial->FCopyExpressionBindingsTo(model);
+			context->Release();
+		}
+		trial->Release();
+		if (matched) return true;
+	}
+	// Deterministic root-first, left-to-right occurrence selection. This does
+	// not enumerate all matches or backtrack after constraint checking.
+	for (ULONG i = 0; i < candidate->Arity(); ++i)
+	{
+		path->push_back(i);
+		const BOOL matched = FMatchScalarContext(mp, definitions, root_symbol, hole,
+			root, (*candidate)[i], path, model, depth);
+		path->pop_back();
+		if (matched) return true;
+	}
+	return false;
+}
+
+BOOL
 FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
 	const CDSLSymbol *symbol, CExpressionArray *arguments, CDSLModel *model, ULONG depth)
 {
@@ -123,6 +160,12 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
 		return false;
+	if (EdslexprContext == def->Edslexpr())
+	{
+		std::vector<ULONG> path;
+		return FMatchScalarContext(mp, definitions, symbol, def->PsymOperand(0),
+			expression, expression, &path, model, depth + 1);
+	}
 	if (EdslexprNot == def->Edslexpr() &&
 		COperator::EopScalarSubqueryNotExists == expression->Pop()->Eopid() &&
 		1 == expression->Arity())

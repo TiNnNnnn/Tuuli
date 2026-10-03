@@ -9,6 +9,8 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLMatchView.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpos/common/CHashMapIter.h"
 
 using namespace gpopt;
 
@@ -49,6 +51,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp)
 {
 	GPOS_ASSERT(nullptr != mp);
 	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
+	m_phmScalarContexts = nullptr;
 	m_pdrgpsymDerived = GPOS_NEW(mp) CDSLSymbolArray(mp);
 	// Most match attempts never use these operator-specific bindings. Allocate
 	// each map on its first write, as with the subquery-marker map.
@@ -78,6 +81,7 @@ CDSLModel::~CDSLModel()
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
+	CRefCount::SafeRelease(m_phmScalarContexts);
 	m_pdrgpsymDerived->Release();
 	CRefCount::SafeRelease(m_phmSubqueryMarkers);
 	CRefCount::SafeRelease(m_phmInSubPred);
@@ -596,6 +600,54 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 		m_phmSymToRef->Insert(const_cast<CDSLSymbol *>(psym), pval);
 	GPOS_ASSERT(fInserted);
 	return fInserted;
+}
+
+CDSLScalarContext *
+CDSLModel::PcontextScalar(const CDSLSymbol *symbol) const
+{
+	return nullptr == m_phmScalarContexts ? nullptr :
+		static_cast<CDSLScalarContext *>(m_phmScalarContexts->Find(symbol));
+}
+
+BOOL
+CDSLModel::FBindScalarContext(const CDSLSymbol *symbol, CDSLScalarContext *context)
+{
+	const auto *existing = PcontextScalar(symbol);
+	if (nullptr != existing) return existing->Matches(context);
+	if (nullptr == m_phmScalarContexts)
+		m_phmScalarContexts = GPOS_NEW(m_mp) CDSLSymbolToRefMap(m_mp);
+	context->AddRef();
+	return m_phmScalarContexts->Insert(const_cast<CDSLSymbol *>(symbol), context);
+}
+
+BOOL
+CDSLModel::FCopyExpressionBindingsTo(CDSLModel *target) const
+{
+	using Iterator = CHashMapIter<CDSLSymbol, CRefCount, gpos::HashPtr<CDSLSymbol>,
+		gpos::EqualPtr<CDSLSymbol>, CleanupNULL<CDSLSymbol>, CleanupRelease<CRefCount>>;
+	CDSLSymbolToRefMap *sources[] = {m_phmSymToRef, m_phmScalarContexts};
+	CDSLSymbolToRefMap **destinations[] = {&target->m_phmSymToRef, &target->m_phmScalarContexts};
+	for (BOOL copying : {false, true})
+		for (ULONG i = 0; i < 2; ++i)
+		{
+			if (nullptr == sources[i]) continue;
+			if (copying && nullptr == *destinations[i])
+				*destinations[i] = GPOS_NEW(target->m_mp) CDSLSymbolToRefMap(target->m_mp);
+			Iterator iterator(sources[i]);
+			while (iterator.Advance())
+			{
+				const auto *key = iterator.Key();
+				auto *value = const_cast<CRefCount *>(iterator.Value());
+				auto *existing = nullptr == *destinations[i] ? nullptr : (*destinations[i])->Find(key);
+				if (nullptr != existing && existing != value) return false;
+				if (copying && nullptr == existing)
+				{
+					value->AddRef();
+					(*destinations[i])->Insert(const_cast<CDSLSymbol *>(key), value);
+				}
+			}
+		}
+	return true;
 }
 
 BOOL

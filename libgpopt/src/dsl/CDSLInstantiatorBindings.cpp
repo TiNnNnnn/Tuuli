@@ -497,6 +497,16 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 			return nullptr;
 		if (EdslexprRef == binding->Edslexpr())
 			return PexprResolveScalar(binding->PsymOperand(0), pmodel, depth + 1);
+		if (EdslexprContext == binding->Edslexpr())
+		{
+			const auto *origin = m_prule->Pexprdefs()->PsymRefRoot(binding->PsymOperand(0));
+			const auto *context = pmodel->PcontextScalar(origin);
+			CExpression *replacement = PexprResolveScalar(binding->PsymOperand(1), pmodel, depth + 1);
+			CExpression *result = nullptr == context || nullptr == replacement ? nullptr :
+				context->PexprPlug(m_mp, replacement);
+			CRefCount::SafeRelease(replacement);
+			return result;
+		}
 		if (EdslexprColumn == binding->Edslexpr())
 		{
 			const auto *columns = PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, depth + 1);

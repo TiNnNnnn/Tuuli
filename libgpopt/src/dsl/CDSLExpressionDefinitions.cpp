@@ -13,6 +13,8 @@ using namespace gpopt;
 namespace
 {
 const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
+	{EdslexprContext, "Context", 1, {EdslsymScalar, EdslsymScalar}},
+	{EdslexprContext, "Context", 2, {EdslsymScalar, EdslsymScalar, EdslsymScalar}},
 	{EdslexprAnd, "And", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprOr, "Or", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprNullSafeEq, "NullSafeEq", 2, {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
@@ -242,6 +244,8 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 										  const CDSLSymbolArray *symbols)
 {
 	if ((EMatch != binding && EBuild != binding) ||
+		(EdslexprContext == kind && nullptr != symbols &&
+		 symbols->Size() != (EMatch == binding ? 2 : 3)) ||
 		(EMatch == binding && EdslexprRef == kind) || nullptr == symbols ||
 		0 == symbols->Size())
 	{
