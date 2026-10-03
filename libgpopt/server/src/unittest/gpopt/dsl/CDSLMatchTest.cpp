@@ -197,7 +197,7 @@ CDSLMatchTest::EresUnittest_TypedScalarValueKinds()
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		model->FBind(value, expression);
 		CDSLInstantiator instantiator(mp);
-		CExpression *built = instantiator.PexprInstantiatePredicate(rule, target, model);
+		CExpression *built = instantiator.PexprInstantiateBinding(rule, target, model);
 		if ((nullptr != built) != (kind < 2)) result = GPOS_FAILED;
 		CRefCount::SafeRelease(built);
 		model->Release();
@@ -215,7 +215,7 @@ CDSLMatchTest::EresUnittest_TypedScalarValueKinds()
 		call_model->FBind(call_def->PsymOperand(0), head);
 		call_model->FBind(call_def->PsymOperand(1), arguments);
 		CDSLInstantiator call_instantiator(mp);
-		CExpression *call = call_instantiator.PexprInstantiatePredicate(calls,
+		CExpression *call = call_instantiator.PexprInstantiateBinding(calls,
 			(*calls->PfragTgt()->PopRoot()->Pdrgpsym())[0], call_model);
 		if ((nullptr != call) != (2 == kind)) result = GPOS_FAILED;
 		CRefCount::SafeRelease(call);

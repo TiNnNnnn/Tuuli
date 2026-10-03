@@ -155,6 +155,7 @@ CDSLOrderLimitTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_WindowFilterBindings),
+		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_WindowContextBindings),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget),
 		GPOS_UNITTEST_FUNC(
@@ -395,6 +396,66 @@ CDSLOrderLimitTest::EresUnittest_MaxOneRowReplacement()
 	pexprLive->Release();
 	pexprGet->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_WindowContextBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	BOOL ok = true;
+	for (BOOL framed : {false, true})
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("context_window", 2, &columns);
+		CWindowFrame *frame = framed ? GPOS_NEW(mp) CWindowFrame(mp,
+			CWindowFrame::EfsRows, CWindowFrame::EfbUnboundedPreceding,
+			CWindowFrame::EfbCurrentRow, nullptr, nullptr,
+			CWindowFrame::EfesNone, 0, 0, 0, true, false) : nullptr;
+		CExpression *source = PexprWindowRows(mp, fix, input, (*columns)[0], (*columns)[1],
+			framed ? PosOne(mp, (*columns)[1], EdslsortDesc) : nullptr, frame);
+		const std::string pair = framed
+			? "Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|m1 := m0;"
+			: "WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Input<t1>)|";
+		const std::string bindings = "t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;"
+			"Column(a2) := n0;n1 := Column(a2);w1 := w3;w3 := Context(w2,n1);w2 := w0;"
+			"ErrorFree(w1);Deterministic(w1);ErrorFree(n1)";
+		ok = FBindingRoundTrip(mp, (pair + bindings).c_str(), source) && ok;
+		CDSLRule *unsafe = Prule(mp, (pair + "t1 := t0;a1 := a0;o1 := o0;"
+			"Context(n0) := w0;Column(a2) := n0;n1 := Subquery(a0,t0);"
+			"w1 := Context(w0,n1);ErrorFree(w1)").c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != unsafe);
+		CDSLModel *unsafe_model = GPOS_NEW(mp) CDSLModel(mp);
+		ok = CDSLMatcher(mp, unsafe).FMatch(unsafe->PfragSrc()->PopRoot(), source, unsafe_model) &&
+			!CDSLConstraintChecker(mp).FCheck(unsafe, unsafe_model) && ok;
+		unsafe_model->Release();
+		unsafe->Release();
+		// A constructor check, not an equivalence rule: replace exactly the
+		// captured argument with another existing int4 column. Keep the function
+		// head, output label and complete window spec from the source carrier.
+		const std::string changed = pair + "t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;"
+			"Column(a2) := n0;n1 := Column(a0);w1 := Context(w0,n1)";
+		CDSLRule *rule = Prule(mp, changed.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		CDSLInstantiator instantiator(mp);
+		CExpression *target = matched ? instantiator.PexprInstantiate(rule, model) : nullptr;
+		CExpression *source_item = (*(*source)[1])[0];
+		CExpression *target_item = nullptr == target ? nullptr : (*(*target)[1])[0];
+		ok = ok && nullptr != target && source->Pop()->Matches(target->Pop()) &&
+			source_item->Pop()->Matches(target_item->Pop()) &&
+			(*source_item)[0]->Pop()->Matches((*target_item)[0]->Pop()) &&
+			CScalarIdent::PopConvert((*(*target_item)[0])[0]->Pop())->Pcr() == (*columns)[0] &&
+			CScalarIdent::PopConvert((*(*source_item)[0])[0]->Pop())->Pcr() == (*columns)[1];
+		CRefCount::SafeRelease(target);
+		model->Release();
+		rule->Release();
+		source->Release();
+		input->Release();
+	}
+	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -588,7 +588,23 @@ CDSLInstantiator::PexprResolveScalar(const CDSLSymbol *psym,
 }
 
 CExpression *
-CDSLInstantiator::PexprInstantiatePredicate(const CDSLRule *prule,
+CDSLInstantiator::PexprResolveWindow(const CDSLSymbol *symbol,
+	const CDSLModel *model) const
+{
+	symbol = PsymResolve(symbol);
+	CExpression *value = model->PexprWindow(symbol);
+	if (nullptr != value)
+	{
+		value->AddRef();
+		return value;
+	}
+	const auto *binding = m_prule->Pexprdefs()->Pdef(symbol);
+	return nullptr != binding && binding->Binding() == CDSLExpressionDefinitions::EBuild &&
+		binding->Edslexpr() == EdslexprContext ? PexprResolveContext(symbol, model, 0) : nullptr;
+}
+
+CExpression *
+CDSLInstantiator::PexprInstantiateBinding(const CDSLRule *prule,
 										  const CDSLSymbol *psym,
 										  const CDSLModel *pmodel)
 {
@@ -603,7 +619,15 @@ CDSLInstantiator::PexprInstantiatePredicate(const CDSLRule *prule,
 	{
 		return nullptr;
 	}
-	return PexprResolvePredicate(psym, pmodel);
+	if (nullptr == psym) return nullptr;
+	switch (psym->Esymkind())
+	{
+		case EdslsymPred: return PexprResolvePredicate(psym, pmodel);
+		case EdslsymScalar: return PexprResolveScalar(psym, pmodel);
+		case EdslsymExpr: return PexprResolveExpr(psym, pmodel);
+		case EdslsymWindow: return PexprResolveWindow(psym, pmodel);
+		default: return nullptr;
+	}
 }
 
 CExpression *

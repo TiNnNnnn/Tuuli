@@ -161,6 +161,8 @@ private:
 		const CDSLModel *model, ULONG depth) const;
 	CExpression *PexprResolveContext(const CDSLSymbol *symbol,
 		const CDSLModel *model, ULONG depth) const;
+	CExpression *PexprResolveWindow(const CDSLSymbol *symbol,
+		const CDSLModel *model) const;
 
 	// Resolve a bound/aliased predicate to an owned expression, or lazily build
 	// a target predicate declared by PredicateAnd.
@@ -347,9 +349,9 @@ public:
 	const CDSLSymbol *PsymBindingOrigin(const CDSLRule *prule,
 		const CDSLSymbol *psym);
 
-	// Resolve a predicate for constraint checking using the same aliases and
+	// Resolve a scalar/list binding for constraint checking using the same aliases and
 	// definitions as target construction. Caller owns the result; no model writes.
-	CExpression *PexprInstantiatePredicate(const CDSLRule *prule,
+	CExpression *PexprInstantiateBinding(const CDSLRule *prule,
 										 const CDSLSymbol *psym,
 										 const CDSLModel *pmodel);
 

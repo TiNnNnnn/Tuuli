@@ -2998,12 +2998,12 @@ CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary()
 			const CDSLSymbol *target = (*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0];
 			const BOOL notTrue = EdslexprNotTrue == rule->Pexprdefs()->Pdef(target)->Edslexpr();
 			// Neither path may manufacture an absent capture.
-			CExpression *missing = builder.PexprInstantiatePredicate(rule, target, model);
+			CExpression *missing = builder.PexprInstantiateBinding(rule, target, model);
 			ok &= nullptr == missing;
 			CRefCount::SafeRelease(missing);
 			CExpression *leaf = CUtils::PexprScalarConstBool(mp, 1 == value, 2 == value);
 			ok &= model->FBind(source, leaf);
-			CExpression *result = builder.PexprInstantiatePredicate(rule, target, model);
+			CExpression *result = builder.PexprInstantiateBinding(rule, target, model);
 			ok &= nullptr != result;
 			if (nullptr != result)
 			{
@@ -3035,7 +3035,7 @@ CDSLInstantiateTest::EresUnittest_LegacyBindingBoundary()
 	ok &= model->FBind(capture->Pexprdefs()->Pdef(pattern)->PsymOperand(0), leaf);
 	leaf->Release();
 	CDSLInstantiator builder(mp);
-	CExpression *fabricated = builder.PexprInstantiatePredicate(capture, pattern, model);
+	CExpression *fabricated = builder.PexprInstantiateBinding(capture, pattern, model);
 	ok &= nullptr == fabricated;
 	CRefCount::SafeRelease(fabricated);
 	model->Release();
@@ -3713,7 +3713,7 @@ CDSLInstantiateTest::EresUnittest_NullSafeEqBindings()
 			ok &= model->FBind((*construction->PfragSrc()->PopRoot()->Pdrgpsym())[1], left) &&
 				model->FBind((*construction->PfragSrc()->PopRoot()->Pdrgpsym())[2], right);
 			CDSLInstantiator builder(mp);
-			CExpression *predicate = builder.PexprInstantiatePredicate(construction,
+			CExpression *predicate = builder.PexprInstantiateBinding(construction,
 				(*construction->PfragTgt()->PopRoot()->Pdrgpsym())[0], model);
 			if ((nullptr != predicate) != comparable)
 				GPOS_TRACE_FORMAT("NullSafeEq construction variant=%d present=%d rule=%s",
