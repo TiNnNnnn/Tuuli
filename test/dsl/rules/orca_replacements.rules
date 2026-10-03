@@ -79,6 +79,14 @@ Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Proj<a1 s1>(Input<t3>
 
 NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0
 
+# Native FormalSQL OUTCOME_EQ: existential demand ignores the entire key-only
+# dedup projection, not just DISTINCT. Expose the arbitrary child directly so
+# the explicit Filter-to-Apply rules can continue without legacy unnesting.
+# Semi certificate: cee0cc70c7688b8e10da7b62d257957c13903ce06f6b7a9d8d0ae00a19c55669
+Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
+# Anti certificate: afe4d4702b1499749cc4d3fc55add354e11c8b522c031a69ff4156c4d79dffb1
+NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
+
 # FormalSQL OUTCOME_EQ: quantified truth depends on support, not multiplicity.
 Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
 

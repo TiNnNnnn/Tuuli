@@ -1,0 +1,3 @@
+SELECT i FROM apply_outer WHERE NOT EXISTS
+  (SELECT DISTINCT j FROM apply_inner WHERE 1 / (j - j) > 0)
+ORDER BY i NULLS FIRST;

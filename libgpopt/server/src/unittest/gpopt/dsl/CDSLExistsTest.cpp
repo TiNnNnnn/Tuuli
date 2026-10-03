@@ -408,14 +408,17 @@ EresTypedDistinctExistence()
 	BOOL ok = true;
 	for (BOOL negated : {false, true})
 	for (BOOL wrapped : {false, true})
+	for (BOOL removeProjection : {false, true})
 	for (ULONG shape = 0; shape < 6; ++shape)
 	{
 		const std::string op = negated ? "NotExists" : "Exists";
 		const std::string src = op + "(Input<t0>,Proj*<a0 s0>(Input<t1>))";
-		const std::string dst = op + "(Input<t2>,Proj<a1 s1>(Input<t3>))";
+		const std::string dst = op + (removeProjection
+			? "(Input<t2>,Input<t3>)" : "(Input<t2>,Proj<a1 s1>(Input<t3>))");
 		const std::string text = (wrapped
 			? "Filter<p2 a2>(" + src + ")|Filter<p3 a3>(" + dst + ")"
-			: src + "|" + dst) + "|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0" +
+			: src + "|" + dst) + "|AttrsSub(a0,t1);t2 := t0;t3 := t1" +
+			(removeProjection ? "" : ";a1 := a0;s1 := s0") +
 			(wrapped ? ";p3 := p2;a3 := a2" : "");
 		CWStringDynamic error(mp);
 		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
@@ -461,8 +464,9 @@ EresTypedDistinctExistence()
 			CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
 			CExpression *exists = nullptr != target && wrapped ? (*target)[0] : target;
 			const BOOL constructed = nullptr != exists && COperator::EopLogicalSelect == exists->Pop()->Eopid() &&
-				COperator::EopLogicalProject == (*(*exists)[1])[0]->Pop()->Eopid() &&
-				(*(*(*exists)[1])[0])[0] == input;
+				(removeProjection ? (*(*exists)[1])[0] == input :
+				 COperator::EopLogicalProject == (*(*exists)[1])[0]->Pop()->Eopid() &&
+				 (*(*(*exists)[1])[0])[0] == input);
 			if (!constructed)
 				GPOS_TRACE_FORMAT("typed existential carrier negated=%d shape=%lu target=%p", negated, shape, target);
 			ok &= constructed;
