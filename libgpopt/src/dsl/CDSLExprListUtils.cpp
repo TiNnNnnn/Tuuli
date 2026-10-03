@@ -10,11 +10,47 @@
 #include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubquery.h"
 
 using namespace gpopt;
 
 namespace
 {
+INT
+ScalarValueTypeModifier(CExpression *expr)
+{
+	// The subquery operator inherits the default typmod, but its selected
+	// column describes the actual value returned to the enclosing expression.
+	if (COperator::EopScalarSubquery == expr->Pop()->Eopid())
+		return CScalarSubquery::PopConvert(expr->Pop())->Pcr()->TypeModifier();
+	return CScalar::PopConvert(expr->Pop())->TypeModifier();
+}
+
+CExpression *
+PexprPlugPath(CMemoryPool *mp, CExpression *root,
+	const std::vector<ULONG> &path, ULONG offset, CExpression *replacement)
+{
+	GPOS_CHECK_STACK_SIZE;
+	if (offset == path.size())
+	{
+		replacement->AddRef();
+		return replacement;
+	}
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG i = 0; i < root->Arity(); ++i)
+	{
+		if (i == path[offset])
+			children->Append(PexprPlugPath(mp, (*root)[i], path, offset + 1, replacement));
+		else
+		{
+			(*root)[i]->AddRef();
+			children->Append((*root)[i]);
+		}
+	}
+	root->Pop()->AddRef();
+	return GPOS_NEW(mp) CExpression(mp, root->Pop(), children);
+}
+
 BOOL
 FReorderableProjectList(CExpression *pexpr)
 {
@@ -24,6 +60,36 @@ FReorderableProjectList(CExpression *pexpr)
 		IMDFunction::EfsVolatile > pexpr->DeriveScalarFunctionProperties()->Efs();
 }
 }  // namespace
+
+CExpression *
+CDSLExprListUtils::PexprAtScalarPath(CExpression *root,
+	const std::vector<ULONG> &path)
+{
+	if (nullptr == root || !root->Pop()->FScalar()) return nullptr;
+	for (ULONG index : path)
+	{
+		if (index >= root->Arity()) return nullptr;
+		root = (*root)[index];
+		if (!root->Pop()->FScalar()) return nullptr;
+	}
+	return root;
+}
+
+CExpression *
+CDSLExprListUtils::PexprReplaceAt(CMemoryPool *mp, CExpression *root,
+	const std::vector<ULONG> &path, CExpression *replacement)
+{
+	CExpression *selected = PexprAtScalarPath(root, path);
+	if (nullptr == selected || nullptr == replacement ||
+		!CDSLMatchView::FScalarValue(selected) ||
+		!CDSLMatchView::FScalarValue(replacement)) return nullptr;
+	const auto *before = CScalar::PopConvert(selected->Pop());
+	const auto *after = CScalar::PopConvert(replacement->Pop());
+	if (!before->MdidType()->Equals(after->MdidType()) ||
+		ScalarValueTypeModifier(selected) != ScalarValueTypeModifier(replacement))
+		return nullptr;
+	return PexprPlugPath(mp, root, path, 0, replacement);
+}
 
 BOOL
 CDSLExprListUtils::FProjectList(const CExpression *pexpr)
