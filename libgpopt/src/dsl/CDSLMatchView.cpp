@@ -268,7 +268,8 @@ CDSLMatchView::PexprDedupInput(CExpression *pexprDedup)
 	CColRefArray *pdrgpcrGroup = popGlobal->Pdrgpcr();
 	CExpression *pexprInput = (*pexprDedup)[0];
 	while (0 < pdrgpcrGroup->Size() &&
-		   COperator::EopLogicalGbAgg == pexprInput->Pop()->Eopid() &&
+		   (COperator::EopLogicalGbAgg == pexprInput->Pop()->Eopid() ||
+			COperator::EopLogicalGbAggDeduplicate == pexprInput->Pop()->Eopid()) &&
 		   2 == pexprInput->Arity() && 0 == (*pexprInput)[1]->Arity())
 	{
 		CLogicalGbAgg *popLocal = CLogicalGbAgg::PopConvert(pexprInput->Pop());
