@@ -1,4 +1,4 @@
-# Runtime constructor regression only, not a mined optimization or a whole-rule
-# proof certificate. Introduce double NOT at one captured occurrence; the test
-# policy bounds expansion. Public Context proof emission is currently UNKNOWN.
+# Constructor regression only, not a mined optimization. FormalSQL's public
+# whole-query proof is covered separately by RuleSolver's ScalarContexts test.
+# Introduce double NOT at one captured occurrence; the policy bounds expansion.
 Filter<ValueBool(n0) a0>(Input<t0>)|Filter<ValueBool(n3) a1>(Input<t1>)|t1 := t0;a1 := a0;Context(n1) := n0;BoolValue(p0) := n1;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n2 := BoolValue(p4);n3 := Context(n0,n2)
