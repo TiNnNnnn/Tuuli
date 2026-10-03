@@ -27,6 +27,7 @@
 #include "gpopt/operators/CPhysicalInnerMergeJoin.h"
 #include "gpopt/operators/CPhysicalInnerNLJoin.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -473,10 +474,52 @@ FFrozenCartesianConstructible(ULONG node_count, ULONG graph_mask,
 }
 }  // namespace
 
+static GPOS_RESULT
+EresNestedPredicateHash()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *left = nullptr;
+	CColRefArray *right = nullptr;
+	CExpressionArray *atoms = GPOS_NEW(mp) CExpressionArray(mp);
+	atoms->Append(fix.PexprLogicalGet("hash_left", 1, &left));
+	atoms->Append(fix.PexprLogicalGet("hash_right", 1, &right));
+	BOOL valid = true;
+	// Both ordered (NOT) and unordered (OR) parents must hash nested
+	// commutative comparisons according to recursive CUtils::Equals.
+	for (BOOL unordered : {false, true})
+	{
+		CExpressionArray *predicates = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG variant = 0; variant < 3; ++variant)
+		{
+			CExpression *predicate = CUtils::PexprNegate(mp, fix.PexprEqPred(
+				1 == variant ? (*right)[0] : (*left)[0],
+				0 == variant ? (*right)[0] : (*left)[0]));
+			if (unordered)
+				predicate = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopOr),
+					predicate, fix.PexprEqConst((*left)[0], 7));
+			predicates->Append(predicate);
+		}
+		valid &= CUtils::Equals((*predicates)[0], (*predicates)[1]) &&
+			!CUtils::Equals((*predicates)[0], (*predicates)[2]) &&
+			CExpression::UlHashDedup((*predicates)[0]) ==
+				CExpression::UlHashDedup((*predicates)[1]);
+		CExpressionArray *dedup = CUtils::PdrgpexprDedup(mp, predicates);
+		valid &= 2 == dedup->Size();
+		dedup->Release();
+		predicates->Release();
+	}
+	atoms->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDPHyperGraphTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresNestedPredicateHash),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Chain),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Star),
 		GPOS_UNITTEST_FUNC(CDPHyperGraphTest::EresUnittest_Hyperedge),

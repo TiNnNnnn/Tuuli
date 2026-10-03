@@ -1163,6 +1163,8 @@ CExpression::HashValue(const CExpression *pexpr)
 // Less strict hash function to support expressions that are not order
 // sensitive. This hash function specifically used in CUtils::PdrgpexprDedup
 // for deduping the expressions in a given list.
+// CUtils::Equals applies input-order sensitivity recursively, so child hashes
+// must use this same contract rather than the strictly ordered HashValue.
 ULONG
 CExpression::UlHashDedup(const CExpression *pexpr)
 {
@@ -1180,7 +1182,7 @@ CExpression::UlHashDedup(const CExpression *pexpr)
 			// same, hash function puts two different expressions into separate
 			// buckets.
 			// e.g logically a < b is not equal to b < a
-			ulHash = CombineHashes(ulHash, HashValue((*pexpr)[ul]));
+			ulHash = CombineHashes(ulHash, UlHashDedup((*pexpr)[ul]));
 		}
 		else
 		{
@@ -1188,7 +1190,7 @@ CExpression::UlHashDedup(const CExpression *pexpr)
 			// inputs are the same, the expressions are considered as equal
 			// and fall into the same bucket in the hash map.
 			//  e.g logically a = b is equal to b = a
-			ulHash ^= HashValue((*pexpr)[ul]);
+			ulHash ^= UlHashDedup((*pexpr)[ul]);
 		}
 	}
 
