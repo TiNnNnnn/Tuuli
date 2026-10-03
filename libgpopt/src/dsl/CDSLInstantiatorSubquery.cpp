@@ -270,6 +270,49 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 		const BOOL projected = EdslopProj == inner->Edslop() && !inner->FDistinct();
 		CColRefArray *schema = projected
 			? PdrgpcrResolveCols(PsymResolve((*inner->Pdrgpsym())[1]), pmodel) : nullptr;
+		if (nullptr != any && COperator::EopLogicalLeftSemiJoin == any->Pop()->Eopid())
+		{
+			// Membership can reach the memo after decorrelation. Preserve its
+			// exact comparison and origin, validating the selected output against
+			// the rebuilt children rather than guessing their first column.
+			CColRefArray *left = GPOS_NEW(m_mp) CColRefArray(m_mp);
+			CColRefArray *right = GPOS_NEW(m_mp) CColRefArray(m_mp);
+			CExpressionArray *residual = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+			const BOOL valid = 3 == any->Arity() &&
+				CDSLMatchView::FSplitJoinPredicate(m_mp, (*any)[2], (*any)[0], left, right, residual) &&
+				0 < right->Size() && 0 == residual->Size() &&
+				FColSetContainsArray(pexprOuter->DeriveOutputColumns(), left) &&
+				FColSetContainsArray(pexprInner->DeriveOutputColumns(), right) &&
+				(projected ? nullptr != schema && CColRef::Equals(schema, right)
+					: 1 == right->Size() && CDSLMatchView::FSingleValueOutput(pexprInner, (*right)[0])) &&
+				pexprOuter->DeriveOutputColumns()->IsDisjoint(pexprInner->DeriveOutputColumns()) &&
+				0 == pexprOuter->DeriveOuterReferences()->Size() &&
+				0 == pexprInner->DeriveOuterReferences()->Size() &&
+				CDSLConstraintChecker::FQueryDemandInsensitive(pexprInner);
+			left->Release();
+			right->Release();
+			residual->Release();
+			if (!valid)
+			{
+				pexprOuter->Release();
+				pexprInner->Release();
+				return nullptr;
+			}
+			// The comparison already carries the selected membership columns.
+			// A SELECT view with no computations needs no physical Project shell,
+			// just as in the legacy membership builder. Keep real computations.
+			if (projected && COperator::EopLogicalProject == pexprInner->Pop()->Eopid() &&
+				2 == pexprInner->Arity() && 0 == (*pexprInner)[1]->Arity())
+			{
+				CExpression *child = (*pexprInner)[0];
+				child->AddRef();
+				pexprInner->Release();
+				pexprInner = child;
+			}
+			any->Pop()->AddRef();
+			(*any)[2]->AddRef();
+			return GPOS_NEW(m_mp) CExpression(m_mp, any->Pop(), pexprOuter, pexprInner, (*any)[2]);
+		}
 		const CColRef *selected = nullptr != any && CDSLMatchView::FPlainEqAny(any)
 			? CScalarSubqueryAny::PopConvert(any->Pop())->Pcr() : nullptr;
 		// Preserve the original operator (including comparison metadata) and

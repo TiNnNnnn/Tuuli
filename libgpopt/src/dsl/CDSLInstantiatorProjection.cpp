@@ -768,7 +768,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			return nullptr;
 		}
 		CExpression *project = PexprProjectWithoutSelfAliases(m_mp, pexprChild, list);
-		if (nullptr == project || !pop->FDistinct())
+		if (nullptr == project || (!pop->FDistinct() &&
+			!pmodel->FVirtualIdentityProj(psymSchema)))
 			return project;
 		if (0 == (*project)[1]->Arity())
 		{
@@ -777,12 +778,18 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			project->Release();
 			project = pexprChild;
 		}
+		if (!pop->FDistinct())
+			return project;
 		if (FSameGlobalDedup(m_mp, project, schema))
 			return project;
 		// Group by SELECT outputs, not its dependencies or pass-through columns.
+		// As in the column-only path, mark the selected grouping so a generated
+		// dedup does not restart the legacy DISTINCT-reduction rewrite cycle.
+		schema->AddRef();
 		schema->AddRef();
 		return GPOS_NEW(m_mp) CExpression(m_mp,
-			GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, schema, COperator::EgbaggtypeGlobal),
+			GPOS_NEW(m_mp) CLogicalGbAgg(m_mp, schema, schema,
+				COperator::EgbaggtypeGlobal, false, nullptr),
 			project, GPOS_NEW(m_mp) CExpression(m_mp,
 				GPOS_NEW(m_mp) CScalarProjectList(m_mp)));
 	}

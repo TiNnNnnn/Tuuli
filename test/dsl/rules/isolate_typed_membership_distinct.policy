@@ -1,0 +1,5 @@
+# Registered DISTINCT-IN rule only; no lowering or legacy DSL fallback.
+- rule: '*'
+  enabled: false
+- rule: '0ac51b2f5bf779aa'
+  enabled: true
