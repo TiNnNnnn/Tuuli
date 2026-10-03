@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule replaces predicate-only semi-join conversion under duplicate elimination",
+  "description": "Migrated bindings preserve predicate-only semi-join conversion under duplicate elimination",
   "replacement": {
     "xforms": [
       "CXformLeftSemiJoin2InnerJoinUnderGb"
@@ -9,7 +9,7 @@
     "dsl_rule_hashes": [
       "9dc5c70cd1245677",
       "83e7dc664eb77128",
-      "28b86d7a3ca3ef1b"
+      "cde8f8f8346e27bf"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"28b86d7a3ca3ef1b\""
+        "\"status\":\"applied\",\"rule_hash\":\"cde8f8f8346e27bf\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoinUnderGb",
@@ -50,7 +50,7 @@
         "CXformLeftSemiJoin2InnerJoinUnderGb"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"28b86d7a3ca3ef1b\""
+        "\"status\":\"applied\",\"rule_hash\":\"cde8f8f8346e27bf\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

@@ -905,9 +905,9 @@ CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
 		"Proj*<a7 s1>(Exists<p1 a2 a3>(Input<t2>,Input<t3>))|"
 		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
 		"p1 := p0;a2 := a0;a3 := a1;a7 := a6;s1 := s0"};
-	// Typed predicate existence captures the complete ON, including equality.
-	// Repeat the nested case with both-sided dependencies as well.
-	for (ULONG mode = 0; mode < GPOS_ARRAY_SIZE(rules) + 1; ++mode)
+	// Target aliases preserve the predicate-only source domain. Equality keys
+	// belong to InSubFilter; SemiJoin explicitly captures a complete ON.
+	for (ULONG mode = 0; mode < 7; ++mode)
 	{
 		const BOOL nested = mode >= 2;
 		CAutoMemoryPool amp;
@@ -920,9 +920,19 @@ CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
 			fix.PexprLogicalGet("predicate_exists_outer", 2, &pdrgpcrOuter);
 		CExpression *pexprInner =
 			fix.PexprLogicalGet("predicate_exists_inner", 2, &pdrgpcrInner);
-		CExpression *pexprPred = mode == 3
+		CExpression *pexprPred = mode == 3 || mode == 4 || mode == 6
 			? CUtils::PexprScalarEqCmp(mp, (*pdrgpcrOuter)[1], (*pdrgpcrInner)[1])
-			: fix.PexprPredAtom((*pdrgpcrOuter)[1]);
+			: fix.PexprPredAtom(mode == 5 ? fix.PcrCreateInt4("outside") : (*pdrgpcrOuter)[1]);
+		if (mode == 4)
+		{
+			CExpression *atom = fix.PexprPredAtom((*pdrgpcrOuter)[0]);
+			CExpression *both = CPredicateUtils::PexprConjunction(mp, pexprPred, atom);
+			pexprPred->Release();
+			atom->Release();
+			pexprPred = both;
+		}
+		if (mode == 6)
+			pexprPred = CUtils::PexprNegate(mp, pexprPred);
 		CExpression *pexprSemiJoin =
 			CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(
 				mp, pexprOuter, pexprInner, pexprPred);
@@ -946,11 +956,13 @@ CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
 		CDSLMatcher matcher(mp, prule);
 		CExpression *pexprTarget = nullptr;
 		GPOS_RESULT eres = GPOS_OK;
-		if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), source, pmodel))
+		const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(), source, pmodel);
+		const BOOL expected = mode < 3 || mode == 6;
+		if (matched != expected)
 		{
 			eres = GPOS_FAILED;
 		}
-		else
+		else if (matched)
 		{
 			CDSLRulePrefixIndex index(mp);
 			index.Insert(prule, 0, source->Pop()->Eopid());
@@ -972,6 +984,17 @@ CDSLExistsTest::EresUnittest_PredicateSemiJoinRoundTrip()
 			{
 				eres = GPOS_FAILED;
 			}
+		}
+		if (mode >= 3)
+		{
+			CDSLRule *legacy = CDSLRuleParser::PdslruleParse(mp,
+				GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE, "EQ", &strErr);
+			CDSLModel *legacyModel = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(nullptr != legacy);
+			GPOS_UNITTEST_ASSERT(expected == CDSLMatcher(mp, legacy).FMatch(
+				legacy->PfragSrc()->PopRoot(), pexprSemiJoin, legacyModel));
+			legacyModel->Release();
+			legacy->Release();
 		}
 
 		CRefCount::SafeRelease(pexprTarget);
