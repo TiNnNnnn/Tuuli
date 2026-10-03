@@ -50,7 +50,7 @@ InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJ
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
 
 # Explicit-binding sibling for demand-insensitive equality membership.
-# Includes safe computed keys and single-equality correlated EXISTS carriers;
+# Includes safe conjunctive IN, computed keys and single-equality correlated EXISTS carriers;
 # retain the legacy rule for the remaining routed/demand-sensitive domains.
 # PARTIAL_BINDING legacy_hash=9dc5c70cd1245677; native expression proof: UNKNOWN (typed membership domain only).
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1

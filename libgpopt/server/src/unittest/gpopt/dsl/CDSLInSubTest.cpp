@@ -562,8 +562,9 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 	// Exercise both a real Project and the Project/Agg shell used for aggregate
 	// queries. The same unchanged rule must preserve the WHERE predicate below
 	// that shell even though its target eliminates the InSub operator.
-	for (ULONG ulAgg = 0; ulAgg < 2; ulAgg++)
+	for (ULONG ulCase = 0; ulCase < 3; ulCase++)
 	{
+		const BOOL aggregate = 1 == ulCase;
 		CColRefArray *pdrgpcrOuter = nullptr;
 		CExpression *pexprOuter =
 			fix.PexprLogicalGet("residual_outer", 2, &pdrgpcrOuter, 0);
@@ -580,7 +581,7 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 			mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter,
 			CPredicateUtils::PexprConjunction(mp, pdrgpexprConj));
 		CColRefArray *pdrgpcrOutput = GPOS_NEW(mp) CColRefArray(mp);
-		if (ulAgg)
+		if (aggregate)
 		{
 			CColRefArray *pdrgpcrGrouping = GPOS_NEW(mp) CColRefArray(mp);
 			CColRef *pcrMax = fix.PcrCreateInt4("residual_max");
@@ -598,7 +599,9 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 		CExpression *pexprSource = fix.PexprLogicalProject(pexprRel, pdrgpcrOutput);
 		pdrgpcrOutput->Release();
 		pexprRel->Release();
-		CDSLRule *prule = PruleParse(mp, GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
+		CDSLRule *prule = PruleParse(mp, 2 == ulCase
+			? GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE
+			: GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, prule);
 		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
@@ -608,7 +611,7 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 		CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
 		GPOS_ASSERT(nullptr != pexprTarget);
 		CExpression *pexprJoin = (*pexprTarget)[0];
-		if (ulAgg)
+		if (aggregate)
 		{
 			GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprJoin->Pop()->Eopid());
 			pexprJoin = (*pexprJoin)[0];
@@ -676,6 +679,40 @@ CDSLInSubTest::EresUnittest_PreApplyIndependentResiduals()
 	pexprTarget->Release();
 	pmodel->Release();
 	prule->Release();
+	// Explicit SELECT captures preserve the membership value even when each
+	// underlying relation has additional columns. Exercise both nested carriers
+	// and the optional ordered expression-list slot; this is not a registry rule.
+	CDSLRule *typed = PruleParse(mp,
+		"InSubFilter<a0>(Input<t0>,Proj<a4 s0 e0>(InSubFilter<a1>(Input<t1>,Proj<a5 s1 e1>(Input<t2>))))|"
+		"InSubFilter<a2>(Input<t3>,Proj<a6 s2 e2>(InSubFilter<a3>(Input<t4>,Proj<a7 s3 e3>(Input<t5>))))|"
+		"t3 := t0;t4 := t1;t5 := t2;a2 := a0;a3 := a1;"
+		"a6 := a4;s2 := s0;e2 := e0;a7 := a5;s3 := s1;e3 := e1");
+	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), pexprSource, model));
+	GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+	CDSLInstantiator builder(mp);
+	CExpression *target = builder.PexprInstantiate(typed, model);
+	GPOS_UNITTEST_ASSERT(nullptr != target);
+	CExpression *level = target;
+	for (ULONG ul = 0; ul < 2; ul++)
+	{
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == level->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == (*level)[0]->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT((*(*level)[0])[1]->Matches(predicates[ul]));
+		CExpression *any = (*level)[1];
+		GPOS_UNITTEST_ASSERT(CDSLMatchView::FPlainEqAny(any));
+		GPOS_UNITTEST_ASSERT(CScalarSubqueryAny::PopConvert(any->Pop())->Pcr() == (*columns[ul + 1])[0]);
+		level = (*any)[0];
+		while (COperator::EopLogicalProject == level->Pop()->Eopid())
+		{
+			GPOS_UNITTEST_ASSERT(0 == (*level)[1]->Arity());
+			level = (*level)[0];
+		}
+	}
+	GPOS_UNITTEST_ASSERT(0 == target->DeriveOuterReferences()->Size());
+	target->Release();
+	model->Release();
+	typed->Release();
 	pexprSource->Release();
 	predicates[0]->Release();
 	predicates[1]->Release();
@@ -1553,6 +1590,32 @@ CDSLInSubTest::EresUnittest_PreApplyRepeatedInElimination()
 	GPOS_ASSERT(pexprSource->DeriveOutputColumns()->Equals(
 		pexprTarget->DeriveOutputColumns()));
 
+	// Both flattened conjuncts must be captured separately. An identity here
+	// checks the adapter round trip only; it is not registered as a rewrite.
+	CDSLRule *typed = PruleParse(mp,
+		"InSubFilter<a0>(InSubFilter<a1>(Input<t0>,Proj<a2 s0>(Input<t1>)),Proj<a3 s1>(Input<t2>))|"
+		"InSubFilter<a4>(InSubFilter<a5>(Input<t3>,Proj<a6 s2>(Input<t4>)),Proj<a7 s3>(Input<t5>))|"
+		"t3 := t0;t4 := t1;t5 := t2;a4 := a0;a5 := a1;a6 := a2;s2 := s0;a7 := a3;s3 := s1");
+	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), pexprSource, model));
+	GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+	CDSLInstantiator builder(mp);
+	CExpression *target = builder.PexprInstantiate(typed, model);
+	GPOS_UNITTEST_ASSERT(nullptr != target);
+	CExpression *level = target;
+	for (CColRef *selected : {(*pdrgpcrInner0)[0], (*pdrgpcrInner1)[0]})
+	{
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == level->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CDSLMatchView::FPlainEqAny((*level)[1]));
+		GPOS_UNITTEST_ASSERT(CScalarSubqueryAny::PopConvert((*level)[1]->Pop())->Pcr() == selected);
+		level = (*level)[0];
+	}
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalGet == level->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT(0 == target->DeriveOuterReferences()->Size());
+	target->Release();
+	model->Release();
+	typed->Release();
+
 	pexprTarget->Release();
 	pmodel->Release();
 	prule->Release();
@@ -1575,7 +1638,7 @@ CDSLInSubTest::EresUnittest_ExpressionBindings()
 	GPOS_ASSERT(nullptr != rule);
 	CDSLMatcher matcher(mp, rule);
 	BOOL ok = true;
-	for (ULONG shape = 0; shape < 6; shape++)
+	for (ULONG shape = 0; shape < 8; shape++)
 	{
 		CExpression *outer = fix.PexprLogicalGet("binding_outer", 1);
 		CExpression *inner = fix.PexprLogicalGet("binding_inner", 1 == shape ? 2 : 1);
@@ -1603,11 +1666,22 @@ CDSLInSubTest::EresUnittest_ExpressionBindings()
 			any->Release();
 			any = GPOS_NEW(mp) CExpression(mp, op, filtered, computed);
 		}
-		if (4 == shape)
+		if (4 == shape || 6 <= shape)
 		{
 			CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
 			conjuncts->Append(any);
-			conjuncts->Append(fix.PexprEqPred(left, left));
+			if (6 == shape)
+				conjuncts->Append(CUtils::PexprScalarEqCmp(mp,
+					fix.PexprGenerateSeries(left), CUtils::PexprScalarConstInt4(mp, 1)));
+			else if (7 == shape)
+			{
+				CExpression *sibling = fix.PexprLogicalGet("limited_sibling", 1);
+				CColRef *key = sibling->DeriveOutputColumns()->PcrFirst();
+				conjuncts->Append(PexprScalarAny(mp, fix,
+					CUtils::PexprLimit(mp, sibling, 0, 1), left, key));
+			}
+			else
+				conjuncts->Append(fix.PexprEqPred(left, left));
 			any = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, conjuncts);
 		}
 		CExpression *source = fix.PexprLogicalSelect(outer, any);
@@ -1615,7 +1689,9 @@ CDSLInSubTest::EresUnittest_ExpressionBindings()
 		any->Release();
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
-		ok &= matched == (0 == shape);
+		// Safe sibling predicates now share the ordinary IN decoder; unsafe
+		// residuals must still reject even when the selected IN itself is safe.
+		ok &= matched == (0 == shape || 4 == shape);
 		if (matched)
 		{
 			CDSLConstraintChecker checker(mp);
@@ -1625,10 +1701,14 @@ CDSLInSubTest::EresUnittest_ExpressionBindings()
 			ok &= nullptr != target;
 			if (nullptr != target)
 			{
+				CExpression *sourceAny = 4 == shape ? (*(*source)[1])[0] : (*source)[1];
 				ok &= COperator::EopLogicalSelect == target->Pop()->Eopid() &&
-					(*source)[1]->Pop()->Matches((*target)[1]->Pop()) &&
+					sourceAny->Pop()->Matches((*target)[1]->Pop()) &&
 					!source->Matches(target) &&
 					source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns());
+				if (4 == shape)
+					ok &= COperator::EopLogicalSelect == (*target)[0]->Pop()->Eopid() &&
+						(*(*target)[0])[1]->Matches((*(*source)[1])[1]);
 				target->Release();
 			}
 			// A sole captured IN is not permission to guess a different inner

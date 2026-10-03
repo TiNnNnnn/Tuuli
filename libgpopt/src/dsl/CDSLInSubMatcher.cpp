@@ -116,6 +116,8 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 							 CColRefArray *pdrgpcrProjected,
 							 CDSLModel *pmodel) const
 {
+	const BOOL typed = nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// PostgreSQL's ORCA translator removes a pass-through SELECT-list
 	// projection from a scalar IN subquery and stores its selected column
 	// on the subquery/Apply operator. WeTune still exposes that SQL node as
@@ -125,11 +127,11 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 	// and must continue through the aggregate matcher so a target may remove it.
 	if (EdslopProj == popInner->Edslop() && !popInner->FDistinct() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-		2 == popInner->Pdrgpsym()->Size() &&
+		(2 == popInner->Pdrgpsym()->Size() ||
+		 (typed && 3 == popInner->Pdrgpsym()->Size())) &&
 		nullptr != pdrgpcrProjected && 0 < pdrgpcrProjected->Size())
 	{
-		if (nullptr != m_pmatcher->Prule() &&
-			m_pmatcher->Prule()->Pexprdefs()->FHasBindings())
+		if (typed)
 		{
 			CExpression *view = CDSLMatchView::PexprColumnProject(
 				m_mp, pexprInner, pdrgpcrProjected);
@@ -169,8 +171,7 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 		return fMatched;
 	}
 
-	if (nullptr != m_pmatcher->Prule() &&
-		m_pmatcher->Prule()->Pexprdefs()->FHasBindings() &&
+	if (typed &&
 		(1 != pdrgpcrProjected->Size() ||
 		 !CDSLMatchView::FSingleValueOutput(pexprInner, (*pdrgpcrProjected)[0])))
 		return false;
@@ -603,6 +604,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	}
 	const BOOL fExtended = 5 == pop->Pdrgpsym()->Size();
 	const CDSLRule *rule = m_pmatcher->Prule();
+	const BOOL typed = nullptr != rule && rule->Pexprdefs()->FHasBindings();
 	// Re-expose an origin-tagged EXISTS Apply for both syntaxes. The shared
 	// decoder retains residuals and applies typed demand/scope checks.
 	if (!fExtended && COperator::EopLogicalLeftSemiApply == pexpr->Pop()->Eopid())
@@ -621,7 +623,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		view->Release();
 		return matched;
 	}
-	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
+	if (typed)
 	{
 		// An already decorrelated equality semi join is the relational form of
 		// membership. Retain its complete comparison and ordered key vectors.
@@ -666,40 +668,13 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			view->Release();
 			return matched;
 		}
-		// Bind the native IN value and selected result, never dependency sets.
-		// The correlated EXISTS adapter has its own demand/scope checks.
-		// FormalSQL evaluates the full inner query;
-		// PostgreSQL may stop on a match, so require demand-insensitive input.
+		// Share the conjunct decoder below. Reordering membership and residual
+		// predicates is valid only when the complete predicate is demand-safe;
+		// auditing just the selected ANY would miss unsafe sibling expressions.
 		if (fExtended || COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
-			2 != pexpr->Arity())
+			2 != pexpr->Arity() ||
+			!CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
 			return false;
-		if (!CDSLMatchView::FPlainEqAny((*pexpr)[1]))
-			return FMatchCorrelatedExists(pop, pexpr, pmodel);
-		CExpression *any = (*pexpr)[1];
-		CScalarSubqueryAny *opAny = CScalarSubqueryAny::PopConvert(any->Pop());
-		const BOOL projected = EdslopProj == (*pop)[1]->Edslop() && !(*pop)[1]->FDistinct();
-		if (COperator::EopScalarIdent != (*any)[1]->Pop()->Eopid() ||
-			!(*pexpr)[0]->DeriveOutputColumns()->ContainsAll((*any)[1]->DeriveUsedColumns()) ||
-			(!projected && !CDSLMatchView::FSingleValueOutput((*any)[0], opAny->Pcr())) ||
-			!CPredicateUtils::FBuiltInComparisonIsVeryStrict(opAny->MdIdOp()) ||
-			!CDSLConstraintChecker::FQueryDemandInsensitive((*any)[0]))
-			return false;
-		if (!m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel))
-			return false;
-		CExpression *inner = (*any)[0];
-		if (projected)
-			inner = CDSLMatchView::PexprSingleColumnProject(m_mp, inner, opAny->Pcr());
-		const BOOL matched = nullptr != inner && m_pmatcher->FMatch((*pop)[1], inner, pmodel);
-		if (projected)
-			CRefCount::SafeRelease(inner);
-		if (!matched || !FBindOuterAttrs(pop, (*any)[1], pmodel))
-			return false;
-		// Join targets need the selected value and comparison metadata, not an
-		// equality reconstructed from a computed SELECT's dependency columns.
-		if (!pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], PexprComparison(any)))
-			return false;
-		any->AddRef();
-		return pmodel->FSetInSubCarrier((*pop->Pdrgpsym())[0], any);
 	}
 	if (fExtended &&
 		COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid())
@@ -771,7 +746,9 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			{
 				CExpression *pexprConj = (*pdrgpexprConj)[ulConj];
 				if (rgfUsed[ulConj] ||
-					!CDSLMatchView::FPlainEqAny(pexprConj))
+					!CDSLMatchView::FPlainEqAny(pexprConj) ||
+					(typed && (COperator::EopScalarIdent != (*pexprConj)[1]->Pop()->Eopid() ||
+					 !(*pexpr)[0]->DeriveOutputColumns()->ContainsAll((*pexprConj)[1]->DeriveUsedColumns()))))
 				{
 					continue;
 				}
@@ -829,6 +806,13 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 							pmodel) &&
 				FBindOuterAttrs(popNode, (*pexprAny)[1], pmodel) &&
 				pmodel->FSetInSubPred(psymAttrs, PexprComparison(pexprAny));
+			if (fMatched && typed)
+			{
+				// Retain the native selected value for IN targets as well as the
+				// comparison used by Join targets, independently at each level.
+				pexprAny->AddRef();
+				fMatched = pmodel->FSetInSubCarrier(psymAttrs, pexprAny);
+			}
 		}
 
 		pdrgpexprConj->Release();
