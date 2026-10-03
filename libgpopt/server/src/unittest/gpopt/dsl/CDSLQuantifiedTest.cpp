@@ -802,6 +802,82 @@ EresSubqueryOutputBindings()
 			for (ULONG slot = 1; slot < symbols->Size(); ++slot)
 				ok &= outputs[slot] == baseline->PvalLookup((*symbols)[slot]);
 		}
+		// A shared expression pointer denotes two evaluation occurrences, not
+		// one cached subquery result. Lower only the selected occurrence, keeping
+		// the other intact even when it is shallower in the scalar tree.
+		if (accepted && kind >= 1 && kind <= 8)
+		for (BOOL deeper : {false, true})
+		{
+			scalar->AddRef();
+			scalar->AddRef();
+			CExpression *second = scalar;
+			if (deeper)
+				second = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), second);
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			items->Append(scalar);
+			items->Append(second);
+			const auto sourceKind = (*symbols)[0]->Esymkind();
+			CRefCount *shared = items;
+			if (EdslsymFunc != sourceKind)
+			{
+				CExpression *predicate = CUtils::PexprScalarBoolOp(mp,
+					CScalarBoolOp::EboolopAnd, items);
+				shared = predicate;
+				if (EdslsymPred != sourceKind)
+				{
+					CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+						fix.Pmda()->PtMDType<IMDTypeBool>(), default_type_modifier);
+					shared = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+						CUtils::PexprScalarProjectElement(mp, output, predicate));
+				}
+			}
+			CDSLModel *occurrences = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(occurrences->FBind((*symbols)[0], shared));
+			GPOS_UNITTEST_ASSERT(checker.FCheck(rule, occurrences));
+			CRefCount *lowered = occurrences->PvalLookup((*symbols)[1]);
+			CExpression *firstResult, *secondResult;
+			if (EdslsymFunc == sourceKind)
+			{
+				auto *list = static_cast<CExpressionArray *>(lowered);
+				firstResult = (*list)[0]; secondResult = (*list)[1];
+			}
+			else
+			{
+				CExpression *predicate = static_cast<CExpression *>(lowered);
+				if (EdslsymPred != sourceKind) predicate = (*(*predicate)[0])[0];
+				firstResult = (*predicate)[0]; secondResult = (*predicate)[1];
+			}
+			GPOS_UNITTEST_ASSERT((deeper ? firstResult : secondResult)->Matches(scalar));
+			GPOS_UNITTEST_ASSERT(!(deeper ? secondResult : firstResult)->DeriveHasSubquery());
+			GPOS_UNITTEST_ASSERT(checker.FCheck(rule, occurrences));
+			occurrences->Release();
+			shared->Release();
+		}
+		if (accepted && 0 == kind)
+		{
+			// The same scalar can also occur inside another query's predicate.
+			// Extraction treats that relation as opaque; replacement must agree.
+			scalar->AddRef();
+			CExpression *query = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalSelect(mp),
+				fix.PexprLogicalGet("opaque_subquery_scope", 1), scalar);
+			CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubqueryExists(mp), query);
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			items->Append(exists);
+			scalar->AddRef(); items->Append(scalar);
+			CExpression *predicate = CUtils::PexprScalarBoolOp(mp,
+				CScalarBoolOp::EboolopAnd, items);
+			CDSLModel *nested = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(nested->FBind((*symbols)[0], predicate));
+			GPOS_UNITTEST_ASSERT(checker.FCheck(rule, nested));
+			CExpression *lowered = nested->PexprPred((*symbols)[1]);
+			GPOS_UNITTEST_ASSERT((*lowered)[0]->Matches(exists));
+			GPOS_UNITTEST_ASSERT((*(*lowered)[0])[0] == query);
+			GPOS_UNITTEST_ASSERT(!(*lowered)[1]->DeriveHasSubquery());
+			nested->Release(); predicate->Release();
+		}
 		if (accepted && freshMarker)
 		{
 			const auto *constraint = (*rule->Pdrgpcon())[1];
