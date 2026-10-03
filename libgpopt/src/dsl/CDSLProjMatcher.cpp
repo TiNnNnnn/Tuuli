@@ -399,7 +399,10 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		columns->Release();
 		const BOOL matched = nullptr != view && FMatch(popProj, view, pmodel);
 		CRefCount::SafeRelease(view);
-		return matched;
+		if (!matched)
+			return false;
+		pexprProject->AddRef();
+		return pmodel->FSetVirtualIdentityProj((*popProj->Pdrgpsym())[1], pexprProject);
 	}
 	// Other native expression captures describe the actual Project and child.
 	// Set-returning items are not scalar values.

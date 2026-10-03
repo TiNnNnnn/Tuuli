@@ -652,6 +652,10 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			CRefCount::SafeRelease(inner);
 		if (!matched || !FBindOuterAttrs(pop, (*any)[1], pmodel))
 			return false;
+		// Join targets need the selected value and comparison metadata, not an
+		// equality reconstructed from a computed SELECT's dependency columns.
+		if (!pmodel->FSetInSubPred((*pop->Pdrgpsym())[0], PexprComparison(any)))
+			return false;
 		any->AddRef();
 		return pmodel->FSetInSubCarrier((*pop->Pdrgpsym())[0], any);
 	}

@@ -1,0 +1,50 @@
+{
+  "description": "已注册 IN 去重规则处理 EXISTS 去相关后的等值 SemiJoin；去掉空 SELECT 包装但保留 COALESCE 计算结果",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformRemoveSubqDistinct",
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership_distinct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0ac51b2f5bf779aa\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformRemoveSubqDistinct",
+          "CXformLeftSemiJoin2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformRemoveSubqDistinct",
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership_distinct.policy",
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

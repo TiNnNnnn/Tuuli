@@ -89,6 +89,12 @@ using namespace gpopt;
 	"InSubFilter<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|Input<t2>|"      \
 	"TableEq(t2,t0)"
 
+#define GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE                       \
+	"Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|"   \
+	"Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|" \
+	"AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;" \
+	"a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1"
+
 #define GPOPT_DSL_RESIDUAL_INSUB_TARGET_RULE                             \
 	"InnerJoin<a0 a1 p0 a2 a3>(Input<t0>,Input<t1>)|"                  \
 	"InSubFilter<a4 a5 p1 a6 a7>(Input<t2>,Input<t3>)|"                \
@@ -484,11 +490,7 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 
 	// The explicit-binding sibling must preserve both equality columns and the
 	// original comparison tree when it introduces the same inner dedup.
-	CDSLRule *typed = PruleParse(mp,
-		"Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|"
-		"Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|"
-		"AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;"
-		"a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1");
+	CDSLRule *typed = PruleParse(mp, GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE);
 	GPOS_UNITTEST_ASSERT(nullptr != typed);
 	for (CExpression *input : {pexprSource, pexprSemi})
 	{
@@ -498,12 +500,16 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 		CDSLInstantiator typedInstantiator(mp);
 		CExpression *target = typedInstantiator.PexprInstantiate(typed, typedModel);
 		GPOS_UNITTEST_ASSERT(nullptr != target);
+		if (input == pexprSemi)
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == target->Pop()->Eopid());
 		CExpression *join = COperator::EopLogicalProject == target->Pop()->Eopid() ? (*target)[0] : target;
 		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == join->Pop()->Eopid());
 		GPOS_UNITTEST_ASSERT((*join)[2]->Matches(pexprSemiPred));
 		GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == (*join)[1]->Pop()->Eopid());
 		GPOS_UNITTEST_ASSERT(CColRef::Equals(pdrgpcrRight,
 			CLogicalGbAgg::PopConvert((*join)[1]->Pop())->Pdrgpcr()));
+		GPOS_UNITTEST_ASSERT(CColRef::Equals(pdrgpcrRight,
+			CLogicalGbAgg::PopConvert((*join)[1]->Pop())->PdrgpcrMinimal()));
 		target->Release();
 		typedModel->Release();
 	}
@@ -746,6 +752,37 @@ CDSLInSubTest::EresUnittest_SemiJoinComputedKeyToInnerJoin()
 	CExpression *pexprComputedScalar = (*(*pexprComputedProject)[1])[0];
 	GPOS_ASSERT(COperator::EopScalarCoalesce ==
 				(*pexprComputedScalar)[0]->Pop()->Eopid());
+
+	// The registered binding rule must preserve the selected value before
+	// and after unnesting, not rebuild equality on COALESCE's dependency.
+	pexprRightProject->AddRef();
+	CExpression *any = PexprScalarAny(mp, fix, pexprRightProject,
+		(*pdrgpcrLeft)[0], pcrComputed);
+	CExpression *selected = fix.PexprLogicalSelect(pexprLeft, any);
+	CExpression *scalarSource = fix.PexprLogicalProject(selected, pdrgpcrLeft);
+	any->Release();
+	selected->Release();
+	CDSLRule *typed = PruleParse(mp, GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE);
+	for (CExpression *source : {pexprSource, scalarSource})
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(typed, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		CExpression *join = (*target)[0];
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == join->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT((*join)[2]->Matches(pexprSemiPred));
+		CExpression *dedup = (*join)[1];
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == dedup->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(pcrComputed == (*CLogicalGbAgg::PopConvert(dedup->Pop())->Pdrgpcr())[0]);
+		GPOS_UNITTEST_ASSERT((*dedup)[0]->Matches(pexprRightProject));
+		target->Release();
+		model->Release();
+	}
+	typed->Release();
+	scalarSource->Release();
 
 	pexprTarget->Release();
 	pmodel->Release();
@@ -1918,6 +1955,53 @@ CDSLInSubTest::EresUnittest_PostApplyDistinctDrop()
 	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT((*pexprTarget)[1] == pexprInnerGet);
+
+	CDSLRule *typed = PruleParse(mp,
+		"InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"
+		"InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+		"a2 := a0;a3 := a1;s1 := s0");
+	pexprOuter->AddRef();
+	pexprDistinct->AddRef();
+	pexprPred->AddRef();
+	CExpression *semi = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalLeftSemiJoin(mp, CXform::ExfLeftSemiApplyIn2LeftSemiJoin),
+		pexprOuter, pexprDistinct, pexprPred);
+	for (CExpression *source : {pexprSource, semi})
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(typed, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		if (source == semi)
+		{
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftSemiJoin == target->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT((*target)[2]->Matches(pexprPred));
+			GPOS_UNITTEST_ASSERT((*target)[1] == pexprInnerGet);
+			GPOS_UNITTEST_ASSERT(target->Pop()->Matches(semi->Pop()));
+			GPOS_UNITTEST_ASSERT(CLogicalLeftSemiJoin::PopConvert(target->Pop())->OriginXform() ==
+				CXform::ExfLeftSemiApplyIn2LeftSemiJoin);
+		}
+		else
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == target->Pop()->Eopid());
+		target->Release();
+		model->Release();
+		// Without the SELECT, this target exposes two inner outputs instead
+		// of the captured one. Neither carrier permits guessing a result column.
+		CDSLRule *wide = PruleParse(mp,
+			"InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"
+			"InSubFilter<a2>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a2 := a0");
+		CDSLModel *wideModel = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, wide).FMatch(wide->PfragSrc()->PopRoot(), source, wideModel));
+		CExpression *wideTarget = builder.PexprInstantiate(wide, wideModel);
+		GPOS_UNITTEST_ASSERT(nullptr == wideTarget);
+		wideModel->Release();
+		wide->Release();
+	}
+	semi->Release();
+	typed->Release();
 
 	pexprTarget->Release();
 	pmodel->Release();

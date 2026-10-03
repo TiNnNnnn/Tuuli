@@ -1,0 +1,69 @@
+{
+  "description": "同一已注册新绑定 IN 规则在展开前后保留计算结果：NULL 经 COALESCE 产生 3，不能用底层依赖列替代",
+  "plans": [
+    {
+      "name": "before-unnesting",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply",
+          "CXformLeftSemiJoin2InnerJoin"
+        ]
+      }
+    },
+    {
+      "name": "native-unnesting-enabled",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership.policy",
+    "output": [
+      "10",
+      "10",
+      "20",
+      "30"
+    ],
+    "postgres_output": [
+      "10",
+      "10",
+      "20",
+      "30"
+    ]
+  }
+}
