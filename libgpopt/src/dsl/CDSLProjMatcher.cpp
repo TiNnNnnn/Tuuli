@@ -540,7 +540,10 @@ CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 	// DISTINCT. Local/intermediate aggregation is not a relational DISTINCT.
 	if (COperator::EgbaggtypeGlobal != agg->Egbaggtype() || 0 == keys->Size())
 		return false;
-	CExpression *input = (*pexprAgg)[0];
+	// A complete DISTINCT sees the same input before or after native partial
+	// deduplication. Use the shared view so typed and legacy rules do not
+	// reconstruct different Global(Local(...)) chains for the same source.
+	CExpression *input = CDSLMatchView::PexprDedupInput(pexprAgg);
 	CExpression *computed = nullptr;
 	if (3 == popProj->Pdrgpsym()->Size() &&
 		COperator::EopLogicalProject == input->Pop()->Eopid() &&

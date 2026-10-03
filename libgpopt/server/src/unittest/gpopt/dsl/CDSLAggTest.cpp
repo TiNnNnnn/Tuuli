@@ -1827,11 +1827,15 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 	CDSLTestFixture fix(mp);
 	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_DISTINCT_ELIM_RULE);
 	GPOS_ASSERT(nullptr != prule);
-	CDSLMatcher matcher(mp, prule);
 	GPOS_RESULT eres = GPOS_OK;
+	CDSLRule *typed = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Input<t0>)|Proj*<a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0");
+	GPOS_ASSERT(nullptr != typed);
 	enum
 	{
 		NestedLocal,
+		SpecializedLocal,
 		WiderLocal,
 		GlobalChild,
 		IncompatibleKeys,
@@ -1868,13 +1872,22 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 			pexprReal->Release();
 		}
 		pexprGet->AddRef();
+		CLogicalGbAgg *local = nullptr;
+		if (SpecializedLocal == test)
+		{
+			pdrgpcrLocal->AddRef();
+			local = GPOS_NEW(mp) CLogicalGbAggDeduplicate(
+				mp, pdrgpcrLocal, COperator::EgbaggtypeLocal, pdrgpcrLocal);
+		}
+		else
+		{
+			local = GPOS_NEW(mp) CLogicalGbAgg(
+				mp, pdrgpcrLocal,
+				GlobalChild == test ? COperator::EgbaggtypeGlobal
+									: COperator::EgbaggtypeLocal);
+		}
 		CExpression *pexprLocal = GPOS_NEW(mp) CExpression(
-			mp,
-			GPOS_NEW(mp)
-				CLogicalGbAgg(mp, pdrgpcrLocal,
-							  GlobalChild == test ? COperator::EgbaggtypeGlobal
-												  : COperator::EgbaggtypeLocal),
-			pexprGet, pexprFunctions);
+			mp, local, pexprGet, pexprFunctions);
 		if (NestedLocal == test)
 		{
 			pdrgpcrGroup->AddRef();
@@ -1893,18 +1906,24 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 		}
 		CExpression *pexprGlobal =
 			fix.PexprLogicalGbAgg(pexprLocal, pdrgpcrGlobal);
-		const BOOL fPeel = NestedLocal == test || WiderLocal == test;
+		const BOOL fPeel = NestedLocal == test || WiderLocal == test ||
+			SpecializedLocal == test;
 		CExpression *pexprExpected = fPeel ? pexprGet : pexprLocal;
 		if (pexprExpected != CDSLMatchView::PexprDedupInput(pexprGlobal))
 		{
 			eres = GPOS_FAILED;
 		}
-		if (fPeel)
+		for (CDSLRule *rule : {prule, typed})
 		{
+			if (ScalarGlobal == test)
+			{
+				continue;
+			}
+			CDSLMatcher matcher(mp, rule);
 			CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-			const CDSLOp *popSource = prule->PfragSrc()->PopRoot();
+			const CDSLOp *popSource = rule->PfragSrc()->PopRoot();
 			if (!matcher.FMatch(popSource, pexprGlobal, pmodel) ||
-				pexprGet !=
+				pexprExpected !=
 					pmodel->PexprTable((*(*popSource)[0]->Pdrgpsym())[0]))
 			{
 				eres = GPOS_FAILED;
@@ -1920,6 +1939,7 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 		pexprLocal->Release();
 		pexprGet->Release();
 	}
+	typed->Release();
 	prule->Release();
 	return eres;
 }
