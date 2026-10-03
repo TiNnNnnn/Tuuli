@@ -207,7 +207,7 @@ CDSLJoinElimTest::EresUnittest_MinimalGroupingAggregateRemapped()
 			CLogicalGbAgg *popTarget =
 				CLogicalGbAgg::PopConvert((*pexprTarget)[0]->Pop());
 			CExpression *pexprGroupingProject = (*(*pexprTarget)[0])[0];
-			BOOL fExpected = popTarget->FGeneratesDuplicates() &&
+			BOOL fExpected = !popTarget->FGeneratesDuplicates() &&
 					COperator::EgbaggtypeGlobal == popTarget->Egbaggtype() &&
 					1 == popTarget->Pdrgpcr()->Size() &&
 					(*popTarget->Pdrgpcr())[0] == (*pdrgpcrLeft)[0] &&

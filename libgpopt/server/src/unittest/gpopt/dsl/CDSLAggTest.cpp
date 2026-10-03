@@ -639,7 +639,7 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 	CLogicalGbAgg *popOriginal = GPOS_NEW(mp) CLogicalGbAgg(
 		mp, pdrgpcrGroup, pdrgpcrMinimal, COperator::EgbaggtypeGlobal);
 	GPOS_ASSERT(popOriginal->FGlobal());
-	GPOS_ASSERT(popOriginal->FGeneratesDuplicates());
+	GPOS_UNITTEST_ASSERT(!popOriginal->FGeneratesDuplicates());
 
 	UlongToColRefMap *colref_mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
 	COperator *popCopy = popOriginal->PopCopyWithRemappedColumns(
@@ -648,7 +648,7 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 
 	CLogicalGbAgg *popGbAggCopy = CLogicalGbAgg::PopConvert(popCopy);
 	GPOS_ASSERT(popGbAggCopy->FGlobal());
-	GPOS_ASSERT(popGbAggCopy->FGeneratesDuplicates());
+	GPOS_UNITTEST_ASSERT(!popGbAggCopy->FGeneratesDuplicates());
 	GPOS_ASSERT(nullptr == popGbAggCopy->PdrgpcrArgDQA());
 
 	popCopy->Release();
@@ -747,6 +747,11 @@ CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit()
 		split->Transform(context.Value(), result.Value(), aggregate.Value());
 		GPOS_UNITTEST_ASSERT(result->Size() == 1);
 		CExpression *global = (*result->Pdrgpexpr())[0];
+		// Only the partial Local stage may emit multiple rows per group.
+		GPOS_UNITTEST_ASSERT(!CLogicalGbAgg::PopConvert(global->Pop())
+			->FGeneratesDuplicates());
+		GPOS_UNITTEST_ASSERT(CLogicalGbAgg::PopConvert((*global)[0]->Pop())
+			->FGeneratesDuplicates());
 		if (!dedup)
 			GPOS_UNITTEST_ASSERT(
 				CScalarAggFunc::PopConvert((*(*(*global)[1])[0])[0]->Pop())
