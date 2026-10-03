@@ -117,7 +117,7 @@ CXformSplitGbAgg::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	CExpression *pexprProjectList = (*pexpr)[1];
 
 	// check if the transformation is applicable
-	if (!FApplicable(pexprProjectList))
+	if (!FApplicable(pexpr))
 	{
 		return;
 	}
@@ -290,13 +290,30 @@ CXformSplitGbAgg::PopulateLocalGlobalProjectList(
 //		CXformSplitGbAgg::FApplicable
 //
 //	@doc:
-//		Check if we the transformation is applicable (no distinct qualified
-//		aggregate (DQA)) present
+//		Check the aggregate tree: no DQA or already-split finalizer.
 //
 //---------------------------------------------------------------------------
 BOOL
 CXformSplitGbAgg::FApplicable(CExpression *pexpr)
 {
+	CExpression *input = (*pexpr)[0];
+	CExpression *project_list = (*pexpr)[1];
+	// A copied pure-dedup finalizer has no scalar FSplit marker or xform
+	// lineage. Splitting it again only stacks identical local deduplications.
+	// The child operator is available even for a Memo leaf binding.
+	if (0 == project_list->Arity() &&
+		(COperator::EopLogicalGbAgg == input->Pop()->Eopid() ||
+		 COperator::EopLogicalGbAggDeduplicate == input->Pop()->Eopid()))
+	{
+		CLogicalGbAgg *local = CLogicalGbAgg::PopConvert(input->Pop());
+		if (COperator::EgbaggtypeLocal == local->Egbaggtype() &&
+			local->Pdrgpcr()->Equals(
+				CLogicalGbAgg::PopConvert(pexpr->Pop())->Pdrgpcr()))
+		{
+			return false;
+		}
+	}
+	pexpr = project_list;
 	const ULONG arity = pexpr->Arity();
 	CMDAccessor *md_accessor = COptCtxt::PoctxtFromTLS()->Pmda();
 

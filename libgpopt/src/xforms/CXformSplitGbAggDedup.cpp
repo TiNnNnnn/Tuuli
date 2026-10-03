@@ -73,7 +73,7 @@ CXformSplitGbAggDedup::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 	CExpression *pexprProjectList = (*pexpr)[1];
 
 	// check if the transformation is applicable
-	if (!FApplicable(pexprProjectList))
+	if (!FApplicable(pexpr))
 	{
 		return;
 	}
