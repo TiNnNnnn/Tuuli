@@ -1,0 +1,65 @@
+{
+  "description": "Context replug in a SELECT list preserves outputs, NULLs and duplicate rows",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "list.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "list.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"5efdfd7cb92c2a63\"",
+        "\"generated_alternatives\":1",
+        "\"memo_inserted_alternatives\":1"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "list.policy",
+    "output": [
+      ",2,t,f",
+      ",2,t,f",
+      "0,1,t,t",
+      "1,1,t,t",
+      "2,,f,t",
+      "2,,f,t",
+      "3,2,f,f"
+    ],
+    "postgres_output": [
+      ",2,t,f",
+      ",2,t,f",
+      "0,1,t,t",
+      "1,1,t,t",
+      "2,,f,t",
+      "2,,f,t",
+      "3,2,f,f"
+    ],
+    "off_output": [
+      ",2,t,f",
+      ",2,t,f",
+      "0,1,t,t",
+      "1,1,t,t",
+      "2,,f,t",
+      "2,,f,t",
+      "3,2,f,f"
+    ]
+  }
+}

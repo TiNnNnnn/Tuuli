@@ -4,6 +4,8 @@
 #ifndef GPOPT_CDSLExpressionDefinitions_H
 #define GPOPT_CDSLExpressionDefinitions_H
 
+#include <vector>
+
 #include "gpos/base.h"
 
 #include "gpopt/dsl/CDSLRule.h"
@@ -128,9 +130,10 @@ public:
 		ULONG arity;
 		EDslSymbolKind types[5];  // Result first, then operands.
 	};
-	static const SBindingSignature *PsigBinding(const CHAR *name, ULONG arity);
+	static const SBindingSignature *PsigBinding(const CHAR *name, ULONG arity,
+		const std::vector<EDslSymbolKind> &types = {});
 	static const SBindingSignature *PsigBinding(EDslExpressionKind kind,
-											 ULONG arity);
+		ULONG arity, const std::vector<EDslSymbolKind> &types = {});
 	static const CHAR *SzBindingName(EDslExpressionKind kind);
 	void OsPrintBindings(IOstream &os, BOOL separator) const;
 

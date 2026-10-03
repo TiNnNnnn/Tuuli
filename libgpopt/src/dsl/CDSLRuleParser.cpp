@@ -938,8 +938,8 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source
-	// captures precede target terms; references propagate types afterwards.
-	std::vector<dsl::DSLRuleParser::BindingContext *> references;
+	// captures precede target terms; references and overloads share inference.
+	std::vector<dsl::DSLRuleParser::BindingContext *> pending;
 	auto declare = [&](const std::string &name, EDslSymbolKind kind, BOOL match) {
 		auto it = bctx.symtab.find(name);
 		if (bctx.symtab.end() == it)
@@ -964,22 +964,46 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		{
 			const BOOL isMatch =
 				binding->getStart()->getType() == dsl::DSLRuleParser::ID;
-			if (match != isMatch)
-			{
-				continue;
-			}
+			if (match == isMatch) pending.push_back(binding);
+		}
+	}
+	// ponytail: O(n^2) dependency passes; index only if rule sizes warrant it.
+	// A constructor may
+	// publish types only after exactly one complete signature remains possible.
+	while (!pending.empty())
+	{
+		const auto before = pending.size();
+		for (auto it = pending.begin(); it != pending.end();)
+		{
+			auto *binding = *it;
+			const BOOL match = binding->getStart()->getType() == dsl::DSLRuleParser::ID;
+			const auto output = binding->SYMBOL(0)->getText();
 			auto *call = binding->call();
 			if (nullptr == call)
 			{
-				references.push_back(binding);
+				const auto input = binding->SYMBOL(1)->getText();
+				auto known = bctx.symtab.find(output);
+				if (bctx.symtab.end() == known) known = bctx.symtab.find(input);
+				if (bctx.symtab.end() == known) { ++it; continue; }
+				const auto kind = known->second->Esymkind();
+				if (kind >= EdslsymSentinel || !declare(output, kind, false) ||
+					!declare(input, kind, false)) return false;
+				it = pending.erase(it);
 				continue;
 			}
+			std::vector<EDslSymbolKind> types;
+			auto knownType = [&](const std::string &name) {
+				const auto known = bctx.symtab.find(name);
+				return bctx.symtab.end() == known ? EdslsymSentinel : known->second->Esymkind();
+			};
+			types.push_back(knownType(output));
+			for (auto *operand : call->SYMBOL()) types.push_back(knownType(operand->getText()));
 			const auto *signature = CDSLExpressionDefinitions::PsigBinding(
-				call->ID()->getText().c_str(), call->SYMBOL().size());
+				call->ID()->getText().c_str(), call->SYMBOL().size(), types);
 			if (nullptr == signature)
 			{
-				bctx.Fail("unsupported expression constructor or arity");
-				return false;
+				++it;
+				continue;
 			}
 			if (!declare(binding->SYMBOL(0)->getText(),
 						 signature->types[0], match))
@@ -993,36 +1017,11 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 					return false;
 				}
 			}
+			it = pending.erase(it);
 		}
-	}
-	// A reference without a declared endpoint is not implicitly a predicate.
-	while (!references.empty())
-	{
-		const auto before = references.size();
-		for (auto it = references.begin(); it != references.end();)
+		if (before == pending.size())
 		{
-			const auto output = (*it)->SYMBOL(0)->getText();
-			const auto input = (*it)->SYMBOL(1)->getText();
-			auto known = bctx.symtab.find(output);
-			if (bctx.symtab.end() == known)
-				known = bctx.symtab.find(input);
-			if (bctx.symtab.end() == known)
-			{
-				++it;
-				continue;
-			}
-			const auto kind = known->second->Esymkind();
-			if (kind >= EdslsymSentinel ||
-				!declare(output, kind, false) || !declare(input, kind, false))
-			{
-				bctx.Fail("expression reference requires matching supported symbol types");
-				return false;
-			}
-			it = references.erase(it);
-		}
-		if (before == references.size())
-		{
-			bctx.Fail("expression reference has no declared type");
+			bctx.Fail("unsupported, conflicting or ambiguous expression binding types");
 			return false;
 		}
 	}
@@ -1163,8 +1162,10 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			symbols->Append(right);
 		}
 		// FDeclareBindings already checked the public signature and types.
+		std::vector<EDslSymbolKind> types;
+		for (ULONG i = 0; i < symbols->Size(); ++i) types.push_back((*symbols)[i]->Esymkind());
 		const auto *signature = nullptr == call ? nullptr : Definitions::PsigBinding(
-			call->ID()->getText().c_str(), operands.size());
+			call->ID()->getText().c_str(), operands.size(), types);
 		GPOS_ASSERT(nullptr == call || nullptr != signature);
 		if (match && nullptr != signature &&
 			(EdslexprScalarDeps == signature->kind || EdslexprConcat == signature->kind ||

@@ -15,6 +15,8 @@ namespace
 const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprContext, "Context", 1, {EdslsymScalar, EdslsymScalar}},
 	{EdslexprContext, "Context", 2, {EdslsymScalar, EdslsymScalar, EdslsymScalar}},
+	{EdslexprContext, "Context", 1, {EdslsymExpr, EdslsymScalar}},
+	{EdslexprContext, "Context", 2, {EdslsymExpr, EdslsymExpr, EdslsymScalar}},
 	{EdslexprAnd, "And", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprOr, "Or", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprNullSafeEq, "NullSafeEq", 2, {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
@@ -251,7 +253,9 @@ CDSLExpressionDefinitions::FAppendBinding(CMemoryPool *mp,
 	{
 		return false;
 	}
-	const auto *signature = PsigBinding(kind, symbols->Size() - 1);
+	std::vector<EDslSymbolKind> types;
+	for (ULONG i = 0; i < symbols->Size(); ++i) types.push_back((*symbols)[i]->Esymkind());
+	const auto *signature = PsigBinding(kind, symbols->Size() - 1, types);
 	if (EdslexprRef == kind ? 2 != symbols->Size() : nullptr == signature)
 	{
 		return false;
@@ -310,30 +314,32 @@ CDSLExpressionDefinitions::FHasMatchBindings() const
 }
 
 const CDSLExpressionDefinitions::SBindingSignature *
-CDSLExpressionDefinitions::PsigBinding(const CHAR *name, ULONG arity)
+CDSLExpressionDefinitions::PsigBinding(const CHAR *name, ULONG arity,
+	const std::vector<EDslSymbolKind> &types)
 {
+	if (!types.empty() && types.size() != arity + 1) return nullptr;
+	const SBindingSignature *result = nullptr;
 	for (const auto &signature : binding_signatures)
 	{
 		if (signature.arity == arity && nullptr != name &&
 			0 == std::strcmp(signature.name, name))
 		{
-			return &signature;
+			BOOL matches = true;
+			for (ULONG i = 0; i < types.size(); ++i)
+				matches &= EdslsymSentinel == types[i] || types[i] == signature.types[i];
+			if (!matches) continue;
+			if (nullptr != result) return nullptr;  // Ambiguous; never choose by declaration order.
+			result = &signature;
 		}
 	}
-	return nullptr;
+	return result;
 }
 
 const CDSLExpressionDefinitions::SBindingSignature *
-CDSLExpressionDefinitions::PsigBinding(EDslExpressionKind kind, ULONG arity)
+CDSLExpressionDefinitions::PsigBinding(EDslExpressionKind kind, ULONG arity,
+	const std::vector<EDslSymbolKind> &types)
 {
-	for (const auto &signature : binding_signatures)
-	{
-		if (signature.kind == kind && signature.arity == arity)
-		{
-			return &signature;
-		}
-	}
-	return nullptr;
+	return PsigBinding(SzBindingName(kind), arity, types);
 }
 
 const CHAR *
