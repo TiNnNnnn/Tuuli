@@ -464,9 +464,7 @@ EresTypedDistinctExistence()
 			CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
 			CExpression *exists = nullptr != target && wrapped ? (*target)[0] : target;
 			const BOOL constructed = nullptr != exists && COperator::EopLogicalSelect == exists->Pop()->Eopid() &&
-				(removeProjection ? (*(*exists)[1])[0] == input :
-				 COperator::EopLogicalProject == (*(*exists)[1])[0]->Pop()->Eopid() &&
-				 (*(*(*exists)[1])[0])[0] == input);
+				(*(*exists)[1])[0] == input;
 			if (!constructed)
 				GPOS_TRACE_FORMAT("typed existential carrier negated=%d shape=%lu target=%p", negated, shape, target);
 			ok &= constructed;

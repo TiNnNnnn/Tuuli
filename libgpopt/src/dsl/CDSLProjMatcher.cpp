@@ -590,7 +590,13 @@ CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 			GPOS_NEW(m_mp) CScalarProjectList(m_mp), items));
 	const BOOL matched = FMatch(popProj, projection, pmodel);
 	projection->Release();
-	return matched;
+	if (!matched || nullptr != computed)
+		return matched;
+	// The column-only SELECT list is a view of grouping keys, not an actual
+	// Project. Preserve that identity when a target removes DISTINCT, without
+	// discarding a captured computation or changing its evaluation order.
+	pexprAgg->AddRef();
+	return pmodel->FSetVirtualIdentityProj((*popProj->Pdrgpsym())[1], pexprAgg);
 }
 
 // EOF
