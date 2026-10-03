@@ -482,6 +482,63 @@ CDSLInSubTest::EresUnittest_SemiJoinToInnerJoin()
 	pexprIdentityTarget->Release();
 	pmodelIdentity->Release();
 
+	// The explicit-binding sibling must preserve both equality columns and the
+	// original comparison tree when it introduces the same inner dedup.
+	CDSLRule *typed = PruleParse(mp,
+		"Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|"
+		"Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|"
+		"AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;"
+		"a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1");
+	GPOS_UNITTEST_ASSERT(nullptr != typed);
+	for (CExpression *input : {pexprSource, pexprSemi})
+	{
+		CDSLModel *typedModel = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), input, typedModel));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, typedModel));
+		CDSLInstantiator typedInstantiator(mp);
+		CExpression *target = typedInstantiator.PexprInstantiate(typed, typedModel);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		CExpression *join = COperator::EopLogicalProject == target->Pop()->Eopid() ? (*target)[0] : target;
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == join->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT((*join)[2]->Matches(pexprSemiPred));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == (*join)[1]->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CColRef::Equals(pdrgpcrRight,
+			CLogicalGbAgg::PopConvert((*join)[1]->Pop())->Pdrgpcr()));
+		target->Release();
+		typedModel->Release();
+	}
+	// Representation adapters must not broaden IN to effectful inputs,
+	// residual conditions or correlations outside the captured left input.
+	for (ULONG shape = 0; shape < 3; ++shape)
+	{
+		pexprLeft->AddRef();
+		pexprRight->AddRef();
+		CExpression *right = 0 == shape
+			? CUtils::PexprLimit(mp, pexprRight, 0, 1) : pexprRight;
+		CExpression *predicate = nullptr;
+		if (2 == shape)
+			predicate = fix.PexprEqPred(fix.PcrCreateInt4("outside"), (*pdrgpcrRight)[0]);
+		else
+		{
+			pexprSemiPred->AddRef();
+			predicate = pexprSemiPred;
+			if (1 == shape)
+			{
+				CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+				conjuncts->Append(predicate);
+				conjuncts->Append(fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrLeft)[1]));
+				predicate = CPredicateUtils::PexprConjunction(mp, conjuncts);
+			}
+		}
+		CExpression *unsafe = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLeftSemiJoin(mp), pexprLeft, right, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(!CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), unsafe, model));
+		model->Release();
+		unsafe->Release();
+	}
+	typed->Release();
+
 	pexprTarget->Release();
 	pmodel->Release();
 	prule->Release();

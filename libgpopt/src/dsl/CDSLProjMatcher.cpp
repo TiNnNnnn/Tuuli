@@ -389,8 +389,20 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 
 	const BOOL exact = nullptr != m_pmatcher->Prule() &&
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
-	// Native expression certificates describe the actual Project and its child,
-	// not the legacy compatibility views. Set-returning items are not scalar values.
+	// ORCA represents identity column pruning as required columns. Capture an
+	// explicit identity program for the membership view, not just its column sets.
+	if (exact && COperator::EopLogicalLeftSemiJoin == pexprProject->Pop()->Eopid() &&
+		1 == popProj->UlChildren() && EdslopInSubFilter == (*popProj)[0]->Edslop())
+	{
+		CColRefArray *columns = pexprProject->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		CExpression *view = CDSLMatchView::PexprColumnProject(m_mp, pexprProject, columns);
+		columns->Release();
+		const BOOL matched = nullptr != view && FMatch(popProj, view, pmodel);
+		CRefCount::SafeRelease(view);
+		return matched;
+	}
+	// Other native expression captures describe the actual Project and child.
+	// Set-returning items are not scalar values.
 	if (exact && (COperator::EopLogicalProject != pexprProject->Pop()->Eopid() ||
 		2 != pexprProject->Arity() ||
 		!CDSLExprListUtils::FTypedProjectList((*pexprProject)[1]) ||

@@ -12,6 +12,30 @@
   },
   "plans": [
     {
+      "name": "typed-membership",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiJoin2InnerJoin"
+        ]
+      }
+    },
+    {
       "name": "native",
       "dsl": false,
       "trace": true,
@@ -68,6 +92,7 @@
     "disable_xforms": [
       "CXformLeftSemiJoin2InnerJoin"
     ],
+    "policy": "isolate_typed_membership.policy",
     "output": [
       "1",
       "1",

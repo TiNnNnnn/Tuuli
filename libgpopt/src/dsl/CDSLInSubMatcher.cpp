@@ -128,6 +128,16 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 		2 == popInner->Pdrgpsym()->Size() &&
 		nullptr != pdrgpcrProjected && 0 < pdrgpcrProjected->Size())
 	{
+		if (nullptr != m_pmatcher->Prule() &&
+			m_pmatcher->Prule()->Pexprdefs()->FHasBindings())
+		{
+			CExpression *view = CDSLMatchView::PexprColumnProject(
+				m_mp, pexprInner, pdrgpcrProjected);
+			const BOOL matched = nullptr != view &&
+				m_pmatcher->FMatch(popInner, view, pmodel);
+			CRefCount::SafeRelease(view);
+			return matched;
+		}
 		CExpression *pexprRel = pexprInner;
 		while (COperator::EopLogicalProject == pexprRel->Pop()->Eopid() &&
 			   2 == pexprRel->Arity())
@@ -159,6 +169,11 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 		return fMatched;
 	}
 
+	if (nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings() &&
+		(1 != pdrgpcrProjected->Size() ||
+		 !CDSLMatchView::FSingleValueOutput(pexprInner, (*pdrgpcrProjected)[0])))
+		return false;
 	return m_pmatcher->FMatch(popInner, pexprInner, pmodel);
 }
 
@@ -360,6 +375,27 @@ CDSLInSubMatcher::FMatchSemiJoin(const CDSLOp *pop, CExpression *pexpr,
 	// transparent subquery projection. The extended shape binds both key vectors
 	// and the exact non-equality remainder, matching Join's predicate contract.
 	const BOOL fExtended = 5 == ulSymbols;
+	if (!fExtended && nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings())
+	{
+		// A membership key is a value, not the dependency of a cast/expression.
+		// Keep such predicates on the explicit keyed-join contract instead.
+		for (ULONG i = 0; i < equalities.Value()->Size(); ++i)
+		{
+			CExpression *cmp = (*equalities.Value())[i];
+			if (COperator::EopScalarCmp != cmp->Pop()->Eopid() ||
+				COperator::EopScalarIdent != (*cmp)[0]->Pop()->Eopid() ||
+				COperator::EopScalarIdent != (*cmp)[1]->Pop()->Eopid() ||
+				!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+					CScalarCmp::PopConvert(cmp->Pop())->MdIdOp()))
+			{
+				pdrgpcrOuter->Release();
+				pdrgpcrInner->Release();
+				pdrgpexprResidual->Release();
+				return false;
+			}
+		}
+	}
 	if ((!fExtended && 0 != pdrgpexprResidual->Size()) ||
 		(fExtended && 0 == pdrgpexprResidual->Size()))
 	{
@@ -548,6 +584,15 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
+		// An already decorrelated equality semi join is the relational form of
+		// membership. Retain its complete comparison and ordered key vectors.
+		// The native IN proof observes the whole input, so only a demand-insensitive
+		// right input and comparison may cross this representation boundary.
+		if (!fExtended && COperator::EopLogicalLeftSemiJoin == pexpr->Pop()->Eopid())
+			return 3 == pexpr->Arity() &&
+				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]) &&
+				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[2]) &&
+				FMatchSemiJoin(pop, pexpr, pmodel);
 		// The explicit five-slot form is the decorrelated keyed SemiJoin
 		// contract, not a scalar IN carrier. Share its existing exact decoder.
 		if (fExtended)
@@ -583,7 +628,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			return matched;
 		}
 		// Bind the native IN value and selected result, never dependency sets
-		// or a semijoin/conjunct view. FormalSQL evaluates the full inner query;
+		// or a conjunct view. FormalSQL evaluates the full inner query;
 		// PostgreSQL may stop on a match, so require demand-insensitive input.
 		if (fExtended || COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
 			2 != pexpr->Arity() || !CDSLMatchView::FPlainEqAny((*pexpr)[1]))
