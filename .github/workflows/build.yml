@@ -233,6 +233,7 @@ jobs:
         run: |
           set -eux
           # ninja-build lives in CRB (CodeReady Builder), perl-IPC-Run in EPEL.
+          dnf -y upgrade
           dnf -y install dnf-plugins-core epel-release
           dnf -y config-manager --set-enabled crb
           dnf -qy module disable postgresql
@@ -306,12 +307,14 @@ jobs:
     name: rockylinux:9 / gcc / Debug
     runs-on: ubuntu-latest
     container:
-      image: rockylinux:9
+      image: quay.io/rockylinux/rockylinux:9
 
     steps:
       - name: Install OS packages
         run: |
           set -eux
+          # Update the OS release and libraries before PGDG selects its minor repo.
+          dnf -y upgrade
           dnf -y install dnf-plugins-core epel-release
           dnf -y config-manager --set-enabled crb
           dnf -qy module disable postgresql
@@ -358,7 +361,7 @@ jobs:
     name: rockylinux:9 / gcc / Debug + tests (PG19)
     runs-on: ubuntu-latest
     container:
-      image: rockylinux:9
+      image: quay.io/rockylinux/rockylinux:9
 
     steps:
       - name: Install OS packages
@@ -369,6 +372,8 @@ jobs:
         # perl-IPC-Run is needed by pg_regress.
         run: |
           set -eux
+          # Update the OS release and libraries before PGDG selects its minor repo.
+          dnf -y upgrade
           dnf -y install dnf-plugins-core epel-release
           dnf -y config-manager --set-enabled crb
           dnf -qy module disable postgresql
