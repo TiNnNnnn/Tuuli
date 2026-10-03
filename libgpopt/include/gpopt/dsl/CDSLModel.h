@@ -88,6 +88,8 @@ class CDSLModel : public CRefCount
 {
 private:
 	CMemoryPool *m_mp;
+	// Borrowed Memo occurrence; absent for standalone matching and RBO.
+	CGroupExpression *m_pgexprSource;
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToRefMap *m_phmScalarContexts;
 	// Symbols synthesized by constructive constraints during checking. Keeping
@@ -151,7 +153,7 @@ private:
 public:
 	CDSLModel(const CDSLModel &) = delete;
 
-	explicit CDSLModel(CMemoryPool *mp);
+	explicit CDSLModel(CMemoryPool *mp, CGroupExpression *source = nullptr);
 
 	~CDSLModel() override;
 
@@ -174,6 +176,8 @@ public:
 	BOOL FBindDerived(const CDSLSymbol *psym, CRefCount *pval);
 	BOOL FDerivedBinding(const CDSLSymbol *psym) const;
 	CColRef *PcrSubqueryMarker(const CDSLConstraint *constraint) const;
+	CColRef *PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
+		CExpression *subquery) const;
 	BOOL FRecordSubqueryMarker(const CDSLConstraint *constraint, CColRef *marker);
 
 	// look up a bound artifact (NULL if unbound). Does NOT AddRef.

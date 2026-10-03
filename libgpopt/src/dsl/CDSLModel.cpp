@@ -11,6 +11,9 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpos/common/CHashMapIter.h"
+#include "gpopt/base/COptCtxt.h"
+#include "gpopt/search/CGroupExpression.h"
+#include "naucrates/md/IMDTypeBool.h"
 
 using namespace gpopt;
 
@@ -42,8 +45,9 @@ CDSLFrameBound::Matches(const CDSLFrameBound *other) const
 //	@function:
 //		CDSLModel::CDSLModel
 //---------------------------------------------------------------------------
-CDSLModel::CDSLModel(CMemoryPool *mp)
+CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 	: m_mp(mp),
+	  m_pgexprSource(source),
 	  m_phmSubqueryMarkers(nullptr),
 	  m_pdrgpexprResidual(nullptr),
 	  m_fDedupDrop(false),
@@ -683,6 +687,22 @@ CColRef *
 CDSLModel::PcrSubqueryMarker(const CDSLConstraint *constraint) const
 {
 	return nullptr == m_phmSubqueryMarkers ? nullptr : m_phmSubqueryMarkers->Find(constraint);
+}
+
+CColRef *
+CDSLModel::PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
+	CExpression *subquery) const
+{
+	CColRef *marker = PcrSubqueryMarker(constraint);
+	if (nullptr != marker) return marker;
+	// Only repeated construction of the same Memo occurrence shares identity.
+	// Standalone/RBO trees, synthetic views and distinct constructor slots stay
+	// fresh. Output binding/provenance is still validated on every invocation.
+	if (nullptr != m_pgexprSource && nullptr != subquery->Pgexpr())
+		return m_pgexprSource->PcrDSLSubqueryMarker(constraint, subquery->Pgexpr());
+	COptCtxt *context = COptCtxt::PoctxtFromTLS();
+	return context->Pcf()->PcrCreate(
+		context->Pmda()->PtMDType<gpmd::IMDTypeBool>(), default_type_modifier);
 }
 
 BOOL
