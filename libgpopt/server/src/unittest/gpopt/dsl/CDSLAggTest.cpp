@@ -44,6 +44,7 @@
 #include "gpopt/xforms/CXformContext.h"
 #include "gpopt/xforms/CXformResult.h"
 #include "gpopt/xforms/CXformSplitGbAgg.h"
+#include "gpopt/xforms/CXformSplitGbAggDedup.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 #include <string>
@@ -717,33 +718,85 @@ CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CAutoRef<CExpression> aggregate(CUtils::PexprCountStar(
-		mp, fix.PexprLogicalGet("split_count", 1)));
-	CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
-	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
-	CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
-	split->Transform(context.Value(), result.Value(), aggregate.Value());
-	GPOS_UNITTEST_ASSERT(result->Size() == 1);
-	CExpression *global = (*result->Pdrgpexpr())[0];
-	GPOS_UNITTEST_ASSERT(CScalarAggFunc::PopConvert(
-		(*(*(*global)[1])[0])[0]->Pop())->FSplit());
-	// Copying an operator tree does not carry a Memo xform origin. The scalar
-	// stage must still prevent interpreting intermediate values as raw inputs.
-	for (BOOL rename : {false, true})
+	for (ULONG kind = 0; kind < 3; ++kind)
 	{
-		CAutoRef<UlongToColRefMap> mapping(GPOS_NEW(mp) UlongToColRefMap(mp));
-		if (rename)
+		const BOOL dedup = kind != 0;
+		CAutoRef<CExpression> input(fix.PexprLogicalGet("split_input", 1));
+		input->AddRef();
+		CAutoRef<CExpression> aggregate(
+			dedup
+				? GPOS_NEW(mp) CExpression(
+					  mp,
+					  kind == 2
+						  ? GPOS_NEW(mp) CLogicalGbAggDeduplicate(
+								mp, input->DeriveOutputColumns()->Pdrgpcr(mp),
+								COperator::EgbaggtypeGlobal,
+								input->DeriveOutputColumns()->Pdrgpcr(mp))
+						  : GPOS_NEW(mp) CLogicalGbAgg(
+								mp, input->DeriveOutputColumns()->Pdrgpcr(mp),
+								COperator::EgbaggtypeGlobal),
+					  input.Value(),
+					  GPOS_NEW(mp)
+						  CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)))
+				: CUtils::PexprCountStar(mp, input.Value()));
+		CAutoRef<CXformSplitGbAgg> split(
+			kind == 2 ? GPOS_NEW(mp) CXformSplitGbAggDedup(mp)
+					  : GPOS_NEW(mp) CXformSplitGbAgg(mp));
+		CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		split->Transform(context.Value(), result.Value(), aggregate.Value());
+		GPOS_UNITTEST_ASSERT(result->Size() == 1);
+		CExpression *global = (*result->Pdrgpexpr())[0];
+		if (!dedup)
+			GPOS_UNITTEST_ASSERT(
+				CScalarAggFunc::PopConvert((*(*(*global)[1])[0])[0]->Pop())
+					->FSplit());
+		// Copying drops Memo lineage. Scalar stages and pure-dedup local keys
+		// must still prevent re-splitting the same finalizer.
+		for (BOOL rename : {false, true})
 		{
-			CAutoRef<CColRefArray> columns(
-				global->DeriveOutputColumns()->Pdrgpcr(mp));
-			CAutoRef<CColRefArray> renamed(CUtils::PdrgpcrCopy(
-				mp, columns.Value(), false /*all computed*/, mapping.Value()));
+			CAutoRef<UlongToColRefMap> mapping(GPOS_NEW(mp)
+												   UlongToColRefMap(mp));
+			if (rename)
+			{
+				CAutoRef<CColRefArray> columns(
+					global->DeriveOutputColumns()->Pdrgpcr(mp));
+				CAutoRef<CColRefArray> renamed(CUtils::PdrgpcrCopy(
+					mp, columns.Value(), false /*all computed*/,
+					mapping.Value()));
+			}
+			CAutoRef<CExpression> copied(global->PexprCopyWithRemappedColumns(
+				mp, mapping.Value(), false /*must_exist*/));
+			CAutoRef<CXformResult> again(GPOS_NEW(mp) CXformResult(mp));
+			split->Transform(context.Value(), again.Value(), copied.Value());
+			GPOS_UNITTEST_ASSERT(again->Size() == 0);
 		}
-		CAutoRef<CExpression> copied(global->PexprCopyWithRemappedColumns(
-			mp, mapping.Value(), false /*must_exist*/));
-		CAutoRef<CXformResult> again(GPOS_NEW(mp) CXformResult(mp));
-		split->Transform(context.Value(), again.Value(), copied.Value());
-		GPOS_UNITTEST_ASSERT(again->Size() == 0);
+	}
+	// A local dedup with more keys does not already deduplicate the outer keys.
+	// Keep this genuine splitting candidate (and the corresponding global
+	// child).
+	for (auto child_type :
+		 {COperator::EgbaggtypeLocal, COperator::EgbaggtypeGlobal})
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("split_wider", 2, &columns);
+		columns->AddRef();
+		CColRefArray *outer_keys = GPOS_NEW(mp) CColRefArray(mp);
+		outer_keys->Append((*columns)[0]);
+		CExpression *child = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalGbAgg(mp, columns, child_type), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
+		CAutoRef<CExpression> outer(GPOS_NEW(mp) CExpression(
+			mp,
+			GPOS_NEW(mp)
+				CLogicalGbAgg(mp, outer_keys, COperator::EgbaggtypeGlobal),
+			child,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp))));
+		CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
+		CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+		CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+		split->Transform(context.Value(), result.Value(), outer.Value());
+		GPOS_UNITTEST_ASSERT(result->Size() == 1);
 	}
 	return GPOS_OK;
 }
