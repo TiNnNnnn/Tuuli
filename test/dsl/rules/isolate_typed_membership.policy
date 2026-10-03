@@ -1,0 +1,5 @@
+# Only the explicit-binding IN-to-Join rule; no legacy DSL fallback.
+- rule: '*'
+  enabled: false
+- rule: 'b24ead64771bc9fb'
+  enabled: true

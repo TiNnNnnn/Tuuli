@@ -877,23 +877,41 @@ CExpression *
 CDSLMatchView::PexprSingleColumnProject(CMemoryPool *mp,
 	CExpression *expression, const CColRef *column)
 {
-	if (!expression->DeriveOutputColumns()->FMember(column))
-		return nullptr;
-	if (COperator::EopLogicalProject == expression->Pop()->Eopid() &&
+	CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+	columns->Append(const_cast<CColRef *>(column));
+	CExpression *project = PexprColumnProject(mp, expression, columns);
+	columns->Release();
+	return project;
+}
+
+CExpression *
+CDSLMatchView::PexprColumnProject(CMemoryPool *mp,
+	CExpression *expression, const CColRefArray *columns)
+{
+	BOOL exact = COperator::EopLogicalProject == expression->Pop()->Eopid() &&
 		2 == expression->Arity() &&
 		COperator::EopScalarProjectList == (*expression)[1]->Pop()->Eopid() &&
-		1 == (*expression)[1]->Arity() &&
-		CScalarProjectElement::PopConvert((*(*expression)[1])[0]->Pop())->Pcr() == column)
+		columns->Size() == (*expression)[1]->Arity();
+	for (ULONG i = 0; i < columns->Size(); ++i)
+	{
+		if (!expression->DeriveOutputColumns()->FMember((*columns)[i]))
+			return nullptr;
+		exact = exact && CScalarProjectElement::PopConvert(
+			(*(*expression)[1])[i]->Pop())->Pcr() == (*columns)[i];
+	}
+	if (exact)
 	{
 		expression->AddRef();
 		return expression;
 	}
 	// A pass-through SQL SELECT may exist only in subquery metadata. Expose
 	// that projection without confusing its value with the child's full schema.
-	CExpression *element = CUtils::PexprScalarProjectElement(mp,
-		const_cast<CColRef *>(column), CUtils::PexprScalarIdent(mp, column));
+	CExpressionArray *elements = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG i = 0; i < columns->Size(); ++i)
+		elements->Append(CUtils::PexprScalarProjectElement(mp,
+			(*columns)[i], CUtils::PexprScalarIdent(mp, (*columns)[i])));
 	CExpression *list = GPOS_NEW(mp) CExpression(mp,
-		GPOS_NEW(mp) CScalarProjectList(mp), element);
+		GPOS_NEW(mp) CScalarProjectList(mp), elements);
 	expression->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), expression, list);
 }

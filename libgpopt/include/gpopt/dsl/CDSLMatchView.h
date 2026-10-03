@@ -32,10 +32,12 @@ class CDSLMatchView
 public:
 	// Exact one-column SQL result, excluding implicit system columns.
 	static BOOL FSingleValueOutput(CExpression *expression, const CColRef *column);
-	// Owned exact SELECT view of a scalar subquery's result column. Retain
+	// Owned exact SELECT views of selected result columns, in order. Retain
 	// computed outputs and every child; never peel unrelated projections.
 	static CExpression *PexprSingleColumnProject(CMemoryPool *mp,
 		CExpression *expression, const CColRef *column);
+	static CExpression *PexprColumnProject(CMemoryPool *mp,
+		CExpression *expression, const CColRefArray *columns);
 	// Native eager scalar calls only; no lazy, set-returning or volatile heads.
 	// Typed subquery operands are checked separately. Reuse the resolved operator.
 	static BOOL FScalarCall(const CExpression *expression);
