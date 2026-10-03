@@ -7,6 +7,7 @@
 // captures/builds with equivalent correlation, NULL and cardinality behavior.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 
 #include "gpopt/base/CColRefSet.h"
@@ -191,35 +192,39 @@ PexprOnlySubquery(CExpression *pexpr, COperator::EOperatorId eopid,
 	return pexprFound;
 }
 
-CExpression *
-PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
-				 CExpression *pexprNeedle, CExpression *pexprReplacement,
-				 ULONG selectedDepth, ULONG depth, BOOL *replaced)
+BOOL
+FFindScalarPath(CExpression *pexpr, CExpression *needle,
+	ULONG selectedDepth, ULONG depth, std::vector<ULONG> *path)
 {
 	GPOS_CHECK_STACK_SIZE;
-	// Match the selector's scalar-only traversal and its first occurrence at
-	// the selected depth. Shared CExpression pointers are not shared SQL values.
-	if (*replaced || !pexpr->Pop()->FScalar())
+	if (!pexpr->Pop()->FScalar()) return false;
+	if (pexpr == needle &&
+		(selectedDepth == gpos::ulong_max || selectedDepth == depth))
+		return true;
+	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
+	{
+		path->push_back(ul);
+		if (FFindScalarPath((*pexpr)[ul], needle, selectedDepth, depth + 1, path))
+			return true;
+		path->pop_back();
+	}
+	return false;
+}
+
+CExpression *
+PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
+	CExpression *needle, CExpression *replacement,
+	ULONG selectedDepth, ULONG depth, BOOL *replaced)
+{
+	std::vector<ULONG> path;
+	if (*replaced || !FFindScalarPath(pexpr, needle, selectedDepth, depth, &path))
 	{
 		pexpr->AddRef();
 		return pexpr;
 	}
-	if (pexpr == pexprNeedle &&
-		(selectedDepth == gpos::ulong_max || selectedDepth == depth))
-	{
-		*replaced = true;
-		pexprReplacement->AddRef();
-		return pexprReplacement;
-	}
-	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
-	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
-	{
-		pdrgpexpr->Append(PexprReplaceNode(
-			mp, (*pexpr)[ul], pexprNeedle, pexprReplacement,
-			selectedDepth, depth + 1, replaced));
-	}
-	pexpr->Pop()->AddRef();
-	return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pdrgpexpr);
+	CExpression *result = CDSLExprListUtils::PexprReplaceAt(mp, pexpr, path, replacement);
+	*replaced = nullptr != result;
+	return result;
 }
 
 ULONG
@@ -317,7 +322,7 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 				   : pmodel->PexprWindow(psym));
 		CExpression *pexprLowered = PexprReplaceNode(
 			mp, pexprSource, pexprNeedle, pexprReplacement, selectedDepth, 0, &replaced);
-		GPOS_ASSERT(replaced);
+		GPOS_ASSERT(nullptr == pexprLowered || replaced);
 		return pexprLowered;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
@@ -327,6 +332,11 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 	{
 		CExpression *pexprLowered = PexprReplaceNode(
 			mp, (*pdrgpexpr)[ul], pexprNeedle, pexprReplacement, selectedDepth, 0, &replaced);
+		if (nullptr == pexprLowered)
+		{
+			pdrgpexprLowered->Release();
+			return nullptr;
+		}
 		pdrgpexprLowered->Append(pexprLowered);
 	}
 	GPOS_ASSERT(replaced);
@@ -387,8 +397,9 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 	BOOL replaced = false;
 	CExpression *pexprLowered = PexprReplaceNode(
 		m_mp, pexprPredicate, pexprSubquery, pexprIdent, gpos::ulong_max, 0, &replaced);
-	GPOS_ASSERT(replaced);
+	GPOS_ASSERT(nullptr == pexprLowered || replaced);
 	pexprIdent->Release();
+	if (nullptr == pexprLowered) return false;
 
 	CColRefSet *pcrsLeft =
 		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprLowered->DeriveUsedColumns());
@@ -457,6 +468,7 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
 		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprIdent, selectedDepth);
 	pexprIdent->Release();
+	if (nullptr == pvalLowered) return false;
 
 	CExpression *pexprTrue = CUtils::PexprScalarConstBool(m_mp, true);
 	CColRefArray *pdrgpcrLeft = GPOS_NEW(m_mp) CColRefArray(m_mp);
@@ -546,6 +558,11 @@ CDSLConstraintChecker::FCheckExprListExistential(
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
 		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprExistsValue, selectedDepth);
 	pexprExistsValue->Release();
+	if (nullptr == pvalLowered)
+	{
+		pexprMarkerList->Release();
+		return false;
+	}
 
 	CColRefArray *pdrgpcrMarkerAttrs =
 		pexprMarkerList->DeriveUsedColumns()->Pdrgpcr(m_mp);
@@ -636,6 +653,11 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
 		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprMarker, selectedDepth);
 	pexprMarker->Release();
+	if (nullptr == pvalLowered)
+	{
+		pexprMarkerList->Release();
+		return false;
+	}
 
 	CExpression *pexprComparison =
 		CDSLQuantifiedMatcher::PexprComparison(m_mp, pexprSubquery);

@@ -10,6 +10,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -1006,6 +1007,73 @@ EresSubqueryOutputBindings()
 }
 
 static GPOS_RESULT
+EresScalarContextPaths()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *query = fix.PexprLogicalGet("context_inner", 1);
+	CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubqueryExists(mp), query);
+	exists->AddRef();
+	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+	children->Append(exists);
+	children->Append(exists);
+	CExpression *root = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, children);
+	CExpression *replacement = CUtils::PexprScalarConstBool(mp, true);
+	// Paths distinguish occurrences even when both children have one pointer.
+	for (ULONG index : {0, 1})
+	{
+		GPOS_UNITTEST_ASSERT(CDSLExprListUtils::PexprAtScalarPath(root, {index}) == exists);
+		CExpression *changed = CDSLExprListUtils::PexprReplaceAt(mp, root, {index}, replacement);
+		GPOS_UNITTEST_ASSERT(nullptr != changed && (*changed)[index] == replacement);
+		GPOS_UNITTEST_ASSERT((*changed)[1 - index] == exists && (*root)[index] == exists);
+		CExpression *restored = CDSLExprListUtils::PexprReplaceAt(mp, changed, {index}, exists);
+		GPOS_UNITTEST_ASSERT(nullptr != restored && restored->Matches(root));
+		restored->Release(); changed->Release();
+	}
+	CExpression *wrongType = CUtils::PexprScalarConstInt4(mp, 1);
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, root, {0}, wrongType));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, root, {2}, replacement));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprAtScalarPath(root, {0, 0}));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, root, {0, 0}, replacement));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprAtScalarPath(query, {}));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, root, {}, query));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, root, {}, nullptr));
+	CExpression *whole = CDSLExprListUtils::PexprReplaceAt(mp, root, {}, replacement);
+	GPOS_UNITTEST_ASSERT(whole == replacement);
+	whole->Release();
+	// A scalar subquery's value carries the selected column's typmod, even
+	// though CScalarSubquery inherits the default CScalar::TypeModifier().
+	const IMDType *type = fix.Pmda()->PtMDType<IMDTypeInt4>();
+	CColRef *selected = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(type, 42);
+	CExpression *project = PexprProjectScalar(mp, query, selected,
+		CUtils::PexprScalarConstInt4(mp, 1));
+	CExpression *scalar = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubquery(mp, selected, false, false), project);
+	CExpression *ident = CUtils::PexprScalarIdent(mp, selected);
+	CExpression *lowered = CDSLExprListUtils::PexprReplaceAt(mp, scalar, {}, ident);
+	GPOS_UNITTEST_ASSERT(lowered == ident);
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, scalar, {}, wrongType));
+	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, ident, {}, wrongType));
+	CExpression *raised = CDSLExprListUtils::PexprReplaceAt(mp, ident, {}, scalar);
+	GPOS_UNITTEST_ASSERT(raised == scalar);
+	raised->Release(); lowered->Release(); ident->Release(); scalar->Release();
+	// Arbitrary depth is structural, not an enumerated family of templates.
+	std::vector<ULONG> path(64, 0);
+	for (ULONG i = 0; i < path.size(); ++i)
+		root = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), root);
+	path.push_back(1);
+	CExpression *changed = CDSLExprListUtils::PexprReplaceAt(mp, root, path, replacement);
+	GPOS_UNITTEST_ASSERT(nullptr != changed &&
+		CDSLExprListUtils::PexprAtScalarPath(changed, path) == replacement &&
+		CDSLExprListUtils::PexprAtScalarPath(root, path) == exists);
+	changed->Release(); wrongType->Release(); replacement->Release(); root->Release();
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresMarkerSequenceReplay()
 {
 	CAutoMemoryPool amp;
@@ -1131,6 +1199,7 @@ GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresScalarContextPaths),
 		GPOS_UNITTEST_FUNC(EresQuantifiedSafety),
 		GPOS_UNITTEST_FUNC(EresSubqueryOutputBindings),
 		GPOS_UNITTEST_FUNC(EresMarkerSequenceReplay),

@@ -8,6 +8,7 @@
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/operators/CExpression.h"
+#include <vector>
 
 namespace gpopt
 {
@@ -17,6 +18,15 @@ class CDSLExprListUtils
 {
 public:
 	CDSLExprListUtils() = delete;
+	// A context is a scalar child-index path, not a node pointer or an
+	// evaluation order. Paths cannot cross a relational subquery boundary.
+	// Lookup borrows; replacement owns its result and preserves untouched trees.
+	// Type compatibility is structural evidence only, not an equivalence proof
+	// or permission to move the selected computation out of this context.
+	static CExpression *PexprAtScalarPath(CExpression *root,
+		const std::vector<ULONG> &path);
+	static CExpression *PexprReplaceAt(CMemoryPool *mp, CExpression *root,
+		const std::vector<ULONG> &path, CExpression *replacement);
 
 	static BOOL FProjectList(const CExpression *pexpr);
 	// Native typed captures must agree with each item's output column type.
