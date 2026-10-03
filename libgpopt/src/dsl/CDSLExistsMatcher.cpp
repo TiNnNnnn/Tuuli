@@ -9,7 +9,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
-#include "gpopt/dsl/CDSLJoinMatcher.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -103,8 +103,6 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const CDSLRule *rule = m_pmatcher->Prule();
 	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
 	{
-		if (!fNegated && 3 == ulSymbols)
-			return CDSLJoinMatcher(m_mp, m_pmatcher, rule).FMatch(pop, pexpr, pmodel);
 		if (COperator::EopLogicalSelect == pexpr->Pop()->Eopid())
 			return 0 == ulSymbols && 2 == pexpr->Arity() &&
 				FDirectExistential((*pexpr)[1], fNegated) &&
@@ -116,14 +114,17 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	// semi-join whose condition has no extractable equality key. Equality-plus-
 	// residual conditions use InSubFilter<a a p a a>; keeping the shapes
 	// disjoint prevents two different DSL operators from claiming the same
-	// expression. The complete predicate and its dependencies remain ordinary
-	// symbols, so rules can move them without understanding ORCA scalar nodes.
+	// expression. Keep this domain for both reference syntaxes: changing target
+	// aliases must not turn a predicate-only source into a full SemiJoin pattern.
+	// SemiJoin<p a a> is available for rules that need the complete ON domain.
 	if (3 == ulSymbols)
 	{
 		if (fNegated ||
 			COperator::EopLogicalLeftSemiJoin != pexpr->Pop()->Eopid() ||
 			3 != pexpr->Arity() ||
-			0 != pexpr->DeriveOuterReferences()->Size())
+			0 != pexpr->DeriveOuterReferences()->Size() ||
+			(nullptr != rule && rule->Pexprdefs()->FHasBindings() &&
+			 !CDSLExprListUtils::FRowScalar((*pexpr)[2])))
 		{
 			return false;
 		}
@@ -167,7 +168,7 @@ CDSLExistsMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		BOOL fMatched = fDependenciesExact &&
 			m_pmatcher->FMatch((*pop)[0], (*pexpr)[0], pmodel) &&
 			m_pmatcher->FMatch((*pop)[1], (*pexpr)[1], pmodel) &&
-			pmodel->FBind((*pdrgpsym)[0], pexprPred) &&
+			m_pmatcher->FMatchPredicate((*pdrgpsym)[0], pexprPred, pmodel) &&
 			pmodel->FBind((*pdrgpsym)[1], pdrgpcrLeftDeps) &&
 			pmodel->FBind((*pdrgpsym)[2], pdrgpcrRightDeps);
 		pexprPred->Release();
