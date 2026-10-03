@@ -44,13 +44,13 @@ class CTableDescriptor;
 
 // map of expression to array of expressions
 using ExprToExprArrayMap =
-	CHashMap<CExpression, CExpressionArray, CExpression::HashValue,
+	CHashMap<CExpression, CExpressionArray, CExpression::UlHashDedup,
 			 CUtils::Equals, CleanupRelease<CExpression>,
 			 CleanupRelease<CExpressionArray>>;
 
 // iterator of map of expression to array of expressions
 using ExprToExprArrayMapIter =
-	CHashMapIter<CExpression, CExpressionArray, CExpression::HashValue,
+	CHashMapIter<CExpression, CExpressionArray, CExpression::UlHashDedup,
 				 CUtils::Equals, CleanupRelease<CExpression>,
 				 CleanupRelease<CExpressionArray>>;
 

@@ -28,7 +28,7 @@ namespace gpopt
 using namespace gpos;
 
 using ExprToConstantMap =
-	CHashMap<CExpression, CExpression, CExpression::HashValue, CUtils::Equals,
+	CHashMap<CExpression, CExpression, CExpression::UlHashDedup, CUtils::Equals,
 			 CleanupRelease<CExpression>, CleanupRelease<CExpression>>;
 
 //---------------------------------------------------------------------------

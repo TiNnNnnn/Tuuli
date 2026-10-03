@@ -44,7 +44,7 @@ class CExpressionFactorizer
 private:
 	// map expression to a count, used in factorization
 	using ExprMap =
-		CHashMap<CExpression, ULONG, CExpression::HashValue, CUtils::Equals,
+		CHashMap<CExpression, ULONG, CExpression::UlHashDedup, CUtils::Equals,
 				 CleanupRelease<CExpression>, CleanupDelete<ULONG>>;
 
 	// map operators to an array of expression arrays, corresponding to
