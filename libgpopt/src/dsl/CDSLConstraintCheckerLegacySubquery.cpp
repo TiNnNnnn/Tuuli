@@ -193,10 +193,21 @@ PexprOnlySubquery(CExpression *pexpr, COperator::EOperatorId eopid,
 
 CExpression *
 PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
-				 CExpression *pexprNeedle, CExpression *pexprReplacement)
+				 CExpression *pexprNeedle, CExpression *pexprReplacement,
+				 ULONG selectedDepth, ULONG depth, BOOL *replaced)
 {
-	if (pexpr == pexprNeedle)
+	GPOS_CHECK_STACK_SIZE;
+	// Match the selector's scalar-only traversal and its first occurrence at
+	// the selected depth. Shared CExpression pointers are not shared SQL values.
+	if (*replaced || !pexpr->Pop()->FScalar())
 	{
+		pexpr->AddRef();
+		return pexpr;
+	}
+	if (pexpr == pexprNeedle &&
+		(selectedDepth == gpos::ulong_max || selectedDepth == depth))
+	{
+		*replaced = true;
 		pexprReplacement->AddRef();
 		return pexprReplacement;
 	}
@@ -204,7 +215,8 @@ PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
 	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
 	{
 		pdrgpexpr->Append(PexprReplaceNode(
-			mp, (*pexpr)[ul], pexprNeedle, pexprReplacement));
+			mp, (*pexpr)[ul], pexprNeedle, pexprReplacement,
+			selectedDepth, depth + 1, replaced));
 	}
 	pexpr->Pop()->AddRef();
 	return GPOS_NEW(mp) CExpression(mp, pexpr->Pop(), pdrgpexpr);
@@ -235,6 +247,7 @@ FindNextSubquery(CExpression *pexpr, ULONG ulDepth,
 				 CExpression **ppexprBest, ULONG *pulBestDepth,
 				 ULONG *pulBestPriority)
 {
+	GPOS_CHECK_STACK_SIZE;
 	if (!pexpr->Pop()->FScalar())
 	{
 		return;
@@ -260,10 +273,11 @@ FindNextSubquery(CExpression *pexpr, ULONG ulDepth,
 }
 
 CExpression *
-PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym)
+PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
+	ULONG *selectedDepth)
 {
 	CExpression *pexprBest = nullptr;
-	ULONG ulBestDepth = 0;
+	*selectedDepth = 0;
 	ULONG ulBestPriority = gpos::ulong_max;
 	if (EdslsymExpr == psym->Esymkind() ||
 		EdslsymPred == psym->Esymkind() ||
@@ -275,13 +289,13 @@ PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym)
 				   ? pmodel->PexprPred(psym)
 				   : pmodel->PexprWindow(psym));
 		if (nullptr != pexpr)
-			FindNextSubquery(pexpr, 0, &pexprBest, &ulBestDepth,
+			FindNextSubquery(pexpr, 0, &pexprBest, selectedDepth,
 							 &ulBestPriority);
 		return pexprBest;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
 	for (ULONG ul = 0; nullptr != pdrgpexpr && ul < pdrgpexpr->Size(); ul++)
-		FindNextSubquery((*pdrgpexpr)[ul], 0, &pexprBest, &ulBestDepth,
+		FindNextSubquery((*pdrgpexpr)[ul], 0, &pexprBest, selectedDepth,
 						 &ulBestPriority);
 	return pexprBest;
 }
@@ -289,8 +303,9 @@ PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym)
 CRefCount *
 PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 						  const CDSLSymbol *psym, CExpression *pexprNeedle,
-						  CExpression *pexprReplacement)
+						  CExpression *pexprReplacement, ULONG selectedDepth)
 {
+	BOOL replaced = false;
 	if (EdslsymExpr == psym->Esymkind() ||
 		EdslsymPred == psym->Esymkind() ||
 		EdslsymWindow == psym->Esymkind())
@@ -301,7 +316,8 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 				   ? pmodel->PexprPred(psym)
 				   : pmodel->PexprWindow(psym));
 		CExpression *pexprLowered = PexprReplaceNode(
-			mp, pexprSource, pexprNeedle, pexprReplacement);
+			mp, pexprSource, pexprNeedle, pexprReplacement, selectedDepth, 0, &replaced);
+		GPOS_ASSERT(replaced);
 		return pexprLowered;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
@@ -310,9 +326,10 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
 	{
 		CExpression *pexprLowered = PexprReplaceNode(
-			mp, (*pdrgpexpr)[ul], pexprNeedle, pexprReplacement);
+			mp, (*pdrgpexpr)[ul], pexprNeedle, pexprReplacement, selectedDepth, 0, &replaced);
 		pdrgpexprLowered->Append(pexprLowered);
 	}
+	GPOS_ASSERT(replaced);
 	return pdrgpexprLowered;
 }
 }  // namespace
@@ -367,8 +384,10 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 	}
 	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
 	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
+	BOOL replaced = false;
 	CExpression *pexprLowered = PexprReplaceNode(
-		m_mp, pexprPredicate, pexprSubquery, pexprIdent);
+		m_mp, pexprPredicate, pexprSubquery, pexprIdent, gpos::ulong_max, 0, &replaced);
+	GPOS_ASSERT(replaced);
 	pexprIdent->Release();
 
 	CColRefSet *pcrsLeft =
@@ -412,8 +431,9 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 		return false;
 	}
 
+	ULONG selectedDepth = 0;
 	CExpression *pexprSubquery =
-		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0]);
+		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0], &selectedDepth);
 	if (nullptr == pexprSubquery ||
 		COperator::EopScalarSubquery != pexprSubquery->Pop()->Eopid() ||
 		1 != pexprSubquery->Arity())
@@ -435,7 +455,7 @@ CDSLConstraintChecker::FCheckExprListScalarSubquery(
 	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
 	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
-		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprIdent);
+		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprIdent, selectedDepth);
 	pexprIdent->Release();
 
 	CExpression *pexprTrue = CUtils::PexprScalarConstBool(m_mp, true);
@@ -484,8 +504,9 @@ CDSLConstraintChecker::FCheckExprListExistential(
 		return false;
 	}
 
+	ULONG selectedDepth = 0;
 	CExpression *pexprSubquery =
-		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0]);
+		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0], &selectedDepth);
 	const COperator::EOperatorId eopid =
 		fNegated ? COperator::EopScalarSubqueryNotExists
 				 : COperator::EopScalarSubqueryExists;
@@ -523,7 +544,7 @@ CDSLConstraintChecker::FCheckExprListExistential(
 		CUtils::PexprScalarConstBool(m_mp, !fNegated),
 		CUtils::PexprScalarConstBool(m_mp, fNegated));
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
-		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprExistsValue);
+		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprExistsValue, selectedDepth);
 	pexprExistsValue->Release();
 
 	CColRefArray *pdrgpcrMarkerAttrs =
@@ -579,8 +600,9 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 		return false;
 	}
 
+	ULONG selectedDepth = 0;
 	CExpression *pexprSubquery =
-		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0]);
+		PexprNextSubqueryInSequence(pmodel, (*pdrgpsym)[0], &selectedDepth);
 	const COperator::EOperatorId eopid =
 		fAll ? COperator::EopScalarSubqueryAll
 			 : COperator::EopScalarSubqueryAny;
@@ -612,7 +634,7 @@ CDSLConstraintChecker::FCheckExprListQuantified(
 
 	CExpression *pexprMarker = CUtils::PexprScalarIdent(m_mp, pcrMarker);
 	CRefCount *pvalLowered = PvalReplaceNodeInSequence(
-		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprMarker);
+		m_mp, pmodel, (*pdrgpsym)[0], pexprSubquery, pexprMarker, selectedDepth);
 	pexprMarker->Release();
 
 	CExpression *pexprComparison =
