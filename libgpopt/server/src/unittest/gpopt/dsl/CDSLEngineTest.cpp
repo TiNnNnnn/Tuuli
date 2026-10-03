@@ -72,6 +72,7 @@ CDSLEngineTest::EresUnittest()
 			CDSLEngineTest::EresUnittest_DPHyperNativeOwnership),
 		GPOS_UNITTEST_FUNC(
 			CDSLEngineTest::EresUnittest_ReachableTransientEmptyGroup),
+		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_UnorderedMemoHash),
 		GPOS_UNITTEST_FUNC(CDSLEngineTest::EresUnittest_StubsCallable),
 	};
 
@@ -688,6 +689,49 @@ CDSLEngineTest::EresUnittest_DSLProvenance()
 	pgexprNative->Release();
 	pgexprBase->Release();
 	return fValid ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLEngineTest::EresUnittest_UnorderedMemoHash()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CGroup *left = GPOS_NEW(mp) CGroup(mp);
+	CGroup *right = GPOS_NEW(mp) CGroup(mp);
+	{
+		CGroupProxy gp(left);
+		gp.SetId(1);
+	}
+	{
+		CGroupProxy gp(right);
+		gp.SetId(2);
+	}
+	BOOL valid = true;
+	for (ULONG ordered = 0; ordered < 2; ++ordered)
+	{
+		CGroupExpression *exprs[2];
+		for (ULONG reverse = 0; reverse < 2; ++reverse)
+		{
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			children->Append(reverse ? right : left);
+			children->Append(reverse ? left : right);
+			COperator *op = ordered
+				? static_cast<COperator *>(GPOS_NEW(mp) CLogicalSelect(mp))
+				: static_cast<COperator *>(GPOS_NEW(mp) CScalarProjectList(mp));
+			exprs[reverse] = GPOS_NEW(mp) CGroupExpression(
+				mp, op, children, CXform::ExfInvalid, nullptr, false);
+		}
+		valid &= exprs[0]->Matches(exprs[1]) == (0 == ordered);
+		if (!ordered)
+		{
+			valid &= exprs[0]->HashValue() == exprs[1]->HashValue();
+		}
+		exprs[1]->Release();
+		exprs[0]->Release();
+	}
+	right->Release();
+	left->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -68,6 +68,9 @@ public:
 	// reachability remains safe while rehash has a transient empty child group
 	static GPOS_RESULT EresUnittest_ReachableTransientEmptyGroup();
 
+	// Memo equality and hashing agree for reordered, order-insensitive inputs.
+	static GPOS_RESULT EresUnittest_UnorderedMemoHash();
+
 	// three-stage entry points are callable (phase-1 stubs: no rewrite)
 	static GPOS_RESULT EresUnittest_StubsCallable();
 };	// class CDSLEngineTest

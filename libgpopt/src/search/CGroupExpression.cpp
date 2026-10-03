@@ -1074,7 +1074,17 @@ CGroupExpression::HashValue(COperator *pop, CGroupArray *pdrgpgroup)
 	ULONG arity = pdrgpgroup->Size();
 	for (ULONG i = 0; i < arity; i++)
 	{
-		ulHash = CombineHashes(ulHash, (*pdrgpgroup)[i]->HashValue());
+		const ULONG childHash = (*pdrgpgroup)[i]->HashValue();
+		if (pop->FInputOrderSensitive())
+		{
+			ulHash = CombineHashes(ulHash, childHash);
+		}
+		else
+		{
+			// Matches ignores input order. Use a commutative accumulator so
+			// permutations reach the same memo bucket, including after rehash.
+			ulHash += childHash;
+		}
 	}
 
 	return ulHash;
