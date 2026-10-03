@@ -11,6 +11,9 @@
 #ifndef GPOPT_CGroupExpression_H
 #define GPOPT_CGroupExpression_H
 
+#include <memory>
+#include <unordered_map>
+
 #include "gpos/base.h"
 #include "gpos/common/CRefCount.h"
 
@@ -25,6 +28,8 @@
 namespace gpopt
 {
 using namespace gpos;
+
+class CDSLConstraint;
 
 //---------------------------------------------------------------------------
 //	@class:
@@ -97,6 +102,12 @@ private:
 
 	// expression id
 	ULONG m_id{GPOPT_INVALID_GEXPR_ID};
+	// Generated DSL columns belong to one source occurrence and constructor
+	// slot, not one extraction of its children. Memo owns the scalar keys;
+	// the column factory owns values. This state does not affect Matches/hash.
+	using DSLSubqueryMarkerMap = std::unordered_map<const CDSLConstraint *,
+		std::unordered_map<const CGroupExpression *, CColRef *>>;
+	std::unique_ptr<DSLSubqueryMarkerMap> m_dslSubqueryMarkers;
 
 	// duplicate group expression
 	CGroupExpression *m_pgexprDuplicate;
@@ -330,6 +341,9 @@ public:
 	// whether this expression was produced by a DSL rule, directly or through
 	// a later native xform
 	BOOL FHasDSLProvenance() const;
+
+	CColRef *PcrDSLSubqueryMarker(const CDSLConstraint *constraint,
+		const CGroupExpression *subquery);
 
 	// whether this expression was produced by DPHyper, directly or through a
 	// later xform

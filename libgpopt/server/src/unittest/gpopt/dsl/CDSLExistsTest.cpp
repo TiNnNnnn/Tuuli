@@ -26,7 +26,12 @@
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
+#include "gpopt/dsl/CDSLRuleEngine.h"
+#include "gpopt/dsl/CDSLRewriteDecision.h"
+#include "gpopt/search/CMemo.h"
+#include "gpopt/search/CGroupExpression.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
@@ -41,6 +46,7 @@
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/xforms/CXformContext.h"
 #include "gpopt/xforms/CXformResult.h"
 #include "gpopt/xforms/CXformSimplifyProjectWithSubquery.h"
@@ -297,6 +303,103 @@ EresIndependentFilterDependencies()
 		left->Release(); right->Release(); rule->Release();
 	}
 	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
+EresMemoSubqueryMarkerIdentity()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	const auto input = [&]() {
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append(fix.PcrCreateInt4("marker_input"));
+		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
+			mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+	};
+	for (ULONG kind = 0; kind < 4; ++kind)
+	{
+		const BOOL existential = kind < 2;
+		const CHAR *names[] = {"Exists", "NotExists", "Any", "All"};
+		const std::string text =
+			std::string("Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,") +
+			(existential ? "Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|" :
+				"Compute<e0 a5 s0>(Input<t2>)))|") + "TableEq(t1,t0);ExprList" + names[kind] +
+			"(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)" +
+			(existential ? ";ScalarOne(n0);ScalarZero(n1)" : "");
+		CWStringDynamic error(mp);
+		CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CDSLRule> other(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
+		GPOS_UNITTEST_ASSERT(nullptr != other.Value());
+		CMemo memo(mp);
+		const auto insert = [&](const auto &self, CExpression *expr) -> CGroupExpression * {
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				children->Append(self(self, (*expr)[i])->Pgroup());
+			expr->Pop()->AddRef();
+			CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+				expr->Pop(), children, CXform::ExfInvalid, nullptr, false);
+			CGroupExpression *canonical = nullptr;
+			memo.PgroupInsert(nullptr, expr, entry, &canonical);
+			if (entry != canonical) entry->Release();
+			return canonical;
+		};
+		CAutoRef<CExpression> inner(input());
+		inner->AddRef();
+		CExpression *scalar = nullptr;
+		if (existential)
+			scalar = GPOS_NEW(mp) CExpression(mp, kind == 1
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+				: GPOS_NEW(mp) CScalarSubqueryExists(mp), inner.Value());
+		else
+		{
+			CColRef *column = inner->DeriveOutputColumns()->PcrFirst();
+			CAutoRef<CExpression> eq(fix.PexprEqPred(column, column));
+			CScalarCmp *cmp = CScalarCmp::PopConvert(eq->Pop());
+			cmp->MdIdOp()->AddRef();
+			auto *name = GPOS_NEW(mp) CWStringConst(mp, cmp->Pstr()->GetBuffer());
+			COperator *op = kind == 2
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryAny(mp, cmp->MdIdOp(), name, column))
+				: GPOS_NEW(mp) CScalarSubqueryAll(mp, cmp->MdIdOp(), name, column);
+			scalar = GPOS_NEW(mp) CExpression(mp, op, inner.Value(), CUtils::PexprScalarConstInt4(mp, 1));
+		}
+		CAutoRef<CExpression> predicate(scalar);
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(rule.Value(), 0, COperator::EopLogicalSelect);
+		CColRef *previous = nullptr;
+		for (ULONG scope = 0; scope < 2; ++scope)
+		{
+			CAutoRef<CExpression> outer(input());
+			CAutoRef<CExpression> source(fix.PexprLogicalSelect(outer.Value(), predicate.Value()));
+			CGroupExpression *entry = insert(insert, source.Value());
+			CAutoRef<CExpressionArray> bindings(index.PdrgpexprBindings(mp, entry));
+			GPOS_UNITTEST_ASSERT(0 < bindings->Size());
+			CExpression *bound = (*bindings)[0];
+			auto *engine = CDSLRuleEngine::Instance();
+			CDSLRewriteDecision *first = engine->PdecisionEvaluate(mp, rule.Value(), bound);
+			CAutoRef<CExpressionArray> extracted(index.PdrgpexprBindings(mp, entry));
+			GPOS_UNITTEST_ASSERT(0 < extracted->Size() && (*extracted)[0] != bound);
+			CDSLRewriteDecision *again = engine->PdecisionEvaluate(mp, rule.Value(), (*extracted)[0]);
+			GPOS_UNITTEST_ASSERT(EdsldecisionReady == first->Status() &&
+				EdsldecisionReady == again->Status());
+			const CDSLConstraint *constraint = (*rule->Pdrgpcon())[1];
+			CColRef *marker = first->Pmodel()->PcrSubqueryMarker(constraint);
+			// Re-evaluating the same Memo occurrence must not manufacture an
+			// alpha-renamed alternative, but another source scope stays fresh.
+			GPOS_UNITTEST_ASSERT(nullptr != marker && marker != previous);
+			GPOS_UNITTEST_ASSERT(marker == again->Pmodel()->PcrSubqueryMarker(constraint));
+			GPOS_UNITTEST_ASSERT(first->PexprTarget()->Matches(again->PexprTarget()));
+			CDSLRewriteDecision *separate = engine->PdecisionEvaluate(mp, other.Value(), bound);
+			GPOS_UNITTEST_ASSERT(EdsldecisionReady == separate->Status() &&
+				marker != separate->Pmodel()->PcrSubqueryMarker((*other->Pdrgpcon())[1]));
+			GPOS_DELETE(separate);
+			previous = marker;
+			GPOS_DELETE(again);
+			GPOS_DELETE(first);
+		}
+	}
+	return GPOS_OK;
 }
 
 static GPOS_RESULT
@@ -558,6 +661,7 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
+		GPOS_UNITTEST_FUNC(EresMemoSubqueryMarkerIdentity),
 		GPOS_UNITTEST_FUNC(EresTypedDistinctExistence),
 		GPOS_UNITTEST_FUNC(
 			CDSLExistsTest::EresUnittest_CorpusAggProjRoundTrip),

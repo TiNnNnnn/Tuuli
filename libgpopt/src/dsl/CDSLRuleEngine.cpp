@@ -1138,7 +1138,7 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pexpr);
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp, pexpr->Pgexpr());
 	const BOOL fTrace = GPOS_FTRACE(EopttracePrintDSLRule);
 	CWallClock stageTimer(fTrace);
 	// Fingerprints are required by the RBO cycle guard, but computing them for
