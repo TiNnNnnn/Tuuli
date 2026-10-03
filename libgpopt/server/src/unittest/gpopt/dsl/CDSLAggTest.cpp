@@ -1416,6 +1416,30 @@ CDSLAggTest::EresUnittest_InstantiateDedupToPlainProj()
 
 	CRefCount::SafeRelease(pexprTgt);
 	pmodel->Release();
+	// A typed DISTINCT column view must not materialize an empty Project
+	// when uniqueness permits removing DISTINCT. Check both SELECT-list forms.
+	const CHAR *typedRules[] = {
+		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;Unique(t0,a0)",
+		"Proj*<a0 s0 e0>(Input<t0>)|Proj<a1 s1 e1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;e1 := e0;Unique(t0,a0)"};
+	for (const CHAR *text : typedRules)
+	{
+		CDSLRule *typed = PdslruleParseLocal(mp, text);
+		GPOS_UNITTEST_ASSERT(nullptr != typed);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher typedMatcher(mp, typed);
+		CDSLInstantiator inst(mp);
+		CExpression *target = nullptr;
+		if (typedMatcher.FMatch(typed->PfragSrc()->PopRoot(), pexprGbAgg, model) &&
+			checker.FCheck(typed, model))
+			target = inst.PexprInstantiate(typed, model);
+		if (target != pexprGet)
+			eres = GPOS_FAILED;
+		CRefCount::SafeRelease(target);
+		model->Release();
+		typed->Release();
+	}
 	pexprGet->Release();
 	pexprGbAgg->Release();
 	prule->Release();

@@ -205,8 +205,7 @@ EresTypedQuantifiedDistinct()
 				CExpression *any = (*quantifier)[1];
 				ok &= COperator::EopScalarSubqueryAny == any->Pop()->Eopid() &&
 					CScalarSubqueryAny::PopConvert(any->Pop())->Pcr() == (*rc)[0] &&
-					COperator::EopLogicalProject == (*any)[0]->Pop()->Eopid() &&
-					(*(*any)[0])[0] == right && 0 == (*(*any)[0])[1]->Arity();
+					(*any)[0] == right;
 			}
 			else
 			{
@@ -214,8 +213,7 @@ EresTypedQuantifiedDistinct()
 					? (2 == carrier ? COperator::EopLogicalLeftAntiSemiCorrelatedApplyNotIn : COperator::EopLogicalLeftAntiSemiApplyNotIn)
 					: (2 == carrier ? COperator::EopLogicalLeftSemiCorrelatedApplyIn : COperator::EopLogicalLeftSemiApplyIn);
 				ok &= expected == quantifier->Pop()->Eopid() &&
-					COperator::EopLogicalProject == (*quantifier)[1]->Pop()->Eopid() &&
-					(*(*quantifier)[1])[0] == right && 0 == (*(*quantifier)[1])[1]->Arity() &&
+					(*quantifier)[1] == right &&
 					CScalarCmp::PopConvert((*quantifier)[2]->Pop())->ParseCmpType() ==
 						(all && 2 != carrier ? IMDType::EcmptNEq : IMDType::EcmptEq);
 			}
