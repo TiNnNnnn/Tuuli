@@ -216,6 +216,33 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 			GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
 	}
 
+	// Asymmetric int4 comparisons exercise both commutation and negation.
+	// OIDs and operator relationships follow pg_operator.dat / pg_proc.dat.
+	const OID orderedOps[] = {97, 521, 523, 525};
+	const OID orderedFunctions[] = {66, 147, 149, 150};
+	const WCHAR *orderedNames[] = {GPOS_WSZ_LIT("<"), GPOS_WSZ_LIT(">"),
+		GPOS_WSZ_LIT("<="), GPOS_WSZ_LIT(">=")};
+	const IMDType::ECmpType orderedTypes[] = {IMDType::EcmptL, IMDType::EcmptG,
+		IMDType::EcmptLEq, IMDType::EcmptGEq};
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(orderedOps); ++i)
+	{
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDScalarOpGPDB(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, orderedOps[i]),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(orderedNames[i]), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, orderedFunctions[i]),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, orderedOps[i ^ 1]),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, orderedOps[3 - i]),
+			orderedTypes[i], false, GPOS_NEW(mp) IMdIdArray(mp), nullptr, nullptr, false));
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDFunctionGPDB(mp,
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, orderedFunctions[i]),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(orderedNames[i]), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_BOOL_OID),
+			GPOS_NEW(mp) IMdIdArray(mp), false, IMDFunction::EfsImmutable, true, false, false));
+	}
+
 	// int8 '=' and '<>' support the row_number predicate produced by ORCA's
 	// canonical MaxOneRow implementation without relying on implicit casts.
 	{

@@ -1,0 +1,58 @@
+{
+  "description": "安全合取下的非对称 ANY/ALL 比较保留残留条件、NULL 与空集语义；仅验证通用适配器",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3ff420c0a9ea6c7c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5018e63a5968ac76\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "all-empty,1",
+      "all-empty,2",
+      "all-empty,3",
+      "all-live,4",
+      "any-live,2"
+    ],
+    "postgres_output": [
+      "all-empty,1",
+      "all-empty,2",
+      "all-empty,3",
+      "all-live,4",
+      "any-live,2"
+    ],
+    "off_output": [
+      "all-empty,1",
+      "all-empty,2",
+      "all-empty,3",
+      "all-live,4",
+      "any-live,2"
+    ]
+  }
+}
