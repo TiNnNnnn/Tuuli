@@ -12,7 +12,7 @@
       "6fcbf4135eeb31ce",
       "4f3da4063a3836ad",
       "f91ba8ce73b0da11",
-      "593ad0723f91cfd4"
+      "c10790cd2aca029b"
     ]
   },
   "plans": [
@@ -32,7 +32,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"rule_hash\":\"593ad0723f91cfd4\""
+        "\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "alternative": []
     },
@@ -64,7 +64,7 @@
         "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
         "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
-        "\"status\":\"applied\",\"rule_hash\":\"593ad0723f91cfd4\""
+        "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -85,7 +85,7 @@
         {
           "scheduler": "cbo",
           "src_rule": "f91ba8ce73b0da11",
-          "dst_rule": "593ad0723f91cfd4",
+          "dst_rule": "c10790cd2aca029b",
           "target_path": "r"
         }
       ],

@@ -23,7 +23,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
-        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
+        "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -31,7 +31,7 @@
       "rule_edges": [
         {
           "src_rule": "235e16002a86b0d0",
-          "dst_rule": "07bc74ac0afe2295",
+          "dst_rule": "c10790cd2aca029b",
           "target_path": "r/0",
           "dst_binding_path": "r",
           "candidate_status": "ready_cbo"

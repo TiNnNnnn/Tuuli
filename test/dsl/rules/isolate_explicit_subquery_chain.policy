@@ -7,13 +7,9 @@
   enabled: true
 - rule: '3ac742c807fd9c27'
   enabled: true
-- rule: '593ad0723f91cfd4'
+- rule: 'c10790cd2aca029b'
   enabled: true
-- rule: 'c6451f8634950f93'
-  enabled: true
-- rule: '07bc74ac0afe2295'
-  enabled: true
-- rule: '78963540e9d42c30'
+- rule: 'f37f3cbe4c7c9b10'
   enabled: true
 - rule: 'eb808b80935652d6'
   enabled: true

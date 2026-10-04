@@ -1,5 +1,5 @@
 {
-  "description": "安全拆分 NOT EXISTS 与外侧残余条件，再串联显式 AntiApply，保留重复外行",
+  "description": "显式 Apply 同时保留当前层及更外层引用，交集仅声明当前左输入的相关列",
   "plans": [
     {
       "name": "replacement",
@@ -8,26 +8,13 @@
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "construct.policy",
+      "policy": "dependencies.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
         "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\""
       ],
       "not_contains": [
         "Falling back to Postgres"
-      ],
-      "rule_edges": [
-        {
-          "src_rule": "f489170cc9013ac8",
-          "dst_rule": "f37f3cbe4c7c9b10",
-          "target_path": "r/0",
-          "dst_binding_path": "r",
-          "candidate_status": "ready_cbo"
-        }
-      ],
-      "alternative": [
-        "CXformDSLRule_Select"
       ],
       "provenance": {
         "required_sources": [
@@ -46,14 +33,24 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "construct.policy",
+    "policy": "dependencies.policy",
     "output": [
-      "2",
-      "2"
+      ",6",
+      "1,6",
+      "2,4",
+      "2,4"
     ],
     "postgres_output": [
-      "2",
-      "2"
+      ",6",
+      "1,6",
+      "2,4",
+      "2,4"
+    ],
+    "off_output": [
+      ",6",
+      "1,6",
+      "2,4",
+      "2,4"
     ]
   }
 }

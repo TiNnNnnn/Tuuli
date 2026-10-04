@@ -428,10 +428,11 @@ EresExplicitExistentialApply()
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
 	for (BOOL negated : {false, true})
-	for (BOOL derived : {false, true})
-	for (ULONG shape = 0; shape < (derived ? 7U : 5U); ++shape)
+	for (ULONG mode = 0; mode < 3; ++mode)
+	for (ULONG shape = 0; shape < (mode ? 8U : 5U); ++shape)
 	{
-		const BOOL enclosingScope = derived ? 6 == shape : 4 == shape;
+		const BOOL derived = 0 != mode;
+		const BOOL enclosingScope = derived ? 6 <= shape : 4 == shape;
 		const BOOL correlated = 0 != shape;
 		const BOOL remainingCorrelation = 1 == shape || 3 <= shape;
 		const std::string kind = negated ? "NotExists" : "Exists";
@@ -440,7 +441,8 @@ EresExplicitExistentialApply()
 			? kind + "(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|" +
 			  apply + "<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"
 			  "t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;"
-			  "p2 := Exists(t1);n0 := BoolValue(p2);a4 := ScalarDeps(n0)"
+			  "p2 := Exists(t1);n0 := BoolValue(p2);" +
+			  (mode == 2 ? "a5 := ScalarDeps(n0);AttrsIntersect(a4,a5,t0)" : "a4 := ScalarDeps(n0)")
 			: 1 == shape
 			? kind + "(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|" +
 			  apply + "<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|"
@@ -457,6 +459,12 @@ EresExplicitExistentialApply()
 		CExpression *on = fix.PexprEqPred((*rc)[0], correlated ? (*lc)[0] : (*rc)[1]);
 		CExpression *residual = fix.PexprEqPred((*rc)[1],
 			enclosingScope ? fix.PcrCreateInt4("enclosing_query") : (*lc)[1]);
+		if (7 == shape)
+		{
+			CExpression *local = fix.PexprEqPred((*rc)[1], (*lc)[1]);
+			CExpression *both = CPredicateUtils::PexprConjunction(mp, residual, local);
+			residual->Release(); local->Release(); residual = both;
+		}
 		CExpression *input = remainingCorrelation ? fix.PexprLogicalSelect(right, residual) : right;
 		if (!remainingCorrelation) input->AddRef();
 		// Correlation can be hidden under any Input subtree, not just a Filter.
@@ -475,7 +483,7 @@ EresExplicitExistentialApply()
 		const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) &&
 			checker.FCheck(rule, model);
 		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
-		if ((!derived && 3 == shape) || (derived && enclosingScope))
+		if ((!derived && 3 == shape) || (mode == 1 && enclosingScope))
 		{
 			// An Input placeholder may hide correlation: declaring an empty
 			// set must not erase actual references in the remaining subtree.
@@ -502,6 +510,7 @@ EresExplicitExistentialApply()
 				(*target)[0] == left && (*target)[2]->Matches(on) &&
 				source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()), "operator/left/ON/output");
 			check((*target)[1]->Matches(input), "complete right input");
+			check(source->DeriveOuterReferences()->Equals(target->DeriveOuterReferences()), "enclosing references");
 			// Ordinary existential Apply has no scalar result metadata to remap.
 			UlongToColRefMap *mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
 			CExpression *copy = target->PexprCopyWithRemappedColumns(mp, mapping, false);

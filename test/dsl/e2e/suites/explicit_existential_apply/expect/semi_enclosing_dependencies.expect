@@ -1,17 +1,6 @@
 {
-  "description": "残余谓词依赖 i，EXISTS 相关列为 k，独立推导两侧依赖集合",
+  "description": "显式 Apply 同时保留当前层及更外层引用，交集仅声明当前左输入的相关列",
   "plans": [
-    {
-      "name": "dsl-off",
-      "dsl": false,
-      "trace": true,
-      "contains": [
-        "Optimizer: pg_orca"
-      ],
-      "not_contains": [
-        "Falling back to Postgres"
-      ]
-    },
     {
       "name": "replacement",
       "trace": true,
@@ -19,26 +8,13 @@
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "construct.policy",
+      "policy": "dependencies.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
         "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "not_contains": [
         "Falling back to Postgres"
-      ],
-      "rule_edges": [
-        {
-          "src_rule": "235e16002a86b0d0",
-          "dst_rule": "c10790cd2aca029b",
-          "target_path": "r/0",
-          "dst_binding_path": "r",
-          "candidate_status": "ready_cbo"
-        }
-      ],
-      "alternative": [
-        "CXformDSLRule_Select"
       ],
       "provenance": {
         "required_sources": [
@@ -57,12 +33,24 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "construct.policy",
+    "policy": "dependencies.policy",
     "output": [
-      "1"
+      ",0",
+      "1,0",
+      "2,2",
+      "2,2"
     ],
     "postgres_output": [
-      "1"
+      ",0",
+      "1,0",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      ",0",
+      "1,0",
+      "2,2",
+      "2,2"
     ]
   }
 }
