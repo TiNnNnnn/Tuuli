@@ -37,6 +37,7 @@ const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprArgs, "Args", 2, {EdslsymValueList, EdslsymScalar, EdslsymValueList}},
 	{EdslexprColumn, "Column", 1, {EdslsymScalar, EdslsymAttrs}},
 	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymScalar}},
+	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymExpr}},
 	{EdslexprExists, "Exists", 1, {EdslsymPred, EdslsymTable}},
 	{EdslexprAny, "Any", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},
 	{EdslexprAll, "All", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},

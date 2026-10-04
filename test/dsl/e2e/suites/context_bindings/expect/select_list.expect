@@ -20,7 +20,7 @@
       "policy": "list.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"5efdfd7cb92c2a63\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d09c7ee7e566962d\"",
         "\"generated_alternatives\":1",
         "\"memo_inserted_alternatives\":1"
       ],

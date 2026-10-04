@@ -604,6 +604,8 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 				outer->Exclude((*source)[0]->DeriveOutputColumns());
 				CColRefSet *local = GPOS_NEW(m_mp) CColRefSet(m_mp);
 				local->Include((*source)[1]->DeriveUsedColumns());
+				// A replaced occurrence may no longer use its original column.
+				local->Intersection(pexprList->DeriveUsedColumns());
 				local->Exclude(outer);
 				local->Exclude(pexprChild->DeriveOutputColumns());
 				const BOOL valid = 0 == local->Size() &&
@@ -614,6 +616,10 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 				return valid;
 			}
 			const auto *definition = m_prule->Pexprdefs()->Pdef(symbol);
+			// Replugging changes an occurrence, not the captured list's scope.
+			if (nullptr != definition && EdslexprContext == definition->Edslexpr() &&
+				CDSLExpressionDefinitions::EBuild == definition->Binding())
+				return self(self, definition->PsymOperand(0));
 			if (nullptr == definition || EdslexprConcat != definition->Edslexpr())
 				return true; // Uncaptured columns still face the final scope check.
 			return self(self, definition->PsymOperand(0)) &&
