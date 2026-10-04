@@ -66,8 +66,7 @@ using namespace gpopt;
 #define GPOPT_DSL_NOT_EXISTS_DISTINCT_DROP_RULE                            \
 	"NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|"                      \
 	"NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|"                       \
-	"AttrsSub(a0,t1);TableEq(t2,t0);TableEq(t3,t1);"                     \
-	"AttrsEq(a1,a0);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0"
 
 #define GPOPT_DSL_PREDICATE_EXISTS_IDENTITY_RULE                         \
 	"Exists<p0 a0 a1>(Input<t0>,Input<t1>)|"                            \
@@ -1515,20 +1514,33 @@ CDSLExistsTest::EresUnittest_PreApplyNotExistsDistinctDrop()
 	CDSLMatcher matcher(mp, prule);
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
-	GPOS_ASSERT(pmodel->FDedupDrop());
+	GPOS_UNITTEST_ASSERT(!pmodel->FDedupDrop());
 	CDSLConstraintChecker checker(mp);
 	GPOS_ASSERT(checker.FCheck(prule, pmodel));
 	CDSLInstantiator instantiator(mp);
 	CExpression *pexprTarget =
 		instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalLeftAntiSemiApply ==
-				pexprTarget->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalGet == (*pexprTarget)[1]->Pop()->Eopid());
-	GPOS_ASSERT(CUtils::FScalarConstTrue((*pexprTarget)[2]));
-	GPOS_ASSERT(COperator::EopScalarSubqueryNotExists ==
-				CLogicalApply::PopConvert(pexprTarget->Pop())
-					->EopidOriginSubq());
+	// New bindings preserve the scalar subquery; unnesting is a separate rule.
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT((*pexprTarget)[0] == pexprOuter);
+	GPOS_UNITTEST_ASSERT(COperator::EopScalarSubqueryNotExists == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT((*(*pexprTarget)[1])[0] == pexprInnerGet);
+	// Feed that exact result into the production lowering rule. No legacy
+	// PredicateNotExists extraction or native preprocessing is involved.
+	CAutoRef<CDSLRule> lowering(CDSLRuleParser::PdslruleParse(mp,
+		"Filter<Not(Exists(t1)) a0 a1>(Input<t0>)|AntiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1",
+		"EQ", &strErr));
+	GPOS_UNITTEST_ASSERT(nullptr != lowering.Value());
+	CAutoRef<CDSLModel> next(GPOS_NEW(mp) CDSLModel(mp));
+	GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, lowering.Value()).FMatch(
+		lowering->PfragSrc()->PopRoot(), pexprTarget, next.Value()));
+	GPOS_UNITTEST_ASSERT(checker.FCheck(lowering.Value(), next.Value()));
+	CAutoRef<CExpression> applied(CDSLInstantiator(mp).PexprInstantiate(lowering.Value(), next.Value()));
+	GPOS_UNITTEST_ASSERT(nullptr != applied.Value());
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftAntiSemiApply == applied->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT((*applied)[0] == pexprOuter && (*applied)[1] == pexprInnerGet);
+	GPOS_UNITTEST_ASSERT(CUtils::FScalarConstTrue((*applied)[2]));
 
 	pexprTarget->Release();
 	pmodel->Release();
@@ -1569,19 +1581,17 @@ CDSLExistsTest::EresUnittest_PostApplyNotExistsDistinctDrop()
 	CDSLMatcher matcher(mp, prule);
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 							   pmodel));
-	GPOS_ASSERT(pmodel->FDedupDrop());
+	GPOS_UNITTEST_ASSERT(!pmodel->FDedupDrop());
 	CDSLConstraintChecker checker(mp);
 	GPOS_ASSERT(checker.FCheck(prule, pmodel));
 	CDSLInstantiator instantiator(mp);
 	CExpression *pexprTarget =
 		instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalLeftAntiSemiApply ==
-				pexprTarget->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalGet == (*pexprTarget)[1]->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopScalarSubqueryNotExists ==
-				CLogicalApply::PopConvert(pexprTarget->Pop())
-					->EopidOriginSubq());
+	GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT((*pexprTarget)[0] == pexprOuter);
+	GPOS_UNITTEST_ASSERT(COperator::EopScalarSubqueryNotExists == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_UNITTEST_ASSERT((*(*pexprTarget)[1])[0] == pexprInnerGet);
 
 	pexprTarget->Release();
 	pmodel->Release();

@@ -50,14 +50,14 @@ using namespace gpopt;
 #define GPOPT_DSL_ANY_DISTINCT_DROP_RULE                                  \
 	"Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"                    \
 	"Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|"                     \
-	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"    \
-	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"              \
+	"p1 := p0;a2 := a0;a3 := a1;s1 := s0"
 
 #define GPOPT_DSL_ALL_DISTINCT_DROP_RULE                                  \
 	"All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"                    \
 	"All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|"                     \
-	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"    \
-	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"              \
+	"p1 := p0;a2 := a0;a3 := a1;s1 := s0"
 
 #define GPOPT_DSL_EXPRESSION_DEFINED_ANY_RULE                            \
 	"Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|"        \
