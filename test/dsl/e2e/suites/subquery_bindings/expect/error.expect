@@ -19,11 +19,14 @@
       "trace": true,
       "policy": "construct.policy",
       "contains": [
-        "Optimizer: pg_orca"
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"75c25667992a6998\""
       ],
       "not_contains": [
-        "Falling back to Postgres",
-        "\"status\":\"applied\""
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
       ]
     }
   ],

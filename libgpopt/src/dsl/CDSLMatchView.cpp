@@ -160,8 +160,7 @@ BOOL
 CDSLMatchView::FSelectedSubqueryInput(CExpression *query, const CColRef *output)
 {
 	return nullptr != query && nullptr != output && query->Pop()->FLogical() &&
-		query->DeriveOutputColumns()->FMember(output) &&
-		CDSLConstraintChecker::FQueryDemandInsensitive(query);
+		query->DeriveOutputColumns()->FMember(output);
 }
 
 BOOL
@@ -192,6 +191,9 @@ CDSLMatchView::FQuantifiedInputs(const CExpression *source, CExpression *query,
 		right_modifier == output->TypeModifier() &&
 		CPredicateUtils::FBuiltInComparisonIsVeryStrict(comparison) &&
 		FSelectedSubqueryInput(query, output) &&
+		// Quantified carrier adaptation needs this demand contract. An opaque
+		// scalar Subquery capture/rebuild keeps the entire input and does not.
+		CDSLConstraintChecker::FQueryDemandInsensitive(query) &&
 		CDSLConstraintChecker::FQueryDemandInsensitive((*arguments)[0]);
 }
 

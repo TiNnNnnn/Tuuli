@@ -1651,7 +1651,7 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 		"Compute<Item(Call(h0,v0),a1,e0) a4 s1>(Input<t2>)|t2 := t0;a4 := a2;s1 := s0");
 	GPOS_ASSERT(nullptr != call_rule && nullptr != opaque_rule);
 	const auto *bool_type = COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
-	for (ULONG trial = 0; trial < 7; ++trial)
+	for (ULONG trial = 0; trial < 12; ++trial)
 	{
 		CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
 		CExpression *outer = fix.PexprLogicalGet("typed_scalar_outer", 1, &outer_cols);
@@ -1660,14 +1660,31 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 		CExpression *query = PexprProjectScalar(mp, input, selected,
 			fix.PexprEqPred((*inner_cols)[0], trial == 1 ? (*outer_cols)[0] : (*inner_cols)[1]));
 		input->Release();
-		if (trial >= 5) selected = (*inner_cols)[1];
+		const BOOL call = trial == 5 || trial == 6;
+		if (call) selected = (*inner_cols)[1];
 		if (trial == 2)
 			query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
+		if (trial == 7) query = CUtils::PexprLimit(mp, query, 0, 1);
+		if (trial == 8)
+			query = CUtils::PexprAddProjection(mp, query, fix.PexprGenerateSeries((*inner_cols)[0]));
+		if (trial == 9 || trial == 10)
+			query = CUtils::PexprAddProjection(mp, query,
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300 +
+						(trial == 9 ? IMDFunction::EfsImmutable : IMDFunction::EfsVolatile)),
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+					default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false)));
+		if (trial == 11)
+			selected = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(bool_type, default_type_modifier);
+		// Capture is structural, not a safety certificate. The complete query
+		// below remains the very same object after the scalar rewrite.
+		if (trial == 2 || (trial >= 7 && trial <= 10))
+			GPOS_ASSERT(!CDSLConstraintChecker::FQueryDemandInsensitive(query));
 		CExpression *subquery = GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CScalarSubquery(mp, selected, trial == 3, trial == 4), query);
 		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(bool_type, default_type_modifier);
 		CExpression *scalar = subquery;
-		if (trial >= 5)
+		if (call)
 		{
 			IMDId *type = fix.Pmda()->PtMDType<IMDTypeInt4>()->MDId();
 			type->AddRef();
@@ -1681,7 +1698,7 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, active_rule);
 		const BOOL matched = matcher.FMatch(active_rule->PfragSrc()->PopRoot(), source, model);
-		GPOS_ASSERT(matched == (trial < 2 || trial >= 5));
+		GPOS_ASSERT(matched == (trial != 3 && trial != 4 && trial != 11));
 		if (matched)
 		{
 			CDSLConstraintChecker checker(mp);
@@ -1690,7 +1707,7 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 			CExpression *target = inst.PexprInstantiate(active_rule, model);
 			GPOS_ASSERT(nullptr != target);
 			CExpression *value = (*(*(*target)[1])[0])[0];
-			CExpression *rebuilt = trial >= 5 ? (*value)[0] : (*(*value)[0])[0];
+			CExpression *rebuilt = call ? (*value)[0] : (*(*value)[0])[0];
 			GPOS_ASSERT(rebuilt->Pop()->Matches(subquery->Pop()) && (*rebuilt)[0] == query);
 			if (trial == 6)
 				GPOS_ASSERT(value->Matches(scalar));
