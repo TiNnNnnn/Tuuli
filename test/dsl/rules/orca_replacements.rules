@@ -125,11 +125,6 @@ Filter<Exists(t1) a0 a1>(Input<t0>)|SemiApply(Input<t2>,Input<t3>)|t2 := t0;t3 :
 # Anti certificate: c43d5eb360be1966bba2e598df53b16496b1e15b76694778d664bada4d90314a
 Filter<Not(Exists(t1)) a0 a1>(Input<t0>)|AntiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 
-# Compatibility: retain the positive macro for CTE inlining until the native
-# Project/CTE required-column translation boundary accepts the literal target.
-# The complete-input rule above is certified, but this domain is not retired.
-Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
-
 # Native FormalSQL OUTCOME_EQ: capture the quantified comparison and scalar
 # argument explicitly, derive its dependencies, and retain the complete inner
 # input. The native adapter still checks input demand and comparison safety;
