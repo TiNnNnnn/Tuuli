@@ -112,12 +112,21 @@ NotExists(Input<t0>,Compute<e0 a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)
 # Filter supplies the ON predicate; arbitrary inputs remain opaque. These
 # compositional rules cover the filtered domain of the legacy macros below,
 # not unconditional EXISTS lowering (which has a different demand contract).
-# The ON predicate may read the outer input even when the remaining inner
-# input has no correlations. The runtime checks that empty set explicitly.
+# Keep the empty current-left correlation domain, including Input references
+# to an enclosing query scope that ScalarDeps deliberately does not discard.
 # Semi certificate: dc562486050a1cbed6091ef6486f9a2cb93c25df9234ad81cb0a6caee4ac2d9a
 Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;AttrsEmpty(a4)
 # Anti certificate: 97d350766584252d4e763f04f2fe42c743fa451edd634e55b21a8096f7ab8355
 NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;AttrsEmpty(a4)
+
+# Derive the remaining input's actual outer references through an existing
+# scalar dependency expression; do not assume Input hides no correlation.
+# The Apply builder still checks this set against its actual left/right scope.
+# These siblings cover hidden current-left correlation, not enclosing scopes.
+# Semi certificate: 6c78fbf5be695857819a7296e3ac47a4e2152f210b76af6d1ed971a00eafffd0
+Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a4 := ScalarDeps(n0)
+# Anti certificate: 8d6a6064bc2d269ac6e8f0e4c2547b4b7b8d769413653694c8bf53fdb9130607
+NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a4 := ScalarDeps(n0)
 
 # Keep the remaining Filter and its actual correlation vector explicitly.
 # Semi certificate: 23e485f593f35f9100e437063cae79c2a84bdf2dfe7db701a6e5d4ac13b9ad38

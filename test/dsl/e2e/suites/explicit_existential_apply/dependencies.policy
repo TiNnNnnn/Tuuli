@@ -1,0 +1,7 @@
+# Only the two generic Input-dependent lowerings; no nested-Filter variants.
+- rule: '*'
+  enabled: false
+- rule: 'cb229952710638c8'
+  enabled: true
+- rule: '4f7a43262565f6f1'
+  enabled: true

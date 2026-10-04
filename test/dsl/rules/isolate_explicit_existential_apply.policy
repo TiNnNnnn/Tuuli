@@ -12,6 +12,10 @@
   enabled: true
 - rule: 'c6451f8634950f93'
   enabled: true
+- rule: 'cb229952710638c8'
+  enabled: true
+- rule: '4f7a43262565f6f1'
+  enabled: true
 - rule: '07bc74ac0afe2295'
   enabled: true
 - rule: '78963540e9d42c30'
