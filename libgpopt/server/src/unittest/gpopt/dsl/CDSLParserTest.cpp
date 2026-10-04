@@ -1284,8 +1284,8 @@ CDSLParserTest::EresUnittest_Whitespace()
 }
 
 //---------------------------------------------------------------------------
-// Loader: EQ-only admission. A buffer with an EQ rule, a NEQ rule and a
-// comment/blank line yields exactly one admitted rule and one skipped.
+// Loader: EQ-only admission. A conditional kernel certificate is not an EQ
+// verdict until the source adapter has discharged its application obligations.
 //---------------------------------------------------------------------------
 GPOS_RESULT
 CDSLParserTest::EresUnittest_Loader()
@@ -1298,7 +1298,9 @@ CDSLParserTest::EresUnittest_Loader()
 		"\n"
 		"Input<t0>|Input<t1>|TableEq(t1,t0)\tEQ\n"
 		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|TableEq(t1,t0);"
-		"AttrsEq(a1,a0);SchemaEq(s1,s0)\tNEQ\n";
+		"AttrsEq(a1,a0);SchemaEq(s1,s0)\tNEQ\n"
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0\tCONDITIONAL\n";
 
 	CDSLRuleLoader::SLoadStats stats;
 	CWStringDynamic strErrs(mp);
@@ -1307,7 +1309,7 @@ CDSLParserTest::EresUnittest_Loader()
 
 	BOOL ok = (nullptr != pdrg) && (1 == pdrg->Size()) &&
 			  (3 == (*pdrg)[0]->UlSourceLine()) &&
-			  (1 == stats.ul_admitted) && (1 == stats.ul_skipped) &&
+			  (1 == stats.ul_admitted) && (2 == stats.ul_skipped) &&
 			  (0 == stats.ul_failed);
 	if (nullptr != pdrg)
 	{
