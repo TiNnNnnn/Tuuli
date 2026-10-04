@@ -2185,6 +2185,12 @@ CXformUtils::PexprAddCTEProducer(CMemoryPool *mp, ULONG ulCTEId,
 								 CColRefArray *colref_array, CExpression *pexpr)
 {
 	CColRefArray *pdrgpcrProd = CUtils::PdrgpcrCopy(mp, colref_array);
+	// The producer requires every exported column, even if the original
+	// query did not use it. Only promote the fresh producer identities.
+	for (ULONG i = 0; i < pdrgpcrProd->Size(); ++i)
+	{
+		(*pdrgpcrProd)[i]->MarkAsUsed();
+	}
 	UlongToColRefMap *colref_mapping =
 		CUtils::PhmulcrMapping(mp, colref_array, pdrgpcrProd);
 	CExpression *pexprRemapped = pexpr->PexprCopyWithRemappedColumns(

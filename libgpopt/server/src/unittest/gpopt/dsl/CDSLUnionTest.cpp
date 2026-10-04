@@ -25,6 +25,7 @@
 #include "gpopt/dsl/CDSLRewriteDecision.h"
 #include "gpopt/operators/CLogicalCTEAnchor.h"
 #include "gpopt/operators/CLogicalCTEConsumer.h"
+#include "gpopt/operators/CLogicalCTEProducer.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSetOp.h"
@@ -564,6 +565,47 @@ EresTypedGroupingSetMaps()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresCTEExportColumnUsage()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CAutoRef<CExpression> table(fix.PexprLogicalGet("cte_usage", 3, &columns));
+	// Reuse table column identities without requiring synthetic table stats.
+	columns->AddRef();
+	CAutoRef<CExpression> input(GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, columns,
+			GPOS_NEW(mp) IDatum2dArray(mp))));
+	// Query-level pruning happened before a rewrite exported these columns.
+	for (ULONG i = 0; i < columns->Size(); ++i)
+	{
+		(*columns)[i]->MarkAsUnknown();
+		(*columns)[i]->MarkAsUnused();
+	}
+	CCTEInfo *ctes = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+	for (ULONG width = 0; width <= columns->Size(); ++width)
+	{
+		CAutoRef<CColRefArray> exported(GPOS_NEW(mp) CColRefArray(mp));
+		for (ULONG i = 0; i < width; ++i)
+			exported->Append((*columns)[i]);
+		CExpression *producer = CXformUtils::PexprAddCTEProducer(
+			mp, ctes->next_id(), exported.Value(), input.Value());
+		CColRefArray *outputs =
+			CLogicalCTEProducer::PopConvert(producer->Pop())->Pdrgpcr();
+		GPOS_UNITTEST_ASSERT(width == outputs->Size());
+		for (ULONG i = 0; i < width; ++i)
+		{
+			GPOS_UNITTEST_ASSERT((*outputs)[i] != (*columns)[i]);
+			GPOS_UNITTEST_ASSERT(CColRef::EUsed == (*outputs)[i]->GetUsage());
+		}
+		for (ULONG i = 0; i < columns->Size(); ++i)
+			GPOS_UNITTEST_ASSERT(CColRef::EUnused == (*columns)[i]->GetUsage());
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
@@ -605,6 +647,7 @@ CDSLUnionTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_JoinDistributionRejectsDistinctUnion),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SharedBranchesUseCTE),
+		GPOS_UNITTEST_FUNC(EresCTEExportColumnUsage),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_StatsIgnoreOuterColumns),
 	};
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
