@@ -1305,6 +1305,111 @@ EresQuantifiedSafety()
 }
 
 static GPOS_RESULT
+EresQuantifiedCarrierDirection()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL correlated : {false, true})
+	for (BOOL swapped : {false, true})
+	for (BOOL equality : {false, true})
+	{
+		const std::string kind = all ? "All" : "Any";
+		const std::string text = kind + "<p0 a0>(Input<t0>,Input<t1>)|" + kind +
+			"<p1 a1>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a1 := a0";
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("quant_direction_left", 1, &lc);
+		CExpression *right = fix.PexprLogicalGet("quant_direction_right", 2, &rc);
+		// Use a non-first selected column and an asymmetric comparison as well
+		// as equality. Swapping operands alone must not silently invert <.
+		CAutoRef<CExpression> expected(CUtils::PexprScalarCmp(mp, (*lc)[0], (*rc)[1],
+			equality ? IMDType::EcmptEq : IMDType::EcmptL));
+		CExpression *on = CUtils::PexprScalarCmp(mp, swapped ? (*rc)[1] : (*lc)[0],
+			swapped ? (*lc)[0] : (*rc)[1], equality ? IMDType::EcmptEq :
+			(swapped ? IMDType::EcmptG : IMDType::EcmptL));
+		if (all && !correlated)
+		{
+			CExpression *inverse = CDSLMatchView::PexprInverseComparison(mp, on);
+			on->Release(); on = inverse;
+		}
+		CExpression *source = all
+			? (correlated
+				? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(mp, left, right, (*rc)[1], COperator::EopScalarSubqueryAll, on)
+				: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(mp, left, right, (*rc)[1], COperator::EopScalarSubqueryAll, on))
+			: (correlated
+				? CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(mp, left, right, (*rc)[1], COperator::EopScalarSubqueryAny, on)
+				: CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, left, right, (*rc)[1], COperator::EopScalarSubqueryAny, on));
+		CAutoRef<CExpression> ownedSource(source);
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source, model.Value()));
+		GPOS_UNITTEST_ASSERT(model->PexprPred((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0])->Matches(expected.Value()));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		GPOS_UNITTEST_ASSERT(target->Pop()->Matches(source->Pop()));
+		GPOS_UNITTEST_ASSERT((*target)[0] == left && (*target)[1] == right);
+		CAutoRef<CExpression> logical(all && !correlated
+			? CDSLMatchView::PexprInverseComparison(mp, (*target)[2]) : nullptr);
+		GPOS_UNITTEST_ASSERT(expected->Matches(nullptr == logical.Value() ? (*target)[2] : logical.Value()));
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresQuantifiedConjunctionDemand()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL typed : {false, true})
+	for (BOOL first : {false, true})
+	for (ULONG unsafe = 0; unsafe < 5; ++unsafe)
+	{
+		const std::string kind = all ? "All" : "Any";
+		const std::string text = kind + "<p0 a0>(Input<t0>,Input<t1>)|" + kind +
+			"<p1 a1>(Input<t2>,Input<t3>)|" + (typed
+			? "t2 := t0;t3 := t1;p1 := p0;a1 := a0"
+			: "TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);AttrsEq(a1,a0)");
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("quant_demand_left", 1, &lc);
+		CExpression *right = fix.PexprLogicalGet("quant_demand_right", 1, &rc);
+		if (unsafe == 3) right = CUtils::PexprLimit(mp, right, 0, 1);
+		if (unsafe == 4) right = CUtils::PexprAddProjection(mp, right, fix.PexprGenerateSeries((*rc)[0]));
+		// Unknown-error immutable and volatile residuals cannot move before
+		// ANY/ALL: their failures/call count may depend on quantified truth.
+		CExpression *value = unsafe == 0 || unsafe >= 3 ? CUtils::PexprScalarIdent(mp, (*lc)[0])
+			: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300 +
+					(unsafe == 1 ? IMDFunction::EfsImmutable : IMDFunction::EfsVolatile)),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+				default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false));
+		CExpression *residual = CUtils::PexprScalarCmp(mp, value, CUtils::PexprScalarConstInt4(mp, 7), IMDType::EcmptEq);
+		CExpression *quantified = PexprQuantified(mp, fix, all, right, (*lc)[0], (*rc)[0]);
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
+			first ? quantified : residual, first ? residual : quantified);
+		CAutoRef<CExpression> source(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), left, predicate));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()) == (unsafe == 0));
+		if (unsafe == 0)
+		{
+			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+			CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+			GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == (*target)[0]->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT((*(*target)[0])[1]->Matches(residual));
+		}
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresQuantifiedProjectionInput()
 {
 	CAutoMemoryPool amp;
@@ -1405,6 +1510,8 @@ GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresQuantifiedCarrierDirection),
+		GPOS_UNITTEST_FUNC(EresQuantifiedConjunctionDemand),
 		GPOS_UNITTEST_FUNC(EresQuantifiedProjectionInput),
 		GPOS_UNITTEST_FUNC(EresLegacyMembershipProjectionSRF),
 		GPOS_UNITTEST_FUNC(EresScalarContextPaths),

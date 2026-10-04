@@ -3,15 +3,17 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 
+#include "gpos/common/CAutoRef.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CPredicateUtils.h"
-#include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
 
 using namespace gpopt;
@@ -118,6 +120,14 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	{
 		CExpressionArray *pdrgpexprConj =
 			CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
+		// Re-exposing one quantifier moves the other conjuncts into its outer
+		// input. This changes evaluation demand, unlike a direct quantifier.
+		if (1 < pdrgpexprConj->Size() &&
+			!CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+		{
+			pdrgpexprConj->Release();
+			return false;
+		}
 		CExpression *pexprQuantified = nullptr;
 		for (ULONG ul = 0; ul < pdrgpexprConj->Size(); ul++)
 		{
@@ -189,19 +199,29 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	CColRefArray *pdrgpcrInner = popApply->PdrgPcrInner();
 	if (eopidSubquery != popApply->EopidOriginSubq() ||
 		nullptr == pdrgpcrInner || 1 != pdrgpcrInner->Size() ||
-		2 != (*pexpr)[2]->Arity() ||
-		COperator::EopScalarIdent != (*(*pexpr)[2])[1]->Pop()->Eopid() ||
-		CScalarIdent::PopConvert((*(*pexpr)[2])[1]->Pop())->Pcr() != (*pdrgpcrInner)[0])
+		2 != (*pexpr)[2]->Arity())
 	{
 		return false;
 	}
+	CExpression *comparison = (*pexpr)[2];
+	CAutoRef<CExpression> commuted;
+	if (CUtils::FScalarIdent((*comparison)[0], (*pdrgpcrInner)[0]))
+	{
+		CScalarCmp *op = CScalarCmp::PopConvert(comparison->Pop())->PopCommutedOp(m_mp);
+		if (nullptr == op) return false;
+		(*comparison)[0]->AddRef();
+		(*comparison)[1]->AddRef();
+		commuted = GPOS_NEW(m_mp) CExpression(m_mp, op, (*comparison)[1], (*comparison)[0]);
+		comparison = commuted.Value();
+	}
+	if (!CUtils::FScalarIdent((*comparison)[1], (*pdrgpcrInner)[0])) return false;
 
 	const BOOL fCorrelatedCarrier =
 		eopidCorrelatedApply == pexpr->Pop()->Eopid();
 	CExpression *pexprCmp =
 		fAll && !fCorrelatedCarrier
-			? CDSLMatchView::PexprInverseComparison(m_mp, (*pexpr)[2])
-			: (*pexpr)[2];
+			? CDSLMatchView::PexprInverseComparison(m_mp, comparison)
+			: comparison;
 	if (!fAll || fCorrelatedCarrier)
 	{
 		pexprCmp->AddRef();
