@@ -879,7 +879,10 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			return PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1);
 		if (EdslexprScalarDeps == binding->Edslexpr())
 		{
-			CExpression *pexpr = PexprResolveScalar(binding->PsymOperand(0), pmodel, ulDepth + 1);
+			const CDSLSymbol *input = binding->PsymOperand(0);
+			CExpression *pexpr = EdslsymExpr == input->Esymkind()
+				? PexprResolveExpr(input, pmodel, ulDepth + 1)
+				: PexprResolveScalar(input, pmodel, ulDepth + 1);
 			if (nullptr == pexpr) return nullptr;
 			CColRefArray *columns = pexpr->DeriveUsedColumns()->Pdrgpcr(m_mp);
 			pexpr->Release();

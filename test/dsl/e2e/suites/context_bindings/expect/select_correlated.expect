@@ -1,5 +1,5 @@
 {
-  "description": "Context replug in a SELECT list preserves outputs, NULLs and duplicate rows",
+  "description": "Context with recomputed list dependencies retains the captured outer scope",
   "plans": [
     {
       "name": "dsl-off",
@@ -35,31 +35,31 @@
   "rows": {
     "policy": "list.policy",
     "output": [
-      ",2,t,f",
-      ",2,t,f",
-      "0,1,t,t",
-      "1,1,t,t",
-      "2,,f,t",
-      "2,,f,t",
-      "3,2,f,f"
+      ",2,t",
+      ",2,t",
+      "0,1,f",
+      "1,1,t",
+      "2,,t",
+      "2,,t",
+      "3,2,t"
     ],
     "postgres_output": [
-      ",2,t,f",
-      ",2,t,f",
-      "0,1,t,t",
-      "1,1,t,t",
-      "2,,f,t",
-      "2,,f,t",
-      "3,2,f,f"
+      ",2,t",
+      ",2,t",
+      "0,1,f",
+      "1,1,t",
+      "2,,t",
+      "2,,t",
+      "3,2,t"
     ],
     "off_output": [
-      ",2,t,f",
-      ",2,t,f",
-      "0,1,t,t",
-      "1,1,t,t",
-      "2,,f,t",
-      "2,,f,t",
-      "3,2,f,f"
+      ",2,t",
+      ",2,t",
+      "0,1,f",
+      "1,1,t",
+      "2,,t",
+      "2,,t",
+      "3,2,t"
     ]
   }
 }

@@ -3,7 +3,8 @@
 # Introduce double NOT at one captured occurrence; the policy bounds expansion.
 Filter<ValueBool(n0) a0>(Input<t0>)|Filter<ValueBool(n3) a1>(Input<t1>)|t1 := t0;a1 := a0;Context(n1) := n0;BoolValue(p0) := n1;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n2 := BoolValue(p4);n3 := Context(n0,n2)
 # Same local replacement through an arbitrary SELECT-list item, not only Item's head.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;BoolValue(p0) := n0;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n1 := BoolValue(p4);e1 := Context(e0,n1)
+# Native OUTCOME_EQ certificate: b1ca5a465af61575d5d9def57e28c5711fa0e6934bf6ee01356afc3b2ff8d1c0
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := ScalarDeps(e1);s1 := s0;Context(n0) := e0;BoolValue(p0) := n0;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n1 := BoolValue(p4);e1 := Context(e0,n1)
 # Window constructor regression only; native window OUTCOME_EQ lowering is pending.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p0) := n0;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n1 := BoolValue(p4);w1 := Context(w0,n1)
 # Aggregate constructor regression only; group-context proof lowering is pending.

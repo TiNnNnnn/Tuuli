@@ -135,7 +135,9 @@ static CDSLRule *
 PdslruleParseLocal(CMemoryPool *mp, const CHAR *sz_dsl)
 {
 	CWStringDynamic strErr(mp);
-	return CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, sz_dsl, "EQ" /*verdict*/, &strErr);
+	if (nullptr == rule) GPOS_TRACE(strErr.GetBuffer());
+	return rule;
 }
 
 // build Project(Get t0[ulCols], projlist over the first ulProj output columns).
@@ -906,6 +908,79 @@ EresComputeFilterBindings(BOOL typed, BOOL subquery, BOOL correlated_items)
 }
 
 static GPOS_RESULT
+EresComputeContextScope()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *left_columns = nullptr, *right_columns = nullptr;
+	CExpression *left = fix.PexprLogicalGet("context_left", 1, &left_columns);
+	CExpression *right = fix.PexprLogicalGet("context_right", 1, &right_columns);
+	(*left_columns)[0]->MarkAsUsed();
+	CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *join = fix.PexprLogicalInnerJoin(left, right, predicate);
+	CColRef *external = fix.PcrCreateInt4("context_external");
+	for (BOOL compute : {false, true})
+	for (BOOL outer : {false, true})
+	for (BOOL derive : {false, true})
+	for (BOOL replace : {false, true})
+	{
+		if (replace && !derive) continue;
+		// Replug a captured item with independently derived metadata. The
+		// untouched outer reference keeps its scope; a dropped local must not
+		// become a correlation. This tests construction, not join elimination.
+		std::string text = compute ? "Compute<e0 a0 s0>" : "Proj<a0 s0 e0>";
+		text += "(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
+			"Compute<e1 a3 s1>(Input<t2>)|t2 := t0;s1 := s0;"
+			"Context(n0) := e0;Column(a6) := n0;"
+			"e1 := Context(e2,n1);e2 := e0;";
+		text += replace ? "OutputAttrs(a7,t0);n1 := Column(a7);" : "n1 := Column(a6);";
+		text += derive ? "a3 := ScalarDeps(e1)" : "AttrsUnion(a3,a0,a0)";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		for (CColRef *column : {outer ? external : (*right_columns)[0], external})
+			items->Append(CUtils::PexprScalarProjectElement(mp,
+				fix.PcrCreateInt4("context_item"), CUtils::PexprScalarIdent(mp, column)));
+		join->AddRef();
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), join,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+		CDSLInstantiator instantiator(mp);
+		CExpression *rebuilt = instantiator.PexprInstantiateBinding(rule,
+			(*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0], model);
+		GPOS_UNITTEST_ASSERT(nullptr != rebuilt);
+		if (replace)
+			GPOS_UNITTEST_ASSERT(!rebuilt->DeriveUsedColumns()->FMember((*right_columns)[0]));
+		rebuilt->Release();
+		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		// Proj has no captured Compute carrier: its foreign column cannot be
+		// authorized by recursing from a match definition into a scalar hole.
+		const BOOL valid = compute && (outer || replace);
+		if (valid != (nullptr != target))
+			GPOS_TRACE_FORMAT("Context scope compute=%d outer=%d derive=%d replace=%d target=%d",
+				compute, outer, derive, replace, nullptr != target);
+		GPOS_UNITTEST_ASSERT(valid == (nullptr != target));
+		if (nullptr != target)
+		{
+			GPOS_UNITTEST_ASSERT(target->DeriveOuterReferences()->Equals(source->DeriveOuterReferences()));
+			GPOS_UNITTEST_ASSERT((*(*target)[1])[1] == (*(*source)[1])[1]);
+			GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember(external));
+			GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveUsedColumns()->FMember((*right_columns)[0]));
+			if (replace)
+				GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember((*left_columns)[0]));
+		}
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); rule->Release();
+	}
+	join->Release(); predicate->Release(); right->Release(); left->Release();
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresComputeCapturedScope(BOOL constructed)
 {
 	CAutoMemoryPool amp;
@@ -1016,7 +1091,8 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 		}
 	}
 	if (GPOS_OK != EresComputeCapturedScope(false)) return GPOS_FAILED;
-	return EresComputeCapturedScope(true);
+	if (GPOS_OK != EresComputeCapturedScope(true)) return GPOS_FAILED;
+	return EresComputeContextScope();
 }
 
 GPOS_RESULT
