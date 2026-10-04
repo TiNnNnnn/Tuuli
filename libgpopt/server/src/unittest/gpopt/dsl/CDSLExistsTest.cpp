@@ -548,7 +548,7 @@ EresCompleteExistentialApply()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	for (BOOL negated : {false, true})
-	for (ULONG shape = 0; shape < 4; ++shape)
+	for (ULONG shape = 0; shape < 7; ++shape)
 	{
 		const std::string apply = negated ? "AntiApply" : "SemiApply";
 		const std::string pred = negated ? "Not(Exists(t1))" : "Exists(t1)";
@@ -560,7 +560,21 @@ EresCompleteExistentialApply()
 		CColRefArray *lc = nullptr, *rc = nullptr;
 		CExpression *left = fix.PexprLogicalGet("complete_apply_left", 2, &lc);
 		CExpression *right = fix.PexprLogicalGet("complete_apply_right", 2, &rc);
-		if (shape)
+		if (shape >= 4)
+		{
+			right->Release();
+			IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+			if (shape != 4) rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+			right = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp)
+				CLogicalConstTableGet(mp, GPOS_NEW(mp) CColRefArray(mp), rows));
+			if (shape == 6)
+			{
+				CExpression *condition = fix.PexprEqPred((*lc)[0], (*lc)[1]);
+				CExpression *filtered = fix.PexprLogicalSelect(right, condition);
+				condition->Release(); right->Release(); right = filtered;
+			}
+		}
+		else if (shape)
 		{
 			CExpression *condition = fix.PexprEqPred((*rc)[0],
 				3 == shape ? fix.PcrCreateInt4("enclosing_query") : (*lc)[0]);
@@ -586,8 +600,18 @@ EresCompleteExistentialApply()
 		GPOS_UNITTEST_ASSERT(nullptr != target);
 		GPOS_UNITTEST_ASSERT(target->Pop()->Eopid() == (negated
 			? COperator::EopLogicalLeftAntiSemiApply : COperator::EopLogicalLeftSemiApply));
-		GPOS_UNITTEST_ASSERT((*target)[0] == left && (*target)[1] == right &&
-			CUtils::FScalarConstTrue((*target)[2]));
+		GPOS_UNITTEST_ASSERT((*target)[0] == left && CUtils::FScalarConstTrue((*target)[2]));
+		if (shape < 4) GPOS_UNITTEST_ASSERT((*target)[1] == right);
+		else
+		{
+			// A witness column must not replace the zero-column input or
+			// turn its empty bag into a row. Correlation stays inside it.
+			CExpression *witness = (*target)[1];
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalProject == witness->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT((*witness)[0] == right && 1 == (*witness)[1]->Arity());
+			GPOS_UNITTEST_ASSERT(CUtils::FScalarConstTrue((*(*(*witness)[1])[0])[0]));
+			GPOS_UNITTEST_ASSERT(1 == witness->DeriveOutputColumns()->Size());
+		}
 		GPOS_UNITTEST_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
 		GPOS_UNITTEST_ASSERT(source->DeriveOuterReferences()->Equals(target->DeriveOuterReferences()));
 		const std::string nextText = apply + "(Input<t0>,Input<t1>)|" +
@@ -597,20 +621,24 @@ EresCompleteExistentialApply()
 		CDSLModel *nextModel = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher nextMatcher(mp, next);
 		GPOS_UNITTEST_ASSERT(nextMatcher.FMatch(next->PfragSrc()->PopRoot(), target, nextModel));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(next, nextModel));
+		CAutoRef<CExpression> replay(inst.PexprInstantiate(next, nextModel));
+		GPOS_UNITTEST_ASSERT(nullptr != replay.Value() && (*replay)[1] == (*target)[1]);
+		CExpression *applyInput = (*target)[1];
 		// A non-TRUE ON must not be silently discarded by the zero-symbol form.
-		left->AddRef(); right->AddRef(); target->Pop()->AddRef();
-		CExpression *wrong = GPOS_NEW(mp) CExpression(mp, target->Pop(), left, right,
+		left->AddRef(); applyInput->AddRef(); target->Pop()->AddRef();
+		CExpression *wrong = GPOS_NEW(mp) CExpression(mp, target->Pop(), left, applyInput,
 			CUtils::PexprScalarConstBool(mp, false));
 		GPOS_UNITTEST_ASSERT(!nextMatcher.FMatch(next->PfragSrc()->PopRoot(), wrong, nextModel));
 		wrong->Release();
 		// TRUE alone is insufficient: quantified/scalar carrier metadata is not
 		// interchangeable with an existential Apply's execution contract.
-		left->AddRef(); right->AddRef();
+		left->AddRef(); applyInput->AddRef();
 		wrong = negated
-			? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(mp, left, right,
-				right->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAll)
-			: CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp, left, right,
-				right->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAny);
+			? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(mp, left, applyInput,
+				applyInput->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAll)
+			: CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp, left, applyInput,
+				applyInput->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAny);
 		GPOS_UNITTEST_ASSERT(!nextMatcher.FMatch(next->PfragSrc()->PopRoot(), wrong, nextModel));
 		wrong->Release(); nextModel->Release(); next->Release(); target->Release();
 		model->Release(); source->Release(); predicate->Release();
