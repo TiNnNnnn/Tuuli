@@ -54,8 +54,8 @@ using namespace gpopt;
 #define GPOPT_DSL_INSUB_DISTINCT_DROP_RULE                                \
 	"InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"                \
 	"InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|"                 \
-	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"     \
-	"AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)"
+	"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"               \
+	"a2 := a0;a3 := a1;s1 := s0"
 
 #define GPOPT_DSL_REPEATED_IN_ELIM_RULE                                  \
 	"InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t2>)|"  \
@@ -2230,29 +2230,9 @@ CDSLInSubTest::EresUnittest_PostApplyDistinctDrop()
 			mp, pexprOuter, pexprDistinct, (*pdrgpcrInner)[0],
 			COperator::EopScalarSubqueryAny, pexprPred);
 
-	CDSLRule *prule =
-		PruleParse(mp, GPOPT_DSL_INSUB_DISTINCT_DROP_RULE);
-	GPOS_ASSERT(nullptr != prule);
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
-	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
-							   pmodel));
-	GPOS_ASSERT(pmodel->FDedupDrop());
+	CDSLRule *typed = PruleParse(mp, GPOPT_DSL_INSUB_DISTINCT_DROP_RULE);
+	GPOS_UNITTEST_ASSERT(nullptr != typed);
 	CDSLConstraintChecker checker(mp);
-	GPOS_ASSERT(checker.FCheck(prule, pmodel));
-	CDSLInstantiator instantiator(mp);
-	CExpression *pexprTarget =
-		instantiator.PexprInstantiate(prule, pmodel);
-	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalLeftSemiApplyIn ==
-				pexprTarget->Pop()->Eopid());
-	GPOS_ASSERT((*pexprTarget)[1] == pexprInnerGet);
-
-	CDSLRule *typed = PruleParse(mp,
-		"InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|"
-		"InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|"
-		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
-		"a2 := a0;a3 := a1;s1 := s0");
 	pexprOuter->AddRef();
 	pexprDistinct->AddRef();
 	pexprPred->AddRef();
@@ -2263,6 +2243,7 @@ CDSLInSubTest::EresUnittest_PostApplyDistinctDrop()
 	{
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(typed->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(!model->FDedupDrop());
 		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
 		CDSLInstantiator builder(mp);
 		CExpression *target = builder.PexprInstantiate(typed, model);
@@ -2295,9 +2276,6 @@ CDSLInSubTest::EresUnittest_PostApplyDistinctDrop()
 	semi->Release();
 	typed->Release();
 
-	pexprTarget->Release();
-	pmodel->Release();
-	prule->Release();
 	pexprSource->Release();
 	pexprInnerGet->Release();
 	return GPOS_OK;
