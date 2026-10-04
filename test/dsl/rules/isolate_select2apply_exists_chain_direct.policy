@@ -1,5 +1,5 @@
 # Keep the repeated EXISTS test causal: the atomic rule must apply twice.
 - rule: '*'
   enabled: false
-- rule: dec0eb1e99571556
+- rule: f7eadea871960968
   enabled: true

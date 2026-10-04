@@ -531,6 +531,25 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
+	if ((fSemiApply || fAntiApply) && nullptr != popJoin->Pdrgpsym() &&
+		0 == popJoin->Pdrgpsym()->Size())
+	{
+		if (eopid != (fSemiApply ? COperator::EopLogicalLeftSemiApply
+								: COperator::EopLogicalLeftAntiSemiApply) ||
+			3 != pexprJoin->Arity() || !CUtils::FScalarConstTrue((*pexprJoin)[2]))
+			return false;
+		CLogicalApply *apply = CLogicalApply::PopConvert(pexprJoin->Pop());
+		CColRefArray *inner = apply->PdrgPcrInner();
+		const BOOL ordinary = (nullptr == inner || 0 == inner->Size()) &&
+			COperator::EopSentinel == apply->EopidOriginSubq();
+		const BOOL existential = nullptr != inner && 1 == inner->Size() &&
+			(*pexprJoin)[1]->DeriveOutputColumns()->FMember((*inner)[0]) &&
+			apply->EopidOriginSubq() == (fSemiApply ? COperator::EopScalarSubqueryExists
+				: COperator::EopScalarSubqueryNotExists);
+		return !apply->FCorrelated() && (ordinary || existential) &&
+			m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
+			m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel);
+	}
 	const BOOL fAntiJoinNotIn =
 		(EdslopAntiJoinNotIn == popJoin->Edslop());
 	const BOOL fAntiApplyNotIn =

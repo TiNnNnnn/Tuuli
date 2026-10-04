@@ -1,0 +1,9 @@
+# Native-certified complete-input lowering and explicit safe AND splitting.
+- rule: '*'
+  enabled: false
+- rule: 'f7eadea871960968'
+  enabled: true
+- rule: 'd02e2eb78f0ff3b4'
+  enabled: true
+- rule: '4f3da4063a3836ad'
+  enabled: true

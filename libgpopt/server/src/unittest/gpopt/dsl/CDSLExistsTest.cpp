@@ -131,11 +131,11 @@ EresSafeFilterMerge()
 		const BOOL matched = captured && CDSLConstraintChecker(mp).FCheck(rule, model);
 		CDSLInstantiator inst(mp);
 		CExpression *target = matched ? inst.PexprInstantiate(rule, model) : nullptr;
-		if (!captured || matched != (kind < 4) || ((stale || 4 <= kind) != (nullptr == target)))
+		if (!captured || matched != (kind < 5) || ((stale || 5 <= kind) != (nullptr == target)))
 			GPOS_TRACE_FORMAT("Filter merge correlated=%d stale=%d matched=%d built=%d", correlated, stale, matched, nullptr != target);
 		// Capturing a query is not evidence that reordering it is safe.
-		ok &= captured && matched == (kind < 4) && ((stale || 4 <= kind) == (nullptr == target));
-		if (2 <= kind && kind < 4 && !stale)
+		ok &= captured && matched == (kind < 5) && ((stale || 5 <= kind) == (nullptr == target));
+		if (2 <= kind && kind < 5 && !stale)
 		{
 			// The typed rule must retain the legacy rule's safe subquery domain.
 			CDSLRule *legacy = CDSLRuleParser::PdslruleParse(mp,
@@ -542,6 +542,84 @@ EresExplicitExistentialApply()
 }
 
 static GPOS_RESULT
+EresCompleteExistentialApply()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL negated : {false, true})
+	for (ULONG shape = 0; shape < 4; ++shape)
+	{
+		const std::string apply = negated ? "AntiApply" : "SemiApply";
+		const std::string pred = negated ? "Not(Exists(t1))" : "Exists(t1)";
+		const std::string text = "Filter<" + pred + " a0 a1>(Input<t0>)|" +
+			apply + "(Input<t2>,Input<t3>)|t2 := t0;t3 := t1";
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("complete_apply_left", 2, &lc);
+		CExpression *right = fix.PexprLogicalGet("complete_apply_right", 2, &rc);
+		if (shape)
+		{
+			CExpression *condition = fix.PexprEqPred((*rc)[0],
+				3 == shape ? fix.PcrCreateInt4("enclosing_query") : (*lc)[0]);
+			CExpression *filtered = fix.PexprLogicalSelect(right, condition);
+			condition->Release(); right->Release(); right = filtered;
+		}
+		if (2 == shape)
+			right = CUtils::PexprAddProjection(mp, right, CUtils::PexprScalarConstInt4(mp, 7));
+		if (3 == shape) right = CUtils::PexprLimit(mp, right, 0, 1);
+		COperator *op = negated
+			? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+			: GPOS_NEW(mp) CScalarSubqueryExists(mp);
+		right->AddRef();
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp, op, right);
+		CExpression *source = fix.PexprLogicalSelect(left, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		CDSLConstraintChecker checker(mp);
+		CDSLInstantiator inst(mp);
+		GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(rule, model));
+		CExpression *target = inst.PexprInstantiate(rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		GPOS_UNITTEST_ASSERT(target->Pop()->Eopid() == (negated
+			? COperator::EopLogicalLeftAntiSemiApply : COperator::EopLogicalLeftSemiApply));
+		GPOS_UNITTEST_ASSERT((*target)[0] == left && (*target)[1] == right &&
+			CUtils::FScalarConstTrue((*target)[2]));
+		GPOS_UNITTEST_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
+		GPOS_UNITTEST_ASSERT(source->DeriveOuterReferences()->Equals(target->DeriveOuterReferences()));
+		const std::string nextText = apply + "(Input<t0>,Input<t1>)|" +
+			apply + "(Input<t2>,Input<t3>)|t2 := t0;t3 := t1";
+		CDSLRule *next = CDSLRuleParser::PdslruleParse(mp, nextText.c_str(), "EQ", &error);
+		GPOS_UNITTEST_ASSERT(nullptr != next);
+		CDSLModel *nextModel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher nextMatcher(mp, next);
+		GPOS_UNITTEST_ASSERT(nextMatcher.FMatch(next->PfragSrc()->PopRoot(), target, nextModel));
+		// A non-TRUE ON must not be silently discarded by the zero-symbol form.
+		left->AddRef(); right->AddRef(); target->Pop()->AddRef();
+		CExpression *wrong = GPOS_NEW(mp) CExpression(mp, target->Pop(), left, right,
+			CUtils::PexprScalarConstBool(mp, false));
+		GPOS_UNITTEST_ASSERT(!nextMatcher.FMatch(next->PfragSrc()->PopRoot(), wrong, nextModel));
+		wrong->Release();
+		// TRUE alone is insufficient: quantified/scalar carrier metadata is not
+		// interchangeable with an existential Apply's execution contract.
+		left->AddRef(); right->AddRef();
+		wrong = negated
+			? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(mp, left, right,
+				right->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAll)
+			: CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(mp, left, right,
+				right->DeriveOutputColumns()->PcrFirst(), COperator::EopScalarSubqueryAny);
+		GPOS_UNITTEST_ASSERT(!nextMatcher.FMatch(next->PfragSrc()->PopRoot(), wrong, nextModel));
+		wrong->Release(); nextModel->Release(); next->Release(); target->Release();
+		model->Release(); source->Release(); predicate->Release();
+		right->Release(); left->Release(); rule->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresTypedDistinctExistence()
 {
 	CAutoMemoryPool amp;
@@ -700,6 +778,7 @@ CDSLExistsTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresNestedFilterSplit),
 		GPOS_UNITTEST_FUNC(EresIndependentFilterDependencies),
 		GPOS_UNITTEST_FUNC(EresExplicitExistentialApply),
+		GPOS_UNITTEST_FUNC(EresCompleteExistentialApply),
 		GPOS_UNITTEST_FUNC(EresMemoSubqueryMarkerIdentity),
 		GPOS_UNITTEST_FUNC(EresTypedDistinctExistence),
 		GPOS_UNITTEST_FUNC(

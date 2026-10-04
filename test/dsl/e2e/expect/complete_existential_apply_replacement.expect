@@ -1,0 +1,91 @@
+{
+  "description": "完整输入的 EXISTS/NOT EXISTS 模板直接生成 Apply，组合显式安全 AND 拆分；禁用原生 lowering，保留 NULL、重复、相关输入和 LIMIT",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_complete_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d02e2eb78f0ff3b4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_complete_existential_apply.policy",
+    "output": [
+      "anti_correlated,,3",
+      "anti_empty,,3",
+      "anti_empty,1,1",
+      "anti_empty,1,1",
+      "anti_empty,1,2",
+      "anti_empty,2,",
+      "anti_empty,2,2",
+      "anti_on,,3",
+      "semi,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2",
+      "semi_correlated,1,1",
+      "semi_correlated,1,1",
+      "semi_correlated,1,2",
+      "semi_correlated,2,",
+      "semi_correlated,2,2",
+      "semi_on,1,1",
+      "semi_on,1,1",
+      "semi_on,1,2",
+      "semi_on,2,",
+      "semi_on,2,2"
+    ],
+    "postgres_output": [
+      "anti_correlated,,3",
+      "anti_empty,,3",
+      "anti_empty,1,1",
+      "anti_empty,1,1",
+      "anti_empty,1,2",
+      "anti_empty,2,",
+      "anti_empty,2,2",
+      "anti_on,,3",
+      "semi,,3",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,1,2",
+      "semi,2,",
+      "semi,2,2",
+      "semi_correlated,1,1",
+      "semi_correlated,1,1",
+      "semi_correlated,1,2",
+      "semi_correlated,2,",
+      "semi_correlated,2,2",
+      "semi_on,1,1",
+      "semi_on,1,1",
+      "semi_on,1,2",
+      "semi_on,2,",
+      "semi_on,2,2"
+    ]
+  }
+}

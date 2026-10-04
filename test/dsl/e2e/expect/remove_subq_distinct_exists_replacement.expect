@@ -60,20 +60,20 @@
       "policy": "isolate_remove_subq_distinct_exists_pipeline.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"0b8d60ce1b8155f8\"",
-        "\"status\":\"applied\",\"rule_hash\":\"dec0eb1e99571556\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\"",
         "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "dec0eb1e99571556",
+          "src_rule": "f7eadea871960968",
           "dst_rule": "0b8d60ce1b8155f8",
           "target_path": "r"
         },
         {
           "scheduler": "cbo",
           "src_rule": "0b8d60ce1b8155f8",
-          "dst_rule": "dec0eb1e99571556",
+          "dst_rule": "f7eadea871960968",
           "target_path": "r"
         }
       ],
