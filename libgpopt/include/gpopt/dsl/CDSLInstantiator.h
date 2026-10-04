@@ -163,6 +163,8 @@ private:
 		const CDSLModel *model, ULONG depth) const;
 	CExpression *PexprResolveWindow(const CDSLSymbol *symbol,
 		const CDSLModel *model) const;
+	CExpressionArray *PdrgpexprResolveFunctions(const CDSLSymbol *symbol,
+		const CDSLModel *model) const;
 
 	// Resolve a bound/aliased predicate to an owned expression, or lazily build
 	// a target predicate declared by PredicateAnd.

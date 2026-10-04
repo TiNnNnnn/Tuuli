@@ -32,6 +32,8 @@ class CDSLExprListUtils
 {
 public:
 	CDSLExprListUtils() = delete;
+	// Preserve FUNC's array representation while sharing scalar-list contexts.
+	static CExpressionArray *PdrgpexprFunctions(CMemoryPool *mp, CExpression *list);
 	// A context is a scalar child-index path, not a node pointer or an
 	// evaluation order. Paths cannot cross a relational subquery boundary.
 	// Lookup borrows; replacement owns its result and preserves untouched trees.

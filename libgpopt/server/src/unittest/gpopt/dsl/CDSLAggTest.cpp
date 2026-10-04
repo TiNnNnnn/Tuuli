@@ -24,6 +24,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -355,6 +356,83 @@ EresAggregateIdentityMetadata()
 }
 
 static GPOS_RESULT
+EresAggregateContexts()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL outputs : {false, true})
+	for (BOOL safety : {false, true})
+	for (ULONG mode = 0; mode < 5; ++mode)
+	{
+		// These are constructor checks, not asserted equivalent optimization
+		// rules: modes 1/2 deliberately change one aggregate's input column.
+		const std::string text = std::string("Agg<a0 a1 ") + (outputs ? "a2 " : "") +
+			"f0 s0 p0>(Input<t0>)|Agg<a3 a4 " + (outputs ? "a5 " : "") +
+			"f1 s1 p1>(Input<t1>)|t1 := t0;a3 := a0;" + (outputs ? "a5 := a2;" : "") +
+			"s1 := s0;p1 := p0;Context(n0) := f0;" + (mode == 4 ? "" : "Column(a6) := n0;") +
+			(mode == 3 ? "ScalarOne(n1);" : mode == 0 ? "n1 := Column(a6);" : "n1 := Column(a0);") +
+			"f2 := f0;f3 := Context(f2,n1);f1 := f3;" +
+			(safety ? "ErrorFree(f1);Deterministic(f1);" : "") +
+			(mode == 2 ? "a4 := a1" : "FuncAttrs(a4,f1)");
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CExpression *get = nullptr, *agg = nullptr;
+		CColRefArray *input = nullptr;
+		CColRef *output = nullptr;
+		BuildRealGbAgg(fix, &get, &agg, &input, &output);
+		CAutoRef<CExpression> getOwner(get), aggOwner(agg);
+		CExpression *original = (*(*(*agg)[1])[0])[0];
+		for (BOOL nested : {false, true})
+		{
+			CAutoRef<CExpression> srf(fix.PexprGenerateSeries((*input)[1]));
+			CExpression *invalid = CDSLExprListUtils::PexprReplaceAt(mp, original, {0, 0}, nested ? original : srf.Value());
+			GPOS_UNITTEST_ASSERT(nullptr != invalid);
+			CAutoRef<CExpression> invalidList(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				CUtils::PexprScalarProjectElement(mp, output, invalid)));
+			CAutoRef<CExpressionArray> invalidFunctions(CDSLExprListUtils::PdrgpexprFunctions(mp, invalidList.Value()));
+			GPOS_UNITTEST_ASSERT(nullptr == invalidFunctions.Value());
+		}
+		CAutoRef<CExpression> constant(CUtils::PexprScalarConstInt4(mp, 7));
+		CExpression *prefix = CDSLExprListUtils::PexprReplaceAt(mp, original, {0, 0}, constant.Value());
+		GPOS_UNITTEST_ASSERT(nullptr != prefix);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		items->Append(CUtils::PexprScalarProjectElement(mp, fix.PcrCreateInt4("prefix"), prefix));
+		// A shared expression pointer appears twice. Context must replace only
+		// its first occurrence, preserving the rest of the arbitrary-length list.
+		original->AddRef();
+		items->Append(CUtils::PexprScalarProjectElement(mp, output, original));
+		original->AddRef();
+		items->Append(CUtils::PexprScalarProjectElement(mp, fix.PcrCreateInt4("suffix"), original));
+		agg->Pop()->AddRef();
+		get->AddRef();
+		CExpression *group = GPOS_NEW(mp) CExpression(mp, agg->Pop(), get,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		CAutoRef<CExpression> groupOwner(group);
+		CAutoRef<CExpression> having(fix.PexprEqPred(output, output));
+		CAutoRef<CExpression> source(fix.PexprLogicalSelect(group, having.Value()));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		const BOOL checked = CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value());
+		CAutoRef<CExpression> target(checked ? CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()) : nullptr);
+		GPOS_UNITTEST_ASSERT((nullptr != target.Value()) == (mode < 2));
+		if (mode >= 2) continue;
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == target->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT((*target)[1]->Matches(having.Value()));
+		CExpression *rebuilt = (*target)[0];
+		GPOS_UNITTEST_ASSERT(rebuilt->Pop()->Matches(group->Pop()) && (*rebuilt)[0] == get);
+		GPOS_UNITTEST_ASSERT(target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()));
+		CExpression *list = (*rebuilt)[1];
+		GPOS_UNITTEST_ASSERT(3 == list->Arity() && (*list)[0]->Matches((*(*group)[1])[0]) &&
+			(*list)[2]->Matches((*(*group)[1])[2]));
+		CExpression *changed = (*(*list)[1])[0];
+		GPOS_UNITTEST_ASSERT(changed->Pop()->Matches(original->Pop()));
+		GPOS_UNITTEST_ASSERT(CUtils::FScalarIdent((*(*changed)[0])[0], (*input)[mode == 0 ? 1 : 0]));
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresNamedAggregateStage()
 {
 	CAutoMemoryPool amp;
@@ -403,6 +481,7 @@ GPOS_RESULT
 CDSLAggTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresAggregateContexts),
 		GPOS_UNITTEST_FUNC(EresNamedAggregateStage),
 		GPOS_UNITTEST_FUNC(EresAggregateIdentityMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),

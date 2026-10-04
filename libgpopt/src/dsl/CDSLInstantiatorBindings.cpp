@@ -272,7 +272,8 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 				pval = pmodel->PexprTable(PsymResolve(psym));
 				break;
 			case EdslsymFunc:
-				pval = pmodel->PdrgpexprFunc(PsymResolve(psym));
+				pval = PdrgpexprResolveFunctions(psym, pmodel);
+				fOwned = true;
 				break;
 			case EdslsymPred:
 				pval = PexprResolvePredicate(psym, pmodel);
@@ -603,6 +604,26 @@ CDSLInstantiator::PexprResolveWindow(const CDSLSymbol *symbol,
 		binding->Edslexpr() == EdslexprContext ? PexprResolveContext(symbol, model, 0) : nullptr;
 }
 
+CExpressionArray *
+CDSLInstantiator::PdrgpexprResolveFunctions(const CDSLSymbol *symbol,
+	const CDSLModel *model) const
+{
+	symbol = PsymResolve(symbol);
+	CExpressionArray *value = model->PdrgpexprFunc(symbol);
+	if (nullptr != value)
+	{
+		value->AddRef();
+		return value;
+	}
+	const auto *binding = m_prule->Pexprdefs()->Pdef(symbol);
+	if (nullptr == binding || binding->Binding() != CDSLExpressionDefinitions::EBuild ||
+		binding->Edslexpr() != EdslexprContext) return nullptr;
+	CExpression *list = PexprResolveContext(symbol, model, 0);
+	CExpressionArray *functions = CDSLExprListUtils::PdrgpexprFunctions(m_mp, list);
+	CRefCount::SafeRelease(list);
+	return functions;
+}
+
 CExpression *
 CDSLInstantiator::PexprInstantiateBinding(const CDSLRule *prule,
 										  const CDSLSymbol *psym,
@@ -626,6 +647,12 @@ CDSLInstantiator::PexprInstantiateBinding(const CDSLRule *prule,
 		case EdslsymScalar: return PexprResolveScalar(psym, pmodel);
 		case EdslsymExpr: return PexprResolveExpr(psym, pmodel);
 		case EdslsymWindow: return PexprResolveWindow(psym, pmodel);
+		case EdslsymFunc:
+		{
+			const auto *binding = m_prule->Pexprdefs()->Pdef(PsymResolve(psym));
+			return nullptr != binding && binding->Binding() == CDSLExpressionDefinitions::EBuild &&
+				binding->Edslexpr() == EdslexprContext ? PexprResolveContext(PsymResolve(psym), pmodel, 0) : nullptr;
+		}
 		default: return nullptr;
 	}
 }

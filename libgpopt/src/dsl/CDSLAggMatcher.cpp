@@ -347,8 +347,6 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 	const ULONG ulSchema = fLegacy ? 3 : 4;
 	const ULONG ulHaving = fLegacy ? 4 : 5;
 
-	CExpressionArray *pdrgpexprFuncs =
-		GPOS_NEW(m_mp) CExpressionArray(m_mp);
 	CColRefArray *pdrgpcrAggOut = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	CColRefSet *pcrsAggInputs = GPOS_NEW(m_mp) CColRefSet(m_mp);
 	BOOL fValid = true;
@@ -373,8 +371,6 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 			break;
 		}
 
-		pexprFunc->AddRef();
-		pdrgpexprFuncs->Append(pexprFunc);
 		pdrgpcrAggOut->Append(
 			CScalarProjectElement::PopConvert(pexprPrEl->Pop())->Pcr());
 		pcrsAggInputs->Include(pexprFunc->DeriveUsedColumns());
@@ -382,7 +378,6 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 
 	if (!fValid)
 	{
-		pdrgpexprFuncs->Release();
 		pdrgpcrAggOut->Release();
 		pcrsAggInputs->Release();
 		return false;
@@ -421,7 +416,7 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 		fBound = pmodel->FBind((*pdrgpsym)[2], pdrgpcrAggOut);
 	}
 	fBound = fHavingValid && fBound &&
-			 pmodel->FBind((*pdrgpsym)[ulFunc], pdrgpexprFuncs) &&
+			 m_pmatcher->FMatchExpression((*pdrgpsym)[ulFunc], pexprAggList, pmodel) &&
 			 pmodel->FBind((*pdrgpsym)[ulSchema], pdrgpcrSchema) &&
 			 m_pmatcher->FMatchPredicate((*pdrgpsym)[ulHaving], pexprHaving, pmodel);
 	if (fBound)
@@ -434,7 +429,6 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 	pdrgpcrGroup->Release();
 	pdrgpcrAggInputs->Release();
 	pdrgpcrAggOut->Release();
-	pdrgpexprFuncs->Release();
 	pdrgpcrSchema->Release();
 	pcrsAggInputs->Release();
 	if (fOwnHaving)

@@ -19,6 +19,8 @@ const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprContext, "Context", 2, {EdslsymExpr, EdslsymExpr, EdslsymScalar}},
 	{EdslexprContext, "Context", 1, {EdslsymWindow, EdslsymScalar}},
 	{EdslexprContext, "Context", 2, {EdslsymWindow, EdslsymWindow, EdslsymScalar}},
+	{EdslexprContext, "Context", 1, {EdslsymFunc, EdslsymScalar}},
+	{EdslexprContext, "Context", 2, {EdslsymFunc, EdslsymFunc, EdslsymScalar}},
 	{EdslexprAnd, "And", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprOr, "Or", 2, {EdslsymPred, EdslsymPred, EdslsymPred}},
 	{EdslexprNullSafeEq, "NullSafeEq", 2, {EdslsymPred, EdslsymAttrs, EdslsymAttrs}},

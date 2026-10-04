@@ -6,6 +6,7 @@
 // beside their operator builders.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "CDSLInstantiatorUtils.h"
 
@@ -552,7 +553,8 @@ CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLMod
 	{
 		const CDSLSymbol *psymFuncs =
 			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		CExpressionArray *pdrgpexprFuncs = pmodel->PdrgpexprFunc(psymFuncs);
+		CAutoRef<CExpressionArray> functions(PdrgpexprResolveFunctions(psymFuncs, pmodel));
+		CExpressionArray *pdrgpexprFuncs = functions.Value();
 		if (nullptr == pdrgpexprFuncs)
 		{
 			return nullptr;
