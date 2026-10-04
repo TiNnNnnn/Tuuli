@@ -198,8 +198,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		CColRefSet *output = right->DeriveOutputColumns();
 		if (0 == output->Size())
 		{
-			left->Release(); right->Release();
-			return nullptr;
+			// Supply only the executor's witness slot. Keep the entire input
+			// below it: even a zero-column relation can be empty or correlated.
+			right = CUtils::PexprAddProjection(
+				m_mp, right, CUtils::PexprScalarConstBool(m_mp, true));
+			output = right->DeriveOutputColumns();
 		}
 		// The executor's correlated-subplan fallback needs an inner column and
 		// the existential origin, even though EXISTS does not observe its value.

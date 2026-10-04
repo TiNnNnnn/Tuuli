@@ -1,0 +1,55 @@
+{
+  "description": "零列相关 EXISTS/NOT EXISTS 保留空集及单行语义，原生 lowering 关闭",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_complete_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d02e2eb78f0ff3b4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_complete_existential_apply.policy",
+    "output": [
+      "anti,,3",
+      "anti,1,2",
+      "anti,2,",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,2,2"
+    ],
+    "postgres_output": [
+      "anti,,3",
+      "anti,1,2",
+      "anti,2,",
+      "semi,1,1",
+      "semi,1,1",
+      "semi,2,2"
+    ]
+  }
+}
