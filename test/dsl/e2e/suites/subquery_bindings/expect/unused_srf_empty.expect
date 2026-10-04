@@ -1,5 +1,5 @@
 {
-  "description": "Typed scalar subquery preserves selected value, NULL and errors: error",
+  "description": "An unselected SRF still controls scalar subquery emptiness",
   "plans": [
     {
       "name": "dsl-off",
@@ -32,15 +32,20 @@
   ],
   "rows": {
     "policy": "construct.policy",
-    "error_sqlstate": "22012",
     "output": [
-      "SQLSTATE 22012"
+      "1,",
+      "2,",
+      "3,"
     ],
     "postgres_output": [
-      "SQLSTATE 22012"
+      "1,",
+      "2,",
+      "3,"
     ],
     "off_output": [
-      "SQLSTATE 22012"
+      "1,",
+      "2,",
+      "3,"
     ]
   }
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Typed scalar subquery preserves selected value, NULL and errors: error",
+  "description": "An unselected SRF still causes a scalar subquery cardinality error",
   "plans": [
     {
       "name": "dsl-off",
@@ -32,15 +32,15 @@
   ],
   "rows": {
     "policy": "construct.policy",
-    "error_sqlstate": "22012",
+    "error_sqlstate": "21000",
     "output": [
-      "SQLSTATE 22012"
+      "SQLSTATE 21000"
     ],
     "postgres_output": [
-      "SQLSTATE 22012"
+      "SQLSTATE 21000"
     ],
     "off_output": [
-      "SQLSTATE 22012"
+      "SQLSTATE 21000"
     ]
   }
 }
