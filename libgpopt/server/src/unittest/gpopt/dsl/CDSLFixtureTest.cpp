@@ -14,10 +14,38 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/metadata/CName.h"
+#include "gpopt/operators/CLogicalBitmapTableGet.h"
+#include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
+
+static GPOS_RESULT
+EresAccessPathOriginHash()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *get = fix.PexprLogicalGet("access_origin", 2, &columns);
+	CLogicalGet *scan = CLogicalGet::PopConvert(get->Pop());
+	CLogicalBitmapTableGet *paths[3];
+	for (ULONG i = 0; i < 3; ++i)
+	{
+		scan->Ptabdesc()->AddRef();
+		columns->AddRef();
+		paths[i] = GPOS_NEW(mp) CLogicalBitmapTableGet(mp, scan->Ptabdesc(),
+			i < 2 ? 7 : 8, GPOS_NEW(mp) CName(mp, scan->Name()), columns);
+	}
+	const BOOL ok = paths[0]->Matches(paths[1]) &&
+		paths[0]->HashValue() == paths[1]->HashValue() &&
+		!paths[0]->Matches(paths[2]) && paths[0]->HashValue() != paths[2]->HashValue();
+	for (auto *path : paths) path->Release();
+	get->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -27,6 +55,7 @@ GPOS_RESULT
 CDSLFixtureTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresAccessPathOriginHash),
 		GPOS_UNITTEST_FUNC(CDSLFixtureTest::EresUnittest_GetDerivesColumns),
 		GPOS_UNITTEST_FUNC(CDSLFixtureTest::EresUnittest_SelectConjuncts),
 		GPOS_UNITTEST_FUNC(CDSLFixtureTest::EresUnittest_JoinDerivesColumns),

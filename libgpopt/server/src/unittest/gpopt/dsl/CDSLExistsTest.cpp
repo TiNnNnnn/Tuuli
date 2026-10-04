@@ -390,6 +390,24 @@ EresMemoSubqueryMarkerIdentity()
 			GPOS_UNITTEST_ASSERT(nullptr != marker && marker != previous);
 			GPOS_UNITTEST_ASSERT(marker == again->Pmodel()->PcrSubqueryMarker(constraint));
 			GPOS_UNITTEST_ASSERT(first->PexprTarget()->Matches(again->PexprTarget()));
+			// Select(outer, subquery) and Select(Select(outer, TRUE), subquery)
+			// are different bindings in one logical scope, not new SQL occurrences.
+			CAutoRef<CExpression> truth(CUtils::PexprScalarConstBool(mp, true));
+			CAutoRef<CExpression> wrapped(fix.PexprLogicalSelect(outer.Value(), truth.Value()));
+			CAutoRef<CExpression> alternative(fix.PexprLogicalSelect(wrapped.Value(), predicate.Value()));
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			children->Append(insert(insert, wrapped.Value())->Pgroup());
+			children->Append(insert(insert, predicate.Value())->Pgroup());
+			alternative->Pop()->AddRef();
+			CGroupExpression *alternate = GPOS_NEW(mp) CGroupExpression(mp,
+				alternative->Pop(), children, CXform::ExfInvalid, nullptr, false);
+			memo.PgroupInsert(entry->Pgroup(), alternative.Value(), alternate);
+			GPOS_UNITTEST_ASSERT(alternate->Pgroup() == entry->Pgroup());
+			CAutoRef<CExpressionArray> alternativeBindings(index.PdrgpexprBindings(mp, alternate));
+			CDSLRewriteDecision *equivalent = engine->PdecisionEvaluate(mp, rule.Value(), (*alternativeBindings)[0]);
+			GPOS_UNITTEST_ASSERT(EdsldecisionReady == equivalent->Status() &&
+				marker == equivalent->Pmodel()->PcrSubqueryMarker(constraint));
+			GPOS_DELETE(equivalent);
 			CDSLRewriteDecision *separate = engine->PdecisionEvaluate(mp, other.Value(), bound);
 			GPOS_UNITTEST_ASSERT(EdsldecisionReady == separate->Status() &&
 				marker != separate->Pmodel()->PcrSubqueryMarker((*other->Pdrgpcon())[1]));

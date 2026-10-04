@@ -1,0 +1,49 @@
+{
+  "description": "Commuted quantified inequalities use the metadata commutator at the SubPlan boundary, preserving comparison direction",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSubqJoin2Apply",
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSubqJoin2Apply",
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

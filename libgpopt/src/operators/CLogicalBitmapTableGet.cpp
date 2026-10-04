@@ -101,7 +101,8 @@ CLogicalBitmapTableGet::HashValue() const
 	ulHash =
 		gpos::CombineHashes(ulHash, CUtils::UlHashColArray(m_pdrgpcrOutput));
 
-	return ulHash;
+	// Matches distinguishes join occurrences even for the same access path.
+	return gpos::CombineHashes(ulHash, gpos::HashValue(&m_ulOriginOpId));
 }
 
 

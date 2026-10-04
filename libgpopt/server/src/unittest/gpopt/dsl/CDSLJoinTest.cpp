@@ -560,7 +560,7 @@ EresTestPredicateAndBuildsSemiJoinCondition(const CHAR *rule, ULONG scope = 0,
 			pdrgpexprConjuncts =
 				CPredicateUtils::PdrgpexprConjuncts(mp, (*pexprTarget)[2]);
 		}
-		const BOOL simplified = true_predicate && !prule->Pexprdefs()->FHasBindings();
+		const BOOL simplified = true_predicate;
 		if (residual ? nullptr != pexprTarget : (nullptr == pexprTarget ||
 			COperator::EopLogicalLeftSemiJoin !=
 				pexprTarget->Pop()->Eopid() ||
@@ -694,8 +694,8 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		for (ULONG scope = 0; scope < 4; ++scope)
 			if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule, scope))
 				return GPOS_FAILED;
-		// Explicit And retains TRUE and operand nesting; the legacy helper
-		// simplifies it. Both retain the complete correlated filter predicate.
+		// Both constructors remove neutral TRUE without changing the complete
+		// correlated filter predicate or its operand nesting.
 		if (GPOS_OK != EresTestPredicateAndBuildsSemiJoinCondition(rule, 0, true))
 			return GPOS_FAILED;
 	}

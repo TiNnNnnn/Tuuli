@@ -89,9 +89,9 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0d3437a13186f35\"",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"b1d9ece967912f1c\"",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"f0d3437a13186f35\"",
-        "\"src_rule\":\"b1d9ece967912f1c\",\"dst_rule\":\"f0d3437a13186f35\",\"target_path\":\"r/0\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"src_rule\":\"4f3da4063a3836ad\",\"dst_rule\":\"eb808b80935652d6\",\"target_path\":\"r\"",
         "\"placement\":\"rbo\"",
         "\"order\":\"bottom_up\""
       ],

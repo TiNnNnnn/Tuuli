@@ -1203,11 +1203,28 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 		!pexprTarget->Matches(pexpr) &&
 		FMatchesMemoDescendant(pexpr, pexprTarget))
 	{
-		// A fresh identity Select admits the equivalent descendant as an
-		// alternative without merging ancestor/descendant groups. This is the
-		// same representation used by native operator-eliminating xforms.
-		pexprTarget = CUtils::PexprLogicalSelect(
-			mp, pexprTarget, CUtils::PexprScalarConstBool(mp, true));
+		// Removing an existing identity carrier must not manufacture a different
+		// carrier. Project/Filter commutation would otherwise turn this no-op
+		// into indefinitely many empty Projects and TRUE predicates.
+		const BOOL identity = 2 == pexpr->Arity() &&
+			((COperator::EopLogicalProject == pexpr->Pop()->Eopid() &&
+			  0 == (*pexpr)[1]->Arity()) ||
+			 (COperator::EopLogicalSelect == pexpr->Pop()->Eopid() &&
+			  CUtils::FScalarConstTrue((*pexpr)[1])));
+		if (identity && pexprTarget->Matches((*pexpr)[0]))
+		{
+			pexprTarget->Release();
+			pexpr->AddRef();
+			pexprTarget = pexpr;
+		}
+		else
+		{
+			// A fresh identity Select admits the equivalent descendant as an
+			// alternative without merging ancestor/descendant groups. This is the
+			// same representation used by native operator-eliminating xforms.
+			pexprTarget = CUtils::PexprLogicalSelect(
+				mp, pexprTarget, CUtils::PexprScalarConstBool(mp, true));
+		}
 		for (SDSLTargetInputOrigin &input : inputOrigins)
 		{
 			input.m_expression_path.insert(1, "/0");

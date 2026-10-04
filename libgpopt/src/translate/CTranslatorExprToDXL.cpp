@@ -3853,8 +3853,31 @@ CTranslatorExprToDXL::PdxlnQuantifiedSubplan(
 				"Outer references in the project list of a correlated subquery"));
 	}
 
-	// translate test expression
-	CDXLNode *dxlnode_test_expr = PdxlnScalar(pexprScalar);
+	// SubPlan's test-expression contract puts the inner output on the right.
+	// Comparison normalization may have commuted it during optimization. Restore
+	// that boundary contract using the metadata commutator, not the same operator
+	// with swapped arguments (which would change inequalities).
+	CAutoRef<CExpression> oriented;
+	if (!outerParam && COperator::EopScalarCmp == pexprScalar->Pop()->Eopid())
+	{
+		CColRefSet *inner_columns = pexprInner->DeriveOutputColumns();
+		CColRefSet *left_used = (*pexprScalar)[0]->DeriveUsedColumns();
+		CColRefSet *right_used = (*pexprScalar)[1]->DeriveUsedColumns();
+		if (0 < left_used->Size() && inner_columns->ContainsAll(left_used) &&
+			inner_columns->IsDisjoint(right_used))
+		{
+			CScalarCmp *commuted = CScalarCmp::PopConvert(pexprScalar->Pop())->PopCommutedOp(m_mp);
+			if (nullptr != commuted)
+			{
+				(*pexprScalar)[0]->AddRef();
+				(*pexprScalar)[1]->AddRef();
+				oriented = GPOS_NEW(m_mp) CExpression(m_mp, commuted,
+					(*pexprScalar)[1], (*pexprScalar)[0]);
+			}
+		}
+	}
+	CDXLNode *dxlnode_test_expr = PdxlnScalar(
+		nullptr == oriented.Value() ? pexprScalar : oriented.Value());
 
 	const IMDTypeBool *pmdtypebool = m_pmda->PtMDType<IMDTypeBool>();
 	IMDId *mdid = pmdtypebool->MDId();
