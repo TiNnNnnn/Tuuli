@@ -320,6 +320,42 @@ BOOL
 FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic = false);
 
 BOOL
+FNonnegativeLimitBound(CExpression *expr)
+{
+	while (COperator::EopScalarCast == expr->Pop()->Eopid())
+	{
+		if (1 != expr->Arity() || !FScalarCastProvablyErrorFree(expr)) return false;
+		expr = (*expr)[0];
+	}
+	if (COperator::EopScalarConst != expr->Pop()->Eopid()) return false;
+	IDatum *datum = CScalarConst::PopConvert(expr->Pop())->GetDatum();
+	if (datum->IsNull()) return false;
+	switch (datum->GetDatumType())
+	{
+		case IMDType::EtiInt2: return 0 <= dynamic_cast<IDatumInt2 *>(datum)->Value();
+		case IMDType::EtiInt4: return 0 <= dynamic_cast<IDatumInt4 *>(datum)->Value();
+		case IMDType::EtiInt8: return 0 <= dynamic_cast<IDatumInt8 *>(datum)->Value();
+		default: return false;
+	}
+}
+
+BOOL
+FExistenceInputProvablySafe(CExpression *expr, BOOL deterministic = false)
+{
+	// Fixed nonnegative slicing can change which rows survive, but not their
+	// count. Only existential demand may ignore that row nondeterminism.
+	while (COperator::EopLogicalLimit == expr->Pop()->Eopid())
+	{
+		CDSLMatchView::SOrderLimit view{};
+		if (!CDSLMatchView::FOrderLimit(expr, &view) || !view.m_pos->IsEmpty() ||
+			!FNonnegativeLimitBound(view.m_pexprOffset) ||
+			(view.m_fHasLimit && !FNonnegativeLimitBound(view.m_pexprCount))) return false;
+		expr = view.m_pexprChild;
+	}
+	return FRelationalTreeProvablyErrorFree(expr, deterministic);
+}
+
+BOOL
 FScalarTreeProvablyErrorFree(CExpression *pexpr,
 							   const CMaxCard &aggregateInput = CMaxCard())
 {
@@ -331,7 +367,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 		case COperator::EopScalarSubqueryExists:
 		case COperator::EopScalarSubqueryNotExists:
 			return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
-				FRelationalTreeProvablyErrorFree((*pexpr)[0]);
+				FExistenceInputProvablySafe((*pexpr)[0]);
 		case COperator::EopScalarSubqueryAny:
 		case COperator::EopScalarSubqueryAll:
 			// Quantifiers add no cardinality assertion. Audit both the query
@@ -514,10 +550,10 @@ FScalarTreeProvablyDeterministic(CExpression *pexpr)
 	if (COperator::EopScalarSubqueryExists == pexpr->Pop()->Eopid() ||
 		COperator::EopScalarSubqueryNotExists == pexpr->Pop()->Eopid())
 	{
-		// Repeatability follows only for the audited total relational fragment,
-		// not from immutable function metadata alone (e.g. unordered LIMIT).
+		// Repeatability follows from the audited existential observation,
+		// not from immutable function metadata alone.
 		return 1 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
-			FRelationalTreeProvablyErrorFree((*pexpr)[0], true);
+			FExistenceInputProvablySafe((*pexpr)[0], true);
 	}
 	if (pexpr->DeriveHasSubquery())
 		for (ULONG i = 0; i < pexpr->Arity(); i++)

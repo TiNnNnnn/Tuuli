@@ -153,7 +153,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	const BOOL fCompatibleSetOp = fSetOp && (0 == ul_given || 2 == ul_given);
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
 		!fPredicateExists && !fLegacyInSub && !fCompatibleSetOp && !fLegacyFilter &&
-		!fLegacyAntiJoinNotIn && !fSelectList)
+		!fLegacyAntiJoinNotIn && !fSelectList &&
+		!((fSemiApply || fAntiApply) && 0 == ul_given))
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects ";
@@ -165,6 +166,8 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			os << "2, 3, 4, 5, or 7";
 		else if (fExists)
 			os << "0 or 3";
+		else if (fSemiApply || fAntiApply)
+			os << "0 or 4";
 		else if (EdslopInSubFilter == edslop)
 			os << "1 or 5";
 		else if (fSetOp)
@@ -875,7 +878,9 @@ FBindingTree(const CDSLOp *op, BOOL source)
 								 7 == op->Pdrgpsym()->Size())) ||
 				  (EdslopAntiJoinNotIn == op->Edslop() && 6 == op->Pdrgpsym()->Size())) &&
 				 2 == op->UlChildren()
-			   : apply ? 4 == op->Pdrgpsym()->Size() && 2 == op->UlChildren()
+			   : apply ? (4 == op->Pdrgpsym()->Size() ||
+						 ((EdslopSemiApply == op->Edslop() || EdslopAntiApply == op->Edslop()) &&
+						  0 == op->Pdrgpsym()->Size())) && 2 == op->UlChildren()
 			   // Source short forms retain the captured positional maps. A
 			   // target must declare its output, with optional explicit input maps.
 			   : set ? (4 == op->Pdrgpsym()->Size() ||

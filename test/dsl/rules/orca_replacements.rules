@@ -117,17 +117,18 @@ Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,I
 # Anti certificate: d9e868ed16192c02a31ceddcc1bdb4ca0e9a6e2a31f1542575a72034b688c170
 NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a5 := ScalarDeps(n0);AttrsIntersect(a4,a5,t0)
 
-# DIRECT(expression-rewrite): PredicateExists destructures a scalar EXISTS
-# predicate into its relational operand; the target then uses the ordinary
-# Exists builder. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-# Compatibility: the explicit rules above cover filtered inputs only. Keep
-# this macro until arbitrary-input, demand-sensitive lowering is represented.
-Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
+# Native FormalSQL OUTCOME_EQ: lower the complete existential input to Apply.
+# Zero-symbol Apply has TRUE ON; correlation remains inside its arbitrary right
+# child. Projection removal is a separate rule, not hidden in construction.
+# Semi certificate: 63fc658c843f7fc89483e9ae572d83565188ffb70a80e07742fefa3dc0df9042
+Filter<Exists(t1) a0 a1>(Input<t0>)|SemiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
+# Anti certificate: c43d5eb360be1966bba2e598df53b16496b1e15b76694778d664bada4d90314a
+Filter<Not(Exists(t1)) a0 a1>(Input<t0>)|AntiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 
-# DIRECT(expression-rewrite): typed NOT EXISTS sibling of PredicateExists;
-# FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-# The same arbitrary-input migration boundary applies here.
-Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateNotExists(p0,t2)
+# Compatibility: retain the positive macro for CTE inlining until the native
+# Project/CTE required-column translation boundary accepts the literal target.
+# The complete-input rule above is certified, but this domain is not retired.
+Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)
 
 # Native FormalSQL OUTCOME_EQ: capture the quantified comparison and scalar
 # argument explicitly, derive its dependencies, and retain the complete inner

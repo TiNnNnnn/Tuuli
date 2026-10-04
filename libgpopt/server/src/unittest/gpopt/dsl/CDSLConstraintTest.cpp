@@ -602,19 +602,21 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 	CExpression *pexprGet = fix.PexprLogicalGet("deterministic_input", 1, &pdrgpcr);
 	CDSLConstraintChecker checker(mp);
 	GPOS_RESULT eres = GPOS_OK;
-	// Safe EXISTS/NOT EXISTS can use the relational safety proof. Scalar
-	// subqueries and sliced/opaque relational trees retain their old boundary.
-	for (ULONG kind = 0; kind < 8; ++kind)
+	// EXISTS observes slice cardinality, not the potentially arbitrary row.
+	// Scalar subqueries, negative/dynamic bounds and opaque inputs stay unsafe.
+	for (ULONG kind = 0; kind < 11; ++kind)
 	{
 		CExpression *pexprPredicate = nullptr;
-		if (1 == kind || 4 == kind)
+		if (1 == kind || 4 == kind || 8 <= kind)
 		{
 			pexprGet->AddRef();
 			CExpression *pexprLimit = GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp),
 					true, true, false), pexprGet,
-				CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 1));
-			if (4 == kind)
+				CUtils::PexprScalarConstInt8(mp, 10 == kind ? -1 : 0),
+				9 == kind ? CUtils::PexprScalarIdent(mp, (*pdrgpcr)[0])
+					: CUtils::PexprScalarConstInt8(mp, 8 == kind ? -1 : 1));
+			if (4 == kind || 8 <= kind)
 				pexprPredicate = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarSubqueryExists(mp), pexprLimit);
 			else
@@ -661,7 +663,7 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 			pexprPredicate = fix.PexprEqPred((*pdrgpcr)[0], (*pdrgpcr)[0]);
 		}
 		// Function metadata alone also admits the unordered scalar subquery;
-		// the relational shape guard must still reject it and the EXISTS slice.
+		// the observation-aware guard must still reject its row-valued demand.
 		if (7 != kind) GPOS_ASSERT(!pexprPredicate->DeriveHasNonScalarFunction());
 		if (5 != kind && 7 != kind)
 			GPOS_ASSERT(IMDFunction::EfsImmutable ==
@@ -680,7 +682,7 @@ CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary()
 					pmodel->FBind(PsymByName(prule, "p0"), pexprPredicate);
 				}
 				if (checker.FCheck(prule, pmodel) !=
-					(bound && (0 == kind || 2 == kind || 3 == kind || 6 == kind)))
+					(bound && (0 == kind || 2 == kind || 3 == kind || 4 == kind || 6 == kind)))
 				{
 					eres = GPOS_FAILED;
 				}

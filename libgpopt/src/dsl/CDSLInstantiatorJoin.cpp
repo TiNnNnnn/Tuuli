@@ -183,6 +183,32 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
 	const BOOL fAntiJoin = EdslopAntiJoin == pop->Edslop();
 	const BOOL fAntiApply = EdslopAntiApply == pop->Edslop();
+	if ((fSemiApply || fAntiApply) && 0 == ulSymbols)
+	{
+		// An existential Apply without ON observes the complete right input.
+		// Do not strip projects, add LIMIT, or erase correlation from that tree.
+		CExpression *left = PexprBuild((*pop)[0], pmodel);
+		CExpression *right = PexprBuild((*pop)[1], pmodel);
+		if (nullptr == left || nullptr == right)
+		{
+			CRefCount::SafeRelease(left);
+			CRefCount::SafeRelease(right);
+			return nullptr;
+		}
+		CColRefSet *output = right->DeriveOutputColumns();
+		if (0 == output->Size())
+		{
+			left->Release(); right->Release();
+			return nullptr;
+		}
+		// The executor's correlated-subplan fallback needs an inner column and
+		// the existential origin, even though EXISTS does not observe its value.
+		return fSemiApply
+			? CUtils::PexprLogicalApply<CLogicalLeftSemiApply>(m_mp, left, right,
+				output->PcrFirst(), COperator::EopScalarSubqueryExists)
+			: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApply>(m_mp, left, right,
+				output->PcrFirst(), COperator::EopScalarSubqueryNotExists);
+	}
 	const BOOL fAntiJoinNotIn = EdslopAntiJoinNotIn == pop->Edslop();
 	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == pop->Edslop();
 	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
@@ -551,9 +577,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		BOOL hasSourceCarrier = false;
 		const auto findCarrier = [&](const auto &self, const CDSLOp *source) -> BOOL {
 			CExpression *candidate =
-				(source->Edslop() == pop->Edslop() ||
+				(nullptr != source->Pdrgpsym() && 4 == source->Pdrgpsym()->Size() &&
+				 (source->Edslop() == pop->Edslop() ||
 				 ((fInnerApply || fLeftOuterApply) &&
-				  (EdslopInnerApply == source->Edslop() || EdslopLeftOuterApply == source->Edslop())))
+				  (EdslopInnerApply == source->Edslop() || EdslopLeftOuterApply == source->Edslop()))))
 					? pmodel->PexprApplyCarrier((*source->Pdrgpsym())[0]) : nullptr;
 			if (nullptr != candidate)
 			{
