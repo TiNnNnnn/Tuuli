@@ -491,6 +491,12 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 									 CExpression *pexprRel,
 									 CDSLModel *pmodel) const
 {
+	const CDSLRule *prule = m_pmatcher->Prule();
+	// Lifting membership exposes the crossed joins and their siblings to rows
+	// previously rejected by IN. Audit that entire input, not only its predicate.
+	if (nullptr != prule && prule->Pexprdefs()->FHasBindings() &&
+		!CDSLConstraintChecker::FQueryDemandInsensitive(pexprRel))
+		return false;
 	CExpression *pexprInSub = nullptr;
 	if (COperator::EopLogicalSelect == pexprCarrier->Pop()->Eopid())
 	{
@@ -536,8 +542,10 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 	GPOS_ASSERT(nullptr != pexprInSub);
 
 	CDSLModel *pmodelProbe = GPOS_NEW(m_mp) CDSLModel(m_mp);
-	BOOL fMatched = FMatch(pop, pexprInSub, pmodelProbe);
-	const CDSLRule *prule = m_pmatcher->Prule();
+	// A route can be below Proj/Agg. Its constraints may refer to captures
+	// already bound above it; keep those in the disposable probe as well.
+	BOOL fMatched = pmodel->FCopyExpressionBindingsTo(pmodelProbe) &&
+		FMatch(pop, pexprInSub, pmodelProbe);
 	if (fMatched && nullptr != prule)
 	{
 		CDSLConstraintChecker checker(m_mp);
@@ -557,7 +565,10 @@ CDSLInSubMatcher::FMatchPushedDownInnerJoin(const CDSLOp *pop,
 									 CExpression *pexpr,
 									 CDSLModel *pmodel) const
 {
-	if (EdslopInnerJoin != (*pop)[0]->Edslop() ||
+	const CDSLRule *rule = m_pmatcher->Prule();
+	const BOOL typed = nullptr != rule && rule->Pexprdefs()->FHasBindings();
+	if ((EdslopInnerJoin != (*pop)[0]->Edslop() &&
+		 !(typed && EdslopInput == (*pop)[0]->Edslop())) ||
 		COperator::EopLogicalInnerJoin != pexpr->Pop()->Eopid() ||
 		3 != pexpr->Arity())
 	{
@@ -625,6 +636,8 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	}
 	if (typed)
 	{
+		if (!fExtended && COperator::EopLogicalInnerJoin == pexpr->Pop()->Eopid())
+			return FMatchPushedDownInnerJoin(pop, pexpr, pmodel);
 		// An already decorrelated equality semi join is the relational form of
 		// membership. Retain its complete comparison and ordered key vectors.
 		// The native IN proof observes the whole input, so only a demand-insensitive

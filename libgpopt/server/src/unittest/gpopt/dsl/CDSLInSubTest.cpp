@@ -130,6 +130,84 @@ PruleParse(CMemoryPool *mp, const CHAR *szRule)
 }  // namespace
 
 static GPOS_RESULT
+EresTypedJoinSpineMembership()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CDSLRule> rule(PruleParse(mp, GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	CDSLRulePrefixIndex index(mp);
+	index.Insert(rule.Value(), 0, COperator::EopLogicalProject);
+	for (ULONG carrier = 0; carrier < 3; ++carrier)
+	for (BOOL swapped : {false, true})
+	// Direct, preserved-side LOJ, nullable-side LOJ, fallible/demand-sensitive
+	// sibling, and SRF sibling. Routing must audit the crossed tree, not just IN.
+	for (ULONG shape = 0; shape < 5; ++shape)
+	{
+		CColRefArray *left_cols = nullptr, *inner_cols = nullptr, *sibling_cols = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("route_left", 1, &left_cols));
+		CAutoRef<CExpression> inner(fix.PexprLogicalGet("route_inner", 1, &inner_cols));
+		CAutoRef<CExpression> sibling(fix.PexprLogicalGet("route_sibling", 1, &sibling_cols));
+		CAutoRef<CExpression> comparison(fix.PexprEqPred((*left_cols)[0], (*inner_cols)[0]));
+		CAutoRef<CExpression> routed;
+		if (carrier == 0)
+		{
+			inner->AddRef();
+			CAutoRef<CExpression> any(PexprScalarAny(mp, fix, inner.Value(), (*left_cols)[0], (*inner_cols)[0]));
+			routed = fix.PexprLogicalSelect(left.Value(), any.Value());
+		}
+		else
+		{
+			left->AddRef();
+			inner->AddRef();
+			comparison->AddRef();
+			routed = carrier == 1
+				? CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, left.Value(), inner.Value(),
+					(*inner_cols)[0], COperator::EopScalarSubqueryAny, comparison.Value())
+				: GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalLeftSemiJoin(mp),
+					left.Value(), inner.Value(), comparison.Value());
+		}
+		if (shape == 1 || shape == 2)
+		{
+			CAutoRef<CExpression> extra(fix.PexprLogicalGet("route_nullable", 1));
+			CAutoRef<CExpression> on(CUtils::PexprScalarConstBool(mp, true));
+			CExpression *nested = shape == 1
+				? fix.PexprLogicalLeftOuterJoin(routed.Value(), extra.Value(), on.Value())
+				: fix.PexprLogicalLeftOuterJoin(extra.Value(), routed.Value(), on.Value());
+			routed->Release();
+			routed = nested;
+		}
+		if (shape == 3 || shape == 4)
+			sibling = shape == 3 ? CUtils::PexprLimit(mp, sibling.Value(), 0, 1)
+				: CUtils::PexprAddProjection(mp, sibling.Value(), fix.PexprGenerateSeries((*sibling_cols)[0]));
+		CAutoRef<CExpression> on(fix.PexprEqPred((*left_cols)[0], (*sibling_cols)[0]));
+		CAutoRef<CExpression> join(fix.PexprLogicalInnerJoin(
+			swapped ? sibling.Value() : routed.Value(), swapped ? routed.Value() : sibling.Value(), on.Value()));
+		CAutoRef<CExpression> source(CDSLMatchView::PexprColumnProject(mp, join.Value(), left_cols));
+		CAutoRef<CDSLRuleArray> candidates(index.PdrgpruleCandidates(mp, source.Value()));
+		GPOS_UNITTEST_ASSERT(1 == candidates->Size());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		const BOOL matched = CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value());
+		if (matched != (shape < 2))
+			GPOS_TRACE_FORMAT("typed route carrier=%lu swapped=%u shape=%lu matched=%u", carrier, swapped, shape, matched);
+		GPOS_UNITTEST_ASSERT(matched == (shape < 2));
+		if (!matched) continue;
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		CExpression *result = COperator::EopLogicalProject == target->Pop()->Eopid() ? (*target)[0] : target.Value();
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == result->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CUtils::Equals((*result)[2], comparison.Value()));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == (*result)[0]->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CUtils::Equals((*(*result)[0])[2], on.Value()));
+		GPOS_UNITTEST_ASSERT(target->DeriveOutputColumns()->ContainsAll(source->DeriveOutputColumns()));
+		GPOS_UNITTEST_ASSERT(0 == target->DeriveOuterReferences()->Size());
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresTypedApplyMembership()
 {
 	CAutoMemoryPool amp;
@@ -202,6 +280,7 @@ GPOS_RESULT
 CDSLInSubTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresTypedJoinSpineMembership),
 		GPOS_UNITTEST_FUNC(EresTypedApplyMembership),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ProjectedExpressionBindings),
