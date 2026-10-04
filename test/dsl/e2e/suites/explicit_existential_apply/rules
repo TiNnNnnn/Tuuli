@@ -8,18 +8,11 @@ NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 :
 Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t2>))|Exists(t1) := p1;t2 := t0;p2 := p0;p3 := p1;n0 := BoolValue(p0);n1 := BoolValue(p1);a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)
 # Negated capture, same generic split proof: a46ea6ce3f0e77e274411f110cfb7d28238b46d777cc2d48d55645db6bee9b68
 Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t2>))|Not(p4) := p1;Exists(t1) := p4;t2 := t0;p2 := p0;p3 := p1;n0 := BoolValue(p0);n1 := BoolValue(p1);a1 := ScalarDeps(n0);a2 := ScalarDeps(n1);ErrorFree(p0);ErrorFree(p1);Deterministic(p0);Deterministic(p1)
-# Correlation is derived from the complete Input, not a prescribed Filter shape.
-# Retain the original empty-scope variants as independent compatibility checks.
-# Semi: 1477460462388683c16a1db7253c48b071c3c564c2937b3e93da4b445aaa9d67
-Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
-# Anti: 00ba13b2d0aaa4673ef1409e554decb15242a41d7e7a8ef8e8077ae48f3b4f6a
-NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;a4 := a1;AttrsEmpty(a1)
-# Semi: 6c78fbf5be695857819a7296e3ac47a4e2152f210b76af6d1ed971a00eafffd0
-Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a4 := ScalarDeps(n0)
-# Anti: 8d6a6064bc2d269ac6e8f0e4c2547b4b7b8d769413653694c8bf53fdb9130607
-NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a4 := ScalarDeps(n0)
-# Preserve the remaining right-side Filter and its actual correlation vector.
-# Correlated Semi: 59941d7efbee3ebb3ff783599662f4efb1e9b89764505dd4a47409f9239f78b3
-Exists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|SemiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3
-# Correlated Anti: d978771fbe4d7e7d3fd632b876543f6b505b941dcf08ca0b97d4b62a9bf61eec
-NotExists(Input<t0>,Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t1>)))|AntiApply<p2 a4 a5 a6>(Input<t2>,Filter<p3 a7 a8>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a4 := a1;a5 := a0;a6 := a3;a7 := a2;a8 := a3
+# Native FormalSQL OUTCOME_EQ: lower existential Filters with arbitrary inputs.
+# Derive actual outer references and intersect them with the current left input.
+# This retains references to enclosing queries without misdeclaring them as
+# immediate Apply correlation; no prescribed nested-Filter shape is required.
+# Semi certificate: e5f903ede9d6646046a3b5f9fd124ea5742f731f178c803ae24ed99661daca76
+Exists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|SemiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a5 := ScalarDeps(n0);AttrsIntersect(a4,a5,t0)
+# Anti certificate: d9e868ed16192c02a31ceddcc1bdb4ca0e9a6e2a31f1542575a72034b688c170
+NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a1;a3 := a0;p2 := Exists(t1);n0 := BoolValue(p2);a5 := ScalarDeps(n0);AttrsIntersect(a4,a5,t0)

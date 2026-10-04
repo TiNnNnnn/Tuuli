@@ -54,19 +54,19 @@
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\"",
-        "\"status\":\"applied\",\"rule_hash\":\"c6451f8634950f93\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\"",
         "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
           "src_rule": "c21c58ba5e91d0c6",
-          "dst_rule": "c6451f8634950f93",
+          "dst_rule": "f37f3cbe4c7c9b10",
           "target_path": "r"
         },
         {
           "scheduler": "cbo",
-          "src_rule": "c6451f8634950f93",
+          "src_rule": "f37f3cbe4c7c9b10",
           "dst_rule": "4df97bead45bc844",
           "target_path": "r"
         }

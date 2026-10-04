@@ -9,7 +9,7 @@
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
       "f91ba8ce73b0da11",
-      "07bc74ac0afe2295"
+      "c10790cd2aca029b"
     ]
   },
   "plans": [
@@ -59,7 +59,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
-        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\""
+        "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "alternative": [
         "CXformDSLRule_Select"

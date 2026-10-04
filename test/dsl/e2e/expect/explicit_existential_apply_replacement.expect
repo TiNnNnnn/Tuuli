@@ -1,5 +1,5 @@
 {
-  "description": "正式规则库的四条显式 EXISTS/NOT EXISTS lowering：禁用旧宏和原生 lowering，区分 ON 外表引用与剩余输入相关列，保留 NULL、重复行和相关输入",
+  "description": "正式规则库的两条通用显式 EXISTS/NOT EXISTS lowering：禁用旧宏和原生 lowering，区分 ON 外表引用与剩余输入相关列，保留 NULL、重复行和相关输入",
   "plans": [
     {
       "name": "full-library",
@@ -21,10 +21,8 @@
       "policy": "isolate_explicit_existential_apply.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"593ad0723f91cfd4\"",
-        "\"status\":\"applied\",\"rule_hash\":\"c6451f8634950f93\"",
-        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\"",
-        "\"status\":\"applied\",\"rule_hash\":\"78963540e9d42c30\""
+        "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\""
       ],
       "not_contains": [
         "Falling back to Postgres"

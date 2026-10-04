@@ -22,7 +22,7 @@
       "policy": "construct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"07bc74ac0afe2295\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\"",
         "Rule: Exists("
       ],
       "not_contains": [

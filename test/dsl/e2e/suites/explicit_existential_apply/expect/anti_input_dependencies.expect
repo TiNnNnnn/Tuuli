@@ -11,7 +11,7 @@
       "policy": "dependencies.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"4f7a43262565f6f1\""
+        "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\""
       ],
       "not_contains": [
         "Falling back to Postgres"
