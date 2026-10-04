@@ -13,6 +13,7 @@
 #include "gpos/common/CHashMapIter.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/search/CGroupExpression.h"
+#include "gpopt/search/CGroupProxy.h"
 #include "naucrates/md/IMDTypeBool.h"
 
 using namespace gpopt;
@@ -695,11 +696,17 @@ CDSLModel::PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
 {
 	CColRef *marker = PcrSubqueryMarker(constraint);
 	if (nullptr != marker) return marker;
-	// Only repeated construction of the same Memo occurrence shares identity.
+	// Equivalent alternatives in one source group share scalar output identity.
 	// Standalone/RBO trees, synthetic views and distinct constructor slots stay
 	// fresh. Output binding/provenance is still validated on every invocation.
-	if (nullptr != m_pgexprSource && nullptr != subquery->Pgexpr())
-		return m_pgexprSource->PcrDSLSubqueryMarker(constraint, subquery->Pgexpr());
+	if (nullptr != m_pgexprSource && nullptr != m_pgexprSource->Pgroup() &&
+		nullptr != subquery->Pgexpr())
+	{
+		// Use the group's existing first expression as the identity owner; no
+		// new Memo state or changes to group equivalence are needed.
+		CGroupProxy group(m_pgexprSource->Pgroup());
+		return group.PgexprFirst()->PcrDSLSubqueryMarker(constraint, subquery->Pgexpr());
+	}
 	COptCtxt *context = COptCtxt::PoctxtFromTLS();
 	return context->Pcf()->PcrCreate(
 		context->Pmda()->PtMDType<gpmd::IMDTypeBool>(), default_type_modifier);

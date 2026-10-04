@@ -267,12 +267,24 @@ CDSLMatchView::PexprDedupInput(CExpression *pexprDedup)
 	GPOS_ASSERT(popGlobal->FGlobal());
 	CColRefArray *pdrgpcrGroup = popGlobal->Pdrgpcr();
 	CExpression *pexprInput = (*pexprDedup)[0];
-	while (0 < pdrgpcrGroup->Size() &&
-		   (COperator::EopLogicalGbAgg == pexprInput->Pop()->Eopid() ||
-			COperator::EopLogicalGbAggDeduplicate == pexprInput->Pop()->Eopid()) &&
-		   2 == pexprInput->Arity() && 0 == (*pexprInput)[1]->Arity())
+	while (0 < pdrgpcrGroup->Size())
 	{
-		CLogicalGbAgg *popLocal = CLogicalGbAgg::PopConvert(pexprInput->Pop());
+		CExpression *partial = pexprInput;
+		// Native eliminating xforms can leave identity carriers between the
+		// final and partial dedup stages. They must not hide a Local stage from
+		// this logical view and feed it back as a new DSL Input. Only discard
+		// the carriers when a compatible pure Local dedup is actually found.
+		while (2 == partial->Arity() &&
+			((COperator::EopLogicalSelect == partial->Pop()->Eopid() &&
+			  CUtils::FScalarConstTrue((*partial)[1])) ||
+			 (COperator::EopLogicalProject == partial->Pop()->Eopid() &&
+			  0 == (*partial)[1]->Arity())))
+			partial = (*partial)[0];
+		if ((COperator::EopLogicalGbAgg != partial->Pop()->Eopid() &&
+			 COperator::EopLogicalGbAggDeduplicate != partial->Pop()->Eopid()) ||
+			2 != partial->Arity() || 0 != (*partial)[1]->Arity())
+			break;
+		CLogicalGbAgg *popLocal = CLogicalGbAgg::PopConvert(partial->Pop());
 		if (COperator::EgbaggtypeLocal != popLocal->Egbaggtype())
 		{
 			break;
@@ -288,7 +300,7 @@ CDSLMatchView::PexprDedupInput(CExpression *pexprDedup)
 		// DISTINCT A (partial DISTINCT B (R)) = DISTINCT A (R), A subset B.
 		// Binding Local as Input would let DSL rebuild Global(Local(...)) and
 		// native aggregate splitting add another Local on every rewrite cycle.
-		pexprInput = (*pexprInput)[0];
+		pexprInput = (*partial)[0];
 	}
 	return pexprInput;
 }

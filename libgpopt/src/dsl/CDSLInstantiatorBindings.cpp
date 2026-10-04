@@ -779,7 +779,32 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 				input->Release();
 				return nullptr;
 			}
-			// Explicit bindings preserve operand order, duplicates and nesting.
+			// Identity carriers must not grow AND(TRUE, AND(TRUE, ...)). Removing
+			// a neutral constant preserves the other operand, including its errors,
+			// volatility and NULL result. Do not discard it for an absorbing constant.
+			const BOOL conjunction = EdslexprAnd == pdef->Edslexpr();
+			if (conjunction ? CUtils::FScalarConstTrue(input) : CUtils::FScalarConstFalse(input))
+			{
+				input->Release();
+				return right;
+			}
+			if (conjunction ? CUtils::FScalarConstTrue(right) : CUtils::FScalarConstFalse(right))
+			{
+				right->Release();
+				return input;
+			}
+			// A closed, non-null Boolean expression can also be folded safely.
+			if ((CUtils::FScalarConstTrue(input) || CUtils::FScalarConstFalse(input)) &&
+				(CUtils::FScalarConstTrue(right) || CUtils::FScalarConstFalse(right)))
+			{
+				CExpression *folded = EdslexprAnd == pdef->Edslexpr()
+					? CPredicateUtils::PexprConjunction(m_mp, input, right)
+					: CPredicateUtils::PexprDisjunction(m_mp, input, right);
+				input->Release();
+				right->Release();
+				return folded;
+			}
+			// All other explicit bindings preserve operand order and nesting.
 			return GPOS_NEW(m_mp) CExpression(
 				m_mp, GPOS_NEW(m_mp) CScalarBoolOp(m_mp,
 					EdslexprAnd == pdef->Edslexpr() ? CScalarBoolOp::EboolopAnd

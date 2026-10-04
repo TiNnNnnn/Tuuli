@@ -210,9 +210,6 @@ private:
 								 SBindingStateArray *pdrgpstateInner,
 								 SBindingStateArray *pdrgpstateResult);
 
-	static BOOL FContainsEquivalentBinding(const CExpressionArray *pdrgpexpr,
-										 CExpression *pexpr);
-
 public:
 	CDSLRulePrefixIndex(const CDSLRulePrefixIndex &) = delete;
 

@@ -32,6 +32,8 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
@@ -1870,6 +1872,10 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 		IncompatibleKeys,
 		AggregateFunction,
 		ScalarGlobal,
+		IdentitySelect,
+		IdentityProject,
+		FilteringSelect,
+		IdentityOverGlobal,
 		Cases
 	};
 	for (ULONG test = 0; test < Cases; test++)
@@ -1912,11 +1918,19 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 		{
 			local = GPOS_NEW(mp) CLogicalGbAgg(
 				mp, pdrgpcrLocal,
-				GlobalChild == test ? COperator::EgbaggtypeGlobal
+				(GlobalChild == test || IdentityOverGlobal == test) ? COperator::EgbaggtypeGlobal
 									: COperator::EgbaggtypeLocal);
 		}
 		CExpression *pexprLocal = GPOS_NEW(mp) CExpression(
 			mp, local, pexprGet, pexprFunctions);
+		if (IdentitySelect == test || FilteringSelect == test || IdentityOverGlobal == test)
+			pexprLocal = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalSelect(mp), pexprLocal,
+				CUtils::PexprScalarConstBool(mp, FilteringSelect != test));
+		if (IdentityProject == test)
+			pexprLocal = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalProject(mp), pexprLocal,
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
 		if (NestedLocal == test)
 		{
 			pdrgpcrGroup->AddRef();
@@ -1936,7 +1950,7 @@ CDSLAggTest::EresUnittest_MatchSplitDedupInput()
 		CExpression *pexprGlobal =
 			fix.PexprLogicalGbAgg(pexprLocal, pdrgpcrGlobal);
 		const BOOL fPeel = NestedLocal == test || WiderLocal == test ||
-			SpecializedLocal == test;
+			SpecializedLocal == test || IdentitySelect == test || IdentityProject == test;
 		CExpression *pexprExpected = fPeel ? pexprGet : pexprLocal;
 		if (pexprExpected != CDSLMatchView::PexprDedupInput(pexprGlobal))
 		{

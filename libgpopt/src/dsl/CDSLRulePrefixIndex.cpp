@@ -13,10 +13,23 @@
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
 
+#include <unordered_set>
+
 using namespace gpopt;
 
 namespace
 {
+BOOL
+FEqualBindings(CExpression *left, CExpression *right)
+{
+	return left->Matches(right);
+}
+
+// Keep the ordered Matches contract: commuted inputs are distinct bindings.
+// This set only borrows trees; the result array keeps their discovery order.
+using BindingSet = std::unordered_set<CExpression *,
+	decltype(&CExpression::HashValue), decltype(&FEqualBindings)>;
+
 BOOL
 FCompensationChainEndsInLeftApply(const CDSLOp *pop)
 {
@@ -785,6 +798,8 @@ CDSLRulePrefixIndex::PdrgpexprAdapterBindings(CMemoryPool *mp,
 	{
 		pdrgpexpr->Append(PexprRepresentative(mp, pgroup, ulDepth));
 	}
+	BindingSet seen(0, CExpression::HashValue, FEqualBindings);
+	if (0 < pdrgpexpr->Size()) seen.insert((*pdrgpexpr)[0]);
 
 	for (CGroupExpression *pgexpr = gp.PgexprNextLogical(nullptr);
 		 nullptr != pgexpr; pgexpr = gp.PgexprNextLogical(pgexpr))
@@ -800,7 +815,7 @@ CDSLRulePrefixIndex::PdrgpexprAdapterBindings(CMemoryPool *mp,
 		for (ULONG ul = 0; ul < pdrgpexprCurrent->Size(); ul++)
 		{
 			CExpression *pexpr = (*pdrgpexprCurrent)[ul];
-			if (!FContainsEquivalentBinding(pdrgpexpr, pexpr))
+			if (seen.insert(pexpr).second)
 			{
 				pexpr->AddRef();
 				pdrgpexpr->Append(pexpr);
@@ -1168,20 +1183,6 @@ CDSLRulePrefixIndex::PdrgpstateConsumeGExpr(CMemoryPool *mp,
 	return pdrgpstateResult;
 }
 
-BOOL
-CDSLRulePrefixIndex::FContainsEquivalentBinding(
-	const CExpressionArray *pdrgpexpr, CExpression *pexpr)
-{
-	for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
-	{
-		if ((*pdrgpexpr)[ul]->Matches(pexpr))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
 CExpressionArray *
 CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 									   CGroupExpression *pgexprRoot) const
@@ -1190,6 +1191,7 @@ CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 	GPOS_ASSERT(nullptr != pgexprRoot);
 
 	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
+	BindingSet seen(0, CExpression::HashValue, FEqualBindings);
 
 	// Root-terminal entries are routed/fallback rules without a safe physical
 	// prefix. Do not build their conservative witness after all such rules have
@@ -1200,6 +1202,7 @@ CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 		CExpression *pexprRepresentative =
 			PexprRepresentative(mp, pgexprRoot);
 		pdrgpexpr->Append(pexprRepresentative);
+		seen.insert(pexprRepresentative);
 	}
 
 	SBindingStateArray *pdrgpstate =
@@ -1210,7 +1213,7 @@ CDSLRulePrefixIndex::PdrgpexprBindings(CMemoryPool *mp,
 		// A state without a terminal rule is only a partial prefix and must not
 		// invoke the shell yet.
 		if (!FNodeHasAvailableTerminal(pstate->m_pnode) ||
-			FContainsEquivalentBinding(pdrgpexpr, pstate->m_pexpr))
+			!seen.insert(pstate->m_pexpr).second)
 		{
 			continue;
 		}

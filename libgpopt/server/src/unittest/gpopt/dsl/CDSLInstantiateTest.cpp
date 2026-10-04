@@ -15,6 +15,7 @@
 #include <string>
 
 #include "gpos/base.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
@@ -937,6 +938,142 @@ EresColumnProjectionFusion()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresClosedBooleanConstruction()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL conjunction : {false, true})
+	{
+		const std::string term = conjunction ? "And(p0,p1)" : "Or(p0,p1)";
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
+			("Filter<" + term + " a0>(Input<t0>)|Filter<" + term +
+			 " a1>(Input<t1>)|t1 := t0;a1 := a0").c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		for (ULONG left = 0; left < 4; ++left)
+		for (ULONG right = 0; right < 4; ++right)
+		{
+			CAutoRef<CExpression> input(fix.PexprLogicalGet("bool_input", 1));
+			const auto operand = [&](ULONG value) {
+				return value == 3 ? fix.PexprPredAtom(input->DeriveOutputColumns()->PcrFirst())
+					: CUtils::PexprScalarConstBool(mp, value == 1, value == 2);
+			};
+			CAutoRef<CExpression> predicate(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarBoolOp(mp, conjunction ? CScalarBoolOp::EboolopAnd
+					: CScalarBoolOp::EboolopOr), operand(left), operand(right)));
+			CAutoRef<CExpression> source(fix.PexprLogicalSelect(input.Value(), predicate.Value()));
+			CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+			GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+				rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+			CDSLInstantiator builder(mp);
+			CAutoRef<CExpression> target(builder.PexprInstantiate(rule.Value(), model.Value()));
+			GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+			CExpression *result = (*target)[1];
+			const BOOL folded = left < 2 && right < 2;
+			const BOOL truth = conjunction ? (left && right) : (left || right);
+			const ULONG neutral = conjunction ? 1 : 0;
+			CExpression *expected = left == neutral ? (*predicate)[1]
+				: right == neutral ? (*predicate)[0] : predicate.Value();
+			GPOS_UNITTEST_ASSERT(folded ? (truth ? CUtils::FScalarConstTrue(result)
+				: CUtils::FScalarConstFalse(result)) : result->Matches(expected));
+		}
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresMemoIdentityCarrierReuse()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
+		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
+		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;e2 := ExprConcat(e1,e0);"
+		"AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,s0);DepsDisjoint(e0,s1);"
+		"ErrorFree(e0);ErrorFree(e1);Deterministic(e0);Deterministic(e1)"));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	for (BOOL empty : {false, true})
+	{
+		CMemo memo(mp);
+		const auto insert = [&](const auto &self, CExpression *expr) -> CGroupExpression * {
+			CGroupArray *children = GPOS_NEW(mp) CGroupArray(mp);
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				children->Append(self(self, (*expr)[i])->Pgroup());
+			expr->Pop()->AddRef();
+			CGroupExpression *entry = GPOS_NEW(mp) CGroupExpression(mp,
+				expr->Pop(), children, CXform::ExfInvalid, nullptr, false);
+			CGroupExpression *canonical = nullptr;
+			memo.PgroupInsert(nullptr, expr, entry, &canonical);
+			if (entry != canonical) entry->Release();
+			return canonical;
+		};
+		CColRefArray *cols = GPOS_NEW(mp) CColRefArray(mp);
+		cols->Append(fix.PcrCreateInt4("carrier_input"));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, cols, GPOS_NEW(mp) IDatum2dArray(mp)));
+		for (ULONG level = 0; level < 2; ++level)
+		{
+			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+			if (level == 0 || !empty)
+				items->Append(CUtils::PexprScalarProjectElement(mp,
+					fix.PcrCreateInt4("carrier_value"), CUtils::PexprScalarConstInt4(mp, 7)));
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+				source, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		}
+		CAutoRef<CExpression> owner(source);
+		CDSLRulePrefixIndex index(mp);
+		index.Insert(rule.Value(), 0, COperator::EopLogicalProject);
+		CAutoRef<CExpressionArray> bindings(index.PdrgpexprBindings(mp, insert(insert, source)));
+		GPOS_UNITTEST_ASSERT(1 == bindings->Size());
+		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(
+			mp, rule.Value(), (*bindings)[0]);
+		const BOOL ok = (empty ? EdsldecisionDuplicate : EdsldecisionReady) == decision->Status() &&
+			COperator::EopLogicalProject == decision->PexprTarget()->Pop()->Eopid();
+		GPOS_DELETE(decision);
+		GPOS_UNITTEST_ASSERT(ok);
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresEmptyProjectIdempotence()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
+		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
+		"Compute<e2 a2 s2>(Compute<e3 a3 s3>(Input<t1>))|"
+		"t1 := t0;e2 := e0;a2 := a0;s2 := s0;e3 := e1;a3 := a1;s3 := s1"));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	for (BOOL computed : {false, true})
+	{
+		CExpression *input = fix.PexprLogicalGet("empty_project_identity", 1);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		if (computed)
+			items->Append(CUtils::PexprScalarProjectElement(mp,
+				fix.PcrCreateInt4("computed"), CUtils::PexprScalarConstInt4(mp, 7)));
+		CAutoRef<CExpression> inner(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), input,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items)));
+		inner->AddRef();
+		CAutoRef<CExpression> source(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalProject(mp), inner.Value(),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp))));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		CDSLInstantiator builder(mp);
+		CAutoRef<CExpression> target(builder.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value() &&
+			target->Matches(computed ? source.Value() : inner.Value()) &&
+			target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()));
+	}
+	return GPOS_OK;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLInstantiateTest::EresUnittest
@@ -949,6 +1086,9 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresTypedQuantifiedDistinct),
 		GPOS_UNITTEST_FUNC(EresColumnAliases),
 		GPOS_UNITTEST_FUNC(EresColumnProjectionFusion),
+		GPOS_UNITTEST_FUNC(EresEmptyProjectIdempotence),
+		GPOS_UNITTEST_FUNC(EresMemoIdentityCarrierReuse),
+		GPOS_UNITTEST_FUNC(EresClosedBooleanConstruction),
 		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
 		GPOS_UNITTEST_FUNC(EresComputeConcatBindings),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),

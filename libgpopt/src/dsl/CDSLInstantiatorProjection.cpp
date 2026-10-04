@@ -202,6 +202,14 @@ PexprProjectWithoutSelfAliases(CMemoryPool *mp, CExpression *child,
 	{
 		elements->Release();
 	}
+	// An empty Project is an identity carrier, not another computation. Keep
+	// one carrier for its interface, without stacking it on an identical one.
+	if (0 == list->Arity() && COperator::EopLogicalProject == child->Pop()->Eopid() &&
+		2 == child->Arity() && 0 == (*child)[1]->Arity())
+	{
+		list->Release();
+		return child;
+	}
 	return GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CLogicalProject(mp), child, list);
 }

@@ -1,5 +1,5 @@
 {
-  "description": "Explicit DISTINCT removal, Compute elimination and AntiApply lowering replace the legacy NOT EXISTS macro before DSL decorrelation",
+  "description": "Explicit DISTINCT removal preserves column projection without a redundant Compute, followed by AntiApply lowering and DSL decorrelation",
   "replacement": {
     "xforms": [
       "CXformRemoveSubqDistinct"
@@ -54,7 +54,6 @@
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\"",
-        "\"status\":\"applied\",\"rule_hash\":\"3ac742c807fd9c27\"",
         "\"status\":\"applied\",\"rule_hash\":\"c6451f8634950f93\"",
         "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
       ],
@@ -62,12 +61,6 @@
         {
           "scheduler": "cbo",
           "src_rule": "c21c58ba5e91d0c6",
-          "dst_rule": "3ac742c807fd9c27",
-          "target_path": "r"
-        },
-        {
-          "scheduler": "cbo",
-          "src_rule": "3ac742c807fd9c27",
           "dst_rule": "c6451f8634950f93",
           "target_path": "r"
         },

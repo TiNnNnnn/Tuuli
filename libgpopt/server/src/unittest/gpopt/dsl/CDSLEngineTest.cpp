@@ -644,6 +644,21 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 							   (*pexprBinding)[1]->Pop()->Eopid();
 	}
 	fValid = fValid && 2 == pdrgpexprBindings->Size() && fProject && fSelect;
+	// Multiple trie witnesses must retain the first tree and its order. Hash
+	// collisions still need structural comparison, not pointer/hash equality.
+	{
+		CGroupProxy gp(pgroupRight);
+		for (ULONG i = 0; i < 64; ++i)
+			gp.Insert(GPOS_NEW(mp) CGroupExpression(
+				mp, GPOS_NEW(mp) CLogicalSelect(mp),
+				GPOS_NEW(mp) CGroupArray(mp), CXform::ExfInvalid, nullptr, false));
+	}
+	CExpressionArray *repeated = pindex->PdrgpexprBindings(mp, pgexprRoot);
+	fValid = fValid && repeated->Size() == pdrgpexprBindings->Size();
+	for (ULONG i = 0; fValid && i < repeated->Size(); ++i)
+		fValid = (*repeated)[i]->Matches((*pdrgpexprBindings)[i]) &&
+			(*(*repeated)[i])[1]->Pgexpr() == (*(*pdrgpexprBindings)[i])[1]->Pgexpr();
+	repeated->Release();
 	pdrgpexprBindings->Release();
 	GPOS_DELETE(pindex);
 	pruleAdapter->Release();
