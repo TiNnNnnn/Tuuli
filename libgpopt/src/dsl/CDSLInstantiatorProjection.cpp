@@ -1186,7 +1186,8 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 		PdrgpcrResolveCols(psymGroup, pmodel);
 	CColRefArray *pdrgpcrAggInputs =
 		PdrgpcrResolveCols(psymAggInputs, pmodel);
-	CExpressionArray *pdrgpexprFuncs = pmodel->PdrgpexprFunc(psymFuncs);
+	CAutoRef<CExpressionArray> functions(PdrgpexprResolveFunctions(psymFuncs, pmodel));
+	CExpressionArray *pdrgpexprFuncs = functions.Value();
 	CColRefArray *pdrgpcrSchema =
 		PdrgpcrResolveCols(psymSchema, pmodel);
 	if (nullptr == pdrgpcrGroup || nullptr == pdrgpcrAggInputs ||

@@ -142,11 +142,18 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	{
 		return false;
 	}
-	CExpression *existing = static_cast<CExpression *>(model->PvalLookup(symbol));
-	if (nullptr != existing ? !CDSLMatchView::FSameCapturedExpression(existing, expression)
-							: !model->FBind(symbol, expression))
+	if (EdslsymFunc == symbol->Esymkind())
 	{
-		return false;
+		CExpressionArray *functions = CDSLExprListUtils::PdrgpexprFunctions(mp, expression);
+		const BOOL matched = nullptr != functions && model->FBind(symbol, functions);
+		CRefCount::SafeRelease(functions);
+		if (!matched) return false;
+	}
+	else
+	{
+		CExpression *existing = static_cast<CExpression *>(model->PvalLookup(symbol));
+		if (nullptr != existing ? !CDSLMatchView::FSameCapturedExpression(existing, expression)
+								: !model->FBind(symbol, expression)) return false;
 	}
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
@@ -157,7 +164,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		return EdslsymTable == symbol->Esymkind() ||
 			(EdslsymPred == symbol->Esymkind() && expression->Pop()->FScalar()) ||
 			EdslsymScalar == symbol->Esymkind() || EdslsymExpr == symbol->Esymkind() ||
-			EdslsymWindow == symbol->Esymkind() ||
+			EdslsymWindow == symbol->Esymkind() || EdslsymFunc == symbol->Esymkind() ||
 			!expression->DeriveHasSubquery();
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
@@ -404,6 +411,13 @@ CDSLMatcher::FMatchExpression(const CDSLSymbol *symbol, CExpression *expression,
 	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
 	{
 		return FMatchExpressionBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
+	}
+	if (EdslsymFunc == symbol->Esymkind())
+	{
+		CExpressionArray *functions = CDSLExprListUtils::PdrgpexprFunctions(m_mp, expression);
+		const BOOL matched = nullptr != functions && model->FBind(symbol, functions);
+		CRefCount::SafeRelease(functions);
+		return matched;
 	}
 	return model->FBind(symbol, expression);
 }

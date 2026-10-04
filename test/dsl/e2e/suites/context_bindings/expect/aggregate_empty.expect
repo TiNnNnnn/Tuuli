@@ -1,0 +1,34 @@
+{
+  "description": "空输入的全局聚合经 Context 回填后仍保留一行、COUNT 零值及 BOOL_OR 的 NULL",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "aggregate.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8e5d017ea7c3b10b\"",
+        "\"generated_alternatives\":1",
+        "\"memo_inserted_alternatives\":1"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "aggregate.policy",
+    "output": [
+      "0,"
+    ],
+    "postgres_output": [
+      "0,"
+    ],
+    "off_output": [
+      "0,"
+    ]
+  }
+}

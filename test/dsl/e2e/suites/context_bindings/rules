@@ -6,3 +6,6 @@ Filter<ValueBool(n0) a0>(Input<t0>)|Filter<ValueBool(n3) a1>(Input<t1>)|t1 := t0
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|t1 := t0;a1 := a0;s1 := s0;Context(n0) := e0;BoolValue(p0) := n0;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n1 := BoolValue(p4);e1 := Context(e0,n1)
 # Window constructor regression only; native window OUTCOME_EQ lowering is pending.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p0) := n0;NotTrue(p1) := p0;p2 := Not(p1);p3 := Not(p2);p4 := NotTrue(p3);n1 := BoolValue(p4);w1 := Context(w0,n1)
+# Aggregate constructor regression only; group-context proof lowering is pending.
+# Change one scalar occurrence, preserving the function list and output metadata.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|t1 := t0;a2 := a0;FuncAttrs(a3,f1);s1 := s0;p1 := p0;Context(n0) := f0;BoolValue(p2) := n0;NotTrue(p3) := p2;p4 := Not(p3);p5 := Not(p4);p6 := NotTrue(p5);n1 := BoolValue(p6);f1 := Context(f0,n1)

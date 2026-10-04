@@ -149,6 +149,30 @@ CDSLExprListUtils::FRowScalar(CExpression *pexpr)
 	return true;
 }
 
+CExpressionArray *
+CDSLExprListUtils::PdrgpexprFunctions(CMemoryPool *mp, CExpression *list)
+{
+	if (!FTypedProjectList(list)) return nullptr;
+	CExpressionArray *functions = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG i = 0; i < list->Arity(); ++i)
+	{
+		CExpression *function = (*(*list)[i])[0];
+		BOOL valid = COperator::EopScalarAggFunc == function->Pop()->Eopid();
+		// Replugging must not introduce a nested aggregate/window/SRF in an
+		// argument. A scalar subquery remains a separate relational scope.
+		for (ULONG j = 0; valid && j < function->Arity(); ++j)
+			valid = FRowScalar((*function)[j]);
+		if (!valid)
+		{
+			functions->Release();
+			return nullptr;
+		}
+		function->AddRef();
+		functions->Append(function);
+	}
+	return functions;
+}
+
 BOOL
 CDSLExprListUtils::FComputeList(CExpression *pexpr)
 {

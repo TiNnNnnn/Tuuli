@@ -1,0 +1,53 @@
+{
+  "description": "聚合 Context 只回填一个标量位置，保留多个函数、DISTINCT、分组、HAVING、输出列和 NULL/重复行语义；不计生产优化规则",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "aggregate.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "aggregate.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8e5d017ea7c3b10b\"",
+        "\"generated_alternatives\":1",
+        "\"memo_inserted_alternatives\":1"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "aggregate.policy",
+    "output": [
+      ",2,f,f",
+      "1,2,t,t",
+      "2,3,t,f"
+    ],
+    "postgres_output": [
+      ",2,f,f",
+      "1,2,t,t",
+      "2,3,t,f"
+    ],
+    "off_output": [
+      ",2,f,f",
+      "1,2,t,t",
+      "2,3,t,f"
+    ]
+  }
+}
