@@ -644,26 +644,44 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		if (!fExtended && (COperator::EopLogicalLeftSemiApplyIn == pexpr->Pop()->Eopid() ||
 			COperator::EopLogicalLeftSemiCorrelatedApplyIn == pexpr->Pop()->Eopid()))
 		{
+			// The ordinary Apply matcher already exposes a membership comparison
+			// pushed into the inner Select. Reuse that view, retaining residuals
+			// and auditing demand before changing their evaluation position.
+			if (3 == pexpr->Arity() && CUtils::FScalarConstTrue((*pexpr)[2]) &&
+				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+			{
+				CAutoRef<CExpression> view(CDSLMatchView::PexprApplyInPredicate(m_mp, pexpr));
+				return nullptr != view.Value() && FMatch(pop, view.Value(), pmodel);
+			}
 			// Re-expose the origin-tagged membership value, then use the same
 			// selected-column and demand checks as the scalar representation.
 			const auto *apply = CLogicalApply::PopConvert(pexpr->Pop());
 			const CColRefArray *selected = apply->PdrgPcrInner();
 			if (3 != pexpr->Arity() || COperator::EopScalarSubqueryAny != apply->EopidOriginSubq() ||
 				nullptr == selected || 1 != selected->Size() ||
-				COperator::EopScalarCmp != (*pexpr)[2]->Pop()->Eopid() || 2 != (*pexpr)[2]->Arity() ||
-				COperator::EopScalarIdent != (*(*pexpr)[2])[1]->Pop()->Eopid() ||
-				CScalarIdent::PopConvert((*(*pexpr)[2])[1]->Pop())->Pcr() != (*selected)[0])
+				COperator::EopScalarCmp != (*pexpr)[2]->Pop()->Eopid() || 2 != (*pexpr)[2]->Arity())
 				return false;
-			const auto *comparison = CScalarCmp::PopConvert((*pexpr)[2]->Pop());
+			CExpression *predicate = (*pexpr)[2];
+			CAutoRef<CScalarCmp> commuted;
+			ULONG inner_side = 1;
+			if (CUtils::FScalarIdent((*predicate)[0], (*selected)[0]))
+			{
+				inner_side = 0;
+				commuted = CScalarCmp::PopConvert(predicate->Pop())->PopCommutedOp(m_mp);
+				if (nullptr == commuted.Value()) return false;
+			}
+			if (!CUtils::FScalarIdent((*predicate)[inner_side], (*selected)[0])) return false;
+			const auto *comparison = nullptr == commuted.Value()
+				? CScalarCmp::PopConvert(predicate->Pop()) : commuted.Value();
 			comparison->MdIdOp()->AddRef();
 			(*pexpr)[0]->AddRef();
 			(*pexpr)[1]->AddRef();
-			(*(*pexpr)[2])[0]->AddRef();
+			(*predicate)[1 - inner_side]->AddRef();
 			CExpression *view = GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp),
 				(*pexpr)[0], GPOS_NEW(m_mp) CExpression(m_mp,
 					GPOS_NEW(m_mp) CScalarSubqueryAny(m_mp, comparison->MdIdOp(),
 						GPOS_NEW(m_mp) CWStringConst(m_mp, comparison->Pstr()->GetBuffer()), (*selected)[0]),
-					(*pexpr)[1], (*(*pexpr)[2])[0]));
+					(*pexpr)[1], (*predicate)[1 - inner_side]));
 			const BOOL matched = FMatch(pop, view, pmodel);
 			view->Release();
 			return matched;

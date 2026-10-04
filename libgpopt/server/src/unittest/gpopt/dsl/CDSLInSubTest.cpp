@@ -129,10 +129,80 @@ PruleParse(CMemoryPool *mp, const CHAR *szRule)
 }
 }  // namespace
 
+static GPOS_RESULT
+EresTypedApplyMembership()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CDSLRule> rule(PruleParse(mp, GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	CDSLRulePrefixIndex index(mp);
+	index.Insert(rule.Value(), 0, COperator::EopLogicalProject);
+	for (BOOL swapped : {false, true})
+	for (BOOL pushed : {false, true})
+	// Valid, external key, wrong selected column, LIMIT, SRF, non-equality,
+	// and a non-ANY origin must share the same conservative decoder.
+	for (ULONG scope = 0; scope < 7; ++scope)
+	{
+		CColRefArray *left_cols = nullptr, *right_cols = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("apply_binding_left", 1, &left_cols));
+		CAutoRef<CExpression> right(fix.PexprLogicalGet("apply_binding_right", 2, &right_cols));
+		if (scope == 3 || scope == 4)
+		{
+			right = scope == 3 ? CUtils::PexprLimit(mp, right.Value(), 0, 1)
+				: CUtils::PexprAddProjection(mp, right.Value(), fix.PexprGenerateSeries((*right_cols)[0]));
+		}
+		CColRef *outer = scope == 1 ? fix.PcrCreateInt4("outside") : (*left_cols)[0];
+		CAutoRef<CExpression> comparison(CUtils::PexprScalarCmp(mp,
+			CUtils::PexprScalarIdent(mp, swapped ? (*right_cols)[0] : outer),
+			CUtils::PexprScalarIdent(mp, swapped ? outer : (*right_cols)[0]),
+			scope == 5 ? IMDType::EcmptNEq : IMDType::EcmptEq));
+		CAutoRef<CExpression> residual(fix.PexprEqPred((*right_cols)[1], (*right_cols)[1]));
+		CAutoRef<CExpression> predicate(pushed
+			? CPredicateUtils::PexprConjunction(mp, comparison.Value(), residual.Value())
+			: nullptr);
+		CExpression *inner = pushed ? fix.PexprLogicalSelect(right.Value(), predicate.Value()) : right.Value();
+		if (!pushed) inner->AddRef();
+		left->AddRef();
+		CExpression *on = pushed ? CUtils::PexprScalarConstBool(mp, true) : comparison.Value();
+		if (!pushed) on->AddRef();
+		CAutoRef<CExpression> apply(CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(
+			mp, left.Value(), inner, (*right_cols)[scope == 2 ? 1 : 0],
+			scope == 6 ? COperator::EopScalarSubqueryExists : COperator::EopScalarSubqueryAny, on));
+		CAutoRef<CExpression> source(CDSLMatchView::PexprColumnProject(mp, apply.Value(), left_cols));
+		CAutoRef<CDSLRuleArray> candidates(index.PdrgpruleCandidates(mp, source.Value()));
+		GPOS_UNITTEST_ASSERT(1 == candidates->Size());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		const BOOL matched = CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), source.Value(), model.Value());
+		GPOS_UNITTEST_ASSERT(matched == (scope == 0));
+		if (!matched) continue;
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator builder(mp);
+		CAutoRef<CExpression> target(builder.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		CExpression *join = COperator::EopLogicalProject == target->Pop()->Eopid()
+			? (*target)[0] : target.Value();
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalInnerJoin == join->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CUtils::Equals((*join)[2], comparison.Value()));
+		CExpression *input = (*(*join)[1])[0];
+		if (pushed)
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalSelect == input->Pop()->Eopid() &&
+				(*input)[1]->Matches(residual.Value()));
+		// Column pruning is a required-column property in ORCA; the inner
+		// join may expose additional columns but must preserve the source ones.
+		GPOS_UNITTEST_ASSERT(target->DeriveOutputColumns()->ContainsAll(source->DeriveOutputColumns()));
+		GPOS_UNITTEST_ASSERT(0 == target->DeriveOuterReferences()->Size());
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLInSubTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresTypedApplyMembership),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ProjectedExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLInSubTest::EresUnittest_ExistentialInputDemand),
