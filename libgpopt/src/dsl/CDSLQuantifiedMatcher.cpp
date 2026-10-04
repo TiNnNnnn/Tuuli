@@ -5,6 +5,8 @@
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -20,6 +22,8 @@ CDSLQuantifiedMatcher::FMatchInner(const CDSLOp *popInner,
 								   CColRefArray *pdrgpcrProjected,
 								   CDSLModel *pmodel) const
 {
+	const BOOL typed = nullptr != m_pmatcher->Prule() &&
+		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// All carrier routes share the same selected-output contract. In
 	// particular, an outer reference is not an output of the inner query.
 	if (!pexprInner->Pop()->FLogical() || nullptr == pdrgpcrProjected ||
@@ -33,12 +37,26 @@ CDSLQuantifiedMatcher::FMatchInner(const CDSLOp *popInner,
 	// projection; computed projections and Proj* remain real tree nodes.
 	if (EdslopProj == popInner->Edslop() && !popInner->FDistinct() &&
 		1 == popInner->UlChildren() && nullptr != popInner->Pdrgpsym() &&
-		2 == popInner->Pdrgpsym()->Size())
+		(2 == popInner->Pdrgpsym()->Size() ||
+		 (typed && 3 == popInner->Pdrgpsym()->Size())))
 	{
+		if (typed)
+		{
+			// Selection lives on the quantifier; an unselected Project may still
+			// change multiplicity or demand. Preserve the complete input exactly
+			// as the shared IN view does, including computed selected values.
+			CExpression *view = CDSLMatchView::PexprColumnProject(m_mp, pexprInner, pdrgpcrProjected);
+			const BOOL matched = nullptr != view && m_pmatcher->FMatch(popInner, view, pmodel);
+			CRefCount::SafeRelease(view);
+			return matched;
+		}
 		CExpression *pexprRel = pexprInner;
 		while (COperator::EopLogicalProject == pexprRel->Pop()->Eopid() &&
 			   2 == pexprRel->Arity())
 		{
+			// A set-returning target list is not a transparent column-pruning
+			// shell, even when the comparison selects a passthrough column.
+			if (!CDSLExprListUtils::FRowScalar((*pexprRel)[1])) return false;
 			CColRefSet *pcrsProjected = GPOS_NEW(m_mp) CColRefSet(m_mp);
 			pcrsProjected->Include(pdrgpcrProjected);
 			const BOOL fPassThrough =

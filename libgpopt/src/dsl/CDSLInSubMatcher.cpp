@@ -144,6 +144,8 @@ CDSLInSubMatcher::FMatchInner(const CDSLOp *popInner,
 		while (COperator::EopLogicalProject == pexprRel->Pop()->Eopid() &&
 			   2 == pexprRel->Arity())
 		{
+			// An unselected SRF still changes the membership input's rows.
+			if (!CDSLExprListUtils::FRowScalar((*pexprRel)[1])) return false;
 			CColRefSet *pcrsProjected = GPOS_NEW(m_mp) CColRefSet(m_mp);
 			pcrsProjected->Include(pdrgpcrProjected);
 			const BOOL fKeysFromChild =
