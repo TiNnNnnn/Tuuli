@@ -1,0 +1,5 @@
+# Adapter construction checks, not additional optimization rules or coverage.
+# FormalSQL OUTCOME_EQ: 541f63adff1aaa053746ad34a4f22fc0080d96892e3ec1685ea46c0dc2a1720a
+Any<p0 a0>(Input<t0>,Proj<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
+# FormalSQL OUTCOME_EQ: d2e6271e26742dbf356f11b566b94a9e1be4e05bcbc5041620a7d5619277a150
+All<p0 a0>(Input<t0>,Proj<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0

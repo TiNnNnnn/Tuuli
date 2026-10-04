@@ -1,0 +1,51 @@
+{
+  "description": "完整捕获量化子查询中实际计算的选择列，不把依赖列误当输出",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3ff420c0a9ea6c7c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "2",
+      "3",
+      "4"
+    ],
+    "postgres_output": [
+      "2",
+      "3",
+      "4"
+    ],
+    "off_output": [
+      "2",
+      "3",
+      "4"
+    ]
+  }
+}

@@ -4,6 +4,7 @@
 #include "unittest/gpopt/dsl/CDSLQuantifiedTest.h"
 
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
@@ -1303,10 +1304,109 @@ EresQuantifiedSafety()
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresQuantifiedProjectionInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (BOOL program : {false, true})
+	for (ULONG carrier = 0; carrier < 3; ++carrier)
+	for (ULONG shape = 0; shape < 4; ++shape)
+	{
+		const std::string kind = all ? "All" : "Any";
+		const std::string text = kind + "<p0 a0>(Input<t0>,Proj<a1 s0" + (program ? " e0" : "") +
+			">(Input<t1>))|" + kind + "<p1 a2>(Input<t2>,Proj<a3 s1" + (program ? " e1" : "") +
+			">(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0" +
+			(program ? ";e1 := e0" : "");
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CAutoRef<CExpression> left(fix.PexprLogicalGet("quant_projection_left", 1, &lc));
+		CAutoRef<CExpression> input(fix.PexprLogicalGet("quant_projection_right", 1, &rc));
+		// An unselected Project can still expand/remove rows. A LIMIT also
+		// makes its complete input, not just its selected output, observable.
+		if (shape > 0)
+			input = CUtils::PexprAddProjection(mp, input.Value(), shape == 1
+				? CUtils::PexprScalarConstInt4(mp, 7) : fix.PexprGenerateSeries((*rc)[0]));
+		if (shape == 3) input = CUtils::PexprLimit(mp, input.Value(), 0, 1);
+		input->AddRef();
+		left->AddRef();
+		CExpression *source = nullptr;
+		if (carrier == 0)
+			source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), left.Value(),
+				PexprQuantified(mp, fix, all, input.Value(), (*lc)[0], (*rc)[0]));
+		else
+		{
+			CExpression *on = fix.PexprEqPred((*lc)[0], (*rc)[0]);
+			if (all && carrier == 1)
+			{
+				CExpression *inverse = CDSLMatchView::PexprInverseComparison(mp, on);
+				on->Release(); on = inverse;
+			}
+			if (all)
+				source = carrier == 1
+					? CUtils::PexprLogicalApply<CLogicalLeftAntiSemiApplyNotIn>(mp, left.Value(), input.Value(), (*rc)[0], COperator::EopScalarSubqueryAll, on)
+					: CUtils::PexprLogicalApply<CLogicalLeftAntiSemiCorrelatedApplyNotIn>(mp, left.Value(), input.Value(), (*rc)[0], COperator::EopScalarSubqueryAll, on);
+			else
+				source = carrier == 1
+					? CUtils::PexprLogicalApply<CLogicalLeftSemiApplyIn>(mp, left.Value(), input.Value(), (*rc)[0], COperator::EopScalarSubqueryAny, on)
+					: CUtils::PexprLogicalApply<CLogicalLeftSemiCorrelatedApplyIn>(mp, left.Value(), input.Value(), (*rc)[0], COperator::EopScalarSubqueryAny, on);
+		}
+		CAutoRef<CExpression> ownedSource(source);
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source, model.Value()));
+		// The selected-column shell must capture the original input, never
+		// silently erase an unselected computation or its row multiplicity.
+		const CDSLOp *projection = (*rule->PfragSrc()->PopRoot())[1];
+		const CDSLSymbol *inner = (*(*projection)[0]->Pdrgpsym())[0];
+		GPOS_UNITTEST_ASSERT(model->PexprTable(inner) == input.Value());
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+		CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr != target.Value());
+		CExpression *right = (*target)[1];
+		GPOS_UNITTEST_ASSERT(right->Matches(input.Value()) ||
+			(COperator::EopLogicalProject == right->Pop()->Eopid() && (*right)[0]->Matches(input.Value())));
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresLegacyMembershipProjectionSRF()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG kind = 0; kind < 3; ++kind)
+	for (BOOL srf : {false, true})
+	{
+		const std::string name = kind == 0 ? "InSubFilter" : kind == 1 ? "Any" : "All";
+		const std::string text = name + (kind == 0 ? "<a0>" : "<p0 a0>") +
+			"(Input<t0>,Proj<a1 s0>(Input<t1>))|" + name + (kind == 0 ? "<a2>" : "<p1 a2>") +
+			"(Input<t2>,Proj<a3 s1>(Input<t3>))|TableEq(t2,t0);TableEq(t3,t1);"
+			"AttrsEq(a2,a0);AttrsEq(a3,a1);SchemaEq(s1,s0)" + (kind == 0 ? "" : ";PredicateEq(p1,p0)");
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("legacy_quant_left", 1, &lc);
+		CExpression *input = fix.PexprLogicalGet("legacy_quant_right", 1, &rc);
+		input = CUtils::PexprAddProjection(mp, input, srf ? fix.PexprGenerateSeries((*rc)[0])
+			: CUtils::PexprScalarConstInt4(mp, 7));
+		CAutoRef<CExpression> source(GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			left, PexprQuantified(mp, fix, kind == 2, input, (*lc)[0], (*rc)[0])));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()) == !srf);
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresQuantifiedProjectionInput),
+		GPOS_UNITTEST_FUNC(EresLegacyMembershipProjectionSRF),
 		GPOS_UNITTEST_FUNC(EresScalarContextPaths),
 		GPOS_UNITTEST_FUNC(EresScalarContextBindings),
 		GPOS_UNITTEST_FUNC(EresSelectContextBindings),
