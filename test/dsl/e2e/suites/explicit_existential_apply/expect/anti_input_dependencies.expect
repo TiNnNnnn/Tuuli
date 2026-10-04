@@ -1,0 +1,50 @@
+{
+  "description": "通过完整 Input 推导 LIMIT 下隐藏的相关引用，保留 NOT EXISTS、NULL 与重复外行",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "dependencies.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4f7a43262565f6f1\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "dependencies.policy",
+    "output": [
+      "",
+      "1"
+    ],
+    "postgres_output": [
+      "",
+      "1"
+    ],
+    "off_output": [
+      "",
+      "1"
+    ]
+  }
+}
