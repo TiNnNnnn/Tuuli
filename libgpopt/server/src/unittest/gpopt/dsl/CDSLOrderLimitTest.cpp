@@ -959,6 +959,34 @@ CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip()
 	pmodel->Release();
 	CRefCount::SafeRelease(prule);
 	pexprLive->Release();
+	// Source admissibility belongs to the actual sort input. A well-typed
+	// column from another input cannot authorize the captured order, even if
+	// an eliminating target would bypass the builder's order-scope guard.
+	for (BOOL fused : {false, true})
+	for (ULONG scope = 0; scope < 3; ++scope)
+	for (BOOL exact : {false, true})
+	{
+		CColRef *key = 0 == scope ? (*pdrgpcr)[0] : fix.PcrCreateInt4("external_sort_key");
+		COrderSpec *order = 2 == scope ? GPOS_NEW(mp) COrderSpec(mp)
+			: PosOne(mp, key, EdslsortAsc);
+		CExpression *source = PexprLimit(mp, pexprGet, order, fused, 0, 7);
+		std::string sort = exact ? "SortBy<o0>" : "SortAsc<a0>";
+		const std::string text = (fused ? "Limit<n0 n1>(" + sort + "(Input<t0>))"
+			: sort + "(Input<t0>)") + "|Input<t1>|" + (exact ? "t1 := t0" : "TableEq(t1,t0)");
+		CDSLRule *rule = Prule(mp, text.c_str());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		// Legacy attribute-only sorting retains its historical matching domain.
+		const BOOL allowed = exact ? 1 != scope : 2 != scope;
+		if (nullptr == rule || CDSLMatcher(mp, rule).FMatch(
+			rule->PfragSrc()->PopRoot(), source, model) != allowed)
+		{
+			GPOS_TRACE_FORMAT("Sort source scope: fused=%d scope=%lu exact=%d", fused, scope, exact);
+			eres = GPOS_FAILED;
+		}
+		model->Release();
+		CRefCount::SafeRelease(rule);
+		source->Release();
+	}
 	pexprGet->Release();
 	return eres;
 }
