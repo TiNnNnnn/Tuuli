@@ -25,6 +25,8 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CExpression.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
@@ -223,6 +225,43 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		AppendColumns(mp, out, derived->DeriveOutputColumns());
 		*out << ",\"outer\":";
 		AppendColumns(mp, out, derived->DeriveOuterReferences());
+		// A column set is not a row layout. Preserve a declared leaf layout
+		// only; derived operators require their own ordered lowering contract.
+		const CColRefArray *layout = nullptr;
+		if (const auto *get = dynamic_cast<const CLogicalGet *>(expr->Pop()))
+		{
+			layout = get->PdrgpcrOutput();
+			*out << ",\"relation_mdid\":" << MetadataId(mp, get->Ptabdesc()->MDId());
+		}
+		else if (const auto *values = dynamic_cast<const CLogicalConstTableGet *>(expr->Pop()))
+		{
+			layout = values->PdrgpcrOutput();
+			*out << ",\"constant_rows\":[";
+			const auto *rows = values->Pdrgpdrgpdatum();
+			for (ULONG i = 0; i < rows->Size(); ++i)
+			{
+				GPOS_CHECK_ABORT;
+				if (i) *out << ',';
+				*out << '[';
+				const auto *row = (*rows)[i];
+				for (ULONG j = 0; j < row->Size(); ++j)
+				{
+					if (j) *out << ',';
+					IDatum *datum = (*row)[j];
+					*out << "{\"type\":" << MetadataId(mp, datum->MDId())
+						<< ",\"typmod\":" << datum->TypeModifier();
+					ConstantContext(*out, datum);
+					*out << '}';
+				}
+				*out << ']';
+			}
+			*out << ']';
+		}
+		*out << ",\"output_layout\":";
+		if (nullptr != layout)
+			AppendColumns(mp, out, layout);
+		else
+			*out << "null";
 	}
 	else
 	{

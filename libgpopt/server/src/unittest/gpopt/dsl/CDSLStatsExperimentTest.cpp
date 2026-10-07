@@ -65,11 +65,95 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *original = fixture.PexprLogicalGet("layout", 2, &cols);
+	const auto column = [](const CColRef *col) {
+		return "{\"id\":" + std::to_string(col->Id()) +
+			",\"type\":\"0.23.1.0\",\"typmod\":-1}";
+	};
+	const std::string layout = "\"output_layout\":[" + column((*cols)[1]) + ',' + column((*cols)[0]) + ']';
+	const auto reversed = [&]() {
+		CColRefArray *array = GPOS_NEW(mp) CColRefArray(mp);
+		array->Append((*cols)[1]);
+		array->Append((*cols)[0]);
+		return array;
+	};
+	CTableDescriptor *table = CLogicalGet::PopConvert(original->Pop())->Ptabdesc();
+	table->AddRef();
+	CExpression *get = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalGet(mp, GPOS_NEW(mp) CName(
+			GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("layout_alias")), true),
+			table, reversed(), false));
+	const std::string artifact = CDSLPlanTemplate::Serialize(mp, get);
+	BOOL valid = artifact.find(layout) != std::string::npos &&
+		artifact.find("\"relation_mdid\":") != std::string::npos &&
+		artifact.find("\"output\":[" + column((*cols)[0]) + ',' + column((*cols)[1]) + ']') != std::string::npos;
+	// Stored VALUES are ordered observations, not derived statistics. Preserve
+	// duplicates, NULLs and each datum's type rather than trusting the layout.
+	// A zero-column relation has a known empty layout, not an unknown layout.
+	for (BOOL empty : {false, true})
+	{
+		IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+		if (!empty)
+			for (ULONG i = 0; i < 2; ++i)
+			{
+				IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+				CExpression *scalar = CUtils::PexprScalarConstInt8(mp, 7);
+				CScalarConst::PopConvert(scalar->Pop())->GetDatum()->AddRef();
+				row->Append(CScalarConst::PopConvert(scalar->Pop())->GetDatum());
+				scalar->Release();
+				// Use a typed NULL without borrowing a statistics mapping.
+				row->Append(GPOS_NEW(mp) CDatumInt2GPDB(
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT2_OID), 0, true));
+				rows->Append(row);
+			}
+		CExpression *values = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, empty ? GPOS_NEW(mp) CColRefArray(mp) : reversed(),
+				rows));
+		const std::string exported = CDSLPlanTemplate::Serialize(mp, values);
+		valid &= exported.find(empty ? "\"output_layout\":[]" : layout) != std::string::npos &&
+			exported.find("\"relation_mdid\":") == std::string::npos;
+		if (empty)
+			valid &= exported.find("\"constant_rows\":[]") != std::string::npos;
+		else
+		{
+			// A malformed int4 layout cannot erase observed int8/int2 types.
+			// This snapshot is data only and must not authorize that source.
+			const std::string row = "[{\"type\":\"0.20.1.0\",\"typmod\":-1,\"constant\":{\"kind\":\"int8\",\"is_null\":false,\"value_observed\":true,\"value\":7}},"
+				"{\"type\":\"0.21.1.0\",\"typmod\":-1,\"constant\":{\"kind\":\"int2\",\"is_null\":true,\"value_observed\":true,\"value\":null}}]";
+			valid &= exported.find("\"constant_rows\":[" + row + ',' + row + ']') != std::string::npos;
+		}
+		values->Release();
+	}
+	IDatum2dArray *one_row = GPOS_NEW(mp) IDatum2dArray(mp);
+	one_row->Append(GPOS_NEW(mp) IDatumArray(mp));
+	CExpression *unit = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, GPOS_NEW(mp) CColRefArray(mp), one_row));
+	valid &= CDSLPlanTemplate::Serialize(mp, unit).find("\"constant_rows\":[[]]") != std::string::npos;
+	unit->Release();
+	CExpression *predicate = fixture.PexprEqConst((*cols)[0], 7);
+	CExpression *filter = fixture.PexprLogicalSelect(get, predicate);
+	valid &= CDSLPlanTemplate::Serialize(mp, filter).find("\"output_layout\":null") != std::string::npos &&
+		nullptr == original->Pstats() && nullptr == get->Pstats() && nullptr == filter->Pstats();
+	filter->Release();
+	predicate->Release();
+	get->Release();
+	original->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -111,6 +195,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
 		const std::string artifact = CDSLPlanTemplate::Serialize(mp, select);
 		const size_t first = artifact.find("\"path\":\"s1/0\"");
 		const size_t second = artifact.find("\"path\":\"s1/1\"");
+		const size_t input_node = artifact.find("{\"path\":\"r/0\"", second);
 		const std::string identity = kind < 2 ? "\"operator_mdid\":\"0.96.1.0\""
 			: "\"function_mdid\":\"0." + std::to_string(2 == kind ? 65 : 66) + ".1.0\"";
 		const BOOL matches = first != std::string::npos && second != std::string::npos && first < second &&
@@ -122,7 +207,8 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
 			(kind < 2 || artifact.substr(0, first).find(
 				"\"function_format\":" + std::string(4 == kind ? "1" : "0") +
 				",\"function_variadic\":" + (5 == kind ? "true" : "false")) != std::string::npos) &&
-			artifact.substr(first).find("_mdid\"") == std::string::npos &&
+			input_node != std::string::npos &&
+			artifact.substr(first, input_node - first).find("_mdid\"") == std::string::npos &&
 			before == CDSLStatsExperimentSnapshot::Fingerprint(mp, select);
 		if (!matches)
 			GPOS_TRACE_FORMAT("Unexpected symbol metadata: %s", artifact.c_str());

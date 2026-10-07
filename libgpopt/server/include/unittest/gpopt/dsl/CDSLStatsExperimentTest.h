@@ -24,6 +24,7 @@ public:
 	static GPOS_RESULT EresUnittest_ShapesAndBindings();
 	static GPOS_RESULT EresUnittest_PlanTemplateContext();
 	static GPOS_RESULT EresUnittest_PlanTemplateSymbols();
+	static GPOS_RESULT EresUnittest_PlanTemplateLeafLayout();
 	static GPOS_RESULT EresUnittest_RouteTemplateContext();
 	static GPOS_RESULT EresUnittest_PlanTemplateExpressions();
 	static GPOS_RESULT EresUnittest_RehashAlreadyEquivalentGroups();
