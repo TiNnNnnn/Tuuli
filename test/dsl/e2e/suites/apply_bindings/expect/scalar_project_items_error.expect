@@ -1,0 +1,40 @@
+{
+  "description": "Multi-item scalar materialization retains errors in the untouched tail",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"4d4b382c8aa15a5a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "bindings.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

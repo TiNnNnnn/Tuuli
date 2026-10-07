@@ -17,6 +17,11 @@ BOOL
 FColSetContainsArray(const CColRefSet *pcrs,
 					 const CColRefArray *pdrgpcr);
 
+// Consume child and list; remove only self-aliases already supplied by child.
+CExpression *
+PexprProjectWithoutSelfAliases(CMemoryPool *mp, CExpression *child,
+	CExpression *list);
+
 CExpression *
 PexprRemapPredicate(CMemoryPool *mp, CExpression *pexpr,
 				   UlongToColRefMap *mapping);

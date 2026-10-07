@@ -1,0 +1,6 @@
+experiment: expression-source-bindings
+discover: false
+template_root: r
+template_cuts: [r/0]
+template_bindings: true
+cardinalities:

@@ -8,21 +8,15 @@
 //		Stage ① symbol binding for the Proj operator (see
 //		docs/WETUNE_ORCA_PER_OP_THREESTAGE.md and docs/DSL_WETUNE_ALIGNMENT.md M1).
 //
-//		DSL   : Proj<a s>(base)         — <a> attrs (projected columns), <s> schema.
+//		DSL   : Proj<a s [e]>(base) — dependencies, ordered outputs, optional list.
 //		ORCA  : CLogicalProject(base, CScalarProjectList(prEl0, prEl1, ...))  where
 //		        each CScalarProjectElement::Pcr() defines one projected CColRef.
 //
-//		Approach (engine-side; ORCA core untouched), mirroring CDSLFilterMatcher:
-//		  1. Identity gate is done by the generic matcher (Eopid == EopLogical
-//		     Project) BEFORE it delegates here; we only bind symbols + recurse.
-//		  2. Collect the project-list's defined CColRefs (child[1]'s elements'
-//		     Pcr()) into an ordered CColRefArray and bind it to <a> (attrs) AND
-//		     <s> (schema). WeTune's schema symbol names the projection's output
-//		     column schema; over placeholder columns the two coincide, so M1 binds
-//		     both to the same projected-column set (Agg's distinct schema handling
-//		     is future work).
-//		  3. The relational child (child[0]) recurses back through the generic
-//		     matcher.
+//		This matcher validates the Project shape, binds referenced columns to
+//		<a> and ordered defined columns to <s>, and captures the list when <e>
+//		is present. Dependencies and outputs differ for computed expressions.
+//		The relational child recurses through the generic matcher. Legacy views
+//		remain separate from the exact typed-list and DISTINCT paths.
 //
 //		This is deliberately NOT folded into the generic FMatchChildren recursion:
 //		like Filter, Proj carries scalar structure (the project list) that only

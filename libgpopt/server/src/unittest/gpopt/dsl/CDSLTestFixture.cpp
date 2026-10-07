@@ -159,12 +159,15 @@ CDSLTestFixture::CDSLTestFixture(CMemoryPool *mp)
 	}
 	// COUNT's result and transition state are int8; totality still depends
 	// on the actual input bound, unlike the integer MAX above.
-	m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDAggregateGPDB(
-		mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_COUNT_STAR),
-		GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("count")), true),
-		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
-		GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
-		false, true, true, true));
+	for (OID oid : {GPDB_COUNT_STAR, GPDB_COUNT_ANY})
+	{
+		m_pdrgpmdobj->Append(GPOS_NEW(mp) CMDAggregateGPDB(
+			mp, GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, oid),
+			GPOS_NEW(mp) CMDName(GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("count")), true),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT8_OID),
+			false, true, true, true));
+	}
 
 	// int4 '=' and '<>' scalar operators. CScalarCmp's ctor looks them up and
 	// quantified ALL tests exercise their inverse relationship.

@@ -63,7 +63,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 	m_phmInSubPred = nullptr;
 	m_phmInSubCarrier = nullptr;
 	m_phmFilterCarrier = nullptr;
-	m_phmComputeCarrier = nullptr;
+	m_phmProjectListCarrier = nullptr;
 	m_phmApplyCarrier = nullptr;
 	m_phmProjList = nullptr;
 	m_phmProjLimitShell = nullptr;
@@ -92,7 +92,7 @@ CDSLModel::~CDSLModel()
 	CRefCount::SafeRelease(m_phmInSubPred);
 	CRefCount::SafeRelease(m_phmInSubCarrier);
 	CRefCount::SafeRelease(m_phmFilterCarrier);
-	CRefCount::SafeRelease(m_phmComputeCarrier);
+	CRefCount::SafeRelease(m_phmProjectListCarrier);
 	CRefCount::SafeRelease(m_phmApplyCarrier);
 	CRefCount::SafeRelease(m_phmProjList);
 	CRefCount::SafeRelease(m_phmProjLimitShell);
@@ -207,16 +207,16 @@ CDSLModel::PexprFilterCarrier(const CDSLSymbol *psymPred) const
 }
 
 BOOL
-CDSLModel::FSetComputeCarrier(const CDSLSymbol *psymExpr, CExpression *pexpr)
+CDSLModel::FSetProjectListCarrier(const CDSLSymbol *psymExpr, CExpression *pexpr)
 {
 	GPOS_ASSERT(nullptr != psymExpr);
 	GPOS_ASSERT(EdslsymExpr == psymExpr->Esymkind());
 	GPOS_ASSERT(nullptr != pexpr);
-	if (nullptr == m_phmComputeCarrier)
+	if (nullptr == m_phmProjectListCarrier)
 	{
-		m_phmComputeCarrier = GPOS_NEW(m_mp) CDSLSymbolToExpressionMap(m_mp);
+		m_phmProjectListCarrier = GPOS_NEW(m_mp) CDSLSymbolToExpressionMap(m_mp);
 	}
-	CExpression *existing = m_phmComputeCarrier->Find(psymExpr);
+	CExpression *existing = m_phmProjectListCarrier->Find(psymExpr);
 	if (nullptr != existing)
 	{
 		const BOOL compatible =
@@ -224,16 +224,16 @@ CDSLModel::FSetComputeCarrier(const CDSLSymbol *psymExpr, CExpression *pexpr)
 		pexpr->Release();
 		return compatible;
 	}
-	return m_phmComputeCarrier->Insert(
+	return m_phmProjectListCarrier->Insert(
 		const_cast<CDSLSymbol *>(psymExpr), pexpr);
 }
 
 CExpression *
-CDSLModel::PexprComputeCarrier(const CDSLSymbol *psymExpr) const
+CDSLModel::PexprProjectListCarrier(const CDSLSymbol *psymExpr) const
 {
 	GPOS_ASSERT(nullptr != psymExpr);
 	GPOS_ASSERT(EdslsymExpr == psymExpr->Esymkind());
-	return nullptr == m_phmComputeCarrier ? nullptr : m_phmComputeCarrier->Find(psymExpr);
+	return nullptr == m_phmProjectListCarrier ? nullptr : m_phmProjectListCarrier->Find(psymExpr);
 }
 
 BOOL

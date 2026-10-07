@@ -129,6 +129,13 @@ Filter<Not(Exists(t1)) a0 a1>(Input<t0>)|AntiApply(Input<t2>,Input<t3>)|t2 := t0
 # argument explicitly, derive its dependencies, and retain the complete inner
 # input. The native adapter still checks input demand and comparison safety;
 # these rules do not silently broaden that audited domain.
+# The shared safety checker admits integer MIN/MAX DISTINCT only with audited
+# argument/comparison metadata, including the inactive clause left by native
+# MIN/MAX preprocessing. Integer COUNT DISTINCT additionally requires a proven
+# input bound that excludes transition overflow, not a row-count estimate.
+# Nested scalar queries are safe only with a guaranteed at-most-one-row input
+# and a recursively audited body. Keep them in the captured inner relation;
+# scalar subqueries in an Apply comparison still need separate lowering.
 # ANY certificate: ad8abf9f7f443c9a98b34b3c21dc3f509a523d52e22705395e8bfd33de44b0c1
 Filter<Any(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|Any<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)
 # ALL certificate: ca7c19247f80ef46c8c4e3cc264be81b5117e89effaaefe5e232f034f2c502ba

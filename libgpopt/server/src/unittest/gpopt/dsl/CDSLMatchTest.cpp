@@ -99,7 +99,7 @@ CDSLMatchTest::EresUnittest_ModelOptionalBindings()
 		{EdslsymAttrs, &CDSLModel::FSetInSubPred, &CDSLModel::PexprInSubPred},
 		{EdslsymAttrs, &CDSLModel::FSetInSubCarrier, &CDSLModel::PexprInSubCarrier},
 		{EdslsymPred, &CDSLModel::FSetFilterCarrier, &CDSLModel::PexprFilterCarrier},
-		{EdslsymExpr, &CDSLModel::FSetComputeCarrier, &CDSLModel::PexprComputeCarrier},
+		{EdslsymExpr, &CDSLModel::FSetProjectListCarrier, &CDSLModel::PexprProjectListCarrier},
 		{EdslsymPred, &CDSLModel::FSetApplyCarrier, &CDSLModel::PexprApplyCarrier},
 		{EdslsymSchema, &CDSLModel::FSetProjList, &CDSLModel::PexprProjList},
 		{EdslsymSchema, &CDSLModel::FSetProjLimitShell, &CDSLModel::PexprProjLimitShell},

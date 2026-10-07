@@ -1,0 +1,30 @@
+{
+  "description": "Reject unbounded scalar lowering even with an empty outer input; fallback preserves no error",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "bindings.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"0b1ce17ab6a27565\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"0b1ce17ab6a27565\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "bindings.policy",
+    "output": [],
+    "postgres_output": []
+  }
+}

@@ -9,7 +9,7 @@
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
-#include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -288,7 +288,7 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 				pexprOuter->DeriveOutputColumns()->IsDisjoint(pexprInner->DeriveOutputColumns()) &&
 				0 == pexprOuter->DeriveOuterReferences()->Size() &&
 				0 == pexprInner->DeriveOuterReferences()->Size() &&
-				CDSLConstraintChecker::FQueryDemandInsensitive(pexprInner);
+				dslproperties::FQueryDemandInsensitive(pexprInner);
 			left->Release();
 			right->Release();
 			residual->Release();
@@ -321,7 +321,7 @@ CDSLInstantiator::PexprBuildInSub(const CDSLOp *pop,
 			(projected ? nullptr == schema || 1 != schema->Size() || (*schema)[0] != selected
 				: !CDSLMatchView::FSingleValueOutput(pexprInner, selected)) ||
 			!pexprOuter->DeriveOutputColumns()->ContainsAll((*any)[1]->DeriveUsedColumns()) ||
-			!CDSLConstraintChecker::FQueryDemandInsensitive(pexprInner))
+			!dslproperties::FQueryDemandInsensitive(pexprInner))
 		{
 			pexprOuter->Release();
 			pexprInner->Release();
@@ -657,6 +657,10 @@ CDSLInstantiator::PexprBuildQuantified(const CDSLOp *pop,
 			m_mp, pexprPredBound, pdrgpcrSourceAttrs, pdrgpcrTargetAttrs);
 	if (nullptr == pexprOuter || nullptr == pexprInner ||
 		nullptr == pexprPred ||
+		// Quantified Apply expects a row comparison, not another scalar
+		// subplan. Nested operands need separate lowering before this route;
+		// totality alone does not make them physically implementable here.
+		pexprPred->DeriveHasSubquery() ||
 		!FColSetContainsArray(pexprOuter->DeriveOutputColumns(),
 							 pdrgpcrTargetAttrs))
 	{

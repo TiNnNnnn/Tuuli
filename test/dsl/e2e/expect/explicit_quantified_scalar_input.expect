@@ -1,0 +1,58 @@
+{
+  "description": "显式 ANY/ALL 保留含安全相关标量子查询的完整内侧投影；禁用旧宏与原生 Select lowering，内侧 Project lowering 仍由原生规则负责",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "all_min,1",
+      "all_min,2",
+      "all_min,3",
+      "all_min,4",
+      "all_min,5",
+      "any_min,3"
+    ],
+    "postgres_output": [
+      "all_min,1",
+      "all_min,2",
+      "all_min,3",
+      "all_min,4",
+      "all_min,5",
+      "any_min,3"
+    ]
+  }
+}

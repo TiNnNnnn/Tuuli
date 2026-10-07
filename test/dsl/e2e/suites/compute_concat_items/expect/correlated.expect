@@ -1,0 +1,154 @@
+{
+  "description": "Explicit Item fusion preserves outer references with native CollapseProject disabled",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "status": "runtime_probe",
+    "scope": "total deterministic row-scalar Items with independent upper definitions; conditional proof is not a deployment certificate",
+    "dsl_rule_hashes": [
+      "139055af52f86b98"
+    ],
+    "excluded_native_domains": [
+      "SRFs, potentially failing or nondeterministic definitions, dependent upper definitions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      ",,f,,t",
+      "0,t,f,,t",
+      "1,t,f,,t",
+      "2,f,f,,t",
+      "2,f,f,,t",
+      "3,f,f,,t"
+    ],
+    "postgres_output": [
+      ",,f,,t",
+      "0,t,f,,t",
+      "1,t,f,,t",
+      "2,f,f,,t",
+      "2,f,f,,t",
+      "3,f,f,,t"
+    ],
+    "off_output": [
+      ",,f,,t",
+      "0,t,f,,t",
+      "1,t,f,,t",
+      "2,f,f,,t",
+      "2,f,f,,t",
+      "3,f,f,,t"
+    ],
+    "plan_outputs": {
+      "native": [
+        ",,f,,t",
+        "0,t,f,,t",
+        "1,t,f,,t",
+        "2,f,f,,t",
+        "2,f,f,,t",
+        "3,f,f,,t"
+      ],
+      "shadow": [
+        ",,f,,t",
+        "0,t,f,,t",
+        "1,t,f,,t",
+        "2,f,f,,t",
+        "2,f,f,,t",
+        "3,f,f,,t"
+      ],
+      "negative": [
+        ",,f,,t",
+        "0,t,f,,t",
+        "1,t,f,,t",
+        "2,f,f,,t",
+        "2,f,f,,t",
+        "3,f,f,,t"
+      ],
+      "replacement": [
+        ",,f,,t",
+        "0,t,f,,t",
+        "1,t,f,,t",
+        "2,f,f,,t",
+        "2,f,f,,t",
+        "3,f,f,,t"
+      ]
+    }
+  }
+}

@@ -531,6 +531,37 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	const BOOL fSemiApply = (EdslopSemiApply == popJoin->Edslop());
 	const BOOL fAnti = (EdslopAntiJoin == popJoin->Edslop());
 	const BOOL fAntiApply = (EdslopAntiApply == popJoin->Edslop());
+	const BOOL completeRow = (EdslopInnerApply == popJoin->Edslop() ||
+							  EdslopLeftOuterApply == popJoin->Edslop()) &&
+							 nullptr != popJoin->Pdrgpsym() &&
+							 0 == popJoin->Pdrgpsym()->Size();
+	if (completeRow)
+	{
+		const BOOL outer = EdslopLeftOuterApply == popJoin->Edslop();
+		const BOOL scalar = outer &&
+			eopid == COperator::EopLogicalLeftOuterCorrelatedApply;
+		if ((!scalar && eopid != (outer ? COperator::EopLogicalLeftOuterApply
+							: COperator::EopLogicalInnerApply)) ||
+			3 != pexprJoin->Arity() ||
+			!CUtils::FScalarConstTrue((*pexprJoin)[2]))
+			return false;
+		CLogicalApply *apply = CLogicalApply::PopConvert(pexprJoin->Pop());
+		CColRefArray *inner = apply->PdrgPcrInner();
+		if (apply->FCorrelated() != scalar ||
+			(scalar ? COperator::EopScalarSubquery : COperator::EopSentinel) !=
+				apply->EopidOriginSubq() ||
+			nullptr == inner || 0 == inner->Size() ||
+			(scalar ? 1 != inner->Size()
+					: 0 != (*pexprJoin)[1]->DeriveOuterReferences()->Size()) ||
+			(outer && 1 < (*pexprJoin)[1]->DeriveMaxCard().Ull()))
+			return false;
+		CAutoRef<CColRefSet> innerColumns(GPOS_NEW(m_mp) CColRefSet(m_mp));
+		innerColumns->Include(inner);
+		return innerColumns->Size() == inner->Size() &&
+			   innerColumns->Equals((*pexprJoin)[1]->DeriveOutputColumns()) &&
+			   m_pmatcher->FMatch((*popJoin)[0], (*pexprJoin)[0], pmodel) &&
+			   m_pmatcher->FMatch((*popJoin)[1], (*pexprJoin)[1], pmodel);
+	}
 	if ((fSemiApply || fAntiApply) && nullptr != popJoin->Pdrgpsym() &&
 		0 == popJoin->Pdrgpsym()->Size())
 	{

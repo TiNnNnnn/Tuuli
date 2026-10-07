@@ -1,0 +1,47 @@
+{
+  "description": "Scalar materialization preserves an arbitrary multi-item tail without native Project lowering",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"4d4b382c8aa15a5a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "2,,",
+      "2,1,0",
+      "2,2,2",
+      "2,3,4",
+      "2,3,4"
+    ],
+    "postgres_output": [
+      "2,,",
+      "2,1,0",
+      "2,2,2",
+      "2,3,4",
+      "2,3,4"
+    ]
+  }
+}

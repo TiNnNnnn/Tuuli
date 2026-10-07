@@ -1,0 +1,31 @@
+{
+  "description": "Explicit scalar lowering rejects an error-producing RHS instead of changing error demand",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"0b1ce17ab6a27565\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"0b1ce17ab6a27565\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

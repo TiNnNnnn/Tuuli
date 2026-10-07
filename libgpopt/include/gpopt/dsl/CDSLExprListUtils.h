@@ -47,7 +47,13 @@ public:
 	static BOOL FProjectList(const CExpression *pexpr);
 	// Native typed captures must agree with each item's output column type.
 	static BOOL FTypedProjectElement(const CExpression *pexpr);
+	// Complete lists also require unique output identities, including captures
+	// and independently constructed lists. Repeated values remain valid.
 	static BOOL FTypedProjectList(const CExpression *pexpr);
+	// Exact dependency set and ordered output identities for a captured or
+	// rebuilt list. Borrows all inputs; types, freshness and scope are separate.
+	static BOOL FProjectListColumns(CMemoryPool *mp, CExpression *list,
+		const CColRefArray *attrs, const CColRefArray *schema);
 	// Row-level scalar scope: no SRFs, aggregate or window calls. Relational
 	// subquery children have their own evaluation phase and are not inspected.
 	static BOOL FRowScalar(CExpression *pexpr);

@@ -1,0 +1,74 @@
+{
+  "description": "显式 ANY/ALL 规则处理有严格行数上界的 COUNT DISTINCT；覆盖相关输入、重复值、NULL、空输入返回零，关闭旧宏和原生 lowering",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "all_count,2",
+      "all_count,3",
+      "all_count,4",
+      "all_count,5",
+      "any_count,2",
+      "any_count,3",
+      "any_count,4",
+      "any_count,5",
+      "empty_count,1",
+      "empty_count,2",
+      "empty_count,3",
+      "empty_count,4",
+      "empty_count,5",
+      "empty_count,6"
+    ],
+    "postgres_output": [
+      "all_count,2",
+      "all_count,3",
+      "all_count,4",
+      "all_count,5",
+      "any_count,2",
+      "any_count,3",
+      "any_count,4",
+      "any_count,5",
+      "empty_count,1",
+      "empty_count,2",
+      "empty_count,3",
+      "empty_count,4",
+      "empty_count,5",
+      "empty_count,6"
+    ]
+  }
+}

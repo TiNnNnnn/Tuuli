@@ -17,7 +17,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLAggMatcher.h"
-#include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExistsMatcher.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -316,6 +316,11 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 			!CDSLExprListUtils::FTypedProjectElement((*expression)[0]))
 			return false;
 		CExpression *head = (*expression)[0];
+		// Item exposes the value/output pair for reconstruction, unlike an
+		// opaque list capture. Require its constructor's exact type contract.
+		if (CScalarProjectElement::PopConvert(head->Pop())->Pcr()->TypeModifier() !=
+			CDSLMatchView::ScalarValueTypeModifier((*head)[0]))
+			return false;
 		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
 		columns->Append(CScalarProjectElement::PopConvert(head->Pop())->Pcr());
 		CColRefArray *bound = model->PdrgpcrAttrs(def->PsymOperand(1));
@@ -360,7 +365,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		// Expose a flat native Boolean as (ordered prefix, last operand).
 		// Only the audited total/repeatable domain admits this association;
 		// opaque, error-producing or volatile children retain exact matching.
-		if (!CDSLConstraintChecker::FQueryDemandInsensitive(expression)) return false;
+		if (!dslproperties::FQueryDemandInsensitive(expression)) return false;
 		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
 		for (ULONG i = 0; i + 1 < expression->Arity(); ++i)
 		{
@@ -701,52 +706,6 @@ CDSLMatcher::FMatchEmpty(const CDSLOp *pop, CExpression *pexpr,
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLMatcher::FBindOpSymbols
-//
-//	@doc:
-//		Bind the positional symbols of a non-Input operator against pexpr.
-//
-//		The generic skeleton knows how to bind NOTHING structural on its own:
-//		  * symbol-free operators (Union / Exists) bind nothing here — success.
-//		  * InnerJoin / LeftJoin / Proj / Agg carry symbols whose binding needs
-//		    operator-specific structural knowledge (join-key extraction,
-//		    project-list / group-by columns). Those are delegated to dedicated
-//		    binding in a later component (#27):
-//		        Join    <a a>            -> join-key binding
-//		        Proj    <a s>            -> attrs/schema binding
-//		        Agg     <a a f s p>      -> agg symbol binding
-//		  * Filter <p a> is NOT handled here at all — it is intercepted earlier in
-//		    FMatch and routed to CDSLFilterMatcher (#25), because a DSL Filter
-//		    chain maps to a single ORCA Select, not a per-node match.
-//
-//		Until #27 lands this is a NO-OP seam: an operator with symbols still
-//		matches structurally (identity + children), it simply leaves those
-//		symbols unbound. That is deliberately safe for the skeleton's own tests
-//		(Input, Union, bare identity) and is filled in by the later component
-//		without touching the recursion here.
-//---------------------------------------------------------------------------
-BOOL
-CDSLMatcher::FBindOpSymbols(const CDSLOp *pop,
-							CExpression *,	// pexpr
-							CDSLModel *		// pmodel
-) const
-{
-	const ULONG ulSyms =
-		(nullptr == pop->Pdrgpsym()) ? 0 : pop->Pdrgpsym()->Size();
-	if (0 == ulSyms)
-	{
-		// Union / Exists and friends: purely structural, nothing to bind.
-		return true;
-	}
-
-	// Operator carries symbols but no collaborator has claimed it yet. The
-	// skeleton leaves them unbound (see doc). This is intentionally permissive;
-	// #25/#27 replace this with real binding.
-	return true;
-}
-
-//---------------------------------------------------------------------------
-//	@function:
 //		CDSLMatcher::FMatchChildren
 //
 //	@doc:
@@ -1043,12 +1002,7 @@ CDSLMatcher::FMatchInternal(const CDSLOp *pop, CExpression *pexpr,
 		return false;
 	}
 
-	// bind this node's own symbols (delegated per operator), then recurse into
-	// its relational children.
-	if (!FBindOpSymbols(pop, pexpr, pmodel))
-	{
-		return false;
-	}
+	// Symbol-bearing operators were handled by their dedicated matchers above.
 	return FMatchChildren(pop, pexpr, pmodel);
 }
 

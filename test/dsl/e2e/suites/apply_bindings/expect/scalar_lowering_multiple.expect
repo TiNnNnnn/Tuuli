@@ -1,0 +1,35 @@
+{
+  "description": "Reject scalar lowering without a strict RHS bound; fallback preserves the cardinality error",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "bindings.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"0b1ce17ab6a27565\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"0b1ce17ab6a27565\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "bindings.policy",
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}

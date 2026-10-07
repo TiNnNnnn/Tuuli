@@ -54,6 +54,7 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 	const BOOL consuming = EdslconPredicateNullRejecting == pcon->Edslcon() ||
 		(prule->Pexprdefs()->FHasBindings() &&
 		 (EdslconAttrsSub == pcon->Edslcon() || EdslconUnique == pcon->Edslcon() ||
+		  EdslconDepsDisjoint == pcon->Edslcon() ||
 		  EdslconCorrelationEquality == pcon->Edslcon()));
 	const BOOL partition = prule->Pexprdefs()->FHasBindings() &&
 		EdslconPredicateDomainSplit == pcon->Edslcon();
@@ -965,7 +966,7 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 		if (nullptr == value || nullptr == output || 1 != output->Size() ||
 			nullptr == tail || COperator::EopScalarProjectList != tail->Pop()->Eopid() ||
 			!(*output)[0]->RetrieveType()->MDId()->Equals(CScalar::PopConvert(value->Pop())->MdidType()) ||
-			(*output)[0]->TypeModifier() != CScalar::PopConvert(value->Pop())->TypeModifier())
+			(*output)[0]->TypeModifier() != CDSLMatchView::ScalarValueTypeModifier(value))
 		{
 			CRefCount::SafeRelease(value);
 			CRefCount::SafeRelease(tail);

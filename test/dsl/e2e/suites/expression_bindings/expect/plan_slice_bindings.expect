@@ -1,0 +1,77 @@
+{
+  "description": "Export the successful source model on request; this is not an equivalence or deployment receipt",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "source-bindings.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "source_binding_matches": [
+        {
+          "symbol": "t0",
+          "kind": "t",
+          "bound": true
+        },
+        {
+          "symbol": "a0",
+          "kind": "a",
+          "bound": true,
+          "columns": [
+            {
+              "id": 0,
+              "type": "0.23.1.0",
+              "typmod": -1
+            },
+            {
+              "id": 1,
+              "type": "0.23.1.0",
+              "typmod": -1
+            }
+          ]
+        },
+        {
+          "symbol": "a2",
+          "kind": "a",
+          "bound": true,
+          "columns": [
+            {
+              "id": 0,
+              "type": "0.23.1.0",
+              "typmod": -1
+            }
+          ]
+        },
+        {
+          "symbol": "a3",
+          "kind": "a",
+          "bound": true,
+          "columns": [
+            {
+              "id": 1,
+              "type": "0.23.1.0",
+              "typmod": -1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "3,2"
+    ],
+    "postgres_output": [
+      "3,2"
+    ],
+    "off_output": [
+      "3,2"
+    ]
+  }
+}

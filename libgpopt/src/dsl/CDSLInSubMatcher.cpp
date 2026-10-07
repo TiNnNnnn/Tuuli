@@ -11,6 +11,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -55,7 +56,7 @@ PexprSelectWithNotNull(CMemoryPool *mp, CExpression *pexprRel,
 					   CExpressionArray *pdrgpexprConj,
 					   CColRef *pcrRequiredNotNull)
 {
-	if (!CDSLConstraintChecker::FExpressionProvesNotNull(mp, pexprRel, pcrRequiredNotNull) &&
+	if (!dslproperties::FExpressionProvesNotNull(mp, pexprRel, pcrRequiredNotNull) &&
 		!FPredicateRejectsNull(mp, pdrgpexprConj, pcrRequiredNotNull))
 	{
 		pdrgpexprConj->Append(CUtils::PexprIsNotNull(
@@ -202,7 +203,7 @@ CDSLInSubMatcher::FMatchCorrelatedExists(const CDSLOp *pop,
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// Decorrelation changes evaluation demand. Audit the complete predicate,
 	// including ignored SELECT items and any residual conjuncts, before peeling.
-	if (typed && !CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+	if (typed && !dslproperties::FQueryDemandInsensitive((*pexpr)[1]))
 		return false;
 	CExpressionArray *pdrgpexprOuterConj =
 		CPredicateUtils::PdrgpexprConjuncts(m_mp, (*pexpr)[1]);
@@ -497,7 +498,7 @@ CDSLInSubMatcher::FMatchRoutedCarrier(const CDSLOp *pop,
 	// Lifting membership exposes the crossed joins and their siblings to rows
 	// previously rejected by IN. Audit that entire input, not only its predicate.
 	if (nullptr != prule && prule->Pexprdefs()->FHasBindings() &&
-		!CDSLConstraintChecker::FQueryDemandInsensitive(pexprRel))
+		!dslproperties::FQueryDemandInsensitive(pexprRel))
 		return false;
 	CExpression *pexprInSub = nullptr;
 	if (COperator::EopLogicalSelect == pexprCarrier->Pop()->Eopid())
@@ -646,8 +647,8 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		// right input and comparison may cross this representation boundary.
 		if (!fExtended && COperator::EopLogicalLeftSemiJoin == pexpr->Pop()->Eopid())
 			return 3 == pexpr->Arity() &&
-				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]) &&
-				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[2]) &&
+				dslproperties::FQueryDemandInsensitive((*pexpr)[1]) &&
+				dslproperties::FQueryDemandInsensitive((*pexpr)[2]) &&
 				FMatchSemiJoin(pop, pexpr, pmodel);
 		// The explicit five-slot form is the decorrelated keyed SemiJoin
 		// contract, not a scalar IN carrier. Share its existing exact decoder.
@@ -663,7 +664,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 			// pushed into the inner Select. Reuse that view, retaining residuals
 			// and auditing demand before changing their evaluation position.
 			if (3 == pexpr->Arity() && CUtils::FScalarConstTrue((*pexpr)[2]) &&
-				CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+				dslproperties::FQueryDemandInsensitive((*pexpr)[1]))
 			{
 				CAutoRef<CExpression> view(CDSLMatchView::PexprApplyInPredicate(m_mp, pexpr));
 				return nullptr != view.Value() && FMatch(pop, view.Value(), pmodel);
@@ -706,7 +707,7 @@ CDSLInSubMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		// auditing just the selected ANY would miss unsafe sibling expressions.
 		if (fExtended || COperator::EopLogicalSelect != pexpr->Pop()->Eopid() ||
 			2 != pexpr->Arity() ||
-			!CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+			!dslproperties::FQueryDemandInsensitive((*pexpr)[1]))
 			return false;
 	}
 	if (fExtended &&

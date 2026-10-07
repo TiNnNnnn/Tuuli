@@ -1,0 +1,1 @@
+SELECT i FROM binding_input WHERE i > 0 ORDER BY i LIMIT 3 OFFSET 1;

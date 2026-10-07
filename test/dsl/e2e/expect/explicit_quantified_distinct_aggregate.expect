@@ -1,0 +1,60 @@
+{
+  "description": "显式 ANY/ALL lowering 保留整数 MIN/MAX(DISTINCT) 子树；覆盖相关分组、空集、NULL 和空输入标量聚合，原生预处理清除 DISTINCT 标志后的残留元数据不应阻止安全匹配",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2a403f8d75cfe226\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "all_min,1",
+      "all_min,2",
+      "all_min,4",
+      "all_min,5",
+      "any_max,3",
+      "any_max,4",
+      "any_max,5"
+    ],
+    "postgres_output": [
+      "all_min,1",
+      "all_min,2",
+      "all_min,4",
+      "all_min,5",
+      "any_max,3",
+      "any_max,4",
+      "any_max,5"
+    ]
+  }
+}

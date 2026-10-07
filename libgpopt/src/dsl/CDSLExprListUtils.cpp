@@ -10,7 +10,6 @@
 #include "gpopt/translate/CTranslatorExprToDXLUtils.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarProjectList.h"
-#include "gpopt/operators/CScalarSubquery.h"
 
 using namespace gpopt;
 
@@ -29,16 +28,6 @@ CDSLScalarContext::PexprPlug(CMemoryPool *mp, CExpression *replacement) const
 
 namespace
 {
-INT
-ScalarValueTypeModifier(CExpression *expr)
-{
-	// The subquery operator inherits the default typmod, but its selected
-	// column describes the actual value returned to the enclosing expression.
-	if (COperator::EopScalarSubquery == expr->Pop()->Eopid())
-		return CScalarSubquery::PopConvert(expr->Pop())->Pcr()->TypeModifier();
-	return CScalar::PopConvert(expr->Pop())->TypeModifier();
-}
-
 CExpression *
 PexprPlugPath(CMemoryPool *mp, CExpression *root,
 	const std::vector<ULONG> &path, ULONG offset, CExpression *replacement)
@@ -99,7 +88,8 @@ CDSLExprListUtils::PexprReplaceAt(CMemoryPool *mp, CExpression *root,
 	const auto *before = CScalar::PopConvert(selected->Pop());
 	const auto *after = CScalar::PopConvert(replacement->Pop());
 	if (!before->MdidType()->Equals(after->MdidType()) ||
-		ScalarValueTypeModifier(selected) != ScalarValueTypeModifier(replacement))
+		CDSLMatchView::ScalarValueTypeModifier(selected) !=
+			CDSLMatchView::ScalarValueTypeModifier(replacement))
 		return nullptr;
 	return PexprPlugPath(mp, root, path, 0, replacement);
 }
@@ -131,7 +121,30 @@ CDSLExprListUtils::FTypedProjectList(const CExpression *pexpr)
 	for (ULONG i = 0; i < pexpr->Arity(); ++i)
 		if (!FTypedProjectElement((*pexpr)[i]))
 			return false;
-	return true;
+	// Output identities belong to the complete SELECT list, not individual
+	// Items. DISTINCT removes duplicate rows, never duplicate definitions.
+	return const_cast<CExpression *>(pexpr)->DeriveDefinedColumns()->Size() == pexpr->Arity();
+}
+
+BOOL
+CDSLExprListUtils::FProjectListColumns(CMemoryPool *mp, CExpression *list,
+	const CColRefArray *attrs, const CColRefArray *schema)
+{
+	if (!FProjectList(list) || nullptr == attrs || nullptr == schema ||
+		list->Arity() != schema->Size())
+		return false;
+	for (ULONG i = 0; i < list->Arity(); ++i)
+	{
+		const CExpression *item = (*list)[i];
+		if (COperator::EopScalarProjectElement != item->Pop()->Eopid() ||
+			CScalarProjectElement::PopConvert(item->Pop())->Pcr() != (*schema)[i])
+			return false;
+	}
+	CColRefSet *dependencies = GPOS_NEW(mp) CColRefSet(mp);
+	dependencies->Include(attrs);
+	const BOOL matches = dependencies->Equals(list->DeriveUsedColumns());
+	dependencies->Release();
+	return matches;
 }
 
 BOOL
@@ -177,7 +190,6 @@ BOOL
 CDSLExprListUtils::FComputeList(CExpression *pexpr)
 {
 	return FTypedProjectList(pexpr) && FRowScalar(pexpr) &&
-		pexpr->DeriveDefinedColumns()->Size() == pexpr->Arity() &&
 		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns());
 }
 

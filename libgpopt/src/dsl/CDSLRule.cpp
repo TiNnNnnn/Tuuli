@@ -89,7 +89,8 @@ CDSLOp::CDSLOp(CMemoryPool *,  // mp unused: children/syms arrays pre-built
 				  4 == pdrgpsym->Size() ||
 				  5 == pdrgpsym->Size())) ||
 				(EdslopExists == edslop && 3 == pdrgpsym->Size()) ||
-				((EdslopSemiApply == edslop || EdslopAntiApply == edslop) &&
+				((EdslopSemiApply == edslop || EdslopAntiApply == edslop ||
+				  EdslopInnerApply == edslop || EdslopLeftOuterApply == edslop) &&
 				 0 == pdrgpsym->Size()) ||
 				(EdslopFilter == edslop && 2 == pdrgpsym->Size()) ||
 				(EdslopInSubFilter == edslop && 1 == pdrgpsym->Size()) ||
@@ -106,7 +107,7 @@ CDSLOp::~CDSLOp()
 }
 
 void
-CDSLOp::OsPrint(IOstream &os) const
+CDSLOp::OsPrint(IOstream &os, BOOL print_children) const
 {
 	// name + optional '*' + optional Sort direction suffix
 	if (EdslopSort == m_edslop && EdslsortAsc == m_edslsort)
@@ -157,7 +158,7 @@ CDSLOp::OsPrint(IOstream &os) const
 
 	// (child,child,...)
 	const ULONG ul_children = m_pdrgpchild->Size();
-	if (0 < ul_children)
+	if (print_children && 0 < ul_children)
 	{
 		os << "(";
 		for (ULONG ul = 0; ul < ul_children; ul++)

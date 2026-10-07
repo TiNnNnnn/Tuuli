@@ -5,11 +5,11 @@
 //		CDSLMatchView.h
 //
 //	@doc:
-//		Central, read-only adapters between ORCA's normalized expression shapes
-//		and the logical shapes exposed by the rule DSL. Views never modify the
-//		memo and never depend on a rule id. Operator matchers retain ownership of
-//		symbol binding and semantic checks; this class only decodes or constructs
-//		transient equivalent representations.
+//		Adapters between ORCA expression shapes and the rule DSL. Scalar
+//		recognition and capture identity live in match/CDSLMatchViewScalar.cpp;
+//		plan adapters may allocate transient trees under their documented guards.
+//		Neither path modifies the input tree or Memo, or depends on a rule id.
+//		Matchers own symbol binding; callers own allocated view results.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLMatchView_H
 #define GPOPT_CDSLMatchView_H
@@ -44,6 +44,8 @@ public:
 	// SQL value carrier, not a scalar structural node (lists, CASE arms, etc.).
 	// This is a kind check, not recursive type/phase/scope admission.
 	static BOOL FScalarValue(const CExpression *expression);
+	// Actual value typmod; scalar subqueries inherit it from the selected column.
+	static INT ScalarValueTypeModifier(const CExpression *expression);
 	// Predicate captures must be Boolean values, including nullable ones.
 	static BOOL FBooleanValue(const CExpression *expression);
 	static BOOL FCallArgumentTypes(const CExpression *source,

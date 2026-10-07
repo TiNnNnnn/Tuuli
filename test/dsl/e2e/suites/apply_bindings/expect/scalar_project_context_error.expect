@@ -1,0 +1,40 @@
+{
+  "description": "Scalar Context extraction preserves errors in the surrounding expression",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "context.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"899834d77652f23d\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "context.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

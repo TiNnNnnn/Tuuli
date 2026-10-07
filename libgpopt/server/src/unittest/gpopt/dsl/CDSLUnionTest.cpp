@@ -621,7 +621,7 @@ CDSLUnionTest::EresUnittest()
 			CDSLUnionTest::EresUnittest_SetOpKindsMatchAndInstantiate),
 		GPOS_UNITTEST_FUNC(CDSLUnionTest::EresUnittest_SetInputProjectionBindings),
 		GPOS_UNITTEST_FUNC(
-			CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin),
+			CDSLUnionTest::EresUnittest_SetInputBindingsBuildJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLUnionTest::EresUnittest_NarySetOpUsesAssociativeView),
 		GPOS_UNITTEST_FUNC(
@@ -1001,64 +1001,112 @@ CDSLUnionTest::EresUnittest_SetInputProjectionBindings()
 }
 
 GPOS_RESULT
-CDSLUnionTest::EresUnittest_IntersectInputBindingsBuildJoin()
+CDSLUnionTest::EresUnittest_SetInputBindingsBuildJoin()
 {
-	const CHAR *rule =
-		"Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|"
-		"Proj*<a5 s1>(InnerJoin<p0 a3 a4>(Input<t2>,Input<t3>))|"
-		"AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);"
-		"TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a2);"
-		"AttrsEq(a5,a3);SchemaEq(s1,s0);PredicateNullSafeEq(p0,a3,a4)";
-	CAutoMemoryPool amp;
-	CMemoryPool *mp = amp.Pmp();
-	CDSLTestFixture fix(mp);
-	CDSLRule *prule = PdslruleParseLocal(mp, rule);
-	CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
-	CExpression *pexprLeft =
-		fix.PexprLogicalGet("intersect_left", 2, &pdrgpcrLeft);
-	CExpression *pexprRight =
-		fix.PexprLogicalGet("intersect_right", 2, &pdrgpcrRight);
-	CExpression *pexprSource = PexprSetOpById(
-		mp, COperator::EopLogicalIntersect, pexprLeft, pdrgpcrLeft,
-		pexprRight, pdrgpcrRight);
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp, prule);
-	CDSLConstraintChecker checker(mp);
-	CExpression *pexprTarget = nullptr;
-	GPOS_UNITTEST_ASSERT(nullptr != prule);
-	const BOOL matched =
-		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
-	GPOS_UNITTEST_ASSERT(matched);
-	const BOOL checked = checker.FCheck(prule, pmodel);
-	GPOS_UNITTEST_ASSERT(checked);
-	if (checked)
+	// Four production replacements, each with ordinary and permuted input maps.
+	for (ULONG variant = 0; variant < 8; ++variant)
 	{
-		CDSLInstantiator instantiator(mp);
-		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		const BOOL difference = 0 != (variant & 4);
+		const BOOL all = 0 != (variant & 2);
+		const BOOL permuted = 0 != (variant & 1);
+		const std::string rule = std::string(difference ? "Except" : "Intersect") +
+								 (all ? "" : "*") + "<a0 s0 a1 a2>(Input<t0>,Input<t1>)|" +
+								 (all ? "Proj<a9 s1>(" : "Proj*<a5 s1>(") +
+								 (difference ? "AntiJoin"
+								  : all		 ? "SemiJoin"
+											 : "InnerJoin") +
+								 "<p0 a3 a4>(" +
+								 (all ? "RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 "
+										"r1>(Input<t3>)))|"
+									  : "Input<t2>,Input<t3>))|") +
+								 "AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;" +
+								 (all ? "a5 := a1;a6 := "
+										"a2;OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);"
+										"RankAttrs(a8,r1);"
+										"AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);p0 := "
+										"NullSafeEq(a3,a4);"
+										"a9 := a5;s1 := s0;ErrorFree(r0);ErrorFree(r1)"
+									  : "a3 := a1;a4 := a2;a5 := a1;s1 := s0;p0 := "
+										"NullSafeEq(a3,a4)");
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		CDSLRule *prule = PdslruleParseLocal(mp, rule.c_str());
+		CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
+		CExpression *pexprLeft = fix.PexprLogicalGet("intersect_left", 2, &pdrgpcrLeft);
+		CExpression *pexprRight = fix.PexprLogicalGet("intersect_right", 2, &pdrgpcrRight);
+		CExpression *pexprSource = PexprSetOpById(
+			mp,
+			difference
+				? (all ? COperator::EopLogicalDifferenceAll : COperator::EopLogicalDifference)
+				: (all ? COperator::EopLogicalIntersectAll : COperator::EopLogicalIntersect),
+			pexprLeft, pdrgpcrLeft, pexprRight, pdrgpcrRight);
+		CColRefArray *rightMap =
+			(*CLogicalSetOp::PopConvert(pexprSource->Pop())->PdrgpdrgpcrInput())[1];
+		if (permuted)
+			rightMap->Swap(0, 1);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		CDSLConstraintChecker checker(mp);
+		CExpression *pexprTarget = nullptr;
+		GPOS_UNITTEST_ASSERT(nullptr != prule);
+		const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+		GPOS_UNITTEST_ASSERT(matched);
+		const BOOL checked = checker.FCheck(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(checked);
+		if (checked)
+		{
+			CDSLInstantiator instantiator(mp);
+			pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		}
+		CExpression *join = pexprTarget;
+		while (nullptr != join && (COperator::EopLogicalProject == join->Pop()->Eopid() ||
+								   COperator::EopLogicalGbAgg == join->Pop()->Eopid()))
+			join = (*join)[0];
+		const auto expectedJoin = difference ? COperator::EopLogicalLeftAntiSemiJoin
+								  : all		 ? COperator::EopLogicalLeftSemiJoin
+											 : COperator::EopLogicalInnerJoin;
+		GPOS_UNITTEST_ASSERT(nullptr != join && expectedJoin == join->Pop()->Eopid());
+		CExpressionArray *pdrgpexprConjuncts =
+			nullptr == join ? nullptr : CPredicateUtils::PdrgpexprConjuncts(mp, (*join)[2]);
+		BOOL fNullSafe = nullptr != pdrgpexprConjuncts &&
+						 pdrgpexprConjuncts->Size() == pdrgpcrLeft->Size() + (all ? 1 : 0);
+		for (ULONG ul = 0; fNullSafe && ul < pdrgpexprConjuncts->Size(); ul++)
+		{
+			fNullSafe = CPredicateUtils::FINDF((*pdrgpexprConjuncts)[ul]);
+			CColRefSet *used = (*pdrgpexprConjuncts)[ul]->DeriveUsedColumns();
+			fNullSafe = fNullSafe && used->Size() == 2;
+			if (ul < pdrgpcrLeft->Size())
+				fNullSafe = fNullSafe && used->FMember((*pdrgpcrLeft)[ul]) &&
+							used->FMember((*rightMap)[ul]);
+			else
+				fNullSafe = fNullSafe &&
+							COperator::EopLogicalSequenceProject == (*join)[0]->Pop()->Eopid() &&
+							COperator::EopLogicalSequenceProject == (*join)[1]->Pop()->Eopid() &&
+							used->IsDisjoint(pexprLeft->DeriveOutputColumns()) &&
+							used->IsDisjoint(pexprRight->DeriveOutputColumns()) &&
+							!used->IsDisjoint((*join)[0]->DeriveOutputColumns()) &&
+							!used->IsDisjoint((*join)[1]->DeriveOutputColumns());
+		}
+		const BOOL ok = nullptr != pexprTarget &&
+						(all ? (pexprTarget == join ||
+								(COperator::EopLogicalProject == pexprTarget->Pop()->Eopid() &&
+								 (*pexprTarget)[0] == join))
+							 : COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid()) &&
+						fNullSafe &&
+						pdrgpcrLeft->Size() + pdrgpcrRight->Size() + (all ? 2 : 0) ==
+							(*join)[2]->DeriveUsedColumns()->Size();
+		CRefCount::SafeRelease(pdrgpexprConjuncts);
+		CRefCount::SafeRelease(pexprTarget);
+		pmodel->Release();
+		pexprSource->Release();
+		pexprLeft->Release();
+		pexprRight->Release();
+		CRefCount::SafeRelease(prule);
+		if (!ok)
+			return GPOS_FAILED;
 	}
-	CExpressionArray *pdrgpexprConjuncts = nullptr == pexprTarget
-		? nullptr
-		: CPredicateUtils::PdrgpexprConjuncts(mp, (*(*pexprTarget)[0])[2]);
-	BOOL fNullSafe = nullptr != pdrgpexprConjuncts &&
-		pdrgpexprConjuncts->Size() == pdrgpcrLeft->Size();
-	for (ULONG ul = 0; fNullSafe && ul < pdrgpexprConjuncts->Size(); ul++)
-	{
-		fNullSafe = CPredicateUtils::FINDF((*pdrgpexprConjuncts)[ul]);
-	}
-	const BOOL ok = nullptr != pexprTarget &&
-		COperator::EopLogicalGbAgg == pexprTarget->Pop()->Eopid() &&
-		COperator::EopLogicalInnerJoin == (*pexprTarget)[0]->Pop()->Eopid() &&
-		fNullSafe &&
-		pdrgpcrLeft->Size() + pdrgpcrRight->Size() ==
-			(*(*pexprTarget)[0])[2]->DeriveUsedColumns()->Size();
-	CRefCount::SafeRelease(pdrgpexprConjuncts);
-	CRefCount::SafeRelease(pexprTarget);
-	pmodel->Release();
-	pexprSource->Release();
-	pexprLeft->Release();
-	pexprRight->Release();
-	CRefCount::SafeRelease(prule);
-	return ok ? GPOS_OK : GPOS_FAILED;
+	return GPOS_OK;
 }
 
 GPOS_RESULT

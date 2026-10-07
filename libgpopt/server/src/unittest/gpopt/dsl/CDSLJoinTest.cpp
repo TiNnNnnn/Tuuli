@@ -12,6 +12,8 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLJoinTest.h"
 
+#include <string>
+
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/common/CAutoRef.h"
@@ -42,7 +44,9 @@
 #include "gpopt/operators/CLogicalCTEConsumer.h"
 #include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
+#include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApply.h"
@@ -259,14 +263,165 @@ BuildInnerJoinEqui(CDSLTestFixture &fix, CExpression **ppLeft,
 	*ppJoin = pexprJoin;
 }
 
-//---------------------------------------------------------------------------
-//	@function:
-//		CDSLJoinTest::EresUnittest
-//---------------------------------------------------------------------------
+// Fresh row Apply uses a scalar SubPlan only for an eligible bounded scalar RHS.
+static GPOS_RESULT
+EresExplicitIndependentRowApply()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	// Unbounded, bounded, zero-column, and bounded but externally
+	// correlated RHS; then one-column correlated inputs, bounded/unbounded,
+	// and a bounded input with a nontrivial ON.
+	for (BOOL complete : {false, true})
+		for (BOOL outer : {false, true})
+			for (ULONG shape = 0; shape < 7; shape++)
+			{
+				if (complete && 6 == shape)
+					continue;  // ON belongs only to the predicate-bearing form.
+				CDSLTestFixture fix(mp);
+				const BOOL emptySchema = 2 == shape;
+				const std::string kind = outer ? "Left" : "Inner";
+				const std::string text =
+					kind + "Join<p0 a0 a1>(Input<t0>,Input<t1>)|" + kind +
+					(complete ? "Apply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1"
+							  : "Apply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|"
+								"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := "
+								"a1;AttrsEmpty(a4)");
+				CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+				GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+				CExpression *left = fix.PexprLogicalGet("fresh_apply_left", 1);
+				CColRefArray *rightCols = nullptr;
+				CExpression *right =
+					emptySchema ? GPOS_NEW(mp) CExpression(
+									  mp, GPOS_NEW(mp) CLogicalConstTableGet(
+											  mp, GPOS_NEW(mp) CColRefArray(mp),
+											  GPOS_NEW(mp) IDatum2dArray(mp)))
+								: fix.PexprLogicalGet("fresh_apply_right", 4 <= shape ? 1 : 2,
+													  &rightCols);
+				if (3 <= shape)
+				{
+					CColRefArray *externalCols = nullptr;
+					CAutoRef<CExpression> external(
+						fix.PexprLogicalGet("external", 1, &externalCols));
+					if (5 == shape)
+					{
+						// Two known rows avoid requiring relation constraint metadata.
+						right->Release();
+						IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+						rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+						rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+						right = CUtils::PexprAddProjection(mp,
+							GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
+								mp, GPOS_NEW(mp) CColRefArray(mp), rows)),
+							CUtils::PexprScalarIdent(mp, (*externalCols)[0]));
+					}
+					else
+					{
+						CAutoRef<CExpression> predicate(
+							fix.PexprEqPred((*rightCols)[0], (*externalCols)[0]));
+						CExpression *selected = fix.PexprLogicalSelect(right, predicate.Value());
+						right->Release();
+						right = selected;
+					}
+				}
+				if (1 == shape || 3 == shape || 4 == shape || 6 == shape)
+					right = GPOS_NEW(mp) CExpression(
+						mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), right);
+				COperator *join =
+					outer ? static_cast<COperator *>(
+								GPOS_NEW(mp) CLogicalLeftOuterJoin(mp))
+						  : static_cast<COperator *>(GPOS_NEW(mp)
+														 CLogicalInnerJoin(mp));
+				CAutoRef<CExpression> source(GPOS_NEW(mp) CExpression(
+					mp, join, left, right,
+					CUtils::PexprScalarConstBool(mp, 6 != shape)));
+				CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+				GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value())
+										 .FMatch(rule->PfragSrc()->PopRoot(),
+												 source.Value(),
+												 model.Value()));
+				GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(
+					rule.Value(), model.Value()));
+				CAutoRef<CExpression> target(
+					CDSLInstantiator(mp).PexprInstantiate(rule.Value(),
+														  model.Value()));
+				GPOS_UNITTEST_ASSERT(
+					(nullptr != target.Value()) ==
+					((shape < 3 && !emptySchema && (!outer || 1 == shape)) ||
+					 (4 == shape && outer)));
+				if (nullptr == target.Value())
+					continue;
+				const auto *apply = CLogicalApply::PopConvert(target->Pop());
+				GPOS_UNITTEST_ASSERT(
+					!apply->FPattern() && apply->FCorrelated() == (4 == shape) &&
+					apply->EopidOriginSubq() == (4 == shape
+						? COperator::EopScalarSubquery : COperator::EopSentinel) &&
+					apply->PdrgPcrInner()->Size() == (4 == shape ? 1 : 2) &&
+					apply->Eopid() == (4 == shape
+						? COperator::EopLogicalLeftOuterCorrelatedApply : outer
+										   ? COperator::EopLogicalLeftOuterApply
+										   : COperator::EopLogicalInnerApply));
+				GPOS_UNITTEST_ASSERT((*target)[0] == left &&
+									 (*target)[1] == right &&
+									 (*target)[2]->Matches((*source)[2]) &&
+									 target->DeriveOutputColumns()->Equals(
+										 source->DeriveOutputColumns()));
+				if (complete)
+				{
+					const std::string roundtrip =
+						kind + "Apply(Input<t0>,Input<t1>)|" + kind +
+						"Apply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1";
+					CAutoRef<CDSLRule> same(
+						PdslruleParseLocal(mp, roundtrip.c_str()));
+					GPOS_UNITTEST_ASSERT(nullptr != same.Value());
+					CAutoRef<CDSLModel> bindings(GPOS_NEW(mp) CDSLModel(mp));
+					GPOS_UNITTEST_ASSERT(
+						CDSLMatcher(mp, same.Value())
+							.FMatch(same->PfragSrc()->PopRoot(), target.Value(),
+									bindings.Value()));
+					CAutoRef<CExpression> rebuilt(
+						CDSLInstantiator(mp).PexprInstantiate(
+							same.Value(), bindings.Value()));
+					GPOS_UNITTEST_ASSERT(nullptr != rebuilt.Value() &&
+										 rebuilt->Matches(target.Value()));
+					for (BOOL origin : {false, true})
+					{
+						CColRefArray *inner = apply->PdrgPcrInner();
+						inner->AddRef();
+						left->AddRef();
+						right->AddRef();
+						const auto metadata = origin
+												  ? COperator::EopScalarSubquery
+												  : COperator::EopSentinel;
+						COperator *bad =
+							outer ? static_cast<COperator *>(
+										GPOS_NEW(mp) CLogicalLeftOuterApply(
+											mp, inner, metadata))
+								  : static_cast<COperator *>(
+										GPOS_NEW(mp) CLogicalInnerApply(
+											mp, inner, metadata));
+						CAutoRef<CExpression> incompatible(
+							GPOS_NEW(mp) CExpression(
+								mp, bad, left, right,
+								CUtils::PexprScalarConstBool(mp, origin)));
+						CAutoRef<CDSLModel> rejected(GPOS_NEW(mp)
+														 CDSLModel(mp));
+						GPOS_UNITTEST_ASSERT(
+							!CDSLMatcher(mp, same.Value())
+								 .FMatch(same->PfragSrc()->PopRoot(),
+										 incompatible.Value(),
+										 rejected.Value()));
+					}
+				}
+			}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLJoinTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresExplicitIndependentRowApply),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PhysicalApply),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_PhysicalMaxOneRow),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_MatchBindsJoinKeys),
@@ -291,11 +446,13 @@ CDSLJoinTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches),
 		GPOS_UNITTEST_FUNC(
-			CDSLJoinTest::EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin),
+			CDSLJoinTest::
+				EresUnittest_CorrelatedNotInFilterBuildsQualifiedJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_UncorrelatedInnerApplyBuildsInnerJoin),
 		GPOS_UNITTEST_FUNC(
-			CDSLJoinTest::EresUnittest_UncorrelatedLeftOuterApplyBuildsLeftJoin),
+			CDSLJoinTest::
+				EresUnittest_UncorrelatedLeftOuterApplyBuildsLeftJoin),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_SemiJoinBuildsUncorrelatedSemiApply),
 		GPOS_UNITTEST_FUNC(
@@ -305,7 +462,8 @@ CDSLJoinTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput),
 		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_NoFireOnWrongRoot),
-		GPOS_UNITTEST_FUNC(CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK),
+		GPOS_UNITTEST_FUNC(
+			CDSLJoinTest::EresUnittest_ReferenceRejectsWithoutFK),
 		GPOS_UNITTEST_FUNC(
 			CDSLJoinTest::EresUnittest_ReferenceAcceptsReflexiveBaseColumn),
 		GPOS_UNITTEST_FUNC(

@@ -10,12 +10,15 @@
 #include <unordered_set>
 #include <utility>
 
+#include "gpos/common/CAutoRef.h"
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -26,7 +29,9 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/search/CGroupExpression.h"
 
 using namespace gpopt;
 
@@ -74,13 +79,21 @@ OperatorText(CMemoryPool *mp, const CExpression *expr)
 }
 
 std::string
-TypeId(CMemoryPool *mp, IMDId *id)
+MetadataId(CMemoryPool *mp, IMDId *id)
 {
 	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
 		mp, const_cast<WCHAR *>(id->GetBuffer()));
 	std::string result = JsonString(text);
 	GPOS_DELETE_ARRAY(text);
 	return result;
+}
+
+void
+AppendColumn(CMemoryPool *mp, std::ostringstream *out, const CColRef *column)
+{
+	*out << "{\"id\":" << column->Id() << ",\"type\":"
+		<< MetadataId(mp, column->RetrieveType()->MDId())
+		<< ",\"typmod\":" << column->TypeModifier() << '}';
 }
 
 void
@@ -95,9 +108,19 @@ AppendColumns(CMemoryPool *mp, std::ostringstream *out, const CColRefSet *column
 		if (!first)
 			*out << ',';
 		first = false;
-		*out << "{\"id\":" << column->Id() << ",\"type\":"
-			<< TypeId(mp, column->RetrieveType()->MDId())
-			<< ",\"typmod\":" << column->TypeModifier() << '}';
+		AppendColumn(mp, out, column);
+	}
+	*out << ']';
+}
+
+void
+AppendColumns(CMemoryPool *mp, std::ostringstream *out, const CColRefArray *columns)
+{
+	*out << '[';
+	for (ULONG i = 0; i < columns->Size(); ++i)
+	{
+		if (i) *out << ',';
+		AppendColumn(mp, out, (*columns)[i]);
 	}
 	*out << ']';
 }
@@ -121,16 +144,23 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 	}
 	else
 	{
+		const CScalar *scalar = CScalar::PopConvert(expr->Pop());
 		*out << "\"used\":";
 		AppendColumns(mp, out, derived->DeriveUsedColumns());
 		*out << ",\"defined\":";
 		AppendColumns(mp, out, derived->DeriveDefinedColumns());
 		if (CDSLMatchView::FScalarValue(expr))
 		{
-			const CScalar *scalar = CScalar::PopConvert(expr->Pop());
-			*out << ",\"value_type\":" << TypeId(mp, scalar->MdidType())
-				<< ",\"value_typmod\":" << scalar->TypeModifier();
+			*out << ",\"value_type\":" << MetadataId(mp, scalar->MdidType())
+				<< ",\"value_typmod\":" << CDSLMatchView::ScalarValueTypeModifier(expr);
 		}
+		// Names are display text, not catalog identity. Argument types/order
+		// remain on the existing child paths; IDs alone certify no semantics.
+		if (nullptr != scalar->MdIdOp())
+			*out << ",\"operator_mdid\":" << MetadataId(mp, scalar->MdIdOp());
+		if (COperator::EopScalarFunc == expr->Pop()->Eopid())
+			*out << ",\"function_mdid\":" << MetadataId(mp,
+				CScalarFunc::PopConvert(expr->Pop())->FuncMdId());
 	}
 	*out << '}';
 }
@@ -290,6 +320,9 @@ CanonicalKind(const CExpression *expr, BOOL *distinct)
 			}
 			return EdslopAgg;
 		case COperator::EopLogicalGbAggDeduplicate: return EdslopAgg;
+		case COperator::EopLogicalSequenceProject:
+			return CLogicalSequenceProject::PopConvert(expr->Pop())->FHasFrameSpecs()
+				? EdslopWindowFrame : EdslopWindowRows;
 		case COperator::EopLogicalInnerJoin: return EdslopInnerJoin;
 		case COperator::EopLogicalLeftOuterJoin: return EdslopLeftJoin;
 		case COperator::EopLogicalFullOuterJoin: return EdslopFullJoin;
@@ -396,13 +429,11 @@ PopSlice(CMemoryPool *mp, const CExpression *expr, const std::string &path,
 
 		if (!view.m_pos->IsEmpty())
 		{
-			EDslSortDir direction =
-				CDSLMatchView::EdslsortDefault(view.m_pos);
-			if (EdslsortNone == direction)
-				direction = EdslsortSpec;
+			// Capture the complete order, including NULL placement and comparator
+			// identity. SortBy also composes with typed expression bindings.
 			CDSLOpArray *sort_children = GPOS_NEW(mp) CDSLOpArray(mp);
 			sort_children->Append(child);
-			child = PopOperator(mp, EdslopSort, false, direction,
+			child = PopOperator(mp, EdslopSort, false, EdslsortSpec,
 				sort_children, symbol_counts, symbol_id);
 		}
 		if (!view.m_fHasLimit)
@@ -431,10 +462,8 @@ PopSlice(CMemoryPool *mp, const CExpression *expr, const std::string &path,
 			return nullptr;
 		CDSLOpArray *children = GPOS_NEW(mp) CDSLOpArray(mp);
 		children->Append(child);
-		const EDslOpKind kind =
-			CLogicalSequenceProject::PopConvert(expr->Pop())->FHasFrameSpecs()
-			? EdslopWindowFrame
-			: EdslopWindowRows;
+		BOOL distinct = false;
+		const EDslOpKind kind = CanonicalKind(expr, &distinct);
 		return PopOperator(mp, kind, false, EdslsortNone, children,
 			symbol_counts, symbol_id);
 	}
@@ -550,6 +579,19 @@ SymbolText(CMemoryPool *mp, const CDSLSymbol *symbol)
 {
 	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
 		mp, const_cast<WCHAR *>(symbol->PstrName()->GetBuffer()));
+	const std::string result(text);
+	GPOS_DELETE_ARRAY(text);
+	return result;
+}
+
+std::string
+TemplateText(CMemoryPool *mp, const CDSLOp *op, BOOL print_children = true)
+{
+	CWStringDynamic printed(mp);
+	COstreamString os(&printed);
+	op->OsPrint(os, print_children);
+	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
+		mp, const_cast<WCHAR *>(printed.GetBuffer()));
 	const std::string result(text);
 	GPOS_DELETE_ARRAY(text);
 	return result;
@@ -674,14 +716,39 @@ ValueTemplate(CMemoryPool *mp, const CExpression *expr, ULONG *symbol_counts,
 // Unsupported scalar subtrees stay opaque occurrences, not guessed semantics.
 BOOL
 FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
-	const CExpression *expr, ULONG *symbol_counts, BOOL *expanded, std::string *text,
-	std::string *input)
+	const CExpression *expr, ULONG *symbol_counts, BOOL *expanded, std::string *text)
 {
 	GPOS_CHECK_STACK_SIZE;
 	if (EdslopInput == op->Edslop())
 	{
-		*input = SymbolText(mp, (*op->Pdrgpsym())[0]);
-		*text = "Input<" + *input + ">";
+		*text = TemplateText(mp, op);
+		return true;
+	}
+	if (COperator::EopLogicalLimit == expr->Pop()->Eopid())
+	{
+		CDSLMatchView::SOrderLimit view;
+		if (!CDSLMatchView::FOrderLimit(const_cast<CExpression *>(expr), &view))
+			return false;
+		const CDSLOp *child = op;
+		std::string prefix;
+		ULONG wrappers = 0;
+		// Consume exactly this fused node's wrappers, not a nested native Limit.
+		for (const EDslOpKind kind : {EdslopLimit, EdslopSort})
+		{
+			if (kind == EdslopLimit ? !view.m_fHasLimit : view.m_pos->IsEmpty())
+				continue;
+			if (child->Edslop() != kind || child->UlChildren() != 1)
+				return false;
+			prefix += TemplateText(mp, child, false) + "(";
+			child = (*child)[0];
+			++wrappers;
+		}
+		if (0 == wrappers)
+			return false;
+		std::string input;
+		if (!FExpressionTemplate(mp, child, view.m_pexprChild, symbol_counts, expanded, &input))
+			input = TemplateText(mp, child);
+		*text = prefix + input + std::string(wrappers, ')');
 		return true;
 	}
 	const EDslOpKind kind = op->Edslop();
@@ -690,31 +757,57 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	const BOOL join = EdslopInnerJoin == kind || EdslopLeftJoin == kind ||
 		EdslopFullJoin == kind || EdslopSemiJoin == kind || EdslopAntiJoin == kind || apply;
 	const BOOL project = EdslopCompute == kind;
+	const BOOL expand_scalar = join || project || EdslopFilter == kind;
 	BOOL distinct = false;
-	if ((!join && !project && EdslopFilter != kind) || CanonicalKind(expr, &distinct) != kind)
+	if (CanonicalKind(expr, &distinct) != kind)
 		return false;
-	const ULONG children = join ? 2 : 1;
-	if (children + 1 != expr->Arity())
+	const ULONG children = op->UlChildren();
+	if (expand_scalar && children + 1 != expr->Arity())
 		return false;
+	if (!expand_scalar)
+	{
+		// Only traverse a one-to-one native/canonical frontier. Fused or folded
+		// views need their own mapping; do not infer it from matching op names.
+		const auto relational = CDSLPlanTemplate::RelationalChildren(expr);
+		if (relational.size() != children)
+			return false;
+		for (ULONG i = 0; i < children; ++i)
+			if (relational[i] != (*expr)[i])
+				return false;
+	}
 	if (project && (COperator::EopScalarProjectList != (*expr)[1]->Pop()->Eopid() ||
 		(*expr)[1]->DeriveHasNonScalarFunction()))
 		return false;
-	CColRefSet *available = GPOS_NEW(mp) CColRefSet(mp);
-	for (ULONG i = 0; i < children; ++i)
-		available->Union((*expr)[i]->DeriveOutputColumns());
-	const BOOL local = available->ContainsAll((*expr)[children]->DeriveUsedColumns());
-	available->Release();
-	if (!local && EdslopFilter != kind && !project)
-		return false;
+	BOOL local = false;
+	if (expand_scalar)
+	{
+		CColRefSet *available = GPOS_NEW(mp) CColRefSet(mp);
+		for (ULONG i = 0; i < children; ++i)
+			available->Union((*expr)[i]->DeriveOutputColumns());
+		local = available->ContainsAll((*expr)[children]->DeriveUsedColumns());
+		available->Release();
+		if (!local && EdslopFilter != kind && !project)
+			return false;
+	}
 	std::string inputs;
 	for (ULONG i = 0; i < children; ++i)
 	{
 		std::string child;
-		if (!FExpressionTemplate(mp, (*op)[i], (*expr)[i], symbol_counts, expanded, &child, input))
-			return false;
+		// Missing scalar expansion for a child is not a reason to hide the
+		// parent's expressions. Keep its canonical relational view intact;
+		// FSlice validates the complete mixed template with the real matcher.
+		if (!FExpressionTemplate(mp, (*op)[i], (*expr)[i], symbol_counts, expanded, &child))
+			child = TemplateText(mp, (*op)[i]);
 		if (i)
 			inputs += ',';
 		inputs += child;
+	}
+	if (!expand_scalar)
+	{
+		*text = TemplateText(mp, op, false);
+		if (0 < children)
+			*text += "(" + inputs + ")";
+		return true;
 	}
 	if (project)
 	{
@@ -750,7 +843,140 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 	*text += ">(" + inputs + ")";
 	return true;
 }
+
+// Snapshot the successful production model before its symbols/carriers die.
+// A routed binding may contain a group-bound leaf rather than a complete tree.
+// Do not derive properties on that leaf or populate the live Memo's caches.
+BOOL
+AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out, CExpression *expression)
+{
+	std::vector<const CExpression *> pending{expression};
+	while (!pending.empty())
+	{
+		GPOS_CHECK_ABORT;
+		const CExpression *node = pending.back();
+		pending.pop_back();
+		if (node->Pop()->FPattern() || (nullptr != node->Pgexpr() &&
+			node->Arity() != node->Pgexpr()->Arity()))
+		{
+			*out << "null";
+			return false;
+		}
+		for (ULONG i = 0; i < node->Arity(); ++i) pending.push_back((*node)[i]);
+	}
+	CAutoRef<UlongToColRefMap> columns(GPOS_NEW(mp) UlongToColRefMap(mp));
+	CAutoRef<CExpression> copy(expression->PexprCopyWithRemappedColumns(mp, columns.Value(), false));
+	*out << CDSLPlanTemplate::Serialize(mp, copy.Value());
+	return true;
+}
+
+// Address source captures using the already-validated definition graph.
+using SourcePaths = std::map<const CDSLSymbol *, std::vector<std::string>>;
+
+void
+CollectCapturePaths(const CDSLSymbol *symbol, const std::string &path,
+	const CDSLExpressionDefinitions *definitions, SourcePaths *paths)
+{
+	GPOS_CHECK_ABORT;
+	(*paths)[symbol].push_back(path);
+	const auto *definition = nullptr == definitions ? nullptr : definitions->Pdef(symbol);
+	if (nullptr == definition || CDSLExpressionDefinitions::EMatch != definition->Binding())
+		return;
+	for (ULONG i = 0; i < definition->Arity(); ++i)
+		CollectCapturePaths(definition->PsymOperand(i), path + '/' +
+			CDSLExpressionDefinitions::SzBindingName(definition->Edslexpr()) + ':' +
+			std::to_string(i), definitions, paths);
+}
+
+void
+CollectSourcePaths(const CDSLOp *op, const std::string &path,
+	const CDSLExpressionDefinitions *definitions, SourcePaths *paths)
+{
+	ULONG ordinals[EdslsymSentinel] = {};
+	for (ULONG i = 0; i < op->Pdrgpsym()->Size(); ++i)
+	{
+		const CDSLSymbol *symbol = (*op->Pdrgpsym())[i];
+		CollectCapturePaths(symbol, path + '/' + CDSLOpKindTable::WcSymPrefix(symbol->Esymkind()) +
+			':' + std::to_string(ordinals[symbol->Esymkind()]++), definitions, paths);
+	}
+	for (ULONG i = 0; i < op->UlChildren(); ++i)
+		CollectSourcePaths((*op)[i], path + '/' + std::to_string(i), definitions, paths);
+}
+
+// Column arrays retain binding order, unlike the sets in plan column_facts.
+// Unsupported payloads remain explicit; this does not validate a lowering.
+std::string
+SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
+	const CDSLModel *model, const SourcePaths &paths)
+{
+	std::ostringstream out;
+	BOOL complete = true;
+	out << "{\"scope\":\"matched_source_symbols\",\"symbols\":[";
+	for (ULONG i = 0; i < symbols.size(); ++i)
+	{
+		GPOS_CHECK_ABORT;
+		const CDSLSymbol *symbol = symbols[i];
+		CRefCount *value = model->PvalLookup(symbol);
+		if (i) out << ',';
+		out << "{\"symbol\":" << JsonString(SymbolText(mp, symbol))
+			<< ",\"kind\":\"" << CDSLOpKindTable::WcSymPrefix(symbol->Esymkind())
+			<< "\",\"bound\":" << (nullptr == value ? "false" : "true");
+		CExpression *expression = dynamic_cast<CExpression *>(value);
+		if (nullptr != expression)
+		{
+			out << ",\"expression\":";
+			complete &= AppendBoundExpression(mp, &out, expression);
+		}
+		else if (nullptr != value && (EdslsymAttrs == symbol->Esymkind() ||
+			EdslsymSchema == symbol->Esymkind() || EdslsymRank == symbol->Esymkind()))
+		{
+			out << ",\"columns\":";
+			AppendColumns(mp, &out, static_cast<CColRefArray *>(value));
+		}
+		else if (nullptr != value && (EdslsymFunc == symbol->Esymkind() ||
+			EdslsymValueList == symbol->Esymkind()))
+		{
+			const auto *expressions = static_cast<CExpressionArray *>(value);
+			out << ",\"expressions\":[";
+			for (ULONG j = 0; j < expressions->Size(); ++j)
+			{
+				if (j) out << ',';
+				complete &= AppendBoundExpression(mp, &out, (*expressions)[j]);
+			}
+			out << ']';
+		}
+		else
+		{
+			// ponytail: order/frame/context payloads need their own lowering contract.
+			out << ",\"unsupported_payload\":true";
+			complete = false;
+		}
+		const auto locations = paths.find(symbol);
+		out << ",\"source_paths\":[";
+		if (locations != paths.end())
+			for (ULONG j = 0; j < locations->second.size(); ++j)
+				out << (j ? "," : "") << JsonString(locations->second[j]);
+		else
+			complete = false;
+		out << ']';
+		out << '}';
+	}
+	out << "],\"complete\":" << (complete ? "true" : "false") << '}';
+	return out.str();
+}
 }  // namespace
+
+std::string
+CDSLPlanTemplate::MatchedSourceBindings(const CDSLRule *rule, const CDSLModel *model)
+{
+	GPOS_ASSERT(nullptr != rule && nullptr != model);
+	std::vector<const CDSLSymbol *> symbols;
+	for (ULONG i = 0; i < rule->PfragSrc()->Pdrgpsym()->Size(); ++i)
+		symbols.push_back((*rule->PfragSrc()->Pdrgpsym())[i]);
+	SourcePaths paths;
+	CollectSourcePaths(rule->PfragSrc()->PopRoot(), "r", rule->Pexprdefs(), &paths);
+	return SourceBindings(model->Pmp(), symbols, model, paths);
+}
 
 std::vector<const CExpression *>
 CDSLPlanTemplate::RelationalChildren(const CExpression *expr)
@@ -874,7 +1100,18 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 		for (ULONG i = relational.size(); i > 0; --i)
 			pending.emplace_back(relational[i - 1], path + "/" + std::to_string(i - 1));
 	}
-	out << "],\"complete\":true}";
+	// One root scan, not one recursive scan per exported node. Unknown is null;
+	// this retained-scope footprint is not a source/transport certificate.
+	out << "],\"frame_reads\":";
+	CColRefSet *frame = dslproperties::PcrsFrameReads(mp, const_cast<CExpression *>(expr));
+	if (nullptr == frame)
+		out << "null";
+	else
+	{
+		AppendColumns(mp, &out, frame);
+		frame->Release();
+	}
+	out << ",\"complete\":true}";
 	return out.str();
 }
 
@@ -930,9 +1167,10 @@ BOOL
 CDSLPlanTemplate::FSlice(
 	CMemoryPool *mp, CExpression *expr, const std::string &root_path,
 	const std::vector<std::string> &cut_paths, std::string *dsl,
-	std::string *error)
+	std::string *error, std::string *source_bindings)
 {
 	GPOS_ASSERT(nullptr != mp && nullptr != expr && nullptr != dsl && nullptr != error);
+	if (nullptr != source_bindings) source_bindings->clear();
 	if (!FValidateSelection(expr, root_path, cut_paths, error))
 		return false;
 	CExpression *root = const_cast<CExpression *>(PexprAtPath(expr, root_path));
@@ -951,22 +1189,30 @@ CDSLPlanTemplate::FSlice(
 		*error = "a cut path is not represented by the canonical DSL view";
 		return false;
 	}
-	std::string expression_template, input;
+	std::string expression_template;
 	BOOL expanded = false;
 	if (FExpressionTemplate(mp, source, root, symbol_counts,
-		&expanded, &expression_template, &input) && expanded)
+		&expanded, &expression_template) && expanded)
 	{
 		// A temporary carrier rule exercises the real parser and matcher. It is
 		// not an equivalence claim, is never registered and is never instantiated.
+		const CDSLOp *input = source;
+		while (0 != input->UlChildren())
+			input = (*input)[0];
+		GPOS_ASSERT(EdslopInput == input->Edslop());
 		const std::string target = "t" + std::to_string(symbol_counts[EdslsymTable]);
 		const std::string carrier = expression_template + "|Input<" + target +
-			">|" + target + " := " + input;
+			">|" + target + " := " + SymbolText(mp, (*input->Pdrgpsym())[0]);
 		CWStringDynamic parse_error(mp);
 		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, carrier.c_str(), nullptr, &parse_error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, rule);
 		const BOOL matched = nullptr != rule &&
 			matcher.FMatch(rule->PfragSrc()->PopRoot(), root, model);
+		if (matched && nullptr != source_bindings)
+		{
+			*source_bindings = MatchedSourceBindings(rule, model);
+		}
 		model->Release();
 		CRefCount::SafeRelease(rule);
 		source->Release();
@@ -982,6 +1228,22 @@ CDSLPlanTemplate::FSlice(
 	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 	const BOOL matched = matcher.FMatch(source, root, model);
+	if (matched && nullptr != source_bindings)
+	{
+		std::vector<const CDSLSymbol *> symbols;
+		std::vector<const CDSLOp *> pending{source};
+		while (!pending.empty())
+		{
+			const CDSLOp *node = pending.back();
+			pending.pop_back();
+			for (ULONG i = 0; i < node->Pdrgpsym()->Size(); ++i)
+				symbols.push_back((*node->Pdrgpsym())[i]);
+			for (ULONG i = node->UlChildren(); i > 0; --i) pending.push_back((*node)[i - 1]);
+		}
+		SourcePaths paths;
+		CollectSourcePaths(source, "r", nullptr, &paths);
+		*source_bindings = SourceBindings(mp, symbols, model, paths);
+	}
 	model->Release();
 	if (!matched)
 	{
@@ -989,13 +1251,7 @@ CDSLPlanTemplate::FSlice(
 		*error = "canonical DSL view does not match selected source";
 		return false;
 	}
-	CWStringDynamic printed(mp);
-	COstreamString os(&printed);
-	source->OsPrint(os);
-	CHAR *text = CUtils::CreateMultiByteCharStringFromWCString(
-		mp, const_cast<WCHAR *>(printed.GetBuffer()));
-	*dsl = text;
-	GPOS_DELETE_ARRAY(text);
+	*dsl = TemplateText(mp, source);
 	source->Release();
 	error->clear();
 	return true;
@@ -1004,10 +1260,11 @@ CDSLPlanTemplate::FSlice(
 std::string
 CDSLPlanTemplate::SliceArtifact(
 	CMemoryPool *mp, CExpression *expr, const std::string &root_path,
-	const std::vector<std::string> &cut_paths)
+	const std::vector<std::string> &cut_paths, BOOL source_bindings)
 {
-	std::string dsl, error;
-	const BOOL ok = FSlice(mp, expr, root_path, cut_paths, &dsl, &error);
+	std::string dsl, error, bindings;
+	const BOOL ok = FSlice(mp, expr, root_path, cut_paths, &dsl, &error,
+		source_bindings ? &bindings : nullptr);
 	std::ostringstream out;
 	out << "{\"schema\":\"pgorca.dsl.plan-slice.v1\",\"root_path\":"
 		<< JsonString(root_path) << ",\"cut_paths\":[";
@@ -1019,8 +1276,10 @@ CDSLPlanTemplate::SliceArtifact(
 	}
 	out << "],\"status\":\"" << (ok ? "ok" : "error") << "\",";
 	if (ok)
-		out << "\"source_template\":" << JsonString(dsl) << ",\"error\":null}";
+		out << "\"source_template\":" << JsonString(dsl) << ",\"error\":null";
 	else
-		out << "\"source_template\":null,\"error\":" << JsonString(error) << "}";
+		out << "\"source_template\":null,\"error\":" << JsonString(error);
+	if (source_bindings) out << ",\"source_bindings\":" << (ok ? bindings : "null");
+	out << '}';
 	return out.str();
 }

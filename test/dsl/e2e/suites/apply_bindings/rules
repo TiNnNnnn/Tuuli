@@ -3,3 +3,25 @@ InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerApply<Not(Not(p0)) a3 a4 a5>(I
 LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiApply<Not(Not(p0)) a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2
+# Fresh row Apply construction, without a source Apply metadata carrier.
+# LeftApply construction requires a strict scalar RHS bound in the runtime.
+InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsEmpty(a4)
+LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsEmpty(a4)
+# Scalar lowering construction probe; not a production proof certificate.
+# Reuse the comparison as ON; NULL rejection preserves empty-subquery filtering.
+# An empty key requires at most one RHS row. A streaming Assert is not a
+# substitute: an outer LIMIT can stop before it observes the second row.
+# SemiApply retains exactly the outer output interface and multiplicity.
+# Match the source-conditional proof: moving n0 into the RHS filter requires
+# operand safety and no capture by the RHS output scope.
+Filter<Compare(c0,Args(n0,Args(Subquery(a0,t1),Args()))) a1>(Input<t0>)|SemiApply<p0 a3 a4 a5>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := a1;a4 := a0;n1 := Column(a4);v0 := Args();v1 := Args(n1,v0);v2 := Args(n0,v1);p0 := Compare(c0,v2);AttrsEmpty(a5);Unique(t1,a5);PredicateNullRejecting(p0,a4);ErrorFree(p0);Deterministic(p0);ErrorFree(t1);Deterministic(t1);ErrorFree(n0);Deterministic(n0);a6 := ScalarDeps(n0);OutputAttrs(a7,t1);DepsDisjoint(a6,a7)
+# Scalar projection materialization, checked by the native source-conditional
+# proof. This runtime probe is not an unconditional production certificate.
+Proj<a0 s0 Item(n0,a1,Item())>(Input<t0>)|Proj<a2 s1 e0>(LeftApply(Input<t1>,Input<t2>))|Subquery(a3,t3) := n0;t1 := t0;t2 := t3;s1 := s0;n1 := Column(a3);e1 := Item();e0 := Item(n1,a1,e1);a2 := ScalarDeps(e0);OutputAttrs(a4,t0);OutputAttrs(a5,t3);DepsDisjoint(a4,a5);ErrorFree(n0);Deterministic(n0)
+# Compose the same observation under a call with an independent expression.
+Proj<a0 s0 Item(Call(h0,Args(n4,Args(n0,Args()))),a1,Item())>(Input<t0>)|Proj<a2 s1 e0>(LeftApply(Input<t1>,Input<t2>))|Subquery(a3,t3) := n0;t1 := t0;t2 := t3;s1 := s0;n1 := Column(a3);e1 := Item();v0 := Args();v1 := Args(n1,v0);v2 := Args(n4,v1);n2 := Call(h0,v2);e0 := Item(n2,a1,e1);a2 := ScalarDeps(e0);OutputAttrs(a4,t0);OutputAttrs(a5,t3);DepsDisjoint(a4,a5);a8 := ScalarDeps(n4);DepsDisjoint(a8,a5);ErrorFree(n0);Deterministic(n0)
+# Preserve an arbitrary remaining SELECT list under the same source contract.
+Proj<a0 s0 Item(n0,a1,e0)>(Input<t0>)|Proj<a2 s1 e2>(LeftApply(Input<t1>,Input<t2>))|Subquery(a3,t3) := n0;t1 := t0;t2 := t3;s1 := s0;n1 := Column(a3);e2 := Item(n1,a1,e0);a2 := ScalarDeps(e2);OutputAttrs(a4,t0);OutputAttrs(a5,t3);DepsDisjoint(a4,a5);a6 := ScalarDeps(e0);DepsDisjoint(a6,a5);ErrorFree(n0);Deterministic(n0)
+# Arbitrary scalar Context extraction with scoped dependency evidence. This
+# source-conditional runtime probe is not an unconditional production certificate.
+Proj<a0 s0 Item(n4,a1,e0)>(Input<t0>)|Proj<a2 s1 e2>(LeftApply(Input<t1>,Input<t2>))|Context(n0) := n4;Subquery(a3,t3) := n0;t1 := t0;t2 := t3;s1 := s0;n1 := Column(a3);n2 := Context(n4,n1);e2 := Item(n2,a1,e0);a2 := ScalarDeps(e2);OutputAttrs(a4,t0);OutputAttrs(a5,t3);DepsDisjoint(a4,a5);a6 := ScalarDeps(e0);DepsDisjoint(a6,a5);ErrorFree(n0);Deterministic(n0);a8 := ScalarDeps(n4);DepsDisjoint(a8,a5)

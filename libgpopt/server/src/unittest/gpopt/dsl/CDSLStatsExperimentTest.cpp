@@ -15,20 +15,28 @@
 
 #include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/COrderSpec.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarFunc.h"
+#include "gpopt/operators/CScalarOp.h"
+#include "naucrates/md/CMDIdGPDB.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -56,11 +64,69 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_CachedLogicalContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_ShapesAndBindings),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *input = fixture.PexprLogicalGet("symbols", 1, &cols);
+	BOOL valid = true;
+	for (ULONG kind = 0; kind < 4; ++kind)
+	{
+		CExpression *comparison = fixture.PexprEqConst((*cols)[0], 7);
+		COperator *op = comparison->Pop();
+		if (0 == kind)
+			op->AddRef();
+		else if (1 == kind)
+		{
+			IMDId *id = CScalar::PopConvert(op)->MdIdOp();
+			id->AddRef();
+			op = GPOS_NEW(mp) CScalarOp(mp, id, nullptr,
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("same_name")));
+		}
+		else
+		{
+			IMDId *type = CScalar::PopConvert(op)->MdidType();
+			type->AddRef();
+			op = GPOS_NEW(mp) CScalarFunc(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 2 == kind ? 65 : 66),
+				type, default_type_modifier,
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("same_name")), 0, false);
+		}
+		comparison->Release();
+		CExpression *call = GPOS_NEW(mp) CExpression(mp, op,
+			CUtils::PexprScalarIdent(mp, (*cols)[0]), CUtils::PexprScalarConstInt4(mp, 7));
+		CExpression *select = fixture.PexprLogicalSelect(input, call);
+		const std::string before = CDSLStatsExperimentSnapshot::Fingerprint(mp, select);
+		const std::string artifact = CDSLPlanTemplate::Serialize(mp, select);
+		const size_t first = artifact.find("\"path\":\"s1/0\"");
+		const size_t second = artifact.find("\"path\":\"s1/1\"");
+		const std::string identity = kind < 2 ? "\"operator_mdid\":\"0.96.1.0\""
+			: "\"function_mdid\":\"0." + std::to_string(2 == kind ? 65 : 66) + ".1.0\"";
+		const BOOL matches = first != std::string::npos && second != std::string::npos && first < second &&
+			artifact.substr(0, first).find(identity) != std::string::npos &&
+			artifact.substr(first, second - first).find("\"operator\":\"CScalarIdent\"") != std::string::npos &&
+			artifact.substr(second).find("\"operator\":\"CScalarConst\"") != std::string::npos &&
+			artifact.substr(first).find("_mdid\"") == std::string::npos &&
+			before == CDSLStatsExperimentSnapshot::Fingerprint(mp, select);
+		if (!matches)
+			GPOS_TRACE_FORMAT("Unexpected symbol metadata: %s", artifact.c_str());
+		valid &= matches;
+		select->Release();
+		call->Release();
+	}
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
@@ -203,6 +269,106 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 	ok &= CDSLPlanTemplate::FSlice(mp, select_join, "r", {}, &text, &error) &&
 		std::string::npos != text.find("Not(") &&
 		std::string::npos != text.find("InnerJoin<");
+	// A canonical child without scalar expansion must not erase its parent's
+	// expression structure. Retain dedup, real aggregate and Limit/Sort views.
+	for (ULONG trial = 0; trial < 3; ++trial)
+	{
+		CExpression *grouped = nullptr;
+		if (trial < 2)
+			grouped = fixture.PexprLogicalGbAgg(get, cols,
+				trial ? fixture.PcrCreateInt4("maximum") : nullptr);
+		else
+		{
+			COrderSpec *order = GPOS_NEW(mp) COrderSpec(mp);
+			IMDId *compare = (*cols)[0]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptL);
+			compare->AddRef();
+			order->Append(compare, (*cols)[0], COrderSpec::EntLast);
+			get->AddRef();
+			grouped = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLimit(mp, order, true, true, false), get,
+				CUtils::PexprScalarConstInt8(mp, 0), CUtils::PexprScalarConstInt8(mp, 3));
+		}
+		std::string canonical;
+		BOOL trial_ok = CDSLPlanTemplate::FSlice(mp, grouped, "r", {}, &canonical, &error);
+		CExpression *filtered = fixture.PexprLogicalSelect(grouped, negated);
+		const std::string fingerprint = CDSLStatsExperimentSnapshot::Fingerprint(mp, filtered);
+		trial_ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {}, &text, &error) &&
+			error.empty() && text.find("Filter<Not(") == 0 &&
+			text.find(">(" + canonical + ")") != std::string::npos;
+		if (!trial_ok)
+			std::cerr << "Canonical child: " << canonical << "; mixed: " << text
+				<< "; error: " << error << std::endl;
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
+			(text + "|Input<t1>|t1 := t0").c_str(), nullptr, nullptr);
+		CExpression *atom = fixture.PexprEqConst((*cols)[0], 7);
+		CExpression *plain = fixture.PexprLogicalSelect(grouped, atom);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		trial_ok &= nullptr != rule && !CDSLMatcher(mp, rule).FMatch(
+			rule->PfragSrc()->PopRoot(), plain, model);
+		model->Release();
+		CRefCount::SafeRelease(rule);
+		plain->Release();
+		atom->Release();
+		trial_ok &= fingerprint == CDSLStatsExperimentSnapshot::Fingerprint(mp, filtered);
+		trial_ok &= CDSLPlanTemplate::FSlice(mp, filtered, "r", {"r/0"}, &text, &error) &&
+			text.find("Filter<Not(") == 0 &&
+			text.find(">(Input<t0>)") != std::string::npos;
+		filtered->Release();
+		grouped->Release();
+		if (!trial_ok)
+			std::cerr << "Canonical composition trial " << trial << "; cut: " << text
+				<< "; error: " << error << std::endl;
+		ok &= trial_ok;
+	}
+	// Canonical wrappers must not hide expressions below them either. Keep
+	// the wrapper's original symbols and stop exactly at the selected cut.
+	for (ULONG aggregate = 0; aggregate < 2; ++aggregate)
+	{
+		CExpression *filtered = fixture.PexprLogicalSelect(get, negated);
+		CExpression *wrapped = fixture.PexprLogicalGbAgg(filtered, cols,
+			aggregate ? fixture.PcrCreateInt4("wrapped_maximum") : nullptr);
+		BOOL trial_ok = CDSLPlanTemplate::FSlice(mp, wrapped, "r", {}, &text, &error) &&
+			text.find(aggregate ? "Agg<" : "Proj*<") == 0 &&
+			text.find("Filter<Not(") != std::string::npos;
+		if (!trial_ok)
+			std::cerr << "Lost child expression under canonical wrapper: " << text
+				<< "; error: " << error << std::endl;
+		trial_ok &= CDSLPlanTemplate::FSlice(mp, wrapped, "r", {"r/0"}, &text, &error) &&
+			text.find("Filter<") == std::string::npos &&
+			text.find(">(Input<t0>)") != std::string::npos;
+		wrapped->Release();
+		filtered->Release();
+		ok &= trial_ok;
+	}
+	for (ULONG branches = 2; branches < 4; ++branches)
+	{
+		CExpression *filtered = fixture.PexprLogicalSelect(get, negated);
+		CExpressionArray *inputs = GPOS_NEW(mp) CExpressionArray(mp);
+		CColRef2dArray *input_cols = GPOS_NEW(mp) CColRef2dArray(mp);
+		for (ULONG i = 0; i < branches; ++i)
+		{
+			filtered->AddRef();
+			inputs->Append(filtered);
+			cols->AddRef();
+			input_cols->Append(cols);
+		}
+		cols->AddRef();
+		CExpression *set = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalUnionAll(mp, cols, input_cols), inputs);
+		BOOL trial_ok = CDSLPlanTemplate::FSlice(mp, set, "r", {}, &text, &error);
+		const size_t first = text.find("Filter<Not(");
+		// A binary native node has positional child correspondence. Folding a
+		// three-way Union to two DSL nodes does not; leave that view opaque.
+		trial_ok &= branches == 2
+			? first != std::string::npos && text.find("Filter<Not(", first + 1) != std::string::npos
+			: first == std::string::npos;
+		if (!trial_ok)
+			std::cerr << "Set frontier with " << branches << " branches: " << text
+				<< "; error: " << error << std::endl;
+		set->Release();
+		filtered->Release();
+		ok &= trial_ok;
+	}
 	nested->Release();
 	select_join->Release();
 	negated->Release();
@@ -294,6 +460,81 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 			CUtils::PexprScalarProjectElement(mp, second, CUtils::PexprScalarIdent(mp, (*cols)[0])),
 			CUtils::PexprScalarProjectElement(mp, first, CUtils::PexprScalarIdent(mp, (*right_cols)[0]))));
 	const std::string columns_artifact = CDSLPlanTemplate::Serialize(mp, project);
+	std::string binding_template, binding_error, bindings;
+	BOOL binding_facts = CDSLPlanTemplate::FSlice(mp, project, "r", {"r/0"},
+		&binding_template, &binding_error, &bindings) &&
+		bindings.find("\"symbol\":\"s0\",\"kind\":\"s\",\"bound\":true,\"columns\":[" +
+			column(second) + ',' + column(first) + ']') != std::string::npos &&
+		bindings.find(outer_column) != std::string::npos &&
+		bindings.find(local_column) != std::string::npos &&
+		bindings.find("\"symbol\":\"t0\",\"kind\":\"t\",\"bound\":true") != std::string::npos &&
+		bindings.find("\"complete\":true}") != std::string::npos;
+	const std::string bound_slice = CDSLPlanTemplate::SliceArtifact(mp, project, "r", {"r/0"}, true);
+	binding_facts &= bound_slice.find("\"source_bindings\":" + bindings) != std::string::npos &&
+		CDSLPlanTemplate::SliceArtifact(mp, project, "r", {"r/0"}).find("source_bindings") == std::string::npos;
+	// Invalid selections cannot retain a previous successful binding snapshot.
+	binding_facts &= !CDSLPlanTemplate::FSlice(mp, project, "r/99", {},
+		&binding_template, &binding_error, &bindings) && bindings.empty() &&
+		CDSLPlanTemplate::SliceArtifact(mp, project, "r/99", {}, true).find(
+			"\"source_bindings\":null}") != std::string::npos;
+	// Production rules use their own source symbols, not those of a slice's
+	// temporary carrier. Observe the same matched model without rebuilding it.
+	CWStringDynamic production_errors(mp);
+	CDSLRule *production = CDSLRuleParser::PdslruleParse(mp,
+		"Compute<e8 a8 s8>(Input<t8>)|Compute<e9 a9 s9>(Input<t9>)|"
+		"t9 := t8;e9 := e8;a9 := a8;s9 := s8", "EQ", &production_errors);
+	binding_facts &= nullptr != production;
+	if (nullptr != production)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		binding_facts &= CDSLMatcher(mp, production).FMatch(
+			production->PfragSrc()->PopRoot(), project, model);
+		const ULONG size = model->Size();
+		const std::string actual = CDSLPlanTemplate::MatchedSourceBindings(production, model);
+		binding_facts &= actual.find("\"symbol\":\"e8\",\"kind\":\"e\",\"bound\":true") != std::string::npos &&
+			actual.find("\"symbol\":\"t8\",\"kind\":\"t\",\"bound\":true") != std::string::npos &&
+			actual.find("\"symbol\":\"e9\"") == std::string::npos &&
+			actual.find("\"complete\":true}") != std::string::npos && model->Size() == size;
+		binding_facts &= actual.find("\"source_paths\":[\"r/e:0\"]") != std::string::npos &&
+			actual.find("\"source_paths\":[\"r/0/t:0\"]") != std::string::npos;
+		const std::string context = CDSLStatsExperimentSnapshot::BindingContext(production, model, true);
+		binding_facts &= context.find("\"rule_hash\":\"" + std::string(production->SzIdentity()) + '"') != std::string::npos &&
+			context.find("\"source_bindings\":" + actual) != std::string::npos &&
+			CDSLStatsExperimentSnapshot::BindingContext(production, model).find("source_bindings") == std::string::npos;
+		model->Release();
+		// Incomplete Memo bindings cannot masquerade as complete input trees.
+		CDSLModel *incomplete = GPOS_NEW(mp) CDSLModel(mp);
+		CExpression *leaf = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp));
+		for (ULONG i = 0; i < production->PfragSrc()->Pdrgpsym()->Size(); ++i)
+		{
+			const CDSLSymbol *symbol = (*production->PfragSrc()->Pdrgpsym())[i];
+			if (EdslsymTable == symbol->Esymkind()) incomplete->FBind(symbol, leaf);
+		}
+		const std::string missing = CDSLPlanTemplate::MatchedSourceBindings(production, incomplete);
+		binding_facts &= missing.find("\"expression\":null") != std::string::npos &&
+			missing.find("\"bound\":false") != std::string::npos &&
+			missing.find("\"complete\":false}") != std::string::npos;
+		leaf->Release();
+		incomplete->Release();
+		production->Release();
+	}
+	CDSLRule *items = CDSLRuleParser::PdslruleParse(mp,
+		"Compute<Item(n8,a7,Item(n7,a6,e8)) a8 s8>(Input<t8>)|"
+		"Compute<e9 a9 s9>(Input<t9>)|t9 := t8;e9 := e8;a9 := a8;s9 := s8",
+		"EQ", &production_errors);
+	binding_facts &= nullptr != items;
+	if (nullptr != items)
+	{
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		binding_facts &= CDSLMatcher(mp, items).FMatch(items->PfragSrc()->PopRoot(), project, model);
+		const std::string actual = CDSLPlanTemplate::MatchedSourceBindings(items, model);
+		binding_facts &= actual.find("\"source_paths\":[\"r/e:0/Item:0\"]") != std::string::npos &&
+			actual.find("\"source_paths\":[\"r/e:0/Item:2/Item:0\"]") != std::string::npos &&
+			actual.find("\"source_paths\":[\"r/e:0/Item:2/Item:2\"]") != std::string::npos &&
+			actual.find("\"complete\":true}") != std::string::npos;
+		model->Release();
+		items->Release();
+	}
 	const auto item_has = [&columns_artifact](const char *path, const std::string &facts) {
 		const size_t start = columns_artifact.find(std::string("\"path\":\"") + path + '"');
 		if (std::string::npos == start)
@@ -318,6 +559,90 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		"\"arity\":1,\"column_facts\":{\"used\":[" + outer_column +
 		"],\"defined\":[],\"value_type\":\"0.16.1.0\",\"value_typmod\":-1}") &&
 		std::string::npos != nested_artifact.find("\"output\":[" + outer_column + "],\"outer\":[]");
+	// A free-reference set hides local reads after the enclosing row binds
+	// them. The retained-scope footprint must still expose both identities.
+	CColRefSet *frame = dslproperties::PcrsFrameReads(mp, outer_select);
+	BOOL frame_facts = nullptr != frame && frame->Size() == 2 &&
+		frame->FMember((*cols)[0]) && frame->FMember((*right_cols)[0]);
+	CRefCount::SafeRelease(frame);
+	frame = dslproperties::PcrsFrameReads(mp, get);
+	frame_facts &= nullptr != frame && 0 == frame->Size();
+	CRefCount::SafeRelease(frame);
+	CExpression *grouped = fixture.PexprLogicalGbAgg(right, right_cols,
+		first, (*right_cols)[0]);
+	binding_facts &= CDSLPlanTemplate::FSlice(mp, grouped, "r", {"r/0"},
+		&binding_template, &binding_error, &bindings) &&
+		bindings.find("\"kind\":\"f\",\"bound\":true,\"expressions\":[") != std::string::npos;
+	CExpression *grouped_exists = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubqueryExists(mp), grouped);
+	frame = dslproperties::PcrsFrameReads(mp, grouped_exists);
+	frame_facts &= grouped_exists->DeriveUsedColumns()->Size() == 0 &&
+		nullptr != frame && frame->Size() == 1 && frame->FMember((*right_cols)[0]);
+	CRefCount::SafeRelease(frame);
+	frame_facts &= CDSLPlanTemplate::Serialize(mp, grouped).find(
+		"\"frame_reads\":[" + local_column + ']') != std::string::npos;
+	grouped->AddRef();
+	CExpression *grouped_scalar = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubquery(mp, first, false, false), grouped);
+	frame = dslproperties::PcrsFrameReads(mp, grouped_scalar);
+	frame_facts &= nullptr != frame && frame->Size() == 2 && frame->FMember(first) &&
+		frame->FMember((*right_cols)[0]);
+	CRefCount::SafeRelease(frame);
+	grouped_scalar->Release();
+	grouped_exists->Release();
+	for (ULONG shape = 0; shape < 7; ++shape)
+	{
+		plain_select->AddRef();
+		CExpression *offset = 3 == shape ? CUtils::PexprScalarIdent(mp, (*cols)[0])
+			: CUtils::PexprScalarConstInt8(mp, 1 == shape ? -1 : 6 == shape ? 2 : 0);
+		CExpression *count = CUtils::PexprScalarConstInt8(mp, 4 == shape ? -1 : 1,
+			2 == shape || 5 <= shape);
+		CExpression *limit = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true,
+				shape < 5, false), plain_select, offset, count);
+		frame = dslproperties::PcrsFrameReads(mp, limit);
+		const BOOL known = 0 == shape || 5 <= shape;
+		frame_facts &= known ? nullptr != frame && frame->Size() == 1 && frame->FMember((*cols)[0])
+			: nullptr == frame;
+		CRefCount::SafeRelease(frame);
+		limit->Release();
+	}
+	// Unknown stays unknown even inside EXISTS or a Boolean branch. Never
+	// report an empty set just because a node has no free column references.
+	right->AddRef();
+	CExpression *unknown = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalMaxOneRow(mp), right);
+	frame_facts &= dslproperties::PcrsFrameReads(mp, unknown) == nullptr &&
+		CDSLPlanTemplate::Serialize(mp, unknown).find("\"frame_reads\":null") != std::string::npos;
+	binding_facts &= CDSLPlanTemplate::FSlice(mp, unknown, "r", {"r"},
+		&binding_template, &binding_error, &bindings) &&
+		bindings.find("\"frame_reads\":null") != std::string::npos;
+	// The coarse dedup view uses the same snapshot path without inline bindings.
+	binding_facts &= CDSLPlanTemplate::FSlice(mp, dedup, "r", {"r/0"},
+		&binding_template, &binding_error, &bindings) &&
+		bindings.find("\"symbol\":\"s0\",\"kind\":\"s\",\"bound\":true,\"columns\":[" +
+			outer_column + ']') != std::string::npos;
+	CWStringDynamic binding_request_errors(mp);
+	for (BOOL enabled : {false, true})
+	{
+		const std::string config = "experiment: bindings\ntemplate_root: r\n"
+			"template_cuts: [r/0]\ntemplate_bindings: " + std::string(enabled ? "true" : "false") +
+			"\ncardinalities:\n";
+		CDSLStatsExperimentSnapshot *bound_request = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
+			mp, config.c_str(), plain_select, &binding_request_errors);
+		binding_facts &= nullptr != bound_request &&
+			(bound_request->TemplateSelectionArtifact(plain_select).find("source_bindings") !=
+				std::string::npos) == enabled;
+		GPOS_DELETE(bound_request);
+	}
+	CExpression *unknown_exists = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSubqueryExists(mp), unknown);
+	CExpression *junction = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
+		CUtils::PexprScalarConstBool(mp, false), unknown_exists);
+	frame_facts &= dslproperties::PcrsFrameReads(mp, junction) == nullptr &&
+		dslproperties::PcrsFrameReads(mp, nullptr) == nullptr;
+	junction->Release();
 	outer_select->Release();
 	correlated_exists->Release();
 	project->Release();
@@ -339,7 +664,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		std::string::npos != artifact.find("\"complete\":true}") &&
 		std::string::npos != query_context.find("\"plan_template\":" + artifact) &&
 		std::string::npos == candidate_context.find("\"plan_template\"") &&
-		column_facts && nested_facts &&
+		column_facts && nested_facts && frame_facts && binding_facts &&
 		selection_valid && selection_error.empty() && exists_sliced &&
 		exists_slice == "Exists(Input<t0>,Input<t1>)" &&
 		exists_error.empty() &&
@@ -1128,7 +1453,10 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 	GPOS_DELETE(snapshot);
 	for (const CHAR *invalid : {duplicate,
 		"experiment: bad\ncardinalities:\n- expression: abcdef0123456789\n rows: 2\n",
-		"experiment: bad\ncardinalities:\n- relations: [a]\n rows: 2\n unknown: 3\n"})
+		"experiment: bad\ncardinalities:\n- relations: [a]\n rows: 2\n unknown: 3\n",
+		"experiment: bad\ntemplate_bindings: true\ncardinalities:\n",
+		"experiment: bad\ntemplate_root: r\ntemplate_bindings: yes\ncardinalities:\n",
+		"experiment: bad\ntemplate_root: r\ntemplate_bindings: true\ntemplate_bindings: false\ncardinalities:\n"})
 	{
 		errors.Reset();
 		valid = valid && !CDSLStatsExperimentSnapshot::FParseRequests(

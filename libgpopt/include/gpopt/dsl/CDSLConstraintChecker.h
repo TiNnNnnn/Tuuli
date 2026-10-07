@@ -222,13 +222,6 @@ public:
 	CDSLConstraintChecker(const CDSLConstraintChecker &) = delete;
 	// SequenceProject represents no ordering by one empty order specification.
 	static BOOL FEmptyOrder(const COrderSpecArray *orders);
-	// Sufficient evidence that early termination and full query evaluation
-	// agree. Unknown/errorful or non-repeatable inputs are not evidence.
-	// Scalar operands use the same totality/determinism traversal.
-	static BOOL FQueryDemandInsensitive(CExpression *pexpr);
-	// Reuse the constraint's evidence when a match view needs a NULL guard.
-	static BOOL FExpressionProvesNotNull(CMemoryPool *mp, CExpression *pexpr,
-		const CColRef *pcr);
 
 	explicit CDSLConstraintChecker(CMemoryPool *mp) : m_mp(mp)
 	{
