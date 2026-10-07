@@ -29,14 +29,96 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/search/CGroupExpression.h"
+#include "naucrates/base/IDatumInt2.h"
+#include "naucrates/base/IDatumInt4.h"
+#include "naucrates/base/IDatumInt8.h"
+#include "naucrates/base/IDatumBool.h"
+#include "naucrates/base/IDatumOid.h"
 
 using namespace gpopt;
 
 namespace
 {
+// Read stored semantic enums only; no metadata/statistics derivation or
+// debug-text parsing. A category is not full operator/function identity.
+const CHAR *ScalarKind(const COperator *op)
+{
+	if (const auto *cmp = dynamic_cast<const CScalarCmp *>(op))
+	{
+		switch (cmp->ParseCmpType())
+		{
+			case IMDType::EcmptEq: return "eq";
+			case IMDType::EcmptNEq: return "neq";
+			case IMDType::EcmptL: return "lt";
+			case IMDType::EcmptLEq: return "le";
+			case IMDType::EcmptG: return "gt";
+			case IMDType::EcmptGEq: return "ge";
+			case IMDType::EcmptIDF: return "distinct";
+			case IMDType::EcmptOther: return "other";
+		}
+	}
+	if (const auto *boolean = dynamic_cast<const CScalarBoolOp *>(op))
+	{
+		switch (boolean->Eboolop())
+		{
+			case CScalarBoolOp::EboolopAnd: return "and";
+			case CScalarBoolOp::EboolopOr: return "or";
+			case CScalarBoolOp::EboolopNot: return "not";
+			default: break;
+		}
+	}
+	if (const auto *test = dynamic_cast<const CScalarBooleanTest *>(op))
+	{
+		switch (test->Ebt())
+		{
+			case CScalarBooleanTest::EbtIsTrue: return "is_true";
+			case CScalarBooleanTest::EbtIsNotTrue: return "is_not_true";
+			case CScalarBooleanTest::EbtIsFalse: return "is_false";
+			case CScalarBooleanTest::EbtIsNotFalse: return "is_not_false";
+			case CScalarBooleanTest::EbtIsUnknown: return "is_unknown";
+			case CScalarBooleanTest::EbtIsNotUnknown: return "is_not_unknown";
+			default: break;
+		}
+	}
+	return nullptr;
+}
+
+void ConstantContext(std::ostream &out, gpnaucrates::IDatum *datum)
+{
+	using namespace gpnaucrates;
+	const CHAR *kinds[] = {"int2", "int4", "int8", "bool", "oid", "generic"};
+	static_assert(GPOS_ARRAY_SIZE(kinds) == IMDType::EtiGeneric + 1, "datum kinds changed");
+	const auto type = datum->GetDatumType();
+	const BOOL known_type = IMDType::EtiInt2 <= type && type < IMDType::EtiGeneric;
+	const BOOL is_null = datum->IsNull();
+	out << ",\"constant\":{\"kind\":\"" << (known_type ? kinds[type] : "generic")
+		<< "\",\"is_null\":" << (is_null ? "true" : "false")
+		<< ",\"value_observed\":" << (is_null || known_type ? "true" : "false")
+		<< ",\"value\":";
+	// Generic datum statistics mappings can be lossy (or hashes). They are
+	// never a substitute for a typed SQL literal, including for non-null values.
+	if (is_null || !known_type)
+		out << "null";
+	else
+	{
+		switch (type)
+		{
+			case IMDType::EtiInt2: out << dynamic_cast<IDatumInt2 *>(datum)->Value(); break;
+			case IMDType::EtiInt4: out << dynamic_cast<IDatumInt4 *>(datum)->Value(); break;
+			case IMDType::EtiInt8: out << dynamic_cast<IDatumInt8 *>(datum)->Value(); break;
+			case IMDType::EtiBool: out << (dynamic_cast<IDatumBool *>(datum)->GetValue() ? "true" : "false"); break;
+			case IMDType::EtiOid: out << dynamic_cast<IDatumOid *>(datum)->OidValue(); break;
+			default: break;
+		}
+	}
+	out << "}";
+}
+
 std::string
 JsonString(const std::string &value)
 {
@@ -159,8 +241,12 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		if (nullptr != scalar->MdIdOp())
 			*out << ",\"operator_mdid\":" << MetadataId(mp, scalar->MdIdOp());
 		if (COperator::EopScalarFunc == expr->Pop()->Eopid())
-			*out << ",\"function_mdid\":" << MetadataId(mp,
-				CScalarFunc::PopConvert(expr->Pop())->FuncMdId());
+		{
+			const auto *function = CScalarFunc::PopConvert(expr->Pop());
+			*out << ",\"function_mdid\":" << MetadataId(mp, function->FuncMdId())
+				<< ",\"function_format\":" << function->FuncFormat()
+				<< ",\"function_variadic\":" << (function->IsFuncVariadic() ? "true" : "false");
+		}
 	}
 	*out << '}';
 }
@@ -182,6 +268,7 @@ AppendExpressionTree(CMemoryPool *mp, std::ostringstream *out,
 			<< ",\"operator\":" << JsonString(current.first->Pop()->SzId())
 			<< ",\"operator_text\":" << JsonString(OperatorText(mp, current.first))
 			<< ",\"arity\":" << current.first->Arity();
+		CDSLPlanTemplate::AppendScalarContext(*out, current.first->Pop());
 		AppendColumnFacts(mp, out, current.first);
 		*out << '}';
 		for (ULONG i = current.first->Arity(); i > 0; --i)
@@ -1038,6 +1125,15 @@ CDSLPlanTemplate::ExpressionShape(const CExpression *expr)
 	return out.str();
 }
 
+void
+CDSLPlanTemplate::AppendScalarContext(std::ostream &out, const COperator *op)
+{
+	if (const CHAR *kind = ScalarKind(op))
+		out << ",\"scalar_kind\":\"" << kind << "\"";
+	if (const auto *constant = dynamic_cast<const CScalarConst *>(op))
+		ConstantContext(out, constant->GetDatum());
+}
+
 std::string
 CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 {
@@ -1095,6 +1191,7 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 			out << "]}";
 		}
 		out << ']';
+		AppendScalarContext(out, node->Pop());
 		AppendColumnFacts(mp, &out, node);
 		out << '}';
 		for (ULONG i = relational.size(); i > 0; --i)
