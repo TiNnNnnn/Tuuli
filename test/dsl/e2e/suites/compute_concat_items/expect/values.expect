@@ -1,0 +1,69 @@
+{
+  "description": "Fuse real Items over captured VALUES with native CollapseProject disabled; retain NULLs and duplicate rows",
+  "plans": [
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\"",
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "source-bindings.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ],
+    "postgres_output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ],
+    "off_output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ]
+  }
+}

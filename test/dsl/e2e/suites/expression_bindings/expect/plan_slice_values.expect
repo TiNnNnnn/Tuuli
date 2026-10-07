@@ -1,0 +1,43 @@
+{
+  "description": "Capture actual typed VALUES rows, retaining duplicate rows and typed NULLs for the source decoder",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "Input<t0>",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "-9223372036854775808,,t",
+      "-9223372036854775808,,t",
+      "7,3,"
+    ],
+    "postgres_output": [
+      "-9223372036854775808,,t",
+      "-9223372036854775808,,t",
+      "7,3,"
+    ],
+    "off_output": [
+      "-9223372036854775808,,t",
+      "-9223372036854775808,,t",
+      "7,3,"
+    ]
+  }
+}
