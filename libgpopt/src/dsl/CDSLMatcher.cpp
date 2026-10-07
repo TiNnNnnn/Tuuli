@@ -433,6 +433,13 @@ CDSLMatcher::FMatchSortView(const CDSLOp *popSort,
 	{
 		return false;
 	}
+	// The typed source contract requires keys in this input's row schema.
+	// Checking only the rebuilt target misses eliminating rewrites. Preserve
+	// the legacy attribute-only matcher's domain until its rules are migrated.
+	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
+		for (ULONG i = 0; i < pos->UlSortColumns(); ++i)
+			if (!pexprChild->DeriveOutputColumns()->FMember(pos->Pcr(i)))
+				return false;
 	if (EdslsortSpec == popSort->Edslsort())
 	{
 		if (EdslsymOrder != (*popSort->Pdrgpsym())[0]->Esymkind())
