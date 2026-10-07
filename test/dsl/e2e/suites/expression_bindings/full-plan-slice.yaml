@@ -1,0 +1,5 @@
+experiment: expression-full-plan-slice
+discover: true
+template_root: r
+template_cuts: []
+cardinalities:

@@ -554,22 +554,6 @@ CDSLRuleEngine::UlRuleId(const CDSLRule *prule) const
 	return nullptr == pulId ? 0 : *pulId;
 }
 
-const CDSLRule *
-CDSLRuleEngine::PdslruleById(ULONG ulRuleId) const
-{
-	// ponytail: keep this trace-only lookup linear; add an inverse map only if
-	// rule-bank scale makes trace finalization measurable.
-	for (ULONG ul = 0; ul < m_pdrgprule->Size(); ++ul)
-	{
-		const CDSLRule *prule = (*m_pdrgprule)[ul];
-		if (ulRuleId == UlRuleId(prule))
-		{
-			return prule;
-		}
-	}
-	return nullptr;
-}
-
 BOOL
 CDSLRuleEngine::FHasOrdinaryProjSourceRoot() const
 {
@@ -577,40 +561,6 @@ CDSLRuleEngine::FHasOrdinaryProjSourceRoot() const
 	{
 		const CDSLOp *popRoot = (*m_pdrgprule)[ul]->PfragSrc()->PopRoot();
 		if (EdslopProj == popRoot->Edslop() && !popRoot->FDistinct())
-		{
-			return true;
-		}
-	}
-	return false;
-}
-
-namespace
-{
-BOOL
-FContainsDSLOperator(const CDSLOp *pop, EDslOpKind edslop)
-{
-	if (pop->Edslop() == edslop)
-	{
-		return true;
-	}
-	for (ULONG ul = 0; ul < pop->UlChildren(); ul++)
-	{
-		if (FContainsDSLOperator((*pop)[ul], edslop))
-		{
-			return true;
-		}
-	}
-	return false;
-}
-}  // namespace
-
-BOOL
-CDSLRuleEngine::FHasSourceOperator(EDslOpKind edslop) const
-{
-	for (ULONG ul = 0; ul < m_pdrgprule->Size(); ul++)
-	{
-		if (FContainsDSLOperator(
-				(*m_pdrgprule)[ul]->PfragSrc()->PopRoot(), edslop))
 		{
 			return true;
 		}

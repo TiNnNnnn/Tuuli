@@ -36,6 +36,32 @@ using namespace gpopt::dslinstantiator;
 
 namespace
 {
+COperator *
+PopFreshRowApply(CMemoryPool *mp, BOOL outer, CExpression *right,
+				 CExpression *predicate)
+{
+	// The native outer Apply requires a scalar RHS max-card contract.
+	if (0 == right->DeriveOutputColumns()->Size() ||
+		(outer && 1 < right->DeriveMaxCard().Ull()))
+		return nullptr;
+	if (0 != right->DeriveOuterReferences()->Size())
+	{
+		// A one-column, at-most-one-row outer Apply ON TRUE has exactly
+		// scalar SubPlan semantics, including NULL on an empty RHS. A wider
+		// row or an inner Apply cannot use that executor representation.
+		if (!outer || 1 != right->DeriveOutputColumns()->Size() ||
+			!CUtils::FScalarConstTrue(predicate))
+			return nullptr;
+		return GPOS_NEW(mp) CLogicalLeftOuterCorrelatedApply(
+			mp, right->DeriveOutputColumns()->Pdrgpcr(mp),
+			COperator::EopScalarSubquery);
+	}
+	CColRefArray *inner = right->DeriveOutputColumns()->Pdrgpcr(mp);
+	return outer
+		? static_cast<COperator *>(GPOS_NEW(mp) CLogicalLeftOuterApply(mp, inner, COperator::EopSentinel))
+		: static_cast<COperator *>(GPOS_NEW(mp) CLogicalInnerApply(mp, inner, COperator::EopSentinel));
+}
+
 const CDSLExpressionDefinitions::CDefinition *
 PdefScalarApply(const CDSLExpressionDefinitions *pexprdefs,
 				const CDSLOp *popApply)
@@ -183,6 +209,27 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fSemiApply = EdslopSemiApply == pop->Edslop();
 	const BOOL fAntiJoin = EdslopAntiJoin == pop->Edslop();
 	const BOOL fAntiApply = EdslopAntiApply == pop->Edslop();
+	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
+	const BOOL fLeftOuterApply = EdslopLeftOuterApply == pop->Edslop();
+	if ((fInnerApply || fLeftOuterApply) && 0 == ulSymbols)
+	{
+		CExpression *left = PexprBuild((*pop)[0], pmodel);
+		CExpression *right = PexprBuild((*pop)[1], pmodel);
+		CExpression *predicate = CUtils::PexprScalarConstBool(m_mp, true);
+		COperator *apply = nullptr;
+		if (nullptr != left && nullptr != right &&
+			left->DeriveOutputColumns()->IsDisjoint(right->DeriveOutputColumns()))
+			apply = PopFreshRowApply(m_mp, fLeftOuterApply, right, predicate);
+		if (nullptr == apply)
+		{
+			CRefCount::SafeRelease(left);
+			CRefCount::SafeRelease(right);
+			predicate->Release();
+			return nullptr;
+		}
+		return GPOS_NEW(m_mp) CExpression(m_mp, apply, left, right,
+			predicate);
+	}
 	if ((fSemiApply || fAntiApply) && 0 == ulSymbols)
 	{
 		// An existential Apply without ON observes the complete right input.
@@ -214,8 +261,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 	const BOOL fAntiJoinNotIn = EdslopAntiJoinNotIn == pop->Edslop();
 	const BOOL fAntiApplyNotIn = EdslopAntiApplyNotIn == pop->Edslop();
-	const BOOL fInnerApply = EdslopInnerApply == pop->Edslop();
-	const BOOL fLeftOuterApply = EdslopLeftOuterApply == pop->Edslop();
 	const BOOL fFullJoin = EdslopFullJoin == pop->Edslop();
 	const BOOL fPredicateJoin =
 		fFullJoin || fSemiJoin || fAntiJoin || fAntiJoinNotIn;
@@ -608,10 +653,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 					return false;
 			return true;
 		};
-		// A new explicit existential Apply needs no scalar-subquery carrier.
+		// A fresh ordinary Apply needs no scalar-subquery carrier.
 		// Do not silently discard incompatible metadata from a source Apply.
 		if (bindings && (!findCarrier(findCarrier, m_prule->PfragSrc()->PopRoot()) ||
-			(nullptr == pexprCarrier && (hasSourceCarrier || !(fSemiApply || fAntiApply)))))
+			(nullptr == pexprCarrier && hasSourceCarrier)))
 		{
 			pexprTargetPred->Release();
 			pexprLeft->Release();
@@ -794,15 +839,18 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			popJoin = GPOS_NEW(m_mp) CLogicalLeftAntiSemiApplyNotIn(m_mp);
 			break;
 		case EdslopInnerApply:
-			if (nullptr == popJoin)
-			{
-				popJoin = GPOS_NEW(m_mp) CLogicalInnerApply(m_mp);
-			}
-			break;
 		case EdslopLeftOuterApply:
 			if (nullptr == popJoin)
 			{
-				popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterApply(m_mp);
+				popJoin = PopFreshRowApply(m_mp, fLeftOuterApply, pexprRight,
+					pexprTargetPred);
+				if (nullptr == popJoin)
+				{
+					pexprTargetPred->Release();
+					pexprLeft->Release();
+					pexprRight->Release();
+					return nullptr;
+				}
 			}
 			break;
 		default:

@@ -1,0 +1,56 @@
+{
+  "description": "Fresh explicit InnerApply preserves independent inputs and duplicate join rows",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a8b0c58b00786b95\"",
+        "CLogicalInnerApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_JoinApply"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

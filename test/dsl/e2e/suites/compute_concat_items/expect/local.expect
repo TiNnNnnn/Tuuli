@@ -1,0 +1,194 @@
+{
+  "description": "Explicit Item fusion with native CollapseProject disabled; NULLs and duplicate rows retained",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "status": "runtime_probe",
+    "scope": "total deterministic row-scalar Items with independent upper definitions; conditional proof is not a deployment certificate",
+    "dsl_rule_hashes": [
+      "139055af52f86b98"
+    ],
+    "excluded_native_domains": [
+      "SRFs, potentially failing or nondeterministic definitions, dependent upper definitions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "source-bindings.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "139055af52f86b98",
+          "symbols": [
+            {
+              "symbol": "e0",
+              "kind": "e",
+              "bound": true,
+              "source_paths": [
+                "r/e:0"
+              ]
+            },
+            {
+              "symbol": "e1",
+              "kind": "e",
+              "bound": true,
+              "source_paths": [
+                "r/0/e:0/Item:2"
+              ]
+            },
+            {
+              "symbol": "n0",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/0/e:0/Item:0"
+              ]
+            },
+            {
+              "symbol": "t0",
+              "kind": "t",
+              "bound": true,
+              "source_paths": [
+                "r/0/0/t:0"
+              ]
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ],
+    "postgres_output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ],
+    "off_output": [
+      ",,,t,f",
+      "0,f,f,f,f",
+      "1,t,f,f,f",
+      "2,t,f,,t",
+      "2,t,f,,t",
+      "3,t,t,t,f"
+    ],
+    "plan_outputs": {
+      "native": [
+        ",,,t,f",
+        "0,f,f,f,f",
+        "1,t,f,f,f",
+        "2,t,f,,t",
+        "2,t,f,,t",
+        "3,t,t,t,f"
+      ],
+      "shadow": [
+        ",,,t,f",
+        "0,f,f,f,f",
+        "1,t,f,f,f",
+        "2,t,f,,t",
+        "2,t,f,,t",
+        "3,t,t,t,f"
+      ],
+      "negative": [
+        ",,,t,f",
+        "0,f,f,f,f",
+        "1,t,f,f,f",
+        "2,t,f,,t",
+        "2,t,f,,t",
+        "3,t,t,t,f"
+      ],
+      "replacement": [
+        ",,,t,f",
+        "0,f,f,f,f",
+        "1,t,f,f,f",
+        "2,t,f,,t",
+        "2,t,f,,t",
+        "3,t,t,t,f"
+      ]
+    }
+  }
+}

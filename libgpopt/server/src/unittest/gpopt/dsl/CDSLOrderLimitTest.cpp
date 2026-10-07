@@ -178,12 +178,77 @@ CDSLOrderLimitTest::EresUnittest_PlanTemplateSlice()
 	std::string error;
 	BOOL valid = CDSLPlanTemplate::FSlice(
 		mp, pexprLimit, "r", {"r/0"}, &dsl, &error) &&
-		dsl == "Limit<n0 n1>(SortAsc<a0>(Input<t0>))" && error.empty();
+		dsl == "Limit<n0 n1>(SortBy<o0>(Input<t0>))" && error.empty();
 	CExpression *pexprWindow = PexprWindowRows(
 		mp, fix, pexprGet, (*pdrgpcr)[0], (*pdrgpcr)[0]);
 	valid = valid && CDSLPlanTemplate::FSlice(
 		mp, pexprWindow, "r", {"r/0"}, &dsl, &error) &&
 		dsl == "WindowRows<a0 o0 w0>(Input<t0>)" && error.empty();
+	CExpression *predicate = fix.PexprEqConst((*pdrgpcr)[0], 7);
+	CExpression *filtered = fix.PexprLogicalSelect(pexprGet, predicate);
+	for (ULONG mode = 0; mode < 4; ++mode)
+	{
+		// Sort only, count only, fused count/order, and OFFSET without a count.
+		CExpression *ordered = PexprLimit(mp, filtered,
+			mode == 1 ? GPOS_NEW(mp) COrderSpec(mp)
+				: PosOne(mp, (*pdrgpcr)[0], mode == 3 ? EdslsortDesc : EdslsortAsc),
+			mode == 1 || mode == 2, mode == 3 ? 2 : 0, 7);
+		BOOL matched = CDSLPlanTemplate::FSlice(mp, ordered, "r", {}, &dsl, &error) &&
+			dsl.find("Filter<ValueBool(Call(") != std::string::npos;
+		if (!matched)
+			GPOS_TRACE_FORMAT("Order/limit mode %lu lost its child: %s; %s", mode,
+				dsl.c_str(), error.c_str());
+		valid &= matched;
+		valid &= CDSLPlanTemplate::FSlice(mp, ordered, "r", {"r/0"}, &dsl, &error) &&
+			dsl.find("Filter<") == std::string::npos;
+		if (mode == 2)
+		{
+			CExpression *nested = PexprLimit(mp, ordered, GPOS_NEW(mp) COrderSpec(mp), true, 1, 3);
+			valid &= CDSLPlanTemplate::FSlice(mp, nested, "r", {}, &dsl, &error) &&
+				dsl.find("Limit<") == 0 && dsl.find("Limit<", 1) != std::string::npos &&
+				dsl.find("SortBy<") != std::string::npos &&
+				dsl.find("Filter<ValueBool(Call(") != std::string::npos;
+			valid &= CDSLPlanTemplate::FSlice(mp, nested, "r", {"r/0"}, &dsl, &error) &&
+				dsl == "Limit<n0 n1>(Input<t0>)";
+			nested->Release();
+		}
+		ordered->Release();
+	}
+	for (BOOL framed : {false, true})
+	{
+		CWindowFrame *frame = framed ? GPOS_NEW(mp) CWindowFrame(mp,
+			CWindowFrame::EfsRows, CWindowFrame::EfbUnboundedPreceding,
+			CWindowFrame::EfbCurrentRow, nullptr, nullptr,
+			CWindowFrame::EfesNone, 0, 0, 0, true, false) : nullptr;
+		CExpression *window = PexprWindowRows(mp, fix, filtered,
+			(*pdrgpcr)[0], (*pdrgpcr)[0],
+			framed ? PosOne(mp, (*pdrgpcr)[0], EdslsortDesc) : nullptr, frame);
+		BOOL matched = CDSLPlanTemplate::FSlice(mp, window, "r", {}, &dsl, &error) &&
+			dsl.find(framed ? "Window<" : "WindowRows<") == 0 &&
+			dsl.find("Filter<ValueBool(Call(") != std::string::npos;
+		if (!matched)
+			GPOS_TRACE_FORMAT("Window framed=%d lost its child: %s; %s", framed,
+				dsl.c_str(), error.c_str());
+		valid &= matched;
+		CDSLRule *rule = Prule(mp, (dsl + "|Input<t1>|t1 := t0").c_str());
+		// The same window metadata over a different child must not match.
+		window->Pop()->AddRef();
+		(*window)[1]->AddRef();
+		pexprGet->AddRef();
+		CExpression *plain = GPOS_NEW(mp) CExpression(mp, window->Pop(), pexprGet, (*window)[1]);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		valid &= nullptr != rule && !CDSLMatcher(mp, rule).FMatch(
+			rule->PfragSrc()->PopRoot(), plain, model);
+		model->Release();
+		CRefCount::SafeRelease(rule);
+		plain->Release();
+		valid &= CDSLPlanTemplate::FSlice(mp, window, "r", {"r/0"}, &dsl, &error) &&
+			dsl == (framed ? "Window<a0 o0 m0 w0>(Input<t0>)"
+				: "WindowRows<a0 o0 w0>(Input<t0>)");
+		window->Release();
+	}
+	filtered->Release();
+	predicate->Release();
 	pexprWindow->Release();
 	pexprLimit->Release();
 	pexprGet->Release();

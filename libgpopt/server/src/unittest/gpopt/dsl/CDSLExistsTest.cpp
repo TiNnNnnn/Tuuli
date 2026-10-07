@@ -112,6 +112,14 @@ EresSafeFilterMerge()
 			CExpression *on = fix.PexprEqPred((*outerCols)[0], (*cols)[1]);
 			CExpression *query = fix.PexprLogicalSelect(outer, on);
 			on->Release();
+			if (5 == kind)
+			{
+				// Keep an unbounded correlated scalar input without requiring
+				// catalog-backed constraint metadata for this synthetic Get.
+				query->Release(); outer->AddRef();
+				query = CUtils::PexprAddProjection(mp, outer,
+					CUtils::PexprScalarIdent(mp, (*cols)[1]));
+			}
 			if (4 == kind)
 				query = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),

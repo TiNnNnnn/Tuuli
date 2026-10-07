@@ -156,7 +156,8 @@ CDSLStatsExperimentSnapshot::ExpressionShape(const CExpression *expr)
 }
 
 std::string
-CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLModel *model)
+CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLModel *model,
+	BOOL source_bindings)
 {
 	const CDSLSymbolArray *symbols = rule->PfragSrc()->Pdrgpsym();
 	std::string entries;
@@ -218,9 +219,13 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 			entries += ",";
 		entries += entry.str();
 	}
-	return "{\"capture\":\"after_evaluation\",\"scope\":\"source_table_predicate_symbols\","
+	std::string result = "{\"capture\":\"after_evaluation\",\"scope\":\"source_table_predicate_symbols\","
 		"\"symbols\":[" + entries + "],\"total_symbols\":" + std::to_string(total) +
-		",\"omitted_symbols\":" + std::to_string(total - retained) + "}";
+		",\"omitted_symbols\":" + std::to_string(total - retained);
+	if (source_bindings && nullptr != model)
+		result += ",\"rule_hash\":\"" + std::string(rule->SzIdentity()) +
+			"\",\"source_bindings\":" + CDSLPlanTemplate::MatchedSourceBindings(rule, model);
+	return result + '}';
 }
 
 std::string
@@ -778,6 +783,7 @@ Parse(const CHAR *content, std::string *id,
 	  std::vector<SParsedTarget> *targets, BOOL *discover,
 	  std::string *template_root, std::vector<std::string> *template_cuts,
 	  ULONG *template_route, std::string *template_fingerprint,
+	  BOOL *template_bindings,
 	  CWStringDynamic *errors)
 {
 	std::istringstream input(nullptr == content ? "" : content);
@@ -788,6 +794,7 @@ Parse(const CHAR *content, std::string *id,
 	BOOL valid = true;
 	BOOL has_discover = false;
 	BOOL has_template_cuts = false;
+	BOOL has_template_bindings = false;
 	ULONG line_no = 0;
 	std::unordered_set<std::string> keys;
 
@@ -913,6 +920,17 @@ Parse(const CHAR *content, std::string *id,
 				valid = false;
 			}
 		}
+		else if (!in_cardinalities && "template_bindings" == key && !has_template_bindings)
+		{
+			has_template_bindings = true;
+			if ("true" == value || "false" == value)
+				*template_bindings = "true" == value;
+			else
+			{
+				Error(errors, line_no, "template_bindings must be true or false");
+				valid = false;
+			}
+		}
 		else if (!in_cardinalities && "template_cuts" == key &&
 				 !has_template_cuts)
 		{
@@ -967,6 +985,11 @@ Parse(const CHAR *content, std::string *id,
 	if (has_template_cuts && template_root->empty())
 	{
 		Error(errors, 0, "template_cuts requires template_root");
+		valid = false;
+	}
+	if (has_template_bindings && template_root->empty())
+	{
+		Error(errors, 0, "template_bindings requires template_root");
 		valid = false;
 	}
 	if ((!template_fingerprint->empty() && 0 == *template_route) ||
@@ -1220,8 +1243,10 @@ CDSLStatsExperimentSnapshot::FParseRequests(const CHAR *content, std::string *id
 	std::vector<std::string> template_cuts;
 	ULONG template_route = 0;
 	std::string template_fingerprint;
+	BOOL template_bindings = false;
 	if (!Parse(content, &parsed_id, &parsed, &parsed_discover,
-			   &template_root, &template_cuts, &template_route, &template_fingerprint, errors))
+			   &template_root, &template_cuts, &template_route, &template_fingerprint,
+			   &template_bindings, errors))
 		return false;
 	std::vector<SDSLStatsExperimentRequest> result;
 	for (const SParsedTarget &entry : parsed)
@@ -1246,8 +1271,10 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	std::vector<std::string> template_cuts;
 	ULONG template_route = 0;
 	std::string template_fingerprint;
+	BOOL template_bindings = false;
 	if (nullptr == root || !Parse(content, &id, &parsed, &discover,
-							 &template_root, &template_cuts, &template_route, &template_fingerprint, errors))
+							 &template_root, &template_cuts, &template_route, &template_fingerprint,
+							 &template_bindings, errors))
 	{
 		return nullptr;
 	}
@@ -1258,6 +1285,7 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	snapshot->m_fDiscover = discover;
 	snapshot->m_template_route = template_route;
 	snapshot->m_template_fingerprint = std::move(template_fingerprint);
+	snapshot->m_template_bindings = template_bindings;
 	if (!template_root.empty())
 	{
 		std::string selection_error;
@@ -1356,7 +1384,7 @@ CDSLStatsExperimentSnapshot::TemplateSelectionArtifact(CExpression *root) const
 {
 	GPOS_ASSERT(FHasTemplateSelection() && nullptr != root);
 	return CDSLPlanTemplate::SliceArtifact(
-		m_mp, root, m_template_root, m_template_cuts);
+		m_mp, root, m_template_root, m_template_cuts, m_template_bindings);
 }
 
 CDSLStatsExperimentSnapshot *

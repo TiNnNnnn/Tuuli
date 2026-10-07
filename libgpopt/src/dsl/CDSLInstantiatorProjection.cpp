@@ -1,6 +1,6 @@
 //---------------------------------------------------------------------------
 // MONSOON DSL rule engine — CDSLInstantiatorProjection.cpp
-// Compute, projection and aggregate builders, including their existing compatibility views.
+// Projection and aggregate builders, including their existing compatibility views.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
@@ -25,6 +25,7 @@ using namespace gpopt::dslinstantiator;
 
 namespace
 {
+
 // A SetOp's explicit input vector and output schema define an ordered SELECT
 // program. Merely having two equally sized column vectors does not.
 const CDSLOp *
@@ -165,54 +166,6 @@ PexprRemapProjectListInputs(CMemoryPool *mp, CExpression *pexprList,
 		mp, GPOS_NEW(mp) CScalarProjectList(mp), pdrgpexprElems);
 }
 
-// Column substitution can turn an alias into x := x. Project is compute-scalar
-// in ORCA: x already passes through from the child and must not be redefined.
-// Consume both arguments, preserving the original list when no alias changes.
-CExpression *
-PexprProjectWithoutSelfAliases(CMemoryPool *mp, CExpression *child,
-								 CExpression *list)
-{
-	CExpressionArray *elements = GPOS_NEW(mp) CExpressionArray(mp);
-	for (ULONG ul = 0; ul < list->Arity(); ul++)
-	{
-		CExpression *element = (*list)[ul];
-		CColRef *output = CScalarProjectElement::PopConvert(element->Pop())->Pcr();
-		if (COperator::EopScalarIdent == (*element)[0]->Pop()->Eopid() &&
-			output == CScalarIdent::PopConvert((*element)[0]->Pop())->Pcr())
-		{
-			if (!child->DeriveOutputColumns()->FMember(output))
-			{
-				elements->Release();
-				list->Release();
-				child->Release();
-				return nullptr;
-			}
-			continue;
-		}
-		element->AddRef();
-		elements->Append(element);
-	}
-	if (elements->Size() != list->Arity())
-	{
-		list->Release();
-		list = GPOS_NEW(mp) CExpression(
-			mp, GPOS_NEW(mp) CScalarProjectList(mp), elements);
-	}
-	else
-	{
-		elements->Release();
-	}
-	// An empty Project is an identity carrier, not another computation. Keep
-	// one carrier for its interface, without stacking it on an identical one.
-	if (0 == list->Arity() && COperator::EopLogicalProject == child->Pop()->Eopid() &&
-		2 == child->Arity() && 0 == (*child)[1]->Arity())
-	{
-		list->Release();
-		return child;
-	}
-	return GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalProject(mp), child, list);
-}
 
 // A GbAgg grouping CColRef is both an input identity and an output identity.
 // Replacing it in the operator would leak the target-side column into the
@@ -349,6 +302,55 @@ PexprRestoreProjectAggShell(CMemoryPool *mp, CExpression *pexprShell,
 }
 }  // namespace
 
+// Column substitution can turn an alias into x := x. Project is compute-scalar
+// in ORCA: x already passes through from the child and must not be redefined.
+// Consume both arguments, preserving the original list when no alias changes.
+CExpression *
+gpopt::dslinstantiator::PexprProjectWithoutSelfAliases(CMemoryPool *mp, CExpression *child,
+								 CExpression *list)
+{
+	CExpressionArray *elements = GPOS_NEW(mp) CExpressionArray(mp);
+	for (ULONG ul = 0; ul < list->Arity(); ul++)
+	{
+		CExpression *element = (*list)[ul];
+		CColRef *output = CScalarProjectElement::PopConvert(element->Pop())->Pcr();
+		if (COperator::EopScalarIdent == (*element)[0]->Pop()->Eopid() &&
+			output == CScalarIdent::PopConvert((*element)[0]->Pop())->Pcr())
+		{
+			if (!child->DeriveOutputColumns()->FMember(output))
+			{
+				elements->Release();
+				list->Release();
+				child->Release();
+				return nullptr;
+			}
+			continue;
+		}
+		element->AddRef();
+		elements->Append(element);
+	}
+	if (elements->Size() != list->Arity())
+	{
+		list->Release();
+		list = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarProjectList(mp), elements);
+	}
+	else
+	{
+		elements->Release();
+	}
+	// An empty Project is an identity carrier, not another computation. Keep
+	// one carrier for its interface, without stacking it on an identical one.
+	if (0 == list->Arity() && COperator::EopLogicalProject == child->Pop()->Eopid() &&
+		2 == child->Arity() && 0 == (*child)[1]->Arity())
+	{
+		list->Release();
+		return child;
+	}
+	return GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalProject(mp), child, list);
+}
+
 CColRefArray *
 CDSLInstantiator::PdrgpcrMinimalGrouping(
 	const CDSLSymbol *psymGroup, const CDSLSymbol *psymSchema,
@@ -427,236 +429,6 @@ CDSLInstantiator::PdrgpcrMinimalGrouping(
 	return pdrgpcrMinimal;
 }
 
-//---------------------------------------------------------------------------
-//	@function:
-//		CDSLInstantiator::PexprBuildCompute
-//---------------------------------------------------------------------------
-CExpression *
-CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
-								 const CDSLModel *pmodel) const
-{
-	if (1 != pop->UlChildren() || nullptr == pop->Pdrgpsym() ||
-		3 != pop->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-
-	const CDSLSymbol *psymExpr = PsymResolve((*pop->Pdrgpsym())[0]);
-	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[1]);
-	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[2]);
-	CExpression *pexprList = PexprResolveExpr(psymExpr, pmodel);
-	CColRefArray *pdrgpcrAttrs =
-		PdrgpcrResolveCols(psymAttrs, pmodel);
-	CColRefArray *pdrgpcrSchema =
-		PdrgpcrResolveCols(psymSchema, pmodel);
-	BOOL fOwnAttrs = false;
-	BOOL fOwnSchema = false;
-	if (nullptr != pexprList && nullptr == pdrgpcrAttrs)
-	{
-		pdrgpcrAttrs = pexprList->DeriveUsedColumns()->Pdrgpcr(m_mp);
-		fOwnAttrs = true;
-	}
-	if (nullptr != pexprList && nullptr == pdrgpcrSchema &&
-		COperator::EopScalarProjectList == pexprList->Pop()->Eopid())
-	{
-		pdrgpcrSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		fOwnSchema = true;
-		for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
-		{
-			CExpression *pexprElem = (*pexprList)[ul];
-			if (COperator::EopScalarProjectElement !=
-				pexprElem->Pop()->Eopid())
-			{
-				pdrgpcrSchema->Release();
-				pdrgpcrSchema = nullptr;
-				fOwnSchema = false;
-				break;
-			}
-			pdrgpcrSchema->Append(
-				CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr());
-		}
-	}
-	if (nullptr == pexprList || nullptr == pdrgpcrAttrs ||
-		nullptr == pdrgpcrSchema ||
-		COperator::EopScalarProjectList != pexprList->Pop()->Eopid() ||
-		pexprList->Arity() != pdrgpcrSchema->Size())
-	{
-		if (fOwnAttrs)
-		{
-			pdrgpcrAttrs->Release();
-		}
-		if (fOwnSchema)
-		{
-			pdrgpcrSchema->Release();
-		}
-		CRefCount::SafeRelease(pexprList);
-		return nullptr;
-	}
-
-	// Guard the three independently aliased target symbols against an invalid
-	// combination. The expression artifact is authoritative: attrs must be its
-	// exact dependency set and schema its ordered list of defined columns.
-	CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	pcrsAttrs->Include(pdrgpcrAttrs);
-	if (!pcrsAttrs->Equals(pexprList->DeriveUsedColumns()))
-	{
-		pcrsAttrs->Release();
-		if (fOwnAttrs)
-		{
-			pdrgpcrAttrs->Release();
-		}
-		if (fOwnSchema)
-		{
-			pdrgpcrSchema->Release();
-		}
-		pexprList->Release();
-		return nullptr;
-	}
-	pcrsAttrs->Release();
-	for (ULONG ul = 0; ul < pexprList->Arity(); ul++)
-	{
-		CExpression *pexprElem = (*pexprList)[ul];
-		if (COperator::EopScalarProjectElement != pexprElem->Pop()->Eopid() ||
-			CScalarProjectElement::PopConvert(pexprElem->Pop())->Pcr() !=
-				(*pdrgpcrSchema)[ul])
-		{
-			if (fOwnAttrs)
-			{
-				pdrgpcrAttrs->Release();
-			}
-			if (fOwnSchema)
-			{
-				pdrgpcrSchema->Release();
-			}
-			pexprList->Release();
-			return nullptr;
-		}
-	}
-
-	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
-	if (nullptr == pexprChild)
-	{
-		if (fOwnAttrs)
-		{
-			pdrgpcrAttrs->Release();
-		}
-		if (fOwnSchema)
-		{
-			pdrgpcrSchema->Release();
-		}
-		pexprList->Release();
-		return nullptr;
-	}
-	CColRefSet *available = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	available->Include(pexprChild->DeriveOutputColumns());
-	CExpression *carrier = m_prule->Pexprdefs()->FHasBindings()
-		? pmodel->PexprComputeCarrier(psymExpr) : nullptr;
-	BOOL scope_valid = true;
-	if (nullptr == carrier && m_prule->Pexprdefs()->FHasBindings())
-	{
-		// Item construction need not alias the old list root. Its retained
-		// dependency/schema bindings still identify the captured Compute scope.
-		// Do not choose arbitrarily if several sources have these bindings.
-		const auto findCarrier = [&](const auto &self, const CDSLOp *source) -> BOOL {
-			GPOS_CHECK_STACK_SIZE;
-			if (EdslopCompute == source->Edslop() &&
-				psymAttrs == (*source->Pdrgpsym())[1] &&
-				psymSchema == (*source->Pdrgpsym())[2])
-			{
-				CExpression *candidate = pmodel->PexprComputeCarrier((*source->Pdrgpsym())[0]);
-				if (nullptr != candidate)
-				{
-					if (nullptr != carrier && !carrier->Matches(candidate))
-						return false;
-					carrier = candidate;
-				}
-			}
-			for (ULONG i = 0; i < source->UlChildren(); i++)
-				if (!self(self, (*source)[i])) return false;
-			return true;
-		};
-		scope_valid = findCarrier(findCarrier, m_prule->PfragSrc()->PopRoot());
-	}
-	if (nullptr != carrier)
-	{
-		// Only captured outer references may remain external; a dropped local
-		// column must not silently turn into a correlation. Conversely, a new
-		// child must not shadow a captured external column.
-		CColRefSet *outer = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		outer->Include((*carrier)[1]->DeriveUsedColumns());
-		outer->Exclude((*carrier)[0]->DeriveOutputColumns());
-		scope_valid = scope_valid && outer->IsDisjoint(pexprChild->DeriveOutputColumns());
-		available->Include(outer);
-		outer->Release();
-	}
-	else if (m_prule->Pexprdefs()->FHasBindings())
-	{
-		// A composed list has several source scopes, not one arbitrarily chosen
-		// carrier. Validate each captured list before combining its outer refs.
-		const auto addScopes = [&](const auto &self, const CDSLSymbol *symbol) -> BOOL {
-			GPOS_CHECK_STACK_SIZE;
-			symbol = PsymResolve(symbol);
-			CExpression *source = pmodel->PexprComputeCarrier(symbol);
-			if (nullptr != source)
-			{
-				CColRefSet *outer = GPOS_NEW(m_mp) CColRefSet(m_mp);
-				outer->Include((*source)[1]->DeriveUsedColumns());
-				outer->Exclude((*source)[0]->DeriveOutputColumns());
-				CColRefSet *local = GPOS_NEW(m_mp) CColRefSet(m_mp);
-				local->Include((*source)[1]->DeriveUsedColumns());
-				// A replaced occurrence may no longer use its original column.
-				local->Intersection(pexprList->DeriveUsedColumns());
-				local->Exclude(outer);
-				local->Exclude(pexprChild->DeriveOutputColumns());
-				const BOOL valid = 0 == local->Size() &&
-					outer->IsDisjoint(pexprChild->DeriveOutputColumns());
-				if (valid) available->Include(outer);
-				local->Release();
-				outer->Release();
-				return valid;
-			}
-			const auto *definition = m_prule->Pexprdefs()->Pdef(symbol);
-			// Replugging changes an occurrence, not the captured list's scope.
-			if (nullptr != definition && EdslexprContext == definition->Edslexpr() &&
-				CDSLExpressionDefinitions::EBuild == definition->Binding())
-				return self(self, definition->PsymOperand(0));
-			if (nullptr == definition || EdslexprConcat != definition->Edslexpr())
-				return true; // Uncaptured columns still face the final scope check.
-			return self(self, definition->PsymOperand(0)) &&
-				self(self, definition->PsymOperand(1));
-		};
-		scope_valid = scope_valid && addScopes(addScopes, psymExpr);
-	}
-	scope_valid = scope_valid && FColSetContainsArray(available, pdrgpcrAttrs);
-	available->Release();
-	if (!scope_valid ||
-		(m_prule->Pexprdefs()->FHasBindings() &&
-		 (!CDSLExprListUtils::FComputeList(pexprList) ||
-		  !pexprChild->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()))))
-	{
-		pexprChild->Release();
-		if (fOwnAttrs)
-		{
-			pdrgpcrAttrs->Release();
-		}
-		if (fOwnSchema)
-		{
-			pdrgpcrSchema->Release();
-		}
-		pexprList->Release();
-		return nullptr;
-	}
-
-	if (fOwnAttrs)
-	{
-		pdrgpcrAttrs->Release();
-	}
-	if (fOwnSchema)
-	{
-		pdrgpcrSchema->Release();
-	}
-	return PexprProjectWithoutSelfAliases(m_mp, pexprChild, pexprList);
-}
 
 //---------------------------------------------------------------------------
 //	@function:
@@ -705,8 +477,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 		CColRef::Equals(group_attrs, group_schema);
 	if (m_prule->Pexprdefs()->FHasBindings() && !captured_grouping)
 	{
-		// Keep the source schema/dependency context, whether reusing a whole
-		// capture or constructing independently typed SELECT items.
+		// Captured and rebuilt SELECT programs both carry their own exact
+		// dependencies and ordered output identities.
 		const CDSLOp *source = PopSourceProjForSchema(
 			m_prule->PfragSrc()->PopRoot(), psymSchema);
 		CExpression *list = pmodel->PexprProjList(psymSchema);
@@ -716,8 +488,6 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			list->AddRef();
 		CColRefArray *schema = PdrgpcrResolveCols(psymSchema, pmodel);
 		CColRefArray *attrs = PdrgpcrResolveCols(psymAttrs, pmodel);
-		CColRefArray *source_attrs = nullptr == source ? nullptr :
-			PdrgpcrResolveCols((*source->Pdrgpsym())[0], pmodel);
 		if (nullptr == source && nullptr == list && 2 == pop->Pdrgpsym()->Size() &&
 			nullptr != attrs && nullptr != schema && attrs->Size() == schema->Size() &&
 			nullptr != PopSetProjectionSource(m_prule->PfragSrc()->PopRoot(),
@@ -738,7 +508,6 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 			{
 				list = GPOS_NEW(m_mp) CExpression(m_mp,
 					GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
-				source_attrs = attrs;
 			}
 			else
 				items->Release();
@@ -754,22 +523,22 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 					CUtils::PexprScalarIdent(m_mp, (*schema)[i])));
 			list = GPOS_NEW(m_mp) CExpression(m_mp,
 				GPOS_NEW(m_mp) CScalarProjectList(m_mp), items);
-			source_attrs = attrs;
 		}
 		BOOL outputs_match = CDSLExprListUtils::FTypedProjectList(list) &&
 			CDSLExprListUtils::FRowScalar(list) &&
-			nullptr != schema && list->Arity() == schema->Size();
+			CDSLExprListUtils::FProjectListColumns(m_mp, list, attrs, schema);
 		for (ULONG i = 0; outputs_match && i < schema->Size(); ++i)
 		{
 			CExpression *value = (*(*list)[i])[0];
-			outputs_match = CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() == (*schema)[i] &&
-				(!pexprChild->DeriveOutputColumns()->FMember((*schema)[i]) ||
+			outputs_match = !pexprChild->DeriveOutputColumns()->FMember((*schema)[i]) ||
 				 (COperator::EopScalarIdent == value->Pop()->Eopid() &&
-				  CScalarIdent::PopConvert(value->Pop())->Pcr() == (*schema)[i]));
+				  CScalarIdent::PopConvert(value->Pop())->Pcr() == (*schema)[i]);
 		}
-		if (!outputs_match || nullptr == attrs || nullptr == source_attrs ||
-			!CColRef::Equals(attrs, source_attrs) ||
-			!pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns()))
+		if (!outputs_match ||
+			!(3 == pop->Pdrgpsym()->Size()
+				? FProjectListScope(PsymResolve((*pop->Pdrgpsym())[2]), pmodel,
+					list, pexprChild, attrs, schema)
+				: pexprChild->DeriveOutputColumns()->ContainsAll(list->DeriveUsedColumns())))
 		{
 			CRefCount::SafeRelease(list);
 			pexprChild->Release();

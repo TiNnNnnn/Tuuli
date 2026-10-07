@@ -1,0 +1,47 @@
+{
+  "description": "Scalar Context extraction retains correlated outer references",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "context.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"899834d77652f23d\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "context.policy",
+    "output": [
+      ",,",
+      ",1,0",
+      ",2,2",
+      "8,3,4",
+      "8,3,4"
+    ],
+    "postgres_output": [
+      ",,",
+      ",1,0",
+      ",2,2",
+      "8,3,4",
+      "8,3,4"
+    ]
+  }
+}

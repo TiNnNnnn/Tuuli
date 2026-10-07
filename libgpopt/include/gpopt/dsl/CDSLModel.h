@@ -105,7 +105,7 @@ private:
 	CDSLSymbolToExpressionMap *m_phmInSubPred;
 	CDSLSymbolToExpressionMap *m_phmInSubCarrier;
 	CDSLSymbolToExpressionMap *m_phmFilterCarrier;
-	CDSLSymbolToExpressionMap *m_phmComputeCarrier;
+	CDSLSymbolToExpressionMap *m_phmProjectListCarrier;
 	CDSLSymbolToExpressionMap *m_phmApplyCarrier;
 	CDSLSymbolToExpressionMap *m_phmProjList;
 	CDSLSymbolToExpressionMap *m_phmProjLimitShell;
@@ -239,10 +239,10 @@ public:
 	BOOL FSetFilterCarrier(const CDSLSymbol *psymPred, CExpression *pexpr);
 	CExpression *PexprFilterCarrier(const CDSLSymbol *psymPred) const;
 
-	// Original Compute scope for captured items; never infer outer references
+	// Original Compute/explicit Proj scope; never infer outer references
 	// from columns missing after a target rewrite. Setter consumes one ref.
-	BOOL FSetComputeCarrier(const CDSLSymbol *psymExpr, CExpression *pexpr);
-	CExpression *PexprComputeCarrier(const CDSLSymbol *psymExpr) const;
+	BOOL FSetProjectListCarrier(const CDSLSymbol *psymExpr, CExpression *pexpr);
+	CExpression *PexprProjectListCarrier(const CDSLSymbol *psymExpr) const;
 
 	// A scalar subquery in a Select predicate is exposed as the same InnerApply
 	// view produced by ORCA's subquery handler. Keep that carrier by predicate

@@ -1,0 +1,40 @@
+{
+  "description": "Retaining a Limit/Sort child does not hide its parent predicate expression",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "Filter<ValueBool(Call(h0,Args(Column(a2),Args(n2,Args())))) a0>(Limit<n0 n1>(SortBy<o0>(Input<t0>)))",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ]
+  }
+}

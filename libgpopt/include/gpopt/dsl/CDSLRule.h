@@ -125,8 +125,8 @@ public:
 	ULONG UlChildren() const { return m_pdrgpchild->Size(); }
 	CDSLOp *operator[](ULONG ul) const { return (*m_pdrgpchild)[ul]; }
 
-	// append the canonical DSL text of this subtree to os (round-trip)
-	void OsPrint(IOstream &os) const;
+	// Append canonical DSL text; omit children when composing an expanded tree.
+	void OsPrint(IOstream &os, BOOL print_children = true) const;
 };
 
 //---------------------------------------------------------------------------

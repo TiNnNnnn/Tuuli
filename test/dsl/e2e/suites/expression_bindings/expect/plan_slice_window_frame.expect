@@ -1,0 +1,46 @@
+{
+  "description": "A framed window preserves its child's predicate structure, NULLs and duplicate rows",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "Window<a2 o0 m0 w0>(Filter<ValueBool(Call(h0,Args(Column(a3),Args(n0,Args())))) a0>(Input<t0>))",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "1,1",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,",
+      "2,",
+      "3,2"
+    ],
+    "off_output": [
+      "1,1",
+      "2,",
+      "2,",
+      "3,2"
+    ]
+  }
+}

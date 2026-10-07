@@ -25,8 +25,8 @@
 //		  * Filter <p a>              -> CDSLFilterMatcher   (conjunct split; #25)
 //		  * InnerJoin/LeftJoin <a a>  -> join-key extraction (#27)
 //		  * Proj <a s> / Agg <a a f s p> -> attrs/schema binding (#27)
-//		Until those land, FBindOpSymbols is a documented no-op seam for them, so
-//		the skeleton + Input recursion is independently testable.
+//		These collaborators bind symbols before recursing. The generic fallback
+//		only checks operator identity and relational children.
 //
 //		Column/subtree AddRef discipline lives in CDSLModel::FBind (it AddRefs the
 //		artifact it stores); the matcher hands raw pointers to FBind.
@@ -81,13 +81,6 @@ private:
 	// carrier to the table symbol.
 	BOOL FMatchEmpty(const CDSLOp *pop, CExpression *pexpr,
 					 CDSLModel *pmodel) const;
-
-	// bind THIS op's positional symbols against pexpr. Generic ops (Input handled
-	// separately, symbol-free Union) need nothing; Filter/Join/Proj/Agg symbol
-	// binding is delegated to dedicated collaborators (see class doc). Returns
-	// false only on a hard structural incompatibility.
-	BOOL FBindOpSymbols(const CDSLOp *pop, CExpression *pexpr,
-						CDSLModel *pmodel) const;
 
 	// match the DSL op's relational children positionally against pexpr's leading
 	// children (scalar children of pexpr come after and are consumed by symbol

@@ -1,0 +1,43 @@
+{
+  "description": "Fused Limit/Sort preserves its child expression and count/offset positions",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "Limit<n0 n1>(SortBy<o0>(Filter<ValueBool(Call(h0,Args(Column(a2),Args(n2,Args())))) a0>(Input<t0>)))",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "2",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "2",
+      "3"
+    ],
+    "off_output": [
+      "2",
+      "2",
+      "3"
+    ]
+  }
+}

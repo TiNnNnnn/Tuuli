@@ -11,6 +11,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -35,6 +36,7 @@
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/operators/CScalarSubqueryAny.h"
@@ -1059,6 +1061,81 @@ EresScalarContextPaths()
 	GPOS_UNITTEST_ASSERT(nullptr == CDSLExprListUtils::PexprReplaceAt(mp, ident, {}, wrongType));
 	CExpression *raised = CDSLExprListUtils::PexprReplaceAt(mp, ident, {}, scalar);
 	GPOS_UNITTEST_ASSERT(raised == scalar);
+	GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::Serialize(mp, scalar).find(
+		"\"value_type\":\"0.23.1.0\",\"value_typmod\":42") != std::string::npos);
+	// Exact typed capture and reconstruction must agree, including typmod.
+	CDSLRule *item_rule = PruleParse(mp,
+		"Compute<Item(n0,a0,e0) a1 s0>(Input<t0>)|"
+		"Compute<Item(n0,a0,e0) a2 s1>(Input<t1>)|t1 := t0;a2 := a1;s1 := s0");
+	CDSLRule *list_rule = PruleParse(mp,
+		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+		"t1 := t0;e1 := e0;a1 := a0;s1 := s0");
+	GPOS_UNITTEST_ASSERT(nullptr != item_rule && nullptr != list_rule);
+	for (INT modifier : {42, default_type_modifier})
+	{
+		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(type, modifier);
+		scalar->AddRef();
+		CExpression *source = PexprProjectScalar(mp, query, output, scalar);
+		// Whole-list captures retain their domain; only Item decomposes the
+		// pair and promises exact typed reconstruction.
+		GPOS_UNITTEST_ASSERT(CDSLExprListUtils::FComputeList((*source)[1]));
+		{
+			CDSLModel *list_model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher list_matcher(mp, list_rule);
+			GPOS_UNITTEST_ASSERT(list_matcher.FMatch(list_rule->PfragSrc()->PopRoot(), source, list_model));
+			CDSLConstraintChecker checker(mp);
+			GPOS_UNITTEST_ASSERT(checker.FCheck(list_rule, list_model));
+			CDSLInstantiator inst(mp);
+			CExpression *target = inst.PexprInstantiate(list_rule, list_model);
+			GPOS_UNITTEST_ASSERT(nullptr != target &&
+				CDSLMatchView::FSameCapturedExpression(source, target));
+			target->Release(); list_model->Release();
+		}
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, item_rule);
+		const BOOL matched = matcher.FMatch(item_rule->PfragSrc()->PopRoot(), source, model);
+		GPOS_UNITTEST_ASSERT(matched == (modifier == 42));
+		if (!matched)
+		{
+			model->Release(); source->Release();
+			continue;
+		}
+		CDSLConstraintChecker checker(mp);
+		GPOS_UNITTEST_ASSERT(checker.FCheck(item_rule, model));
+		CDSLInstantiator inst(mp);
+		CExpression *target = inst.PexprInstantiate(item_rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		if (nullptr != target)
+		{
+			GPOS_UNITTEST_ASSERT(CDSLMatchView::FSameCapturedExpression(source, target));
+			GPOS_UNITTEST_ASSERT((*(*(*target)[1])[0])[0] == scalar);
+			target->Release();
+		}
+		model->Release(); source->Release();
+	}
+	item_rule->Release();
+	list_rule->Release();
+	// Calls and quantified heads use the same value type, not the carrier's
+	// default typmod. Test both operand positions and reject mismatched values.
+	for (BOOL subquery_left : {false, true})
+	{
+		CExpression *left = subquery_left ? scalar : ident;
+		CExpression *right = subquery_left ? ident : scalar;
+		left->AddRef(); right->AddRef();
+		CExpression *comparison = CUtils::PexprScalarCmp(mp, left, right, IMDType::EcmptEq);
+		for (CExpression *argument : {ident, wrongType})
+		{
+			CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
+			argument->AddRef(); arguments->Append(argument);
+			GPOS_UNITTEST_ASSERT(CDSLMatchView::FQuantifiedInputs(comparison, project,
+				arguments, selected) == (argument == ident));
+			argument->AddRef(); arguments->Append(argument);
+			GPOS_UNITTEST_ASSERT(CDSLMatchView::FCallArgumentTypes(comparison,
+				arguments) == (argument == ident));
+			arguments->Release();
+		}
+		comparison->Release();
+	}
 	raised->Release(); lowered->Release(); ident->Release(); scalar->Release();
 	// Arbitrary depth is structural, not an enumerated family of templates.
 	std::vector<ULONG> path(64, 0);
@@ -1298,7 +1375,7 @@ EresQuantifiedSafety()
 			quantified->Release();
 			quantified = replacement;
 		}
-		ok &= CDSLConstraintChecker::FQueryDemandInsensitive(quantified) == (0 == shape || 5 == shape);
+		ok &= dslproperties::FQueryDemandInsensitive(quantified) == (0 == shape || 5 == shape);
 		quantified->Release(); outer->Release();
 	}
 	return ok ? GPOS_OK : GPOS_FAILED;
@@ -1478,6 +1555,66 @@ EresQuantifiedProjectionInput()
 }
 
 static GPOS_RESULT
+EresQuantifiedDistinctAggregate()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL all : {false, true})
+	for (ULONG shape = 0; shape < 11; ++shape)
+	{
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("distinct_quant_left", 1, &lc);
+		CExpression *input = fix.PexprLogicalGet("distinct_quant_right", 1, &rc);
+		if (shape == 6)
+			input = CUtils::PexprAddProjection(mp, input,
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarFunc(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300 + IMDFunction::EfsImmutable),
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4_OID),
+					default_type_modifier, GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("nullary")), 0, false)));
+		CColRef *value = fix.PcrCreateInt4("distinct_max");
+		CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+		CExpression *aggregate = fix.PexprLogicalGbAgg(input, keys, value, (*rc)[0]);
+		keys->Release();
+		input->Release();
+		CExpression *function = (*(*(*aggregate)[1])[0])[0];
+		CScalarAggFunc::PopConvert(function->Pop())->SetIsDistinct(shape < 8);
+		if (shape != 2)
+			(*function)[EaggfuncIndexDistinct]->PdrgPexpr()->Append(
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSortGroupClause(mp,
+					shape == 5 ? 1 : 0, shape == 3 || shape == 9 ? 97 : 96,
+					shape == 4 ? 96 : (shape == 1 ? 521 : 97), false, true)));
+		if (shape == 10)
+			(*function)[EaggfuncIndexDistinct]->PdrgPexpr()->Append(
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSortGroupClause(mp, 0, 96, 97, false, true)));
+		if (shape == 7)
+			(*function)[EaggfuncIndexOrder]->PdrgPexpr()->Append(
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSortGroupClause(mp, 0, 96, 97, false, true)));
+		CAutoRef<CExpression> source(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalSelect(mp), left, PexprQuantified(mp, fix, all, aggregate, (*lc)[0], value)));
+		const std::string kind = all ? "All" : "Any";
+		const std::string text = "Filter<" + kind + "(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|" +
+			kind + "<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);"
+			"n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)";
+		CAutoRef<CDSLRule> rule(PruleParse(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		// Shape 8 is the native preprocessing result: flag cleared, original
+		// DISTINCT comparison metadata retained in its inactive child slot.
+		const BOOL safe = shape < 2 || shape == 8;
+		GPOS_UNITTEST_ASSERT(dslproperties::FQueryDemandInsensitive(aggregate) == safe);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()) == safe);
+		if (safe)
+		{
+			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+			CAutoRef<CExpression> target(CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()));
+			GPOS_UNITTEST_ASSERT(nullptr != target.Value() && (*target)[1] == aggregate);
+		}
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresLegacyMembershipProjectionSRF()
 {
 	CAutoMemoryPool amp;
@@ -1510,6 +1647,7 @@ GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresQuantifiedDistinctAggregate),
 		GPOS_UNITTEST_FUNC(EresQuantifiedCarrierDirection),
 		GPOS_UNITTEST_FUNC(EresQuantifiedConjunctionDemand),
 		GPOS_UNITTEST_FUNC(EresQuantifiedProjectionInput),
@@ -1567,7 +1705,7 @@ CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings()
 			"(c1,Args(n0,Args()),a8,t3) a1>(Input<t2>)|t2 := t0;t3 := t1;a1 := a0;c1 := c0";
 		CDSLRule *rule = PruleParse(mp, (source_pattern + target_pattern).c_str());
 		GPOS_ASSERT(nullptr != rule);
-		for (ULONG trial = 0; trial < 4; ++trial)
+		for (ULONG trial = 0; trial < 5; ++trial)
 		{
 			CColRefArray *outer_cols = nullptr, *inner_cols = nullptr;
 			CExpression *outer = fix.PexprLogicalGet("typed_quant_outer", 1, &outer_cols);
@@ -1578,12 +1716,24 @@ CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings()
 			if (trial == 3)
 				query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
 			CExpression *quantified = PexprQuantified(mp, fix, all, query, (*outer_cols)[0], (*inner_cols)[trial == 2 ? 1 : 0]);
+			if (trial == 4)
+			{
+				CColRef *selected = fix.PcrCreateInt4("scalar_selected");
+				CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+				CExpression *aggregate = fix.PexprLogicalGbAgg(query, grouping, selected, (*inner_cols)[0]);
+				grouping->Release();
+				CExpression *value = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, selected, false, false), aggregate);
+				quantified->Pop()->AddRef(); query->AddRef();
+				CExpression *nested = GPOS_NEW(mp) CExpression(mp, quantified->Pop(), query, value);
+				quantified->Release(); quantified = nested;
+			}
 			CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), outer,
 				CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, quantified)));
 			CDSLMatcher matcher(mp, rule);
 			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 			const BOOL matched = matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model);
-			GPOS_ASSERT(matched == (trial < 3));
+			GPOS_ASSERT(matched == (trial != 3));
 			if (matched)
 			{
 				CDSLConstraintChecker checker(mp);
@@ -1620,7 +1770,24 @@ CDSLQuantifiedTest::EresUnittest_TypedQuantifiedBindings()
 				GPOS_ASSERT(source->DeriveOutputColumns()->Equals(target->DeriveOutputColumns()));
 				std::string text, error;
 				GPOS_ASSERT(CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &text, &error));
-				GPOS_ASSERT(text.find(quant + "(c0,Args(Column(a2),Args()),a3,t1)") != std::string::npos);
+				GPOS_ASSERT(trial == 4 || text.find(quant + "(c0,Args(Column(a2),Args()),a3,t1)") != std::string::npos);
+				if (trial == 4)
+				{
+					// Capture/rebuilding a safe nested operand is valid, but an
+					// Apply ON subplan is not supported by physical translation.
+					const std::string lowering = source_pattern + quant +
+						"<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;"
+						"a3 := ScalarDeps(n0);n1 := Column(a8);v0 := Args();"
+						"v1 := Args(n1,v0);v2 := Args(n0,v1);p1 := Compare(c0,v2)";
+					CDSLRule *lower = PruleParse(mp, lowering.c_str());
+					GPOS_UNITTEST_ASSERT(nullptr != lower);
+					CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
+					GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, lower).FMatch(lower->PfragSrc()->PopRoot(), source, captured));
+					GPOS_UNITTEST_ASSERT(checker.FCheck(lower, captured));
+					CDSLInstantiator lowerInst(mp);
+					GPOS_UNITTEST_ASSERT(nullptr == lowerInst.PexprInstantiate(lower, captured));
+					captured->Release(); lower->Release();
+				}
 				target->Release();
 			}
 			model->Release();
@@ -1679,7 +1846,7 @@ CDSLQuantifiedTest::EresUnittest_TypedScalarSubqueryBindings()
 		// Capture is structural, not a safety certificate. The complete query
 		// below remains the very same object after the scalar rewrite.
 		if (trial == 2 || (trial >= 7 && trial <= 10))
-			GPOS_ASSERT(!CDSLConstraintChecker::FQueryDemandInsensitive(query));
+			GPOS_ASSERT(!dslproperties::FQueryDemandInsensitive(query));
 		CExpression *subquery = GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CScalarSubquery(mp, selected, trial == 3, trial == 4), query);
 		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(bool_type, default_type_modifier);

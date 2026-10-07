@@ -170,18 +170,11 @@ public:
 	// Stable physical source line. Returns zero only for a pointer that is not
 	// owned by this engine.
 	ULONG UlRuleId(const CDSLRule *prule) const;
-	// Trace-only reverse lookup of a physical source line.
-	const CDSLRule *PdslruleById(ULONG ulRuleId) const;
 
 	// Whether any loaded rule needs an ordinary (non-DISTINCT) Proj at the
 	// source root. QueryContext uses this to preserve the otherwise implicit
 	// top-level SQL projection as a memo-visible identity Project.
 	BOOL FHasOrdinaryProjSourceRoot() const;
-
-	// Whether any loaded source fragment contains the requested DSL operator at
-	// any depth. Preprocessing uses this capability query to avoid irreversibly
-	// deleting shapes that a data rule must inspect in the memo.
-	BOOL FHasSourceOperator(EDslOpKind edslop) const;
 
 	//------------------------------------------------------------------
 	// three-stage rewrite

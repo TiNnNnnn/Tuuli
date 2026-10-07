@@ -1,0 +1,5 @@
+experiment: compute-source-bindings
+discover: false
+template_root: r
+template_bindings: true
+cardinalities:

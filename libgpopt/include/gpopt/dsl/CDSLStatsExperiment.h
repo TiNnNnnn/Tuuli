@@ -60,6 +60,7 @@ private:
 	std::string m_template_fingerprint;
 	std::string m_template_root;
 	std::vector<std::string> m_template_cuts;
+	BOOL m_template_bindings = false;
 
 	explicit CDSLStatsExperimentSnapshot(CMemoryPool *mp)
 		: m_mp(mp), m_fDiscover(false)
@@ -89,7 +90,8 @@ public:
 	static std::string RouteContext(const CExpression *expr,
 		const CDSLStatsExperimentSnapshot *snapshot = nullptr, ULONG sequence = 0);
 	static std::string ExpressionShape(const CExpression *expr);
-	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model);
+	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model,
+		BOOL source_bindings = false);
 	// Bounded log records transport the entire JSON value, including large trees.
 	static std::vector<std::string> ContextRecords(ULONG id, const CHAR *field,
 		const std::string &value);
@@ -100,6 +102,7 @@ public:
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
 	BOOL FHasTemplateSelection() const { return !m_template_root.empty(); }
+	BOOL FTemplateBindings() const { return m_template_bindings; }
 	ULONG UlTemplateRoute() const { return m_template_route; }
 	std::string TemplateSelectionArtifact(CExpression *root) const;
 	ULONG UlTargets() const { return (ULONG) m_targets.size(); }

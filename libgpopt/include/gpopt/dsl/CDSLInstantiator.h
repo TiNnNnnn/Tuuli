@@ -10,36 +10,17 @@
 //		CDSLModel. This is what actually produces the rewritten plan the xform
 //		hands to ORCA.
 //
-//		Key mechanism — equality classes (doc §10). The target fragment names its
-//		OWN symbols (t1/p1/a1/...) which the matcher never bound (match runs only
-//		over the source). A target symbol is resolved to a concrete artifact via
-//		the rule's *Eq constraints: TableEq(t1,t0) says "t1 reuses whatever t0
-//		bound to". So instantiation first builds a target-symbol -> source-symbol
-//		alias map from the equality constraints, then reads the source symbol's
-//		binding out of the model.
+//		Resolve source captures, target aliases and typed expression bindings;
+//		unmigrated constraints use isolated legacy recipes. Operator builders
+//		retain native column identities and validate target metadata and scope.
+//		Input subtrees are shared with AddRef; fresh outputs and remapping are
+//		handled by the column resolver. Legacy Filter views preserve unmatched
+//		conjuncts, while explicit scalar bindings build the declared expression.
+//		PexprFreshRoot handles reused roots at the Memo boundary.
 //
-//		Per-operator target build (the logical subset ORCA can represent):
-//		  Input<t>            -> the relational subtree bound to t (AddRef-graft)
-//		  Filter<p a>         -> CLogicalSelect(child, predicate). The predicate is
-//		                         the conjunct bound to p, CONJOINED with the
-//		                         residual conjuncts the matcher preserved
-//		                         (CPredicateUtils::PexprConjunction) — dropping a
-//		                         residual = wrong plan.
-//		  InnerJoin/LeftJoin  -> the join operator over the two rebuilt children
-//		                         plus its (bound) predicate.
-//		  Proj/Agg/Exists/InSub/Union
-//		                       -> operator-specific builders preserve scalar and
-//		                          ordered-column metadata captured by the matcher.
-//
-//		Simplifications (doc §11): reused subtrees/predicates are grafted by
-//		AddRef with their real CColRefs already correct, so no per-node column
-//		remapping is needed for structural rules (that is only required once
-//		Proj/Agg introduce fresh columns). ONE exception: an operator-eliminating
-//		rule (e.g. Filter(Input<t0>) -> Input<t1>) yields a target whose ROOT is a
-//		reused memo subtree, which violates Cascades' "result root must be freshly
-//		built" contract; PexprFreshRoot copies only its operator and keeps the
-//		already-bound children. We
-//		trust the MONSOON EQ proof, so no equivalence re-check.
+//		Successful construction is not an equivalence proof. RuleEngine applies
+//		additional Memo/output guards; conditional FormalSQL evidence requires
+//		its own instance obligations and is not authorized by this builder.
 //---------------------------------------------------------------------------
 #ifndef GPOPT_CDSLInstantiator_H
 #define GPOPT_CDSLInstantiator_H
@@ -79,7 +60,7 @@ using CDSLSymbolAliasMap =
 //		One state/ownership model, separate implementation units:
 //		  Instantiator: lifecycle, dispatch, shared inputs and Memo contracts.
 //		  Bindings / Columns: typed construction and column identity/remapping.
-//		  Projection / Relational / Join / Subquery: operator builders.
+//		  Compute / Projection / Relational / Join / Subquery: operator builders.
 //		  Legacy: constraint-defined expression recipes for unmigrated rules.
 //		Relational legacy adapters remain in the corresponding operator unit;
 //		moving files does not make those paths safe to delete yet.
@@ -166,8 +147,8 @@ private:
 	CExpressionArray *PdrgpexprResolveFunctions(const CDSLSymbol *symbol,
 		const CDSLModel *model) const;
 
-	// Resolve a bound/aliased predicate to an owned expression, or lazily build
-	// a target predicate declared by PredicateAnd.
+	// Resolve a bound/aliased predicate or construct a typed target expression.
+	// Unmigrated constraint recipes delegate to the legacy resolver. Owns result.
 	CExpression *PexprResolvePredicate(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
 									ULONG ulDepth = 0) const;
@@ -283,6 +264,12 @@ private:
 	// expression dependencies and <s> the newly-defined columns.
 	CExpression *PexprBuildCompute(const CDSLOp *pop,
 								 const CDSLModel *pmodel) const;
+
+	// Borrow all inputs; preserve local/outer column ownership when composing
+	// captured lists. Construction safety only, not a transport certificate.
+	BOOL FProjectListScope(const CDSLSymbol *psymExpr, const CDSLModel *pmodel,
+		CExpression *pexprList, CExpression *pexprChild,
+		const CColRefArray *pdrgpcrAttrs, const CColRefArray *pdrgpcrSchema) const;
 
 	// Rebuild a Global CLogicalGbAgg for corpus Agg<a a f s p> or the extended
 	// Agg<a a a f s p>. The corpus form infers aggregate outputs from schema minus

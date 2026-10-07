@@ -154,7 +154,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 	if (ul_given != ul_expected && !fLegacyAgg && !fCompatibleJoin &&
 		!fPredicateExists && !fLegacyInSub && !fCompatibleSetOp && !fLegacyFilter &&
 		!fLegacyAntiJoinNotIn && !fSelectList &&
-		!((fSemiApply || fAntiApply) && 0 == ul_given))
+		!((fSemiApply || fAntiApply || fInnerApply) && 0 == ul_given))
 	{
 		std::ostringstream os;
 		os << "operator " << CDSLOpKindTable::SzName(edslop) << " expects ";
@@ -166,7 +166,7 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			os << "2, 3, 4, 5, or 7";
 		else if (fExists)
 			os << "0 or 3";
-		else if (fSemiApply || fAntiApply)
+		else if (fSemiApply || fAntiApply || fInnerApply)
 			os << "0 or 4";
 		else if (EdslopInSubFilter == edslop)
 			os << "1 or 5";
@@ -879,7 +879,7 @@ FBindingTree(const CDSLOp *op, BOOL source)
 				  (EdslopAntiJoinNotIn == op->Edslop() && 6 == op->Pdrgpsym()->Size())) &&
 				 2 == op->UlChildren()
 			   : apply ? (4 == op->Pdrgpsym()->Size() ||
-						 ((EdslopSemiApply == op->Edslop() || EdslopAntiApply == op->Edslop()) &&
+						 (EdslopAntiApplyNotIn != op->Edslop() &&
 						  0 == op->Pdrgpsym()->Size())) && 2 == op->UlChildren()
 			   // Source short forms retain the captured positional maps. A
 			   // target must declare its output, with optional explicit input maps.
@@ -1072,7 +1072,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
 			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind ||
 			EdslconTableShared == kind || EdslconUnique == kind ||
-			EdslconCorrelationEquality == kind)
+			EdslconCorrelationEquality == kind || EdslconDepsDisjoint == kind)
 			continue;
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
@@ -1248,6 +1248,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			EdslconDeterministic == con->Edslcon() ||
 			EdslconPredicateNullRejecting == con->Edslcon() ||
 			EdslconAttrsSub == con->Edslcon() ||
+			EdslconDepsDisjoint == con->Edslcon() ||
 			EdslconTableShared == con->Edslcon() ||
 			EdslconUnique == con->Edslcon() ||
 			EdslconCorrelationEquality == con->Edslcon())

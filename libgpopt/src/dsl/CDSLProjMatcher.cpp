@@ -79,7 +79,7 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 	if (fBound && exact)
 	{
 		pexprProject->AddRef();
-		if (!pmodel->FSetComputeCarrier((*pdrgpsym)[0], pexprProject))
+		if (!pmodel->FSetProjectListCarrier((*pdrgpsym)[0], pexprProject))
 		{
 			return false;
 		}
@@ -131,13 +131,6 @@ CDSLProjMatcher::FMatchTrivialSelectOverDedup(const CDSLOp *popProj,
 		   m_pmatcher->FMatch((*popProj)[0], pexprDedup, pmodel);
 }
 
-//---------------------------------------------------------------------------
-//	@function:
-//		CDSLProjMatcher::PdrgpcrProjected
-//
-//	@doc:
-//		Collect the CColRef each CScalarProjectElement defines, in list order.
-//---------------------------------------------------------------------------
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjMatcher::PdrgpcrSchema
@@ -506,6 +499,14 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		}
 	}
 
+	// The explicit list has the same captured local/outer ownership as Compute.
+	// Keep the owning Project, not just its dependency and output column sets.
+	if (exact && 3 == pdrgpsym->Size())
+	{
+		pexprProject->AddRef();
+		if (!pmodel->FSetProjectListCarrier((*pdrgpsym)[2], pexprProject))
+			return false;
+	}
 	// record the whole project-list subtree so the instantiator can graft it back
 	// (it carries computed-column value subtrees the attrs/schema symbols do not).
 	CExpression *pexprProjList = (*pexprProject)[1];

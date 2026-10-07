@@ -6,7 +6,7 @@
 #include "gpos/common/CAutoRef.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
-#include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -123,7 +123,7 @@ CDSLQuantifiedMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 		// Re-exposing one quantifier moves the other conjuncts into its outer
 		// input. This changes evaluation demand, unlike a direct quantifier.
 		if (1 < pdrgpexprConj->Size() &&
-			!CDSLConstraintChecker::FQueryDemandInsensitive((*pexpr)[1]))
+			!dslproperties::FQueryDemandInsensitive((*pexpr)[1]))
 		{
 			pdrgpexprConj->Release();
 			return false;

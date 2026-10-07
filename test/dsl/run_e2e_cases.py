@@ -243,6 +243,73 @@ def memo_provenance(output: str) -> list[dict[str, object]]:
     return records
 
 
+def source_binding_matches(snapshot: object, patterns: object) -> list[dict[str, object]]:
+    if (not isinstance(snapshot, dict) or snapshot.get("scope") != "matched_source_symbols"
+            or not isinstance(snapshot.get("symbols"), list)):
+        raise ValueError("missing source binding snapshot")
+    bindings = snapshot["symbols"]
+    if (not isinstance(patterns, list) or any(not isinstance(p, dict)
+            or not isinstance(p.get("symbol"), str) for p in patterns)
+            or any(not isinstance(b, dict) or not isinstance(b.get("symbol"), str)
+                   for b in bindings)
+            or len({b["symbol"] for b in bindings}) != len(bindings)):
+        raise ValueError("invalid or duplicate source binding symbols")
+    return [p for p in patterns if any(
+        all(key in b and b[key] == value for key, value in p.items()) for b in bindings)]
+
+
+def bind_source_captures(snapshot: object, manifest: object) -> dict[str, dict[str, object]]:
+    """Join one native occurrence to emitted capture terms, not a lowering certificate."""
+    source_binding_matches(snapshot, [])
+    if snapshot.get("complete") is not True:
+        raise ValueError("source binding snapshot is incomplete")
+    if (not isinstance(manifest, dict) or manifest.get("scope") != "rule_source_captures"
+            or not isinstance(manifest.get("captures"), list) or not manifest["captures"]):
+        raise ValueError("missing source capture manifest")
+
+    def paths(entry: dict[str, object]) -> list[str]:
+        locations = entry.get("source_paths")
+        if (not isinstance(locations, list) or not locations
+                or any(not isinstance(p, str) or not re.fullmatch(
+                    r"r(?:/\d+)*/[tapsfneowmbrhvc]:\d+(?:/[A-Za-z][A-Za-z0-9_]*:\d+)*", p)
+                       for p in locations) or len(set(locations)) != len(locations)):
+            raise ValueError("invalid or duplicate source capture paths")
+        return locations
+
+    by_path = {}
+    for binding in snapshot["symbols"]:
+        if (binding.get("bound") is not True or binding.get("unsupported_payload")
+                or not isinstance(binding.get("kind"), str)
+                or not re.fullmatch(r"[tapsfneowmbrhvc]", binding["kind"])
+                or not any(key in binding for key in ("expression", "expressions", "columns"))
+                or "expression" in binding and not isinstance(binding["expression"], dict)
+                or "columns" in binding and not isinstance(binding["columns"], list)
+                or "expressions" in binding and (not isinstance(binding["expressions"], list)
+                    or any(not isinstance(e, dict) for e in binding["expressions"]))):
+            raise ValueError("source capture has no complete native binding")
+        for path in paths(binding):
+            if path in by_path:
+                raise ValueError("source capture path has multiple owners")
+            by_path[path] = binding
+    result = {}
+    owners = set()
+    for capture in manifest["captures"]:
+        if (not isinstance(capture, dict) or not isinstance(capture.get("term"), str)
+                or not capture["term"] or capture["term"] in result):
+            raise ValueError("invalid or duplicate kernel capture term")
+        locations = paths(capture)
+        binding = by_path.get(locations[0])
+        if (binding is None or binding.get("kind") != capture.get("kind")
+                or any(by_path.get(path) is not binding for path in locations)
+                or set(binding["source_paths"]) != set(locations)):
+            raise ValueError("kernel capture does not identify the same native source")
+        if id(binding) in owners:
+            raise ValueError("native source has multiple kernel capture owners")
+        owners.add(id(binding))
+        result[capture["term"]] = binding
+    return result
+
+
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
@@ -281,14 +348,48 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         ]
     if "joins" in expected:
         actual["joins"] = len(JOIN_RE.findall(output))
-    if "plan_slice" in expected:
+    if "plan_slice" in expected or "source_binding_matches" in expected:
         import ml_orca_test_support  # Locate the maintained trace reader.
         from ml_orca.collect.run_workload_comparison import trace_records
         contexts = [row["value"]["input_context"] for row in trace_records(output)
                     if row.get("kind") == "candidate_context" and row.get("field") == "query_input_context"]
         if len(contexts) != 1:
             raise ValueError("plan-slice check requires exactly one complete query input context")
-        actual["plan_slice"] = contexts[0].get("plan_slice")
+        sliced = contexts[0].get("plan_slice")
+        if "plan_slice" in expected:
+            actual["plan_slice"] = sliced
+        if "source_binding_matches" in expected:
+            if not isinstance(sliced, dict) or sliced.get("status") != "ok":
+                raise ValueError("source binding checks require a successful plan slice")
+            actual["source_binding_matches"] = source_binding_matches(
+                sliced.get("source_bindings"), expected["source_binding_matches"])
+    if "rule_binding_matches" in expected:
+        import ml_orca_test_support
+        from ml_orca.collect.run_workload_comparison import trace_records
+        patterns = expected["rule_binding_matches"]
+        if not isinstance(patterns, list) or any(not isinstance(p, dict)
+                or not isinstance(p.get("rule_hash"), str) or not p["rule_hash"]
+                or not isinstance(p.get("symbols"), list) for p in patterns):
+            raise ValueError("rule binding checks require a rule identity and symbol patterns")
+        for pattern in patterns:
+            source_binding_matches({"scope": "matched_source_symbols", "symbols": []}, pattern["symbols"])
+        contexts = []
+        for event in trace_records(output):
+            context = event.get("binding_context")
+            if (event.get("kind") != "rule_candidate" or not isinstance(context, dict)
+                    or "source_bindings" not in context):
+                continue
+            if context.get("rule_hash") != event.get("rule_hash"):
+                raise ValueError("source bindings belong to another rule")
+            source_binding_matches(context["source_bindings"], [])
+            contexts.append(context)
+        # All requested captures must come from ONE occurrence, not the union
+        # of multiple matches of the same rule in different Memo contexts.
+        actual["rule_binding_matches"] = [p for p in patterns if any(
+            c["rule_hash"] == p["rule_hash"] and
+            c["source_bindings"].get("complete") is True and
+            source_binding_matches(c["source_bindings"], p["symbols"]) == p["symbols"]
+            for c in contexts)]
     if "provenance" in expected:
         records = memo_provenance(output)
         sources = {record.get("source") for record in records}
@@ -314,25 +415,23 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     return actual
 
 
-def actual_rows(
+def run_orca_rows(
     args: argparse.Namespace,
     query: str,
     expected: dict[str, object],
-) -> dict[str, object]:
+) -> str:
     query = query.rstrip().removesuffix(";")
-
-    def orca_rows(enabled: bool) -> str:
-        return run_sql(
-            args,
-            f"""
+    return run_sql(
+        args,
+        f"""
 LOAD 'pg_orca';
 SET pg_orca.enable_orca=on;
-SET pg_orca.enable_dsl_rule={'on' if enabled else 'off'};
+SET pg_orca.enable_dsl_rule={'on' if expected.get('dsl', True) else 'off'};
 {policy_setting(args, expected)}
 {experiment_setting(args, expected)}
-SET pg_orca.enable_assert_maxonerow={'on' if expected.get('assert_maxonerow', False) else 'off'};
-SET pg_orca.enable_dphyper={'on' if expected.get('dphyper', False) else 'off'};
-SET pg_orca.dphyper_shadow={'on' if expected.get('dphyper_shadow', False) else 'off'};
+{bool_guc_setting('pg_orca.enable_assert_maxonerow', expected.get('assert_maxonerow'), False)}
+{bool_guc_setting('pg_orca.enable_dphyper', expected.get('dphyper'), False)}
+{bool_guc_setting('pg_orca.dphyper_shadow', expected.get('dphyper_shadow'), False)}
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
 SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 {native_setting(bool(expected.get('native', True)))}
@@ -340,11 +439,29 @@ SET pg_orca.dphyper_pair_budget={int(expected.get('dphyper_pair_budget', 100))};
 SET client_min_messages=log;
 COPY ({query}) TO STDOUT WITH (FORMAT csv);
 """,
-            tuples_only=True,
-            error_sqlstate=expected.get("error_sqlstate"),
-        )
+        tuples_only=True,
+        error_sqlstate=expected.get("error_sqlstate"),
+    )
 
-    dsl_rows = orca_rows(bool(expected.get("dsl", True)))
+
+def actual_rows(
+    args: argparse.Namespace,
+    query: str,
+    expected: dict[str, object],
+    plans: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
+    query = query.rstrip().removesuffix(";")
+    by_name = {plan["name"]: plan for plan in (plans or [])}
+    plan_outputs = expected.get("plan_outputs")
+    if plan_outputs is not None and (
+        not isinstance(plan_outputs, dict)
+        or not plan_outputs
+        or any(name not in by_name or not isinstance(rows, list)
+               or any(not isinstance(row, str) for row in rows)
+               for name, rows in plan_outputs.items())
+    ):
+        raise ValueError("rows.plan_outputs requires existing plan names and CSV row lists")
+    dsl_rows = run_orca_rows(args, query, expected)
     postgres_rows = run_sql(
         args,
         f"""
@@ -367,7 +484,17 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
     actual["output"] = dsl_rows.splitlines()
     actual["postgres_output"] = postgres_rows.splitlines()
     if "off_output" in expected:
-        actual["off_output"] = orca_rows(False).splitlines()
+        actual["off_output"] = run_orca_rows(args, query, {**expected, "dsl": False}).splitlines()
+    if plan_outputs is not None:
+        # Execute the state itself: inheriting rows.disable_xforms would turn
+        # the native/shadow baselines into another native-off execution.
+        actual["plan_outputs"] = {
+            name: run_orca_rows(args, query, {
+                **by_name[name], **({"error_sqlstate": expected["error_sqlstate"]}
+                                  if "error_sqlstate" in expected else {}),
+            }).splitlines()
+            for name in plan_outputs
+        }
     return actual
 
 
@@ -426,7 +553,7 @@ def main() -> int:
                 validate_execution_trace(output, args.disable_xform)
             actual["plans"].append(actual_plan(plan, output))
         if "rows" in expectation:
-            actual["rows"] = actual_rows(args, query, expectation["rows"])
+            actual["rows"] = actual_rows(args, query, expectation["rows"], expectation.get("plans"))
 
         actual_text = canonical(actual)
         result_path = args.result_dir / f"{case_name}.output"

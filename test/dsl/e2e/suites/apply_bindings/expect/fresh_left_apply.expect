@@ -1,0 +1,59 @@
+{
+  "description": "Fresh explicit LeftApply preserves a bounded RHS, NULL extension and outer duplicates",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a6646f3e6925a807\"",
+        "CLogicalLeftOuterApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_JoinApply"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

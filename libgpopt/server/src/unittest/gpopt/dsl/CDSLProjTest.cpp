@@ -31,6 +31,7 @@
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalApply.h"
+#include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarCast.h"
@@ -669,7 +670,7 @@ CDSLProjTest::EresUnittest_TypedScalarPhases()
 				CDSLModel *captured = GPOS_NEW(mp) CDSLModel(mp);
 				CDSLConstraintChecker checker(mp);
 				if (!CDSLMatcher(mp, guarded).FMatch(guarded->PfragSrc()->PopRoot(), source, captured) ||
-					checker.FCheck(guarded, captured) != (0 == phase))
+					checker.FCheck(guarded, captured) != (0 == phase || 3 == phase))
 					result = GPOS_FAILED;
 				captured->Release();
 				guarded->Release();
@@ -921,19 +922,24 @@ EresComputeContextScope()
 	CExpression *join = fix.PexprLogicalInnerJoin(left, right, predicate);
 	CColRef *external = fix.PcrCreateInt4("context_external");
 	for (BOOL compute : {false, true})
+	for (ULONG target_kind : {0, 1, 2})
 	for (BOOL outer : {false, true})
 	for (BOOL derive : {false, true})
 	for (BOOL replace : {false, true})
+	for (BOOL item : {false, true})
+	for (BOOL long_tail : {false, true})
 	{
 		if (replace && !derive) continue;
 		// Replug a captured item with independently derived metadata. The
 		// untouched outer reference keeps its scope; a dropped local must not
 		// become a correlation. This tests construction, not join elimination.
 		std::string text = compute ? "Compute<e0 a0 s0>" : "Proj<a0 s0 e0>";
-		text += "(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
-			"Compute<e1 a3 s1>(Input<t2>)|t2 := t0;s1 := s0;"
-			"Context(n0) := e0;Column(a6) := n0;"
-			"e1 := Context(e2,n1);e2 := e0;";
+		text += "(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|";
+		text += 0 == target_kind ? "Compute<e1 a3 s1>" :
+			1 == target_kind ? "Proj<a3 s1 e1>" : "Proj*<a3 s1 e1>";
+		text += "(Input<t2>)|t2 := t0;s1 := s0;";
+		text += item ? "Item(n0,a8,e3) := e0;Column(a6) := n0;e1 := Item(n1,a8,e3);"
+			: "Context(n0) := e0;Column(a6) := n0;e1 := Context(e2,n1);e2 := e0;";
 		text += replace ? "OutputAttrs(a7,t0);n1 := Column(a7);" : "n1 := Column(a6);";
 		text += derive ? "a3 := ScalarDeps(e1)" : "AttrsUnion(a3,a0,a0)";
 		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
@@ -942,6 +948,9 @@ EresComputeContextScope()
 		for (CColRef *column : {outer ? external : (*right_columns)[0], external})
 			items->Append(CUtils::PexprScalarProjectElement(mp,
 				fix.PcrCreateInt4("context_item"), CUtils::PexprScalarIdent(mp, column)));
+		if (long_tail)
+			items->Append(CUtils::PexprScalarProjectElement(mp,
+				fix.PcrCreateInt4("tail_item"), CUtils::PexprScalarIdent(mp, external)));
 		join->AddRef();
 		CExpression *source = GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CLogicalProject(mp), join,
@@ -951,27 +960,28 @@ EresComputeContextScope()
 		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
 		CDSLInstantiator instantiator(mp);
 		CExpression *rebuilt = instantiator.PexprInstantiateBinding(rule,
-			(*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0], model);
+			(*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0 == target_kind ? 0 : 2], model);
 		GPOS_UNITTEST_ASSERT(nullptr != rebuilt);
 		if (replace)
 			GPOS_UNITTEST_ASSERT(!rebuilt->DeriveUsedColumns()->FMember((*right_columns)[0]));
 		rebuilt->Release();
 		CExpression *target = instantiator.PexprInstantiate(rule, model);
-		// Proj has no captured Compute carrier: its foreign column cannot be
-		// authorized by recursing from a match definition into a scalar hole.
-		const BOOL valid = compute && (outer || replace);
+		const BOOL valid = outer || replace;
 		if (valid != (nullptr != target))
-			GPOS_TRACE_FORMAT("Context scope compute=%d outer=%d derive=%d replace=%d target=%d",
-				compute, outer, derive, replace, nullptr != target);
+			GPOS_TRACE_FORMAT("List scope compute=%d target_kind=%lu outer=%d derive=%d replace=%d item=%d tail=%d target=%d",
+				compute, target_kind, outer, derive, replace, item, long_tail, nullptr != target);
 		GPOS_UNITTEST_ASSERT(valid == (nullptr != target));
 		if (nullptr != target)
 		{
 			GPOS_UNITTEST_ASSERT(target->DeriveOuterReferences()->Equals(source->DeriveOuterReferences()));
-			GPOS_UNITTEST_ASSERT((*(*target)[1])[1] == (*(*source)[1])[1]);
-			GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember(external));
-			GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveUsedColumns()->FMember((*right_columns)[0]));
+			CExpression *project = 2 == target_kind ? (*target)[0] : target;
+			GPOS_UNITTEST_ASSERT((*project)[1]->Arity() == (*source)[1]->Arity());
+			for (ULONG i = 1; i < (*source)[1]->Arity(); ++i)
+				GPOS_UNITTEST_ASSERT((*(*project)[1])[i] == (*(*source)[1])[i]);
+			GPOS_UNITTEST_ASSERT((*project)[1]->DeriveUsedColumns()->FMember(external));
+			GPOS_UNITTEST_ASSERT(!(*project)[1]->DeriveUsedColumns()->FMember((*right_columns)[0]));
 			if (replace)
-				GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember((*left_columns)[0]));
+				GPOS_UNITTEST_ASSERT((*project)[1]->DeriveUsedColumns()->FMember((*left_columns)[0]));
 		}
 		CRefCount::SafeRelease(target);
 		model->Release(); source->Release(); rule->Release();
@@ -981,14 +991,93 @@ EresComputeContextScope()
 }
 
 static GPOS_RESULT
-EresComputeCapturedScope(BOOL constructed)
+EresComputeRemovedOuterScope()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *left_columns = nullptr, *right_columns = nullptr;
+	CExpression *left = fix.PexprLogicalGet("removed_outer_left", 1, &left_columns);
+	CExpression *right = fix.PexprLogicalGet("removed_outer_right", 1, &right_columns);
+	CColRef *external = fix.PcrCreateInt4("retained_outer");
+	for (BOOL source_compute : {false, true})
+	for (ULONG target_kind : {0, 1, 2})
+	for (BOOL replace : {false, true})
+	for (BOOL retained : {false, true})
+	for (BOOL concat : {false, true})
+	for (BOOL item : {false, true})
+	{
+		// Construction-domain test, not an equivalence claim: place a rebuilt
+		// list above the other input. Only the removed occurrence loses its old scope;
+		// another item using that same column still needs the original guard.
+		std::string text = "LeftApply<p0 a10 a11 a12>(Input<t0>,";
+		text += source_compute ? "Compute<e0 a0 s0>" : "Proj<a0 s0 e0>";
+		text += "(Input<t1>))|";
+		text += 0 == target_kind ? "Compute<e2 a1 s1>" :
+			1 == target_kind ? "Proj<a1 s1 e2>" : "Proj*<a1 s1 e2>";
+		text += "(Input<t2>)|t2 := t0;s1 := s0;"
+			"Compare(k0,v0) := p0;Args(n3,v1) := v0;";
+		text += item ? "Item(n0,a7,e4) := e0;Column(a6) := n0;e1 := Item(n1,a7,e4);"
+			: "Context(n0) := e0;Column(a6) := n0;e1 := Context(e0,n1);";
+		text += "a1 := ScalarDeps(e2);";
+		text += replace ? "n1 := n3;" : "n1 := Column(a6);";
+		text += concat ? "e3 := Item();e2 := ExprConcat(e1,e3)" : "e2 := e1";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		for (CColRef *column : {(*left_columns)[0], retained ? (*left_columns)[0] : external})
+			items->Append(CUtils::PexprScalarProjectElement(mp,
+				fix.PcrCreateInt4("moved_item"), CUtils::PexprScalarIdent(mp, column)));
+		right->AddRef();
+		CExpression *compute = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+			right, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		left->AddRef();
+		right_columns->AddRef();
+		CExpression *source = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLeftOuterApply(mp, right_columns, COperator::EopScalarSubquery),
+			left, compute, CUtils::PexprScalarCmp(mp, CUtils::PexprScalarConstInt4(mp, 7),
+				CUtils::PexprScalarConstInt4(mp, 7), IMDType::EcmptEq));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+		CDSLInstantiator builder(mp);
+		CExpression *rebuilt = builder.PexprInstantiateBinding(rule,
+			(*rule->PfragTgt()->PopRoot()->Pdrgpsym())[0 == target_kind ? 0 : 2], model);
+		GPOS_UNITTEST_ASSERT(nullptr != rebuilt);
+		GPOS_UNITTEST_ASSERT(rebuilt->DeriveUsedColumns()->FMember((*left_columns)[0]) == (!replace || retained));
+		rebuilt->Release();
+		CExpression *target = builder.PexprInstantiate(rule, model);
+		const BOOL valid = replace && !retained;
+		if (valid != (nullptr != target))
+			GPOS_TRACE_FORMAT("removed outer source_compute=%d target_kind=%lu replace=%d retained=%d concat=%d item=%d built=%d",
+				source_compute, target_kind, replace, retained, concat, item, nullptr != target);
+		GPOS_UNITTEST_ASSERT(valid == (nullptr != target));
+		if (nullptr != target)
+		{
+			CExpression *project = 2 == target_kind ? (*target)[0] : target;
+			GPOS_UNITTEST_ASSERT(!(*project)[1]->DeriveUsedColumns()->FMember((*left_columns)[0]));
+			GPOS_UNITTEST_ASSERT((*project)[1]->DeriveUsedColumns()->FMember(external));
+			GPOS_UNITTEST_ASSERT(target->DeriveOuterReferences()->Equals(source->DeriveOuterReferences()));
+		}
+		CRefCount::SafeRelease(target);
+		model->Release(); source->Release(); rule->Release();
+	}
+	right->Release(); left->Release();
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
+EresComputeCapturedScope(BOOL constructed, BOOL derived = false)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	// Construction-domain checks, not equivalence claims: removing the right
 	// input must not reinterpret its local column as an external reference.
-	CDSLRule *rule = PdslruleParseLocal(mp, constructed ?
+	CDSLRule *rule = PdslruleParseLocal(mp, derived ?
+		"Compute<Item(n0,a6,e0) a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
+		"Compute<e1 a3 s1>(Input<t2>)|t2 := t0;e1 := Item(n0,a6,e0);"
+		"a3 := ScalarDeps(e1);OutputAttrs(a7,e1);SchemaFromAttrs(s1,a7)" : constructed ?
 		"Compute<Item(n0,a6,e0) a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
 		"Compute<Item(n0,a6,e0) a3 s1>(Input<t2>)|t2 := t0;a3 := a0;s1 := s0" :
 		"Compute<e0 a0 s0>(InnerJoin<p0 a1 a2>(Input<t0>,Input<t1>))|"
@@ -1052,6 +1141,8 @@ EresComputeCapturedScope(BOOL constructed)
 				(nullptr != target && !target->DeriveOuterReferences()->Equals(
 					source->DeriveOuterReferences())))
 			{
+				GPOS_TRACE_FORMAT("Captured Compute scope constructed=%d derived=%d outer=%d target=%d",
+					constructed, derived, outer, nullptr != target);
 				result = GPOS_FAILED;
 			}
 		}
@@ -1092,6 +1183,8 @@ CDSLProjTest::EresUnittest_ComputeFilterCommutesWithCorrelatedPredicate()
 	}
 	if (GPOS_OK != EresComputeCapturedScope(false)) return GPOS_FAILED;
 	if (GPOS_OK != EresComputeCapturedScope(true)) return GPOS_FAILED;
+	if (GPOS_OK != EresComputeCapturedScope(true, true)) return GPOS_FAILED;
+	if (GPOS_OK != EresComputeRemovedOuterScope()) return GPOS_FAILED;
 	return EresComputeContextScope();
 }
 

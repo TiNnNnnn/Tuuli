@@ -74,6 +74,7 @@ from run_e2e_cases import (
     run_sql as run_e2e_sql,
     actual_rows,
     actual_plan,
+    bind_source_captures,
     bool_guc_setting,
     disabled_xform_settings,
     memo_provenance,
@@ -331,6 +332,35 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIn("SET pg_orca.enable_orca=off;", run.call_args_list[1].args[1])
             self.assertEqual(result["output"], result["postgres_output"])
 
+    def test_e2e_plan_rows_use_each_states_settings_and_keep_actual_output(self) -> None:
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        plans = [
+            {"name": "native", "dsl": False},
+            {"name": "shadow", "assert_maxonerow": "default"},
+            {"name": "negative", "dsl": False, "disable_xforms": ["CXformCollapseProject"]},
+            {"name": "replacement", "disable_xforms": ["CXformCollapseProject"]},
+        ]
+        expected = {"disable_xforms": ["CXformCollapseProject"], "off_output": ["1"],
+                    "plan_outputs": {plan["name"]: ["1"] for plan in plans}}
+        with patch("run_e2e_cases.run_sql", side_effect=["1\n"] * 6 + ["2\n"]) as run:
+            actual = actual_rows(args, "SELECT 1;", expected, plans)
+        # Preserve a mismatch for the golden diff; never copy expected rows.
+        self.assertEqual(actual["plan_outputs"]["replacement"], ["2"])
+        self.assertEqual(actual["plan_outputs"]["native"], ["1"])
+        for plan, call in zip(plans, run.call_args_list[3:]):
+            sql = call.args[1]
+            enabled = "on" if plan.get("dsl", True) else "off"
+            self.assertIn(f"SET pg_orca.enable_dsl_rule={enabled};", sql)
+            self.assertEqual("disable_xform('CXformCollapseProject')" in sql,
+                             plan["name"] in {"negative", "replacement"})
+            self.assertIn("COPY (SELECT 1) TO STDOUT", sql)
+        self.assertIn("RESET pg_orca.enable_assert_maxonerow;", run.call_args_list[4].args[1])
+        for invalid in ([], {}, {"unknown": []}, {"native": "1"}, {"native": [1]}):
+            with self.subTest(invalid=invalid), patch("run_e2e_cases.run_sql") as run:
+                with self.assertRaises(ValueError):
+                    actual_rows(args, "SELECT 1", {"plan_outputs": invalid}, plans)
+                run.assert_not_called()
+
     def test_e2e_dphyper_does_not_implicitly_enable_shadow(self) -> None:
         from run_e2e_cases import run_plan
 
@@ -379,6 +409,115 @@ class TraceFrameworkTest(unittest.TestCase):
             with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=records):
                 with self.assertRaises(ValueError):
                     actual_plan(expected, "invalid trace")
+
+    def test_e2e_source_bindings_check_identity_and_reject_ambiguous_snapshots(self) -> None:
+        pattern = {"symbol": "s0", "kind": "s", "bound": True,
+                   "columns": [{"id": 2, "type": "int4", "typmod": -1},
+                               {"id": 1, "type": "int4", "typmod": -1}]}
+        expected = {"source_binding_matches": [pattern]}
+        def records(symbols):
+            return [{"kind": "candidate_context", "field": "query_input_context",
+                     "value": {"input_context": {"plan_slice": {"status": "ok",
+                         "source_bindings": {"scope": "matched_source_symbols",
+                                             "symbols": symbols}}}}}]
+        for symbols, matched in (([pattern], [pattern]),
+                                 ([{**pattern, "columns": pattern["columns"][::-1]}], []),
+                                 ([{**pattern, "bound": False}], []), ([], [])):
+            with self.subTest(symbols=symbols), patch(
+                "ml_orca.collect.run_workload_comparison.trace_records", return_value=records(symbols)
+            ):
+                self.assertEqual(actual_plan(expected, "decoded trace"),
+                                 {"source_binding_matches": matched})
+        for symbols in ([pattern, pattern], [{"kind": "s"}], [None]):
+            with self.subTest(symbols=symbols), patch(
+                "ml_orca.collect.run_workload_comparison.trace_records", return_value=records(symbols)
+            ):
+                with self.assertRaises(ValueError):
+                    actual_plan(expected, "ambiguous trace")
+        with patch("ml_orca.collect.run_workload_comparison.trace_records",
+                   return_value=[{"kind": "candidate_context", "field": "query_input_context",
+                                  "value": {"input_context": {"plan_slice": {"status": "error"}}}}]):
+            with self.assertRaises(ValueError):
+                actual_plan(expected, "failed slice")
+
+    def test_rule_bindings_require_one_occurrence_and_the_same_rule_identity(self) -> None:
+        upper = {"symbol": "e0", "kind": "e", "bound": True}
+        lower = {"symbol": "e1", "kind": "e", "bound": True}
+        pattern = {"rule_hash": "fusion", "symbols": [upper, lower]}
+        expected = {"rule_binding_matches": [pattern]}
+        def event(symbols, rule_hash="fusion", complete=True):
+            return {"kind": "rule_candidate", "rule_hash": rule_hash,
+                    "binding_context": {"rule_hash": rule_hash, "source_bindings": {
+                        "scope": "matched_source_symbols", "symbols": symbols, "complete": complete}}}
+        for records, matches in (([event([upper, lower])], [pattern]),
+                                 ([event([upper]), event([lower])], []),
+                                 ([event([upper, lower], "another")], []),
+                                 ([event([upper, lower], complete=False)], []),
+                                 ([], [])):
+            with self.subTest(records=records), patch(
+                "ml_orca.collect.run_workload_comparison.trace_records", return_value=records
+            ):
+                self.assertEqual(actual_plan(expected, "decoded trace"), {"rule_binding_matches": matches})
+        wrong = event([upper, lower])
+        wrong["binding_context"]["rule_hash"] = "another"
+        malformed = event([upper, lower])
+        malformed["binding_context"]["source_bindings"] = None
+        for records in ([wrong], [event([upper, upper])], [malformed]):
+            with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=records):
+                with self.assertRaises(ValueError):
+                    actual_plan(expected, "invalid source binding")
+        with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[]):
+            with self.assertRaises(ValueError):
+                actual_plan({"rule_binding_matches": [{"rule_hash": "fusion", "symbols": [None]}]}, "")
+
+    def test_kernel_capture_binding_uses_typed_paths_not_hidden_names(self) -> None:
+        import copy
+        upper = {"symbol": "e0", "kind": "e", "bound": True,
+                 "source_paths": ["r/e:0"], "expression": {"nodes": []}}
+        lower = {"symbol": "p0", "kind": "e", "bound": True,
+                 "source_paths": ["r/0/e:0"], "expression": {"nodes": []}}
+        value = {"symbol": "n0", "kind": "n", "bound": True,
+                 "source_paths": ["r/0/e:0/Item:0"], "expression": {"nodes": []}}
+        snapshot = {"scope": "matched_source_symbols", "complete": True, "symbols": [upper, lower, value]}
+        manifest = {"scope": "rule_source_captures", "captures": [
+            {"symbol": "e99", "kind": "e", "term": "capture_expr_list_7", "source_paths": lower["source_paths"]},
+            {"symbol": "p77", "kind": "n", "term": "capture_scalar_3", "source_paths": value["source_paths"]}]}
+        bound = bind_source_captures(snapshot, manifest)
+        self.assertIs(bound["capture_expr_list_7"], lower)
+        self.assertIs(bound["capture_scalar_3"], value)
+        self.assertEqual(len(bound), 2)
+        variants = []
+        for field, replacement in (("source_paths", ["r/1/e:0"]), ("kind", "p"),
+                                   ("source_paths", []), ("source_paths", ["r/0/e:0", "r/0/e:0"]),
+                                   ("source_paths", ["r/0/e:0", "r/e:0"]),
+                                   ("source_paths", ["r/0/e:0/Unknown:0"])):
+            changed = copy.deepcopy(manifest)
+            changed["captures"][0][field] = replacement
+            variants.append((snapshot, changed))
+        shared = copy.deepcopy(snapshot)
+        shared["symbols"][1]["source_paths"].append("r/1/e:0")
+        variants.append((shared, manifest)) # Cannot ignore another required source occurrence.
+        duplicate = copy.deepcopy(manifest)
+        duplicate["captures"].append(duplicate["captures"][0])
+        variants.append((snapshot, duplicate))
+        alias = copy.deepcopy(manifest)
+        alias["captures"].append({**alias["captures"][0], "term": "capture_expr_list_8"})
+        variants.append((snapshot, alias))
+        for field, replacement in (("complete", False), ("symbols", [upper]),
+                                   ("symbols", [upper, lower, lower])):
+            changed = copy.deepcopy(snapshot)
+            changed[field] = replacement
+            variants.append((changed, manifest))
+        for field, replacement in (("bound", False), ("expression", None), ("expression", []),
+                                   ("expressions", None), ("columns", None),
+                                   ("unsupported_payload", True)):
+            changed = copy.deepcopy(snapshot)
+            changed["symbols"][1][field] = replacement
+            variants.append((changed, manifest))
+        for native, captures in variants:
+            with self.subTest(native=native, captures=captures):
+                with self.assertRaises(ValueError):
+                    bind_source_captures(native, captures)
 
     def test_transfer_models_are_frozen_before_target_observations(self) -> None:
         result = transport_check([1, 2, 4], [3, 5, 9], [1, 3, 8], [3, 7, 17])

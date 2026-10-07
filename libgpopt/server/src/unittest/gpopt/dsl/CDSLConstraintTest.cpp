@@ -20,6 +20,7 @@
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
@@ -28,11 +29,16 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/COptCtxt.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "naucrates/base/IDatumInt8.h"
@@ -106,6 +112,76 @@ BindTableAndAttr(CDSLModel *pmodel, const CDSLSymbol *psymTable,
 }
 
 static GPOS_RESULT
+EresScalarSubqueryTotality()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG rows = 0; rows < 3; ++rows)
+	for (ULONG shape = 0; shape < 6; ++shape)
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *carrier = fix.PexprLogicalGet("scalar_bound", 1, &columns);
+		columns->AddRef();
+		IDatum2dArray *values = GPOS_NEW(mp) IDatum2dArray(mp);
+		for (ULONG i = 0; i < rows; ++i)
+		{
+			CExpression *value = CUtils::PexprScalarConstNull(
+				mp, (*columns)[0]->RetrieveType(), default_type_modifier);
+			IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+			datum->AddRef();
+			IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+			row->Append(datum);
+			values->Append(row);
+			value->Release();
+		}
+		CExpression *query = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, values));
+		if (shape == 1)
+			query = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), query);
+		if (shape == 2)
+			query = CUtils::PexprLimit(mp, query, 0, 1);
+		if (shape == 3)
+		{
+			// An arbitrary comparison is not total/repeatable merely because
+			// the enclosing query has a finite cardinality bound.
+			CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarCmp(mp,
+					GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100402),
+					GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), IMDType::EcmptEq),
+				CUtils::PexprScalarIdent(mp, (*columns)[0]), CUtils::PexprScalarConstInt4(mp, 1));
+			CExpression *filtered = fix.PexprLogicalSelect(query, predicate);
+			query->Release(); predicate->Release(); query = filtered;
+		}
+		const CColRef *selected = shape == 4
+			? COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				(*columns)[0]->RetrieveType(), default_type_modifier) : (*columns)[0];
+		CExpression *scalar = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubquery(mp, selected, shape == 5, false), query);
+		const BOOL safe = rows <= 1 && shape <= 1;
+		GPOS_UNITTEST_ASSERT(dslproperties::FQueryDemandInsensitive(scalar) == safe);
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarNullTest(mp), scalar);
+		for (const CHAR *property : {"ErrorFree", "Deterministic"})
+		{
+			const std::string text = std::string(
+				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|") +
+				property + "(p1);p1 := p0;a1 := a0;t1 := t0";
+			CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			BindTableAndAttr(model, PsymByName(rule, "t0"), carrier,
+				PsymByName(rule, "a0"), (*columns)[0], mp);
+			GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), predicate));
+			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model) == safe);
+			model->Release(); rule->Release();
+		}
+		predicate->Release(); carrier->Release();
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresAggregateTotalityScope()
 {
 	CAutoMemoryPool amp;
@@ -143,6 +219,62 @@ EresAggregateTotalityScope()
 					bounded, function, matched, accepted);
 			model->Release(); rule->Release();
 		}
+		for (const CHAR *reference : {"t0", "t1", "t2"})
+		{
+			const std::string text = std::string(
+				"Input<t0>|Input<t1>|t1 := t0;t2 := t1;Deterministic(") + reference + ")";
+			CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), aggregate, model));
+			// Query repeatability reuses the conservative total/repeatable tree
+			// domain, not a new assumption about an opaque table placeholder.
+			ok &= CDSLConstraintChecker(mp).FCheck(rule, model) == bounded;
+			model->Release(); rule->Release();
+		}
+		aggregate->Release();
+	}
+	for (BOOL bounded : {false, true})
+	for (BOOL validComparison : {false, true})
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("count_distinct", 1, &columns);
+		if (bounded)
+		{
+			columns->AddRef();
+			input->Release();
+			IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+			for (ULONG i = 0; i < 3; ++i)
+			{
+				CExpression *value = i == 2
+					? CUtils::PexprScalarConstNull(mp, (*columns)[0]->RetrieveType(), default_type_modifier)
+					: CUtils::PexprScalarConstInt4(mp, 1);
+				IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+				datum->AddRef();
+				IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+				row->Append(datum);
+				rows->Append(row);
+				value->Release();
+			}
+			input = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, rows));
+		}
+		CExpression *count = CUtils::PexprCount(mp, (*columns)[0], true, false);
+		(*count)[EaggfuncIndexDistinct]->PdrgPexpr()->Append(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSortGroupClause(mp, 0, validComparison ? 96 : 97, 97, false, true)));
+		CColRef *output = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+			COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
+				CScalarAggFunc::PopConvert(count->Pop())->MdidType()), default_type_modifier);
+		CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+			CUtils::PexprScalarProjectElement(mp, output, count));
+		CExpression *aggregate = CUtils::PexprLogicalGbAggGlobal(mp,
+			GPOS_NEW(mp) CColRefArray(mp), input, list);
+		GPOS_UNITTEST_ASSERT(dslproperties::FQueryDemandInsensitive(aggregate) ==
+			(bounded && validComparison));
+		// The aggregate function alone has no input bound: never promote an
+		// invocation-local COUNT proof to universal ErrorFree(function).
+		GPOS_UNITTEST_ASSERT(!dslproperties::FQueryDemandInsensitive(count));
 		aggregate->Release();
 	}
 	return ok ? GPOS_OK : GPOS_FAILED;
@@ -299,6 +431,57 @@ EresMetadataAliasPremises()
 }
 
 static GPOS_RESULT
+EresDependencyBindings()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("dependency_input", 2, &columns);
+	for (ULONG i = 0; i < columns->Size(); ++i) (*columns)[i]->MarkAsUsed();
+	CExpression *predicate = fix.PexprEqConst((*columns)[0], 1);
+	CExpression *source = fix.PexprLogicalSelect(input, predicate);
+	BOOL valid = true;
+	for (BOOL checkFirst : {false, true})
+	for (BOOL alias : {false, true})
+	for (BOOL constant : {false, true})
+	{
+		const std::string check = alias ? "DepsDisjoint(a3,a4)" : "DepsDisjoint(a2,a4)";
+		const std::string metadata = "OutputAttrs(a4,t0)";
+		const std::string text =
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"Compare(c0,v0) := p0;Args(n0,v1) := v0;Args(n1,v2) := v1;Args() := v2;"
+			"t1 := t0;a1 := a0;p1 := p0;a2 := ScalarDeps(" + std::string(constant ? "n1" : "n0") +
+			");a3 := a2;" + (checkFirst ? check + ";" + metadata : metadata + ";" + check);
+		CWStringDynamic parseError(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &parseError);
+		if (nullptr == rule) GPOS_TRACE(parseError.GetBuffer());
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = nullptr != rule &&
+			CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		CDSLConstraintChecker checker(mp);
+		const BOOL accepted = matched && checker.FCheck(rule, model);
+		if (!matched || accepted != constant)
+			GPOS_TRACE_FORMAT("dependency checkFirst=%d alias=%d constant=%d matched=%d accepted=%d",
+				checkFirst, alias, constant, matched, accepted);
+		valid &= matched && accepted == constant;
+		if (accepted) valid &= checker.FCheck(rule, model);
+		model->Release();
+		CRefCount::SafeRelease(rule);
+	}
+	// A property consumes metadata; it must never invent an unbound column set.
+	CDSLRule *unbound = PdslruleParseLocal(mp,
+		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;p1 := p0;DepsDisjoint(a2,a0)");
+	valid &= nullptr == unbound;
+	CRefCount::SafeRelease(unbound);
+	source->Release();
+	predicate->Release();
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresSubsetBindings()
 {
 	CAutoMemoryPool amp;
@@ -339,14 +522,48 @@ EresSubsetBindings()
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
+static GPOS_RESULT
+EresUniqueOnCardinalityBound()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Input<t0>|Input<t1>|t1 := t0;AttrsEmpty(a0);Unique(t0,a0)");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	BOOL ok = true;
+	for (ULONG bound = 0; bound < 4; ++bound)
+	{
+		IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+		for (ULONG row = 0; row < bound; ++row)
+			rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+		CExpression *input = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalConstTableGet(mp,
+				GPOS_NEW(mp) CColRefArray(mp), rows));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		model->FBind(PsymByName(rule, "t0"), input);
+		const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+		if (accepted != (bound <= 1))
+			GPOS_TRACE_FORMAT("empty key bound=%lu accepted=%d", bound, accepted);
+		ok &= accepted == (bound <= 1);
+		model->Release();
+		input->Release();
+	}
+	rule->Release();
+	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
 GPOS_RESULT
 CDSLConstraintTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
+		GPOS_UNITTEST_FUNC(EresScalarSubqueryTotality),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
 		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
 		GPOS_UNITTEST_FUNC(EresSubsetBindings),
+		GPOS_UNITTEST_FUNC(EresDependencyBindings),
+		GPOS_UNITTEST_FUNC(EresUniqueOnCardinalityBound),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_SliceCompose),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_DeterministicSubqueryBoundary),

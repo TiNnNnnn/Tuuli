@@ -282,16 +282,21 @@ EresColumnAliases()
 	CDSLTestFixture fix(mp);
 	const std::string definitions = "Item(Column(a2),a3,Item(Column(a2),a4,Item()))";
 	BOOL ok = true;
+	for (BOOL projection : {false, true})
 	for (ULONG trial = 0; trial < 7; ++trial)
 	{
 		const BOOL in_case = 3 <= trial;
 		const BOOL in_condition = 6 == trial;
-		const std::string text =
-			"Compute<Item(" + std::string(in_condition ?
+		const std::string source_item = "Item(" + std::string(in_condition ?
 				"Case(Compare(c0,Args(Column(a3),Args(n0,Args()))),n3,n4)" :
 				(in_case ? "Case(p0,Column(a3),n0)" : "Column(a3)")) +
-			",a5,Item()) a0 s0>(Compute<" + definitions + " a1 s1>(Input<t0>))|"
-			"Compute<Item(n1,a5,Item()) a6 s2>(Compute<" + definitions + " a7 s3>(Input<t1>))|" +
+			",a5,Item())";
+		const std::string text = (projection ? "Proj<a0 s0 " + source_item + ">"
+			: "Compute<" + source_item + " a0 s0>") +
+			"(Compute<" + definitions + " a1 s1>(Input<t0>))|" +
+			(projection ? "Proj<a6 s2 Item(n1,a5,Item())>"
+			 : "Compute<Item(n1,a5,Item()) a6 s2>") +
+			"(Compute<" + definitions + " a7 s3>(Input<t1>))|" +
 			(in_condition ? "n2 := Column(a4);v0 := Args();v1 := Args(n0,v0);v2 := Args(n2,v1);"
 				"p1 := Compare(c0,v2);n1 := Case(p1,n3,n4);" :
 				(in_case ? "n2 := Column(a4);n1 := Case(p0,n2,n0);" : "n1 := Column(a4);")) +
@@ -331,6 +336,11 @@ EresColumnAliases()
 			(text + (1 == trial ? "a6 := a0" : "a6 := ScalarDeps(n1)")).c_str());
 		if (nullptr == rule) { source->Release(); return GPOS_FAILED; }
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
+		// Both scalar-list operators must validate the dependencies of the
+		// rebuilt value, not those of the old SELECT list (trial 1).
+		if ((EdsldecisionReady == decision->Status()) != (0 == trial || in_case))
+			GPOS_TRACE_FORMAT("Column alias projection=%d trial=%lu status=%d",
+				projection, trial, decision->Status());
 		ok &= (EdsldecisionReady == decision->Status()) == (0 == trial || in_case);
 		if (0 == trial || in_case)
 		{
@@ -378,14 +388,13 @@ EresColumnAliases()
 }
 
 static GPOS_RESULT
-EresComputeColumnDerivations()
+EresSelectColumnDerivations()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	const std::string sourceText = "Compute<Item(n0,a3,Item()) a0 s0>("
 		"Compute<Item(n1,a4,Item()) a1 s1>(Input<t0>))|";
-	const std::string targetText = "Compute<Item(n1,a4,Item(n0,a3,Item())) a2 s2>(Input<t1>)|";
 	BOOL ok = true;
 	// Construction only, not an installed/proved law. Incorrect dependencies
 	// and output layouts must still fail at the shared builder boundary.
@@ -399,13 +408,18 @@ EresComputeColumnDerivations()
 		{"t1 := t0;SchemaFromAttrs(s2,a6);AttrsUnion(a6,a4,a3);AttrsUnion(a2,a0,a1);"
 		 "SchemaUnion(s1,s0,a4)", false},
 		{"t1 := t0;OutputAttrs(a2,t1);SchemaUnion(s2,s1,a3)", true},
+		{"t1 := t0;AttrsUnion(a5,a0,a1);AttrsUnion(a2,a5,a3);SchemaUnion(s2,s1,a3)", false},
 	};
+	for (const CHAR *targetText : {
+		"Compute<Item(n1,a4,Item(n0,a3,Item())) a2 s2>(Input<t1>)|",
+		"Proj<a2 s2 Item(n1,a4,Item(n0,a3,Item()))>(Input<t1>)|",
+		"Proj*<a2 s2 Item(n1,a4,Item(n0,a3,Item()))>(Input<t1>)|"})
 	for (ULONG trial = 0; trial < GPOS_ARRAY_SIZE(cases); ++trial)
 	{
 		CDSLRule *rule = PdslruleParseLocal(mp, (sourceText + targetText + cases[trial].constraints).c_str());
 		if (nullptr == rule)
 		{
-			GPOS_TRACE_FORMAT("Compute derivation parse failed trial=%lu", trial);
+			GPOS_TRACE_FORMAT("SELECT derivation parse failed trial=%lu target=%s", trial, targetText);
 			return GPOS_FAILED;
 		}
 		CColRefArray *inputs = nullptr;
@@ -426,17 +440,25 @@ EresComputeColumnDerivations()
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
 		const BOOL ready = EdsldecisionReady == decision->Status();
 		if (ready != cases[trial].ready)
-			GPOS_TRACE_FORMAT("Compute derivation trial=%lu status=%d", trial, decision->Status());
+			GPOS_TRACE_FORMAT("SELECT derivation trial=%lu status=%d target=%s", trial, decision->Status(), targetText);
 		ok &= ready == cases[trial].ready;
 		if (cases[trial].ready && ready)
 		{
 			CExpression *target = decision->PexprTarget();
+			if (rule->PfragTgt()->PopRoot()->FDistinct())
+			{
+				ok &= COperator::EopLogicalGbAgg == target->Pop()->Eopid() &&
+					target->DeriveOutputColumns()->Size() == 2 &&
+					target->DeriveOutputColumns()->FMember(lowerOutput) &&
+					target->DeriveOutputColumns()->FMember(upperOutput);
+				target = (*target)[0];
+			}
 			ok &= COperator::EopLogicalProject == target->Pop()->Eopid() &&
 				(*target)[0]->Matches(input) && 2 == (*target)[1]->Arity() &&
 				(*(*target)[1])[0]->Matches((*(*lower)[1])[0]) &&
 				(*(*target)[1])[1]->Matches((*(*source)[1])[0]) &&
 				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
-			if (!ok) GPOS_TRACE_FORMAT("Compute derivation target failed trial=%lu", trial);
+			if (!ok) GPOS_TRACE_FORMAT("SELECT derivation target failed trial=%lu target=%s", trial, targetText);
 		}
 		GPOS_DELETE(decision);
 		source->Release(); lower->Release(); input->Release(); rule->Release();
@@ -453,28 +475,36 @@ EresComputeConcatBindings()
 	const std::string pair = "Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
 		"Compute<e2 a2 s2>(Input<t1>)|t1 := t0;"
 		"e2 := ExprConcat(e3,e1);e3 := ExprConcat(e0,e4);e4 := Item();";
+	const std::string item_pair = "Compute<Item(n0,a3,e0) a0 s0>("
+		"Compute<Item(n1,a4,e1) a1 s1>(Input<t0>))|"
+		"Compute<ExprConcat(Item(n0,a3,e0),Item(n1,a4,e1)) a2 s2>(Input<t1>)|t1 := t0;";
+	for (BOOL explicit_items : {false, true})
 	for (ULONG width : {1UL, 3UL, 7UL})
-	for (ULONG trial = 0; trial < 5; ++trial)
+	for (ULONG trial = 0; trial < 7; ++trial)
 	{
 		const std::string metadata = trial == 3
 			? "SchemaUnion(s2,s1,s0);AttrsUnion(a2,a0,a1)"
 			: trial == 4 ? "SchemaUnion(s2,s0,s1);a2 := a0"
 			: "SchemaUnion(s2,s0,s1);AttrsUnion(a2,a0,a1)";
-		CDSLRule *rule = PdslruleParseLocal(mp, (pair + metadata).c_str());
+		CDSLRule *rule = PdslruleParseLocal(mp, ((explicit_items ? item_pair : pair) + metadata).c_str());
 		if (nullptr == rule) return GPOS_FAILED;
 		CColRefArray *inputs = nullptr;
 		CExpression *input = fix.PexprLogicalGet("concat_inputs", 2, &inputs);
 		CColRef *outer = fix.PcrCreateInt4("external");
+		CColRef *other_outer = fix.PcrCreateInt4("other_external");
+		CColRef *lower_first = fix.PcrCreateInt4("lower_first");
 		CExpression *lists[2];
 		for (ULONG side = 0; side < 2; ++side)
 		{
 			CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
 			for (ULONG i = 0; i < width + side; ++i)
 			{
-				CColRef *value = (trial == 1 || (trial == 2 && side == 1))
-					? outer : (*inputs)[side];
+				CColRef *value = trial == 5 ? (side == 0 ? outer : other_outer)
+					: (trial == 6 && side == 0) ? lower_first
+					: (trial == 1 || (trial == 2 && side == 1)) ? outer : (*inputs)[side];
 				items->Append(GPOS_NEW(mp) CExpression(mp,
-					GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")),
+					GPOS_NEW(mp) CScalarProjectElement(mp,
+						side == 1 && i == 0 ? lower_first : fix.PcrCreateInt4("result")),
 					CUtils::PexprScalarIdent(mp, value)));
 			}
 			lists[side] = GPOS_NEW(mp) CExpression(mp,
@@ -487,11 +517,12 @@ EresComputeConcatBindings()
 			GPOS_NEW(mp) CLogicalProject(mp), lower, lists[0]);
 		CDSLRewriteDecision *decision = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source);
 		const BOOL ready = EdsldecisionReady == decision->Status();
-		BOOL ok = ready == (trial < 3);
+		BOOL ok = ready == (trial < 3 || trial == 5);
 		if (ready)
 		{
 			CExpression *target = decision->PexprTarget();
 			ok &= (*target)[0]->Matches(input) && (*target)[1]->Arity() == 2 * width + 1 &&
+				target->DeriveOuterReferences()->Equals(source->DeriveOuterReferences()) &&
 				target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns());
 			for (ULONG i = 0; ok && i < (*target)[1]->Arity(); ++i)
 				ok &= (*(*target)[1])[i]->Matches(i < width ? (*lists[0])[i] : (*lists[1])[i - width]);
@@ -500,7 +531,7 @@ EresComputeConcatBindings()
 		source->Release(); input->Release(); rule->Release();
 		if (!ok)
 		{
-			GPOS_TRACE_FORMAT("Compute concat width=%lu trial=%lu failed", width, trial);
+			GPOS_TRACE_FORMAT("Compute concat explicit=%d width=%lu trial=%lu failed", explicit_items, width, trial);
 			return GPOS_FAILED;
 		}
 	}
@@ -637,7 +668,7 @@ EresComputedResultOutputContract()
 		"Proj<a0 s0 Item(Column(a2),a3,Item())>("
 		"Proj<a1 s1 Item(n0,a2,Item())>(Input<t0>))|"
 		"Proj<a4 s2 Item(n0,a3,Item())>(Input<t1>)|"
-		"t1 := t0;a4 := a0;s2 := s0");
+		"t1 := t0;a4 := a1;s2 := s0");
 	if (nullptr == rule) return GPOS_FAILED;
 	BOOL ok = true;
 	for (ULONG width = 1; width <= 3; width += 2)
@@ -1043,13 +1074,17 @@ EresEmptyProjectIdempotence()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
-		"Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|"
-		"Compute<e2 a2 s2>(Compute<e3 a3 s3>(Input<t1>))|"
-		"t1 := t0;e2 := e0;a2 := a0;s2 := s0;e3 := e1;a3 := a1;s3 := s1"));
-	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	for (BOOL constructed : {false, true})
 	for (BOOL computed : {false, true})
 	{
+		// Empty lists can have several source owners. Rebuilding a closed list
+		// needs no owner; aliasing it and constructing it must both succeed.
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
+			(std::string("Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|") +
+			"Compute<e2 a2 s2>(Compute<e3 a3 s3>(Input<t1>))|"
+			"t1 := t0;" + (constructed ? "e2 := Item();" : "e2 := e0;") +
+			"a2 := a0;s2 := s0;e3 := e1;a3 := a1;s3 := s1").c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
 		CExpression *input = fix.PexprLogicalGet("empty_project_identity", 1);
 		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
 		if (computed)
@@ -1067,6 +1102,8 @@ EresEmptyProjectIdempotence()
 			rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
 		CDSLInstantiator builder(mp);
 		CAutoRef<CExpression> target(builder.PexprInstantiate(rule.Value(), model.Value()));
+		if (nullptr == target.Value())
+			GPOS_TRACE_FORMAT("Empty Compute constructed=%d computed=%d rejected", constructed, computed);
 		GPOS_UNITTEST_ASSERT(nullptr != target.Value() &&
 			target->Matches(computed ? source.Value() : inner.Value()) &&
 			target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()));
@@ -1089,7 +1126,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresEmptyProjectIdempotence),
 		GPOS_UNITTEST_FUNC(EresMemoIdentityCarrierReuse),
 		GPOS_UNITTEST_FUNC(EresClosedBooleanConstruction),
-		GPOS_UNITTEST_FUNC(EresComputeColumnDerivations),
+		GPOS_UNITTEST_FUNC(EresSelectColumnDerivations),
 		GPOS_UNITTEST_FUNC(EresComputeConcatBindings),
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
 		GPOS_UNITTEST_FUNC(EresMemoSourceOutputContract),
@@ -1934,7 +1971,7 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		"e1 := e0;a1 := a0;s1 := s0;t1 := t0");
 	if (nullptr == rule)
 		return GPOS_FAILED;
-	for (ULONG shape = 0; shape < 11; ++shape)
+	for (ULONG shape = 0; shape < 13; ++shape)
 	{
 		const BOOL previous_ok = ok;
 		ok = true;
@@ -1965,6 +2002,9 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 				value = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarSubquery(mp, aggregate, false, false), query);
 			}
+			else if (12 == shape)
+				// Metadata alone cannot authorize an uncaptured outer reference.
+				value = CUtils::PexprScalarIdent(mp, fix.PcrCreateInt4("uncaptured_outer"));
 			else
 				value = 2 == shape ? fix.PexprGenerateSeries((*columns)[0])
 					: CUtils::PexprScalarConstInt4(mp, 7);
@@ -1981,6 +2021,10 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		if (4 == shape)
 			items->Append(GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CScalarProjectElement(mp, output), CUtils::PexprScalarConstInt4(mp, 8)));
+		if (11 == shape)
+			// Equal values with different output identities are valid SELECT items.
+			items->Append(CUtils::PexprScalarProjectElement(mp,
+				fix.PcrCreateInt4("same_value"), CUtils::PexprScalarConstInt4(mp, 7)));
 		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
 			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
 		std::string exported, error;
@@ -1994,10 +2038,10 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		else
 			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-		const BOOL valid = 0 == shape || 5 == shape || 10 == shape;
+		const BOOL valid = 0 == shape || 5 == shape || 10 == shape || 11 == shape;
 		// An opaque list retains the complete subquery just like its explicit
 		// typed spelling; row-phase checks stop at the relational boundary.
-		const BOOL match_valid = valid;
+		const BOOL match_valid = valid || 12 == shape;
 		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
 		if (matched != match_valid)
 			GPOS_TRACE_FORMAT("Compute matching domain: shape=%lu", shape);
@@ -2022,10 +2066,11 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 			GPOS_TRACE_FORMAT("Compute construction domain: shape=%lu", shape);
 		ok &= (nullptr != target) == valid;
 		CRefCount::SafeRelease(target);
-		if (5 <= shape || 2 == shape)
+		if (5 <= shape || 2 == shape || 4 == shape)
 		{
 			// SELECT and SELECT DISTINCT consume the same row-level values;
-			// target validation must also cover independently bound lists.
+			// target validation must also cover independently bound lists,
+			// including duplicate output identities (shape 4).
 			for (BOOL distinct : {false, true})
 			{
 				const std::string project_text = std::string("Proj<a0 s0 e0>(Input<t0>)|Proj") +
@@ -2055,7 +2100,7 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		defined->Release();
 		used->Release();
 		model->Release();
-		if (5 <= shape || 2 == shape)
+		if ((5 <= shape && shape < 12) || 2 == shape)
 		{
 			// The same row-scalar boundary applies to Filter, on both entry paths.
 			CDSLRule *filter_rule = PdslruleParseLocal(mp,

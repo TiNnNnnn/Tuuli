@@ -1,0 +1,43 @@
+{
+  "description": "A canonical dedup wrapper preserves its child predicate expression",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "Proj*<a2 s0>(Filter<ValueBool(Call(h0,Args(Column(a3),Args(n0,Args())))) a0>(Input<t0>))",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "policy": "eliminate.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
