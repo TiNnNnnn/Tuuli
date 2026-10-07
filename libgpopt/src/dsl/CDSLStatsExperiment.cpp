@@ -31,15 +31,6 @@
 #include "gpopt/operators/COperator.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarProjectElement.h"
-#include "gpopt/operators/CScalarCmp.h"
-#include "gpopt/operators/CScalarBoolOp.h"
-#include "gpopt/operators/CScalarBooleanTest.h"
-#include "gpopt/operators/CScalarConst.h"
-#include "naucrates/base/IDatumInt2.h"
-#include "naucrates/base/IDatumInt4.h"
-#include "naucrates/base/IDatumInt8.h"
-#include "naucrates/base/IDatumBool.h"
-#include "naucrates/base/IDatumOid.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "naucrates/statistics/IStatistics.h"
@@ -52,81 +43,6 @@ namespace
 {
 std::string Fingerprint(CMemoryPool *mp, const CExpression *expr,
 	std::unordered_map<const CExpression *, std::string> *cache);
-
-// Read stored semantic enums only; no metadata/statistics derivation or
-// debug-text parsing. A category is not full operator/function identity.
-const CHAR *ScalarKind(const COperator *op)
-{
-	if (const auto *cmp = dynamic_cast<const CScalarCmp *>(op))
-	{
-		switch (cmp->ParseCmpType())
-		{
-			case IMDType::EcmptEq: return "eq";
-			case IMDType::EcmptNEq: return "neq";
-			case IMDType::EcmptL: return "lt";
-			case IMDType::EcmptLEq: return "le";
-			case IMDType::EcmptG: return "gt";
-			case IMDType::EcmptGEq: return "ge";
-			case IMDType::EcmptIDF: return "distinct";
-			case IMDType::EcmptOther: return "other";
-		}
-	}
-	if (const auto *boolean = dynamic_cast<const CScalarBoolOp *>(op))
-	{
-		switch (boolean->Eboolop())
-		{
-			case CScalarBoolOp::EboolopAnd: return "and";
-			case CScalarBoolOp::EboolopOr: return "or";
-			case CScalarBoolOp::EboolopNot: return "not";
-			default: break;
-		}
-	}
-	if (const auto *test = dynamic_cast<const CScalarBooleanTest *>(op))
-	{
-		switch (test->Ebt())
-		{
-			case CScalarBooleanTest::EbtIsTrue: return "is_true";
-			case CScalarBooleanTest::EbtIsNotTrue: return "is_not_true";
-			case CScalarBooleanTest::EbtIsFalse: return "is_false";
-			case CScalarBooleanTest::EbtIsNotFalse: return "is_not_false";
-			case CScalarBooleanTest::EbtIsUnknown: return "is_unknown";
-			case CScalarBooleanTest::EbtIsNotUnknown: return "is_not_unknown";
-			default: break;
-		}
-	}
-	return nullptr;
-}
-
-void ConstantContext(std::ostream &out, gpnaucrates::IDatum *datum)
-{
-	using namespace gpnaucrates;
-	const CHAR *kinds[] = {"int2", "int4", "int8", "bool", "oid", "generic"};
-	static_assert(GPOS_ARRAY_SIZE(kinds) == IMDType::EtiGeneric + 1, "datum kinds changed");
-	const auto type = datum->GetDatumType();
-	const BOOL known_type = IMDType::EtiInt2 <= type && type < IMDType::EtiGeneric;
-	const BOOL is_null = datum->IsNull();
-	out << ",\"constant\":{\"kind\":\"" << (known_type ? kinds[type] : "generic")
-		<< "\",\"is_null\":" << (is_null ? "true" : "false")
-		<< ",\"value_observed\":" << (is_null || known_type ? "true" : "false")
-		<< ",\"value\":";
-	// Generic datum statistics mappings can be lossy (or hashes). They are
-	// never a substitute for a typed SQL literal, including for non-null values.
-	if (is_null || !known_type)
-		out << "null";
-	else
-	{
-		switch (type)
-		{
-			case IMDType::EtiInt2: out << dynamic_cast<IDatumInt2 *>(datum)->Value(); break;
-			case IMDType::EtiInt4: out << dynamic_cast<IDatumInt4 *>(datum)->Value(); break;
-			case IMDType::EtiInt8: out << dynamic_cast<IDatumInt8 *>(datum)->Value(); break;
-			case IMDType::EtiBool: out << (dynamic_cast<IDatumBool *>(datum)->GetValue() ? "true" : "false"); break;
-			case IMDType::EtiOid: out << dynamic_cast<IDatumOid *>(datum)->OidValue(); break;
-			default: break;
-		}
-	}
-	out << "}";
-}
 
 void ColumnReference(std::ostream &out, const CColRef *column, ULONG slot)
 {
@@ -426,10 +342,7 @@ CDSLStatsExperimentSnapshot::InputContext(const CExpression *expr, CMemoryPool *
 			out << request_index;
 		else
 			out << "null";
-		if (const CHAR *kind = ScalarKind(input->Pop()))
-			out << ",\"scalar_kind\":\"" << kind << "\"";
-		if (COperator::EopScalarConst == input->Pop()->Eopid())
-			ConstantContext(out, CScalarConst::PopConvert(input->Pop())->GetDatum());
+		CDSLPlanTemplate::AppendScalarContext(out, input->Pop());
 		if (COperator::EopScalarIdent == input->Pop()->Eopid())
 		{
 			// Declared identity only: a base colref can also be reused as a

@@ -4,6 +4,7 @@
 #ifndef GPOPT_CDSLPlanTemplate_H
 #define GPOPT_CDSLPlanTemplate_H
 
+#include <iosfwd>
 #include <string>
 #include <vector>
 
@@ -14,6 +15,7 @@ namespace gpopt
 using namespace gpos;
 
 class CExpression;
+class COperator;
 class CDSLRule;
 class CDSLModel;
 
@@ -25,6 +27,9 @@ public:
 	static std::vector<const CExpression *> RelationalChildren(
 		const CExpression *expr);
 	static std::string ExpressionShape(const CExpression *expr);
+	// Append machine-readable scalar fields without deriving any properties.
+	// Unknown non-null generic constants keep value_observed=false.
+	static void AppendScalarContext(std::ostream &out, const COperator *op);
 	// Complete source trees only. Derives column metadata; Memo callers must
 	// pass a detached copy. Exported column sets are not ordered row layouts
 	// and do not certify source admissibility or rewrite equivalence.

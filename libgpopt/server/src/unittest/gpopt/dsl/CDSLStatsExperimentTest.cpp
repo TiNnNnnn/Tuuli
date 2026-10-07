@@ -81,7 +81,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
 	CColRefArray *cols = nullptr;
 	CExpression *input = fixture.PexprLogicalGet("symbols", 1, &cols);
 	BOOL valid = true;
-	for (ULONG kind = 0; kind < 4; ++kind)
+	for (ULONG kind = 0; kind < 6; ++kind)
 	{
 		CExpression *comparison = fixture.PexprEqConst((*cols)[0], 7);
 		COperator *op = comparison->Pop();
@@ -101,7 +101,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
 			op = GPOS_NEW(mp) CScalarFunc(mp,
 				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 2 == kind ? 65 : 66),
 				type, default_type_modifier,
-				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("same_name")), 0, false);
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("same_name")), 4 == kind ? 1 : 0, 5 == kind);
 		}
 		comparison->Release();
 		CExpression *call = GPOS_NEW(mp) CExpression(mp, op,
@@ -117,6 +117,11 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols()
 			artifact.substr(0, first).find(identity) != std::string::npos &&
 			artifact.substr(first, second - first).find("\"operator\":\"CScalarIdent\"") != std::string::npos &&
 			artifact.substr(second).find("\"operator\":\"CScalarConst\"") != std::string::npos &&
+			artifact.substr(second).find("\"constant\":{\"kind\":\"int4\",\"is_null\":false,\"value_observed\":true,\"value\":7}") != std::string::npos &&
+			(kind == 0) == (artifact.find("\"scalar_kind\":\"eq\"") != std::string::npos) &&
+			(kind < 2 || artifact.substr(0, first).find(
+				"\"function_format\":" + std::string(4 == kind ? "1" : "0") +
+				",\"function_variadic\":" + (5 == kind ? "true" : "false")) != std::string::npos) &&
 			artifact.substr(first).find("_mdid\"") == std::string::npos &&
 			before == CDSLStatsExperimentSnapshot::Fingerprint(mp, select);
 		if (!matches)
@@ -213,6 +218,9 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions()
 		ok &= std::string::npos != context.find("\"scalar_kind\":\"" + kind + "\"") &&
 			std::string::npos != context.find("\"scalar_kind\":\"eq\"") &&
 			nullptr == select->Pstats() && nullptr == predicate->Pstats();
+		const std::string plan = CDSLPlanTemplate::Serialize(mp, select);
+		ok &= std::string::npos != plan.find("\"scalar_kind\":\"" + kind + "\"") &&
+			std::string::npos != plan.find("\"scalar_kind\":\"eq\"");
 		std::string text, error;
 		ok &= CDSLPlanTemplate::FSlice(mp, select, "r", {"r/0"}, &text, &error);
 		ok &= error.empty();
@@ -1051,6 +1059,8 @@ CDSLStatsExperimentTest::EresUnittest_InputContextDoesNotDeriveStats()
 		const std::string observed = CDSLStatsExperimentSnapshot::InputContext(test);
 		valid = valid && std::string::npos != observed.find(
 			std::string("\"scalar_kind\":\"") + test_kinds[i] + "\"") && nullptr == test->Pstats();
+		valid &= std::string::npos != CDSLPlanTemplate::Serialize(mp, test).find(
+			std::string("\"scalar_kind\":\"") + test_kinds[i] + "\"");
 		test->Release();
 	}
 	CExpression *joined = fixture.PexprLogicalInnerJoin(get, other, self_join);
@@ -1134,9 +1144,22 @@ CDSLStatsExperimentTest::EresUnittest_ConstantInputContext()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fixture(mp);
-	auto check = [](CExpression *expr, const CHAR *expected) {
+	auto check = [mp](CExpression *expr, const CHAR *expected, BOOL has_catalog_type = true) {
 		const std::string context = CDSLStatsExperimentSnapshot::InputContext(expr);
-		const BOOL valid = std::string::npos != context.find(expected) && nullptr == expr->Pstats();
+		std::ostringstream fields;
+		CDSLPlanTemplate::AppendScalarContext(fields, expr->Pop());
+		// The shared trace exporter observes stored values without deriving
+		// properties. The detached plan exporter must preserve those exact fields.
+		const BOOL untouched = nullptr == expr->Pstats();
+		// The deliberately opaque float8 fixture has no catalog entry. Its
+		// stored payload is checked above, not passed to property derivation.
+		const std::string plan = has_catalog_type ? CDSLPlanTemplate::Serialize(mp, expr) : "";
+		const BOOL valid = untouched && std::string::npos != context.find(expected) &&
+			std::string::npos != fields.str().find(expected) && (!has_catalog_type ||
+			(std::string::npos != plan.find(expected) &&
+			 std::string::npos != plan.find("\"value_type\":"))) && nullptr == expr->Pstats();
+		if (!valid)
+			GPOS_TRACE_FORMAT("Unexpected constant export (expected %s): %s", expected, plan.c_str());
 		expr->Release();
 		return valid;
 	};
@@ -1165,7 +1188,7 @@ CDSLStatsExperimentTest::EresUnittest_ConstantInputContext()
 				default_type_modifier, &opaque, sizeof(opaque), is_null, 999, CDouble(999.0))));
 		valid &= check(generic, is_null
 			? "\"kind\":\"generic\",\"is_null\":true,\"value_observed\":true,\"value\":null}"
-			: "\"kind\":\"generic\",\"is_null\":false,\"value_observed\":false,\"value\":null}");
+			: "\"kind\":\"generic\",\"is_null\":false,\"value_observed\":false,\"value\":null}", false);
 	}
 	return valid ? GPOS_OK : GPOS_FAILED;
 }
