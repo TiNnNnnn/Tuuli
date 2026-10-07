@@ -16,6 +16,7 @@
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLEnums.h"
+#include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -328,6 +329,22 @@ CDSLAggMatcher::FMatchAggregate(const CDSLOp *popAgg,
 		0 == pexprAggList->Arity())
 	{
 		return false;
+	}
+	const CDSLRule *rule = m_pmatcher->Prule();
+	if (nullptr != rule && rule->Pexprdefs()->FHasBindings())
+	{
+		// The typed Group's ordered SELECT contains grouping columns followed
+		// by fresh aggregate outputs. Set-valued properties alone hide duplicates.
+		CColRefSet *group = GPOS_NEW(m_mp) CColRefSet(m_mp);
+		group->Include(popGbAgg->Pdrgpcr());
+		const BOOL valid = group->Size() == popGbAgg->Pdrgpcr()->Size() &&
+			(*pexprAgg)[0]->DeriveOutputColumns()->ContainsAll(group) &&
+			group->IsDisjoint(pexprAggList->DeriveDefinedColumns());
+		group->Release();
+		if (!valid)
+		{
+			return false;
+		}
 	}
 	// PdrgpcrMinimal is optimizer metadata derived for this particular child,
 	// not part of the logical aggregate represented by the DSL.  It must not

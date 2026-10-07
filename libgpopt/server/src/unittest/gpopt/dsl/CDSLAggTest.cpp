@@ -1578,6 +1578,33 @@ CDSLAggTest::EresUnittest_MatchBindsRealAgg()
 	}
 
 	pmodel->Release();
+	// Typed Group captures preserve the complete ordered output domain.
+	// Probe matching only: malformed source metadata is not an EQ rule.
+	for (ULONG shape = 0; shape < 6; ++shape)
+	for (BOOL exact : {false, true})
+	{
+		CColRefArray *grouping = GPOS_NEW(mp) CColRefArray(mp);
+		if (4 != shape) grouping->Append(2 == shape ? fix.PcrCreateInt4("external_group_key")
+			: (*pdrgpcrInput)[5 == shape ? 1 : 0]);
+		if (1 == shape) grouping->Append((*pdrgpcrInput)[0]);
+		CExpression *source = fix.PexprLogicalGbAgg(pexprGet, grouping,
+			3 == shape ? (*pdrgpcrInput)[0] : pcrAggOut, (*pdrgpcrInput)[1]);
+		grouping->Release();
+		CDSLRule *rule = PdslruleParseLocal(mp, exact
+			? "Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|"
+			  "t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0"
+			: GPOPT_DSL_AGG_IDENTITY_RULE);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		if (nullptr == rule || CDSLMatcher(mp, rule).FMatch(
+			rule->PfragSrc()->PopRoot(), source, model) != (!exact || 0 == shape || 4 <= shape))
+		{
+			GPOS_TRACE_FORMAT("Agg source domain: shape=%lu exact=%d", shape, exact);
+			eres = GPOS_FAILED;
+		}
+		model->Release();
+		CRefCount::SafeRelease(rule);
+		source->Release();
+	}
 	pexprGet->Release();
 	pexprGbAgg->Release();
 	prule->Release();
