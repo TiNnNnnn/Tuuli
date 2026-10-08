@@ -1,0 +1,7 @@
+experiment: compute-filter-forward-source
+discover: false
+template_route: 2
+template_fingerprint: 85ec6aecae740edc
+template_root: r
+template_bindings: true
+cardinalities:

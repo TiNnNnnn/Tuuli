@@ -18,6 +18,7 @@
       "name": "dsl-on",
       "trace": true,
       "policy": "construct.policy",
+      "stats_experiment": "forward-source-route.yaml",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
@@ -29,6 +30,22 @@
       "alternative": [
         "CXformDSLRule_Project"
       ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a3a384e829b6c009",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
       "provenance": {
         "required_sources": [
           "dsl"
@@ -38,6 +55,38 @@
         ],
         "forbidden_origins": []
       }
+    },
+    {
+      "name": "dsl-reverse",
+      "trace": true,
+      "policy": "construct.policy",
+      "stats_experiment": "reverse-source-route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"9e7233e667eedbe7\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "9e7233e667eedbe7",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
     }
   ],
   "rows": {
@@ -53,6 +102,20 @@
     "off_output": [
       "2,20",
       "3,30"
-    ]
+    ],
+    "plan_outputs": {
+      "dsl-off": [
+        "2,20",
+        "3,30"
+      ],
+      "dsl-on": [
+        "2,20",
+        "3,30"
+      ],
+      "dsl-reverse": [
+        "2,20",
+        "3,30"
+      ]
+    }
   }
 }

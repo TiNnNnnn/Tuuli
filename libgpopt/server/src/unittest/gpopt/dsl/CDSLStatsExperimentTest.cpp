@@ -25,6 +25,7 @@
 #include "gpopt/base/COrderSpec.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -674,6 +675,27 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame = dslproperties::PcrsFrameReads(mp, get);
 	frame_facts &= nullptr != frame && 0 == frame->Size();
 	CRefCount::SafeRelease(frame);
+	for (ULONG arity = 0; arity <= 2; ++arity)
+	{
+		CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < arity; ++i)
+			arguments->Append(CUtils::PexprScalarIdent(mp, (*cols)[0]));
+		// Existing synthetic immutable function metadata, not a claim of cast
+		// safety: footprint capture is independent of its implementation.
+		CExpression *cast = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarCast(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 23 /* int4 */),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 100300), false), arguments);
+		frame = dslproperties::PcrsFrameReads(mp, cast);
+		frame_facts &= 1 == arity
+			? nullptr != frame && 1 == frame->Size() && frame->FMember((*cols)[0])
+			: nullptr == frame;
+		if (1 == arity)
+			frame_facts &= CDSLPlanTemplate::Serialize(mp, cast).find(
+				"\"function_mdid\":\"0.100300.1.0\",\"binary_coercible\":false") != std::string::npos;
+		CRefCount::SafeRelease(frame);
+		cast->Release();
+	}
 	CExpression *grouped = fixture.PexprLogicalGbAgg(right, right_cols,
 		first, (*right_cols)[0]);
 	binding_facts &= CDSLPlanTemplate::FSlice(mp, grouped, "r", {"r/0"},
