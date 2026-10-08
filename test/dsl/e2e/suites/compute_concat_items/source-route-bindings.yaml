@@ -1,0 +1,7 @@
+experiment: compute-source-route-bindings
+discover: false
+template_route: 2
+template_fingerprint: 944a0a7dcc3aeb00
+template_root: r
+template_bindings: true
+cardinalities:

@@ -23,7 +23,7 @@
       "disable_xforms": [
         "CXformCollapseProject"
       ],
-      "stats_experiment": "source-bindings.yaml",
+      "stats_experiment": "source-route-bindings.yaml",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
@@ -34,6 +34,17 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "139055af52f86b98",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalConstTableGet"
+          ]
+        }
       ]
     }
   ],

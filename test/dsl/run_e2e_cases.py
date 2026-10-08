@@ -310,6 +310,73 @@ def bind_source_captures(snapshot: object, manifest: object) -> dict[str, dict[s
     return result
 
 
+def source_route_occurrences(records: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Pair ordered production observations, not source lowering or rewrite certificates.
+
+    A pre-view route tree and a post-evaluation model are distinct objects. Their
+    coherent trace identity permits checking them together, not assuming equality.
+    """
+    active = None
+    occurrences = []
+    for record in records:
+        kind = record.get("kind")
+        if kind == "rule_route":
+            active = record
+        elif kind == "experiment_outcome" or (kind == "rule_route_outcome" and active
+                and record.get("route_sequence") == active.get("route_sequence")):
+            active = None
+        elif kind == "rule_candidate" and active:
+            context = active.get("route_input_context")
+            binding = record.get("binding_context")
+            if (not isinstance(context, dict) or "plan_template" not in context
+                    or not isinstance(binding, dict) or "source_bindings" not in binding
+                    or record.get("status") not in ("ready_cbo", "ready_rbo")):
+                continue
+            if active.get("context_resolution_errors") or record.get("context_resolution_errors"):
+                raise ValueError("unresolved source route context")
+            if (context.get("capture") != "before_evaluation"
+                    or context.get("scope") != "source_before_match_view"
+                    or binding.get("capture") != "after_evaluation"):
+                raise ValueError("source route has the wrong capture phase")
+            if (type(active.get("route_sequence")) is not int or active["route_sequence"] < 1
+                    or type(record.get("sequence")) is not int or record["sequence"] < 1
+                    or context.get("template_route") != active["route_sequence"]
+                    or type(context.get("template_route")) is not int
+                    or record.get("evaluated") is not True):
+                raise ValueError("source route has no evaluated occurrence identity")
+            if (not isinstance(active.get("experiment"), str) or not active["experiment"]
+                    or active["experiment"] != record.get("experiment")
+                    or any(type(active.get(key)) is not int or active[key] < 0
+                           or type(record.get(key)) is not int or active[key] != record[key]
+                           for key in ("group", "group_expression", "memo_version"))):
+                raise ValueError("source route and candidate belong to different Memo states")
+            fingerprint = context.get("template_fingerprint")
+            input_context = record.get("input_context")
+            if (not isinstance(fingerprint, str) or not re.fullmatch(r"[0-9a-f]{16}", fingerprint)
+                    or fingerprint != record.get("source_fingerprint")
+                    or not isinstance(input_context, dict)
+                    or not isinstance(input_context.get("root"), dict)
+                    or fingerprint != input_context["root"].get("reference_key")):
+                raise ValueError("source route does not identify the candidate input")
+            if (not isinstance(record.get("rule_hash"), str) or not record["rule_hash"]
+                    or record["rule_hash"] != binding.get("rule_hash")):
+                raise ValueError("source route bindings belong to another rule")
+            source_binding_matches(binding["source_bindings"], [])
+            snapshot = context["plan_template"]
+            if (binding["source_bindings"].get("complete") is not True
+                    or not isinstance(snapshot, dict) or snapshot.get("complete") is not True
+                    or snapshot.get("schema") != "pgorca.dsl.plan-template.v1"
+                    or not isinstance(snapshot.get("nodes"), list) or not snapshot["nodes"]
+                    or any(not isinstance(n, dict) or not isinstance(n.get("orca_operator"), str)
+                           for n in snapshot["nodes"])):
+                raise ValueError("source route has an incomplete tree or binding model")
+            occurrences.append({"rule_hash": record["rule_hash"],
+                "route_sequence": active["route_sequence"], "candidate_sequence": record["sequence"],
+                "operators": [n["orca_operator"] for n in snapshot["nodes"]],
+                "snapshot": snapshot, "bindings": binding["source_bindings"]})
+    return occurrences
+
+
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
@@ -363,6 +430,21 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
                 raise ValueError("source binding checks require a successful plan slice")
             actual["source_binding_matches"] = source_binding_matches(
                 sliced.get("source_bindings"), expected["source_binding_matches"])
+    if "rule_source_routes" in expected:
+        import ml_orca_test_support
+        from ml_orca.collect.run_workload_comparison import trace_records
+        patterns = expected["rule_source_routes"]
+        if (not isinstance(patterns, list) or any(not isinstance(p, dict)
+                or not isinstance(p.get("rule_hash"), str) or not p["rule_hash"]
+                or not isinstance(p.get("operators"), list) or not p["operators"]
+                or any(not isinstance(op, str) for op in p["operators"])
+                or "route_sequence" in p and (type(p["route_sequence"]) is not int
+                    or p["route_sequence"] < 1) for p in patterns)):
+            raise ValueError("source route checks require a rule identity and ordered operators")
+        captures = source_route_occurrences(trace_records(output))
+        actual["rule_source_routes"] = [p for p in patterns if any(
+            all(key in capture and capture[key] == value for key, value in p.items())
+            for capture in captures)]
     if "rule_binding_matches" in expected:
         import ml_orca_test_support
         from ml_orca.collect.run_workload_comparison import trace_records
