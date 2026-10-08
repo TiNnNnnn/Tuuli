@@ -181,7 +181,7 @@ EresScalarSubqueryTotality()
 		// Reuse the cardinality/effects matrix for both legacy extraction
 		// entries. Mandatory operands retain their existing domain; lazy
 		// operands require the same totality and repeatability as typed builds.
-		for (ULONG context = 0; context < 8; ++context)
+		for (ULONG context = 0; context < 9; ++context)
 		{
 			predicate->AddRef();
 			CExpression *owner = predicate;
@@ -207,7 +207,8 @@ EresScalarSubqueryTotality()
 			else if (context == 7)
 				owner = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate);
-			const BOOL lazy = context == 1 || context == 4 || context == 5 || context == 6;
+			const BOOL lazy = context == 1 || context == 4 || context == 5 ||
+				context == 6 || context == 8;
 			for (const CHAR *text : {
 				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
 				"TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
@@ -220,6 +221,14 @@ EresScalarSubqueryTotality()
 				BindTableAndAttr(model, PsymByName(rule, "t0"), carrier,
 					PsymByName(rule, "a0"), (*columns)[0], mp);
 				GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), owner));
+				if (context == 8)
+				{
+					// The original AND's other operand is no longer on the scalar
+					// capture path, but it can still suppress query evaluation.
+					CExpressionArray *residual = GPOS_NEW(mp) CExpressionArray(mp);
+					residual->Append(CUtils::PexprScalarConstBool(mp, false));
+					model->SetResidualConjuncts(residual);
+				}
 				const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
 				const BOOL expected = shape != 4 && (!lazy || safe);
 				if (accepted != expected)

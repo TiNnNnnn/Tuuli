@@ -1,0 +1,33 @@
+{
+  "description": "Reject unsafe scalar extraction across a split Filter residual",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+      "assert_maxonerow": true,
+      "contains": [
+        "Falling back to Postgres",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"f5888185fd97f5a8\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+    "assert_maxonerow": true,
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

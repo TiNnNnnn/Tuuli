@@ -1,15 +1,5 @@
 {
-  "description": "The atomic scalar definition applies twice to construct an InnerApply chain",
-  "replacement": {
-    "xforms": [
-      "CXformSelect2Apply"
-    ],
-    "scope": "Multiple scalar subqueries in one Select predicate",
-    "status": "verified_full_replacement",
-    "dsl_rule_hashes": [
-      "6fcbf4135eeb31ce"
-    ]
-  },
+  "description": "A pure MAX is lowered, but the later MAX(k)+1 query needs a demand-preserving construction; reject speculative extraction and retain explicit PostgreSQL fallback",
   "plans": [
     {
       "name": "native",
@@ -45,7 +35,7 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "guard",
       "trace": true,
       "disable_xforms": [
         "CXformSelect2Apply",
@@ -53,8 +43,12 @@
       ],
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\""
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"6fcbf4135eeb31ce\""
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
       ],
       "alternative": [
         "CXformDSLRule_Select"
