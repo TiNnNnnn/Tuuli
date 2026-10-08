@@ -76,6 +76,8 @@ from run_e2e_cases import (
     actual_plan,
     bind_source_captures,
     source_route_occurrences,
+    native_rule_texts,
+    check_native_routes,
     bool_guc_setting,
     disabled_xform_settings,
     memo_provenance,
@@ -555,6 +557,48 @@ class TraceFrameworkTest(unittest.TestCase):
             change(wrong)
             with self.subTest(change=change), self.assertRaises(ValueError):
                 source_route_occurrences([route, wrong])
+
+    def test_native_instance_gate_uses_canonical_identity_and_requires_targets(self) -> None:
+        rule = (SCRIPT_DIR / "e2e/suites/compute_concat_items/rules").read_text().splitlines()[-1]
+        # Captured from ORCA's printer: inline operands get generated aliases.
+        # Do not reimplement that normalization in the test runner.
+        canonical_rule = ("Compute<e0 a0 s0>(Compute<p0 a1 s1>(Input<t0>))|Compute<p1 a2 s2>(Input<t1>)|"
+            "DepsDisjoint(e0,s1);AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,s0);ErrorFree(e0);Deterministic(e0);"
+            "ErrorFree(n0);Deterministic(n0);ErrorFree(e1);Deterministic(e1);Item(n0,a6,e1) := p0;"
+            "t1 := t0;p2 := Item(n0,a6,e1);p1 := ExprConcat(p2,e0)")
+        output = "Rule: " + canonical_rule + "\n"
+        self.assertEqual(native_rule_texts(output), {"139055af52f86b98": canonical_rule})
+        self.assertNotIn("139055af52f86b98", native_rule_texts("Rule: " + rule + "\n"))
+        pattern = {"rule_hash": "139055af52f86b98", "operators": ["CLogicalProject"]}
+        occurrence = {**pattern, "route_sequence": 2, "candidate_sequence": 1,
+                      "snapshot": {"source": True}, "bindings": {"binding": True}}
+        checker = MagicMock(return_value={"status": "CONDITIONAL_NATIVE_INSTANCE"})
+        # The regular capture provenance checks are tested above; this test
+        # isolates the new gate without requiring Java/Rocq in default CI.
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict("os.environ", {"WETUNE_HOME": directory}), \
+             patch.dict(sys.modules, {"native_instance": SimpleNamespace(check_native_instance=checker)}), \
+             patch.object(sys, "path", list(sys.path)), \
+             patch("run_e2e_cases.actual_plan", return_value={"rule_source_routes": [pattern]}), \
+             patch("run_e2e_cases.source_route_occurrences", return_value=[occurrence]), \
+             patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[]):
+            expected = {"rule_source_routes": [pattern]}
+            with self.assertRaisesRegex(ValueError, "constructed target"):
+                check_native_routes(expected, output, Path(directory))
+            checker.assert_not_called()
+            occurrence["target_snapshot"] = {"target": True}
+            with self.assertRaisesRegex(ValueError, "canonical rule text"):
+                check_native_routes(expected, "", Path(directory))
+            self.assertEqual(check_native_routes(expected, output, Path(directory)), 1)
+            args = checker.call_args.args
+            self.assertEqual(args[:3], (canonical_rule, occurrence["snapshot"], occurrence["target_snapshot"]))
+            with patch("run_e2e_cases.bind_source_captures", return_value={"checked_binding": True}) as binder:
+                self.assertEqual(args[3]({"manifest": True}), {"checked_binding": True})
+                binder.assert_called_once_with(occurrence["bindings"], {"manifest": True})
+            checker.side_effect = ValueError("unclosed kernel obligation")
+            with self.assertRaisesRegex(ValueError, "kernel obligation"):
+                check_native_routes(expected, output, Path(directory))
+            self.assertEqual(check_native_routes({}, "", Path(directory)), 0)
 
     def test_kernel_capture_binding_uses_typed_paths_not_hidden_names(self) -> None:
         import copy

@@ -31,6 +31,8 @@ Usage: $0 [-t CASE]...
                    Disable one native xform in every state; may be repeated
   --disable-semantic-xforms AUDIT_JSON
                    Disable audited semantic rewrites; require ORCA plans and xform trace
+  --check-native-instances
+                   Kernel-check expected captured source/target occurrences (RuleSolver/Rocq required)
   -h, --help       Show this help
 EOF
 }
@@ -38,6 +40,7 @@ EOF
 SELECTED_CASES="${DSL_E2E_CASES:-}"
 DISABLED_XFORMS=()
 AUDIT_ARGS=()
+NATIVE_CHECK_ARGS=()
 SUITE=""
 while (( $# > 0 )); do
     case "$1" in
@@ -71,6 +74,10 @@ while (( $# > 0 )); do
             [[ -r "$2" ]] || fail "runtime audit not found: $2"
             AUDIT_ARGS=(--disable-semantic-xforms "$2")
             shift 2
+            ;;
+        --check-native-instances)
+            NATIVE_CHECK_ARGS=(--check-native-instances)
+            shift
             ;;
         *)
             fail "unknown argument: $1"
@@ -181,6 +188,7 @@ python3 "$SCRIPT_DIR/run_e2e_cases.py" \
     --diff-dir "$DIFF_DIR" \
     --artifact-dir "$ARTIFACT_DIR" \
     "${AUDIT_ARGS[@]}" \
+    "${NATIVE_CHECK_ARGS[@]}" \
     "${CASE_ARGS[@]}"
 
 echo "Actual output: $RESULT_DIR"
