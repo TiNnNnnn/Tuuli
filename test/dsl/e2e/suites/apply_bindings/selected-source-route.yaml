@@ -1,0 +1,7 @@
+experiment: scalar-project-selected-source
+discover: false
+template_route: 1
+template_fingerprint: dfae1927b8aef755
+template_root: r
+template_bindings: true
+cardinalities:
