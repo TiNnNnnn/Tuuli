@@ -36,6 +36,8 @@
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "naucrates/base/IDatumInt2.h"
 #include "naucrates/base/IDatumInt4.h"
@@ -292,6 +294,20 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			const auto *cast = CScalarCast::PopConvert(expr->Pop());
 			*out << ",\"function_mdid\":" << MetadataId(mp, cast->FuncMdId())
 				<< ",\"binary_coercible\":" << (cast->IsBinaryCoercible() ? "true" : "false");
+		}
+		// A subquery may expose several columns. Its selected value is stored
+		// on the scalar operator, not implied by the inner output order.
+		if (const auto *subquery = dynamic_cast<const CScalarSubquery *>(scalar))
+		{
+			*out << ",\"subquery_column\":";
+			AppendColumn(mp, out, subquery->Pcr());
+			*out << ",\"generated_by_exists\":" << (subquery->FGeneratedByExist() ? "true" : "false")
+				<< ",\"generated_by_quantified\":" << (subquery->FGeneratedByQuantified() ? "true" : "false");
+		}
+		else if (const auto *subquery = dynamic_cast<const CScalarSubqueryQuantified *>(scalar))
+		{
+			*out << ",\"subquery_column\":";
+			AppendColumn(mp, out, subquery->Pcr());
 		}
 	}
 	*out << '}';

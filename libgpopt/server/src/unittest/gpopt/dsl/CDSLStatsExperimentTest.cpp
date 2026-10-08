@@ -33,6 +33,8 @@
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryAny.h"
+#include "gpopt/operators/CScalarSubqueryAll.h"
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalProject.h"
@@ -716,6 +718,39 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame_facts &= nullptr != frame && frame->Size() == 2 && frame->FMember(first) &&
 		frame->FMember((*right_cols)[0]);
 	CRefCount::SafeRelease(frame);
+	// The chosen scalar column is not the first column of this two-output
+	// query. Preserve it explicitly, including through a ProjectElement port.
+	const std::string selected_column = "\"subquery_column\":" + column(first);
+	frame_facts &= CDSLPlanTemplate::Serialize(mp, grouped_scalar).find(
+		selected_column + ",\"generated_by_exists\":false,\"generated_by_quantified\":false") != std::string::npos;
+	for (ULONG mode = 0; mode < 4; ++mode)
+	{
+		grouped->AddRef();
+		CScalar *subquery = mode < 2 ? static_cast<CScalar *>(GPOS_NEW(mp)
+			CScalarSubquery(mp, first, 0 == mode, 1 == mode)) :
+			mode == 2 ? static_cast<CScalar *>(GPOS_NEW(mp) CScalarSubqueryAny(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 96),
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), first)) :
+			static_cast<CScalar *>(GPOS_NEW(mp) CScalarSubqueryAll(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 96),
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), first));
+		CExpression *value = mode < 2 ? GPOS_NEW(mp) CExpression(mp, subquery, grouped) :
+			GPOS_NEW(mp) CExpression(mp, subquery, grouped, CUtils::PexprScalarIdent(mp, (*cols)[0]));
+		get->AddRef();
+		CExpression *wrapped = mode < 2 ? GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+			get, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+				CUtils::PexprScalarProjectElement(mp, fixture.PcrCreateInt4("subquery"), value))) :
+			CUtils::PexprLogicalSelect(mp, get, value);
+		const std::string exported = CDSLPlanTemplate::Serialize(mp, wrapped);
+		frame_facts &= exported.find(selected_column) != std::string::npos;
+		if (mode < 2)
+			frame_facts &= exported.find(std::string("\"generated_by_exists\":") +
+				(0 == mode ? "true" : "false") + ",\"generated_by_quantified\":" +
+				(1 == mode ? "true" : "false")) != std::string::npos;
+		else
+			frame_facts &= exported.find("\"operator_mdid\":\"0.96.1.0\"") != std::string::npos;
+		wrapped->Release();
+	}
 	grouped_scalar->Release();
 	grouped_exists->Release();
 	for (ULONG shape = 0; shape < 7; ++shape)
