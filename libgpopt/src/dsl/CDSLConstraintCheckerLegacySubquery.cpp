@@ -217,8 +217,13 @@ FFindScalarPath(CExpression *pexpr, CExpression *needle,
 // when the original expression never demanded it. Reuse the same audited
 // properties as typed materialization; a scalar path alone proves no safety.
 BOOL
-FSubqueryDemandSafe(CExpression *root, CExpression *query, ULONG depth)
+FSubqueryDemandSafe(CExpression *root, CExpression *query, ULONG depth,
+	CExpressionArray *residual = nullptr)
 {
+	// A split Filter's residuals remain conjuncts of the source predicate,
+	// even though they are absent from this capture's scalar path.
+	if (nullptr != residual && 0 < residual->Size())
+		return dslproperties::FQueryDemandInsensitive(query);
 	std::vector<ULONG> path;
 	if (!FFindScalarPath(root, query, depth, 0, &path)) return true;
 	for (ULONG child : path)
@@ -321,7 +326,8 @@ PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
 			FindNextSubquery(pexpr, 0, &pexprBest, selectedDepth,
 							 &ulBestPriority);
 		return nullptr != pexprBest &&
-			!FSubqueryDemandSafe(pexpr, pexprBest, *selectedDepth)
+			!FSubqueryDemandSafe(pexpr, pexprBest, *selectedDepth,
+				EdslsymPred == psym->Esymkind() ? pmodel->PdrgpexprResidual() : nullptr)
 			? nullptr : pexprBest;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
@@ -407,7 +413,8 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 						COperator::EopScalarSubquery, &ulSubqueries);
 	if (1 != ulSubqueries || nullptr == pexprSubquery ||
 		1 != pexprSubquery->Arity() ||
-		!FSubqueryDemandSafe(pexprPredicate, pexprSubquery, gpos::ulong_max))
+		!FSubqueryDemandSafe(pexprPredicate, pexprSubquery, gpos::ulong_max,
+			pdrgpexprResidual))
 	{
 		return false;
 	}

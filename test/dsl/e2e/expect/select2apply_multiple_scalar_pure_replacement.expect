@@ -1,0 +1,113 @@
+{
+  "description": "Two pure scalar MAX queries are lowered in sequence, with native Select2Apply disabled",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply"
+    ],
+    "scope": "Multiple deterministic error-free scalar queries in one Select predicate",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "6fcbf4135eeb31ce"
+    ],
+    "excluded_native_domains": [
+      "Throwing or effectful scalar queries need demand-preserving lowering, not speculative eager evaluation"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformDSLRule_Select",
+        "\"rule_hash\":\"6fcbf4135eeb31ce\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformProject2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply",
+        "CXformProject2Apply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "6fcbf4135eeb31ce",
+          "dst_rule": "6fcbf4135eeb31ce",
+          "target_path": "r",
+          "relation": "memo_consumes",
+          "producer_outcome": "memo_inserted"
+        }
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply",
+          "CXformProject2Apply",
+          "CXformSimplifySelectWithSubquery"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply",
+      "CXformProject2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}
