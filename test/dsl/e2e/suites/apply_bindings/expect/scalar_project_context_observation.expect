@@ -1,0 +1,98 @@
+{
+  "description": "Context materialization preserves a NULL observer and an independent typed Item tail",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "context.policy",
+      "stats_experiment": "context-observation-source-route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"899834d77652f23d\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "899834d77652f23d",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "899834d77652f23d",
+          "symbols": [
+            {
+              "symbol": "n4",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Item:0"
+              ]
+            },
+            {
+              "symbol": "n0",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Item:0/Context:0"
+              ]
+            },
+            {
+              "symbol": "t3",
+              "kind": "t",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Item:0/Context:0/Subquery:1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "context.policy",
+    "output": [
+      "f,",
+      "f,0",
+      "f,1",
+      "f,2",
+      "f,2"
+    ],
+    "postgres_output": [
+      "f,",
+      "f,0",
+      "f,1",
+      "f,2",
+      "f,2"
+    ]
+  }
+}
