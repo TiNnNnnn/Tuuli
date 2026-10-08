@@ -1,0 +1,45 @@
+{
+  "description": "Reject unsafe eager AND extraction with native rewrites disabled; explicitly retain PostgreSQL fallback",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "assert_maxonerow": true,
+      "contains": [
+        "Falling back to Postgres",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"3d199b6136ef0659\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"3d199b6136ef0659\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "assert_maxonerow": true,
+    "output": [
+      "1,f",
+      "2,f",
+      "3,f"
+    ],
+    "postgres_output": [
+      "1,f",
+      "2,f",
+      "3,f"
+    ],
+    "off_output": [
+      "1,f",
+      "2,f",
+      "3,f"
+    ]
+  }
+}
