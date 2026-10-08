@@ -1180,6 +1180,12 @@ EresScalarContextBindings()
 	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 	GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
 	GPOS_UNITTEST_ASSERT(matcher.FMatchPredicate((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], nested, model));
+	std::string path_json;
+	for (ULONG i = 0; i < 32; ++i) path_json += (i ? ",0" : "0");
+	path_json += ",1";
+	GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::MatchedSourceBindings(rule, model).find(
+		"\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[" +
+		path_json + "]}") != std::string::npos);
 	CDSLConstraintChecker checker(mp);
 	GPOS_UNITTEST_ASSERT(checker.FCheck(rule, model));
 	CDSLInstantiator inst(mp);
@@ -1247,6 +1253,10 @@ EresSelectContextBindings()
 	CExpression *changed = (*target)[1];
 	GPOS_UNITTEST_ASSERT(3 == changed->Arity() && (*changed)[0] == (*list)[0] &&
 		(*changed)[2] == (*list)[2] && (*(*changed)[1])[0] == exists && (*(*list)[1])[0] == twice);
+	// Shared pointers in Items 1 and 2 still export the selected occurrence.
+	GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::MatchedSourceBindings(rule, model).find(
+		"\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[1,0]}")
+		!= std::string::npos);
 	for (ULONG i = 0; i < 3; ++i)
 		GPOS_UNITTEST_ASSERT(CScalarProjectElement::PopConvert((*changed)[i]->Pop())->Pcr() ==
 			CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr());
