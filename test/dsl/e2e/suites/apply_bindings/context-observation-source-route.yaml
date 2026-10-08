@@ -1,0 +1,7 @@
+experiment: scalar-project-context-observation-source
+discover: false
+template_route: 1
+template_fingerprint: dbcc22f329723355
+template_root: r
+template_bindings: true
+cardinalities:
