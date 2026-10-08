@@ -11,6 +11,7 @@
       ],
       "policy": "context.policy",
       "stats_experiment": "context-observation-source-route.yaml",
+      "native_observation": "all_source_outputs",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterApply",
