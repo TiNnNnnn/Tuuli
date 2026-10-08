@@ -1,0 +1,105 @@
+{
+  "description": "Existing Context retains native CASE demand and the independent Item tail; only the safe scalar query is materialized",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "context.policy",
+      "stats_experiment": "context-conditional-source-route.yaml",
+      "native_observation": "all_source_outputs",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"899834d77652f23d\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "899834d77652f23d",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "899834d77652f23d",
+          "symbols": [
+            {
+              "symbol": "n4",
+              "kind": "n",
+              "bound": true,
+              "scalar_context": {
+                "encoding": "native_scalar_child_indices",
+                "path": [
+                  1
+                ]
+              },
+              "source_paths": [
+                "r/e:0/Item:0"
+              ]
+            },
+            {
+              "symbol": "n0",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Item:0/Context:0"
+              ]
+            },
+            {
+              "symbol": "t3",
+              "kind": "t",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Item:0/Context:0/Subquery:1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "context.policy",
+    "output": [
+      "t,",
+      "f,0",
+      "f,1",
+      "f,2",
+      "f,2"
+    ],
+    "postgres_output": [
+      "t,",
+      "f,0",
+      "f,1",
+      "f,2",
+      "f,2"
+    ]
+  }
+}
