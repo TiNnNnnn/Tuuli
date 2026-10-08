@@ -49,6 +49,12 @@
               "symbol": "n4",
               "kind": "n",
               "bound": true,
+              "scalar_context": {
+                "encoding": "native_scalar_child_indices",
+                "path": [
+                  0
+                ]
+              },
               "source_paths": [
                 "r/e:0/Item:0"
               ]

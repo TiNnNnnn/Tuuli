@@ -24,6 +24,9 @@ public:
 	CDSLScalarContext(CExpression *root, const std::vector<ULONG> &path)
 		: m_root(root), m_path(path) { m_root->AddRef(); }
 	~CDSLScalarContext() override { m_root->Release(); }
+	// Borrow the matched occurrence witness; no new search or ownership transfer.
+	const CExpression *PexprRoot() const { return m_root; }
+	const std::vector<ULONG> &Path() const { return m_path; }
 	BOOL Matches(const CDSLScalarContext *other) const;
 	CExpression *PexprPlug(CMemoryPool *mp, CExpression *replacement) const;
 };

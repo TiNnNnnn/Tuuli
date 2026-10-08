@@ -19,6 +19,7 @@
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -1075,6 +1076,22 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 		{
 			out << ",\"expression\":";
 			complete &= AppendBoundExpression(mp, &out, expression);
+			if (const auto *context = model->PcontextScalar(symbol))
+			{
+				// Export the stored occurrence, never rediscover a same-shaped hole.
+				if (context->PexprRoot() != expression)
+				{
+					out << ",\"scalar_context\":null";
+					complete = false;
+				}
+				else
+				{
+					out << ",\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[";
+					for (ULONG j = 0; j < context->Path().size(); ++j)
+						out << (j ? "," : "") << context->Path()[j];
+					out << "]}";
+				}
+			}
 		}
 		else if (nullptr != value && (EdslsymAttrs == symbol->Esymkind() ||
 			EdslsymSchema == symbol->Esymkind() || EdslsymRank == symbol->Esymkind()))
