@@ -41,6 +41,8 @@
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarIf.h"
+#include "gpopt/operators/CScalarCoalesce.h"
 #include "naucrates/base/IDatumInt8.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
@@ -175,6 +177,58 @@ EresScalarSubqueryTotality()
 			GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), predicate));
 			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model) == safe);
 			model->Release(); rule->Release();
+		}
+		// Reuse the cardinality/effects matrix for both legacy extraction
+		// entries. Mandatory operands retain their existing domain; lazy
+		// operands require the same totality and repeatability as typed builds.
+		for (ULONG context = 0; context < 8; ++context)
+		{
+			predicate->AddRef();
+			CExpression *owner = predicate;
+			if (context == 1 || context == 2)
+			{
+				IMDId *type = CScalar::PopConvert(predicate->Pop())->MdidType(); type->AddRef();
+				owner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIf(mp, type),
+					context == 1 ? CUtils::PexprScalarConstBool(mp, false) : predicate,
+					context == 1 ? predicate : CUtils::PexprScalarConstBool(mp, true),
+					CUtils::PexprScalarConstBool(mp, false));
+			}
+			else if (context == 3 || context == 4)
+			{
+				IMDId *type = CScalar::PopConvert(predicate->Pop())->MdidType(); type->AddRef();
+				owner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarCoalesce(mp, type),
+					context == 3 ? predicate : CUtils::PexprScalarConstBool(mp, true),
+					context == 3 ? CUtils::PexprScalarConstBool(mp, true) : predicate);
+			}
+			else if (context == 5 || context == 6)
+				owner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarBoolOp(mp,
+					context == 5 ? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr),
+					CUtils::PexprScalarConstBool(mp, context == 6), predicate);
+			else if (context == 7)
+				owner = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate);
+			const BOOL lazy = context == 1 || context == 4 || context == 5 || context == 6;
+			for (const CHAR *text : {
+				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
+				"TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
+				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
+				"TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)"})
+			{
+				CDSLRule *rule = PdslruleParseLocal(mp, text);
+				GPOS_UNITTEST_ASSERT(nullptr != rule);
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				BindTableAndAttr(model, PsymByName(rule, "t0"), carrier,
+					PsymByName(rule, "a0"), (*columns)[0], mp);
+				GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), owner));
+				const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+				const BOOL expected = shape != 4 && (!lazy || safe);
+				if (accepted != expected)
+					GPOS_TRACE_FORMAT("scalar extraction rows=%d shape=%d context=%d accepted=%d rule=%s",
+						rows, shape, context, accepted, text);
+				GPOS_UNITTEST_ASSERT(accepted == expected);
+				model->Release(); rule->Release();
+			}
+			owner->Release();
 		}
 		predicate->Release(); carrier->Release();
 	}

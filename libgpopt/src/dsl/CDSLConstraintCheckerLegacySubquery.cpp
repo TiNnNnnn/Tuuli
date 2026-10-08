@@ -8,12 +8,14 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLQuantifiedMatcher.h"
+#include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarIf.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -211,6 +213,28 @@ FFindScalarPath(CExpression *pexpr, CExpression *needle,
 	return false;
 }
 
+// Hoisting a query out of a lazy scalar child can expose errors or effects
+// when the original expression never demanded it. Reuse the same audited
+// properties as typed materialization; a scalar path alone proves no safety.
+BOOL
+FSubqueryDemandSafe(CExpression *root, CExpression *query, ULONG depth)
+{
+	std::vector<ULONG> path;
+	if (!FFindScalarPath(root, query, depth, 0, &path)) return true;
+	for (ULONG child : path)
+	{
+		const auto op = root->Pop()->Eopid();
+		if (((COperator::EopScalarIf == op || COperator::EopScalarSwitch == op ||
+			  COperator::EopScalarSwitchCase == op ||
+			  COperator::EopScalarCoalesce == op) && child != 0) ||
+			(COperator::EopScalarBoolOp == op &&
+			 CScalarBoolOp::EboolopNot != CScalarBoolOp::PopConvert(root->Pop())->Eboolop()))
+			return dslproperties::FQueryDemandInsensitive(query);
+		root = (*root)[child];
+	}
+	return true;
+}
+
 CExpression *
 PexprReplaceNode(CMemoryPool *mp, CExpression *pexpr,
 	CExpression *needle, CExpression *replacement,
@@ -296,12 +320,18 @@ PexprNextSubqueryInSequence(CDSLModel *pmodel, const CDSLSymbol *psym,
 		if (nullptr != pexpr)
 			FindNextSubquery(pexpr, 0, &pexprBest, selectedDepth,
 							 &ulBestPriority);
-		return pexprBest;
+		return nullptr != pexprBest &&
+			!FSubqueryDemandSafe(pexpr, pexprBest, *selectedDepth)
+			? nullptr : pexprBest;
 	}
 	CExpressionArray *pdrgpexpr = pmodel->PdrgpexprFunc(psym);
 	for (ULONG ul = 0; nullptr != pdrgpexpr && ul < pdrgpexpr->Size(); ul++)
 		FindNextSubquery((*pdrgpexpr)[ul], 0, &pexprBest, selectedDepth,
 						 &ulBestPriority);
+	for (ULONG ul = 0; nullptr != pdrgpexpr && nullptr != pexprBest &&
+		ul < pdrgpexpr->Size(); ul++)
+		if (!FSubqueryDemandSafe((*pdrgpexpr)[ul], pexprBest, *selectedDepth))
+			return nullptr;
 	return pexprBest;
 }
 
@@ -376,7 +406,8 @@ CDSLConstraintChecker::FCheckPredicateScalarSubquery(
 		: PexprOnlySubquery(pexprPredicate,
 						COperator::EopScalarSubquery, &ulSubqueries);
 	if (1 != ulSubqueries || nullptr == pexprSubquery ||
-		1 != pexprSubquery->Arity())
+		1 != pexprSubquery->Arity() ||
+		!FSubqueryDemandSafe(pexprPredicate, pexprSubquery, gpos::ulong_max))
 	{
 		return false;
 	}

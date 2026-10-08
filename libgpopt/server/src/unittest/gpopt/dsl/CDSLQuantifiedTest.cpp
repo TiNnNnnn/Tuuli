@@ -764,6 +764,13 @@ EresSubqueryOutputBindings()
 		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
 		CExpression *outer = fix.PexprLogicalGet("capture_outer", 2, &outerCols);
 		CExpression *inner = fix.PexprLogicalGet("capture_inner", 1, &innerCols);
+		// Shared occurrences below AND must be safe to evaluate eagerly.
+		// Keep the column identities, but use a pure empty input rather than
+		// silently assuming an unbounded scalar scan returns at most one row.
+		innerCols->AddRef();
+		inner->Release();
+		inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
+			mp, innerCols, GPOS_NEW(mp) IDatum2dArray(mp)));
 		CExpression *scalar = nullptr;
 		if (kind < 5)
 			scalar = CUtils::PexprScalarCmp(mp, (*outerCols)[0],
