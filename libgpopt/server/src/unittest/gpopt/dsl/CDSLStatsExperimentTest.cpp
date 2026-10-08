@@ -595,6 +595,18 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		binding_facts &= context.find("\"rule_hash\":\"" + std::string(production->SzIdentity()) + '"') != std::string::npos &&
 			context.find("\"source_bindings\":" + actual) != std::string::npos &&
 			CDSLStatsExperimentSnapshot::BindingContext(production, model).find("source_bindings") == std::string::npos;
+		const std::string target_context = CDSLStatsExperimentSnapshot::BindingContext(production, model, true, project);
+		binding_facts &= target_context.find("\"target_context\":{\"capture\":\"after_instantiation\","
+			"\"scope\":\"constructed_rule_target\",\"fingerprint\":\"" +
+			CDSLStatsExperimentSnapshot::Fingerprint(mp, project) + "\",\"plan_template\":" + columns_artifact) != std::string::npos &&
+			context.find("target_context") == std::string::npos &&
+			CDSLStatsExperimentSnapshot::BindingContext(production, model, false, project).find("target_context") == std::string::npos &&
+			CDSLStatsExperimentSnapshot::BindingContext(production, nullptr, true, project).find("target_context") == std::string::npos &&
+			model->Size() == size;
+		CExpression *partial_target = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CPatternLeaf(mp));
+		binding_facts &= CDSLPlanTemplate::SerializeCaptured(mp, partial_target) == "null" &&
+			CDSLStatsExperimentSnapshot::BindingContext(production, model, true, partial_target).find("\"plan_template\":null}") != std::string::npos;
+		partial_target->Release();
 		model->Release();
 		// Incomplete Memo bindings cannot masquerade as complete input trees.
 		CDSLModel *incomplete = GPOS_NEW(mp) CDSLModel(mp);

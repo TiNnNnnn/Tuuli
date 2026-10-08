@@ -370,10 +370,28 @@ def source_route_occurrences(records: list[dict[str, object]]) -> list[dict[str,
                     or any(not isinstance(n, dict) or not isinstance(n.get("orca_operator"), str)
                            for n in snapshot["nodes"])):
                 raise ValueError("source route has an incomplete tree or binding model")
-            occurrences.append({"rule_hash": record["rule_hash"],
+            occurrence = {"rule_hash": record["rule_hash"],
                 "route_sequence": active["route_sequence"], "candidate_sequence": record["sequence"],
                 "operators": [n["orca_operator"] for n in snapshot["nodes"]],
-                "snapshot": snapshot, "bindings": binding["source_bindings"]})
+                "snapshot": snapshot, "bindings": binding["source_bindings"]}
+            if "target_context" in binding:
+                target = binding["target_context"]
+                if (not isinstance(target, dict) or target.get("capture") != "after_instantiation"
+                        or target.get("scope") != "constructed_rule_target"
+                        or not isinstance(target.get("fingerprint"), str)
+                        or not re.fullmatch(r"[0-9a-f]{16}", target["fingerprint"])
+                        or target["fingerprint"] != record.get("target_fingerprint")):
+                    raise ValueError("source route does not identify the constructed target")
+                actual_target = target.get("plan_template")
+                if (not isinstance(actual_target, dict) or actual_target.get("complete") is not True
+                        or actual_target.get("schema") != "pgorca.dsl.plan-template.v1"
+                        or not isinstance(actual_target.get("nodes"), list) or not actual_target["nodes"]
+                        or any(not isinstance(n, dict) or not isinstance(n.get("orca_operator"), str)
+                               for n in actual_target["nodes"])):
+                    raise ValueError("source route has an incomplete target tree")
+                occurrence.update(target_snapshot=actual_target,
+                    target_operators=[n["orca_operator"] for n in actual_target["nodes"]])
+            occurrences.append(occurrence)
     return occurrences
 
 

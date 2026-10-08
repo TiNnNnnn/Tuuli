@@ -531,6 +531,31 @@ class TraceFrameworkTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             source_route_occurrences([route, wrong, candidate])
 
+        # Optional targets are the same evaluated candidate, not another route,
+        # a debug plan or a claim that the source and target are equivalent.
+        candidate["target_fingerprint"] = "fedcba9876543210"
+        candidate["binding_context"]["target_context"] = {
+            "capture": "after_instantiation", "scope": "constructed_rule_target",
+            "fingerprint": "fedcba9876543210", "plan_template": snapshot}
+        captured = source_route_occurrences([route, candidate])[0]
+        self.assertIs(captured["target_snapshot"], snapshot)
+        self.assertEqual(captured["target_operators"], ["CLogicalProject"])
+        for change in (
+            lambda c: c.pop("target_fingerprint"),
+            lambda c: c.update(target_fingerprint="0123456789abcdef"),
+            lambda c: c["binding_context"].update(target_context=None),
+            lambda c: c["binding_context"]["target_context"].update(capture="before_evaluation"),
+            lambda c: c["binding_context"]["target_context"].update(scope="source_before_match_view"),
+            lambda c: c["binding_context"]["target_context"].update(fingerprint="invalid"),
+            lambda c: c["binding_context"]["target_context"].update(plan_template=None),
+            lambda c: c["binding_context"]["target_context"]["plan_template"].update(complete=False),
+            lambda c: c["binding_context"]["target_context"]["plan_template"].update(nodes=[]),
+        ):
+            wrong = copy.deepcopy(candidate)
+            change(wrong)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                source_route_occurrences([route, wrong])
+
     def test_kernel_capture_binding_uses_typed_paths_not_hidden_names(self) -> None:
         import copy
         upper = {"symbol": "e0", "kind": "e", "bound": True,
