@@ -417,6 +417,9 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     patterns = expected.get("rule_source_routes", [])
     if not patterns:
         return 0
+    observation = expected.get("native_observation", "exact_tree")
+    if observation not in ("exact_tree", "all_source_outputs"):
+        raise ValueError("unknown native instance observation")
     # Reuse the regular expectation validator and the maintained trace reader.
     if actual_plan({"rule_source_routes": patterns}, output)["rule_source_routes"] != patterns:
         raise ValueError("native instance check requires every expected source route")
@@ -439,7 +442,8 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
         path.mkdir(parents=True, exist_ok=True)
         (path / "occurrence.json").write_text(canonical(occurrence), encoding="utf-8")
         check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
-                              lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path)
+                              lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
+                              observe_compute=observation == "all_source_outputs")
         checked += 1
     if not checked:
         raise ValueError("native instance check captured no matching occurrences")
@@ -452,7 +456,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         for key in (
             "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
-            "disable_xforms", "policy", "stats_experiment", "assert_maxonerow"
+            "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "native_observation"
         )
         if key in expected
     }
