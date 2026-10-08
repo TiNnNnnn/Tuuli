@@ -32,6 +32,7 @@
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarCmp.h"
+#include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
@@ -285,6 +286,12 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			*out << ",\"function_mdid\":" << MetadataId(mp, function->FuncMdId())
 				<< ",\"function_format\":" << function->FuncFormat()
 				<< ",\"function_variadic\":" << (function->IsFuncVariadic() ? "true" : "false");
+		}
+		else if (COperator::EopScalarCast == expr->Pop()->Eopid())
+		{
+			const auto *cast = CScalarCast::PopConvert(expr->Pop());
+			*out << ",\"function_mdid\":" << MetadataId(mp, cast->FuncMdId())
+				<< ",\"binary_coercible\":" << (cast->IsBinaryCoercible() ? "true" : "false");
 		}
 	}
 	*out << '}';

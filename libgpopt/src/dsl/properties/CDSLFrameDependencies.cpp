@@ -30,6 +30,11 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			if (0 != expr->Arity()) return false;
 			reads->Include(CScalarIdent::PopConvert(expr->Pop())->Pcr());
 			return true;
+		case COperator::EopScalarCast:
+			// A cast observes its sole argument in the same environment. This
+			// footprint says nothing about cast totality or runtime errors.
+			if (1 != expr->Arity() || !(*expr)[0]->Pop()->FScalar()) return false;
+			break;
 		case COperator::EopLogicalGbAgg:
 		{
 			const auto *agg = CLogicalGbAgg::PopConvert(expr->Pop());
