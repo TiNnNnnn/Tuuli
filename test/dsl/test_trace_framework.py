@@ -75,6 +75,7 @@ from run_e2e_cases import (
     actual_rows,
     actual_plan,
     bind_source_captures,
+    source_route_occurrences,
     bool_guc_setting,
     disabled_xform_settings,
     memo_provenance,
@@ -469,6 +470,66 @@ class TraceFrameworkTest(unittest.TestCase):
         with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[]):
             with self.assertRaises(ValueError):
                 actual_plan({"rule_binding_matches": [{"rule_hash": "fusion", "symbols": [None]}]}, "")
+
+    def test_source_routes_require_one_live_occurrence_not_query_input(self) -> None:
+        import copy
+        snapshot = {"schema": "pgorca.dsl.plan-template.v1", "complete": True,
+                    "nodes": [{"path": "r", "orca_operator": "CLogicalProject"}]}
+        route = {"kind": "rule_route", "route_sequence": 2, "group": 7,
+                 "group_expression": 0, "memo_version": 9, "experiment": "capture",
+                 "route_input_context": {"capture": "before_evaluation",
+                     "scope": "source_before_match_view", "template_route": 2,
+                     "template_fingerprint": "0123456789abcdef", "plan_template": snapshot}}
+        candidate = {"kind": "rule_candidate", "sequence": 1, "group": 7,
+                     "group_expression": 0, "memo_version": 9, "experiment": "capture",
+                     "status": "ready_cbo", "evaluated": True, "rule_hash": "fusion",
+                     "source_fingerprint": "0123456789abcdef",
+                     "input_context": {"root": {"reference_key": "0123456789abcdef"}},
+                     "binding_context": {"capture": "after_evaluation", "rule_hash": "fusion",
+                         "source_bindings": {"scope": "matched_source_symbols",
+                                             "complete": True, "symbols": []}}}
+        pattern = {"rule_hash": "fusion", "route_sequence": 2, "operators": ["CLogicalProject"]}
+        expected = {"rule_source_routes": [pattern]}
+        captures = source_route_occurrences([route, candidate])
+        self.assertEqual(len(captures), 1)
+        self.assertIs(captures[0]["snapshot"], snapshot)
+        self.assertIs(captures[0]["bindings"], candidate["binding_context"]["source_bindings"])
+        with patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[route, candidate]):
+            self.assertEqual(actual_plan(expected, "decoded trace"), expected)
+        closed = {"kind": "rule_route_outcome", "route_sequence": 2}
+        query = {"kind": "candidate_context", "field": "query_input_context",
+                 "value": {"input_context": {"plan_template": snapshot}}}
+        for records in ([candidate], [query, candidate], [candidate, route],
+                        [route, closed, candidate], [route, {"kind": "experiment_outcome"}, candidate]):
+            self.assertEqual(source_route_occurrences(records), [])
+        changes = [
+            lambda r, c: c.update(group=8),
+            lambda r, c: c.update(group_expression=1),
+            lambda r, c: c.update(memo_version=10),
+            lambda r, c: c.update(memo_version=9.0),
+            lambda r, c: c.update(experiment="another"),
+            lambda r, c: c.update(evaluated=False),
+            lambda r, c: c.update(source_fingerprint="fedcba9876543210"),
+            lambda r, c: c.update(context_resolution_errors=["input_context"]),
+            lambda r, c: c["input_context"]["root"].update(reference_key="fedcba9876543210"),
+            lambda r, c: c["binding_context"].update(rule_hash="another"),
+            lambda r, c: c["binding_context"].update(capture="before_evaluation"),
+            lambda r, c: c["binding_context"]["source_bindings"].update(complete=False),
+            lambda r, c: r["route_input_context"].update(template_route=3),
+            lambda r, c: r["route_input_context"].update(template_route=2.0),
+            lambda r, c: r["route_input_context"].update(scope="query_input"),
+            lambda r, c: r["route_input_context"]["plan_template"].update(complete=False),
+        ]
+        for change in changes:
+            r, c = copy.deepcopy(route), copy.deepcopy(candidate)
+            change(r, c)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                source_route_occurrences([r, c])
+        # A newer route replaces the prior route even if its group is the same.
+        wrong = copy.deepcopy(route)
+        wrong["route_input_context"]["template_fingerprint"] = "fedcba9876543210"
+        with self.assertRaises(ValueError):
+            source_route_occurrences([route, wrong, candidate])
 
     def test_kernel_capture_binding_uses_typed_paths_not_hidden_names(self) -> None:
         import copy
