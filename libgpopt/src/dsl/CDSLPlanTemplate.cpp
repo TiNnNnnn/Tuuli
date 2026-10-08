@@ -974,7 +974,7 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 // A routed binding may contain a group-bound leaf rather than a complete tree.
 // Do not derive properties on that leaf or populate the live Memo's caches.
 BOOL
-AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out, CExpression *expression)
+AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out, const CExpression *expression)
 {
 	std::vector<const CExpression *> pending{expression};
 	while (!pending.empty())
@@ -1091,6 +1091,15 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 	return out.str();
 }
 }  // namespace
+
+std::string
+CDSLPlanTemplate::SerializeCaptured(CMemoryPool *mp, const CExpression *expr)
+{
+	GPOS_ASSERT(nullptr != mp && nullptr != expr);
+	std::ostringstream out;
+	AppendBoundExpression(mp, &out, expr);
+	return out.str();
+}
 
 std::string
 CDSLPlanTemplate::MatchedSourceBindings(const CDSLRule *rule, const CDSLModel *model)

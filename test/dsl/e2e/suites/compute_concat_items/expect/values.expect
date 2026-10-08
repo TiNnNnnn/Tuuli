@@ -43,6 +43,10 @@
             "CLogicalProject",
             "CLogicalProject",
             "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalConstTableGet"
           ]
         }
       ]

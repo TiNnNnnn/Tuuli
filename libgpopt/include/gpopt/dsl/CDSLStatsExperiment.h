@@ -91,7 +91,7 @@ public:
 		const CDSLStatsExperimentSnapshot *snapshot = nullptr, ULONG sequence = 0);
 	static std::string ExpressionShape(const CExpression *expr);
 	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model,
-		BOOL source_bindings = false);
+		BOOL source_bindings = false, const CExpression *target = nullptr);
 	// Bounded log records transport the entire JSON value, including large trees.
 	static std::vector<std::string> ContextRecords(ULONG id, const CHAR *field,
 		const std::string &value);
