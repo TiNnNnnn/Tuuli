@@ -9,6 +9,7 @@ import argparse
 import difflib
 import fnmatch
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -37,6 +38,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--diff-dir", type=pathlib.Path, required=True)
     parser.add_argument("--artifact-dir", type=pathlib.Path, required=True)
     parser.add_argument("--cases")
+    parser.add_argument("--check-native-instances", action="store_true",
+                        help="Kernel-check each expected source route and constructed target (requires RuleSolver/Rocq)")
     parser.add_argument("--disable-xform", action="append", default=[])
     parser.add_argument("--disable-semantic-xforms", type=pathlib.Path,
                         help="Disable semantic rewrites from this build's coverage.json; retain execution preparation")
@@ -395,6 +398,54 @@ def source_route_occurrences(records: list[dict[str, object]]) -> list[dict[str,
     return occurrences
 
 
+def native_rule_texts(output: str) -> dict[str, str]:
+    """Use ORCA's canonical printer, never hash/parse raw fixture lines."""
+    rules = {}
+    for text in re.findall(r"^Rule: ([^\r\n]+)$", output, re.MULTILINE):
+        identity = 0xcbf29ce484222325
+        for byte in text.encode("ascii"):
+            identity = ((identity ^ byte) * 0x100000001b3) & ((1 << 64) - 1)
+        key = f"{identity:016x}"
+        if key in rules and rules[key] != text:
+            raise ValueError("canonical rule identity collision in trace")
+        rules[key] = text
+    return rules
+
+
+def check_native_routes(expected: dict[str, object], output: str, destination: pathlib.Path) -> int:
+    """Check all occurrences selected by the expectation, including their actual target."""
+    patterns = expected.get("rule_source_routes", [])
+    if not patterns:
+        return 0
+    # Reuse the regular expectation validator and the maintained trace reader.
+    if actual_plan({"rule_source_routes": patterns}, output)["rule_source_routes"] != patterns:
+        raise ValueError("native instance check requires every expected source route")
+    import ml_orca_test_support
+    from ml_orca.collect.run_workload_comparison import trace_records
+    sys.path.insert(0, str(pathlib.Path(os.environ["WETUNE_HOME"]) / "formalsql"))
+    from native_instance import check_native_instance
+    rules = native_rule_texts(output)
+    checked = 0
+    for occurrence in source_route_occurrences(trace_records(output)):
+        if not any(all(occurrence.get(key) == value for key, value in pattern.items())
+                   for pattern in patterns):
+            continue
+        if "target_snapshot" not in occurrence:
+            raise ValueError("native instance check requires the same occurrence's constructed target")
+        rule = rules.get(occurrence["rule_hash"])
+        if rule is None:
+            raise ValueError("native instance check requires the hash-matched canonical rule text")
+        path = destination / f"route-{occurrence['route_sequence']}-candidate-{occurrence['candidate_sequence']}"
+        path.mkdir(parents=True, exist_ok=True)
+        (path / "occurrence.json").write_text(canonical(occurrence), encoding="utf-8")
+        check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
+                              lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path)
+        checked += 1
+    if not checked:
+        raise ValueError("native instance check captured no matching occurrences")
+    return checked
+
+
 def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
@@ -629,6 +680,7 @@ def main() -> int:
         }), encoding="utf-8")
 
     failed = []
+    native_instances = 0
     for sql_path in sql_files:
         case_name = sql_path.stem
         expect_path = args.expect_dir / f"{case_name}.expect"
@@ -649,6 +701,9 @@ def main() -> int:
             output = run_plan(args, query, plan)
             artifact = args.artifact_dir / f"{case_name}.{plan['name']}.plan"
             artifact.write_text(output + "\n", encoding="utf-8")
+            if args.check_native_instances:
+                native_instances += check_native_routes(plan, output,
+                    args.artifact_dir / f"{case_name}.{plan['name']}.native-instances")
             if args.disable_semantic_xforms:
                 validate_execution_trace(output, args.disable_xform)
             actual["plans"].append(actual_plan(plan, output))
@@ -674,6 +729,10 @@ def main() -> int:
             failed.append(case_name)
             print(f"not ok {case_name}: {diff_path}")
 
+    if args.check_native_instances and not native_instances:
+        raise ValueError("requested native checks but selected cases have no expected source routes")
+    if native_instances:
+        print(f"Conditional native kernel checks: {native_instances}; not deployment certificates")
     if failed:
         print(f"DSL E2E failed: {len(failed)} case(s)", file=sys.stderr)
         return 1
