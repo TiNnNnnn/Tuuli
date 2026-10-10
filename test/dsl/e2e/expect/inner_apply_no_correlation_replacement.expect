@@ -1,5 +1,5 @@
 {
-  "description": "Reference-only syntax migration of the legacy-proved explicit InnerApply DSL rule replaces the uncorrelated Apply conversion",
+  "description": "A FormalSQL/Rocq-proved InnerApply DSL rule replaces the uncorrelated Apply conversion",
   "replacement": {
     "xforms": [
       "CXformInnerApply2InnerJoinNoCorrelations"
@@ -7,7 +7,7 @@
     "scope": "InnerApply whose inner subtree has no references to its current outer child",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "c06d12b0021df6a1"
+      "ebadfb129130abb8"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
+        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformInnerApply2InnerJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
+        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
       ],
       "provenance": {
         "required_sources": [
