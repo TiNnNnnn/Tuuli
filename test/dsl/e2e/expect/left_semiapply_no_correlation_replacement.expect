@@ -1,11 +1,11 @@
 {
-  "description": "A FormalSQL/Rocq-proved SemiApply DSL rule replaces the uncorrelated Apply conversion",
+  "description": "A DSL syntax migration exercises the uncorrelated SemiApply replacement; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
     ],
     "scope": "LeftSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "e3458abf2b3167d5"
     ]

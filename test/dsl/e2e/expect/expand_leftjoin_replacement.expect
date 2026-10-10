@@ -1,11 +1,11 @@
 {
-  "description": "A proved DSL rule replaces nested LeftJoin expansion while preserving the complete memo output contract",
+  "description": "A DSL syntax migration exercises LeftJoin expansion while preserving the memo output contract; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
     ],
     "scope": "Full logical promise for deterministic binary LeftJoin predicates over arbitrary relational inputs",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "92983d6d3650ab0c"
     ]

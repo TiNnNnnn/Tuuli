@@ -1,11 +1,11 @@
 {
-  "description": "A FormalSQL/Rocq-proved DSL cardinality contract replaces CXformMaxOneRow2Assert",
+  "description": "A DSL syntax migration exercises CXformMaxOneRow2Assert; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformMaxOneRow2Assert"
     ],
     "scope": "Scalar subquery MaxOneRow contracts lowered to ORCA's standard Assert implementation",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "770daa019ca274ae"
     ]
