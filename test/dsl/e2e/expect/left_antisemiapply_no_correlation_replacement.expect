@@ -1,5 +1,5 @@
 {
-  "description": "Reference-only syntax migration of the legacy-proved explicit AntiApply DSL rule replaces the uncorrelated NOT EXISTS Apply conversion",
+  "description": "A FormalSQL/Rocq-proved AntiApply DSL rule replaces the uncorrelated NOT EXISTS Apply conversion",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
@@ -7,7 +7,7 @@
     "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "4df97bead45bc844"
+      "561de687652328df"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
+        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
+        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
       ],
       "provenance": {
         "required_sources": [
