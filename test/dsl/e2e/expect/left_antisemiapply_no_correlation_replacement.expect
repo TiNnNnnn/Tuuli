@@ -1,13 +1,13 @@
 {
-  "description": "A DSL syntax migration exercises the uncorrelated AntiApply replacement; FormalSQL proof pending",
+  "description": "A DSL syntax migration exercises the uncorrelated AntiApply replacement with a kernel-checked generic proof",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
     ],
     "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
-    "status": "e2e_trigger_verified_formal_proof_pending",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "561de687652328df"
+      "4df97bead45bc844"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
+        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"561de687652328df\""
+        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
       ],
       "provenance": {
         "required_sources": [

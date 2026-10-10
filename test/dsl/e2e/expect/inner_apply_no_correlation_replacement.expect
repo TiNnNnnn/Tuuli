@@ -1,13 +1,13 @@
 {
-  "description": "A DSL syntax migration exercises the uncorrelated InnerApply replacement; FormalSQL proof pending",
+  "description": "A DSL syntax migration exercises the uncorrelated InnerApply replacement with a kernel-checked generic proof",
   "replacement": {
     "xforms": [
       "CXformInnerApply2InnerJoinNoCorrelations"
     ],
     "scope": "InnerApply whose inner subtree has no references to its current outer child",
-    "status": "e2e_trigger_verified_formal_proof_pending",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "ebadfb129130abb8"
+      "c06d12b0021df6a1"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
+        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformInnerApply2InnerJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ebadfb129130abb8\""
+        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
       ],
       "provenance": {
         "required_sources": [

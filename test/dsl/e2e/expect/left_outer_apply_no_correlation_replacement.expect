@@ -1,13 +1,13 @@
 {
-  "description": "A DSL syntax migration exercises the uncorrelated LeftApply replacement; FormalSQL proof pending",
+  "description": "A DSL syntax migration exercises the uncorrelated LeftApply replacement with a kernel-checked generic proof",
   "replacement": {
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
     ],
     "scope": "LeftOuterApply whose inner subtree has no references to its current outer child",
-    "status": "e2e_trigger_verified_formal_proof_pending",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "4fbf993ef8bfe114"
+      "779f43bd677ca505"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
+        "\"status\":\"applied\",\"rule_hash\":\"779f43bd677ca505\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4fbf993ef8bfe114\""
+        "\"status\":\"applied\",\"rule_hash\":\"779f43bd677ca505\""
       ],
       "provenance": {
         "required_sources": [
