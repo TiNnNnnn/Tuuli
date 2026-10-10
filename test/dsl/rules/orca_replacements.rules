@@ -310,7 +310,8 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n
 # PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs keep the
 # expansion valid for arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# SYNTAX_ONLY legacy_hash=4ace459761869246; native expression proof: UNKNOWN (native shared-input AntiJoin/Union proof pending).
+# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. PredicateNotTrue,
+# TableShared and the explicit output columns are the complete expansion proof.
 AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
 
 # Replace CXformLeftAntiSemiJoinNotIn2CrossProduct for an ALL comparison that

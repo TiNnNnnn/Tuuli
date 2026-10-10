@@ -7,7 +7,7 @@
     "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f6380fe3f040110a"
+      "4ace459761869246"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
       ]
     },
     {
@@ -46,7 +46,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
       ],
       "provenance": {
         "required_sources": [
