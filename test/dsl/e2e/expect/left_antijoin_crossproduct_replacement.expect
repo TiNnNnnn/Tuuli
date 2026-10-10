@@ -1,13 +1,13 @@
 {
-  "description": "A DSL syntax migration exercises inner-independent AntiJoin expansion; FormalSQL proof pending",
+  "description": "A DSL syntax migration exercises inner-independent AntiJoin expansion with a kernel-checked generic proof",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiJoin2CrossProduct"
     ],
     "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
-    "status": "e2e_trigger_verified_formal_proof_pending",
+    "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "4ace459761869246"
+      "f6380fe3f040110a"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
+        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
       ]
     },
     {
@@ -46,7 +46,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4ace459761869246\""
+        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
       ],
       "provenance": {
         "required_sources": [
