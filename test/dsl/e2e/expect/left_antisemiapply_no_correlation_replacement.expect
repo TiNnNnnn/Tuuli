@@ -1,11 +1,11 @@
 {
-  "description": "A FormalSQL/Rocq-proved AntiApply DSL rule replaces the uncorrelated NOT EXISTS Apply conversion",
+  "description": "A DSL syntax migration exercises the uncorrelated AntiApply replacement; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
     ],
     "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "561de687652328df"
     ]

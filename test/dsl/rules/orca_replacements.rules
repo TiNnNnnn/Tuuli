@@ -310,8 +310,7 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n
 # PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs keep the
 # expansion valid for arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. PredicateNotTrue,
-# TableShared and the explicit output columns are the complete expansion proof.
+# SYNTAX_ONLY legacy_hash=4ace459761869246; native expression proof: UNKNOWN (native shared-input AntiJoin/Union lowering pending).
 AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
 
 # Replace CXformLeftAntiSemiJoinNotIn2CrossProduct for an ALL comparison that
@@ -338,8 +337,7 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 # dependencies; AttrsEmpty therefore states the native xform's applicability
 # domain directly. This exact RuleIR was proved by the FormalSQL/Rocq kernel on
 # 2026-08-29 for the legacy RuleIR (BAG_EQ, not native OUTCOME_EQ).
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. AttrsEmpty is the complete
-# no-current-outer-row applicability condition for SemiApply.
+# SYNTAX_ONLY legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN (native SemiApply lowering pending).
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the base-input domain of
@@ -383,8 +381,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # native promise expressed as data. AntiJoin is ordinary NOT EXISTS semantics,
 # distinct from the NULL-aware AntiJoinNotIn family. This exact RuleIR is
 # accepted by the legacy FormalSQL/Rocq proof (BAG_EQ).
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. AttrsEmpty preserves the
-# ordinary NOT EXISTS domain; NULL-aware AntiApplyNotIn remains separate.
+# SYNTAX_ONLY legacy_hash=561de687652328df; native expression proof: UNKNOWN (native AntiApply lowering pending).
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
@@ -560,8 +557,7 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # applicability condition. The legacy RuleIR has an outcome-equivalence proof
 # accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
 # preserves scalar errors without an ErrorFree assumption.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The shared structural
-# Apply proof requires AttrsEmpty for the current outer-row dependency set.
+# SYNTAX_ONLY legacy_hash=ebadfb129130abb8; native expression proof: UNKNOWN (native Apply lowering pending).
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
@@ -570,8 +566,7 @@ InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input
 # current left row while permitting references supplied by an enclosing scope,
 # matching the native promise. The legacy RuleIR has an outcome-equivalence
 # proof accepted by FormalSQL/Rocq.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The shared structural
-# Apply proof retains NULL-extension through the LeftJoin target.
+# SYNTAX_ONLY legacy_hash=4fbf993ef8bfe114; native expression proof: UNKNOWN (native Apply lowering pending).
 LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
@@ -691,8 +686,7 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
 # Legacy ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. This is the shared
-# cardinality-contract lowering; it does not recognize a scalar subquery.
+# SYNTAX_ONLY legacy_hash=770daa019ca274ae; native expression proof: UNKNOWN (native Assert lowering pending).
 MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
 # Replace CXformExpandFullOuterJoin with the same shared-input relational
@@ -700,16 +694,14 @@ MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 # (B ANTI JOIN A projected as NULL(A),B). TableShared gives each duplicated
 # input one native CTE producer; the four-symbol Union states both ordered row
 # mappings explicitly. FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. TableShared and typed
-# ExprNulls are the complete shared-input/full-row witness.
+# SYNTAX_ONLY legacy_hash=ce7a7b473a32e273; native expression proof: UNKNOWN (native shared-input/full-join lowering pending).
 FullJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(LeftJoin<p1 a5 a6>(Input<t2>,Input<t3>),Compute<e0 a7 s1>(AntiJoin<p2 a8 a9>(Input<t4>,Input<t5>)))|t2 := t0;t5 := t0;TableShared(t2,t5);t3 := t1;t4 := t1;TableShared(t3,t4);p1 := p0;p2 := p0;a5 := a0;a6 := a1;a8 := a1;a9 := a0;OutputAttrs(a10,t0);OutputAttrs(a11,t1);AttrsUnion(a2,a10,a11);SchemaFromAttrs(s0,a2);a3 := a2;e0 := ExprNulls(a10);OutputAttrs(a12,e0);AttrsUnion(a4,a12,a11);AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)
 
 # Replace CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin with its direct
 # relational identity: A LEFT JOIN B = (A INNER JOIN B) UNION ALL
 # (A ANTI JOIN B projected as A,NULL(B)). Shared inputs preserve one evaluation
 # of arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. TableShared and typed
-# ExprNulls preserve the left-preserving NULL extension.
+# SYNTAX_ONLY legacy_hash=92983d6d3650ab0c; native expression proof: UNKNOWN (native shared-input/left-join lowering pending).
 LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(Input<t2>,Input<t3>),Compute<e0 a7 s1>(AntiJoin<p2 a8 a9>(Input<t4>,Input<t5>)))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;p2 := p0;a5 := a0;a6 := a1;a8 := a0;a9 := a1;OutputAttrs(a10,t0);OutputAttrs(a11,t1);AttrsUnion(a2,a10,a11);SchemaFromAttrs(s0,a2);a3 := a2;e0 := ExprNulls(a11);OutputAttrs(a12,e0);AttrsUnion(a4,a10,a12);AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)
 
 # Safe decomposition of CXformInnerApplyWithOuterKey2InnerJoin. A

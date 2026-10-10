@@ -1,11 +1,11 @@
 {
-  "description": "A proved DSL rule replaces FullJoin expansion with shared CTE inputs",
+  "description": "A DSL syntax migration exercises FullJoin expansion with shared CTE inputs; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformExpandFullOuterJoin"
     ],
     "scope": "Deterministic binary FullJoin predicates over arbitrary relational inputs",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "ce7a7b473a32e273"
     ]

@@ -1,11 +1,11 @@
 {
-  "description": "A Rocq-proved DSL rule safely expands an inner-independent AntiJoin",
+  "description": "A DSL syntax migration exercises inner-independent AntiJoin expansion; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiJoin2CrossProduct"
     ],
     "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "4ace459761869246"
     ]

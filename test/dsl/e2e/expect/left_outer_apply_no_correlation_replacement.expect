@@ -1,11 +1,11 @@
 {
-  "description": "A Rocq-proved LeftApply DSL rule replaces the uncorrelated left outer Apply conversion",
+  "description": "A DSL syntax migration exercises the uncorrelated LeftApply replacement; FormalSQL proof pending",
   "replacement": {
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
     ],
     "scope": "LeftOuterApply whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "status": "e2e_trigger_verified_formal_proof_pending",
     "dsl_rule_hashes": [
       "4fbf993ef8bfe114"
     ]
