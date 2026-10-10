@@ -7,7 +7,7 @@
     "scope": "Deterministic binary FullJoin predicates over arbitrary relational inputs",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "10374576f419c6c6"
+      "ce7a7b473a32e273"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_expand_fulljoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"10374576f419c6c6\""
+        "\"status\":\"applied\",\"rule_hash\":\"ce7a7b473a32e273\""
       ],
       "alternative": [
         "CXformExpandFullOuterJoin",
@@ -52,7 +52,7 @@
       ],
       "policy": "isolate_expand_fulljoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"10374576f419c6c6\""
+        "\"status\":\"applied\",\"rule_hash\":\"ce7a7b473a32e273\""
       ],
       "alternative": [
         "CXformDSLRule_FullJoin"

@@ -7,7 +7,7 @@
     "scope": "Full logical promise for deterministic binary LeftJoin predicates over arbitrary relational inputs",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "c17232f27a25923d"
+      "92983d6d3650ab0c"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_expand_leftjoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
       ],
       "alternative": [
         "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
@@ -36,8 +36,8 @@
       "trace": true,
       "policy": "bounded_expansive_cbo.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\"",
-        "\"status\":\"budget_skipped\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\"",
+        "\"status\":\"budget_skipped\",\"rule_hash\":\"92983d6d3650ab0c\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
@@ -66,7 +66,7 @@
       ],
       "policy": "isolate_expand_leftjoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"92983d6d3650ab0c\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
