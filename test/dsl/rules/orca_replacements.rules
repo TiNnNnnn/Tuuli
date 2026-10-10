@@ -557,7 +557,8 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # applicability condition. The legacy RuleIR has an outcome-equivalence proof
 # accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
 # preserves scalar errors without an ErrorFree assumption.
-# SYNTAX_ONLY legacy_hash=ebadfb129130abb8; native expression proof: UNKNOWN.
+# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The shared structural
+# Apply proof requires AttrsEmpty for the current outer-row dependency set.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
@@ -566,7 +567,8 @@ InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input
 # current left row while permitting references supplied by an enclosing scope,
 # matching the native promise. The legacy RuleIR has an outcome-equivalence
 # proof accepted by FormalSQL/Rocq.
-# SYNTAX_ONLY legacy_hash=4fbf993ef8bfe114; native expression proof: UNKNOWN.
+# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The shared structural
+# Apply proof retains NULL-extension through the LeftJoin target.
 LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
