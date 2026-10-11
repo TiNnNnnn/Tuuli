@@ -5,15 +5,15 @@
 InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t1>)|InSubFilter<a2>(Input<t3>,Input<t4>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);t3 := t0;t4 := t1;a2 := a0
 
 # MONSOON/dataset/rules/fewshot_curated.txt:4
-InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t0>))|Input<t2>|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);NotNull(t0,a0);NotNull(t0,a1);TableEq(t2,t0)
+InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t0>))|Input<t2>|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);NotNull(t0,a0);NotNull(t0,a1);t2 := t0
 
 # MONSOON/dataset/rules/rules.els.reduced.txt:486
-Exists(Agg<a0 a1 f0 s0 p0>(Input<t0>),Proj<a2 s1>(Input<t1>))|Exists(Agg<a3 a4 f1 s2 p1>(Input<t2>),Proj<a5 s3>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);PredicateEq(p1,p0);SchemaEq(s2,s0);SchemaEq(s3,s1);FuncEq(f1,f0)
+Exists(Agg<a0 a1 f0 s0 p0>(Input<t0>),Proj<a2 s1>(Input<t1>))|Exists(Agg<a3 a4 f1 s2 p1>(Input<t2>),Proj<a5 s3>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);PredicateEq(p1,p0);SchemaEq(s2,s0);SchemaEq(s3,s1);FuncEq(f1,f0);t2 := t0;t3 := t1
 
 # Structural Agg/HAVING round trip in the corpus's five-symbol Agg format.
 # It is a framework probe: changing the symbols or aggregate function must be
 # handled by bindings/constraints, not by C++ recognition of this text.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0);t1 := t0
 
 # Generic Union commutativity probe in the established MONSOON format. The
 # shared source capture makes swapping identical UNION ALL branches explicit;
@@ -40,63 +40,63 @@ Limit<n0 n1>(SortAsc<a0>(Input<t0>))|Limit<n2 n3>(SortAsc<a1>(Input<t1>))|TableE
 # WeTune represents DISTINCT aggregate input as Agg(Proj*(Input)); ORCA stores
 # the same fact on CScalarAggFunc. This ordinary rule probes that representation
 # adapter and the Unique gate, without any aggregate-function-specific rule.
-Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0);AttrsEq(a1,a0);SchemaEq(s1,s0)
+Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|AttrsSub(a0,t0);Unique(t0,a0);AttrsEq(a1,a0);SchemaEq(s1,s0);t1 := t0
 
 # A NOT NULL foreign key guarantees that every left row has an inner match.
 # The FK-owning relation may be wrapped by Select/GbAgg; Reference follows the
 # bound key columns to their unique base Get rather than requiring a bare table.
-LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)
+LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,Input<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);NotNull(t0,a0);Reference(t0,a0,t1,a1);AttrsEq(a2,a0);AttrsEq(a3,a1);t2 := t0;t3 := t1
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:21. Inner-join equality makes
 # either key a valid DISTINCT/GROUP BY key. SchemaEq preserves the source-facing
 # column while target attrs select the opposite join-key representative.
-Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0)
+Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0);t2 := t0;t3 := t1
 
 # ORCA canonicalizes duplicate predicates before xform exploration. This probe
 # verifies that a two-Filter DSL source can use the normalized single-conjunct
 # view and instantiate its one-Filter target without duplicating residuals.
-Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Filter<p2 a2>(Input<t1>)|AttrsEq(a0,a1);PredicateEq(p0,p1);AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);PredicateEq(p2,p0)
+Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Filter<p2 a2>(Input<t1>)|AttrsEq(a0,a1);PredicateEq(p0,p1);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsEq(a2,a0);PredicateEq(p2,p0);t1 := t0
 
 # A single-side Filter is normally pushed below an inner join before ORCA's
 # exploration phase. This ordinary rule verifies the reversible Select(Join)
 # view and target predicate rebinding from the right key to the left key.
-Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a1,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);AttrsSub(a5,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0)
+Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a1,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);AttrsSub(a5,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0);t2 := t0;t3 := t1
 
 # Reference is an inclusion dependency, so R.a -> R.a holds without explicit
 # FK metadata when the referred binding is the complete base relation. This
 # ordinary rule exercises that constraint while moving a predicate between two
 # shared source capture makes the self-reference explicit rather than adding a
 # same-side TableEq guard.
-Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t0>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t0);Reference(t0,a0,t0,a1);Reference(t0,a1,t0,a0);TableEq(t2,t0);TableEq(t3,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0)
+Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t0>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t0);Reference(t0,a0,t0,a1);Reference(t0,a1,t0,a0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0);t2 := t0;t3 := t0
 
 # A Proj* -> Proj result is carried as the memo-safe Select(child, TRUE)
 # identity marker. This ordinary follow-up rule proves that generated DSL
 # alternatives remain consumable by later DSL rules.
-Proj<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,s0);TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s2,s1)
+Proj<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsEq(a2,a0);SchemaEq(s2,s1);t1 := t0
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:37. A computed Project remains
 # explicit in ORCA; target attrs replace its input with the equality-equivalent
 # key from the other InnerJoin child while SchemaEq keeps its defined output.
-Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0)
+Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0);t2 := t0;t3 := t1
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:6. This uses a pass-through SQL
 # SELECT list, so the query-output Project surface (rather than a computed
 # expression) must remain visible. The guards prove safe FK inner-join removal.
-Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);NotNull(t0,a0);Reference(t0,a0,t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)
+Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);NotNull(t0,a0);Reference(t0,a0,t1,a1);AttrsEq(a3,a2);SchemaEq(s1,s0);t2 := t0
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:18. The right side is unique and
 # no right column is projected, so the LeftJoin is redundant. This probe also
 # verifies that capability-aware preprocessing preserves the source shape for
 # DSL OFF/ON comparison instead of letting native LOJ pruning erase it first.
-Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);TableEq(t2,t0);AttrsEq(a3,a2);SchemaEq(s1,s0)
+Proj<a2 s0>(LeftJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a3 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Unique(t1,a1);AttrsEq(a3,a2);SchemaEq(s1,s0);t2 := t0
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:27. An inner-join equality lets
 # IN use the key from either side. The UNION ALL inner exercises the post-unnest
 # SemiJoin carrier and correlated SetOp property boundary without rule-specific
 # engine code.
-InSubFilter<a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a5>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),Input<t5>)|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);TableEq(t3,t0);TableEq(t4,t1);TableEq(t5,t2);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1)
+InSubFilter<a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a5>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),Input<t5>)|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);t3 := t0;t4 := t1;t5 := t2
 
 # A second valid target for the redundant Proj* source at line 43. BottomUp RBO
 # selects the earlier rule but trace-only validation must still report this full
 # match/constraint/instantiation/safety success as applicable, not applied.
-Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);TableEq(t1,t0)
+Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);t1 := t0
