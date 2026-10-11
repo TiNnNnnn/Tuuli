@@ -1127,6 +1127,11 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 										: EdslconScalarEq == kind ? EdslsymScalar
 										: EdslconPredicateEq == kind
 											? EdslsymPred
+										: EdslconFuncEq == kind ? EdslsymFunc
+										: EdslconOrderEq == kind ? EdslsymOrder
+										: EdslconWindowEq == kind ? EdslsymWindow
+										: EdslconFrameEq == kind ? EdslsymFrame
+										: EdslconRankEq == kind ? EdslsymRank
 											: EdslsymSentinel;
 		if (EdslsymSentinel == expected || 2 != con->Pdrgpsym()->Size())
 		{
