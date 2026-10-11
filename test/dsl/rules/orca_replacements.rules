@@ -331,7 +331,8 @@ AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(
 # does not depend on the inner input. A non-empty inner keeps TRUE outer rows;
 # an empty inner keeps every outer row. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# SYNTAX_ONLY legacy_hash=1cffa7aedcedb510; native expression proof: UNKNOWN (native independent AntiJoinNotIn proof pending).
+# FORMALSQL_PROVED legacy_hash=1cffa7aedcedb510; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# 9e615957f62aebde568f983a6ba2a22c34a4022a7976cefbf4742147af831fd2.
 AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
