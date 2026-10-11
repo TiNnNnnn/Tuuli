@@ -178,8 +178,9 @@ CDSLOp::OsPrint(IOstream &os, BOOL print_children) const
 // ---------------------------------------------------------------------------
 CDSLConstraint::CDSLConstraint(CMemoryPool *,  // mp unused
 							   EDslConstraintKind edslcon,
-							   CDSLSymbolArray *pdrgpsym)
-	: m_edslcon(edslcon), m_pdrgpsym(pdrgpsym)
+							   CDSLSymbolArray *pdrgpsym,
+							   BOOL fLegacyEquality)
+	: m_edslcon(edslcon), m_fLegacyEquality(fLegacyEquality), m_pdrgpsym(pdrgpsym)
 {
 	GPOS_ASSERT(nullptr != pdrgpsym);
 	GPOS_ASSERT(CDSLConstraintKindTable::UlArity(edslcon) == pdrgpsym->Size());

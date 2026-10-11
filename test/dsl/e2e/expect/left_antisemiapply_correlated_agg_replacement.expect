@@ -11,7 +11,6 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5ea2046b8dd2a967\"",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"7d3926f654a19538\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
@@ -38,7 +37,6 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5ea2046b8dd2a967\"",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"7d3926f654a19538\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],

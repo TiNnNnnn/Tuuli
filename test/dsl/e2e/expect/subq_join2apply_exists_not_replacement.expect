@@ -9,7 +9,7 @@
     "scope": "One correlated EXISTS value below NOT and OR in an inner-join predicate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "1955d85fbb20ac80"
+      "609a18b29fe05422"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "policy": "isolate_select2apply_predicate_notexists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"1955d85fbb20ac80\""
+        "\"rule_hash\":\"609a18b29fe05422\""
       ],
       "alternative": []
     },
@@ -55,7 +55,7 @@
       "policy": "isolate_select2apply_predicate_notexists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"1955d85fbb20ac80\""
+        "\"status\":\"applied\",\"rule_hash\":\"609a18b29fe05422\""
       ],
       "alternative": [],
       "provenance": {

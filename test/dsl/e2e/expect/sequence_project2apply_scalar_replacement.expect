@@ -7,8 +7,8 @@
     "scope": "One correlated scalar aggregate used with a full-partition Window frame",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f03b85207ada9a33",
-      "f23d59b80126349c"
+      "84da6d6acf31a5f9",
+      "c614526844026ed1"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"f23d59b80126349c\""
+        "\"rule_hash\":\"c614526844026ed1\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -56,7 +56,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"f23d59b80126349c\""
+        "\"status\":\"applied\",\"rule_hash\":\"c614526844026ed1\""
       ],
       "provenance": {
         "required_sources": [

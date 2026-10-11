@@ -20,7 +20,7 @@
       "policy": "typed-reference.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"ffd6d898a80f833c\""
+        "\"status\":\"applied\",\"rule_hash\":\"e47f4eee903217f2\""
       ],
       "not_contains": [
         "Falling back to Postgres"

@@ -7,8 +7,8 @@
     "scope": "A scalar subquery used as the comparison value of correlated ANY",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "6fcbf4135eeb31ce",
-      "ac0317d6092101d7"
+      "04e0afd694917f50",
+      "d104909e3404ba0d"
     ]
   },
   "plans": [
@@ -28,8 +28,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"rule_hash\":\"ac0317d6092101d7\""
+        "\"rule_hash\":\"04e0afd694917f50\"",
+        "\"rule_hash\":\"d104909e3404ba0d\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -57,8 +57,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ac0317d6092101d7\""
+        "\"status\":\"applied\",\"rule_hash\":\"04e0afd694917f50\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d104909e3404ba0d\""
       ],
       "provenance": {
         "required_sources": [

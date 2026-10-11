@@ -7,7 +7,7 @@
     "scope": "Nonvolatile partial Project collapse; volatile list movement is conservatively rejected",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "984eec66d5bc3f5d"
+      "e3e696bb19f0eb43"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -48,7 +48,7 @@
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

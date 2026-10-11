@@ -69,12 +69,6 @@
           "src_rule": "f7eadea871960968",
           "dst_rule": "0b8d60ce1b8155f8",
           "target_path": "r"
-        },
-        {
-          "scheduler": "cbo",
-          "src_rule": "0b8d60ce1b8155f8",
-          "dst_rule": "f7eadea871960968",
-          "target_path": "r"
         }
       ],
       "alternative": [

@@ -7,7 +7,7 @@
     "scope": "all upper project elements are independent of the lower defined columns",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8dcdd8a3308b3054"
+      "c0b0ad755b723936"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
+        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -48,7 +48,7 @@
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\""
+        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

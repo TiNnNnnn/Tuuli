@@ -7,8 +7,8 @@
     "scope": "Three nested Projects with independent and dependent expressions; not full preprocessing replacement",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8dcdd8a3308b3054",
-      "984eec66d5bc3f5d"
+      "c0b0ad755b723936",
+      "e3e696bb19f0eb43"
     ]
   },
   "plans": [
@@ -24,8 +24,8 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -50,14 +50,14 @@
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "8dcdd8a3308b3054",
-          "dst_rule": "984eec66d5bc3f5d",
+          "src_rule": "c0b0ad755b723936",
+          "dst_rule": "e3e696bb19f0eb43",
           "target_path": "r",
           "src_target_path": "r",
           "dst_source_path": "r",

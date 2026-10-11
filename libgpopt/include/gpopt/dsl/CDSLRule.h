@@ -141,17 +141,19 @@ class CDSLConstraint : public CRefCount
 {
 private:
 	const EDslConstraintKind m_edslcon;
+	const BOOL m_fLegacyEquality;
 	CDSLSymbolArray *m_pdrgpsym;   // owned; arity already checked
 
 public:
 	CDSLConstraint(const CDSLConstraint &) = delete;
 
 	CDSLConstraint(CMemoryPool *mp, EDslConstraintKind edslcon,
-				   CDSLSymbolArray *pdrgpsym);
+				   CDSLSymbolArray *pdrgpsym, BOOL fLegacyEquality = false);
 
 	~CDSLConstraint() override;
 
 	EDslConstraintKind Edslcon() const { return m_edslcon; }
+	BOOL FLegacyEquality() const { return m_fLegacyEquality; }
 	CDSLSymbolArray *Pdrgpsym() const { return m_pdrgpsym; }
 
 	void OsPrint(IOstream &os) const;

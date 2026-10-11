@@ -7,7 +7,7 @@
     "scope": "Correlated single-column NOT IN across match, empty-set, inner-NULL, outer-NULL and duplicate branches",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "a08e24d9155e2f5c"
+      "37d24620470a448a"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"37d24620470a448a\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -54,7 +54,7 @@
       "policy": "isolate_select2apply_identity.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"37d24620470a448a\""
       ],
       "alternative": [
         "CXformDSLRule_Select"

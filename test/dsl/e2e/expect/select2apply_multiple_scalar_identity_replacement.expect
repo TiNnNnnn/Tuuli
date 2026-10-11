@@ -17,7 +17,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"6fcbf4135eeb31ce\""
+        "\"rule_hash\":\"04e0afd694917f50\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -44,8 +44,8 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"6fcbf4135eeb31ce\""
+        "\"status\":\"applied\",\"rule_hash\":\"04e0afd694917f50\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"04e0afd694917f50\""
       ],
       "not_contains": [
         "Optimizer: pg_orca"

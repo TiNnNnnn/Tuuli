@@ -1,12 +1,11 @@
 {
-  "description": "Equal filtered inputs still match after base-column alias remapping",
+  "description": "Separate filtered aliases do not satisfy a shared source capture",
   "plans": [
     {
       "name": "dsl-on",
       "trace": true,
       "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"8c0ea513d6ad3223\""
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
         "Falling back to Postgres"

@@ -1,11 +1,11 @@
 - rule: '*'
   enabled: false
-- rule: fde0fe0c7aa5a359
+- rule: d2f2c7c72df2d6f7
   enabled: true
   placement: cbo
   budget:
     per_rule: 1
-- rule: fc7a32971ee1acdc
+- rule: df741f7240772e8e
   enabled: true
   placement: cbo
   budget:

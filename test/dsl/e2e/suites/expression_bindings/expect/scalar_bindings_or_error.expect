@@ -19,7 +19,7 @@
       "trace": true,
       "policy": "or.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9b85b5e0d4ad94a6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8a18f8a1cf49e804\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

@@ -1,6 +1,6 @@
 - rule: '*'
   enabled: false
-- rule: 654a37b8b7dde10e
+- rule: 8a18f8a1cf49e804
   enabled: true
   placement: cbo
   budget:

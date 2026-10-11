@@ -141,9 +141,10 @@ private:
 	BOOL FCheckPredicateFalse(const CDSLConstraint *pcon,
 							  const CDSLModel *pmodel) const;
 
-	// PredicateAnd(out,left,right): validate a bound source output exactly, or
-	// defer a target-only output after checking both operands are available.
-	BOOL FCheckPredicateAnd(const CDSLConstraint *pcon,
+	// PredicateAnd(out,left,right): validate a bound output reachable from the
+	// target tree after checking both operands are available.
+	BOOL FCheckPredicateAnd(const CDSLRule *prule,
+							const CDSLConstraint *pcon,
 							const CDSLModel *pmodel) const;
 	BOOL FCheckPredicateNegation(const CDSLConstraint *pcon,
 								const CDSLModel *pmodel) const;

@@ -21,7 +21,8 @@ CDSLConstraintKindTable::FBindingMetadata(EDslConstraintKind kind)
 {
 	return FColumnDerivation(kind) || FScalarLiteral(kind) ||
 		EdslconOrderEmpty == kind || EdslconRankAttrs == kind ||
-		EdslconPredicateDomainSplit == kind;
+		EdslconPredicateDomainSplit == kind ||
+		EdslconPredicateAnd == kind || EdslconSliceCompose == kind;
 }
 
 BOOL

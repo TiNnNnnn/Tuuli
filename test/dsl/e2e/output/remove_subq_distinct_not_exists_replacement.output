@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule removes pure DISTINCT from a NOT EXISTS subquery",
+  "description": "Explicit DISTINCT removal preserves column projection without a redundant Compute, followed by AntiApply lowering and DSL decorrelation",
   "replacement": {
     "xforms": [
       "CXformRemoveSubqDistinct"
@@ -7,7 +7,7 @@
     "scope": "NOT EXISTS over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "34dcead32519d2dd"
+      "c21c58ba5e91d0c6"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\""
+        "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\""
       ],
       "alternative": [
         "CXformRemoveSubqDistinct",
@@ -53,9 +53,23 @@
       ],
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"34dcead32519d2dd\"",
-        "\"status\":\"applied\",\"rule_hash\":\"a586c9b617a6d998\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5004b2a4db64e478\""
+        "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ead23f0e6f801dc5\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "c21c58ba5e91d0c6",
+          "dst_rule": "f37f3cbe4c7c9b10",
+          "target_path": "r"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "f37f3cbe4c7c9b10",
+          "dst_rule": "ead23f0e6f801dc5",
+          "target_path": "r"
+        }
       ],
       "alternative": [
         "CXformDSLRule_NotExists"

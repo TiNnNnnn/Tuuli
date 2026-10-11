@@ -8,7 +8,8 @@
 //		Front door of the DSL parser: turns one rule-DSL string into a validated
 //		template-IR CDSLRule. Wraps the ANTLR4-generated lexer/parser and the
 //		semantic checks that mirror WeTune (operator aliases, per-operator symbol
-//		count/kind, shared source/target symbol namespace, constraint arity).
+//		count/kind, same-side symbol sharing, shared source/target namespace,
+//		constraint arity).
 //
 //		This header deliberately exposes NO ANTLR types — all ANTLR4 machinery,
 //		std::string and exception handling are confined to CDSLRuleParser.cpp so

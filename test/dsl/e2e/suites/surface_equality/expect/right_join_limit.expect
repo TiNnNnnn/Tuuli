@@ -7,8 +7,8 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"99cbe26978f97e47\"",
-        "\"status\":\"applied\",\"rule_hash\":\"c9ec34e0d2b51aff\""
+        "\"status\":\"applied\",\"rule_hash\":\"af3a657198c12a54\"",
+        "\"status\":\"applied\",\"rule_hash\":\"735eb4e3a8419b5c\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -18,8 +18,7 @@
           "dsl"
         ],
         "required_origins": [
-          "CXformDSLRule_Project",
-          "CXformDSLRule_Limit"
+          "CXformDSLRule_Project"
         ],
         "forbidden_origins": []
       }

@@ -21,7 +21,7 @@
       "trace": true,
       "policy": "construct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f166b55f6ec92b7a\"",
         "CScalarBoolOp (EboolopNot)",
         "Optimizer: pg_orca"
       ],
@@ -47,8 +47,8 @@
       "trace": true,
       "policy": "roundtrip.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
-        "\"status\":\"applied\",\"rule_hash\":\"42324fdc12011292\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f166b55f6ec92b7a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e47f4eee903217f2\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
@@ -61,10 +61,10 @@
       "trace": true,
       "policy": "eliminate.policy",
       "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"e47f4eee903217f2\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"42324fdc12011292\"",
         "Falling back to Postgres"
       ]
     }
