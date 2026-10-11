@@ -782,8 +782,7 @@ CDSLOrderLimitTest::EresUnittest_FusedLimitSortRoundTrip()
 	CDSLRule *prule = Prule(mp,
 		"Limit<n0 n1>(SortAsc<a0>(Input<t0>))|"
 		"Limit<n2 n3>(SortAsc<a1>(Input<t1>))|"
-		"TableEq(t1,t0);AttrsEq(a1,a0);ScalarEq(n2,n0);"
-		"ScalarEq(n3,n1)");
+		"t1 := t0;a1 := a0;n2 := n0;n3 := n1");
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp);
 	GPOS_RESULT eres = indexed ? GPOS_OK : GPOS_FAILED;
