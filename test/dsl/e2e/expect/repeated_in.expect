@@ -7,10 +7,9 @@
       "trace": true,
       "policy": "isolate_repeated_insub.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c0ea513d6ad3223\"",
         "Optimizer: pg_orca"
       ],
-      "joins": 1
+      "joins": 2
     },
     {
       "name": "off-native-on",
@@ -25,7 +24,7 @@
       "contains": [
         "Optimizer: pg_orca"
       ],
-      "joins": 1
+      "joins": 2
     },
     {
       "name": "off-native-off",
@@ -41,7 +40,7 @@
       "contains": [
         "Optimizer: pg_orca"
       ],
-      "joins": 1
+      "joins": 2
     }
   ],
   "rows": {

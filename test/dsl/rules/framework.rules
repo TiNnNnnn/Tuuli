@@ -5,7 +5,7 @@
 InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t1>)|InSubFilter<a2>(Input<t3>,Input<t4>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);t3 := t0;t4 := t1;a2 := a0
 
 # MONSOON/dataset/rules/fewshot_curated.txt:4
-InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>))|Input<t2>|TableEq(t0,t1);AttrsEq(a0,a1);AttrsSub(a0,t1);AttrsSub(a1,t0);NotNull(t1,a0);NotNull(t0,a1);TableEq(t2,t0)
+InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t0>))|Input<t2>|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);NotNull(t0,a0);NotNull(t0,a1);TableEq(t2,t0)
 
 # MONSOON/dataset/rules/rules.els.reduced.txt:486
 Exists(Agg<a0 a1 f0 s0 p0>(Input<t0>),Proj<a2 s1>(Input<t1>))|Exists(Agg<a3 a4 f1 s2 p1>(Input<t2>),Proj<a5 s3>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a2);PredicateEq(p1,p0);SchemaEq(s2,s0);SchemaEq(s3,s1);FuncEq(f1,f0)
@@ -16,13 +16,13 @@ Exists(Agg<a0 a1 f0 s0 p0>(Input<t0>),Proj<a2 s1>(Input<t1>))|Exists(Agg<a3 a4 f
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);TableEq(t1,t0);AttrsEq(a2,a0);AttrsEq(a3,a1);FuncEq(f1,f0);SchemaEq(s1,s0);PredicateEq(p1,p0)
 
 # Generic Union commutativity probe in the established MONSOON format. The
-# source TableEq guard makes swapping UNION ALL branches semantics-preserving;
+# shared source capture makes swapping identical UNION ALL branches explicit;
 # no rule text or table name is recognized by the C++ engine.
-Union(Input<t0>,Input<t1>)|Union(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,t1);TableEq(t3,t0)
+Union(Input<t0>,Input<t0>)|Union(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t0)
 
 # Same framework path for set semantics. Union* is the existing MONSOON
 # spelling for duplicate-eliminating UNION (ORCA CLogicalUnion).
-Union*(Input<t0>,Input<t1>)|Union*(Input<t2>,Input<t3>)|TableEq(t0,t1);TableEq(t2,t1);TableEq(t3,t0)
+Union*(Input<t0>,Input<t0>)|Union*(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t0)
 
 # ORDER BY is a count-less CLogicalLimit in ORCA. This identity probe verifies
 # the virtual Sort view without relying on a native ordering rewrite.
@@ -65,8 +65,9 @@ Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 
 # Reference is an inclusion dependency, so R.a -> R.a holds without explicit
 # FK metadata when the referred binding is the complete base relation. This
 # ordinary rule exercises that constraint while moving a predicate between two
-# equality-equivalent aliases of the same table.
-Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|TableEq(t0,t1);AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0)
+# shared source capture makes the self-reference explicit rather than adding a
+# same-side TableEq guard.
+Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t0>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a1);AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t0);Reference(t0,a0,t0,a1);Reference(t0,a1,t0,a0);TableEq(t2,t0);TableEq(t3,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);PredicateEq(p1,p0)
 
 # A Proj* -> Proj result is carried as the memo-safe Select(child, TRUE)
 # identity marker. This ordinary follow-up rule proves that generated DSL

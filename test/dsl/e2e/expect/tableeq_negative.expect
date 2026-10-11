@@ -9,7 +9,7 @@
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c0ea513d6ad3223\""
+        "\"status\":\"applied\",\"rule_hash\":\"3fc8b4dc0dd14617\""
       ]
     }
   ]
