@@ -202,6 +202,10 @@ EresInlineExpressions()
 		"TableEq(t1,t0);AttrsEq(a1,a0);p2 := p0;p3 := p1",
 		"Filter<Not(p0) a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEq(a1,a0);p2 := Not(p0);p1 := p2",
+		// Runtime quantified checks are not aliases; their target observations
+		// are materialized by the shared checker.
+		"Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|"
+			"t1 := t0;PredicateAny(p0,p1,a1,t2)",
 	};
 	for (const CHAR *text : valid)
 	{

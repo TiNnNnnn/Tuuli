@@ -871,6 +871,29 @@ PdrgpconBuild(SBuildCtx &bctx,
 	return pdrgpcon;
 }
 
+// Runtime semantic checks bind target observations from the matched expression;
+// they are not parser-side aliases or forward constructors.
+BOOL
+FDeferredSemanticConstraint(EDslConstraintKind kind)
+{
+	switch (kind)
+	{
+		case EdslconExprConcat:
+		case EdslconExprSplit:
+		case EdslconPredicateAny:
+		case EdslconPredicateAll:
+		case EdslconPredicateScalarSubquery:
+		case EdslconExprListScalarSubquery:
+		case EdslconExprListExists:
+		case EdslconExprListNotExists:
+		case EdslconExprListAny:
+		case EdslconExprListAll:
+			return true;
+		default:
+			return false;
+	}
+}
+
 // Expression bindings match native Boolean trees, SELECT lists and ON slots.
 // Input remains an arbitrary relational subtree; these are supported template
 // constructors, not a whitelist of rewrite identities.
@@ -1082,6 +1105,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	std::unordered_map<const CDSLSymbol *, const CDSLSymbol *> aliases;
 	std::unordered_map<const CDSLSymbol *, const CDSLConstraint *> columnDerivations;
 	std::vector<const CDSLConstraint *> columnChecks;
+	std::vector<const CDSLConstraint *> deferredChecks;
 	std::unordered_set<const CDSLSymbol *> constructed;
 	for (auto *binding : ctx->binding())
 		if (binding->getStart()->getType() != dsl::DSLRuleParser::ID)
@@ -1108,6 +1132,14 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			EdslconTableShared == kind || EdslconUnique == kind ||
 			EdslconCorrelationEquality == kind || EdslconDepsDisjoint == kind)
 			continue;
+		if (FDeferredSemanticConstraint(kind))
+		{
+			deferredChecks.push_back(con);
+			for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
+				if (EdslsideTarget == (*con->Pdrgpsym())[slot]->Eside())
+					available.insert((*con->Pdrgpsym())[slot]);
+			continue;
+		}
 		BOOL sourcePremise = true;
 		// Non-emptiness cannot invent a target column list.
 		const BOOL capturedCheck = EdslconAttrsNonEmpty == kind;
@@ -1280,6 +1312,13 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				available.insert(def->PsymOutput());
 		}
 	} while (previous != available.size());
+	if (!deferredChecks.empty())
+	{
+		// The checker sees the whole target tree for these legacy observations;
+		// target metadata is therefore not required to be an alias.
+		for (ULONG i = 0; i < target->Pdrgpsym()->Size(); i++)
+			available.insert((*target->Pdrgpsym())[i]);
+	}
 	// A constructive predicate must affect the target tree.  This keeps an
 	// intermediate PredicateAnd legal only when a target predicate consumes it;
 	// otherwise the rule contains a disconnected, non-semantic binding.
@@ -1302,6 +1341,16 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			bctx.Fail("constructive predicate is disconnected from target tree");
 			return false;
 		}
+	}
+	for (const CDSLConstraint *con : deferredChecks)
+	{
+		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
+			if (EdslsideSource == (*con->Pdrgpsym())[slot]->Eside() &&
+				!available.count((*con->Pdrgpsym())[slot]))
+			{
+				bctx.Fail("semantic constraint depends on an unbound source capture");
+				return false;
+			}
 	}
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
