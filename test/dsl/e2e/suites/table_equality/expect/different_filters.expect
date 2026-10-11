@@ -1,13 +1,11 @@
 {
-  "description": "TableEq must not erase distinct filters over aliases of the same table",
+  "description": "Shared source capture must not erase distinct filtered inputs",
   "plans": [
     {
       "name": "dsl-on",
       "trace": true,
       "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8c0ea513d6ad3223\"",
-        "\"failed_constraint\":\"TableEq\""
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
         "\"status\":\"applied\"",

@@ -739,12 +739,12 @@ CDSLConstraintTest::EresUnittest_SliceCompose()
 	CDSLTestFixture fix(mp);
 	CDSLRule *rule = PdslruleParseLocal(mp,
 		"Limit<n0 n1>(Limit<n2 n3>(Input<t0>))|Limit<n4 n5>(Input<t1>)|"
-		"TableEq(t1,t0);SliceCompose(n0,n1,n2,n3,n4,n5)");
+		"t1 := t0;SliceCompose(n0,n1,n2,n3,n4,n5)");
 	if (nullptr == rule)
 	{
 		return GPOS_FAILED;
 	}
-	CDSLSymbolArray *syms = (*rule->Pdrgpcon())[1]->Pdrgpsym();
+	CDSLSymbolArray *syms = (*rule->Pdrgpcon())[0]->Pdrgpsym();
 	CColRefArray *cols = nullptr;
 	CExpression *input = fix.PexprLogicalGet("slice_input", 1, &cols);
 	CDSLConstraintChecker checker(mp);

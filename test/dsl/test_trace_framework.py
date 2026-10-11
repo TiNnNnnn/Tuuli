@@ -3480,9 +3480,13 @@ class TraceFrameworkTest(unittest.TestCase):
         pending = None
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
-            if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=')):
+            if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=',
+                                '# FORMALSQL_PROVED legacy_hash=')):
                 self.assertIsNone(pending)
-                self.assertIn('native expression proof: UNKNOWN', line)
+                if line.startswith('# FORMALSQL_PROVED'):
+                    self.assertIn('FormalSQL/Rocq OUTCOME_EQ: kernel-checked', line)
+                else:
+                    self.assertIn('native expression proof: UNKNOWN', line)
                 pending = re.search(r'legacy_hash=([0-9a-f]{16});', line).group(1)
             elif line and not line.startswith('#') and pending:
                 source, target, clauses = line.split('|')

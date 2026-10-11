@@ -6,6 +6,7 @@
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarCast.h"
@@ -410,6 +411,17 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 			return FRelationalTreeProvablyErrorFree((*pexpr)[0], deterministic) &&
 				FScalarTreeProvablyErrorFree((*pexpr)[1], (*pexpr)[0]->DeriveMaxCard()) &&
 				(!deterministic || FScalarTreeProvablyDeterministic((*pexpr)[1]));
+		}
+		case COperator::EopLogicalLimit:
+		{
+			// An OFFSET-only shell with a validated nonnegative bound is total;
+			// a finite FETCH remains demand-sensitive because it can hide errors.
+			CDSLMatchView::SOrderLimit view{};
+			if (!CDSLMatchView::FOrderLimit(pexpr, &view) ||
+				!view.m_pexprChild->Pop()->FLogical() ||
+				CLogicalLimit::PopConvert(pexpr->Pop())->FHasCount() ||
+				!FNonnegativeLimitBound(view.m_pexprOffset)) return false;
+			return FRelationalTreeProvablyErrorFree(view.m_pexprChild, deterministic);
 		}
 		case COperator::EopLogicalGet:
 		case COperator::EopLogicalConstTableGet:

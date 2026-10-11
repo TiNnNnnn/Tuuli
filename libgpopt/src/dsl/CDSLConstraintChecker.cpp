@@ -71,6 +71,34 @@ using namespace gpnaucrates;
 namespace
 {
 BOOL
+FTargetContainsSymbol(const CDSLOp *op,
+					  const CDSLExpressionDefinitions *definitions,
+					  const CDSLSymbol *symbol)
+{
+	if (nullptr == op || nullptr == definitions || nullptr == symbol)
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < op->Pdrgpsym()->Size(); ul++)
+	{
+		if ((*op->Pdrgpsym())[ul] == symbol ||
+			definitions->FUses((*op->Pdrgpsym())[ul], symbol))
+		{
+			return true;
+		}
+	}
+	for (ULONG ul = 0; ul < op->Pdrgpchild()->Size(); ul++)
+	{
+		if (FTargetContainsSymbol((*op->Pdrgpchild())[ul], definitions,
+								  symbol))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+BOOL
 FAggFuncProvablyNullOnEmpty(CScalarAggFunc *popAgg)
 {
 	if (popAgg->FCountStar() || popAgg->FCountAny() ||
@@ -1461,7 +1489,8 @@ CDSLConstraintChecker::FCheckPredicateFalse(
 
 BOOL
 CDSLConstraintChecker::FCheckPredicateAnd(
-	const CDSLConstraint *pcon, const CDSLModel *pmodel) const
+	const CDSLRule *prule, const CDSLConstraint *pcon,
+	const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
 	if (nullptr == pdrgpsym || 3 != pdrgpsym->Size())
@@ -1474,6 +1503,13 @@ CDSLConstraintChecker::FCheckPredicateAnd(
 		{
 			return false;
 		}
+	}
+	const CDSLSymbol *output = (*pdrgpsym)[0];
+	const BOOL fTargetReachable = FTargetContainsSymbol(
+		prule->PfragTgt()->PopRoot(), prule->Pexprdefs(), output);
+	if (!fTargetReachable)
+	{
+		return false;
 	}
 
 	CExpression *pexprLeft = pmodel->PexprPred((*pdrgpsym)[1]);
@@ -2745,9 +2781,10 @@ CDSLConstraintChecker::FCheckEquality(const CDSLRule *prule,
 			{
 				return true;
 			}
-			// Input is an arbitrary captured query, not just its base relation.
-			// Two filters over the same table need not denote the same input.
-			if (prule->Pexprdefs()->FHasBindings())
+			// For canonical bindings, compare the complete captured trees below.
+			// A base-table check alone would incorrectly admit two different
+			// filters; the remapped full-tree comparison preserves that guard.
+			if (pcon->FLegacyEquality() && prule->Pexprdefs()->FHasBindings())
 				return false;
 			BOOL fFirstAmbiguous = false;
 			BOOL fSecondAmbiguous = false;
@@ -2912,7 +2949,7 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 		case EdslconPredicateFalse:
 			return FCheckPredicateFalse(pcon, pmodel);
 		case EdslconPredicateAnd:
-			return FCheckPredicateAnd(pcon, pmodel);
+			return FCheckPredicateAnd(prule, pcon, pmodel);
 		case EdslconPredicateNotTrue:
 		case EdslconPredicateNot:
 			return FCheckPredicateNegation(pcon, pmodel);
@@ -3038,6 +3075,7 @@ CDSLConstraintChecker::FCheck(const CDSLRule *prule,
 		// construction narrows an unbound target to ORCA's live columns.
 		const BOOL columns =
 			CDSLConstraintKindTable::FColumnDerivation(constraint->Edslcon()) ||
+			EdslconPredicateAnd == constraint->Edslcon() ||
 			(prule->Pexprdefs()->FHasBindings() &&
 			 EdslconPredicateDomainSplit == constraint->Edslcon());
 		if ((columns && !materializer.FMaterializeConstraintBindings(prule, constraint, pmodel, true)) ||

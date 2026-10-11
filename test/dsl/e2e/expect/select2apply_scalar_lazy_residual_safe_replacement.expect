@@ -12,7 +12,7 @@
       "assert_maxonerow": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
+        "\"status\":\"applied\",\"rule_hash\":\"dd09c0486dd872a2\""
       ],
       "not_contains": [
         "Falling back to Postgres"

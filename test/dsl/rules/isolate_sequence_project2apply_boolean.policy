@@ -1,22 +1,22 @@
 - rule: '*'
   enabled: false
-- rule: f03b85207ada9a33
+- rule: 84da6d6acf31a5f9
   enabled: true
-- rule: f23d59b80126349c
+- rule: c614526844026ed1
   enabled: true
-- rule: 9f11f6202c95bf22
+- rule: 41398ccdfad47b34
   enabled: true
-- rule: 7c686f5f82593aa9
+- rule: 9262c2582f91404c
   enabled: true
-- rule: f11d3d635df680f1
+- rule: 460513b9fe0a79af
   enabled: true
-- rule: dfff717b90ec9b44
+- rule: 38dbd7c98ab48257
   enabled: true
-- rule: 7566dae00dc6d4e8
+- rule: 0b19a83c7487ecea
   enabled: true
-- rule: 4ba0126c0a78bc91
+- rule: c2524f32ae48b354
   enabled: true
-- rule: 07f25b3eeffd351d
+- rule: ad1bad2738329843
   enabled: true
-- rule: 1f6707057417dec8
+- rule: ecddb65ab6d53da1
   enabled: true

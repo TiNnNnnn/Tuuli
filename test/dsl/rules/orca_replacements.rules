@@ -47,15 +47,15 @@ LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoi
 # SYNTAX_ONLY legacy_hash=71aee9b8ad124cf9; native expression proof: UNKNOWN (native Join/Set composition pending).
 InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t3 := t0;t5 := t0;t4 := t1;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
-Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a3,a1);AttrsEq(a4,a0);AttrsEq(a5,a0);SchemaEq(s2,s0);AttrsEq(a6,a2);SchemaEq(s3,s1)
-
-# Explicit-binding sibling for demand-insensitive equality membership.
-# Includes safe conjunctive IN, computed keys and single-equality correlated EXISTS carriers;
-# retain the legacy rule for the remaining routed/demand-sensitive domains.
-# PARTIAL_BINDING legacy_hash=9dc5c70cd1245677; native expression proof: UNKNOWN (typed membership domain only).
+# Canonical binding migration of the complete equality-membership lowering.
+# The demand-sensitive distinction is represented by the operator/constraint
+# domain, not by a second legacy spelling of the same tree.
+# SYNTAX_ONLY legacy_hash=9dc5c70cd1245677; native expression proof: UNKNOWN (native keyed membership proof pending).
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1
 
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|TableEq(t1,t0);DepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# e0396ec0f9fd9a88d2b7421d57951c05f81e2bb0b2944061fd76e6e01c91fb73.
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
 
 # Explicit binding migration of the total, deterministic row-scalar domain.
 # ExprConcat preserves arbitrary list lengths; schema order is checked, not
@@ -67,7 +67,7 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e1,e0) a2 s2>
 
 # DIRECT(expression-rewrite): the operator skeleton stays unchanged, but
 # ExprSplit moves the maximal safe expression subset into the lower Compute.
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 s3>(Compute<e2 a2 s2>(Input<t1>))|TableEq(t1,t0);ExprSplit(e2,e3,e0,e1)
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 s3>(Compute<e2 a2 s2>(Input<t1>))|t1 := t0;ExprSplit(e2,e3,e0,e1)
 
 # FormalSQL OUTCOME_EQ: native IN shares the quantified support observer;
 # preserve the comparison carrier and exact selected output column.
@@ -145,109 +145,119 @@ Filter<All(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|All<p1 a3>(Input<t2>,Input<t
 # dependencies, and quantified relation from the scalar ANY predicate.
 # Keep this compatibility entry: the typed quantifier bridge currently requires
 # demand-insensitive inputs and a strict built-in comparison (see quantified_relation).
-Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAny(p0,p1,a1,t2)
+Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;PredicateAny(p0,p1,a1,t2)
 
 # DIRECT(expression-rewrite): PredicateAll shares quantified comparison
 # decomposition with ANY while preserving NULL-aware ALL semantics.
 # The same typed-bridge compatibility boundary applies as for ANY above.
-Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateAll(p0,p1,a1,t2)
+Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;PredicateAll(p0,p1,a1,t2)
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
-Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
+Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|t1 := t0;PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
 
 # DIRECT(expression-rewrite): lower one scalar subquery anywhere inside a
 # Filter predicate while preserving the residual expression. This is the
 # scalar sibling of the existing existential and quantified definitions.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;s1 := s0;ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2)
 
 # DIRECT(expression-rewrite): Window items are an expression sequence just
 # like Compute and aggregate function lists. Lower one scalar subquery while
 # preserving the exact partition/order metadata and Window shell.
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-04.
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)
 
 # The same Window sequence lowering handles boolean and quantified values;
 # their existing typed definitions retain empty-set and NULL semantics.
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListNotExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListNotExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListAny(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListAny(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);ExprListAll(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);ExprListAll(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListNotExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListNotExists(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAny(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAny(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAll(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAll(w0,w1,e0,a5,s0,p0,a2,a3,a4,a6,t2)
 
 # DIRECT(expression-rewrite): lower one EXISTS value in a Compute list.  The
 # explicit TRUE marker and LIMIT preserve false-on-empty semantics without a
 # production Project2Apply bridge. FormalSQL/Rocq accepted this RuleIR on
 # 2026-09-02.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|t1 := t0;s1 := s0;ExprListExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): the opposite existential polarity shares the
 # same explicit marker carrier; only the expression-list definition negates
 # the false-on-empty result. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListNotExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|t1 := t0;s1 := s0;ExprListNotExists(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value through the
 # correlated subplan carrier. The comparison remains explicit on LeftApply;
 # its origin metadata supplies SQL empty-set and NULL semantics.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListAny(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|t1 := t0;s1 := s0;ExprListAny(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)
 
 # DIRECT(expression-rewrite): ALL shares the same visible carrier and differs
 # only in quantified polarity. FormalSQL/Rocq accepted both RuleIR forms on
 # 2026-09-02.
-Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|TableEq(t1,t0);SchemaEq(s1,s0);ExprListAll(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|t1 := t0;s1 := s0;ExprListAll(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)
 
 # DIRECT(expression-rewrite): lower one EXISTS value anywhere inside a Filter
 # predicate. The same typed definition used by Compute/Agg replaces only the
 # selected scalar node; the surrounding boolean expression remains unchanged.
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);ExprListExists(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;ExprListExists(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): NOT EXISTS shares the same predicate-value
 # carrier and preserves the opposite empty-input polarity.
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|TableEq(t1,t0);ExprListNotExists(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;ExprListNotExists(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): quantified sibling of the predicate replacement.
 # The correlated Apply carries SQL ANY's empty-set and NULL semantics while the
 # typed definition preserves the surrounding boolean expression.
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);ExprListAny(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;ExprListAny(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)
 
 # DIRECT(expression-rewrite): ALL uses the same predicate-value carrier while
 # retaining its NULL-aware quantified polarity.
 # FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
-Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|TableEq(t1,t0);ExprListAll(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;ExprListAll(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)
 
 # DIRECT(expression-rewrite): the existing typed sequence definition also
 # lowers a scalar subquery inside an aggregate function list. The target Agg
 # consumes the generated inner value directly; no aggregate production view is
 # involved. FormalSQL/Rocq accepted the contract on 2026-09-02.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a8 f1 s1 p1>(LeftApply<p2 a3 a4 a5>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p1,p0);ExprListScalarSubquery(f0,f1,p2,a3,a4,a5,a7,t2);FuncAttrs(a8,f1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# bbd7082e6334d08874c77a0ec36ee2f35409c90c46ba82476543900b7f1e241f.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a8 f1 s1 p1>(LeftApply<p2 a3 a4 a5>(Input<t1>,Input<t2>))|t1 := t0;a2 := a0;s1 := s0;p1 := p0;ExprListScalarSubquery(f0,f1,p2,a3,a4,a5,a7,t2);FuncAttrs(a8,f1)
 
 # DIRECT(expression-rewrite): lower one EXISTS value inside a function list.
 # FuncAttrs derives the aggregate's exact inputs from the lowered functions;
 # the marker Compute remains an ordinary typed definition carrier.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListExists(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 26f77d99929ad937b918a7a720f466697e4d7863d5b2b22e5218ca664f2a377e.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListExists(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): the same existential lowering preserves the
 # opposite truth polarity for NOT EXISTS.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListNotExists(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 3c223998f8828bbd19bd3619f8502e4489c549094c680662ca162b68847ffb10.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListNotExists(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value inside a function
 # list. FuncAttrs derives the exact marker dependencies consumed by the Agg.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListAny(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# da07de7d3725c1916db323d9d659f316b1dd978b773676d136438135dc77aa4b.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAny(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
 
 # DIRECT(expression-rewrite): the quantified lowering also preserves ALL's
 # empty-set and three-valued semantics.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|TableEq(t1,t0);AttrsEq(a2,a0);SchemaEq(s1,s0);PredicateEq(p3,p0);ExprListAll(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 398d5a7735f10cc14fbe7291b574547190b2030c58e56c90c895624741a99555.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAll(f0,f1,e0,a6,s2,p2,a3,a4,a5,a10,t2);FuncAttrs(a11,f1)
 
 # SYNTAX_ONLY legacy_hash=c602af3fe55f92f7; native expression proof: UNKNOWN (native residual Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s1 := s0
@@ -418,7 +428,8 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn
 # PredicateEq preserves the complete
 # three-valued ALL scalar tree independently of the RHS qualifier.
 # This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
-# SYNTAX_ONLY legacy_hash=74921e1e1400b2e8; native expression proof: UNKNOWN (native NULL-aware Apply proof pending).
+# FORMALSQL_PROVED legacy_hash=74921e1e1400b2e8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# fc62ea2a44c8db396e1bd6545b1f037cfddce99707dd20884e5602d51641c105.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a6;a10 := a5;AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
 
 # Extends NULL-aware decorrelation across a cumulative Window.  The runtime
@@ -429,7 +440,8 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input
 # The target keeps the exact Window metadata and moves the correlation into the
 # AntiJoinNotIn qualifier.  FormalSQL/Rocq accepted this operator-local theorem
 # on 2026-08-31.
-# SYNTAX_ONLY legacy_hash=69b8c72900d1d443; native expression proof: UNKNOWN (native NULL-aware Apply proof pending).
+# FORMALSQL_PROVED legacy_hash=69b8c72900d1d443; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 242e1d3f967056b7d6814c7132806bccb9ff31ef4a49e290f4d4112655365137.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # The explicit-frame sibling covers ORCA's normalized representation of SQL
@@ -437,7 +449,8 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Inpu
 # exact frame and DepsDisjoint additionally rejects outer-column references in
 # frame edges.  FormalSQL/Rocq accepted the generic composed theorem
 # on 2026-08-31.
-# SYNTAX_ONLY legacy_hash=db7bcea9ff9c611d; native expression proof: UNKNOWN (native NULL-aware Apply proof pending).
+# FORMALSQL_PROVED legacy_hash=db7bcea9ff9c611d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# c6a95e1b3285270bde7f96355871a13b654c92e550c23f5bc684440d908e190b.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(m0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # Pull a correlated Filter above a Window when every local correlation key is
@@ -445,25 +458,31 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input
 # exposed, every Apply family reuses its existing Filter decorrelation rule by
 # ordinary Cascade chaining. Both legacy RuleIRs were accepted by FormalSQL/Rocq; no
 # Apply-specific lowering is hidden in this normalization.
-# SYNTAX_ONLY legacy_hash=72d6733f04cb8b0d; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=72d6733f04cb8b0d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 09d2ba643bb165b2253655936f67549a0b7d5ef9c052616a6470caaca014670a.
 WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=878a42451564c19e; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=878a42451564c19e; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# fc5cd3816d5f23d81779022075dfd84f3a7192f38fdfbe8a6507ae5c7f9f63f8.
 Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
 
 # Compose that movement through an enclosing safe Compute. This remains an
 # operator-local normalization over an arbitrary Input; it is not tied to an
 # Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=88f307f1b76e73ef; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 780c7a0ebc2ce3a26c4f2393ac196621d95087a95df7cd057b6a09418340924d.
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=884187052cd3fbc3; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=884187052cd3fbc3; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# dd28a9b3c33de0547a32b31e305c281eb4a04cd87df6cf46638c57936cda1875.
 Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
 # outside; the residual remains at its original evaluation site.
-# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=d43abe8392779e2a; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# ef18dc5102436267c4df2e778c59c90e7efdcbd1338764987012e4d125f4ad63.
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=07ca3e211ce6bcf5; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=07ca3e211ce6bcf5; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# f08b46bb6b69720a3dfd7a9baa33c721618f811260a39ee54a1e48d3a7d3edc8.
 Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
 
 # Replaces the single correlated-Filter decorrelation domain of
@@ -721,10 +740,12 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # LeftApply; the existing aggregate decorrelation rule can then move the
 # correlated aggregate; finally the same predicate reduces LeftJoin to
 # InnerJoin. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=f169b79b650c81ee; native expression proof: UNKNOWN (native binding proof pending).
+# FORMALSQL_PROVED legacy_hash=f169b79b650c81ee; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 939691efe64b9d1bbce299d02d65c5ea4653c8be6c81ee80927c1a38dc22d0ad.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
-# SYNTAX_ONLY legacy_hash=e7ded0e32f745546; native expression proof: UNKNOWN (native binding proof pending).
+# FORMALSQL_PROVED legacy_hash=e7ded0e32f745546; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# 985a2c3dca8e5399977a4e58051624a12b2a8f76179f6907cdc34e917a277a63.
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a3 := a0;a4 := a1;a5 := a2;OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure

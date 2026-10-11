@@ -58,8 +58,10 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		  EdslconCorrelationEquality == pcon->Edslcon()));
 	const BOOL partition = prule->Pexprdefs()->FHasBindings() &&
 		EdslconPredicateDomainSplit == pcon->Edslcon();
+	const BOOL fPredicateDerivation = EdslconPredicateAnd == pcon->Edslcon();
 	if (before_check && !consuming &&
-		!partition && !CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
+		!partition && !fPredicateDerivation &&
+		!CDSLConstraintKindTable::FColumnDerivation(pcon->Edslcon()))
 	{
 		return false;
 	}
@@ -210,6 +212,32 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 				: CColRef::Equals(boundAttrs, pdrgpcr)) &&
 			(nullptr == boundRank ? pmodel->FBindDerived(psymRank, pdrgpcr)
 				: CColRef::Equals(boundRank, pdrgpcr));
+	}
+	if (EdslconPredicateAnd == pcon->Edslcon())
+	{
+		if (3 != pdrgpsym->Size() ||
+			EdslsideTarget != (*pdrgpsym)[0]->Eside())
+		{
+			return false;
+		}
+		CExpression *left = PexprResolvePredicate((*pdrgpsym)[1], pmodel);
+		CExpression *right = PexprResolvePredicate((*pdrgpsym)[2], pmodel);
+		if (nullptr == left || nullptr == right)
+		{
+			CRefCount::SafeRelease(left);
+			CRefCount::SafeRelease(right);
+			return false;
+		}
+		CExpression *derived = CPredicateUtils::PexprConjunction(
+			m_mp, left, right);
+		left->Release();
+		right->Release();
+		CExpression *existing = pmodel->PexprPred((*pdrgpsym)[0]);
+		const BOOL valid = nullptr == existing
+			? pmodel->FBindDerived((*pdrgpsym)[0], derived)
+			: CDSLMatchView::FSameCapturedExpression(existing, derived);
+		derived->Release();
+		return valid;
 	}
 
 	for (ULONG ul = 0; ul < pdrgpsym->Size(); ul++)

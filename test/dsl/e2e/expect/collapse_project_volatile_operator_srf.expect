@@ -12,8 +12,8 @@
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"8dcdd8a3308b3054\"",
-        "\"status\":\"applied\",\"rule_hash\":\"984eec66d5bc3f5d\""
+        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
       ]
     }
   ],

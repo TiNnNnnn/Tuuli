@@ -1138,6 +1138,15 @@ CDSLParserTest::EresUnittest_SymbolNamespace()
 		return GPOS_FAILED;
 	}
 	ok->Release();
+	// A same-side identifier is one capture, not two captures tied together
+	// by a redundant Eq premise. Repeated operator occurrences reuse it.
+	CDSLRule *same_side = Parse(
+		mp, "InnerJoin<a0 a0>(Input<t0>,Input<t0>)|Input<t1>|t1 := t0");
+	if (nullptr == same_side)
+	{
+		return GPOS_FAILED;
+	}
+	same_side->Release();
 	return GPOS_OK;
 }
 
@@ -1154,7 +1163,12 @@ CDSLParserTest::EresUnittest_Constraints()
 	// Reference with 2 args (needs 4) -> error.
 	for (const CHAR *invalid : {
 		"Input<t0>|Input<t1>|SliceCompose(t0,t0,t0,t0,t1,t1)",
-		"Limit<n0 n1>(Input<t0>)|Input<t1>|SliceCompose(n0,n1,n0,n1,n0)"})
+		"Limit<n0 n1>(Input<t0>)|Input<t1>|SliceCompose(n0,n1,n0,n1,n0)",
+		// Constructive metadata cannot override a binding or consume itself.
+		"Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|"
+		"t1 := t0;n2 := n0;SliceCompose(n0,n1,n0,n1,n2,n3)",
+		"Limit<n0 n1>(Input<t0>)|Limit<n2 n3>(Input<t1>)|"
+		"t1 := t0;SliceCompose(n2,n1,n0,n1,n2,n3)"})
 	{
 		CDSLRule *rule = Parse(mp, invalid);
 		if (nullptr != rule)

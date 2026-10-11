@@ -7,7 +7,7 @@
     "scope": "One correlated NOT EXISTS in a Project value context",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "ebf30af7fc2bd7d7"
+      "afceff121763c938"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"ebf30af7fc2bd7d7\""
+        "\"status\":\"applied\",\"rule_hash\":\"afceff121763c938\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"ebf30af7fc2bd7d7\""
+        "\"status\":\"applied\",\"rule_hash\":\"afceff121763c938\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

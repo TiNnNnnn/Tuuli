@@ -1,12 +1,7 @@
-# Explicit quantifier lowering, followed by existing decorrelation and keyed
-# semi-join elimination. The last rule still uses the legacy keyed IN view.
+# Explicit quantifier lowering, followed by the existing decorrelation view.
 - rule: '*'
   enabled: false
 - rule: '4f3da4063a3836ad'
   enabled: true
 - rule: 'eb808b80935652d6'
-  enabled: true
-- rule: '1aa6c75171ce9678'
-  enabled: true
-- rule: '9dc5c70cd1245677'
   enabled: true

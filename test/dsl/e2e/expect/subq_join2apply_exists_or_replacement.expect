@@ -9,7 +9,7 @@
     "scope": "One correlated EXISTS value inside an inner-join OR predicate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "907450491e456d45"
+      "272456a34079bc4b"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"907450491e456d45\""
+        "\"rule_hash\":\"272456a34079bc4b\""
       ],
       "alternative": []
     },
@@ -55,7 +55,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"907450491e456d45\""
+        "\"status\":\"applied\",\"rule_hash\":\"272456a34079bc4b\""
       ],
       "alternative": [],
       "provenance": {

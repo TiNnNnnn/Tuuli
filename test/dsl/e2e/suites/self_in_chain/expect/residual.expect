@@ -27,8 +27,8 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
-        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\""
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -77,10 +77,10 @@
       "policy": "without_join_removal.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\"",
         "Falling back to Postgres"
       ],
       "joins": 1

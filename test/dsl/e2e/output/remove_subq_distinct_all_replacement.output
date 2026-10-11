@@ -8,8 +8,8 @@
     "scope": "Full native promise, together with EXISTS, NOT EXISTS and ANY companion cases",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "6c2c9e08ef81ce6a",
-      "a08e24d9155e2f5c"
+      "e8caecf37f4a8a22",
+      "37d24620470a448a"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"6c2c9e08ef81ce6a\""
+        "\"status\":\"applied\",\"rule_hash\":\"e8caecf37f4a8a22\""
       ],
       "alternative": [
         "CXformRemoveSubqDistinct",
@@ -56,8 +56,16 @@
       ],
       "policy": "isolate_remove_subq_distinct_all_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"6c2c9e08ef81ce6a\"",
-        "\"status\":\"applied\",\"rule_hash\":\"a08e24d9155e2f5c\""
+        "\"status\":\"applied\",\"rule_hash\":\"e8caecf37f4a8a22\"",
+        "\"status\":\"applied\",\"rule_hash\":\"37d24620470a448a\""
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "37d24620470a448a",
+          "dst_rule": "e8caecf37f4a8a22",
+          "target_path": "r"
+        }
       ],
       "alternative": [
         "CXformDSLRule_All"

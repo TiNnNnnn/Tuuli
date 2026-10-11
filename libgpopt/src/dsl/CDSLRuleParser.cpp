@@ -93,13 +93,37 @@ struct SBuildCtx
 	}
 };
 
+BOOL
+FOpContainsSymbol(const CDSLOp *op, const CDSLSymbol *symbol)
+{
+	if (nullptr == op || nullptr == symbol)
+	{
+		return false;
+	}
+	for (ULONG ul = 0; ul < op->Pdrgpsym()->Size(); ul++)
+	{
+		if ((*op->Pdrgpsym())[ul] == symbol)
+		{
+			return true;
+		}
+	}
+	for (ULONG ul = 0; ul < op->Pdrgpchild()->Size(); ul++)
+	{
+		if (FOpContainsSymbol((*op->Pdrgpchild())[ul], symbol))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 // forward decl
 CDSLOp *PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx,
 				 EDslSide eside, CDSLSymbolArray *pdrgpsym_frag);
 
-// Build the symbol array for one operator's <...> list, DECLARING each name in
-// the shared namespace. On success, symbols are owned by the returned array
-// (rc=1) and additionally AddRef'd into pdrgpsym_frag and registered in symtab.
+// Build the symbol array for one operator's <...> list. A repeated name on the
+// same side reuses the existing typed symbol; only the first occurrence is
+// added to the fragment declaration list. Cross-side reuse remains invalid.
 CDSLSymbolArray *
 PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 				   EDslSortDir edslsort,
@@ -204,14 +228,6 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 			pdrgpsym->Release();
 			return nullptr;
 		}
-		if (bctx.symtab.find(name) != bctx.symtab.end())
-		{
-			// redeclaration (incl. cross-side reuse) — WeTune BiMap collision
-			bctx.Fail("value already present: symbol '" + name +
-					  "' declared more than once");
-			pdrgpsym->Release();
-			return nullptr;
-		}
 		EDslSymbolKind esymk;
 		if (fSelectList && 2 == ul)
 		{
@@ -244,6 +260,23 @@ PdrgpsymBuildDecls(SBuildCtx &bctx, EDslOpKind edslop,
 		else
 		{
 			esymk = CDSLOpKindTable::EsymkindAt(edslop, ul);
+		}
+		auto existing = bctx.symtab.find(name);
+		if (existing != bctx.symtab.end())
+		{
+			CDSLSymbol *psym = existing->second;
+			if (psym->Eside() != eside || psym->Esymkind() != esymk)
+			{
+				bctx.Fail("value already present: symbol '" + name +
+						 "' has an incompatible declaration");
+				pdrgpsym->Release();
+				return nullptr;
+			}
+			// The operator occurrence owns its own reference; the fragment keeps
+			// the single declaration reference created below.
+			psym->AddRef();
+			pdrgpsym->Append(psym);
+			continue;
 		}
 		CDSLSymbol *psym =
 			GPOS_NEW(mp) CDSLSymbol(mp, esymk, name.c_str(), bctx.next_id++, eside);
@@ -826,7 +859,8 @@ PdrgpconBuild(SBuildCtx &bctx,
 				return nullptr;
 			}
 		}
-		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(mp, edslcon, pdrgpsym));
+		pdrgpcon->Append(GPOS_NEW(mp) CDSLConstraint(
+			mp, edslcon, pdrgpsym, "Eq" == cname));
 	}
 	if (!CDSLExpressionDefinitions::FValidate(pdrgpcon))
 	{
@@ -1241,6 +1275,29 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 				available.insert(def->PsymOutput());
 		}
 	} while (previous != available.size());
+	// A constructive predicate must affect the target tree.  This keeps an
+	// intermediate PredicateAnd legal only when a target predicate consumes it;
+	// otherwise the rule contains a disconnected, non-semantic binding.
+	for (const CDSLConstraint *con : columnChecks)
+	{
+		if (EdslconPredicateAnd != con->Edslcon())
+		{
+			continue;
+		}
+		const CDSLSymbol *output = (*con->Pdrgpsym())[0];
+		BOOL reachable = FOpContainsSymbol(target->PopRoot(), output);
+		for (ULONG i = 0; !reachable &&
+				i < target->PopRoot()->Pdrgpsym()->Size(); i++)
+		{
+			reachable = definitions->FUses(
+				(*target->PopRoot()->Pdrgpsym())[i], output);
+		}
+		if (!reachable)
+		{
+			bctx.Fail("constructive predicate is disconnected from target tree");
+			return false;
+		}
+	}
 	for (ULONG i = 0; i < constraints->Size(); i++)
 	{
 		const auto *con = (*constraints)[i];

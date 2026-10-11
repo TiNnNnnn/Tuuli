@@ -9,7 +9,7 @@
     "scope": "One scalar and one EXISTS subquery in an inner-join predicate; existential lowering uses explicit bindings, scalar-value lowering retains its legacy definition",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "6fcbf4135eeb31ce",
+      "04e0afd694917f50",
       "4f3da4063a3836ad",
       "f91ba8ce73b0da11",
       "c10790cd2aca029b"
@@ -31,7 +31,7 @@
       "policy": "isolate_subq_join2apply_mixed_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"6fcbf4135eeb31ce\"",
+        "\"rule_hash\":\"04e0afd694917f50\"",
         "\"rule_hash\":\"c10790cd2aca029b\""
       ],
       "alternative": []
@@ -61,7 +61,7 @@
       "policy": "isolate_subq_join2apply_mixed_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"6fcbf4135eeb31ce\"",
+        "\"status\":\"applied\",\"rule_hash\":\"04e0afd694917f50\"",
         "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
         "\"status\":\"applied\",\"rule_hash\":\"f91ba8ce73b0da11\"",
         "\"status\":\"applied\",\"rule_hash\":\"c10790cd2aca029b\""
@@ -72,7 +72,7 @@
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "6fcbf4135eeb31ce",
+          "src_rule": "04e0afd694917f50",
           "dst_rule": "4f3da4063a3836ad",
           "target_path": "r"
         },

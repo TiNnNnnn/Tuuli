@@ -846,6 +846,14 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsSemiJoinCondition()
 		"Deterministic(p1);"
 		"ErrorFree(p0);"
 		"ErrorFree(p1);Deterministic(p2);ErrorFree(p2)"
+		,
+		"SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p2,p0,p1);"
+		"AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);"
+		"Deterministic(p0);Deterministic(p1);Deterministic(p2);"
+		"ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)"
 	};
 	for (const CHAR *rule : rules)
 	{
@@ -882,6 +890,14 @@ CDSLJoinTest::EresUnittest_PredicateAndBuildsAntiJoinCondition()
 		"Deterministic(p1);"
 		"ErrorFree(p0);"
 		"ErrorFree(p1);Deterministic(p2);ErrorFree(p2)"
+		,
+		"AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|"
+		"AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);PredicateAnd(p2,p0,p1);"
+		"AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);"
+		"Deterministic(p0);Deterministic(p1);Deterministic(p2);"
+		"ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)"
 	};
 	for (const CHAR *rule : rules)
 	{

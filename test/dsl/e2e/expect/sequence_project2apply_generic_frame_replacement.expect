@@ -7,7 +7,7 @@
     "scope": "Correlated scalar aggregates in arbitrary preserved Window frames",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f23d59b80126349c"
+      "c614526844026ed1"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"f23d59b80126349c\""
+        "\"rule_hash\":\"c614526844026ed1\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"f23d59b80126349c\""
+        "\"status\":\"applied\",\"rule_hash\":\"c614526844026ed1\""
       ],
       "provenance": {
         "required_sources": [

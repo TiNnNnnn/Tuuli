@@ -21,7 +21,7 @@
       "trace": true,
       "policy": "construct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"86a1048a4b8b0f00\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f166b55f6ec92b7a\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

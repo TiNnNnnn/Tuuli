@@ -21,7 +21,7 @@
       "policy": "bindings.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"7006106e23d1d18e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"923683fb1c013916\"",
         "CScalarBoolOp (EboolopNot)"
       ],
       "not_contains": [

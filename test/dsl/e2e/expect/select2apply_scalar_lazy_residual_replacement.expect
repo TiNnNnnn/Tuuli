@@ -12,10 +12,10 @@
       "assert_maxonerow": true,
       "contains": [
         "Falling back to Postgres",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"f5888185fd97f5a8\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"dd09c0486dd872a2\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
+        "\"status\":\"applied\",\"rule_hash\":\"dd09c0486dd872a2\""
       ]
     }
   ],

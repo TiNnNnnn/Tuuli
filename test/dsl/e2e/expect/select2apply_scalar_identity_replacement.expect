@@ -7,7 +7,7 @@
     "scope": "Correlated scalar aggregate subquery with an arbitrary outer comparison predicate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f5888185fd97f5a8"
+      "dd09c0486dd872a2"
     ]
   },
   "plans": [
@@ -26,7 +26,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"f5888185fd97f5a8\""
+        "\"rule_hash\":\"dd09c0486dd872a2\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -52,7 +52,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"f5888185fd97f5a8\""
+        "\"status\":\"applied\",\"rule_hash\":\"dd09c0486dd872a2\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
