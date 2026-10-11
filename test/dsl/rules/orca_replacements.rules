@@ -523,19 +523,22 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule
 # above. The generic dependency, error-freedom, and determinism facts imply the
 # Compute/Filter movement; no rewrite-shaped constraint is needed.
-# SYNTAX_ONLY legacy_hash=c7d161295e62caa0; native expression proof: UNKNOWN (source evidence).
+# FORMALSQL_PROVED legacy_hash=c7d161295e62caa0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# a21d5c301d4358dfaf90c820294a636ffa5303f50d5d5bb3883c90717d05c874.
 Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|t1 := t0;e1 := e0;a5 := a0;s1 := s0;p1 := p0;a3 := a1;a4 := a2;DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
 
 # The inverse movement pushes a predicate through any safe Compute whose
 # generated columns it does not reference. Reuse the existing FormalSQL/Rocq
 # legacy OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
-# SYNTAX_ONLY legacy_hash=75cf2193e89d4afe; native expression proof: UNKNOWN (source evidence).
+# FORMALSQL_PROVED legacy_hash=75cf2193e89d4afe; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# 611ce689dd900937f47527def17f3f27c08a63d357fbf209907c7c688d662779.
 Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := s0;e1 := e0;ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
 # new grouping columns is intentionally a separate schema-construction domain.
-# SYNTAX_ONLY legacy_hash=acc0381a6ee39104; native expression proof: UNKNOWN (native motion proof pending).
+# FORMALSQL_PROVED legacy_hash=acc0381a6ee39104; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# 1b45147ea7e74d12e63a4f451b9f46134193a55fad3153ed1e08e2e7d98ced4f.
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
@@ -715,7 +718,8 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
 # Legacy ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
-# SYNTAX_ONLY legacy_hash=770daa019ca274ae; native expression proof: UNKNOWN (native Assert lowering pending).
+# FORMALSQL_PROVED legacy_hash=770daa019ca274ae; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# 52446803113574130c35d4cc460657dfec115b2c4b69205b7c610ec54817c70c.
 MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
 # Replace CXformExpandFullOuterJoin with the same shared-input relational
