@@ -206,6 +206,12 @@ EresInlineExpressions()
 		// are materialized by the shared checker.
 		"Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|"
 			"t1 := t0;PredicateAny(p0,p1,a1,t2)",
+		// Same-side relational captures are shared in the tree; a redundant
+		// TableEq(t1,t2) must not be needed to express this repeated input.
+		"InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t1>)|"
+			"InSubFilter<a2>(Input<t3>,Input<t4>)|"
+			"AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,t0);"
+			"t3 := t0;t4 := t1;a2 := a0",
 	};
 	for (const CHAR *text : valid)
 	{
