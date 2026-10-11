@@ -18,11 +18,11 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # Generic Union commutativity probe in the established MONSOON format. The
 # shared source capture makes swapping identical UNION ALL branches explicit;
 # no rule text or table name is recognized by the C++ engine.
-Union(Input<t0>,Input<t0>)|Union(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t0)
+Union<a0 s0>(Input<t0>,Input<t0>)|Union<a1 s1>(Input<t2>,Input<t3>)|t2 := t0;t3 := t0;a1 := a0;s1 := s0
 
 # Same framework path for set semantics. Union* is the existing MONSOON
 # spelling for duplicate-eliminating UNION (ORCA CLogicalUnion).
-Union*(Input<t0>,Input<t0>)|Union*(Input<t2>,Input<t3>)|TableEq(t2,t0);TableEq(t3,t0)
+Union*<a0 s0>(Input<t0>,Input<t0>)|Union*<a1 s1>(Input<t2>,Input<t3>)|t2 := t0;t3 := t0;a1 := a0;s1 := s0
 
 # ORDER BY is a count-less CLogicalLimit in ORCA. This identity probe verifies
 # the virtual Sort view without relying on a native ordering rewrite.
