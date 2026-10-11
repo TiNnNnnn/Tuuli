@@ -3484,7 +3484,9 @@ class TraceFrameworkTest(unittest.TestCase):
                                 '# FORMALSQL_PROVED legacy_hash=')):
                 self.assertIsNone(pending)
                 if line.startswith('# FORMALSQL_PROVED'):
-                    self.assertIn('FormalSQL/Rocq OUTCOME_EQ: kernel-checked', line)
+                    self.assertRegex(
+                        line,
+                        r'FormalSQL/Rocq (?:OUTCOME_EQ|BAG_EQ|PROJECTED_BAG_EQ|ORDERED_EQ): kernel-checked')
                 else:
                     self.assertIn('native expression proof: UNKNOWN', line)
                 pending = re.search(r'legacy_hash=([0-9a-f]{16});', line).group(1)
