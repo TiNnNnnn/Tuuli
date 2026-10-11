@@ -1147,6 +1147,16 @@ CDSLParserTest::EresUnittest_SymbolNamespace()
 		return GPOS_FAILED;
 	}
 	same_side->Release();
+	CDSLRule *nested_same_side = Parse(
+		mp,
+		"InSubFilter<a1>(InSubFilter<a0>(Input<t0>,Input<t1>),Input<t1>)|"
+		"InSubFilter<a2>(Input<t3>,Input<t4>)|AttrsEq(a0,a1);"
+		"AttrsSub(a0,t0);AttrsSub(a1,t0);t3 := t0;t4 := t1;a2 := a0");
+	if (nullptr == nested_same_side)
+	{
+		return GPOS_FAILED;
+	}
+	nested_same_side->Release();
 	return GPOS_OK;
 }
 
