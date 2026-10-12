@@ -472,7 +472,9 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. This exact RuleIR is accepted by the
 # generic FormalSQL/Rocq proof kernel.
-# SYNTAX_ONLY legacy_hash=977b505669323220; native expression proof: UNKNOWN (generic Apply-to-SemiJoin theorem pending).
+# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
+# correlated Apply proof accepts the typed predicate and table bindings; no
+# SemiApply-specific lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Atomic composition of the generic Window/Filter movement and SemiApply
