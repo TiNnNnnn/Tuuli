@@ -53,9 +53,11 @@ InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJ
 # SYNTAX_ONLY legacy_hash=9dc5c70cd1245677; native expression proof: UNKNOWN (native keyed membership proof pending).
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1
 
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# e0396ec0f9fd9a88d2b7421d57951c05f81e2bb0b2944061fd76e6e01c91fb73.
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);ExprConcat(e2,e0,e1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# d23240b0ad2bcc21d12e15d4aa74516ee634f659e3e662389a64d9c662d4d41d.
+# ExprConcat is represented in the target template; its generic structural
+# proof also checks the output-column and schema correspondence.
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e0,e1) a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,s1);ErrorFree(e0);ErrorFree(e1);Deterministic(e0);Deterministic(e1)
 
 # Explicit binding migration of the total, deterministic row-scalar domain.
 # ExprConcat preserves arbitrary list lengths; schema order is checked, not
@@ -562,10 +564,9 @@ Proj*<a0 s0>(Union*<a1 s1 a10 a11>(Input<t0>,Input<t1>))|Union*<a2 s2 a12 a13>(P
 # CXformSimplifyGbAgg for real aggregates. MinimalGrouping is an explicit
 # optimizer-property premise: it preserves the full semantic grouping while
 # deriving the smaller child-dependent grouping used by later xforms. The
-# exact RuleIR is an outcome-equivalence proof accepted by FormalSQL/Rocq;
-# aligned expressions preserve errors, so no scalar ErrorFree premise is
-# required.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;MinimalGrouping(a0,s0)
+# exact RuleIR uses the shared aggregate structural proof; its scalar safety
+# premises are explicit so the metadata rewrite cannot hide an evaluation error.
+Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;MinimalGrouping(a0,s0);ErrorFree(a0);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0)
 
 # Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
 # exact right-to-left dependency set separately from the scalar predicate's
