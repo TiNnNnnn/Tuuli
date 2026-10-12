@@ -421,7 +421,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t
 # predicate, inverse(comparison) AND qualification, without conflating the two
 # dependency domains. This exact RuleIR was proved EQ by SQLSolver on
 # 2026-08-31.
-# SYNTAX_ONLY legacy_hash=59a6d12ce1dd7d88; native expression proof: UNKNOWN (native NULL-aware Apply proof pending).
+# FORMALSQL_PROVED legacy_hash=59a6d12ce1dd7d88; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Certificate c0d1997b060608e81214a0d5aba99275761cb820dbb4a584d3f01ff4d81d2282. The generic ALL-carrier qualifier lift preserves the correlated Filter as an explicit predicate alias.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := p0;a5 := a0;a6 := a1;p3 := p1;a7 := a4;a8 := a3;AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0)
 
 # Extends the NULL-aware decorrelation domain across a grouped aggregate when
