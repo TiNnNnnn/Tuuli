@@ -3523,6 +3523,28 @@ class TraceFrameworkTest(unittest.TestCase):
                         defined.add(expr)
                         legacy.append(f'ExprNulls({expr},{template},{list_outputs[expr]})')
                         continue
+                    # Typed expression decomposition keeps the source carrier on
+                    # the right of ':='; its legacy constraint put that carrier
+                    # back in the first position.  Keep the identity check on
+                    # the same operator/operand graph without special-casing a
+                    # particular subquery kind.
+                    decomposition = re.fullmatch(
+                        r'(ExprList(?:ScalarSubquery|Exists|NotExists|Any|All))\(([^()]*)\) := ([a-z]\d+)',
+                        clause)
+                    if decomposition:
+                        kind, operands, carrier = decomposition.groups()
+                        self.assertIn(carrier, captured | defined)
+                        legacy.append(f'{kind}({carrier},{operands})')
+                        continue
+                    construction = re.fullmatch(
+                        r'([a-z]\d+) := (ExprConcat|ExprList(?:ScalarSubquery|Exists|NotExists|Any|All))\(([^()]*)\)',
+                        clause)
+                    if construction:
+                        output, kind, operands = construction.groups()
+                        self.assertNotIn(output, captured | defined)
+                        defined.add(output)
+                        legacy.append(f'{kind}({output},{operands})')
+                        continue
                     # The existing positional constructor has identical arguments
                     # in both spellings; it is not a new semantic premise.
                     constructor = re.fullmatch(r'(p\d+) := (NullSafeEq|And)\(([ap]\d+),([ap]\d+)\)', clause)
