@@ -41,7 +41,7 @@ Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumbe
 # FORMALSQL_PROVED legacy_hash=e99bceacc9aaf130; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate f1cbfe1787be6e52eb477e561fb2af97f4615385fbf0f3ce21f4a22f21eab1a6. The shared inner-join/UNION ALL contract handles the operator-level distribution without a rule-specific lemma.
 InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
-# SYNTAX_ONLY legacy_hash=44c687f715ecbe0b; native expression proof: UNKNOWN (native Join/Set composition pending).
+# FORMALSQL_PROVED legacy_hash=44c687f715ecbe0b; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate b5dc2874fa5c1d25d4a926bc13339e1015704db78903c4f0453e1334dabce1a2. The shared left-join/UNION ALL contract preserves the left input without a rule-specific lemma.
 LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
 # Replace CXformPushJoinBelowRightUnionAll after correcting its native pattern
