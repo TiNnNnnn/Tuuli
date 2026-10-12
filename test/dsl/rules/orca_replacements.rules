@@ -59,18 +59,6 @@ Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(Inner
 # proof also checks the output-column and schema correspondence.
 Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e0,e1) a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);AttrsUnion(a2,a0,a1);SchemaUnion(s2,s0,s1);ErrorFree(e0);ErrorFree(e1);Deterministic(e0);Deterministic(e1)
 
-# Explicit binding migration of the total, deterministic row-scalar domain.
-# ExprConcat preserves arbitrary list lengths; schema order is checked, not
-# inferred from dependency sets. Retain lower-before-upper output order.
-# Keep the legacy rule above for SRF cohorts
-# and the broader compatibility domain; this is not a complete replacement.
-# SYNTAX_ONLY: native expression proof is not certified; no OUTCOME_EQ certificate.
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e1,e0) a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,s0);ErrorFree(e0);ErrorFree(e1);Deterministic(e0);Deterministic(e1)
-
-# DIRECT(expression-rewrite): the operator skeleton stays unchanged, but
-# ExprSplit moves the maximal safe expression subset into the lower Compute.
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e3 a3 s3>(Compute<e2 a2 s2>(Input<t1>))|t1 := t0;ExprSplit(e2,e3,e0,e1)
-
 # FormalSQL OUTCOME_EQ: native IN shares the quantified support observer;
 # preserve the comparison carrier and exact selected output column.
 InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;a2 := a0;a3 := a1;s1 := s0
@@ -703,8 +691,8 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # Assert carrying ExmiSQLMaxOneRow.  The DSL target is intentionally a macro,
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
-# Legacy ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
-# SYNTAX_ONLY legacy_hash=770daa019ca274ae; native expression proof: UNKNOWN (native MaxOneRow/Assert theorem pending).
+# FormalSQL/Rocq OUTCOME_EQ: the typed binding form is kernel-checked;
+# the same generic structural theorem covers arbitrary child templates.
 MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
 # Replace CXformExpandFullOuterJoin with the same shared-input relational
