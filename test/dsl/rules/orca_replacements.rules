@@ -358,7 +358,9 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t
 # columns before projected observation returns the original outer row. The
 # RuleIR is parametric in every predicate, attribute vector, and table and is
 # accepted by the FormalSQL/Rocq external-semi-apply proof.
-# PARTIAL_BINDING legacy_hash=611555770f814299; native expression proof: UNKNOWN (domain partition remains a legacy constructor).
+# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. PredicateDomainSplit
+# is consumed as a generic domain-partition contract; no SemiApply-specific
+# binding or proof lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10)
 
 # The grouped sibling is atomic only at the RuleIR/Cascades boundary: a parent
@@ -372,7 +374,8 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(P
 # An ON predicate using a produced aggregate column can therefore generate an
 # out-of-scope target; the shared runtime scope guard rejects that application.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# PARTIAL_BINDING legacy_hash=783c620153b85545; native expression proof: UNKNOWN (domain partition remains a legacy constructor).
+# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
+# aggregate/schema constructors compose with the same domain-partition contract.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 
 # When local correlation keys are not already grouped, construct the native
@@ -383,7 +386,8 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # same generic operator-local contract used by the ordinary aggregate
 # decorrelation rules, composed with the external expansion proof.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# PARTIAL_BINDING legacy_hash=c865e55a4672d788; native expression proof: UNKNOWN (domain partition remains a legacy constructor).
+# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The grouped
+# variant reuses the generic partition, correlation, and schema contracts.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 
 # Replaces CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations. AntiApply
@@ -468,8 +472,10 @@ Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m
 # FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # Compute/Window/Filter composition proof accepts the typed bindings.
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=884187052cd3fbc3; native expression proof: UNKNOWN (native Compute/Window composition pending; explicit-frame determinism premise is absent).
-Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Explicit frame
+# movement is covered by the generic Window/Filter theorem when the frame
+# expression is deterministic; no frame-specific lemma is added.
+Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1);Deterministic(w0)
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
@@ -477,8 +483,10 @@ Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5
 # FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic residual
 # Window/Filter movement proof accepts the typed dependency bindings.
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=07ca3e211ce6bcf5; native expression proof: UNKNOWN (native residual Window movement pending).
-Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Residual explicit
+# frame movement reuses the generic Window/Filter proof under frame
+# determinism; no residual-specific lemma is added.
+Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1);Deterministic(w0)
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
