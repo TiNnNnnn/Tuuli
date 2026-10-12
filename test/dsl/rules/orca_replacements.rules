@@ -23,7 +23,7 @@ Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<p0 a3 a4>(Input<
 # Replace CXformIntersectAll2LeftSemiJoin. ROW_NUMBER gives each duplicate an
 # occurrence tag, so the null-safe semi join retains min(left_count,right_count).
 # Legacy FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic occurrence-tag
+# FORMALSQL_PROVED legacy_hash=3a8b2c1fac82f1f9; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic occurrence-tag
 # semi-join proof composes RowNumber, null-safe equality, and ordered attributes;
 # no Intersect-specific lemma is added.
 Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a5 := a1;a6 := a2;OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);p0 := NullSafeEq(a3,a4);a9 := a5;s1 := s0;ErrorFree(r0);ErrorFree(r1)
@@ -31,7 +31,7 @@ Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 a3 a4>(RowNu
 # The anti-join sibling retains max(left_count-right_count,0), replacing
 # CXformDifferenceAll2LeftAntiSemiJoin with the same occurrence-tag encoding.
 # Legacy FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic
+# FORMALSQL_PROVED legacy_hash=2ee9916a64de7345; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic
 # occurrence-tag proof handles the negative-polarity set operator without a
 # second rule-specific lemma.
 Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a5 := a1;a6 := a2;OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);p0 := NullSafeEq(a3,a4);a9 := a5;s1 := s0;ErrorFree(r0);ErrorFree(r1)
@@ -360,7 +360,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t
 # columns before projected observation returns the original outer row. The
 # RuleIR is parametric in every predicate, attribute vector, and table and is
 # accepted by the FormalSQL/Rocq external-semi-apply proof.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. PredicateDomainSplit
+# FORMALSQL_PROVED legacy_hash=611555770f814299; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. PredicateDomainSplit
 # is consumed as a generic domain-partition contract; no SemiApply-specific
 # binding or proof lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10)
@@ -376,7 +376,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(P
 # An ON predicate using a produced aggregate column can therefore generate an
 # out-of-scope target; the shared runtime scope guard rejects that application.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=783c620153b85545; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
 # aggregate/schema constructors compose with the same domain-partition contract.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 
@@ -388,7 +388,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # same generic operator-local contract used by the ordinary aggregate
 # decorrelation rules, composed with the external expansion proof.
 # WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The grouped
+# FORMALSQL_PROVED legacy_hash=c865e55a4672d788; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The grouped
 # variant reuses the generic partition, correlation, and schema contracts.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
 
@@ -429,7 +429,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn
 # PredicateEq preserves the complete
 # three-valued ALL scalar tree independently of the RHS qualifier.
 # This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic NULL-aware
+# FORMALSQL_PROVED legacy_hash=74921e1e1400b2e8; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic NULL-aware
 # aggregate decorrelation proof composes typed predicate/group/schema
 # constructors; no AntiApplyNotIn-specific lemma is added.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a6;a10 := a5;AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
