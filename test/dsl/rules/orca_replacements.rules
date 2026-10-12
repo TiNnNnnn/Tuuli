@@ -57,7 +57,7 @@ InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJ
 # SYNTAX_ONLY legacy_hash=9dc5c70cd1245677; native expression proof: UNKNOWN (native keyed membership proof pending).
 Proj<a2 s1>(InSubFilter<a1>(Input<t0>,Proj<a0 s0>(Input<t1>)))|Proj<a6 s3>(InnerJoin<a3 a4>(Input<t2>,Proj*<a5 s2>(Input<t3>)))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);t2 := t0;t3 := t1;a3 := a1;a4 := a0;a5 := a0;s2 := s0;a6 := a2;s3 := s1
 
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
+# FORMALSQL_PROVED legacy_hash=27edcd62358b5c86; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
 # d23240b0ad2bcc21d12e15d4aa74516ee634f659e3e662389a64d9c662d4d41d.
 # ExprConcat is represented in the target template; its generic structural
 # proof also checks the output-column and schema correspondence.
@@ -223,32 +223,32 @@ Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<
 # lowers a scalar subquery inside an aggregate function list. The target Agg
 # consumes the generated inner value directly; no aggregate production view is
 # involved. FormalSQL/Rocq accepted the contract on 2026-09-02.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# FORMALSQL_PROVED legacy_hash=2e87323d09311142; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # bbd7082e6334d08874c77a0ec36ee2f35409c90c46ba82476543900b7f1e241f.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a8 f1 s1 p1>(LeftApply<p2 a3 a4 a5>(Input<t1>,Input<t2>))|t1 := t0;a2 := a0;s1 := s0;p1 := p0;ExprListScalarSubquery(f1,p2,a3,a4,a5,a7,t2) := f0;FuncAttrs(a8,f1)
 
 # DIRECT(expression-rewrite): lower one EXISTS value inside a function list.
 # FuncAttrs derives the aggregate's exact inputs from the lowered functions;
 # the marker Compute remains an ordinary typed definition carrier.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# FORMALSQL_PROVED legacy_hash=687f76b4e107b0ec; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 26f77d99929ad937b918a7a720f466697e4d7863d5b2b22e5218ca664f2a377e.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): the same existential lowering preserves the
 # opposite truth polarity for NOT EXISTS.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# FORMALSQL_PROVED legacy_hash=8ec5f7fe33820adf; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 3c223998f8828bbd19bd3619f8502e4489c549094c680662ca162b68847ffb10.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListNotExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value inside a function
 # list. FuncAttrs derives the exact marker dependencies consumed by the Agg.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# FORMALSQL_PROVED legacy_hash=b62548ed876d3728; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # da07de7d3725c1916db323d9d659f316b1dd978b773676d136438135dc77aa4b.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAny(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1)
 
 # DIRECT(expression-rewrite): the quantified lowering also preserves ALL's
 # empty-set and three-valued semantics.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# FORMALSQL_PROVED legacy_hash=408c56805b8331e3; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 398d5a7735f10cc14fbe7291b574547190b2030c58e56c90c895624741a99555.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAll(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1)
 
@@ -284,14 +284,14 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJ
 # join. The target grouping is the source grouping intersected with the outer
 # input; the unique referred row restores any inner grouping columns.
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=78c046d1ea440878; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
 # key/reference aggregate-pushdown proof accepts the typed schema constructors.
 Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4>(Input<t0>,Input<t1>))|InnerJoin<a5 a6>(Agg<a7 a8 a9 f1 s1 p1>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a5 := a3;a6 := a4;AttrsIntersect(a7,a0,t0);a8 := a1;a9 := a2;f1 := f0;AttrsUnion(a10,a7,a9);SchemaFromAttrs(s1,a10);p1 := p0;AttrsSub(a1,t0);AttrsSub(a3,a7);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a8);ErrorFree(f1);ErrorFree(p1)
 
 # Residual-predicate sibling. The complete predicate and its exact dependency
 # split are preserved; every outer dependency must survive in the grouping.
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The residual
+# FORMALSQL_PROVED legacy_hash=c6147dd109512ce4; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The residual
 # predicate variant composes the same key/reference proof with dependency safety.
 Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4 p1 a5 a6>(Input<t0>,Input<t1>))|InnerJoin<a7 a8 p2 a9 a10>(Agg<a11 a12 a13 f1 s1 p3>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a7 := a3;a8 := a4;p2 := p1;a9 := a5;a10 := a6;AttrsIntersect(a11,a0,t0);a12 := a1;a13 := a2;f1 := f0;AttrsUnion(a14,a11,a13);SchemaFromAttrs(s1,a14);p3 := p0;AttrsSub(a1,t0);AttrsSub(a3,a11);AttrsSub(a3,t0);AttrsSub(a4,t1);AttrsSub(a5,a11);AttrsSub(a5,t0);AttrsSub(a6,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a12);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
@@ -306,7 +306,7 @@ LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<
 # operator rather than an Exists compatibility view. The inner LIMIT 1
 # preserves existential bag multiplicity. This exact RuleIR is accepted by the
 # generic FormalSQL/Rocq proof, verified 2026-08-29.
-# FormalSQL/Rocq PROJECTED_BAG_EQ: verified 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=513f8737ae6c43ba; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-10. The generic
 # ExistentialProbeRuleSupported theorem proves the inner-independent semi-join
 # lowering with explicit Limit(1, 0); no rule-specific premise is added.
 SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsSub(a0,t0);AttrsEmpty(a1);Deterministic(p0);ScalarOne(n0);ScalarZero(n1);ErrorFree(p0);ErrorFree(p1)
@@ -317,7 +317,7 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n
 # PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs keep the
 # expansion valid for arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=4ace459761869246; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
 # AntiIndependentExpansionRuleSupported theorem requires PredicateNotTrue,
 # shared inputs and explicit output columns.
 AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
@@ -326,7 +326,7 @@ AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(
 # does not depend on the inner input. A non-empty inner keeps TRUE outer rows;
 # an empty inner keeps every outer row. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=1cffa7aedcedb510; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # AllIndependentExpansionRuleSupported theorem accepts the typed REF aliases;
 # no NULL-aware anti-join-specific lemma is added.
 AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
@@ -348,7 +348,7 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 # dependencies; AttrsEmpty therefore states the native xform's applicability
 # domain directly. This exact RuleIR was proved by the FormalSQL/Rocq kernel on
 # 2026-08-29 for the legacy RuleIR (BAG_EQ, not native OUTCOME_EQ).
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
+# FORMALSQL_PROVED legacy_hash=e3458abf2b3167d5; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
 # uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
@@ -397,7 +397,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # native promise expressed as data. AntiJoin is ordinary NOT EXISTS semantics,
 # distinct from the NULL-aware AntiJoinNotIn family. This exact RuleIR is
 # accepted by the legacy FormalSQL/Rocq proof (BAG_EQ).
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
+# FORMALSQL_PROVED legacy_hash=561de687652328df; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
 # uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
@@ -408,8 +408,11 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t
 # comparison stored by its physical operator representation. AttrsEmpty is the
 # native xform's complete uncorrelated applicability domain. This exact RuleIR
 # was proved EQ by SQLSolver on 2026-08-31.
-# SYNTAX_ONLY legacy_hash=5fd635f26b08fa62; native expression proof: UNKNOWN (native NULL-aware Apply proof pending).
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1)
+# FormalSQL/Rocq requires error-free quantified predicates when an uncorrelated
+# NULL-aware Apply is normalized to the shared ALL carrier used by AntiJoinNotIn.
+# This is a generic safety premise, not an AntiApplyNotIn-specific proof lemma.
+# FORMALSQL_PROVED legacy_hash=ba392bb44520d75f; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic ALL-carrier structural proof requires AttrsEmpty and predicate safety.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn. The first target predicate
@@ -442,7 +445,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input
 # The target keeps the exact Window metadata and moves the correlation into the
 # AntiJoinNotIn qualifier.  FormalSQL/Rocq accepted this operator-local theorem
 # on 2026-08-31.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic NULL-aware
+# FORMALSQL_PROVED legacy_hash=69b8c72900d1d443; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic NULL-aware
 # window decorrelation proof composes correlation and dependency premises;
 # no frame-specific lemma is added.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
@@ -452,7 +455,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Inpu
 # exact frame and DepsDisjoint additionally rejects outer-column references in
 # frame edges.  FormalSQL/Rocq accepted the generic composed theorem
 # on 2026-08-31.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic proof
+# FORMALSQL_PROVED legacy_hash=db7bcea9ff9c611d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic proof
 # covers explicit frames through the typed Frame/Window bindings.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(m0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
@@ -461,20 +464,20 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input
 # exposed, every Apply family reuses its existing Filter decorrelation rule by
 # ordinary Cascade chaining. Both legacy RuleIRs were accepted by FormalSQL/Rocq; no
 # Apply-specific lowering is hidden in this normalization.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic Window/Filter
+# FORMALSQL_PROVED legacy_hash=72d6733f04cb8b0d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic Window/Filter
 # movement proof accepts the typed partition/dependency bindings.
 WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic movement
+# FORMALSQL_PROVED legacy_hash=878a42451564c19e; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic movement
 # proof covers explicit frames without a frame-specific lemma.
 Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
 
 # Compose that movement through an enclosing safe Compute. This remains an
 # operator-local normalization over an arbitrary Input; it is not tied to an
 # Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=88f307f1b76e73ef; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # Compute/Window/Filter composition proof accepts the typed bindings.
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Explicit frame
+# FORMALSQL_PROVED legacy_hash=d6f44ab77e84cba0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Explicit frame
 # movement is covered by the generic Window/Filter theorem when the frame
 # expression is deterministic; no frame-specific lemma is added.
 Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1);Deterministic(w0)
@@ -482,10 +485,10 @@ Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
 # outside; the residual remains at its original evaluation site.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic residual
+# FORMALSQL_PROVED legacy_hash=d43abe8392779e2a; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic residual
 # Window/Filter movement proof accepts the typed dependency bindings.
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Residual explicit
+# FORMALSQL_PROVED legacy_hash=7df75620258b37aa; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Residual explicit
 # frame movement reuses the generic Window/Filter proof under frame
 # determinism; no residual-specific lemma is added.
 Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1);Deterministic(w0)
@@ -495,7 +498,7 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. This exact RuleIR is accepted by the
 # generic FormalSQL/Rocq proof kernel.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
+# FORMALSQL_PROVED legacy_hash=977b505669323220; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
 # correlated Apply proof accepts the typed predicate and table bindings; no
 # SemiApply-specific lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
@@ -504,7 +507,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|SemiJoin<p2 a5 a6>
 # decorrelation laws. It is needed when Cascades cannot place the intermediate
 # Window alternative in the Apply's original memo group. FormalSQL/Rocq
 # accepted this RuleIR on 2026-09-05.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
+# FORMALSQL_PROVED legacy_hash=9a5153fdbf92bd49; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
 # Window/Filter and correlated Apply composition accepts the typed metadata;
 # no window- or Apply-specific semantic lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|SemiJoin<p2 a6 a7>(Input<t2>,Window<a8 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a5);AttrsUnion(a6,a0,a5);AttrsUnion(a7,a1,a4);a8 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(m0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w0);ErrorFree(w1)
@@ -523,7 +526,7 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # semantics; AntiJoinNotIn remains a separate NULL-aware operator family.
 # PredicateAnd and AttrsUnion preserve the same dependency partition as the
 # positive SemiApply rule. This exact RuleIR is accepted by FormalSQL/Rocq.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
+# FORMALSQL_PROVED legacy_hash=5004b2a4db64e478; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The existing generic
 # correlated AntiApply proof accepts the conjunction/dependency premises; no
 # AntiApply-specific lemma is added.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
@@ -556,7 +559,7 @@ Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s
 # the Cascade memo output contract; ordered unions construct the expanded
 # grouping, predicate dependencies, and aggregate schema. This exact RuleIR is
 # accepted by the generic FormalSQL/Rocq proof kernel.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic aggregate
+# FORMALSQL_PROVED legacy_hash=88f3ce3adc6c520b; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic aggregate
 # decorrelation proof composes the typed predicate/group/schema constructors;
 # no SemiApply-specific lemma is added.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
@@ -564,7 +567,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # Negative-polarity counterpart of the atomic grouped decorrelation rule.
 # CorrelationEquality plus the group/schema constructors are polarity-independent;
 # FormalSQL/Rocq proves both EXISTS and NOT EXISTS conclusions from it.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic aggregate
+# FORMALSQL_PROVED legacy_hash=8acf52440ec02ea3; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The same generic aggregate
 # decorrelation proof handles the negative-polarity operator without a second
 # rule-specific lemma.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsEq(a2,a6);AttrsUnion(a7,a0,a6);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
@@ -599,7 +602,7 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # applicability condition. The legacy RuleIR has an outcome-equivalence proof
 # accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
 # preserves scalar errors without an ErrorFree assumption.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=ebadfb129130abb8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
 # structural uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
@@ -609,7 +612,7 @@ InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input
 # current left row while permitting references supplied by an enclosing scope,
 # matching the native promise. The legacy RuleIR has an outcome-equivalence
 # proof accepted by FormalSQL/Rocq.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=4fbf993ef8bfe114; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
 # structural uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
 LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
@@ -632,7 +635,7 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|LeftJoin<p2 a5 a6>
 # is NULL-on-empty. This excludes COUNT's zero identity, whose native rewrite
 # requires an outer compensation expression. FormalSQL/Rocq accepted this
 # parameterized RuleIR on 2026-09-05.
-# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic grouped
+# FORMALSQL_PROVED legacy_hash=b8a54fa637de5d89; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic grouped
 # LeftApply decorrelation proof composes NullOnEmpty and schema constructors;
 # no LeftApply-specific semantic lemma is added.
 LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|LeftJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsEq(a2,a6);AttrsNonEmpty(a2);AttrsUnion(a7,a0,a6);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);NullOnEmpty(f0);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
@@ -640,7 +643,7 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # The zero-on-empty sibling consumes the two generic Compute layers that carry
 # an aggregate result through an identity and replace NULL with its empty-input
 # default. EmptyInputCompensation validates that complete scalar dataflow.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=80727e91f96e399d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # empty-input compensation proof composes the two Compute layers with the
 # grouped LeftApply theorem; no compensation-specific matcher is added.
 Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a7 f0 s2 p1>(Filter<p2 a8 a9>(Input<t1>)))))|Compute<e2 a10 s3>(Compute<e3 a11 s4>(LeftJoin<p3 a12 a13>(Input<t2>,Agg<a14 a15 a16 f1 s5 p4>(Input<t3>))))|t2 := t0;t3 := t1;e2 := e0;a10 := a0;s3 := s0;e3 := e1;a11 := a1;s4 := s1;p3 := And(p0,p2);AttrsEq(a4,a9);AttrsNonEmpty(a4);AttrsUnion(a12,a2,a9);AttrsUnion(a13,a3,a8);AttrsUnion(a14,a5,a8);a15 := a6;a16 := a7;f1 := f0;SchemaUnion(s5,s2,a8);p4 := p1;CorrelationEquality(p2,a8,a9);AttrsNonEmpty(a8);EmptyInputCompensation(e0,e1,a7,f0);Deterministic(e0);Deterministic(e1);Deterministic(e2);Deterministic(e3);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(e0);ErrorFree(e1);ErrorFree(e2);ErrorFree(e3);ErrorFree(p0);ErrorFree(a6);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a15);ErrorFree(f1);ErrorFree(p4)
@@ -733,7 +736,7 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # Assert carrying ExmiSQLMaxOneRow.  The DSL target is intentionally a macro,
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
-# FormalSQL/Rocq OUTCOME_EQ: the typed binding form is kernel-checked;
+# FORMALSQL_PROVED legacy_hash=770daa019ca274ae; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The typed binding form is
 # the same generic structural theorem covers arbitrary child templates.
 MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
@@ -742,7 +745,7 @@ MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 # (B ANTI JOIN A projected as NULL(A),B). TableShared gives each duplicated
 # input one native CTE producer; the four-symbol Union states both ordered row
 # mappings explicitly. FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=ce7a7b473a32e273; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
 # FullJoinExpansionRuleSupported theorem checks shared inputs and typed NULL
 # output construction.
 FullJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(LeftJoin<p1 a5 a6>(Input<t2>,Input<t3>),Compute<e0 a7 s1>(AntiJoin<p2 a8 a9>(Input<t4>,Input<t5>)))|t2 := t0;t5 := t0;TableShared(t2,t5);t3 := t1;t4 := t1;TableShared(t3,t4);p1 := p0;p2 := p0;a5 := a0;a6 := a1;a8 := a1;a9 := a0;OutputAttrs(a10,t0);OutputAttrs(a11,t1);AttrsUnion(a2,a10,a11);SchemaFromAttrs(s0,a2);a3 := a2;e0 := ExprNulls(a10);OutputAttrs(a12,e0);AttrsUnion(a4,a12,a11);AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)
@@ -751,7 +754,7 @@ FullJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(LeftJoin<p1 a5 a6>(In
 # relational identity: A LEFT JOIN B = (A INNER JOIN B) UNION ALL
 # (A ANTI JOIN B projected as A,NULL(B)). Shared inputs preserve one evaluation
 # of arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-05.
-# FormalSQL/Rocq OUTCOME_EQ: verified 2026-10-10. The generic
+# FORMALSQL_PROVED legacy_hash=92983d6d3650ab0c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
 # LeftJoinExpansionRuleSupported theorem checks shared inputs and left-preserving
 # typed NULL output construction.
 LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(Input<t2>,Input<t3>),Compute<e0 a7 s1>(AntiJoin<p2 a8 a9>(Input<t4>,Input<t5>)))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;p2 := p0;a5 := a0;a6 := a1;a8 := a0;a9 := a1;OutputAttrs(a10,t0);OutputAttrs(a11,t1);AttrsUnion(a2,a10,a11);SchemaFromAttrs(s0,a2);a3 := a2;e0 := ExprNulls(a11);OutputAttrs(a12,e0);AttrsUnion(a4,a10,a12);AttrsEmpty(a7);SchemaFromAttrs(s1,a12);Deterministic(p0)
@@ -761,11 +764,11 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # LeftApply; the existing aggregate decorrelation rule can then move the
 # correlated aggregate; finally the same predicate reduces LeftJoin to
 # InnerJoin. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-06.
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=f169b79b650c81ee; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # null-rejection proof accepts typed aliases and the dependency union.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
-# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# FORMALSQL_PROVED legacy_hash=e7ded0e32f745546; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
 # null-rejection theorem preserves the captured predicate and ordered output.
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a3 := a0;a4 := a1;a5 := a2;OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
 
