@@ -284,13 +284,15 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJ
 # join. The target grouping is the source grouping intersected with the outer
 # input; the unique referred row restores any inner grouping columns.
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
-# SYNTAX_ONLY legacy_hash=78c046d1ea440878; native expression proof: UNKNOWN (native keyed Join proof pending).
+# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
+# key/reference aggregate-pushdown proof accepts the typed schema constructors.
 Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4>(Input<t0>,Input<t1>))|InnerJoin<a5 a6>(Agg<a7 a8 a9 f1 s1 p1>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a5 := a3;a6 := a4;AttrsIntersect(a7,a0,t0);a8 := a1;a9 := a2;f1 := f0;AttrsUnion(a10,a7,a9);SchemaFromAttrs(s1,a10);p1 := p0;AttrsSub(a1,t0);AttrsSub(a3,a7);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a8);ErrorFree(f1);ErrorFree(p1)
 
 # Residual-predicate sibling. The complete predicate and its exact dependency
 # split are preserved; every outer dependency must survive in the grouping.
 # FormalSQL/Rocq: EQ, verified 2026-09-05.
-# SYNTAX_ONLY legacy_hash=c6147dd109512ce4; native expression proof: UNKNOWN (native residual Join proof pending).
+# FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The residual
+# predicate variant composes the same key/reference proof with dependency safety.
 Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4 p1 a5 a6>(Input<t0>,Input<t1>))|InnerJoin<a7 a8 p2 a9 a10>(Agg<a11 a12 a13 f1 s1 p3>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a7 := a3;a8 := a4;p2 := p1;a9 := a5;a10 := a6;AttrsIntersect(a11,a0,t0);a12 := a1;a13 := a2;f1 := f0;AttrsUnion(a14,a11,a13);SchemaFromAttrs(s1,a14);p3 := p0;AttrsSub(a1,t0);AttrsSub(a3,a11);AttrsSub(a3,t0);AttrsSub(a4,t1);AttrsSub(a5,a11);AttrsSub(a5,t0);AttrsSub(a6,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a12);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # SYNTAX_ONLY legacy_hash=0a49982c5c679d38; native expression proof: UNKNOWN (native binding proof pending).
@@ -759,10 +761,12 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # LeftApply; the existing aggregate decorrelation rule can then move the
 # correlated aggregate; finally the same predicate reduces LeftJoin to
 # InnerJoin. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=f169b79b650c81ee; native expression proof: UNKNOWN (native Apply/Join composition pending).
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# null-rejection proof accepts typed aliases and the dependency union.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
-# SYNTAX_ONLY legacy_hash=e7ded0e32f745546; native expression proof: UNKNOWN (native null-rejecting join movement pending).
+# FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# null-rejection theorem preserves the captured predicate and ordered output.
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a3 := a0;a4 := a1;a5 := a2;OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
