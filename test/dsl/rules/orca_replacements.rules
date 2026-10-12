@@ -143,11 +143,10 @@ Filter<Any(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|Any<p1 a3>(Input<t2>,Input<t
 # ALL certificate: ca7c19247f80ef46c8c4e3cc264be81b5117e89effaaefe5e232f034f2c502ba
 Filter<All(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|All<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)
 
-# DIRECT(expression-rewrite): PredicateAny binds the comparison, exact outer
-# dependencies, and quantified relation from the scalar ANY predicate.
-# Keep this compatibility entry: the typed quantifier bridge currently requires
-# demand-insensitive inputs and a strict built-in comparison (see quantified_relation).
-Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;PredicateAny(p0,p1,a1,t2)
+# DIRECT(expression-rewrite): typed quantifier matching captures the source
+# comparison, value list, output attributes and query; the target rebuilds the
+# comparison and reuses those typed captures through ordinary aliases.
+Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;Any(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
 
 # DIRECT(expression-rewrite): PredicateAll shares quantified comparison
 # decomposition with ANY while preserving NULL-aware ALL semantics.
