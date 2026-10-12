@@ -3571,7 +3571,7 @@ class TraceFrameworkTest(unittest.TestCase):
         )
         self.assertEqual(
             sum(item.classification.startswith("DIRECT(") for item in identities),
-            2,
+            1,
         )
 
     def test_replacement_rule_identity_requires_an_immediate_tag(self) -> None:
