@@ -151,7 +151,7 @@ Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;Any(c0,v0,a3,t
 # DIRECT(expression-rewrite): PredicateAll shares quantified comparison
 # decomposition with ANY while preserving NULL-aware ALL semantics.
 # The same typed-bridge compatibility boundary applies as for ANY above.
-Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;PredicateAll(p0,p1,a1,t2)
+Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;All(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
