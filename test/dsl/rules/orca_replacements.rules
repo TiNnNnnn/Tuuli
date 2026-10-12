@@ -48,7 +48,7 @@ LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoi
 # to the bag-equivalent InnerJoin domain. This is the mirror of the existing
 # left-input distribution and uses the same generic Union/Join path.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=71aee9b8ad124cf9; native expression proof: UNKNOWN (native Join/Set composition pending).
+# FORMALSQL_PROVED legacy_hash=71aee9b8ad124cf9; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate 7d49af00c95e066c66051d1705d4de5cd356de57308bc427e6a48ef7625a0548. The same inner-join/UNION ALL contract covers right-input distribution with a positional binding adapter.
 InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t3 := t0;t5 := t0;t4 := t1;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
 
 # Canonical binding migration of the complete equality-membership lowering.
