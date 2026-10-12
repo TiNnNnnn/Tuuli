@@ -331,8 +331,7 @@ AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(
 # does not depend on the inner input. A non-empty inner keeps TRUE outer rows;
 # an empty inner keeps every outer row. FormalSQL/Rocq: OUTCOME_EQ, verified
 # 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=1cffa7aedcedb510; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
-# 9e615957f62aebde568f983a6ba2a22c34a4022a7976cefbf4742147af831fd2.
+# SYNTAX_ONLY legacy_hash=1cffa7aedcedb510; native expression proof: UNKNOWN (native NULL-aware anti-join expansion pending).
 AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
@@ -429,8 +428,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoinNotIn
 # PredicateEq preserves the complete
 # three-valued ALL scalar tree independently of the RHS qualifier.
 # This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
-# FORMALSQL_PROVED legacy_hash=74921e1e1400b2e8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# fc62ea2a44c8db396e1bd6545b1f037cfddce99707dd20884e5602d51641c105.
+# SYNTAX_ONLY legacy_hash=74921e1e1400b2e8; native expression proof: UNKNOWN (native NULL-aware aggregate decorrelation pending).
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a6;a10 := a5;AttrsEq(a2,a6);AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;CorrelationEquality(p2,a5,a6);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a6,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
 
 # Extends NULL-aware decorrelation across a cumulative Window.  The runtime
@@ -441,8 +439,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input
 # The target keeps the exact Window metadata and moves the correlation into the
 # AntiJoinNotIn qualifier.  FormalSQL/Rocq accepted this operator-local theorem
 # on 2026-08-31.
-# FORMALSQL_PROVED legacy_hash=69b8c72900d1d443; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 242e1d3f967056b7d6814c7132806bccb9ff31ef4a49e290f4d4112655365137.
+# SYNTAX_ONLY legacy_hash=69b8c72900d1d443; native expression proof: UNKNOWN (native NULL-aware window decorrelation pending).
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,WindowRows<a10 o1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # The explicit-frame sibling covers ORCA's normalized representation of SQL
@@ -450,8 +447,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,WindowRows<a3 o0 w0>(Filter<p1 a4 a5>(Inpu
 # exact frame and DepsDisjoint additionally rejects outer-column references in
 # frame edges.  FormalSQL/Rocq accepted the generic composed theorem
 # on 2026-08-31.
-# FORMALSQL_PROVED legacy_hash=db7bcea9ff9c611d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# c6a95e1b3285270bde7f96355871a13b654c92e550c23f5bc684440d908e190b.
+# SYNTAX_ONLY legacy_hash=db7bcea9ff9c611d; native expression proof: UNKNOWN (native NULL-aware window-frame decorrelation pending).
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)))|AntiJoinNotIn<p2 a6 a7 p3 a8 a9>(Input<t2>,Window<a10 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := p0;a6 := a0;a7 := a1;p3 := p1;a8 := a5;a9 := a4;AttrsEq(a2,a5);a10 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a5);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a5);DepsDisjoint(o0,a5);DepsDisjoint(m0,a5);DepsDisjoint(w0,a5);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a5,t0);Deterministic(p0);Deterministic(p2);Deterministic(p1);Deterministic(p3);ErrorFree(p0);ErrorFree(w0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w1);ErrorFree(p3)
 
 # Pull a correlated Filter above a Window when every local correlation key is
@@ -459,31 +455,25 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input
 # exposed, every Apply family reuses its existing Filter decorrelation rule by
 # ordinary Cascade chaining. Both legacy RuleIRs were accepted by FormalSQL/Rocq; no
 # Apply-specific lowering is hidden in this normalization.
-# FORMALSQL_PROVED legacy_hash=72d6733f04cb8b0d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 09d2ba643bb165b2253655936f67549a0b7d5ef9c052616a6470caaca014670a.
+# SYNTAX_ONLY legacy_hash=72d6733f04cb8b0d; native expression proof: UNKNOWN (native correlated-window movement pending).
 WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3 o1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
-# FORMALSQL_PROVED legacy_hash=878a42451564c19e; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# fc5cd3816d5f23d81779022075dfd84f3a7192f38fdfbe8a6507ae5c7f9f63f8.
+# SYNTAX_ONLY legacy_hash=878a42451564c19e; native expression proof: UNKNOWN (native correlated-window movement pending).
 Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
 
 # Compose that movement through an enclosing safe Compute. This remains an
 # operator-local normalization over an arbitrary Input; it is not tied to an
 # Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# FORMALSQL_PROVED legacy_hash=88f307f1b76e73ef; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 780c7a0ebc2ce3a26c4f2393ac196621d95087a95df7cd057b6a09418340924d.
+# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN (native Compute/Window composition pending).
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# FORMALSQL_PROVED legacy_hash=884187052cd3fbc3; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# dd28a9b3c33de0547a32b31e305c281eb4a04cd87df6cf46638c57936cda1875.
+# SYNTAX_ONLY legacy_hash=884187052cd3fbc3; native expression proof: UNKNOWN (native Compute/Window composition pending).
 Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
 # outside; the residual remains at its original evaluation site.
-# FORMALSQL_PROVED legacy_hash=d43abe8392779e2a; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# ef18dc5102436267c4df2e778c59c90e7efdcbd1338764987012e4d125f4ad63.
+# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN (native residual Window movement pending).
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# FORMALSQL_PROVED legacy_hash=07ca3e211ce6bcf5; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# f08b46bb6b69720a3dfd7a9baa33c721618f811260a39ee54a1e48d3a7d3edc8.
+# SYNTAX_ONLY legacy_hash=07ca3e211ce6bcf5; native expression proof: UNKNOWN (native residual Window movement pending).
 Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
 
 # Replaces the single correlated-Filter decorrelation domain of
@@ -491,8 +481,7 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. This exact RuleIR is accepted by the
 # generic FormalSQL/Rocq proof kernel.
-# FORMALSQL_PROVED legacy_hash=977b505669323220; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-12; certificate
-# 8a2dad7ddc613ccb5830e75e1d826d8f027690cc0ffeacde494ede6abcb20473.
+# SYNTAX_ONLY legacy_hash=977b505669323220; native expression proof: UNKNOWN (generic Apply-to-SemiJoin theorem pending).
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Atomic composition of the generic Window/Filter movement and SemiApply
@@ -516,30 +505,26 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # semantics; AntiJoinNotIn remains a separate NULL-aware operator family.
 # PredicateAnd and AttrsUnion preserve the same dependency partition as the
 # positive SemiApply rule. This exact RuleIR is accepted by FormalSQL/Rocq.
-# FORMALSQL_PROVED legacy_hash=5004b2a4db64e478; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-12; certificate
-# 89d3972f3205799c3bbed75ee7a1da95fb2d950103ed8fcac4ed97863e5f1eef.
+# SYNTAX_ONLY legacy_hash=5004b2a4db64e478; native expression proof: UNKNOWN (generic Apply-to-AntiJoin theorem pending).
 AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsEq(a2,a4);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Moves a correlated Filter above a safe Compute/LET layer, exposing the
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule
 # above. The generic dependency, error-freedom, and determinism facts imply the
 # Compute/Filter movement; no rewrite-shaped constraint is needed.
-# FORMALSQL_PROVED legacy_hash=c7d161295e62caa0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
-# a21d5c301d4358dfaf90c820294a636ffa5303f50d5d5bb3883c90717d05c874.
+# SYNTAX_ONLY legacy_hash=c7d161295e62caa0; native expression proof: UNKNOWN (source evidence adapter pending).
 Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|t1 := t0;e1 := e0;a5 := a0;s1 := s0;p1 := p0;a3 := a1;a4 := a2;DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
 
 # The inverse movement pushes a predicate through any safe Compute whose
 # generated columns it does not reference. Reuse the existing FormalSQL/Rocq
 # legacy OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
-# FORMALSQL_PROVED legacy_hash=75cf2193e89d4afe; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
-# 611ce689dd900937f47527def17f3f27c08a63d357fbf209907c7c688d662779.
+# SYNTAX_ONLY legacy_hash=75cf2193e89d4afe; native expression proof: UNKNOWN (source evidence adapter pending).
 Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := s0;e1 := e0;ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
 # new grouping columns is intentionally a separate schema-construction domain.
-# FORMALSQL_PROVED legacy_hash=acc0381a6ee39104; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
-# 1b45147ea7e74d12e63a4f451b9f46134193a55fad3153ed1e08e2e7d98ced4f.
+# SYNTAX_ONLY legacy_hash=acc0381a6ee39104; native expression proof: UNKNOWN (native Agg/Filter theorem pending).
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
@@ -719,8 +704,7 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # not a general Assert matcher, so arbitrary assertion predicates are never
 # conflated with scalar-subquery outcome semantics.
 # Legacy ProveDslRule: OUTCOME_EQ, FORMALSQL, verified 2026-08-31.
-# FORMALSQL_PROVED legacy_hash=770daa019ca274ae; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-12; certificate
-# 52446803113574130c35d4cc460657dfec115b2c4b69205b7c610ec54817c70c.
+# SYNTAX_ONLY legacy_hash=770daa019ca274ae; native expression proof: UNKNOWN (native MaxOneRow/Assert theorem pending).
 MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0
 
 # Replace CXformExpandFullOuterJoin with the same shared-input relational
@@ -747,12 +731,10 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # LeftApply; the existing aggregate decorrelation rule can then move the
 # correlated aggregate; finally the same predicate reduces LeftJoin to
 # InnerJoin. FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-06.
-# FORMALSQL_PROVED legacy_hash=f169b79b650c81ee; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 939691efe64b9d1bbce299d02d65c5ea4653c8be6c81ee80927c1a38dc22d0ad.
+# SYNTAX_ONLY legacy_hash=f169b79b650c81ee; native expression proof: UNKNOWN (native Apply/Join composition pending).
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
-# FORMALSQL_PROVED legacy_hash=e7ded0e32f745546; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 985a2c3dca8e5399977a4e58051624a12b2a8f76179f6907cdc34e917a277a63.
+# SYNTAX_ONLY legacy_hash=e7ded0e32f745546; native expression proof: UNKNOWN (native null-rejecting join movement pending).
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a3 := a0;a4 := a1;a5 := a2;OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
