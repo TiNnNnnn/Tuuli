@@ -10,15 +10,15 @@ Union*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a3 s1>(Union<a4 s2 a5 a6>(Input<t
 # input's ordered columns; NullSafeEq constructs positional IS NOT
 # DISTINCT FROM comparisons, and the outer Proj* restores set multiplicity.
 # Legacy WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-05.
-# SYNTAX_ONLY legacy_hash=7c3febf0a7602119; native expression proof: UNKNOWN (native set/join proof pending).
-Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(InnerJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0;p0 := NullSafeEq(a3,a4)
+# FORMALSQL_PROVED legacy_hash=225a620133238247; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate ea041e42e0e53b1e2c839ea0f530d799687f185d7bd24639d016cb3989d3a743. The shared DISTINCT set contract covers both positional set inputs and the projected inner join.
+Intersect*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(InnerJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0;p0 := NullSafeEq(a3,a4);ErrorFree(p0);Deterministic(p0)
 
 # Replace CXformDifference2LeftAntiSemiJoin with the anti-existence sibling of
 # the Intersect rule. The same ordered null-safe equality definition handles
 # duplicate and nullable composite rows without an operator-specific matcher.
 # Legacy WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-05.
-# SYNTAX_ONLY legacy_hash=9d417e03361c377f; native expression proof: UNKNOWN (native set/join proof pending).
-Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0;p0 := NullSafeEq(a3,a4)
+# FORMALSQL_PROVED legacy_hash=8d2c9ab8c0754c3d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate e839e85ce35e2ac3cfa14d2e85d5ea6b071f19072334befcef9c9138dfd55db0. The same shared DISTINCT set contract covers anti-membership without an Except-specific proof.
+Except*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a5 s1>(AntiJoin<p0 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a3 := a1;a4 := a2;a5 := a1;s1 := s0;p0 := NullSafeEq(a3,a4);ErrorFree(p0);Deterministic(p0)
 
 # Replace CXformIntersectAll2LeftSemiJoin. ROW_NUMBER gives each duplicate an
 # occurrence tag, so the null-safe semi join retains min(left_count,right_count).
