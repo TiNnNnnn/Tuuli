@@ -172,40 +172,52 @@ Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,
 # DIRECT(expression-rewrite): Window items are an expression sequence just
 # like Compute and aggregate function lists. Lower one scalar subquery while
 # preserving the exact partition/order metadata and Window shell.
-# FormalSQL/Rocq accepted this RuleIR on 2026-09-04.
+# FORMALSQL_PROVED legacy_hash=f03b85207ada9a33; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 8e3cdd530ec7180c9abf7f8b244900db9cd15acdf08b51b2c65217268ff864a4. Generic WindowRows expression-list scalar-subquery bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;ExprListScalarSubquery(w1,p0,a2,a3,a4,a5,t2) := w0
+# FORMALSQL_PROVED legacy_hash=f23d59b80126349c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9402c987a306708964c9a2ea8f59ccd75155a2c836c010be8eff5782b16a2094. Generic Window expression-list scalar-subquery bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListScalarSubquery(w1,p0,a2,a3,a4,a5,t2) := w0
 
 # The same Window sequence lowering handles boolean and quantified values;
 # their existing typed definitions retain empty-set and NULL semantics.
+# FORMALSQL_PROVED legacy_hash=9f11f6202c95bf22; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate b68417e78db5b15b3d9c80e09b0a58d0b0a99bedf0bbed7cb5646ae8a8b49ec1. Generic WindowRows expression-list EXISTS bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
+# FORMALSQL_PROVED legacy_hash=7c686f5f82593aa9; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate fd5695de2765059be24f2dd6d1249985c411ee3282f15946341b7fecaca33e07. Generic Window expression-list EXISTS bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
+# FORMALSQL_PROVED legacy_hash=f11d3d635df680f1; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 1e9bdf1a169f97c1c96c458fe5d99d5c589e40dcf27d18324856ae0cfea77030. Generic WindowRows expression-list NOT EXISTS bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
+# FORMALSQL_PROVED legacy_hash=dfff717b90ec9b44; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 70930bf584193c683882b2c97fc0991d5e0201d7ca9920230a44c6817f2528a5. Generic Window expression-list NOT EXISTS bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
+# FORMALSQL_PROVED legacy_hash=7566dae00dc6d4e8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 64ef9a0228b2b8ff842cd8a5984dcb7201dbf69916b641f308ca6dc8857bab9a. Generic WindowRows expression-list ANY bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAny(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
+# FORMALSQL_PROVED legacy_hash=4ba0126c0a78bc91; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 72ad74303e1fd49f3dce8586e5f37e629801f6ab47ca2d076337f3c6ed209ba0. Generic Window expression-list ANY bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAny(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
+# FORMALSQL_PROVED legacy_hash=07f25b3eeffd351d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ade932772859db85c098d2eab81039021d5483a7cfcfe1c252e75b1d79ece5fd. Generic WindowRows expression-list ALL bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAll(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
+# FORMALSQL_PROVED legacy_hash=1f6707057417dec8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ee019d9c4b323580ea2c2e59424e8f69aa556c8fe880a97f65b7ec9557048b65. Generic Window expression-list ALL bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAll(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
-
 # DIRECT(expression-rewrite): lower one EXISTS value in a Compute list.  The
 # explicit TRUE marker and LIMIT preserve false-on-empty semantics without a
 # production Project2Apply bridge. FormalSQL/Rocq accepted this RuleIR on
 # 2026-09-02.
+# FORMALSQL_PROVED legacy_hash=90eaf89ab7073da9; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 6f5ac7eb1a9b948cb390226651181d4de57ca6c4628d78c16d4e28407ed07126. Generic Compute expression-list EXISTS bridge.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|t1 := t0;s1 := s0;a1 := a0;ExprListExists(e1,e2,a5,s2,p0,a2,a3,a4,a6,t2) := e0;ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): the opposite existential polarity shares the
 # same explicit marker carrier; only the expression-list definition negates
 # the false-on-empty result. FormalSQL/Rocq accepted this RuleIR on 2026-09-02.
+# FORMALSQL_PROVED legacy_hash=fcd1892c2f307f88; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate f8b97a426c41518f70f7f92585d5f3abb8e28f35ece35f1a8f4823c1eaaaf78e. Generic Compute expression-list NOT EXISTS bridge.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e2 a5 s2>(Input<t2>))))|t1 := t0;s1 := s0;a1 := a0;ExprListNotExists(e1,e2,a5,s2,p0,a2,a3,a4,a6,t2) := e0;ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value through the
 # correlated subplan carrier. The comparison remains explicit on LeftApply;
 # its origin metadata supplies SQL empty-set and NULL semantics.
+# FORMALSQL_PROVED legacy_hash=87d5046f7bba9255; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 6694de7f4baa44dc9ee8f6988539fd4c17f76f754833b980f3e361312b29f2d4. Generic Compute expression-list ANY bridge.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|t1 := t0;s1 := s0;a1 := a0;ExprListAny(e1,e2,a5,s2,p0,a2,a3,a4,a6,t2) := e0
 
 # DIRECT(expression-rewrite): ALL shares the same visible carrier and differs
 # only in quantified polarity. FormalSQL/Rocq accepted both RuleIR forms on
 # 2026-09-02.
+# FORMALSQL_PROVED legacy_hash=003fd4bed9413010; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate f00e1bdde9ddee0261966cf2337d64695ecb48de9bdb5af0d12a353192cefbe5. Generic Compute expression-list ALL bridge.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e2 a5 s2>(Input<t2>)))|t1 := t0;s1 := s0;a1 := a0;ExprListAll(e1,e2,a5,s2,p0,a2,a3,a4,a6,t2) := e0
 
 # DIRECT(expression-rewrite): lower one EXISTS value anywhere inside a Filter
@@ -531,6 +543,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a5>(Input<t1>)
 # Typed binding: derive conjunction safety from its leaves; retain the exact
 # local/outer dependency partition checked by the Filter builder.
 # FormalSQL OUTCOME_EQ (rooted attributes and context-local safety): a9ad47ce7c56a770c9ebe19e705dd07956fbb20b32d602466452a0f5ef0d632e
+# FORMALSQL_PROVED legacy_hash=7c68bb1fdb16fe65; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate b481fbd2d6d78b3525a6cbc99a616c1ad440b0e1add867dbe931107a6e37f74a. Generic nested-filter conjunction.
 Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := t0;p2 := And(p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the single correlated-Filter decorrelation domain of
@@ -556,6 +569,7 @@ Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1
 # legacy OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
 # FormalSQL/Rocq OUTCOME_EQ: inverse Compute/Filter movement uses the same
 # shared structural proof and typed alias closure.
+# FORMALSQL_PROVED legacy_hash=75cf2193e89d4afe; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 611ce689dd900937f47527def17f3f27c08a63d357fbf209907c7c688d662779. Generic Compute/Filter movement.
 Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := s0;e1 := e0;ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
@@ -563,6 +577,7 @@ Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5
 # new grouping columns is intentionally a separate schema-construction domain.
 # FormalSQL/Rocq BAG_EQ: the generic aggregate/filter movement theorem is
 # kernel-checked with typed symbol bindings; no rule-specific lemma is used.
+# FORMALSQL_PROVED legacy_hash=acc0381a6ee39104; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate 50b5910eb54e5ff2baf0583af2bbd5975dcb7aa024015219b205931d3800d960. Generic aggregate/filter movement.
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
