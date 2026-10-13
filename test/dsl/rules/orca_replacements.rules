@@ -1,9 +1,11 @@
 # Native FormalSQL OUTCOME_EQ: compose captured grouping-column projections
 # through DISTINCT support; retain arbitrary child queries and their errors.
+# FORMALSQL_PROVED legacy_hash=81e937ce3b542473; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate e8c42bf9a15d49d69c2f6a376132c0b8f5e9e3d9ca584b29690533c56016a7c8. Generic structural projection composition.
 Proj*<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,s0);t1 := t0;a2 := a1;s2 := s1
 
 # Native FormalSQL OUTCOME_EQ: exact output columns are captured from the set
 # producer; both input maps remain explicit and arbitrary subqueries stay opaque.
+# FORMALSQL_PROVED legacy_hash=08733bf6fdba832c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 39e9dc9f8bf2443dd4087706f51ed3f0b190ada6fe242e21074d8369c1e8420e. Generic set-output projection contract.
 Union*<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj*<a3 s1>(Union<a4 s2 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;a3 := a0;s1 := s0;a4 := a0;s2 := s0;a5 := a1;a6 := a2
 
 # Replace CXformIntersect2Join. Four-symbol SetOp bindings preserve each
@@ -65,25 +67,30 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e0,e1) a2 s2>
 
 # FormalSQL OUTCOME_EQ: native IN shares the quantified support observer;
 # preserve the comparison carrier and exact selected output column.
+# FORMALSQL_PROVED legacy_hash=4f678f34086c5cd7; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 43acc55ed6bd05ab0c275a7b96ed5fc8b729a7f4e00b90ad979e81f7df188ab9. Generic IN-subquery metadata preservation.
 InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;a2 := a0;a3 := a1;s1 := s0
 
 # FormalSQL OUTCOME_EQ: DISTINCT is unobserved by existential demand.
 # New bindings retain the scalar EXISTS tree; unnesting remains a separate rule.
+# FORMALSQL_PROVED legacy_hash=bc2d97446eab95bb; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 79c743fc77e5e2f3d9ca584b29690533c56016a7c8. Generic existential projection observation.
 Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0
 
+# FORMALSQL_PROVED legacy_hash=34dcead32519d2dd; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 2557fc5704e448238499948f21bcf62f86082a79f0a7314ed61fee48f574f243. Generic NOT EXISTS projection observation.
 NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0
 
 # Native FormalSQL OUTCOME_EQ: existential demand ignores the entire key-only
 # dedup projection, not just DISTINCT. Expose the arbitrary child directly so
 # the explicit Filter-to-Apply rules can continue without legacy unnesting.
-# Semi certificate: cee0cc70c7688b8e10da7b62d257957c13903ce06f6b7a9d8d0ae00a19c55669
+# FORMALSQL_PROVED legacy_hash=c5f8a0d48bd0caa0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate d134c6d6755786586338b082e7415ec175ea2e2a77d9eb741a2ba0f0d921fca0. Generic EXISTS projection erasure.
 Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
-# Anti certificate: afe4d4702b1499749cc4d3fc55add354e11c8b522c031a69ff4156c4d79dffb1
+# FORMALSQL_PROVED legacy_hash=122614492e52a90e; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 946e99ca2834239014258321c165b4b7a0cba4c27c5cb2c11581af7fc17846f5. Generic NOT EXISTS projection erasure.
 NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
 
 # FormalSQL OUTCOME_EQ: quantified truth depends on support, not multiplicity.
+# FORMALSQL_PROVED legacy_hash=2849a93909743846; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate aa863d3c86cd46361dd78c65b30d72878ea07c562c30dfe7f808c540185246b3. Generic quantified-support projection contract.
 Any<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|Any<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
 
+# FORMALSQL_PROVED legacy_hash=6c2c9e08ef81ce6a; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 073eea39221243d09c8c54474a29da53453b51049188b9596ab696a7264ee6e4. Generic universal-support projection contract.
 All<p0 a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|All<p1 a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;s1 := s0
 
 # Native FormalSQL OUTCOME_EQ: split any safe conjunction, including prefixes
@@ -97,7 +104,7 @@ Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t1>))|t1 := t
 # Native FormalSQL OUTCOME_EQ: existential demand ignores a non-row-expanding
 # Compute's SELECT values, including errors. Keep the arbitrary child intact;
 # a Filter below it still controls demand and can feed explicit Apply lowering.
-# Semi certificate: bbf73e7cddf2a9394b652669129f830691771f45ad5d87eb09259587304669b7
+# FORMALSQL_PROVED legacy_hash=0e9d354269094743; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate af0203e55efce002654e704faeee9fe7e51f42097d21de98cf4b96c820e5e559. Generic existential Compute elision.
 Exists(Input<t0>,Compute<e0 a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 # Anti certificate: ce0202be2024a6e83125cf00b532940a27adc645557f4f4c913649380015af55
 NotExists(Input<t0>,Compute<e0 a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
@@ -114,9 +121,9 @@ NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2
 # Native FormalSQL OUTCOME_EQ: lower the complete existential input to Apply.
 # Zero-symbol Apply has TRUE ON; correlation remains inside its arbitrary right
 # child. Projection removal is a separate rule, not hidden in construction.
-# Semi certificate: 63fc658c843f7fc89483e9ae572d83565188ffb70a80e07742fefa3dc0df9042
+# FORMALSQL_PROVED legacy_hash=e2e072406216a7c4; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ec89c67b518aec7c6d8d36129337f43e0da6d040acfce2c40037f91bc2424b6e. Generic EXISTS-to-SemiApply observation.
 Filter<Exists(t1) a0 a1>(Input<t0>)|SemiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
-# Anti certificate: c43d5eb360be1966bba2e598df53b16496b1e15b76694778d664bada4d90314a
+# FORMALSQL_PROVED legacy_hash=60220412bc8838da; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate d8f60fdf542308bdcbedc365095f393af43a56a9cc086964c5f927cb9689c0d1. Generic NOT EXISTS-to-AntiApply observation.
 Filter<Not(Exists(t1)) a0 a1>(Input<t0>)|AntiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 
 # Native FormalSQL OUTCOME_EQ: capture the quantified comparison and scalar
@@ -138,11 +145,13 @@ Filter<All(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|All<p1 a3>(Input<t2>,Input<t
 # DIRECT(expression-rewrite): typed quantifier matching captures the source
 # comparison, value list, output attributes and query; the target rebuilds the
 # comparison and reuses those typed captures through ordinary aliases.
+# FORMALSQL_PROVED legacy_hash=b1d9ece967912f1c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 14f68317a41320c300bf2cc11d59afd004b8a14a8bd275d0cf7d0805cdc890ae. Generic typed ANY bridge.
 Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;Any(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
 
 # DIRECT(expression-rewrite): PredicateAll shares quantified comparison
 # decomposition with ANY while preserving NULL-aware ALL semantics.
 # The same typed-bridge compatibility boundary applies as for ANY above.
+# FORMALSQL_PROVED legacy_hash=a08e24d9155e2f5c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9883251f9f6b343cbfd4159809e17beb4912e6786e87b53c800b653c06b67125. Generic typed ALL bridge.
 Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;All(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
@@ -152,10 +161,12 @@ Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|t1 := t0;P
 # DIRECT(expression-rewrite): lower one scalar subquery anywhere inside a
 # Filter predicate while preserving the residual expression. This is the
 # scalar sibling of the existing existential and quantified definitions.
+# FORMALSQL_PROVED legacy_hash=6490d4785018f47f; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate e6f1a5b4125cb0a07c3d1a2f320093830c50d5c15fbfa688ec55d26767be4c89. Generic expression-list scalar-subquery bridge.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
 # FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
+# FORMALSQL_PROVED legacy_hash=7528e2c005916182; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 05703279dbe16a6eebba28db218e3fca4baba8e3d53981d582af89b79f86eeab. Generic expression-list scalar-subquery bridge.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;s1 := s0;a1 := a0;ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0
 
 # DIRECT(expression-rewrite): Window items are an expression sequence just
@@ -259,8 +270,8 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJo
 Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);t2 := t0;t3 := t1;a5 := a1;a6 := a0;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s2 := s1
 
 # Preserve the predicate-only semi-join domain (no extractable equality key).
-# SYNTAX_ONLY legacy_hash=28b86d7a3ca3ef1b; native expression proof: UNKNOWN (native semi-join/dedup proof pending).
-Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);t2 := t0;t3 := t1;p1 := p0;a4 := a1;a5 := a2;a3 := a0;s1 := s0
+# FORMALSQL_PROVED legacy_hash=b9355da14af5a789; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate 92c29eff6699c14a1a5fe349a9183f016c8cb2a4848f1f8a769c69f5ba96d463. The generic DISTINCT semi-join observation contract covers the EXISTS/INNER JOIN lowering under explicit predicate safety.
+Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);t2 := t0;t3 := t1;p1 := p0;a4 := a1;a5 := a2;a3 := a0;s1 := s0;ErrorFree(p0);Deterministic(p0)
 
 # A unique inner join key is sufficient for pure outer-key grouping pushdown:
 # unmatched outer keys disappear on both sides, so no Reference premise is needed.
@@ -333,14 +344,15 @@ AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
 # column-remapped inline definition; the same rule composes under Filter.
-# Native FormalSQL OUTCOME_EQ; eligibility and column remapping remain
-# enforced by the CTE source matcher, not by a free equivalence assumption.
+# Native eligibility and column remapping remain enforced by the CTE source
+# matcher, not by a free equivalence assumption.
+# FORMALSQL_PROVED legacy_hash=f2116d97cabfa066; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate 11800464b25c56047adbfaad763eb188eebb80ae6800f70885e66fd4ea8b0d90. Generic transparent CTE consumer observation.
 CTEConsumer<t0>|Input<t1>|t1 := t0
 
 # Replace CXformCTEAnchor2TrivialSelect after every consumer is eligible for
 # inlining. The source-only anchor has the same relational result as its child;
 # the matcher retains ORCA's consumer-count, outer-reference and safety gates.
-# FormalSQL/Rocq: OUTCOME_EQ, verified 2026-09-29, native transparent scope.
+# FORMALSQL_PROVED legacy_hash=e3e3886bcb546d48; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate b9f7c1e5a528aad6dcc9fcb2e291ff991a359310accbde7895ba3cfa6a5c7f54. Generic transparent CTE anchor observation.
 CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 
 # Replaces CXformLeftSemiApply2LeftSemiJoinNoCorrelations. SemiApply exposes

@@ -3495,6 +3495,19 @@ class TraceFrameworkTest(unittest.TestCase):
                 captured = set(re.findall(r'\b[a-z]\d+\b', source))
                 defined = set()
                 legacy = []
+                # Typed ANY/ALL decomposition is the canonical spelling of the
+                # old PredicateAny/All bridge.  Keep this identity check
+                # structural: the target quantifier supplies the output
+                # predicate/attrs/table, while the binding carries the source
+                # predicate and ordered comparison arguments.
+                quantifier = re.fullmatch(
+                    r'(Any|All)<(p\d+) (a\d+)>\(Input<(t\d+)>,Input<(t\d+)>\)', target)
+                source_filter = re.fullmatch(
+                    r'Filter<(p\d+) [^>]+>\(Input<(t\d+)>\)', source)
+                quantified_outputs = set()
+                if quantifier and source_filter:
+                    quantified_kind, target_predicate, target_attrs, _, target_table = quantifier.groups()
+                    source_predicate, _ = source_filter.groups()
                 nulls = dict(re.findall(r'(e\d+) := ExprNulls\((a\d+)\)', clauses))
                 list_outputs = dict((expr, attrs) for attrs, expr in
                                     re.findall(r'OutputAttrs\((a\d+),(e\d+)\)', clauses))
@@ -3513,6 +3526,21 @@ class TraceFrameworkTest(unittest.TestCase):
                         metadata = re.fullmatch(r'(?:AttrsUnion|SchemaFromAttrs)\(([as]\d+),.*\)', clause)
                         if metadata:
                             defined.add(metadata[1])
+                        continue
+                    quantified = re.fullmatch(r'(Any|All)\(([^()]*)\) := (p\d+)', clause)
+                    if quantified:
+                        kind, _, carrier = quantified.groups()
+                        self.assertIsNotNone(quantifier, 'typed quantifier needs a quantified target')
+                        self.assertIsNotNone(source_filter, 'typed quantifier needs a source filter')
+                        self.assertEqual(kind, quantified_kind)
+                        self.assertEqual(carrier, source_predicate)
+                        legacy.append(
+                            f'Predicate{kind}({source_predicate},{target_predicate},'
+                            f'{target_attrs},{target_table})')
+                        quantified_outputs.update((target_predicate, target_attrs, target_table))
+                        continue
+                    comparison = re.fullmatch(r'(p\d+) := Compare\(([^()]*)\)', clause)
+                    if comparison and comparison.group(1) in quantified_outputs:
                         continue
                     null_constructor = re.fullmatch(r'(e\d+) := ExprNulls\((a\d+)\)', clause)
                     if null_constructor:
@@ -3567,6 +3595,8 @@ class TraceFrameworkTest(unittest.TestCase):
                     ref = re.fullmatch(r'([a-z]\d+) := ([a-z]\d+)', clause)
                     self.assertIsNotNone(ref, 'syntax migration must retain the legacy definition')
                     lhs, rhs = ref.groups()
+                    if lhs in quantified_outputs:
+                        continue
                     self.assertNotIn(lhs, captured | defined)
                     self.assertIn(rhs, captured | defined)
                     self.assertEqual(lhs[0], rhs[0])
