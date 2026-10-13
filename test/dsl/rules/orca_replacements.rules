@@ -604,12 +604,14 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # The outer grouping may be any subset of the UnionAll row. Explicit output
 # bindings preserve the reduced target schema and set-op position maps. This
 # exact RuleIR was proved OUTCOME_EQ by FormalSQL/Rocq on 2026-09-29.
+# FORMALSQL_PROVED legacy_hash=087956dddbb45aec; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate e870cb67b84ffffc27c136b1f67c62afd1ddc6fd1f89107ada7a3470635f0fee. Generic projection pushdown over UNION ALL.
 Proj*<a0 s0>(Union<a1 s1 a10 a11>(Input<t0>,Input<t1>))|Union*<a2 s2 a12 a13>(Proj*<a3 s3>(Input<t2>),Proj*<a4 s4>(Input<t3>))|AttrsSub(a0,a1);AttrsSub(a0,s1);t2 := t0;t3 := t1;a2 := a0;s2 := s0;a3 := a0;s3 := s0;a4 := a0;s4 := s0;a12 := a0;a13 := a0
 
 # Replaces the pure-grouping domain of CXformPushGbBelowUnion. The outer
 # grouping may be any subset of the Union distinct row; explicit output
 # bindings preserve the reduced target schema and set-op position maps. This
 # exact RuleIR was proved OUTCOME_EQ by FormalSQL/Rocq on 2026-09-29.
+# FORMALSQL_PROVED legacy_hash=d76f474be0b3a964; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 3f3b05abb73e92892e3fdd3c54654bc6279dff8ba72ef100b81104c335cbb145. Generic projection pushdown over UNION DISTINCT.
 Proj*<a0 s0>(Union*<a1 s1 a10 a11>(Input<t0>,Input<t1>))|Union*<a2 s2 a12 a13>(Proj*<a3 s3>(Input<t2>),Proj*<a4 s4>(Input<t3>))|AttrsSub(a0,a1);AttrsSub(a0,s1);t2 := t0;t3 := t1;a2 := a0;s2 := s0;a3 := a0;s3 := s0;a4 := a0;s4 := s0;a12 := a0;a13 := a0
 
 # Rules in this file exist only to replace native ORCA logical xforms. Each
