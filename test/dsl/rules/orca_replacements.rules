@@ -106,7 +106,7 @@ Filter<And(p0,p1) a0>(Input<t0>)|Filter<p2 a1>(Filter<p3 a2>(Input<t1>))|t1 := t
 # a Filter below it still controls demand and can feed explicit Apply lowering.
 # FORMALSQL_PROVED legacy_hash=0e9d354269094743; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate af0203e55efce002654e704faeee9fe7e51f42097d21de98cf4b96c820e5e559. Generic existential Compute elision.
 Exists(Input<t0>,Compute<e0 a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
-# Anti certificate: ce0202be2024a6e83125cf00b532940a27adc645557f4f4c913649380015af55
+# FORMALSQL_PROVED legacy_hash=4206cdd3c5c54551; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-14; certificate 5f79cd820dc445b3d71b526e5d8bf4fb445391a6f84e5d018d63b401a6732bee. Generic NOT EXISTS Compute elision.
 NotExists(Input<t0>,Compute<e0 a0 s0>(Input<t1>))|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 
 # Native FormalSQL OUTCOME_EQ: lower existential Filters with arbitrary inputs.
