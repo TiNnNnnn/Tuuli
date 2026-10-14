@@ -6,9 +6,6 @@
     ],
     "scope": "key-backed pure dedup",
     "status": "verified_partial_replacement",
-    "dsl_rules": [
-      101
-    ],
     "dsl_rule_hashes": [
       "58483b210e2ba41f"
     ]
@@ -26,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"rule_id\":101,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
       ],
       "alternative": [
         "CXformSimplifyGbAgg",
@@ -51,7 +48,7 @@
         "CXformSimplifyGbAgg"
       ],
       "contains": [
-        "\"rule_id\":101,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

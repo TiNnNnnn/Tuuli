@@ -213,14 +213,24 @@ EresScalarSubqueryTotality()
 				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
 				"TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
 				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
-				"TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)"})
+				"TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)",
+				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
+				"t1 := t0;PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
+				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
+				"t1 := t0;ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0"})
 			{
 				CDSLRule *rule = PdslruleParseLocal(mp, text);
 				GPOS_UNITTEST_ASSERT(nullptr != rule);
 				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 				BindTableAndAttr(model, PsymByName(rule, "t0"), carrier,
 					PsymByName(rule, "a0"), (*columns)[0], mp);
-				GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), owner));
+				const BOOL matched = CDSLMatcher(mp, rule).FMatchExpression(
+					PsymByName(rule, "p0"), owner, model);
+				if (!matched)
+					GPOS_TRACE_FORMAT("scalar capture rows=%d shape=%d context=%d boolean=%d kind=%d rule=%s",
+						rows, shape, context, CDSLMatchView::FBooleanValue(owner),
+						PsymByName(rule, "p0")->Esymkind(), text);
+				GPOS_UNITTEST_ASSERT(matched);
 				if (context == 8)
 				{
 					// The original AND's other operand is no longer on the scalar

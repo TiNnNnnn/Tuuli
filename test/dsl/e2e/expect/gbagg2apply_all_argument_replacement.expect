@@ -7,7 +7,7 @@
     "scope": "A correlated ALL nested in CASE inside an aggregate argument",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "408c56805b8331e3"
+      "66d3c2186fa57f1f"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"408c56805b8331e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"66d3c2186fa57f1f\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"408c56805b8331e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"66d3c2186fa57f1f\""
       ],
       "provenance": {
         "required_sources": [

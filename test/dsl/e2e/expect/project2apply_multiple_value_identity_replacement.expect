@@ -8,11 +8,11 @@
     "scope": "Scalar, EXISTS, NOT EXISTS, ANY, and ALL in one Project value list",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "a056c759abf830fa",
-      "35dac6f7d7100c99",
-      "afceff121763c938",
-      "1cbd8ca377872455",
-      "95285cf2d50dc210"
+      "5fa029945ad6953b",
+      "74d29836fcf3a2f2",
+      "6a126177c924c309",
+      "6b57425ad510f91a",
+      "3a779f2b6c2bb335"
     ]
   },
   "plans": [
@@ -33,10 +33,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"a056c759abf830fa\"",
-        "\"status\":\"applied\",\"rule_hash\":\"35dac6f7d7100c99\"",
-        "\"status\":\"applied\",\"rule_hash\":\"afceff121763c938\"",
-        "\"status\":\"applied\",\"rule_hash\":\"1cbd8ca377872455\""
+        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\"",
+        "\"status\":\"applied\",\"rule_hash\":\"6a126177c924c309\"",
+        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -66,11 +66,11 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"a056c759abf830fa\"",
-        "\"status\":\"applied\",\"rule_hash\":\"35dac6f7d7100c99\"",
-        "\"status\":\"applied\",\"rule_hash\":\"afceff121763c938\"",
-        "\"status\":\"applied\",\"rule_hash\":\"1cbd8ca377872455\"",
-        "\"status\":\"applied\",\"rule_hash\":\"95285cf2d50dc210\""
+        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\"",
+        "\"status\":\"applied\",\"rule_hash\":\"6a126177c924c309\"",
+        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3a779f2b6c2bb335\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

@@ -1,13 +1,13 @@
 # Keep the Project2Apply family causal: only proved direct rules may run.
 - rule: '*'
   enabled: false
-- rule: a056c759abf830fa
+- rule: 5fa029945ad6953b
   enabled: true
-- rule: 35dac6f7d7100c99
+- rule: 74d29836fcf3a2f2
   enabled: true
-- rule: afceff121763c938
+- rule: 6a126177c924c309
   enabled: true
-- rule: 1cbd8ca377872455
+- rule: 6b57425ad510f91a
   enabled: true
-- rule: 95285cf2d50dc210
+- rule: 3a779f2b6c2bb335
   enabled: true

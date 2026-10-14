@@ -7,7 +7,7 @@
     "scope": "independent total deterministic row-scalar project lists; SRFs retain legacy coverage",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8c88a4df159bc8be"
+      "9e60317f8331f45a"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+        "\"status\":\"applied\",\"rule_hash\":\"9e60317f8331f45a\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+        "\"status\":\"applied\",\"rule_hash\":\"9e60317f8331f45a\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
