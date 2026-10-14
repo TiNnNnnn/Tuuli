@@ -11,7 +11,7 @@
       "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"a056c759abf830fa\""
+        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\""
       ],
       "not_contains": [
         "Falling back to Postgres"

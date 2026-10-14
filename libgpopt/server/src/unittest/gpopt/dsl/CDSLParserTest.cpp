@@ -651,6 +651,64 @@ EresExpressionBindings()
 	}
 	return GPOS_OK;
 }
+GPOS_RESULT
+EresExpressionListObservations()
+{
+	CAutoMemoryPool amp;
+	auto *mp = amp.Pmp();
+	const CHAR *sources[] = {
+		"Filter<p0 a0>(Input<t0>)", "Compute<e0 a0 s0>(Input<t0>)",
+		"Agg<a0 a1 f0 s0 p0>(Input<t0>)", "WindowRows<a0 o0 w0>(Input<t0>)"};
+	const CHAR *targets[] = {
+		"Filter<p1 a1>", "Compute<e1 a1 s1>",
+		"Agg<a2 a3 f1 s1 p1>", "WindowRows<a1 o1 w1>"};
+	const CHAR *inputs[] = {"p0", "e0", "f0", "w0"};
+	const CHAR *outputs[] = {"p1", "e1", "f1", "w1"};
+	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(sources); ++i)
+	{
+		for (const CHAR *name : {"ExprListScalarSubquery", "ExprListExists",
+								"ExprListNotExists", "ExprListAny", "ExprListAll"})
+		{
+			const BOOL scalar = std::string(name) == "ExprListScalarSubquery";
+			const std::string prefix = std::string(sources[i]) + "|" + targets[i] +
+				"(LeftApply<p2 a4 a5 a6>(Input<t1>," +
+				(scalar ? "Input<t2>" : "Compute<e2 a8 s2>(Input<t2>)") + "))|t1 := t0;";
+			const std::string operands = std::string(outputs[i]) +
+				(scalar ? "" : ",e2,a8,s2") +
+				",p2,a4,a5,a6,a7,t2";
+			const std::string old = prefix + name + "(" + inputs[i] + "," + operands + ")";
+			const std::string typed = prefix + name + "(" + operands + ") := " + inputs[i];
+			auto *legacy = Parse(mp, old.c_str());
+			auto *binding = Parse(mp, typed.c_str());
+			const BOOL equal = nullptr != legacy && nullptr != binding &&
+				std::string(legacy->SzIdentity()) == binding->SzIdentity();
+			CRefCount::SafeRelease(legacy);
+			CRefCount::SafeRelease(binding);
+			if (!equal)
+			{
+				CWStringConst message(mp, typed.c_str());
+				GPOS_TRACE(message.GetBuffer());
+				return GPOS_FAILED;
+			}
+			for (const std::string &invalid : {
+				prefix + name + "(" + outputs[i] + ") := " + inputs[i],
+				prefix + name + "(" + operands + ") := t0",
+				prefix + name + "(" + operands + ") := " + outputs[i],
+				prefix + inputs[i] + " := " + name + "(" + operands + ")"})
+			{
+				auto *bad = Parse(mp, invalid.c_str());
+				if (nullptr != bad)
+				{
+					CWStringConst message(mp, invalid.c_str());
+					GPOS_TRACE(message.GetBuffer());
+					bad->Release();
+					return GPOS_FAILED;
+				}
+			}
+		}
+	}
+	return GPOS_OK;
+}
 }  // namespace
 
 GPOS_RESULT
@@ -660,6 +718,7 @@ CDSLParserTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresSurfaceEquality),
 		GPOS_UNITTEST_FUNC(EresInlineExpressions),
 		GPOS_UNITTEST_FUNC(EresExpressionBindings),
+		GPOS_UNITTEST_FUNC(EresExpressionListObservations),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Aliases),

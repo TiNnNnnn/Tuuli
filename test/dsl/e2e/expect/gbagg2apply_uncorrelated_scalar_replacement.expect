@@ -7,7 +7,7 @@
     "scope": "An uncorrelated scalar value in an aggregate argument",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "f9604598d1f90b12"
+      "681e9f9f6c324774"
     ]
   },
   "plans": [
@@ -54,7 +54,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"f9604598d1f90b12\""
+        "\"status\":\"applied\",\"rule_hash\":\"681e9f9f6c324774\""
       ],
       "provenance": {
         "required_sources": [

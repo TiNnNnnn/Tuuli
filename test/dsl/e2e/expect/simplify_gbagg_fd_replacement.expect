@@ -7,7 +7,7 @@
     "scope": "Full native promise, together with the key-backed pure-dedup companion case",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "befd5438940263e7"
+      "370a2c46d44f4924"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"befd5438940263e7\""
+        "\"status\":\"applied\",\"rule_hash\":\"370a2c46d44f4924\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
@@ -47,7 +47,7 @@
         "CXformSimplifyGbAgg"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"befd5438940263e7\""
+        "\"status\":\"applied\",\"rule_hash\":\"370a2c46d44f4924\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

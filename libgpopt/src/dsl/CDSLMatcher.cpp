@@ -156,7 +156,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 								: !model->FBind(symbol, expression)) return false;
 	}
 	const auto *def = definitions->Pdef(symbol);
-	if (nullptr == def)
+	// Legacy observations are validated by the constraint checker, not patterns.
+	if (nullptr == def || CDSLExpressionDefinitions::ELegacy == def->Binding())
 	{
 		// Opaque captures retain the complete tree, including subqueries. Only
 		// explicit constructors decompose it; movement still needs the rule's

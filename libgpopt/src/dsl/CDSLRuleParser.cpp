@@ -1537,7 +1537,48 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 			{
 				pfrag_tgt = PfragBuild(bctx, frags[1], EdslsideTarget);
 			}
-			if (nullptr != pfrag_tgt &&
+			// These multi-output observations already have a checked runtime
+			// adapter. Keep both spellings on that path, not scalar constructors.
+			// shortcut: retain legacy IR until explicit capture/build replaces these observations.
+			if (nullptr != pfrag_tgt && nullptr != tree->constraints())
+			{
+				std::string clauses;
+				BOOL loweredObservation = false;
+				for (auto *child : tree->constraints()->children)
+				{
+					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
+					auto *call = nullptr == binding ? nullptr : binding->call();
+					const auto kind = nullptr == call ? EdslconSentinel :
+						CDSLConstraintKindTable::Parse(call->ID()->getText().c_str());
+					const BOOL observation = EdslconExprListScalarSubquery == kind ||
+						EdslconExprListExists == kind || EdslconExprListNotExists == kind ||
+						EdslconExprListAny == kind || EdslconExprListAll == kind;
+					if (!observation)
+					{
+						clauses += child->getText();
+						continue;
+					}
+					const auto input = bctx.symtab.find(binding->SYMBOL(0)->getText());
+					if (binding->getStart()->getType() != dsl::DSLRuleParser::ID ||
+						input == bctx.symtab.end() || EdslsideSource != input->second->Eside())
+					{
+						bctx.Fail("expression-list observation requires a captured source input");
+						break;
+					}
+					clauses += call->ID()->getText() + "(" + binding->SYMBOL(0)->getText();
+					for (auto *operand : call->SYMBOL()) clauses += "," + operand->getText();
+					clauses += ")";
+					loweredObservation = true;
+				}
+				if (loweredObservation && bctx.err.empty())
+				{
+					pfrag_src->Release();
+					pfrag_tgt->Release();
+					const std::string lowered = source + "|" + target + "|" + clauses;
+					return PdslruleParse(mp, lowered.c_str(), sz_verdict, pstrErr);
+				}
+			}
+			if (nullptr != pfrag_tgt && bctx.err.empty() &&
 				FDeclareBindings(bctx, tree->constraints(), pfrag_src,
 								 pfrag_tgt))
 			{

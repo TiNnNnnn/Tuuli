@@ -8,7 +8,7 @@
     "scope": "One correlated quantified ALL in a Project value context",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "95285cf2d50dc210"
+      "3a779f2b6c2bb335"
     ]
   },
   "plans": [
@@ -29,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"95285cf2d50dc210\""
+        "\"status\":\"applied\",\"rule_hash\":\"3a779f2b6c2bb335\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -59,7 +59,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"95285cf2d50dc210\""
+        "\"status\":\"applied\",\"rule_hash\":\"3a779f2b6c2bb335\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
