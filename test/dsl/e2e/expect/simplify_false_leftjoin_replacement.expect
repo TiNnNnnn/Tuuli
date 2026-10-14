@@ -1,5 +1,5 @@
 {
-  "description": "Proved Empty rules cover both direct and preprocessed constant-FALSE left joins",
+  "description": "Runtime Empty rewrites cover direct and preprocessed constant-FALSE left joins; native semantic proof remains pending",
   "replacement": {
     "xforms": [
       "CXformSimplifyLeftOuterJoin"
