@@ -29,6 +29,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/dsl/CDSLRulePrefixIndex.h"
@@ -298,6 +299,48 @@ EresAggregateExpressionBindings()
 //		CDSLAggTest::EresUnittest
 //---------------------------------------------------------------------------
 static GPOS_RESULT
+EresAggregatePlanMetadata()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG distinct = 0; distinct < 2; ++distinct)
+	{
+		CExpression *get = nullptr, *aggregate = nullptr;
+		if (distinct)
+			BuildDistinctGbAgg(fix, false, &get, &aggregate);
+		else
+		{
+			CColRefArray *inputs = nullptr;
+			CColRef *output = nullptr;
+			BuildRealGbAgg(fix, &get, &aggregate, &inputs, &output);
+		}
+		CAutoRef<CExpression> get_owner(get), aggregate_owner(aggregate);
+		const auto json = CDSLPlanTemplate::Serialize(mp, aggregate);
+		GPOS_UNITTEST_ASSERT(json.find("\"aggregate_mdid\":\"0.2116.1.0\"") != std::string::npos);
+		GPOS_UNITTEST_ASSERT(json.find("\"aggregate_stage\":0,\"aggregate_kind\":0") != std::string::npos);
+		GPOS_UNITTEST_ASSERT(json.find(distinct ? "\"aggregate_distinct\":true" :
+			"\"aggregate_distinct\":false") != std::string::npos);
+		GPOS_UNITTEST_ASSERT(json.find("\"aggregate_star\":false,\"aggregate_split\":false") != std::string::npos);
+	}
+	CAutoRef<CExpression> count(CUtils::PexprCountStar(mp, fix.PexprLogicalGet("capture_count", 1)));
+	const auto json = CDSLPlanTemplate::Serialize(mp, count.Value());
+	GPOS_UNITTEST_ASSERT(json.find("\"aggregate_mdid\":\"0.2803.1.0\"") != std::string::npos);
+	GPOS_UNITTEST_ASSERT(json.find("\"aggregate_star\":true") != std::string::npos);
+	CAutoRef<CXformContext> context(GPOS_NEW(mp) CXformContext(mp));
+	CAutoRef<CXformResult> result(GPOS_NEW(mp) CXformResult(mp));
+	CAutoRef<CXformSplitGbAgg> split(GPOS_NEW(mp) CXformSplitGbAgg(mp));
+	split->Transform(context.Value(), result.Value(), count.Value());
+	CExpression *split_count = result->PexprNext();
+	GPOS_UNITTEST_ASSERT(nullptr != split_count);
+	const auto split_json = CDSLPlanTemplate::Serialize(mp, split_count);
+	GPOS_UNITTEST_ASSERT(split_json.find("\"aggregate_stage\":0") != std::string::npos);
+	GPOS_UNITTEST_ASSERT(split_json.find("\"aggregate_stage\":2") != std::string::npos);
+	GPOS_UNITTEST_ASSERT(split_json.find("\"aggregate_split\":true") != std::string::npos);
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresAggregateIdentityMetadata()
 {
 	CAutoMemoryPool amp;
@@ -483,6 +526,7 @@ CDSLAggTest::EresUnittest()
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresAggregateContexts),
 		GPOS_UNITTEST_FUNC(EresNamedAggregateStage),
+		GPOS_UNITTEST_FUNC(EresAggregatePlanMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateIdentityMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
