@@ -1,0 +1,7 @@
+experiment: scalar-group-boolean-context-source
+discover: false
+template_route: 1
+template_fingerprint: 52fd7d6f003cb151
+template_root: r
+template_bindings: true
+cardinalities:
