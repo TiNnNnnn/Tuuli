@@ -89,6 +89,29 @@ CDSLMatchTest::EresUnittest_ModelOptionalBindings()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
+	for (EDslSymbolKind kind : {EdslsymAttrs, EdslsymSchema})
+	{
+		CDSLSymbol *key = GPOS_NEW(mp) CDSLSymbol(mp, kind, "columns", 0, EdslsideSource);
+		CDSLModel *columns_model = GPOS_NEW(mp) CDSLModel(mp);
+		CColRef *first = fix.PcrCreateInt4("first");
+		CColRef *second = fix.PcrCreateInt4("second");
+		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
+		columns->Append(first);
+		columns->Append(second);
+		GPOS_UNITTEST_ASSERT(columns_model->FBind(key, columns));
+		for (ULONG variant = 0; variant < 4; ++variant)
+		{
+			CColRefArray *other = GPOS_NEW(mp) CColRefArray(mp);
+			other->Append(1 == variant ? second : first);
+			if (2 != variant) other->Append(0 == variant ? second : first);
+			GPOS_UNITTEST_ASSERT((0 == variant) == columns_model->FBind(key, other));
+			GPOS_UNITTEST_ASSERT(columns == columns_model->PvalLookup(key));
+			other->Release();
+		}
+		columns->Release();
+		columns_model->Release();
+		key->Release();
+	}
 	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 	struct Binding
 	{

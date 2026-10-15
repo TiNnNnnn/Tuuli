@@ -289,8 +289,8 @@ Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4
 
 # A unique inner join key is sufficient for pure outer-key grouping pushdown:
 # unmatched outer keys disappear on both sides, so no Reference premise is needed.
-# FORMALSQL_PROVED legacy_hash=abbf8a73e6365f11; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-14; certificate d19b6a9bcf396d3e2b7199f7d9d95019777d8a39b1a52f8cf2a714cc0ea1cb6a. Generic right-unique DISTINCT/InnerJoin pushdown.
-Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a2,a0);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2;s1 := s0;a7 := a2;s2 := s0
+# FORMALSQL_PROVED legacy_hash=a0bd3992625cd272; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 2004d14e903d1459c5b3ff58bdc7408fe3fc5493507c3f8cb440855af4915283. Generic right-unique DISTINCT/InnerJoin pushdown; shared source key replaces previous legacy_hash abbf8a73e6365f11.
+Proj*<a0 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a0;s1 := s0;a7 := a0;s2 := s0
 
 # FORMALSQL_PROVED legacy_hash=43379498a899178d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-14; certificate 6ec275f61c85d754bced72150aac1cce244a0eaa2b90f6ebe50b50e713d337d9. Generic right-unique DISTINCT/InnerJoin pushdown with foreign-key bridge.
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2;s1 := s0;a7 := a2;s2 := s0

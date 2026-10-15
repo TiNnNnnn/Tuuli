@@ -7,7 +7,7 @@
     "scope": "Grouping is exactly the outer join key and the inner join key is unique",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "8508e8910d0784eb"
+      "cac130f7ae75f028"
     ]
   },
   "plans": [
@@ -22,8 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_push_gb_unique.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8508e8910d0784eb\""
+        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -47,8 +48,9 @@
       "disable_xforms": [
         "CXformPushGbBelowJoin"
       ],
+      "policy": "isolate_push_gb_unique.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8508e8910d0784eb\""
+        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
@@ -68,11 +70,16 @@
     "disable_xforms": [
       "CXformPushGbBelowJoin"
     ],
+    "policy": "isolate_push_gb_unique.policy",
     "output": [
       "1",
       "3"
     ],
     "postgres_output": [
+      "1",
+      "3"
+    ],
+    "off_output": [
       "1",
       "3"
     ]
