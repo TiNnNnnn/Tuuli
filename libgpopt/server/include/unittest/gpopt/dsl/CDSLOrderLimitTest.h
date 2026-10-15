@@ -16,6 +16,7 @@ public:
 	static GPOS_RESULT EresUnittest_SortOverLimitStaysNested();
 	static GPOS_RESULT EresUnittest_PlainLimitRejectsHiddenOrder();
 	static GPOS_RESULT EresUnittest_OffsetOnlyLimitRoundTrip();
+	static GPOS_RESULT EresUnittest_SliceObservationContracts();
 	static GPOS_RESULT EresUnittest_ExactOrderSpecRoundTrip();
 	static GPOS_RESULT EresUnittest_TargetScalarConstants();
 	static GPOS_RESULT EresUnittest_WindowRowsRoundTrip();

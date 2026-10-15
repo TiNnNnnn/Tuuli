@@ -1,0 +1,66 @@
+{
+  "description": "仅 OFFSET 的 EXISTS/NOT EXISTS 可以安全拆分并保留完整子树；不将输入行集合误判为可重复",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_complete_existential_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4f3da4063a3836ad\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d02e2eb78f0ff3b4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "scheduler": "cbo",
+          "src_rule": "4f3da4063a3836ad",
+          "dst_rule": "d02e2eb78f0ff3b4",
+          "target_path": "r/0",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        },
+        {
+          "scheduler": "cbo",
+          "src_rule": "4f3da4063a3836ad",
+          "dst_rule": "f7eadea871960968",
+          "target_path": "r",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_complete_existential_apply.policy",
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}

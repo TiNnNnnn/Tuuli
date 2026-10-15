@@ -8,6 +8,7 @@
 #include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -148,6 +149,7 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_PlainLimitRejectsHiddenOrder),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_OffsetOnlyLimitRoundTrip),
+		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_SliceObservationContracts),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_ExactOrderSpecRoundTrip),
 		GPOS_UNITTEST_FUNC(
@@ -966,6 +968,56 @@ CDSLOrderLimitTest::EresUnittest_OffsetOnlyLimitRoundTrip()
 	pexprLive->Release();
 	pexprGet->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_SliceObservationContracts()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("slice_observation", 1, &columns);
+	BOOL valid = true;
+	for (BOOL ordered : {false, true})
+	for (BOOL counted : {false, true})
+	for (LINT offset : {0, 1})
+	{
+		CExpression *slice = PexprLimit(mp, input,
+			ordered ? PosOne(mp, (*columns)[0], EdslsortAsc) : GPOS_NEW(mp) COrderSpec(mp),
+			counted, offset, 2);
+		for (BOOL deterministic : {false, true})
+		{
+			CDSLRule *rule = Prule(mp, deterministic
+				? "Input<t0>|Input<t1>|t1 := t0;Deterministic(t0)"
+				: "Input<t0>|Input<t1>|t1 := t0;ErrorFree(t0)");
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			CDSLMatcher matcher(mp, rule);
+			CDSLConstraintChecker checker(mp);
+			const BOOL expected = !counted && (!deterministic || 0 == offset);
+			const BOOL matched = nullptr != rule && matcher.FMatch(rule->PfragSrc()->PopRoot(), slice, model);
+			const BOOL checked = matched && checker.FCheck(rule, model);
+			if (!matched || checked != expected)
+				GPOS_TRACE_FORMAT("slice ordered=%d counted=%d offset=%lld deterministic=%d matched=%d checked=%d expected=%d",
+					ordered, counted, offset, deterministic, matched, checked, expected);
+			valid &= matched && checked == expected;
+			model->Release();
+			CRefCount::SafeRelease(rule);
+		}
+		// Existence observes the count, not which tuple an unordered slice retains.
+		if (!ordered)
+		{
+			slice->AddRef();
+			CExpression *exists = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubqueryExists(mp), slice);
+			valid &= dslproperties::FScalarTreeProvablyErrorFree(exists) &&
+				dslproperties::FScalarTreeProvablyDeterministic(exists);
+			exists->Release();
+		}
+		slice->Release();
+	}
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

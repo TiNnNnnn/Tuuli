@@ -3,6 +3,7 @@
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CUtils.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -132,7 +133,8 @@ FExistenceInputProvablySafe(CExpression *expr, BOOL deterministic = false)
 		CDSLMatchView::SOrderLimit view{};
 		if (!CDSLMatchView::FOrderLimit(expr, &view) || !view.m_pos->IsEmpty() ||
 			!FNonnegativeLimitBound(view.m_pexprOffset) ||
-			(view.m_fHasLimit && !FNonnegativeLimitBound(view.m_pexprCount))) return false;
+			(CLogicalLimit::PopConvert(expr->Pop())->FHasCount() &&
+			 !FNonnegativeLimitBound(view.m_pexprCount))) return false;
 		expr = view.m_pexprChild;
 	}
 	return FRelationalTreeProvablyErrorFree(expr, deterministic);
@@ -421,6 +423,11 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 				!view.m_pexprChild->Pop()->FLogical() ||
 				CLogicalLimit::PopConvert(pexpr->Pop())->FHasCount() ||
 				!FNonnegativeLimitBound(view.m_pexprOffset)) return false;
+			// Bag repeatability does not fix row order, even with tied sort keys.
+			// The bound check above has already validated these total casts.
+			CExpression *offset = view.m_pexprOffset;
+			while (COperator::EopScalarCast == offset->Pop()->Eopid()) offset = (*offset)[0];
+			if (deterministic && !CUtils::FScalarConstIntZero(offset)) return false;
 			return FRelationalTreeProvablyErrorFree(view.m_pexprChild, deterministic);
 		}
 		case COperator::EopLogicalGet:
