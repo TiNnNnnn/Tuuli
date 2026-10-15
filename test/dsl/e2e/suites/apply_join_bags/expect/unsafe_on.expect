@@ -1,0 +1,52 @@
+{
+  "description": "Reject Apply-to-Join when the ON expression lacks an error-freedom contract",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "rejected-source.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a8b0c58b00786b95\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"33d338572a52c831\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"33d338572a52c831\"",
+        "Falling back to Postgres",
+        "Xform: CXformInnerApply2InnerJoin\n",
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations\n"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

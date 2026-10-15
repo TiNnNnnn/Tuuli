@@ -590,7 +590,7 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "canonical rule text"):
                 check_native_routes(expected, "", Path(directory))
             self.assertEqual(check_native_routes(expected, output, Path(directory)), 1)
-            self.assertEqual(checker.call_args.kwargs, {"observe_compute": False})
+            self.assertEqual(checker.call_args.kwargs, {"observe_compute": False, "equivalence_mode": "OUTCOME_EQ"})
             args = checker.call_args.args
             self.assertEqual(args[:3], (canonical_rule, occurrence["snapshot"], occurrence["target_snapshot"]))
             with patch("run_e2e_cases.bind_source_captures", return_value={"checked_binding": True}) as binder:
@@ -598,7 +598,14 @@ class TraceFrameworkTest(unittest.TestCase):
                 binder.assert_called_once_with(occurrence["bindings"], {"manifest": True})
             self.assertEqual(check_native_routes(
                 {**expected, "native_observation": "all_source_outputs"}, output, Path(directory)), 1)
-            self.assertEqual(checker.call_args.kwargs, {"observe_compute": True})
+            self.assertEqual(checker.call_args.kwargs, {"observe_compute": True, "equivalence_mode": "OUTCOME_EQ"})
+            self.assertEqual(check_native_routes(
+                {**expected, "native_equivalence_mode": "BAG_EQ"}, output, Path(directory)), 1)
+            self.assertEqual(checker.call_args.kwargs, {"observe_compute": False, "equivalence_mode": "BAG_EQ"})
+            for options in ({"native_equivalence_mode": "UNKNOWN"},
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "all_source_outputs"}):
+                with self.assertRaisesRegex(ValueError, "unsupported native instance equivalence mode"):
+                    check_native_routes({**expected, **options}, output, Path(directory))
             with self.assertRaisesRegex(ValueError, "unknown native instance observation"):
                 check_native_routes({**expected, "native_observation": "computed_items_only"},
                                     output, Path(directory))
