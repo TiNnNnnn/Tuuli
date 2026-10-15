@@ -3,6 +3,7 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLStatsExperimentTest.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalGbAgg.h"
 
 #include <sstream>
 #include <cstdlib>
@@ -105,6 +106,20 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
 	BOOL valid = artifact.find(layout) != std::string::npos &&
 		artifact.find("\"relation_mdid\":") != std::string::npos &&
 		artifact.find("\"output\":[" + column((*cols)[0]) + ',' + column((*cols)[1]) + ']') != std::string::npos;
+	for (auto stage : {COperator::EgbaggtypeGlobal, COperator::EgbaggtypeLocal})
+	{
+		const BOOL duplicates = stage == COperator::EgbaggtypeLocal;
+		get->AddRef();
+		CExpression *aggregate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalGbAgg(mp, reversed(), stage, duplicates, nullptr),
+			get, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp)));
+		const std::string exported = CDSLPlanTemplate::Serialize(mp, aggregate);
+		valid &= exported.find("\"grouping_columns\":[" + column((*cols)[1]) + ',' + column((*cols)[0]) + ']') != std::string::npos &&
+			exported.find(stage == COperator::EgbaggtypeGlobal ? "\"aggregate_global\":true" : "\"aggregate_global\":false") != std::string::npos &&
+			exported.find(duplicates ? "\"generates_duplicates\":true" : "\"generates_duplicates\":false") != std::string::npos &&
+			exported.find("\"output_layout\":null") != std::string::npos;
+		aggregate->Release();
+	}
 	// Stored VALUES are ordered observations, not derived statistics. Preserve
 	// duplicates, NULLs and each datum's type rather than trusting the layout.
 	// A zero-column relation has a known empty layout, not an unknown layout.

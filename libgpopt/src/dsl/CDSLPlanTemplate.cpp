@@ -232,6 +232,13 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
+		if (const auto *aggregate = dynamic_cast<const CLogicalGbAgg *>(expr->Pop()))
+		{
+			*out << ",\"grouping_columns\":";
+			AppendColumns(mp, out, aggregate->Pdrgpcr());
+			*out << ",\"aggregate_global\":" << (aggregate->FGlobal() ? "true" : "false")
+				<< ",\"generates_duplicates\":" << (aggregate->FGeneratesDuplicates() ? "true" : "false");
+		}
 		if (const auto *get = dynamic_cast<const CLogicalGet *>(expr->Pop()))
 		{
 			layout = get->PdrgpcrOutput();
