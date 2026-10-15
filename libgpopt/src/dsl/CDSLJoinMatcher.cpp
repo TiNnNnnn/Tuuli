@@ -69,20 +69,18 @@ CDSLJoinMatcher::FDerivePredicateDependencies(
 
 namespace
 {
-// Return the already-bound source attrs connected to psymJoin by a direct
-// AttrsEq declaration. Target symbols and not-yet-bound source symbols do not
-// constrain this match. Multiple declarations are accepted only when they
-// agree on the same ordered column vector.
+// Repeated source symbols constrain the join directly; legacy AttrsEq peers
+// must agree with that binding and with each other.
 const CColRefArray *
-PdrgpcrEqualityPeer(const CDSLRule *prule, const CDSLSymbol *psymJoin,
+PdrgpcrExpectedJoinKeys(const CDSLRule *prule, const CDSLSymbol *psymJoin,
 					const CDSLModel *pmodel)
 {
+	const CColRefArray *pdrgpcrExpected = pmodel->PdrgpcrAttrs(psymJoin);
 	if (nullptr == prule)
 	{
-		return nullptr;
+		return pdrgpcrExpected;
 	}
 
-	const CColRefArray *pdrgpcrExpected = nullptr;
 	CDSLConstraintArray *pdrgpcon = prule->Pdrgpcon();
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
 	{
@@ -153,7 +151,7 @@ FColArraysEqual(const CColRefArray *pdrgpcrFirst,
 }
 
 // An inner join is commutative, but a BottomUp RBO sees only the translator's
-// chosen child order. An already-bound AttrsEq peer (typically a surrounding
+// chosen child order. Already-bound source attrs (typically a surrounding
 // Filter or Proj) tells us which child order the DSL source template expects.
 // Prefer the native order when both are possible; expose the commuted read-only
 // view only when the native orientation is incompatible and the reverse is
@@ -172,8 +170,8 @@ FJoinKeyOrientationCompatible(const CColRefArray *pdrgpcrExpectedLeft,
 
 // WeTune may match one equality edge of a join whose physical predicate has
 // several cross-child equalities. If a surrounding source operator has already
-// bound an AttrsEq peer, select the unique ordered edge subset compatible with
-// that peer. The complete predicate is still retained on the model, so
+// bound the key or an AttrsEq peer, select its unique ordered edge subset.
+// The complete predicate is still retained on the model, so
 // unselected equalities are never dropped by target construction.
 void
 NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
@@ -182,9 +180,9 @@ NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
 			   CColRefArray **ppdrgpcrRight)
 {
 	const CColRefArray *pdrgpcrExpectedLeft =
-		PdrgpcrEqualityPeer(prule, psymLeft, pmodel);
+		PdrgpcrExpectedJoinKeys(prule, psymLeft, pmodel);
 	const CColRefArray *pdrgpcrExpectedRight =
-		PdrgpcrEqualityPeer(prule, psymRight, pmodel);
+		PdrgpcrExpectedJoinKeys(prule, psymRight, pmodel);
 	if (nullptr == pdrgpcrExpectedLeft && nullptr == pdrgpcrExpectedRight)
 	{
 		return;
@@ -895,9 +893,9 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	if (fInner)
 	{
 		const CColRefArray *pdrgpcrExpectedLeft =
-			PdrgpcrEqualityPeer(m_prule, psymLeft, pmodel);
+			PdrgpcrExpectedJoinKeys(m_prule, psymLeft, pmodel);
 		const CColRefArray *pdrgpcrExpectedRight =
-			PdrgpcrEqualityPeer(m_prule, psymRight, pmodel);
+			PdrgpcrExpectedJoinKeys(m_prule, psymRight, pmodel);
 		const BOOL fDirect = FJoinKeyOrientationCompatible(
 			pdrgpcrExpectedLeft, pdrgpcrExpectedRight, pdrgpcrLeft,
 			pdrgpcrRight);

@@ -589,6 +589,10 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 	CRefCount *pvalExisting = m_phmSymToRef->Find(psym);
 	if (nullptr != pvalExisting)
 	{
+		// Matchers allocate fresh vectors for each occurrence of shared columns.
+		if (EdslsymAttrs == psym->Esymkind() || EdslsymSchema == psym->Esymkind())
+			return static_cast<CColRefArray *>(pvalExisting)->Equals(
+				static_cast<CColRefArray *>(pval));
 		if (EdslsymFrameBound == psym->Esymkind())
 		{
 			return static_cast<CDSLFrameBound *>(pvalExisting)->Matches(

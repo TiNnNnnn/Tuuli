@@ -168,7 +168,7 @@ public:
 	// bind a symbol to an artifact; AddRef's pval and takes ownership of that
 	// ref. Returns false if the symbol was already bound to a DIFFERENT value
 	// (WeTune's incompatible-reassignment failure); rebinding to the SAME value
-	// is a no-op success.
+	// is a no-op success. Column vectors compare ordered CColRef identities.
 	BOOL FBind(const CDSLSymbol *psym, CRefCount *pval);
 
 	// Bind a value produced by a constructive constraint and record its

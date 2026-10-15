@@ -11,6 +11,8 @@
 //---------------------------------------------------------------------------
 #include "unittest/gpopt/dsl/CDSLProjTest.h"
 
+#include "gpopt/operators/CPredicateUtils.h"
+
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -2122,13 +2124,18 @@ CDSLProjTest::EresUnittest_CollapseGbAggRuleBoundaries()
 	return eres;
 }
 
-GPOS_RESULT
-CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
+static GPOS_RESULT
+EresJoinKeyBinding(BOOL shared, BOOL reverse)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CDSLRule *prule = PdslruleParseLocal(mp, GPOPT_DSL_PROJ_REBIND_RULE);
+	CDSLRule *prule = PdslruleParseLocal(mp, shared
+		? "Proj<a0 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		  "Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|"
+		  "AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+		  "a3 := a0;a4 := a1;a5 := a0;s1 := s0"
+		: GPOPT_DSL_PROJ_REBIND_RULE);
 	GPOS_ASSERT(nullptr != prule);
 
 	CColRefArray *pdrgpcrLeft = nullptr;
@@ -2140,13 +2147,13 @@ CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
 	CExpressionArray *pdrgpexprEq = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprEq->Append(
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]));
-	pdrgpexprEq->Append(
-		fix.PexprEqPred((*pdrgpcrLeft)[1], (*pdrgpcrRight)[0]));
-	CExpression *pexprPred = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopAnd),
-		pdrgpexprEq);
-	CExpression *pexprJoin =
-		fix.PexprLogicalInnerJoin(pexprLeft, pexprRight, pexprPred);
+	if (!reverse)
+		pdrgpexprEq->Append(
+			fix.PexprEqPred((*pdrgpcrLeft)[1], (*pdrgpcrRight)[0]));
+	CExpression *pexprPred = CPredicateUtils::PexprConjunction(mp, pdrgpexprEq);
+	CExpression *pexprJoin = fix.PexprLogicalInnerJoin(
+		reverse ? pexprRight : pexprLeft, reverse ? pexprLeft : pexprRight,
+		pexprPred);
 
 	CColRefArray *pdrgpcrProject = GPOS_NEW(mp) CColRefArray(mp);
 	pdrgpcrProject->Append((*pdrgpcrLeft)[0]);
@@ -2174,7 +2181,7 @@ CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
 		{
 			eres = GPOS_FAILED;
 		}
-		else
+		else if (!shared)
 		{
 			CExpression *pexprTargetElem = (*(*pexprTarget)[1])[0];
 			CScalarIdent *popTargetIdent =
@@ -2195,6 +2202,19 @@ CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
 	pexprRight->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
+{
+	for (BOOL shared : {false, true})
+		for (BOOL reverse : {false, true})
+			if (GPOS_OK != EresJoinKeyBinding(shared, reverse))
+			{
+				GPOS_TRACE_FORMAT("Join key binding failed: shared=%d reverse=%d", shared, reverse);
+				return GPOS_FAILED;
+			}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

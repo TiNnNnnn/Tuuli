@@ -1,0 +1,39 @@
+{
+  "description": "A shared grouping key does not remove the unique inner-key premise",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_push_gb_unique.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"cac130f7ae75f028\"",
+        "\"failed_constraint\":\"Unique\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbBelowJoin"
+    ],
+    "policy": "isolate_push_gb_unique.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ]
+  }
+}
