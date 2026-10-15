@@ -1,0 +1,3 @@
+experiment: apply-join-rejected-source
+discover: false
+cardinalities:

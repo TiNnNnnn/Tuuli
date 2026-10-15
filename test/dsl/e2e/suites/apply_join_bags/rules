@@ -1,0 +1,6 @@
+# The first two rules seed Apply construction probes, not production rewrites.
+InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsEmpty(a4)
+LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftApply<p1 a2 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsEmpty(a4)
+# Explicit source contracts for conditional BAG_EQ checks; production rules are unchanged.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t0);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0)
+LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t0);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0)

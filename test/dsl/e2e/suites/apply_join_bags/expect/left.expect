@@ -1,0 +1,70 @@
+{
+  "description": "Conditional native bag proof for independent LeftApply with NULL extension",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "left-source-route.yaml",
+      "native_equivalence_mode": "BAG_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f53ba89dbac4cad5\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin\n",
+        "Xform: CXformLeftOuterApply2LeftOuterJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f53ba89dbac4cad5",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      ",",
+      "0,",
+      "1,",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

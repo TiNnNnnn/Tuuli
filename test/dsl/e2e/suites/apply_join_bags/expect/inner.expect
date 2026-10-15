@@ -1,0 +1,67 @@
+{
+  "description": "Conditional native bag proof for independent InnerApply with duplicate rows",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "inner-source-route.yaml",
+      "native_equivalence_mode": "BAG_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"33d338572a52c831\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformInnerApply2InnerJoin\n",
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "33d338572a52c831",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalInnerApply",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "2,2",
+      "2,2"
+    ]
+  }
+}

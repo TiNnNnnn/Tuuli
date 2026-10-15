@@ -1,0 +1,7 @@
+experiment: apply-join-bag-source
+discover: false
+template_route: 2
+template_fingerprint: 834718d6e638ed54
+template_root: r
+template_bindings: true
+cardinalities:
