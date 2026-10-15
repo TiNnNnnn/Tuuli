@@ -1,11 +1,11 @@
 {
-  "description": "A DSL syntax migration exercises the uncorrelated AntiApply replacement with a kernel-checked generic proof",
+  "description": "Runtime uncorrelated AntiApply replacement; native Apply/Join demand equivalence remains unproved",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
     ],
     "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "status": "verified_direct_replacement",
     "dsl_rule_hashes": [
       "4df97bead45bc844"
     ]

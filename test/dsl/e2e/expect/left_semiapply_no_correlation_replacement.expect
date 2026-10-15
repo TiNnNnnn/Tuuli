@@ -1,11 +1,11 @@
 {
-  "description": "A DSL syntax migration exercises the uncorrelated SemiApply replacement with a kernel-checked generic proof",
+  "description": "Runtime uncorrelated SemiApply replacement; native Apply/Join demand equivalence remains unproved",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
     ],
     "scope": "LeftSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "status": "verified_direct_replacement",
     "dsl_rule_hashes": [
       "cf934dc15544cfa2"
     ]
