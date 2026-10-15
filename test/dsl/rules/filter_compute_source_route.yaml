@@ -1,0 +1,7 @@
+experiment: registered-filter-compute
+discover: false
+template_route: 4
+template_fingerprint: dfbc9990cd4f1e3a
+template_root: r
+template_bindings: true
+cardinalities:
