@@ -22,6 +22,7 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_collapse_gbagg.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d0edd1db3ce9b8a8\""
       ],
@@ -47,11 +48,28 @@
       "disable_xforms": [
         "CXformCollapseGbAgg"
       ],
+      "policy": "isolate_collapse_gbagg.policy",
+      "stats_experiment": "collapse_gbagg_source_route.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d0edd1db3ce9b8a8\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "d0edd1db3ce9b8a8",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -68,12 +86,18 @@
     "disable_xforms": [
       "CXformCollapseGbAgg"
     ],
+    "policy": "isolate_collapse_gbagg.policy",
     "output": [
       "1",
       "2",
       "3"
     ],
     "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
       "1",
       "2",
       "3"

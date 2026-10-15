@@ -1,0 +1,7 @@
+experiment: registered-dedup-composition
+discover: false
+template_route: 4
+template_fingerprint: 4b3c2f97b2c36115
+template_root: r
+template_bindings: true
+cardinalities:
