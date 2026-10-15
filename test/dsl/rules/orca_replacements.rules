@@ -534,8 +534,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a2>(Input<t1>)
 # predicate stacks through ordinary Cascade chaining.
 # Typed binding: derive conjunction safety from its leaves; retain the exact
 # local/outer dependency partition checked by the Filter builder.
-# FormalSQL OUTCOME_EQ (rooted attributes and context-local safety): a9ad47ce7c56a770c9ebe19e705dd07956fbb20b32d602466452a0f5ef0d632e
-# FORMALSQL_PROVED legacy_hash=7c68bb1fdb16fe65; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate b481fbd2d6d78b3525a6cbc99a616c1ad440b0e1add867dbe931107a6e37f74a. Generic nested-filter conjunction.
+# FORMALSQL_PROVED legacy_hash=7c68bb1fdb16fe65; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-15; certificate b190385b7a2457008bad49c7ec6b52c5eb6243a37ce0cc246aef420d2938cfab. Native Filter composition with rooted attributes and context-local safety.
 Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := t0;p2 := And(p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the single correlated-Filter decorrelation domain of
