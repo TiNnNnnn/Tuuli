@@ -1,0 +1,39 @@
+{
+  "description": "PostgreSQL supplies a frame even for ROW_NUMBER; the frameless WindowRows template must reject it",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_notin_window_rows.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"fd05e98e4d5b9119\"",
+        "\"expected_operator\":\"WindowRows\",\"actual_operator\":\"CLogicalSequenceProject\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"fd05e98e4d5b9119\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_notin_window_rows.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ]
+  }
+}

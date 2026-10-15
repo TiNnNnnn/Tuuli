@@ -11,13 +11,13 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7d3926f654a19538\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"ccfade4b8892110e\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\"",
-        "\"status\":\"applied\",\"rule_hash\":\"7d3926f654a19538\""
+        "\"status\":\"applied\",\"rule_hash\":\"ccfade4b8892110e\""
       ]
     },
     {
@@ -37,13 +37,13 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7d3926f654a19538\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"ccfade4b8892110e\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\"",
-        "\"status\":\"applied\",\"rule_hash\":\"7d3926f654a19538\""
+        "\"status\":\"applied\",\"rule_hash\":\"ccfade4b8892110e\""
       ]
     }
   ],
