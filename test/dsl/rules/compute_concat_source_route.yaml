@@ -1,0 +1,7 @@
+experiment: registered-compute-concat
+discover: false
+template_route: 2
+template_fingerprint: ea13dcccb613a6eb
+template_root: r
+template_bindings: true
+cardinalities:

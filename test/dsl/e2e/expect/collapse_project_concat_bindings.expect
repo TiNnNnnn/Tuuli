@@ -1,13 +1,13 @@
 {
-  "description": "Explicit arbitrary-length Compute concat fires with native collapse and every legacy DSL rule disabled; native proof remains uncertified",
+  "description": "Native-source-conditional Compute fusion preserves inner-before-outer order with native collapse and all other DSL rules disabled",
   "replacement": {
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "independent total deterministic row-scalar project lists; SRFs retain legacy coverage",
+    "scope": "independent total deterministic row-scalar project lists; native contracts remain obligations and SRFs are not covered",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "9e60317f8331f45a"
+      "8c88a4df159bc8be"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9e60317f8331f45a\""
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -49,11 +49,27 @@
         "CXformCollapseProject"
       ],
       "policy": "isolate_compute_concat_bindings.policy",
+      "stats_experiment": "compute_concat_source_route.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9e60317f8331f45a\""
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "8c88a4df159bc8be",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

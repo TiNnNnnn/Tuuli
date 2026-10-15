@@ -10,11 +10,11 @@
       "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"9e60317f8331f45a\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"8c88a4df159bc8be\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9e60317f8331f45a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\"",
         "Falling back to Postgres"
       ]
     }
