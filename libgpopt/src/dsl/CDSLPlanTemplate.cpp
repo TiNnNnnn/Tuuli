@@ -30,6 +30,7 @@
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarCmp.h"
@@ -302,6 +303,16 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			const auto *cast = CScalarCast::PopConvert(expr->Pop());
 			*out << ",\"function_mdid\":" << MetadataId(mp, cast->FuncMdId())
 				<< ",\"binary_coercible\":" << (cast->IsBinaryCoercible() ? "true" : "false");
+		}
+		else if (COperator::EopScalarAggFunc == expr->Pop()->Eopid())
+		{
+			const auto *aggregate = CScalarAggFunc::PopConvert(expr->Pop());
+			*out << ",\"aggregate_mdid\":" << MetadataId(mp, aggregate->MDId())
+				<< ",\"aggregate_stage\":" << aggregate->Eaggfuncstage()
+				<< ",\"aggregate_kind\":" << aggregate->AggKind()
+				<< ",\"aggregate_distinct\":" << (aggregate->IsDistinct() ? "true" : "false")
+				<< ",\"aggregate_star\":" << (aggregate->IsAggStar() ? "true" : "false")
+				<< ",\"aggregate_split\":" << (aggregate->FSplit() ? "true" : "false");
 		}
 		// A subquery may expose several columns. Its selected value is stored
 		// on the scalar operator, not implied by the inner output order.
