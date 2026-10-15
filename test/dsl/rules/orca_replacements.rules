@@ -496,23 +496,17 @@ Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m
 # Compose that movement through an enclosing safe Compute. This remains an
 # operator-local normalization over an arbitrary Input; it is not tied to an
 # Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# FORMALSQL_PROVED legacy_hash=88f307f1b76e73ef; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
-# Compute/Window/Filter composition proof accepts the typed bindings.
+# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN (native Compute/Window composition pending; a structural program alias is not a certificate).
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# FORMALSQL_PROVED legacy_hash=d6f44ab77e84cba0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Explicit frame
-# movement is covered by the generic Window/Filter theorem when the frame
-# expression is deterministic; no frame-specific lemma is added.
+# SYNTAX_ONLY legacy_hash=d6f44ab77e84cba0; native expression proof: UNKNOWN (native Compute/Window frame composition pending; a structural program alias is not a certificate).
 Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1);Deterministic(w0)
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
 # outside; the residual remains at its original evaluation site.
-# FORMALSQL_PROVED legacy_hash=d43abe8392779e2a; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic residual
-# Window/Filter movement proof accepts the typed dependency bindings.
+# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN (native residual Compute/Window composition pending; a structural program alias is not a certificate).
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# FORMALSQL_PROVED legacy_hash=7df75620258b37aa; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. Residual explicit
-# frame movement reuses the generic Window/Filter proof under frame
-# determinism; no residual-specific lemma is added.
+# SYNTAX_ONLY legacy_hash=7df75620258b37aa; native expression proof: UNKNOWN (native residual Compute/Window frame composition pending; a structural program alias is not a certificate).
 Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1);Deterministic(w0)
 
 # Replaces the single correlated-Filter decorrelation domain of
@@ -558,17 +552,17 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|AntiJoin<p2 a5 a6>
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule
 # above. The generic dependency, error-freedom, and determinism facts imply the
 # Compute/Filter movement; no rewrite-shaped constraint is needed.
-# FormalSQL/Rocq OUTCOME_EQ: typed aliases are closed through the shared
-# constraint congruence; the proof uses only Compute/Filter structural facts.
-# FORMALSQL_PROVED legacy_hash=c7d161295e62caa0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate a21d5c301d4358dfaf90c820294a636ffa5303f50d5d5bb3883c90717d05c874. Generic Compute/Filter movement.
+# Native source-conditional OUTCOME_EQ kernel check (2026-10-15), digest
+# 8a4bf936da8e7ad9d8fd3e30291ad9c12b78309218a11dc32b783b1275aec300.
+# PARTIAL_BINDING legacy_hash=c7d161295e62caa0; native expression proof: UNKNOWN without source contracts; the checked implication is CONDITIONAL, not a deployment certificate.
 Compute<e0 a0 s0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a3 a4>(Compute<e1 a5 s1>(Input<t1>))|t1 := t0;e1 := e0;a5 := a0;s1 := s0;p1 := p0;a3 := a1;a4 := a2;DepsDisjoint(p0,s0);ErrorFree(e0);Deterministic(e0)
 
 # The inverse movement pushes a predicate through any safe Compute whose
 # generated columns it does not reference. Reuse the existing FormalSQL/Rocq
-# legacy OUTCOME_EQ discovery; full Calcite replay confirms new Memo alternatives.
-# FormalSQL/Rocq OUTCOME_EQ: inverse Compute/Filter movement uses the same
-# shared structural proof and typed alias closure.
-# FORMALSQL_PROVED legacy_hash=75cf2193e89d4afe; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 611ce689dd900937f47527def17f3f27c08a63d357fbf209907c7c688d662779. Generic Compute/Filter movement.
+# native scope/value transport rather than an assumed structural movement law.
+# Native source-conditional OUTCOME_EQ kernel check (2026-10-15), digest
+# 50e497846bdb032a36692736cd9442667abc8777882f0e9676091f686156c924.
+# PARTIAL_BINDING legacy_hash=75cf2193e89d4afe; native expression proof: UNKNOWN without source contracts; the checked implication is CONDITIONAL, not a deployment certificate.
 Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5>(Input<t1>))|t1 := t0;a4 := a1;a5 := a2;a3 := a0;p1 := p0;s1 := s0;e1 := e0;ErrorFree(e0);Deterministic(e0);DepsDisjoint(p0,s0)
 
 # Pull a correlated predicate through a grouped aggregate when every local
@@ -666,9 +660,7 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # The zero-on-empty sibling consumes the two generic Compute layers that carry
 # an aggregate result through an identity and replace NULL with its empty-input
 # default. EmptyInputCompensation validates that complete scalar dataflow.
-# FORMALSQL_PROVED legacy_hash=80727e91f96e399d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
-# empty-input compensation proof composes the two Compute layers with the
-# grouped LeftApply theorem; no compensation-specific matcher is added.
+# SYNTAX_ONLY legacy_hash=80727e91f96e399d; native expression proof: UNKNOWN (native Compute/aggregate compensation composition pending; a structural program alias is not a certificate).
 Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a7 f0 s2 p1>(Filter<p2 a8 a9>(Input<t1>)))))|Compute<e2 a10 s3>(Compute<e3 a11 s4>(LeftJoin<p3 a12 a13>(Input<t2>,Agg<a14 a15 a16 f1 s5 p4>(Input<t3>))))|t2 := t0;t3 := t1;e2 := e0;a10 := a0;s3 := s0;e3 := e1;a11 := a1;s4 := s1;p3 := And(p0,p2);AttrsEq(a4,a9);AttrsNonEmpty(a4);AttrsUnion(a12,a2,a9);AttrsUnion(a13,a3,a8);AttrsUnion(a14,a5,a8);a15 := a6;a16 := a7;f1 := f0;SchemaUnion(s5,s2,a8);p4 := p1;CorrelationEquality(p2,a8,a9);AttrsNonEmpty(a8);EmptyInputCompensation(e0,e1,a7,f0);Deterministic(e0);Deterministic(e1);Deterministic(e2);Deterministic(e3);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(e0);ErrorFree(e1);ErrorFree(e2);ErrorFree(e3);ErrorFree(p0);ErrorFree(a6);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a15);ErrorFree(f1);ErrorFree(p4)
 
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including

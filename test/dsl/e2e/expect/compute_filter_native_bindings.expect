@@ -1,0 +1,77 @@
+{
+  "description": "Registered Compute/Filter movement uses native source evidence and only the two inverse DSL rules",
+  "plans": [
+    {
+      "name": "movement",
+      "trace": true,
+      "policy": "isolate_compute_filter.policy",
+      "stats_experiment": "compute_filter_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a3a384e829b6c009",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "inverse",
+      "trace": true,
+      "policy": "isolate_compute_filter.policy",
+      "stats_experiment": "filter_compute_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "9e7233e667eedbe7",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_compute_filter.policy",
+    "output": [
+      "2,f",
+      "3,t"
+    ],
+    "postgres_output": [
+      "2,f",
+      "3,t"
+    ],
+    "off_output": [
+      "2,f",
+      "3,t"
+    ]
+  }
+}
