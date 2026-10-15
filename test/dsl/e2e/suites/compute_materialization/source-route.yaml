@@ -1,0 +1,7 @@
+experiment: compute-context-source
+discover: false
+template_route: 1
+template_fingerprint: f43a77daa6f2dea8
+template_root: r
+template_bindings: true
+cardinalities:
