@@ -1,0 +1,45 @@
+{
+  "description": "Compute list Context materialization preserves arbitrary items before and after the selected subquery",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      ",3,",
+      "1,3,0",
+      "2,3,2",
+      "3,3,4",
+      "3,3,4"
+    ],
+    "postgres_output": [
+      ",3,",
+      "1,3,0",
+      "2,3,2",
+      "3,3,4",
+      "3,3,4"
+    ]
+  }
+}

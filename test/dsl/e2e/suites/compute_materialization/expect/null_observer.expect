@@ -1,0 +1,105 @@
+{
+  "description": "Compute list Context preserves a Boolean NULL observer, passthrough columns and duplicate rows",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "source-route.yaml",
+      "native_observation": "all_source_outputs",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterApply",
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "33a86dd897855e47",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "33a86dd897855e47",
+          "symbols": [
+            {
+              "symbol": "e0",
+              "kind": "e",
+              "bound": true,
+              "scalar_context": {
+                "encoding": "native_scalar_child_indices",
+                "path": [
+                  1,
+                  0,
+                  0
+                ]
+              },
+              "source_paths": [
+                "r/e:0"
+              ]
+            },
+            {
+              "symbol": "n0",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Context:0"
+              ]
+            },
+            {
+              "symbol": "t3",
+              "kind": "t",
+              "bound": true,
+              "source_paths": [
+                "r/e:0/Context:0/Subquery:1"
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      ",f,t",
+      "0,f,f",
+      "1,f,f",
+      "2,f,f",
+      "2,f,f"
+    ],
+    "postgres_output": [
+      ",f,t",
+      "0,f,f",
+      "1,f,f",
+      "2,f,f",
+      "2,f,f"
+    ]
+  }
+}
