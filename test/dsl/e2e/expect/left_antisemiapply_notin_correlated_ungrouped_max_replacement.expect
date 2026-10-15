@@ -7,7 +7,7 @@
     "scope": "Correlated aggregate NOT IN with a safe integer MAX and an added correlation grouping key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f27de8eefcfa83c5"
+      "fff3ab6fa979b7fb"
     ]
   },
   "plans": [
@@ -20,7 +20,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f27de8eefcfa83c5\""
+        "\"status\":\"applied\",\"rule_hash\":\"fff3ab6fa979b7fb\""
       ],
       "alternative": [
         "CXformDSLRule_All"
@@ -45,7 +45,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f27de8eefcfa83c5\""
+        "\"status\":\"applied\",\"rule_hash\":\"fff3ab6fa979b7fb\""
       ],
       "provenance": {
         "required_sources": [

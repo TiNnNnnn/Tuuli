@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "a3a384e829b6c009",
-      "1aa6c75171ce9678"
+      "0510e782ed99f6ae"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
+        "\"status\":\"applied\",\"rule_hash\":\"0510e782ed99f6ae\""
       ],
       "alternative": [
         "CXformLeftSemiApply2LeftSemiJoin",
@@ -52,7 +52,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"1aa6c75171ce9678\""
+        "\"status\":\"applied\",\"rule_hash\":\"0510e782ed99f6ae\""
       ],
       "alternative": [
         "CXformDSLRule_Project",
