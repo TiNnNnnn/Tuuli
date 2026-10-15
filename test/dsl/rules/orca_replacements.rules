@@ -368,11 +368,9 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 
 # Replaces CXformLeftSemiApply2LeftSemiJoinNoCorrelations. SemiApply exposes
 # immediate outer/inner correlation separately from the top predicate's local
-# dependencies; AttrsEmpty therefore states the native xform's applicability
-# domain directly. This exact RuleIR was proved by the FormalSQL/Rocq kernel on
-# 2026-08-29 for the legacy RuleIR (BAG_EQ, not native OUTCOME_EQ).
-# FORMALSQL_PROVED legacy_hash=e3458abf2b3167d5; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
-# uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
+# dependencies; AttrsEmpty states the native xform's correlation domain, not
+# equality of RHS demand or error behavior. Predicate safety alone is insufficient.
+# SYNTAX_ONLY legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the base-input domain of
@@ -417,11 +415,10 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 
 # Replaces CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations. AntiApply
 # binds the exact inner-to-outer dependency set; AttrsEmpty is therefore the
-# native promise expressed as data. AntiJoin is ordinary NOT EXISTS semantics,
-# distinct from the NULL-aware AntiJoinNotIn family. This exact RuleIR is
-# accepted by the legacy FormalSQL/Rocq proof (BAG_EQ).
-# FORMALSQL_PROVED legacy_hash=561de687652328df; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-10. The generic structural
-# uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
+# native correlation promise expressed as data. AntiJoin is ordinary NOT EXISTS
+# semantics, distinct from the NULL-aware AntiJoinNotIn family. Predicate safety
+# does not establish equal RHS demand or error behavior.
+# SYNTAX_ONLY legacy_hash=561de687652328df; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
@@ -627,22 +624,17 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 
 # Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
 # exact right-to-left dependency set separately from the scalar predicate's
-# ordinary child dependencies. AttrsEmpty states the native xform's complete
-# applicability condition. The legacy RuleIR has an outcome-equivalence proof
-# accepted by the FormalSQL/Rocq kernel; preserving the same predicate also
-# preserves scalar errors without an ErrorFree assumption.
-# FORMALSQL_PROVED legacy_hash=ebadfb129130abb8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
-# structural uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
+# ordinary child dependencies. AttrsEmpty alone does not prove equal RHS demand:
+# an empty left input can suppress an error that an independent Join evaluates.
+# SYNTAX_ONLY legacy_hash=ebadfb129130abb8; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
 # the JoinApply correlation contract with InnerApply but retains NULL-extension
 # through an explicit LeftJoin target. AttrsEmpty excludes dependencies on the
 # current left row while permitting references supplied by an enclosing scope,
-# matching the native promise. The legacy RuleIR has an outcome-equivalence
-# proof accepted by FormalSQL/Rocq.
-# FORMALSQL_PROVED legacy_hash=4fbf993ef8bfe114; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
-# structural uncorrelated Apply proof requires only the explicit AttrsEmpty premise.
+# matching the native correlation promise but not establishing equal RHS demand.
+# SYNTAX_ONLY legacy_hash=4fbf993ef8bfe114; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
 LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
