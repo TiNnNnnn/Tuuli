@@ -1,0 +1,100 @@
+{
+  "description": "DISTINCT elimination over a join whose right key comes from dedup, not a table constraint",
+  "replacement": {
+    "xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "scope": "left primary key preserved through a join to a complete right DISTINCT key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "58483b210e2ba41f"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_unique_dedup.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "stats_experiment": "unique_dedup_structural_join_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "58483b210e2ba41f",
+          "route_sequence": 28,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSimplifyGbAgg"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "isolate_unique_dedup.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
+      "10",
+      "20"
+    ]
+  }
+}

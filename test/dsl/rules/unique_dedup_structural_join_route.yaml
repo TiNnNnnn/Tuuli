@@ -1,0 +1,7 @@
+experiment: native-structural-join-keys
+discover: false
+template_route: 28
+template_fingerprint: edeb414f6988d021
+template_root: r
+template_bindings: true
+cardinalities:
