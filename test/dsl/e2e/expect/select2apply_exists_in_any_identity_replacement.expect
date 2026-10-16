@@ -6,10 +6,13 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "An uncorrelated EXISTS value used as the comparison value of correlated ANY",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "272456a34079bc4b",
-      "d104909e3404ba0d"
+      "e71082cbe42ae6c7",
+      "a633d2566796843b"
+    ],
+    "excluded_native_domains": [
+      "Whole-rule native observation proof for residual predicate extraction remains pending"
     ]
   },
   "plans": [
@@ -30,8 +33,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"272456a34079bc4b\"",
-        "\"rule_hash\":\"d104909e3404ba0d\""
+        "\"rule_hash\":\"e71082cbe42ae6c7\"",
+        "\"rule_hash\":\"a633d2566796843b\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -61,8 +64,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"272456a34079bc4b\"",
-        "\"status\":\"applied\",\"rule_hash\":\"d104909e3404ba0d\""
+        "\"status\":\"applied\",\"rule_hash\":\"e71082cbe42ae6c7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a633d2566796843b\""
       ],
       "provenance": {
         "required_sources": [
