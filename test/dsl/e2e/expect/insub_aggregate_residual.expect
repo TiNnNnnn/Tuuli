@@ -7,7 +7,7 @@
       "trace": true,
       "stats_experiment": "stats_single_outer_row.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
         "\"rows\":1.000000,\"changed\":true",
         "Filter: (status = 1)",
         "\"binding_edge_trace_version\":6",

@@ -1,0 +1,24 @@
+{
+  "description": "Dedup pushdown must not merge repeated evaluations of a volatile residual predicate",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin"
+      ],
+      "policy": "isolate_dedup_residual_safety.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"2ddc17739e22cc2c\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4022026ba775eb5a\"",
+        "\"failed_constraint\":\"Deterministic\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc17739e22cc2c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+      ]
+    }
+  ]
+}

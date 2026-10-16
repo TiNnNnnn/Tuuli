@@ -1,0 +1,46 @@
+{
+  "description": "A volatile residual keeps all three evaluations before dedup in PostgreSQL and DSL off/on",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_dedup_residual_safety.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"2ddc17739e22cc2c\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4022026ba775eb5a\"",
+        "\"failed_constraint\":\"Deterministic\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc17739e22cc2c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin",
+      "CXformPushGbBelowJoin"
+    ],
+    "policy": "isolate_dedup_residual_safety.policy",
+    "output": [
+      "1,3"
+    ],
+    "postgres_output": [
+      "1,3"
+    ],
+    "off_output": [
+      "1,3"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "1,3"
+      ]
+    }
+  }
+}

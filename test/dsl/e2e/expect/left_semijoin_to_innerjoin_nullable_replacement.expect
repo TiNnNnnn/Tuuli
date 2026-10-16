@@ -32,7 +32,7 @@
         "CXformLeftSemiJoin2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
