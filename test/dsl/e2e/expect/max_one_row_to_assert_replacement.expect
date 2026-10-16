@@ -49,6 +49,7 @@
       "policy": "isolate_max_one_row_assert.policy",
       "stats_experiment": "max_one_row_source_route.yaml",
       "assert_maxonerow": true,
+      "native_observation": "source_row_stream",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ],
