@@ -32,6 +32,7 @@
 #include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarBoolOp.h"
@@ -237,6 +238,13 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
+		if (const auto *limit = dynamic_cast<const CLogicalLimit *>(expr->Pop()))
+		{
+			*out << ",\"limit_global\":" << (limit->FGlobal() ? "true" : "false")
+				<< ",\"limit_has_count\":" << (limit->FHasCount() ? "true" : "false")
+				<< ",\"limit_ordered\":" << (limit->Pos()->IsEmpty() ? "false" : "true")
+				<< ",\"limit_top_dml\":" << (limit->IsTopLimitUnderDMLorCTAS() ? "true" : "false");
+		}
 		if (const auto *window = dynamic_cast<const CLogicalSequenceProject *>(expr->Pop()))
 		{
 			*out << ",\"window_stage\":" << window->Pspt()

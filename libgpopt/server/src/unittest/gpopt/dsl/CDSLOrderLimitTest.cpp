@@ -181,6 +181,22 @@ CDSLOrderLimitTest::EresUnittest_PlanTemplateSlice()
 	BOOL valid = CDSLPlanTemplate::FSlice(
 		mp, pexprLimit, "r", {"r/0"}, &dsl, &error) &&
 		dsl == "Limit<n0 n1>(SortBy<o0>(Input<t0>))" && error.empty();
+	for (ULONG flags = 0; flags < 16; ++flags)
+	{
+		pexprGet->AddRef();
+		CExpression *captured = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLimit(mp,
+				(flags & 4) ? PosOne(mp, (*pdrgpcr)[0], EdslsortAsc) : GPOS_NEW(mp) COrderSpec(mp),
+				0 != (flags & 1), 0 != (flags & 2), 0 != (flags & 8)),
+			pexprGet, CUtils::PexprScalarConstInt8(mp, 2), CUtils::PexprScalarConstInt8(mp, 7));
+		const std::string json = CDSLPlanTemplate::Serialize(mp, captured);
+		for (const auto &flag : {std::make_pair("limit_global", 1U),
+			std::make_pair("limit_has_count", 2U), std::make_pair("limit_ordered", 4U),
+			std::make_pair("limit_top_dml", 8U)})
+			valid &= json.find(std::string("\"") + flag.first + "\":" +
+				((flags & flag.second) ? "true" : "false")) != std::string::npos;
+		captured->Release();
+	}
 	CExpression *pexprWindow = PexprWindowRows(
 		mp, fix, pexprGet, (*pdrgpcr)[0], (*pdrgpcr)[0]);
 	valid = valid && CDSLPlanTemplate::FSlice(
