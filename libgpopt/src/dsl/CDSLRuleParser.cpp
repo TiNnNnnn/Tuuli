@@ -1542,29 +1542,58 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 			// shortcut: retain legacy IR until explicit capture/build replaces these observations.
 			if (nullptr != pfrag_tgt && nullptr != tree->constraints())
 			{
-				std::string clauses;
-				BOOL loweredObservation = false;
-				for (auto *child : tree->constraints()->children)
-				{
-					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
+				const auto isObservation = [](dsl::DSLRuleParser::BindingContext *binding) {
 					auto *call = nullptr == binding ? nullptr : binding->call();
 					const auto kind = nullptr == call ? EdslconSentinel :
 						CDSLConstraintKindTable::Parse(call->ID()->getText().c_str());
-					const BOOL observation = EdslconExprListScalarSubquery == kind ||
+					return EdslconExprListScalarSubquery == kind ||
 						EdslconExprListExists == kind || EdslconExprListNotExists == kind ||
 						EdslconExprListAny == kind || EdslconExprListAll == kind;
-					if (!observation)
+				};
+				std::unordered_set<std::string> captured;
+				for (const auto &entry : bctx.symtab)
+					if (EdslsideSource == entry.second->Eside()) captured.insert(entry.first);
+				std::vector<dsl::DSLRuleParser::BindingContext *> pending, ordered;
+				for (auto *child : tree->constraints()->children)
+				{
+					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
+					if (isObservation(binding)) pending.push_back(binding);
+				}
+				// A residual list is another capture; declarations need not be in
+				// dependency order. Unrooted cycles never acquire a source binding.
+				while (!pending.empty())
+				{
+					const auto before = pending.size();
+					for (auto it = pending.begin(); it != pending.end();)
 					{
-						clauses += child->getText();
-						continue;
+						auto *binding = *it;
+						if (binding->getStart()->getType() != dsl::DSLRuleParser::ID ||
+							0 == captured.count(binding->SYMBOL(0)->getText())) { ++it; continue; }
+						for (auto *operand : binding->call()->SYMBOL())
+							captured.insert(operand->getText());
+						ordered.push_back(binding);
+						it = pending.erase(it);
 					}
-					const auto input = bctx.symtab.find(binding->SYMBOL(0)->getText());
-					if (binding->getStart()->getType() != dsl::DSLRuleParser::ID ||
-						input == bctx.symtab.end() || EdslsideSource != input->second->Eside())
+					if (pending.size() == before)
 					{
 						bctx.Fail("expression-list observation requires a captured source input");
 						break;
 					}
+				}
+				std::string clauses;
+				BOOL loweredObservation = false;
+				size_t observationIndex = 0;
+				for (auto *child : tree->constraints()->children)
+				{
+					if (!bctx.err.empty()) break;
+					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
+					if (!isObservation(binding))
+					{
+						clauses += child->getText();
+						continue;
+					}
+					binding = ordered[observationIndex++];
+					auto *call = binding->call();
 					clauses += call->ID()->getText() + "(" + binding->SYMBOL(0)->getText();
 					for (auto *operand : call->SYMBOL()) clauses += "," + operand->getText();
 					clauses += ")";

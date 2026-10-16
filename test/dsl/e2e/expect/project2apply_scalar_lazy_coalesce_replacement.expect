@@ -12,10 +12,10 @@
       "assert_maxonerow": true,
       "contains": [
         "Falling back to Postgres",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5fa029945ad6953b\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"0b88ba995ef9c4cd\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
       ]
     }
   ],

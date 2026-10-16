@@ -1,13 +1,13 @@
-# Keep the Project2Apply family causal: only proved direct rules may run.
+# Keep the Project2Apply family causal; native whole-rule proofs remain pending.
 - rule: '*'
   enabled: false
-- rule: 5fa029945ad6953b
+- rule: 0b88ba995ef9c4cd
   enabled: true
-- rule: 74d29836fcf3a2f2
+- rule: ca5bdb0f38257c24
   enabled: true
-- rule: 6a126177c924c309
+- rule: 21543dafb8c8f61b
   enabled: true
-- rule: 6b57425ad510f91a
+- rule: daf208e79534479c
   enabled: true
-- rule: 3a779f2b6c2bb335
+- rule: 9555abcd9b140797
   enabled: true

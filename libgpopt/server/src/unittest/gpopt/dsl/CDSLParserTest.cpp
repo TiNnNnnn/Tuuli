@@ -656,6 +656,34 @@ EresExpressionListObservations()
 {
 	CAutoMemoryPool amp;
 	auto *mp = amp.Pmp();
+	const std::string chain = "Compute<e0 a0 s0>(Input<t0>)|"
+		"Compute<e2 a1 s1>(LeftApply<p1 a6 a7 a8>("
+		"LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>),"
+		"Limit<n0 n1>(Compute<e3 a9 s2>(Input<t3>))))|"
+		"t1 := t0;s1 := s0;a1 := ScalarDeps(e2);ScalarOne(n0);ScalarZero(n1);";
+	const std::string scalar = "ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := ";
+	const std::string exists = "ExprListExists(e2,e3,a9,s2,p1,a6,a7,a8,a10,t3) := e1";
+	for (const std::string &bindings : {scalar + "e0;" + exists, exists + ";" + scalar + "e0"})
+	{
+		CWStringDynamic error(mp);
+		auto *rule = CDSLRuleParser::PdslruleParse(mp, (chain + bindings).c_str(), nullptr, &error);
+		if (nullptr == rule) GPOS_TRACE(error.GetBuffer());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CWStringDynamic canonical(mp);
+		COstreamString os(&canonical);
+		rule->OsPrint(os);
+		std::string printed;
+		for (ULONG i = 0; i < canonical.Length(); ++i)
+			printed += (CHAR) canonical.GetBuffer()[i];
+		const BOOL stable = FRoundTrips(mp, printed.c_str());
+		rule->Release();
+		if (!stable) return GPOS_FAILED;
+	}
+	for (const CHAR *unrooted : {"e2", "e4", "t0"})
+	{
+		auto *bad = Parse(mp, (chain + scalar + unrooted + ";" + exists).c_str());
+		if (nullptr != bad) { bad->Release(); return GPOS_FAILED; }
+	}
 	const CHAR *sources[] = {
 		"Filter<p0 a0>(Input<t0>)", "Compute<e0 a0 s0>(Input<t0>)",
 		"Agg<a0 a1 f0 s0 p0>(Input<t0>)", "WindowRows<a0 o0 w0>(Input<t0>)"};

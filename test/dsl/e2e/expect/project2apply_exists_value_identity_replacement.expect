@@ -6,9 +6,9 @@
       "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "One correlated EXISTS in a Project value context",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "74d29836fcf3a2f2"
+      "ca5bdb0f38257c24"
     ]
   },
   "plans": [
@@ -29,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\""
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -59,7 +59,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\""
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
