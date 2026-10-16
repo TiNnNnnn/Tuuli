@@ -4,10 +4,10 @@
     "xforms": [
       "CXformLeftSemiJoin2InnerJoin"
     ],
-    "scope": "Full native promise, together with computed-key, Project-free and safety-guard companion cases",
-    "status": "verified_full_replacement",
+    "scope": "Projected composite equality keys; computed-key and Project-free domains are not certified by this case",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "9dc5c70cd1245677"
+      "b24ead64771bc9fb"
     ]
   },
   "plans": [
@@ -47,7 +47,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoin",
@@ -72,7 +72,7 @@
         "CXformLeftSemiJoin2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

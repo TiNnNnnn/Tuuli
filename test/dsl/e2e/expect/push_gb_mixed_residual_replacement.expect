@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule pushes mixed grouping below an inner join while preserving a residual predicate",
+  "description": "DSL pushes mixed grouping below an inner join with a deterministic residual; native proof migration remains pending",
   "replacement": {
     "xforms": [
       "CXformPushGbBelowJoin"
     ],
-    "scope": "Mixed grouping contains the FK and all residual outer dependencies",
+    "scope": "Mixed grouping contains the FK and all outer dependencies of the deterministic residual",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "afbbeaf088e13590"
+      "4022026ba775eb5a"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_mixed_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"afbbeaf088e13590\""
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -51,7 +51,7 @@
       ],
       "policy": "isolate_push_gb_mixed_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"afbbeaf088e13590\""
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
       ],
       "provenance": {
         "required_sources": [

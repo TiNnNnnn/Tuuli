@@ -37,6 +37,24 @@ CREATE OPERATOR #=# (
     LEFTARG = int, RIGHTARG = int, FUNCTION = dsl_next_flag
 );
 
+-- Statement-local effects make DSL off/on comparable without resetting a sequence.
+CREATE FUNCTION dsl_statement_flag(int, int) RETURNS boolean
+LANGUAGE plpgsql VOLATILE STRICT AS $$
+DECLARE
+    calls int := COALESCE(NULLIF(current_setting('dsl_test.flag_calls', true), ''), '0')::int + 1;
+BEGIN
+    PERFORM set_config('dsl_test.flag_calls', calls::text, true);
+    RETURN calls % 2 = 0;
+END
+$$;
+
+CREATE FUNCTION dsl_statement_flag_calls() RETURNS int
+LANGUAGE plpgsql VOLATILE AS $$
+BEGIN
+    RETURN COALESCE(NULLIF(current_setting('dsl_test.flag_calls', true), ''), '0')::int;
+END
+$$;
+
 CREATE FUNCTION dsl_cast_token(int) RETURNS uuid
 LANGUAGE plpgsql VOLATILE STRICT AS $$
 BEGIN

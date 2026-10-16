@@ -1,13 +1,13 @@
 {
-  "description": "A proved DSL rule pushes nullable foreign-key grouping attrs below an inner join with a residual predicate",
+  "description": "DSL pushes nullable foreign-key grouping attrs below an inner join with a deterministic residual; native proof migration remains pending",
   "replacement": {
     "xforms": [
       "CXformPushGbDedupBelowJoin"
     ],
-    "scope": "Outer grouping attrs contain a nullable FK and every outer residual dependency",
-    "status": "verified_full_replacement",
+    "scope": "Outer grouping attrs contain a nullable FK and every dependency of the deterministic residual",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8fc316909dea509a"
+      "2ddc17739e22cc2c"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8fc316909dea509a\""
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc17739e22cc2c\""
       ],
       "alternative": [
         "CXformPushGbDedupBelowJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8fc316909dea509a\""
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc17739e22cc2c\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
