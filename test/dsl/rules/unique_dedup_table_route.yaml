@@ -1,0 +1,7 @@
+experiment: native-table-keys
+discover: false
+template_route: 1
+template_fingerprint: 2731b5404f01fdbf
+template_root: r
+template_bindings: true
+cardinalities:

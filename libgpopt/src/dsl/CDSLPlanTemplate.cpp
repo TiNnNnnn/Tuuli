@@ -2,6 +2,7 @@
 // Lossless, addressable ORCA-plan view for DSL rule mining.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLPlanTemplate.h"
+#include "gpopt/base/CKeyCollection.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -264,6 +265,16 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		{
 			layout = get->PdrgpcrOutput();
 			*out << ",\"relation_mdid\":" << MetadataId(mp, get->Ptabdesc()->MDId());
+			*out << ",\"unique_keys\":[";
+			const CKeyCollection *keys = derived->DeriveKeyCollection();
+			for (ULONG i = 0; nullptr != keys && i < keys->Keys(); ++i)
+			{
+				if (i) *out << ',';
+				CColRefArray *columns = keys->PdrgpcrKey(mp, i);
+				AppendColumns(mp, out, columns);
+				columns->Release();
+			}
+			*out << ']';
 		}
 		else if (const auto *values = dynamic_cast<const CLogicalConstTableGet *>(expr->Pop()))
 		{

@@ -111,7 +111,13 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
 	const std::string artifact = CDSLPlanTemplate::Serialize(mp, get);
 	BOOL valid = artifact.find(layout) != std::string::npos &&
 		artifact.find("\"relation_mdid\":") != std::string::npos &&
+		artifact.find("\"unique_keys\":[]") != std::string::npos &&
 		artifact.find("\"output\":[" + column((*cols)[0]) + ',' + column((*cols)[1]) + ']') != std::string::npos;
+	CColRefArray *key_columns = nullptr;
+	CExpression *keyed = fixture.PexprLogicalGet("keyed_layout", 2, &key_columns, 1);
+	valid &= CDSLPlanTemplate::Serialize(mp, keyed).find(
+		"\"unique_keys\":[[" + column((*key_columns)[1]) + "]]") != std::string::npos;
+	keyed->Release();
 	for (auto stage : {COperator::EgbaggtypeGlobal, COperator::EgbaggtypeLocal})
 	{
 		const BOOL duplicates = stage == COperator::EgbaggtypeLocal;
