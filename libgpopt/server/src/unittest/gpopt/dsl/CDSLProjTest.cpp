@@ -194,6 +194,8 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs),
 		GPOS_UNITTEST_FUNC(
+			CDSLProjTest::EresUnittest_InstantiateRebindsDistinctKeys),
+		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_PreservesHiddenLimitShell),
@@ -2417,8 +2419,79 @@ CDSLProjTest::EresUnittest_NestedProjStarConsumesGeneratedDedup()
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs
+//		CDSLProjTest::EresUnittest_InstantiateRebindsDistinctKeys
 //---------------------------------------------------------------------------
+GPOS_RESULT
+CDSLProjTest::EresUnittest_InstantiateRebindsDistinctKeys()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|"
+		"Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|"
+		"AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;"
+		"a3 := a0;a4 := a1;a5 := a1;s1 := s0");
+	GPOS_ASSERT(nullptr != rule);
+	GPOS_RESULT result = GPOS_OK;
+	for (ULONG width : {1, 2})
+	{
+		CColRefArray *left_cols = nullptr;
+		CColRefArray *right_cols = nullptr;
+		CExpression *left = fix.PexprLogicalGet("distinct_left", width, &left_cols);
+		CExpression *right = fix.PexprLogicalGet("distinct_right", width, &right_cols);
+		CExpressionArray *predicates = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < width; ++i)
+			predicates->Append(fix.PexprEqPred((*left_cols)[i], (*right_cols)[i]));
+		CExpression *predicate = CPredicateUtils::PexprConjunction(mp, predicates);
+		CExpression *join = fix.PexprLogicalInnerJoin(left, right, predicate);
+		CExpression *source = fix.PexprLogicalGbAgg(join, left_cols);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, rule);
+		CDSLConstraintChecker checker(mp);
+		CExpression *target = nullptr;
+		if (!matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model) ||
+			!checker.FCheck(rule, model))
+			result = GPOS_FAILED;
+		else
+		{
+			CDSLInstantiator instantiator(mp);
+			target = instantiator.PexprInstantiate(rule, model);
+			if (nullptr == target ||
+				COperator::EopLogicalProject != target->Pop()->Eopid() ||
+				COperator::EopLogicalGbAgg != (*target)[0]->Pop()->Eopid() ||
+				!CColRef::Equals(right_cols, CLogicalGbAgg::PopConvert(
+					(*target)[0]->Pop())->Pdrgpcr()) ||
+				!(*(*target)[0])[0]->Matches(join) ||
+				width != (*target)[1]->Arity())
+				result = GPOS_FAILED;
+			else
+			{
+				// Group on the other key, but retain the source-visible identities.
+				for (ULONG i = 0; i < width; ++i)
+				{
+					CExpression *item = (*(*target)[1])[i];
+					if ((*left_cols)[i] != CScalarProjectElement::PopConvert(
+							item->Pop())->Pcr() ||
+						COperator::EopScalarIdent != (*item)[0]->Pop()->Eopid() ||
+						(*right_cols)[i] != CScalarIdent::PopConvert(
+							(*item)[0]->Pop())->Pcr())
+						result = GPOS_FAILED;
+				}
+			}
+		}
+		CRefCount::SafeRelease(target);
+		model->Release();
+		source->Release();
+		join->Release();
+		predicate->Release();
+		left->Release();
+		right->Release();
+	}
+	rule->Release();
+	return result;
+}
+
 GPOS_RESULT
 CDSLProjTest::EresUnittest_InstantiateRebindsTargetAttrs()
 {

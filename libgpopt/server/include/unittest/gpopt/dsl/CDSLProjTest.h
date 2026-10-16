@@ -39,6 +39,7 @@ public:
 	// Target Proj attrs may select an equivalent join-key column. The scalar
 	// project expression must change while its defined output/schema stays fixed.
 	static GPOS_RESULT EresUnittest_InstantiateRebindsTargetAttrs();
+	static GPOS_RESULT EresUnittest_InstantiateRebindsDistinctKeys();
 	static GPOS_RESULT EresUnittest_JoinKeySubsetFollowsAttrsEq();
 	static GPOS_RESULT EresUnittest_PreservesHiddenLimitShell();
 
