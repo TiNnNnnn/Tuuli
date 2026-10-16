@@ -1,0 +1,102 @@
+{
+  "description": "Project EXISTS/NOT EXISTS must not evaluate discarded SELECT expressions, including division by zero",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply"
+    ],
+    "scope": "Correlated existential values with unused failing output expressions",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "ca5bdb0f38257c24",
+      "21543dafb8c8f61b"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarOp (/)",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
+        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CScalarOp (/)",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
+        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,t,f",
+      "2,t,f",
+      "3,f,t"
+    ],
+    "postgres_output": [
+      "1,t,f",
+      "2,t,f",
+      "3,f,t"
+    ]
+  }
+}
