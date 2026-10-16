@@ -1,0 +1,102 @@
+{
+  "description": "The original DSL DISTINCT rule composes three-table join keys; the native baseline retains aggregation",
+  "replacement": {
+    "xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "scope": "key-backed nested inner join dedup",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "58483b210e2ba41f"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "HashAggregate"
+      ],
+      "alternative": []
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_unique_dedup.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "stats_experiment": "unique_dedup_nested_join_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "58483b210e2ba41f",
+          "route_sequence": 16,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSimplifyGbAgg"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "isolate_unique_dedup.policy",
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ],
+    "off_output": [
+      "3"
+    ]
+  }
+}
