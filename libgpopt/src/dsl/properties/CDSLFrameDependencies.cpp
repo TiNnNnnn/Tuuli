@@ -54,7 +54,9 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalFullOuterJoin:
 		case COperator::EopLogicalInnerApply:
+		case COperator::EopLogicalInnerCorrelatedApply:
 		case COperator::EopLogicalLeftOuterApply:
+		case COperator::EopLogicalLeftOuterCorrelatedApply:
 			if (3 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FLogical() || !(*expr)[2]->Pop()->FScalar()) return false;
 			// Identity SELECTs of joined rows also read these column identities.

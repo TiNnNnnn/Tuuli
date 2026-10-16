@@ -1,0 +1,68 @@
+{
+  "description": "Compute list Context retains correlation and arithmetic items on both sides of the selected scalar",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "correlated-middle-source-route.yaml",
+      "native_observation": "all_source_outputs",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "33a86dd897855e47",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      ",,",
+      "1,,0",
+      "2,,2",
+      "3,3,4",
+      "3,3,4"
+    ],
+    "postgres_output": [
+      ",,",
+      "1,,0",
+      "2,,2",
+      "3,3,4",
+      "3,3,4"
+    ]
+  }
+}
