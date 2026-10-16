@@ -27,6 +27,7 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
@@ -233,6 +234,15 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
+		if (const auto *assertion = dynamic_cast<const CLogicalAssert *>(expr->Pop()))
+		{
+			const auto *error = assertion->Pexc();
+			*out << ",\"assertion_sqlstate\":";
+			if (nullptr != error && nullptr != error->GetSQLState())
+				*out << JsonString(error->GetSQLState());
+			else
+				*out << "null";
+		}
 		if (const auto *aggregate = dynamic_cast<const CLogicalGbAgg *>(expr->Pop()))
 		{
 			*out << ",\"grouping_columns\":";

@@ -1,5 +1,5 @@
 {
-  "description": "A potentially multirow scalar subquery must not be moved out of its lazy branch",
+  "description": "Reject eager materialization of a potentially multirow scalar subquery in a lazy branch; native-off planning currently falls back",
   "plans": [
     {
       "name": "dsl-on",
@@ -10,7 +10,8 @@
       ],
       "contains": [
         "\"status\":\"constraint_rejected\"",
-        "\"failed_constraint\":\"ErrorFree\""
+        "\"failed_constraint\":\"ErrorFree\"",
+        "Falling back to Postgres"
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
