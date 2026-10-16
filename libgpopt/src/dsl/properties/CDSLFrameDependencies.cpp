@@ -67,6 +67,17 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FScalar()) return false;
 			break;
+		case COperator::EopLogicalAssert:
+			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
+				COperator::EopScalarAssertConstraintList != (*expr)[1]->Pop()->Eopid()) return false;
+			break;
+		case COperator::EopScalarAssertConstraintList:
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				if (COperator::EopScalarAssertConstraint != (*expr)[i]->Pop()->Eopid()) return false;
+			break;
+		case COperator::EopScalarAssertConstraint:
+			if (1 != expr->Arity() || !(*expr)[0]->Pop()->FScalar()) return false;
+			break;
 		case COperator::EopLogicalUnionAll:
 			if (expr->Arity() < 2) return false;
 			for (ULONG i = 0; i < expr->Arity(); ++i)

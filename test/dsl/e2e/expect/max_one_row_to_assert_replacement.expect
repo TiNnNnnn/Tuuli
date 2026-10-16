@@ -7,7 +7,7 @@
     "scope": "Scalar subquery MaxOneRow contracts lowered to ORCA's standard Assert implementation",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "770daa019ca274ae"
+      "dda6affc7d996bbc"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "trace": true,
       "assert_maxonerow": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+        "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ]
     },
     {
@@ -48,7 +48,7 @@
       ],
       "assert_maxonerow": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"770daa019ca274ae\""
+        "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ],
       "not_contains": [
         "Xform: CXformMaxOneRow2Assert"

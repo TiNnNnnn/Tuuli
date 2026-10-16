@@ -39,6 +39,9 @@
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalAssert.h"
+#include "gpopt/operators/CScalarAssertConstraint.h"
+#include "gpopt/operators/CScalarAssertConstraintList.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
@@ -694,6 +697,25 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame = dslproperties::PcrsFrameReads(mp, get);
 	frame_facts &= nullptr != frame && 0 == frame->Size();
 	CRefCount::SafeRelease(frame);
+	for (BOOL cardinality : {false, true})
+	{
+		get->AddRef();
+		CExpression *guard = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarAssertConstraintList(mp),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarAssertConstraint(mp,
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("assertion"))),
+				fixture.PexprEqPred((*cols)[0], (*cols)[0])));
+		CExpression *assertion = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalAssert(mp, GPOS_NEW(mp) CException(CException::ExmaSQL,
+				cardinality ? CException::ExmiSQLMaxOneRow : CException::ExmiSQLCheckConstraintViolation)),
+			get, guard);
+		frame = dslproperties::PcrsFrameReads(mp, assertion);
+		frame_facts &= nullptr != frame && 1 == frame->Size() && frame->FMember((*cols)[0]) &&
+			CDSLPlanTemplate::Serialize(mp, assertion).find(cardinality ?
+				"\"assertion_sqlstate\":\"21000\"" : "\"assertion_sqlstate\":\"23514\"") != std::string::npos;
+		CRefCount::SafeRelease(frame);
+		assertion->Release();
+	}
 	for (BOOL left_outer : {false, true})
 	{
 		get->AddRef();
