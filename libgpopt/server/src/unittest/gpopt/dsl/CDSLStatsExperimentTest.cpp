@@ -24,6 +24,7 @@
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCast.h"
@@ -716,6 +717,20 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		CRefCount::SafeRelease(frame);
 		assertion->Release();
 	}
+	CExpression *rank_assert = CXformUtils::PexprAssertOneRow(mp, get);
+	const std::string rank_json = CDSLPlanTemplate::Serialize(mp, rank_assert);
+	frame = dslproperties::PcrsFrameReads(mp, rank_assert);
+	frame_facts &= nullptr != frame && frame->ContainsAll(get->DeriveOutputColumns()) &&
+		rank_json.find("\"window_unpartitioned\":true,\"window_ordered\":false,\"window_framed\":false") != std::string::npos &&
+		rank_json.find("\"window_distinct\":false,\"window_star\":false,\"window_simple_aggregate\":false,\"window_aggregate\":false") != std::string::npos;
+	CRefCount::SafeRelease(frame);
+	rank_assert->Release();
+	CExpression *partitioned = CXformUtils::PexprWindowWithRowNumber(mp, get, cols);
+	const std::string partition_json = CDSLPlanTemplate::Serialize(mp, partitioned);
+	frame = dslproperties::PcrsFrameReads(mp, partitioned);
+	frame_facts &= nullptr == frame && partition_json.find("\"window_unpartitioned\":false") != std::string::npos;
+	CRefCount::SafeRelease(frame);
+	partitioned->Release();
 	for (BOOL left_outer : {false, true})
 	{
 		get->AddRef();

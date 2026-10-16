@@ -46,12 +46,31 @@
       "disable_xforms": [
         "CXformMaxOneRow2Assert"
       ],
+      "policy": "isolate_max_one_row_assert.policy",
+      "stats_experiment": "max_one_row_source_route.yaml",
       "assert_maxonerow": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ],
       "not_contains": [
         "Xform: CXformMaxOneRow2Assert"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "dda6affc7d996bbc",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalMaxOneRow",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalAssert",
+            "CLogicalSequenceProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -68,6 +87,7 @@
     "disable_xforms": [
       "CXformMaxOneRow2Assert"
     ],
+    "policy": "isolate_max_one_row_assert.policy",
     "assert_maxonerow": true,
     "output": [
       "1,2",

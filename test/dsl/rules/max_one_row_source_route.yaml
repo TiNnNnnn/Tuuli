@@ -1,0 +1,7 @@
+experiment: native-cardinality-contract
+discover: false
+template_route: 5
+template_fingerprint: e1507521bfe94eaf
+template_root: r
+template_bindings: true
+cardinalities:

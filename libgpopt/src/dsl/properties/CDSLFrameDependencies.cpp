@@ -6,6 +6,8 @@
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/base/CDistributionSpec.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubquery.h"
 
@@ -50,6 +52,19 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			// Compute lowers to identity SELECT items followed by new items.
 			reads->Include((*expr)[0]->DeriveOutputColumns());
 			break;
+		case COperator::EopLogicalSequenceProject:
+		{
+			const auto *window = CLogicalSequenceProject::PopConvert(expr->Pop());
+			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
+				!CDSLExprListUtils::FProjectList((*expr)[1]) || window->FHasOrderSpecs() ||
+				window->FHasFrameSpecs() || CDistributionSpec::EdtSingleton != window->Pds()->Edt())
+				return false;
+			reads->Include((*expr)[0]->DeriveOutputColumns());
+			break;
+		}
+		case COperator::EopScalarWindowFunc:
+			// Zero-argument windows add no environment reads; not a safety certificate.
+			return 0 == expr->Arity();
 		case COperator::EopLogicalInnerJoin:
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalFullOuterJoin:
@@ -121,7 +136,7 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			break;
 		default:
 			// Unknown implicit evaluation scopes cannot borrow a free-ref set.
-			// ponytail: no window/CTE lowering here; add after its frame contract is checked.
+			// shortcut: other implicit scopes need their own retained-frame contract.
 			if (!CDSLMatchView::FScalarCall(expr)) return false;
 	}
 	for (ULONG i = 0; i < expr->Arity(); ++i)
