@@ -7,7 +7,7 @@
     "scope": "independent total deterministic row-scalar project lists; native contracts remain obligations and SRFs are not covered",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8c88a4df159bc8be"
+      "f2532e414a3fb917"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -51,14 +51,14 @@
       "policy": "isolate_compute_concat_bindings.policy",
       "stats_experiment": "compute_concat_source_route.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8c88a4df159bc8be\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "8c88a4df159bc8be",
+          "rule_hash": "f2532e414a3fb917",
           "route_sequence": 2,
           "operators": [
             "CLogicalProject",
