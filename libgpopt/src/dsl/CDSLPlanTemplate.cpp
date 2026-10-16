@@ -16,6 +16,7 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CDistributionSpec.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
@@ -38,6 +39,7 @@
 #include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarFunc.h"
+#include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
@@ -234,6 +236,14 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
+		if (const auto *window = dynamic_cast<const CLogicalSequenceProject *>(expr->Pop()))
+		{
+			*out << ",\"window_stage\":" << window->Pspt()
+				<< ",\"window_unpartitioned\":" <<
+				(CDistributionSpec::EdtSingleton == window->Pds()->Edt() ? "true" : "false")
+				<< ",\"window_ordered\":" << (window->FHasOrderSpecs() ? "true" : "false")
+				<< ",\"window_framed\":" << (window->FHasFrameSpecs() ? "true" : "false");
+		}
 		if (const auto *assertion = dynamic_cast<const CLogicalAssert *>(expr->Pop()))
 		{
 			const auto *error = assertion->Pexc();
@@ -301,7 +311,18 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// remain on the existing child paths; IDs alone certify no semantics.
 		if (nullptr != scalar->MdIdOp())
 			*out << ",\"operator_mdid\":" << MetadataId(mp, scalar->MdIdOp());
-		if (COperator::EopScalarFunc == expr->Pop()->Eopid())
+		if (COperator::EopScalarWindowFunc == expr->Pop()->Eopid())
+		{
+			const auto *function = CScalarWindowFunc::PopConvert(expr->Pop());
+			*out << ",\"function_mdid\":" << MetadataId(mp, function->FuncMdId())
+				<< ",\"window_stage\":" << function->Ews()
+				<< ",\"window_distinct\":" << (function->IsDistinct() ? "true" : "false")
+				<< ",\"window_star\":" << (function->IsStarArg() ? "true" : "false")
+				<< ",\"window_simple_aggregate\":" << (function->IsSimpleAgg() ? "true" : "false")
+				<< ",\"window_aggregate\":" << (function->FAgg() ? "true" : "false")
+				<< ",\"window_null_treatment\":" << function->GetNullTreatment();
+		}
+		else if (COperator::EopScalarFunc == expr->Pop()->Eopid())
 		{
 			const auto *function = CScalarFunc::PopConvert(expr->Pop());
 			*out << ",\"function_mdid\":" << MetadataId(mp, function->FuncMdId())
