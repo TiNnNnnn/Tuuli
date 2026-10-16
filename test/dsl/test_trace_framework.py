@@ -607,6 +607,11 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertEqual(checker.call_args.kwargs,
                              {"observe_compute": False, "equivalence_mode": "BAG_OUTCOME_EQ"})
             self.assertEqual(check_native_routes(
+                {**expected, "native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "source_outputs"},
+                output, Path(directory)), 1)
+            self.assertEqual(checker.call_args.kwargs,
+                             {"observe_compute": False, "observe_outputs": True, "equivalence_mode": "BAG_OUTCOME_EQ"})
+            self.assertEqual(check_native_routes(
                 {**expected, "native_observation": "source_row_stream"}, output, Path(directory)), 1)
             self.assertEqual(checker.call_args.kwargs, {"observe_compute": False,
                 "equivalence_mode": "OUTCOME_EQ", "execution_model": "ROW_STREAM"})
@@ -614,7 +619,9 @@ class TraceFrameworkTest(unittest.TestCase):
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "all_source_outputs"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_row_stream"},
                             {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "all_source_outputs"},
-                            {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "source_row_stream"}):
+                            {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "source_row_stream"},
+                            {"native_equivalence_mode": "OUTCOME_EQ", "native_observation": "source_outputs"},
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_outputs"}):
                 with self.assertRaisesRegex(ValueError, "unsupported native instance equivalence mode"):
                     check_native_routes({**expected, **options}, output, Path(directory))
             with self.assertRaisesRegex(ValueError, "unknown native instance observation"):

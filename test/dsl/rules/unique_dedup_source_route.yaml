@@ -1,0 +1,7 @@
+experiment: native-unique-dedup
+discover: false
+template_route: 1
+template_fingerprint: f548604a38c94310
+template_root: r
+template_bindings: true
+cardinalities:
