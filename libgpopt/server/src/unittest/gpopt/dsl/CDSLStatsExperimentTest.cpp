@@ -39,6 +39,8 @@
 #include "gpopt/operators/CLogicalUnionAll.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalProject.h"
+#include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
+#include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarProjectList.h"
@@ -692,6 +694,24 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame = dslproperties::PcrsFrameReads(mp, get);
 	frame_facts &= nullptr != frame && 0 == frame->Size();
 	CRefCount::SafeRelease(frame);
+	for (BOOL left_outer : {false, true})
+	{
+		get->AddRef();
+		right->AddRef();
+		CExpression *apply = left_outer
+			? CUtils::PexprLogicalApply<CLogicalLeftOuterCorrelatedApply>(mp, get, right,
+				(*right_cols)[0], COperator::EopScalarSubquery,
+				fixture.PexprEqPred((*cols)[0], (*right_cols)[0]))
+			: CUtils::PexprLogicalApply<CLogicalInnerCorrelatedApply>(mp, get, right,
+				(*right_cols)[0], COperator::EopScalarSubquery,
+				fixture.PexprEqPred((*cols)[0], (*right_cols)[0]));
+		frame = dslproperties::PcrsFrameReads(mp, apply);
+		frame_facts &= nullptr != frame && 2 == frame->Size() &&
+			frame->FMember((*cols)[0]) && frame->FMember((*right_cols)[0]) &&
+			CDSLPlanTemplate::Serialize(mp, apply).find("\"frame_reads\":null") == std::string::npos;
+		CRefCount::SafeRelease(frame);
+		apply->Release();
+	}
 	for (ULONG arity = 0; arity <= 2; ++arity)
 	{
 		CExpressionArray *arguments = GPOS_NEW(mp) CExpressionArray(mp);

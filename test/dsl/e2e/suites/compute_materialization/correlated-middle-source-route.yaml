@@ -1,0 +1,7 @@
+experiment: compute-correlated-middle-source
+discover: false
+template_route: 1
+template_fingerprint: 73656b593c757018
+template_root: r
+template_bindings: true
+cardinalities:

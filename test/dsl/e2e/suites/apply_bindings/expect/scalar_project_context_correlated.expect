@@ -10,6 +10,8 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "policy": "context.policy",
+      "stats_experiment": "context-correlated-source-route.yaml",
+      "native_observation": "all_source_outputs",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
@@ -20,6 +22,27 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "899834d77652f23d",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ]
     }
   ],
