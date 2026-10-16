@@ -1,5 +1,5 @@
 {
-  "description": "Project EXISTS/NOT EXISTS must not evaluate discarded SELECT expressions, including division by zero",
+  "description": "Project EXISTS/NOT EXISTS must discard unused failing SELECT expressions even when volatile calls prevent post-plan projection merging",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
@@ -50,6 +50,7 @@
     {
       "name": "replacement",
       "trace": true,
+      "verbose": true,
       "disable_xforms": [
         "CXformProject2Apply",
         "CXformSimplifyProjectWithSubquery",
@@ -63,7 +64,9 @@
         "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\""
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Output: (1 /",
+        "Output: (((1 /"
       ],
       "alternative": [
         "CXformDSLRule_Project"
@@ -89,14 +92,14 @@
     ],
     "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
-      "1,t,f",
-      "2,t,f",
-      "3,f,t"
+      "1,t,f,t,f",
+      "2,t,f,t,f",
+      "3,f,t,f,t"
     ],
     "postgres_output": [
-      "1,t,f",
-      "2,t,f",
-      "3,f,t"
+      "1,t,f,t,f",
+      "2,t,f,t,f",
+      "3,f,t,f,t"
     ]
   }
 }

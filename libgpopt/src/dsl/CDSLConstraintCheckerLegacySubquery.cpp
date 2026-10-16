@@ -566,7 +566,11 @@ CDSLConstraintChecker::FCheckExprListExistential(
 		return false;
 	}
 
-	CExpression *pexprInner = (*pexprSubquery)[0];
+	// The output binding is the existentially demanded input, not a full-row
+	// evaluation of the original SELECT. In particular volatile unused values
+	// must not rely on post-plan Result merging to avoid being evaluated.
+	CExpression *pexprInner =
+		CDSLExprListUtils::PexprExistentialInput((*pexprSubquery)[0]);
 	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();
 	if (0 == pcrsInnerOutput->Size())
 	{

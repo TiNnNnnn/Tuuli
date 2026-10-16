@@ -375,6 +375,17 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIn("SET pg_orca.enable_dphyper=on;", call.args[1])
             self.assertIn("SET pg_orca.dphyper_shadow=off;", call.args[1])
 
+    def test_e2e_verbose_exposes_actual_projection_without_enabling_analyze(self) -> None:
+        from run_e2e_cases import run_plan
+
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for plan, options in (({}, "COSTS OFF"), ({"verbose": True}, "COSTS OFF, VERBOSE")):
+            with self.subTest(plan=plan), patch("run_e2e_cases.run_sql", return_value="") as run:
+                run_plan(args, "SELECT 1", plan)
+            self.assertIn(f"EXPLAIN ({options}) SELECT 1", run.call_args.args[1])
+            self.assertNotIn("ANALYZE", run.call_args.args[1])
+            self.assertEqual(actual_plan(plan, ""), plan)
+
     def test_e2e_optional_off_rows_keep_other_optimizer_settings(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
         for output, expected in (("1\n", {"off_output": []}),

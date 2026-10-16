@@ -212,7 +212,7 @@ SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule={trace};
 SET client_min_messages=log;
-EXPLAIN (COSTS OFF) {query}
+EXPLAIN (COSTS OFF{', VERBOSE' if plan.get('verbose', False) else ''}) {query}
 """,
     )
 
@@ -463,7 +463,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         key: expected[key]
         for key in (
             "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
-            "dphyper_pair_budget", "dphyper_shadow", "native", "trace",
+            "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose",
             "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "native_observation",
             "native_equivalence_mode"
         )
