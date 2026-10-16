@@ -462,8 +462,8 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[0]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[1]);
-	// A captured two-slot Proj* is pure grouping. Reuse the common grouping
-	// builder below, including positional SetOp mapping, for both syntaxes.
+	// A captured two-slot Proj* is pure grouping, even when its keys change.
+	// Reuse the common grouping builder and its source-schema restoration.
 	// Explicit SELECT programs and computed captures keep the typed path.
 	const CDSLOp *group_source = m_prule->Pexprdefs()->FHasBindings()
 		? PopSourceProjForSchema(m_prule->PfragSrc()->PopRoot(), psymSchema) : nullptr;
@@ -472,9 +472,10 @@ CDSLInstantiator::PexprBuildProj(const CDSLOp *pop,
 	const BOOL captured_grouping = nullptr != group_source && pop->FDistinct() &&
 		group_source->FDistinct() && 2 == pop->Pdrgpsym()->Size() &&
 		2 == group_source->Pdrgpsym()->Size() &&
-		psymAttrs == (*group_source->Pdrgpsym())[0] &&
 		nullptr != group_attrs && nullptr != group_schema &&
-		CColRef::Equals(group_attrs, group_schema);
+		(pmodel->FVirtualIdentityProj(psymSchema) ||
+		 (psymAttrs == (*group_source->Pdrgpsym())[0] &&
+		  CColRef::Equals(group_attrs, group_schema)));
 	if (m_prule->Pexprdefs()->FHasBindings() && !captured_grouping)
 	{
 		// Captured and rebuilt SELECT programs both carry their own exact
