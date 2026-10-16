@@ -5,9 +5,9 @@
       "CXformProject2Apply"
     ],
     "scope": "Uncorrelated scalar aggregate in a Project list",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5fa029945ad6953b"
+      "0b88ba995ef9c4cd"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterApply",
-        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

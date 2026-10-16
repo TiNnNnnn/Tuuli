@@ -6,9 +6,9 @@
       "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "One correlated quantified ANY in a Project value context",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "6b57425ad510f91a"
+      "daf208e79534479c"
     ]
   },
   "plans": [
@@ -29,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\""
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -59,7 +59,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\""
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

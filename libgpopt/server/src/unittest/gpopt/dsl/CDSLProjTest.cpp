@@ -107,9 +107,9 @@ using namespace gpopt;
 	"Compute<e2 a1 s1>(LeftApply<p1 a6 a7 a8>("                                  \
 	"LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>),"                               \
 	"Limit<n0 n1>(Compute<e3 a9 s2>(Input<t3>))))|"                               \
-	"TableEq(t1,t0);SchemaEq(s1,s0);"                                              \
-	"ExprListScalarSubquery(e0,e1,p0,a2,a3,a4,a5,t2);"                            \
-	"ExprListExists(e1,e2,e3,a9,s2,p1,a6,a7,a8,a10,t3);"                         \
+	"t1 := t0;s1 := s0;a1 := ScalarDeps(e2);"                                    \
+	"ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0;"                        \
+	"ExprListExists(e2,e3,a9,s2,p1,a6,a7,a8,a10,t3) := e1;"                     \
 	"ScalarOne(n0);ScalarZero(n1)"
 
 #define GPOPT_DSL_COLLAPSE_INDEPENDENT_COMPUTE_RULE                       \
@@ -296,6 +296,35 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	}
 
 	CRefCount::SafeRelease(pexprTarget);
+	// Extraction replaces a subquery with an Apply output. Its dependencies
+	// must be derived from the new list, never copied from the old expression.
+	for (BOOL stale : {false, true})
+	{
+		std::string text = "Compute<e0 a0 s0>(Input<t0>)|"
+			"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|"
+			"t1 := t0;s1 := s0;ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0;";
+		text += stale ? "a1 := a0" : "a1 := ScalarDeps(e1)";
+		CDSLRule *typed = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != typed);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(
+			typed->PfragSrc()->PopRoot(), pexprSource, model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(typed, model);
+		GPOS_UNITTEST_ASSERT((nullptr == target) == stale);
+		if (nullptr != target)
+		{
+			GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveHasSubquery());
+			GPOS_UNITTEST_ASSERT((*target)[0]->DeriveOutputColumns()->ContainsAll(
+				(*target)[1]->DeriveUsedColumns()));
+			GPOS_UNITTEST_ASSERT(target->DeriveOutputColumns()->ContainsAll(
+				pexprSource->DeriveOutputColumns()));
+		}
+		CRefCount::SafeRelease(target);
+		model->Release();
+		typed->Release();
+	}
 	pmodel->Release();
 	pexprSource->Release();
 	pexprOuter->Release();
@@ -404,12 +433,21 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		{
 			eres = GPOS_FAILED;
 		}
+		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
+		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
 		// Replay the complete scalar -> existential lowering chain after target
 		// construction, retaining the same intermediate expressions and marker.
-		CColRef *marker = pmodel->PcrSubqueryMarker((*prule->Pdrgpcon())[3]);
-		if (nullptr == marker || !checker.FCheck(prule, pmodel) ||
-			marker != pmodel->PcrSubqueryMarker((*prule->Pdrgpcon())[3]))
-			eres = GPOS_FAILED;
+		GPOS_UNITTEST_ASSERT(checker.FCheck(prule, pmodel));
+		CDSLInstantiator replay(mp);
+		CExpression *replayed = replay.PexprInstantiate(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(nullptr != replayed);
+		GPOS_UNITTEST_ASSERT((*replayed)[1]->DeriveUsedColumns()->Equals(
+			(*pexprTarget)[1]->DeriveUsedColumns()));
+		GPOS_UNITTEST_ASSERT(replayed->DeriveOutputColumns()->ContainsAll(
+			pexprSource->DeriveOutputColumns()));
+		GPOS_UNITTEST_ASSERT((*replayed)[0]->DeriveOutputColumns()->ContainsAll(
+			(*replayed)[1]->DeriveUsedColumns()));
+		CRefCount::SafeRelease(replayed);
 	}
 
 	CRefCount::SafeRelease(pexprTarget);

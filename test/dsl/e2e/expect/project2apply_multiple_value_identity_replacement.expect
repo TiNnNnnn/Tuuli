@@ -6,13 +6,13 @@
       "CXformSimplifyProjectWithSubquery"
     ],
     "scope": "Scalar, EXISTS, NOT EXISTS, ANY, and ALL in one Project value list",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5fa029945ad6953b",
-      "74d29836fcf3a2f2",
-      "6a126177c924c309",
-      "6b57425ad510f91a",
-      "3a779f2b6c2bb335"
+      "0b88ba995ef9c4cd",
+      "ca5bdb0f38257c24",
+      "21543dafb8c8f61b",
+      "daf208e79534479c",
+      "9555abcd9b140797"
     ]
   },
   "plans": [
@@ -33,10 +33,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\"",
-        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\"",
-        "\"status\":\"applied\",\"rule_hash\":\"6a126177c924c309\"",
-        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
+        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -66,11 +66,11 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"5fa029945ad6953b\"",
-        "\"status\":\"applied\",\"rule_hash\":\"74d29836fcf3a2f2\"",
-        "\"status\":\"applied\",\"rule_hash\":\"6a126177c924c309\"",
-        "\"status\":\"applied\",\"rule_hash\":\"6b57425ad510f91a\"",
-        "\"status\":\"applied\",\"rule_hash\":\"3a779f2b6c2bb335\""
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
+        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9555abcd9b140797\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
