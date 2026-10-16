@@ -684,11 +684,9 @@ BOOL
 FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
 							 const CColRefSet *pcrsAttrs)
 {
-	// The empty vector is a key exactly when there is at most one row.
-	// Use a logical bound, never an estimated row count.
-	if (0 == pcrsAttrs->Size() && pexpr->DeriveMaxCard() <= CMaxCard(1))
+	if (!pexpr->DeriveOutputColumns()->ContainsAll(pcrsAttrs))
 	{
-		return true;
+		return false;
 	}
 	CExpression *pexprKeySource = pexpr;
 	while (COperator::EopLogicalSelect == pexprKeySource->Pop()->Eopid() &&
@@ -697,21 +695,29 @@ FExpressionUniqueOnAttrs(CMemoryPool *mp, CExpression *pexpr,
 		pexprKeySource = (*pexprKeySource)[0];
 	}
 
+	BOOL unique = false;
 	switch (pexprKeySource->Pop()->Eopid())
 	{
 		case COperator::EopLogicalInnerJoin:
-			return FBinaryJoinPreservesUniqueAttrs(
+			unique = FBinaryJoinPreservesUniqueAttrs(
 				mp, pexprKeySource, pcrsAttrs, true /*fAllowRightAnchor*/);
-		case COperator::EopLogicalLeftOuterJoin:
-			return FBinaryJoinPreservesUniqueAttrs(
-				mp, pexprKeySource, pcrsAttrs, false /*fAllowRightAnchor*/);
-		default:
 			break;
+		case COperator::EopLogicalLeftOuterJoin:
+			unique = FBinaryJoinPreservesUniqueAttrs(
+				mp, pexprKeySource, pcrsAttrs, false /*fAllowRightAnchor*/);
+			break;
+		default:
+		{
+			CKeyCollection *pkc = pexprKeySource->DeriveKeyCollection();
+			unique = nullptr != pkc &&
+				FAttrsAndFixedColumnsCoverKey(mp, pexpr, pcrsAttrs, pkc);
+			break;
+		}
 	}
 
-	CKeyCollection *pkc = pexprKeySource->DeriveKeyCollection();
-	return nullptr != pkc && FAttrsAndFixedColumnsCoverKey(
-							  mp, pexpr, pcrsAttrs, pkc);
+	// Avoid deriving constraints when a key already proves uniqueness. Otherwise
+	// a logical bound of one makes any output vector (including empty) a key.
+	return unique || pexpr->DeriveMaxCard() <= CMaxCard(1);
 }
 
 }  // namespace

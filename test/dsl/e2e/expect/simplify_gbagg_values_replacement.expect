@@ -1,0 +1,60 @@
+{
+  "description": "A single-row input establishes a real key for DSL DISTINCT elimination",
+  "plans": [
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg",
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "stats_experiment": "unique_dedup_source_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ],
+      "not_contains": [
+        "Xform: CXformSimplifyGbAgg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "58483b210e2ba41f",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "isolate_unique_dedup.policy",
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}

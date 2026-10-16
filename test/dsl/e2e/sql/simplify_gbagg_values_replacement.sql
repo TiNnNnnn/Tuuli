@@ -1,0 +1,1 @@
+SELECT DISTINCT a FROM (VALUES (1, 10)) AS v(a, b) ORDER BY a;

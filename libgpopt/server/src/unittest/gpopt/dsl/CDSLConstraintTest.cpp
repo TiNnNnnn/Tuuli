@@ -602,24 +602,44 @@ EresUniqueOnCardinalityBound()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CDSLRule *rule = PdslruleParseLocal(mp,
-		"Input<t0>|Input<t1>|t1 := t0;AttrsEmpty(a0);Unique(t0,a0)");
+		"Proj*<a0 s0>(Input<t0>)|Input<t1>|t1 := t0;Unique(t0,a0)");
 	GPOS_UNITTEST_ASSERT(nullptr != rule);
 	BOOL ok = true;
 	for (ULONG bound = 0; bound < 4; ++bound)
 	{
+		CColRefArray *columns = nullptr;
+		CExpression *schema = fix.PexprLogicalGet("bounded_unique", 2, &columns);
+		columns->AddRef();
+		schema->Release();
 		IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
 		for (ULONG row = 0; row < bound; ++row)
-			rows->Append(GPOS_NEW(mp) IDatumArray(mp));
+		{
+			IDatumArray *values = GPOS_NEW(mp) IDatumArray(mp);
+			for (ULONG column = 0; column < columns->Size(); ++column)
+			{
+				CExpression *value = CUtils::PexprScalarConstNull(
+					mp, (*columns)[column]->RetrieveType(), default_type_modifier);
+				IDatum *datum = CScalarConst::PopConvert(value->Pop())->GetDatum();
+				datum->AddRef(); values->Append(datum); value->Release();
+			}
+			rows->Append(values);
+		}
 		CExpression *input = GPOS_NEW(mp) CExpression(mp,
-			GPOS_NEW(mp) CLogicalConstTableGet(mp,
-				GPOS_NEW(mp) CColRefArray(mp), rows));
-		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-		model->FBind(PsymByName(rule, "t0"), input);
-		const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
-		if (accepted != (bound <= 1))
-			GPOS_TRACE_FORMAT("empty key bound=%lu accepted=%d", bound, accepted);
-		ok &= accepted == (bound <= 1);
-		model->Release();
+			GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, rows));
+		for (ULONG vector = 0; vector < 3; ++vector)
+		{
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			model->FBind(PsymByName(rule, "t0"), input);
+			CColRefArray *attrs = GPOS_NEW(mp) CColRefArray(mp);
+			if (vector == 1) attrs->Append((*columns)[0]);
+			if (vector == 2)
+				attrs->Append(COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					(*columns)[0]->RetrieveType(), default_type_modifier));
+			model->FBind(PsymByName(rule, "a0"), attrs); attrs->Release();
+			const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+			ok &= accepted == (bound <= 1 && vector != 2);
+			model->Release();
+		}
 		input->Release();
 	}
 	rule->Release();

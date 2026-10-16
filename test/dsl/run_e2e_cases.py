@@ -418,11 +418,12 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     if not patterns:
         return 0
     observation = expected.get("native_observation", "exact_tree")
-    if observation not in ("exact_tree", "all_source_outputs", "source_row_stream"):
+    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "source_row_stream"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
     if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
-            observation != "exact_tree" and equivalence != "OUTCOME_EQ"):
+            observation in ("all_source_outputs", "source_row_stream") and equivalence != "OUTCOME_EQ") or (
+            observation == "source_outputs" and equivalence != "BAG_OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
     if actual_plan({"rule_source_routes": patterns}, output)["rule_source_routes"] != patterns:
@@ -449,6 +450,7 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
                               lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
                               observe_compute=observation == "all_source_outputs",
                               equivalence_mode=equivalence,
+                              **({"observe_outputs": True} if observation == "source_outputs" else {}),
                               **({"execution_model": "ROW_STREAM"} if observation == "source_row_stream" else {}))
         checked += 1
     if not checked:

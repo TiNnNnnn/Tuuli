@@ -788,5 +788,7 @@ Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
 # dedup branch. Appending preserves every existing replacement rule line id.
-# SYNTAX_ONLY legacy_hash=a7d859279ffc7369; native expression proof: UNKNOWN (native binding proof pending).
+# SYNTAX_ONLY legacy_hash=a7d859279ffc7369; whole-rule native certificate pending.
+# Single-row Values instances are kernel-checked with original-output/error observation
+# in simplify_gbagg_values_replacement; this is not arbitrary-input certification.
 Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);t1 := t0
