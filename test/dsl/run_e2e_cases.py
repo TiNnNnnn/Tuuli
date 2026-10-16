@@ -421,7 +421,7 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     if observation not in ("exact_tree", "all_source_outputs", "source_row_stream"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
-    if equivalence not in ("OUTCOME_EQ", "BAG_EQ") or (
+    if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
             observation != "exact_tree" and equivalence != "OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
