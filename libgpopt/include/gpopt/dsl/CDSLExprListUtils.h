@@ -60,6 +60,9 @@ public:
 	// Row-level scalar scope: no SRFs, aggregate or window calls. Relational
 	// subquery children have their own evaluation phase and are not inspected.
 	static BOOL FRowScalar(CExpression *pexpr);
+	// Borrow the input demanded by EXISTS, skipping only output-only scalar
+	// Projects. Preserve the source tree and all row/value-consuming barriers.
+	static CExpression *PexprExistentialInput(CExpression *input);
 	// Typed Compute is a parallel scalar list: unique outputs, no SRFs and
 	// no references to outputs defined by this same list. Outer refs are valid.
 	static BOOL FComputeList(CExpression *pexpr);

@@ -11,6 +11,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
@@ -168,15 +169,10 @@ CDSLInstantiator::PexprBuildExists(const CDSLOp *pop,
 	// for pass-through attributes in that Project's explicit list. Canonicalize
 	// away only ordinary scalar Projects; an SRF/non-scalar Project can change
 	// cardinality and must remain part of the EXISTS input.
-	while (COperator::EopLogicalProject == pexprInner->Pop()->Eopid() &&
-		   2 == pexprInner->Arity() &&
-		   !(*pexprInner)[1]->DeriveHasNonScalarFunction())
-	{
-		CExpression *pexprChild = (*pexprInner)[0];
-		pexprChild->AddRef();
-		pexprInner->Release();
-		pexprInner = pexprChild;
-	}
+	CExpression *demanded = CDSLExprListUtils::PexprExistentialInput(pexprInner);
+	demanded->AddRef();
+	pexprInner->Release();
+	pexprInner = demanded;
 
 	CColRefSet *pcrsInnerOutput = pexprInner->DeriveOutputColumns();
 	if (0 == pcrsInnerOutput->Size())

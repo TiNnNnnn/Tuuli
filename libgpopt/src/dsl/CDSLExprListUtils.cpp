@@ -162,6 +162,17 @@ CDSLExprListUtils::FRowScalar(CExpression *pexpr)
 	return true;
 }
 
+CExpression *
+CDSLExprListUtils::PexprExistentialInput(CExpression *input)
+{
+	while (COperator::EopLogicalProject == input->Pop()->Eopid() &&
+		   2 == input->Arity() && FRowScalar((*input)[1]))
+	{
+		input = (*input)[0];
+	}
+	return input;
+}
+
 CExpressionArray *
 CDSLExprListUtils::PdrgpexprFunctions(CMemoryPool *mp, CExpression *list)
 {

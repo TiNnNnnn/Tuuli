@@ -22,6 +22,7 @@
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -388,6 +389,25 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		fix.PexprLogicalGet("project_chain_scalar", 1, &pdrgpcrScalar);
 	CExpression *pexprExistsInner =
 		fix.PexprLogicalGet("project_chain_exists", 1);
+	CExpression *existsBase = pexprExistsInner;
+	for (ULONG i = 0; i < 2; ++i)
+	{
+		CExpression *project = PexprProjectWithScalar(mp, pexprExistsInner,
+			fix.PcrCreateInt4("unused_exists_value"), CUtils::PexprScalarConstInt4(mp, 1));
+		pexprExistsInner->Release();
+		pexprExistsInner = project;
+	}
+	GPOS_UNITTEST_ASSERT(existsBase == CDSLExprListUtils::PexprExistentialInput(pexprExistsInner));
+	// LIMIT and row-expanding projections are not transparent SELECT shells.
+	pexprExistsInner->AddRef();
+	CExpression *limit = CUtils::PexprLimit(mp, pexprExistsInner, 0, 1);
+	GPOS_UNITTEST_ASSERT(limit == CDSLExprListUtils::PexprExistentialInput(limit));
+	limit->Release();
+	CExpression *srf = PexprProjectWithScalar(mp, pexprExistsInner,
+		fix.PcrCreateInt4("exists_srf"),
+		fix.PexprGenerateSeries(existsBase->DeriveOutputColumns()->PcrFirst()));
+	GPOS_UNITTEST_ASSERT(srf == CDSLExprListUtils::PexprExistentialInput(srf));
+	srf->Release();
 	CExpressionArray *pdrgpexprElems = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprElems->Append(GPOS_NEW(mp) CExpression(
 		mp, GPOS_NEW(mp) CScalarProjectElement(
@@ -435,6 +455,8 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		}
 		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
 		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
+		GPOS_UNITTEST_ASSERT((*(*(*pexprOuterApply)[1])[0])[0]->Matches(existsBase));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalProject == pexprExistsInner->Pop()->Eopid());
 		// Replay the complete scalar -> existential lowering chain after target
 		// construction, retaining the same intermediate expressions and marker.
 		GPOS_UNITTEST_ASSERT(checker.FCheck(prule, pmodel));
