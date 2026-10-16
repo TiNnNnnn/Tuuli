@@ -7,9 +7,12 @@
       "CXformSimplifySelectWithSubquery"
     ],
     "scope": "One correlated EXISTS value inside an inner-join OR predicate",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "272456a34079bc4b"
+      "e71082cbe42ae6c7"
+    ],
+    "excluded_native_domains": [
+      "Whole-rule native observation proof for residual predicate extraction remains pending"
     ]
   },
   "plans": [
@@ -28,7 +31,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"272456a34079bc4b\""
+        "\"rule_hash\":\"e71082cbe42ae6c7\""
       ],
       "alternative": []
     },
@@ -55,7 +58,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"272456a34079bc4b\""
+        "\"status\":\"applied\",\"rule_hash\":\"e71082cbe42ae6c7\""
       ],
       "alternative": [],
       "provenance": {

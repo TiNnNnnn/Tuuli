@@ -326,6 +326,37 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		model->Release();
 		typed->Release();
 	}
+	pexprSubquery->AddRef();
+	CExpression *predicate = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CScalarNullTest(mp), pexprSubquery);
+	CExpression *filtered = fix.PexprLogicalSelect(pexprOuter, predicate);
+	for (BOOL stale : {false, true})
+	{
+		std::string text = "Filter<p0 a0>(Input<t0>)|"
+			"Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
+			"t1 := t0;ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0;";
+		text += stale ? "a1 := a0" : "n2 := BoolValue(p1);a1 := ScalarDeps(n2)";
+		CDSLRule *typed = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != typed);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed).FMatch(
+			typed->PfragSrc()->PopRoot(), filtered, model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(typed, model));
+		CDSLInstantiator builder(mp);
+		CExpression *target = builder.PexprInstantiate(typed, model);
+		GPOS_UNITTEST_ASSERT((nullptr == target) == stale);
+		if (nullptr != target)
+		{
+			GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveHasSubquery());
+			GPOS_UNITTEST_ASSERT((*target)[0]->DeriveOutputColumns()->ContainsAll(
+				(*target)[1]->DeriveUsedColumns()));
+		}
+		CRefCount::SafeRelease(target);
+		model->Release();
+		typed->Release();
+	}
+	filtered->Release();
+	predicate->Release();
 	pmodel->Release();
 	pexprSource->Release();
 	pexprOuter->Release();

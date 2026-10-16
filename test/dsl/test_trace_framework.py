@@ -3648,24 +3648,27 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertIsNone(pending)
         self.assertGreater(checked, 0)
 
-    def test_compute_extraction_derives_residual_dependencies(self) -> None:
+    def test_extraction_derives_residual_dependencies(self) -> None:
         import re
 
         observations = set()
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
-            if not line.startswith('Compute<'):
+            if not line.startswith(('Compute<', 'Filter<')):
                 continue
             source, target, clauses = line.split('|')
             extraction = re.search(
                 r'ExprList(ScalarSubquery|Exists|NotExists|Any|All)\(', clauses)
             if extraction is None:
                 continue
-            source_list = re.match(r'Compute<(e\d+) ', source)[1]
-            target_list, target_deps = re.match(r'Compute<(e\d+) (a\d+) ', target).groups()
+            owner, source_list = re.match(r'(Compute|Filter)<([ep]\d+) ', source).groups()
+            target_list, target_deps = re.match(r'(?:Compute|Filter)<([ep]\d+) (a\d+)[ >]', target).groups()
             self.assertNotEqual(source_list, target_list)
+            if owner == 'Filter':
+                target_list = re.search(r'(n\d+) := BoolValue\(' + target_list + r'\)', clauses)[1]
             self.assertIn(f'{target_deps} := ScalarDeps({target_list})', clauses.split(';'))
-            observations.add(extraction[1])
-        self.assertEqual(observations, {'ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All'})
+            observations.add((owner, extraction[1]))
+        self.assertEqual(observations, {(owner, kind) for owner in ('Compute', 'Filter')
+                                      for kind in ('ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All')})
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"
