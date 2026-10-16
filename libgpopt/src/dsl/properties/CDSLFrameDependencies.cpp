@@ -82,6 +82,10 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FScalar()) return false;
 			break;
+		case COperator::EopLogicalMaxOneRow:
+			// Counting rows adds no environment reads; retain the child's footprint.
+			if (1 != expr->Arity() || !(*expr)[0]->Pop()->FLogical()) return false;
+			break;
 		case COperator::EopLogicalAssert:
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				COperator::EopScalarAssertConstraintList != (*expr)[1]->Pop()->Eopid()) return false;

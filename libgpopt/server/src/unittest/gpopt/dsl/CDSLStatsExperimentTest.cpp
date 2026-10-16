@@ -698,6 +698,16 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame = dslproperties::PcrsFrameReads(mp, get);
 	frame_facts &= nullptr != frame && 0 == frame->Size();
 	CRefCount::SafeRelease(frame);
+	plain_select->AddRef();
+	CExpression *bounded_select = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalMaxOneRow(mp), plain_select);
+	frame = dslproperties::PcrsFrameReads(mp, bounded_select);
+	CColRefSet *child_frame = dslproperties::PcrsFrameReads(mp, plain_select);
+	frame_facts &= nullptr != frame && nullptr != child_frame &&
+		frame->Equals(child_frame) && 0 < frame->Size();
+	CRefCount::SafeRelease(frame);
+	CRefCount::SafeRelease(child_frame);
+	bounded_select->Release();
 	for (BOOL cardinality : {false, true})
 	{
 		get->AddRef();
@@ -844,9 +854,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	}
 	// Unknown stays unknown even inside EXISTS or a Boolean branch. Never
 	// report an empty set just because a node has no free column references.
-	right->AddRef();
-	CExpression *unknown = GPOS_NEW(mp) CExpression(mp,
-		GPOS_NEW(mp) CLogicalMaxOneRow(mp), right);
+	CExpression *unknown = CXformUtils::PexprWindowWithRowNumber(mp, right, right_cols);
 	frame_facts &= dslproperties::PcrsFrameReads(mp, unknown) == nullptr &&
 		CDSLPlanTemplate::Serialize(mp, unknown).find("\"frame_reads\":null") != std::string::npos;
 	binding_facts &= CDSLPlanTemplate::FSlice(mp, unknown, "r", {"r"},
