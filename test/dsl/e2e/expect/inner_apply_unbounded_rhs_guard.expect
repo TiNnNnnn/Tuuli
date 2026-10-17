@@ -1,0 +1,37 @@
+{
+  "description": "An unbounded COUNT introduced by EXISTS lowering cannot establish RHS error freedom for Apply-to-Join",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"89f3e67ef03908c5\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\"",
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

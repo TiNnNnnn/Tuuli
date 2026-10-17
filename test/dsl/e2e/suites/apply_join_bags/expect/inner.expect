@@ -1,5 +1,5 @@
 {
-  "description": "Conditional native bag proof for independent InnerApply with duplicate rows",
+  "description": "Native bag/error proof for independent InnerApply with duplicate rows and no left-safety premise",
   "plans": [
     {
       "name": "dsl-on",
@@ -11,10 +11,10 @@
       ],
       "policy": "bindings.policy",
       "stats_experiment": "inner-source-route.yaml",
-      "native_equivalence_mode": "BAG_EQ",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"33d338572a52c831\""
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -23,7 +23,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "33d338572a52c831",
+          "rule_hash": "89f3e67ef03908c5",
           "route_sequence": 3,
           "operators": [
             "CLogicalInnerApply",

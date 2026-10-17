@@ -1,5 +1,5 @@
 {
-  "description": "Conditional native bag proof for independent LeftApply with NULL extension",
+  "description": "Native bag/error proof for independent LeftApply with NULL extension and no left-safety premise",
   "plans": [
     {
       "name": "dsl-on",
@@ -11,10 +11,10 @@
       ],
       "policy": "bindings.policy",
       "stats_experiment": "left-source-route.yaml",
-      "native_equivalence_mode": "BAG_EQ",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"f53ba89dbac4cad5\""
+        "\"status\":\"applied\",\"rule_hash\":\"5d0ac0dfa041a119\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -23,7 +23,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "f53ba89dbac4cad5",
+          "rule_hash": "5d0ac0dfa041a119",
           "route_sequence": 2,
           "operators": [
             "CLogicalLeftOuterApply",

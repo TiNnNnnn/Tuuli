@@ -14,10 +14,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"a8b0c58b00786b95\"",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"33d338572a52c831\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"89f3e67ef03908c5\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"33d338572a52c831\"",
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\"",
         "Falling back to Postgres",
         "Xform: CXformInnerApply2InnerJoin\n",
         "Xform: CXformInnerApply2InnerJoinNoCorrelations\n"

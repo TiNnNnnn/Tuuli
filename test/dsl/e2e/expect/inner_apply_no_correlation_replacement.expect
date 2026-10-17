@@ -1,13 +1,17 @@
 {
-  "description": "Runtime uncorrelated InnerApply replacement; native Apply/Join demand equivalence remains unproved",
+  "description": "Guarded uncorrelated InnerApply replacement; conditional native bag/error proof checked separately",
   "replacement": {
     "xforms": [
       "CXformInnerApply2InnerJoinNoCorrelations"
     ],
-    "scope": "InnerApply whose inner subtree has no references to its current outer child",
-    "status": "verified_direct_replacement",
+    "scope": "InnerApply with independent, provably error-free and deterministic RHS and ON; left errors remain observable",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "RHS or ON not provably error-free and deterministic",
+      "Unconditional native deployment certificate remains pending"
+    ],
     "dsl_rule_hashes": [
-      "c06d12b0021df6a1"
+      "89f3e67ef03908c5"
     ]
   },
   "plans": [
@@ -23,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\""
       ]
     },
     {
@@ -44,7 +48,7 @@
         "CXformInnerApply2InnerJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c06d12b0021df6a1\""
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\""
       ],
       "provenance": {
         "required_sources": [
