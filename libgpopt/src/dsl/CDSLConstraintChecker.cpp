@@ -2395,6 +2395,17 @@ CDSLConstraintChecker::FCheckDepsDisjoint(
 		CColRefSet *pcrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
 		switch (psym->Esymkind())
 		{
+			case EdslsymTable:
+			{
+				CExpression *pexpr = pmodel->PexprTable(psym);
+				if (nullptr == pexpr)
+				{
+					pcrs->Release();
+					return static_cast<CColRefSet *>(nullptr);
+				}
+				pcrs->Include(pexpr->DeriveOuterReferences());
+				break;
+			}
 			case EdslsymAttrs:
 				if (nullptr == pmodel->PdrgpcrAttrs(psym))
 				{

@@ -548,6 +548,29 @@ EresDependencyBindings()
 		"t1 := t0;a1 := a0;p1 := p0;DepsDisjoint(a2,a0)");
 	valid &= nullptr == unbound;
 	CRefCount::SafeRelease(unbound);
+	// Query dependencies are outer references, not the query's output columns.
+	CExpression *right = fix.PexprLogicalGet("dependency_right", 1);
+	for (BOOL correlated : {false, true})
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp,
+			"Filter<p0 a0 a1>(Input<t0>)|Filter<p1 a2 a3>(Input<t1>)|"
+			"t1 := t0;p1 := p0;a2 := a0;a3 := a1;DepsDisjoint(t0,a1)");
+		if (!correlated) right->AddRef();
+		CExpression *rhs = correlated ? fix.PexprLogicalSelect(right, predicate) : right;
+		CExpression *tree = fix.PexprLogicalSelect(rhs, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		valid &= nullptr != rule && !CDSLConstraintChecker(mp).FCheck(rule, model);
+		const BOOL matched = nullptr != rule &&
+			CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), tree, model);
+		const BOOL accepted = matched && CDSLConstraintChecker(mp).FCheck(rule, model);
+		if (!matched || accepted == correlated)
+			GPOS_TRACE_FORMAT("query dependencies correlated=%d parsed=%d matched=%d accepted=%d",
+				correlated, nullptr != rule, matched, accepted);
+		valid &= matched && accepted == !correlated;
+		model->Release(); tree->Release(); rhs->Release();
+		CRefCount::SafeRelease(rule);
+	}
+	right->Release();
 	source->Release();
 	predicate->Release();
 	input->Release();

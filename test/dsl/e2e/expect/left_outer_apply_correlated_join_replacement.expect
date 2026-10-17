@@ -4,10 +4,10 @@
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
     ],
-    "scope": "Correlated LeftApply whose right child contains an InnerJoin",
+    "scope": "Correlated LeftApply whose unfiltered RHS is a safe repeatable independent InnerJoin",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e202032549ff305e"
+      "a4e6320e7e60378e"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
       ],
       "provenance": {
         "required_sources": [

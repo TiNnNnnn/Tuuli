@@ -4,13 +4,14 @@
     "xforms": [
       "CXformInnerApply2InnerJoin"
     ],
-    "scope": "InnerApply whose top correlated Filter has an arbitrary grouped relational child",
-    "status": "verified_full_replacement",
+    "scope": "InnerApply whose top correlated Filter has a safe, repeatable and independent grouped child",
+    "status": "verified_partial_replacement",
     "excluded_native_domains": [
-      "Assert decorrelation that changes strict error reachability"
+      "Assert decorrelation that changes strict error reachability",
+      "RHS without an error-freedom, repeatability or independence certificate"
     ],
     "dsl_rule_hashes": [
-      "55521bf6de23449c"
+      "307e9b61f726a180"
     ]
   },
   "plans": [
@@ -26,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\""
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\""
       ]
     },
     {
@@ -47,7 +48,7 @@
         "CXformInnerApply2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\"",
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\"",
         "CLogicalInnerJoin"
       ],
       "provenance": {

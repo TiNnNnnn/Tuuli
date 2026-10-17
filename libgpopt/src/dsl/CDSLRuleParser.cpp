@@ -654,6 +654,7 @@ PdrgpconBuild(SBuildCtx &bctx,
 		}
 		if (EdslconDepsDisjoint == edslcon &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
+			  EdslsymTable != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymAttrs != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymSchema != (*pdrgpsym)[0]->Esymkind() &&
