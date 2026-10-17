@@ -327,11 +327,14 @@ Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4>(Input<t0>,Input<t1>))|InnerJoin<a5 a6>(A
 # predicate variant composes the same key/reference proof with dependency safety.
 Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4 p1 a5 a6>(Input<t0>,Input<t1>))|InnerJoin<a7 a8 p2 a9 a10>(Agg<a11 a12 a13 f1 s1 p3>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a7 := a3;a8 := a4;p2 := p1;a9 := a5;a10 := a6;AttrsIntersect(a11,a0,t0);a12 := a1;a13 := a2;f1 := f0;AttrsUnion(a14,a11,a13);SchemaFromAttrs(s1,a14);p3 := p0;AttrsSub(a1,t0);AttrsSub(a3,a11);AttrsSub(a3,t0);AttrsSub(a4,t1);AttrsSub(a5,a11);AttrsSub(a5,t0);AttrsSub(a6,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a12);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
-# SYNTAX_ONLY legacy_hash=2f343d5df0e707b5; native expression proof: UNKNOWN (Empty/join evaluation proof pending; assumed AST equality is not a certificate).
-LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;ErrorFree(p0);ErrorFree(p1)
+# SYNTAX_ONLY legacy_hash=2f343d5df0e707b5; native expression proof: UNKNOWN (false-join evaluation proof pending).
+# Discarding the right input must not erase its evaluation errors.
+LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;ErrorFree(p0);ErrorFree(p1);ErrorFree(t1)
 
-# SYNTAX_ONLY legacy_hash=ffb6e215e00b6e40; native expression proof: UNKNOWN (native binding proof pending).
-LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);t2 := t0;t3 := t1;p2 := p0;a3 := a0;a4 := a1
+# FORMALSQL_PROVED legacy_hash=ffb6e215e00b6e40; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-17; certificate adca8eea10d9452c7f9c4f5d29778cffe9eb51c96c692d076137d6803db3313e.
+# Compose generic rejecting-filter elimination with join construction; arbitrary
+# child queries remain opaque and require their own total, error-free contract.
+LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);t2 := t0;t3 := t1;p2 := p0;a3 := a0;a4 := a1;ErrorFree(t1)
 
 # Replaces CXformLeftSemiJoin2CrossProduct when the semi predicate does not
 # depend on the inner input. SemiJoin names the actual post-unnest relational
