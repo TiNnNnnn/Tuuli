@@ -1,13 +1,13 @@
 {
-  "description": "A SQLSolver-proved DSL rule replaces correlated LeftApply Filter normalization",
+  "description": "Guarded DSL decorrelation composes Filter fusion and independent LeftApply-to-Join",
   "replacement": {
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
     ],
-    "scope": "LeftApply whose right child is one correlated Filter with safe deterministic predicates",
+    "scope": "LeftApply with one correlated Filter, safe deterministic predicates and a safe repeatable independent unfiltered RHS",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e202032549ff305e"
+      "a4e6320e7e60378e"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
       ]
     },
     {
@@ -39,12 +39,32 @@
     },
     {
       "name": "replacement",
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
+      "stats_experiment": "apply-filter-left-source.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a4e6320e7e60378e",
+          "route_sequence": 10,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

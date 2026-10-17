@@ -1,0 +1,7 @@
+experiment: apply-filter-join-source
+discover: false
+template_route: 10
+template_fingerprint: 98c8e957c53bc4f8
+template_root: r
+template_bindings: true
+cardinalities:

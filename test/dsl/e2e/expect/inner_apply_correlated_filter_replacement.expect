@@ -1,13 +1,13 @@
 {
-  "description": "A SQLSolver-proved DSL rule replaces correlated InnerApply Filter normalization",
+  "description": "Guarded DSL decorrelation composes Filter fusion and independent InnerApply-to-Join",
   "replacement": {
     "xforms": [
       "CXformInnerApply2InnerJoin"
     ],
-    "scope": "InnerApply whose right child is one correlated Filter with safe deterministic predicates",
+    "scope": "InnerApply with one correlated Filter, safe deterministic predicates and a safe repeatable independent unfiltered RHS",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "55521bf6de23449c"
+      "307e9b61f726a180"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\""
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\""
       ]
     },
     {
@@ -39,12 +39,32 @@
     },
     {
       "name": "replacement",
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformInnerApply2InnerJoin"
       ],
+      "stats_experiment": "apply-filter-inner-source.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"55521bf6de23449c\""
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "307e9b61f726a180",
+          "route_sequence": 10,
+          "operators": [
+            "CLogicalInnerApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

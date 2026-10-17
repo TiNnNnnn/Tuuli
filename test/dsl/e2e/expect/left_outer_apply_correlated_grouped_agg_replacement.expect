@@ -4,13 +4,13 @@
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
     ],
-    "scope": "Correlated LeftApply with a NULL-on-empty aggregate whose correlation key is already grouped",
-    "status": "verified_full_replacement",
+    "scope": "Correlated LeftApply with a safe repeatable independent grouped RHS and NULL-on-empty aggregates whose correlation key is already grouped",
+    "status": "verified_partial_replacement",
     "excluded_native_domains": [
       "Assert decorrelation that changes strict error reachability"
     ],
     "dsl_rule_hashes": [
-      "e202032549ff305e"
+      "a4e6320e7e60378e"
     ]
   },
   "plans": [
@@ -26,7 +26,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\""
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
       ]
     },
     {
@@ -47,7 +47,7 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e202032549ff305e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\"",
         "CLogicalLeftOuterJoin"
       ],
       "provenance": {

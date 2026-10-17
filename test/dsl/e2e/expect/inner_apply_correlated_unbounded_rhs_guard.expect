@@ -1,0 +1,35 @@
+{
+  "description": "Correlated Filter fusion does not make an unbounded COUNT RHS error-free",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "rule_hash=307e9b61f726a180 status=rejected constraint=ErrorFree"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\"",
+        "Xform: CXformInnerApply2InnerJoin\n"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "output": [
+      "1,1,2",
+      "2,2,1",
+      "3,3,1"
+    ],
+    "postgres_output": [
+      "1,1,2",
+      "2,2,1",
+      "3,3,1"
+    ]
+  }
+}

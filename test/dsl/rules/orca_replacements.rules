@@ -652,18 +652,16 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
 # Apply predicate and the right Filter predicate become one Join predicate;
-# AttrsUnion preserves the exact dependency order on each input.  Correlation
-# metadata must name the Filter's outer dependencies, and total deterministic
-# predicates make the SQLSolver bag proof a sound replacement obligation.
-# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-31.
-# SYNTAX_ONLY legacy_hash=22de86cebf7ac288; native expression proof: UNKNOWN (row Apply/Filter fusion needs a native evaluation proof, not assumed AST equality).
-InnerApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
+# AttrsUnion preserves the exact dependency order on each input. Removing the
+# dependent RHS evaluation additionally requires a safe, repeatable base query
+# whose free references are disjoint from the left output domain.
+# PARTIAL_BINDING legacy_hash=c22b24a146ac5c98; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instances kernel-checked 2026-10-17, not deployment certificates. Previous legacy_hash 22de86cebf7ac288 lacked RHS demand guards.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);OutputAttrs(a7,t0);DepsDisjoint(t1,a7);ErrorFree(t1);Deterministic(t1);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
 
 # LeftOuter sibling of the rule above.  The same predicate/dependency fusion
 # applies, while LeftJoin retains the unmatched outer row with NULL-extension.
-# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-31.
-# SYNTAX_ONLY legacy_hash=283d176f5bcef54e; native expression proof: UNKNOWN (row Apply/Filter fusion needs a native evaluation proof, not assumed AST equality).
-LeftApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|LeftJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a4);AttrsUnion(a6,a1,a3);AttrsEq(a2,a4);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a4,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
+# PARTIAL_BINDING legacy_hash=a80f10fe12541472; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instances kernel-checked 2026-10-17, not deployment certificates. Previous legacy_hash 283d176f5bcef54e lacked RHS demand guards.
+LeftApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|LeftJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);OutputAttrs(a7,t0);DepsDisjoint(t1,a7);ErrorFree(t1);Deterministic(t1);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
 
 # Decorrelates LeftApply across a grouped aggregate only when every aggregate
 # is NULL-on-empty. This excludes COUNT's zero identity, whose native rewrite
