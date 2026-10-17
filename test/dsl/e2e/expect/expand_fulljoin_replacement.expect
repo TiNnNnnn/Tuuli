@@ -1,13 +1,16 @@
 {
-  "description": "A DSL syntax migration exercises FullJoin expansion with shared CTE inputs and a kernel-checked generic proof",
+  "description": "FullJoin expansion with native rules disabled; captured NULL construction is checked separately from the pending whole-rule native proof",
   "replacement": {
     "xforms": [
       "CXformExpandFullOuterJoin"
     ],
     "scope": "Deterministic binary FullJoin predicates over arbitrary relational inputs",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "10374576f419c6c6"
+    ],
+    "excluded_native_domains": [
+      "Canonical fresh-column allocation and complete CTE/Union native observation proof remain pending"
     ]
   },
   "plans": [

@@ -1125,11 +1125,12 @@ CollectSourcePaths(const CDSLOp *op, const std::string &path,
 // Unsupported payloads remain explicit; this does not validate a lowering.
 std::string
 SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
-	const CDSLModel *model, const SourcePaths &paths)
+	const CDSLModel *model, const SourcePaths *paths)
 {
 	std::ostringstream out;
 	BOOL complete = true;
-	out << "{\"scope\":\"matched_source_symbols\",\"symbols\":[";
+	out << "{\"scope\":\"" << (nullptr == paths ? "materialized_constructor_symbols" :
+		"matched_source_symbols") << "\",\"symbols\":[";
 	for (ULONG i = 0; i < symbols.size(); ++i)
 	{
 		GPOS_CHECK_ABORT;
@@ -1185,14 +1186,17 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 			out << ",\"unsupported_payload\":true";
 			complete = false;
 		}
-		const auto locations = paths.find(symbol);
-		out << ",\"source_paths\":[";
-		if (locations != paths.end())
-			for (ULONG j = 0; j < locations->second.size(); ++j)
-				out << (j ? "," : "") << JsonString(locations->second[j]);
-		else
-			complete = false;
-		out << ']';
+		if (nullptr != paths)
+		{
+			const auto locations = paths->find(symbol);
+			out << ",\"source_paths\":[";
+			if (locations != paths->end())
+				for (ULONG j = 0; j < locations->second.size(); ++j)
+					out << (j ? "," : "") << JsonString(locations->second[j]);
+			else
+				complete = false;
+			out << ']';
+		}
 		out << '}';
 	}
 	out << "],\"complete\":" << (complete ? "true" : "false") << '}';
@@ -1218,7 +1222,40 @@ CDSLPlanTemplate::MatchedSourceBindings(const CDSLRule *rule, const CDSLModel *m
 		symbols.push_back((*rule->PfragSrc()->Pdrgpsym())[i]);
 	SourcePaths paths;
 	CollectSourcePaths(rule->PfragSrc()->PopRoot(), "r", rule->Pexprdefs(), &paths);
-	return SourceBindings(model->Pmp(), symbols, model, paths);
+	return SourceBindings(model->Pmp(), symbols, model, &paths);
+}
+
+std::string
+CDSLPlanTemplate::ConstructedBindings(const CDSLRule *rule, const CDSLModel *model)
+{
+	GPOS_ASSERT(nullptr != rule && nullptr != model);
+	std::vector<const CDSLSymbol *> symbols;
+	std::unordered_set<const CDSLSymbol *> seen;
+	std::ostringstream definitions;
+	BOOL first = true;
+	const auto append = [&](const CDSLSymbol *symbol) {
+		if (seen.insert(symbol).second) symbols.push_back(symbol);
+	};
+	for (ULONG i = 0; i < rule->Pexprdefs()->UlDefinitions(); ++i)
+	{
+		const auto *definition = rule->Pexprdefs()->PdefAt(i);
+		if (CDSLExpressionDefinitions::EBuild != definition->Binding()) continue;
+		append(definition->PsymOutput());
+		if (!first) definitions << ',';
+		first = false;
+		definitions << "{\"symbol\":" << JsonString(SymbolText(model->Pmp(), definition->PsymOutput()))
+			<< ",\"constructor\":" << JsonString(CDSLExpressionDefinitions::SzBindingName(definition->Edslexpr()))
+			<< ",\"operands\":[";
+		for (ULONG j = 0; j < definition->Arity(); ++j)
+		{
+			const auto *operand = definition->PsymOperand(j);
+			append(operand);
+			definitions << (j ? "," : "") << JsonString(SymbolText(model->Pmp(), operand));
+		}
+		definitions << "]}";
+	}
+	return "{\"definitions\":[" + definitions.str() + "],\"bindings\":" +
+		SourceBindings(model->Pmp(), symbols, model, nullptr) + '}';
 }
 
 std::vector<const CExpression *>
@@ -1495,7 +1532,7 @@ CDSLPlanTemplate::FSlice(
 		}
 		SourcePaths paths;
 		CollectSourcePaths(source, "r", nullptr, &paths);
-		*source_bindings = SourceBindings(mp, symbols, model, paths);
+		*source_bindings = SourceBindings(mp, symbols, model, &paths);
 	}
 	model->Release();
 	if (!matched)

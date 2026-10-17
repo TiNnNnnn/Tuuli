@@ -43,6 +43,10 @@ public:
 	// not native-plan paths or hidden symbol names.
 	static std::string MatchedSourceBindings(
 		const CDSLRule *rule, const CDSLModel *model);
+	// Observe already-materialized constructor inputs/outputs without resolving
+	// them again. Missing values stay explicit; this is not a proof receipt.
+	static std::string ConstructedBindings(
+		const CDSLRule *rule, const CDSLModel *model);
 	static BOOL FValidateSelection(
 		const CExpression *expr, const std::string &root_path,
 		const std::vector<std::string> &cut_paths, std::string *error);
