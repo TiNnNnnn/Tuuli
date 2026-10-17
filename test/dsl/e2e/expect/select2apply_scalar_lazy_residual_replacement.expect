@@ -12,11 +12,11 @@
       "assert_maxonerow": true,
       "contains": [
         "Falling back to Postgres",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"89a1d032e00b2e52\"",
-        "\"failed_constraint\":\"PredicateScalarSubquery\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"d127259fb9f5958e\"",
+        "\"failed_constraint\":\"ExprListScalarSubquery\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"89a1d032e00b2e52\""
+        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
       ]
     }
   ],

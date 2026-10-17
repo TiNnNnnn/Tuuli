@@ -157,19 +157,18 @@ Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;Any(c0,v0,a3,t
 # FORMALSQL_PROVED legacy_hash=a08e24d9155e2f5c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9883251f9f6b343cbfd4159809e17beb4912e6786e87b53c800b653c06b67125. Generic typed ALL bridge.
 Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;All(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
 
-# DIRECT(expression-rewrite): lower one scalar subquery in a Filter predicate.
-# FormalSQL/Rocq proves the MaxOneRow/AssertMaxOneRow cardinality contract.
-Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|t1 := t0;PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)
-
 # DIRECT(expression-rewrite): lower one scalar subquery anywhere inside a
 # Filter predicate while preserving the residual expression. This is the
 # scalar sibling of the existing existential and quantified definitions.
+# Also replaces the legacy PredicateScalarSubquery/InnerApply shortcut;
+# keep NULL extension explicit before evaluating the residual predicate.
 # Dependency metadata follows the residual predicate, not the source subquery.
 # SYNTAX_ONLY: native expression proof: UNKNOWN (residual predicate dependencies changed; native observation lowering pending).
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;n2 := BoolValue(p1);a1 := ScalarDeps(n2);ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
-# The carrier retains MaxOneRow; this is not a whole native-program proof.
+# The scalar carrier checks cardinality before yielding a value; this is not
+# a whole native-program proof.
 # SYNTAX_ONLY: native expression proof: UNKNOWN (extraction changes list dependencies; native observation lowering pending).
 # Replaces 5fa029945ad6953b; the old structural certificate does not certify this native program.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;s1 := s0;a1 := ScalarDeps(e1);ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0

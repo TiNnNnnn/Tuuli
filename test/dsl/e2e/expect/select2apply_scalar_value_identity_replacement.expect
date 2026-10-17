@@ -5,9 +5,12 @@
       "CXformSelect2Apply"
     ],
     "scope": "Correlated scalar value subquery requiring runtime single-row enforcement",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Whole-rule native observation proof for residual predicate extraction remains pending"
+    ],
     "dsl_rule_hashes": [
-      "89a1d032e00b2e52"
+      "d127259fb9f5958e"
     ]
   },
   "plans": [
@@ -26,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"89a1d032e00b2e52\""
+        "\"rule_hash\":\"d127259fb9f5958e\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -52,8 +55,8 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "CLogicalInnerCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"89a1d032e00b2e52\""
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
       ],
       "alternative": [
         "CXformDSLRule_Select"

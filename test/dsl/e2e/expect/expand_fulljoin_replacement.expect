@@ -51,11 +51,29 @@
         "CXformImplementFullOuterMergeJoin"
       ],
       "policy": "isolate_expand_fulljoin.policy",
+      "stats_experiment": "expand_fulljoin_source_route.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"10374576f419c6c6\""
       ],
       "alternative": [
         "CXformDSLRule_FullJoin"
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "10374576f419c6c6",
+          "symbols": [
+            {
+              "symbol": "t0",
+              "kind": "t",
+              "bound": true
+            },
+            {
+              "symbol": "t1",
+              "kind": "t",
+              "bound": true
+            }
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

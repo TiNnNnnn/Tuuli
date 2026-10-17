@@ -284,8 +284,8 @@ CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery()
 			: (*pexprTarget)[0];
 		if (nullptr == pexprApply ||
 			COperator::EopLogicalProject != pexprTarget->Pop()->Eopid() ||
-			COperator::EopLogicalLeftOuterApply != pexprApply->Pop()->Eopid() ||
-			COperator::EopLogicalMaxOneRow != (*pexprApply)[1]->Pop()->Eopid() ||
+			COperator::EopLogicalLeftOuterCorrelatedApply != pexprApply->Pop()->Eopid() ||
+			pexprInner != (*pexprApply)[1] ||
 			COperator::EopScalarSubquery !=
 				CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq() ||
 			(*pexprTarget)[1]->DeriveHasSubquery() ||
@@ -478,8 +478,9 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		if (nullptr == pexprOuterApply ||
 			COperator::EopLogicalLeftOuterApply !=
 				pexprOuterApply->Pop()->Eopid() ||
-			COperator::EopLogicalLeftOuterApply !=
+			COperator::EopLogicalLeftOuterCorrelatedApply !=
 				(*pexprOuterApply)[0]->Pop()->Eopid() ||
+			pexprScalarInner != (*(*pexprOuterApply)[0])[1] ||
 			(*pexprTarget)[1]->DeriveHasSubquery())
 		{
 			eres = GPOS_FAILED;
