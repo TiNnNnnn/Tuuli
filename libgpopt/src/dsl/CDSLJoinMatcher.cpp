@@ -168,13 +168,11 @@ FJoinKeyOrientationCompatible(const CColRefArray *pdrgpcrExpectedLeft,
 			FColArraysEqual(pdrgpcrExpectedRight, pdrgpcrRight));
 }
 
-// WeTune may match one equality edge of a join whose physical predicate has
-// several cross-child equalities. If a surrounding source operator has already
-// bound the key or an AttrsEq peer, select its unique ordered edge subset.
-// The complete predicate is still retained on the model, so
-// unselected equalities are never dropped by target construction.
+// Align the complete key vector with already-bound attrs. A subset would hide
+// conjuncts from the source template; retaining the predicate in the model
+// cannot protect a target that removes the Join.
 void
-NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
+AlignJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
 			   const CDSLSymbol *psymLeft, const CDSLSymbol *psymRight,
 			   const CDSLModel *pmodel, CColRefArray **ppdrgpcrLeft,
 			   CColRefArray **ppdrgpcrRight)
@@ -196,6 +194,10 @@ NarrowJoinKeys(CMemoryPool *mp, const CDSLRule *prule,
 	const CColRefArray *pdrgpcrSelector = nullptr != pdrgpcrExpectedLeft
 		? pdrgpcrExpectedLeft
 		: pdrgpcrExpectedRight;
+	if (pdrgpcrSelector->Size() != (*ppdrgpcrLeft)->Size())
+	{
+		return;
+	}
 	CColRefArray *pdrgpcrNarrowLeft = GPOS_NEW(mp) CColRefArray(mp);
 	CColRefArray *pdrgpcrNarrowRight = GPOS_NEW(mp) CColRefArray(mp);
 	std::vector<BOOL> used((*ppdrgpcrLeft)->Size(), false);
@@ -939,7 +941,7 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 			}
 		}
 	}
-	NarrowJoinKeys(m_mp, m_prule, psymLeft, psymRight, pmodel,
+	AlignJoinKeys(m_mp, m_prule, psymLeft, psymRight, pmodel,
 				   &pdrgpcrLeft, &pdrgpcrRight);
 
 	// recurse both relational children through the generic matcher.

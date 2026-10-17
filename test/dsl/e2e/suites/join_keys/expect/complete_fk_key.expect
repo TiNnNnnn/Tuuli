@@ -1,0 +1,40 @@
+{
+  "description": "Complete FK key still produces a join-free DSL alternative; CBO remains free to select its cheapest plan",
+  "plans": [
+    {
+      "name": "on",
+      "native": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"ef8a47cbc5fde4d7\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "native": false,
+    "policy": "bindings.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

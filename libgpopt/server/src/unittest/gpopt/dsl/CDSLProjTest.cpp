@@ -31,6 +31,7 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalApply.h"
@@ -38,6 +39,7 @@
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarCast.h"
+#include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCoerceViaIO.h"
 #include "gpopt/translate/CTranslatorDXLToExpr.h"
 #include "gpopt/translate/CTranslatorExprToDXL.h"
@@ -197,7 +199,7 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_InstantiateRebindsDistinctKeys),
 		GPOS_UNITTEST_FUNC(
-			CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq),
+			CDSLProjTest::EresUnittest_JoinKeyBindingIsComplete),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_PreservesHiddenLimitShell),
 		GPOS_UNITTEST_FUNC(
@@ -2246,6 +2248,22 @@ EresJoinKeyBinding(BOOL shared, BOOL reverse)
 		fix.PexprLogicalGet("subset_left", 2, &pdrgpcrLeft);
 	CExpression *pexprRight =
 		fix.PexprLogicalGet("subset_right", 1, &pdrgpcrRight);
+	// Constraint derivation needs real rows, not the fixture's opaque table id.
+	IDatum2dArray *rows = GPOS_NEW(mp) IDatum2dArray(mp);
+	for (INT value : {1, 2})
+	{
+		IDatumArray *row = GPOS_NEW(mp) IDatumArray(mp);
+		for (INT column : {value, value * 10})
+		{
+			CExpression *constant = CUtils::PexprScalarConstInt4(mp, column);
+			IDatum *datum = CScalarConst::PopConvert(constant->Pop())->GetDatum();
+			datum->AddRef(); row->Append(datum); constant->Release();
+		}
+		rows->Append(row);
+	}
+	pdrgpcrLeft->AddRef(); pexprLeft->Release();
+	pexprLeft = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, pdrgpcrLeft, rows));
 	CExpressionArray *pdrgpexprEq = GPOS_NEW(mp) CExpressionArray(mp);
 	pdrgpexprEq->Append(
 		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]));
@@ -2268,8 +2286,14 @@ EresJoinKeyBinding(BOOL shared, BOOL reverse)
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel) ||
-		!checker.FCheck(prule, pmodel))
+	const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprProject, pmodel);
+	if (!reverse)
+	{
+		// The second equality is not implied by either input. Binding only the
+		// projected first key is not a match of this source Join template.
+		if (matched && checker.FCheck(prule, pmodel)) eres = GPOS_FAILED;
+	}
+	else if (!matched || !checker.FCheck(prule, pmodel))
 	{
 		eres = GPOS_FAILED;
 	}
@@ -2307,7 +2331,7 @@ EresJoinKeyBinding(BOOL shared, BOOL reverse)
 }
 
 GPOS_RESULT
-CDSLProjTest::EresUnittest_JoinKeySubsetFollowsAttrsEq()
+CDSLProjTest::EresUnittest_JoinKeyBindingIsComplete()
 {
 	for (BOOL shared : {false, true})
 		for (BOOL reverse : {false, true})

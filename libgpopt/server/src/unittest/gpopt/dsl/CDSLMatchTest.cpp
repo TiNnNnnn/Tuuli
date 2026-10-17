@@ -35,6 +35,7 @@
 #include "gpopt/operators/CScalarSwitchCase.h"
 #include "gpopt/operators/CScalarArrayRefIndexList.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
+#include "gpopt/operators/CPredicateUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -511,6 +512,47 @@ CDSLMatchTest::EresUnittest_JoinRootMatchesBothChildren()
 	pexprRight->Release();
 	pexprJoin->Release();
 	prule->Release();
+
+	// Pre-bound keys must describe the complete Join, even if its target
+	// removes the Join and therefore cannot retain a hidden extra equality.
+	for (BOOL typed : {false, true})
+	for (ULONG boundWidth : {1UL, 2UL})
+	for (BOOL reorder : {false, true})
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp, typed
+			? "InnerJoin<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|t2 := t0"
+			: "InnerJoin<a0 a1>(Input<t0>,Input<t1>)|Input<t2>|TableEq(t2,t0)");
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *lc = nullptr, *rc = nullptr;
+		CExpression *left = fix.PexprLogicalGet("two_keys_left", 2, &lc);
+		CExpression *right = fix.PexprLogicalGet("two_keys_right", 2, &rc);
+		CExpression *first = fix.PexprEqPred((*lc)[0], (*rc)[0]);
+		CExpression *second = fix.PexprEqPred((*lc)[1], (*rc)[1]);
+		CExpression *on = CPredicateUtils::PexprConjunction(mp, first, second);
+		CExpression *join = fix.PexprLogicalInnerJoin(left, right, on);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLOp *root = rule->PfragSrc()->PopRoot();
+		CColRefArray *bound = GPOS_NEW(mp) CColRefArray(mp);
+		for (ULONG i = 0; i < boundWidth; i++)
+			bound->Append((*lc)[reorder ? boundWidth - 1 - i : i]);
+		GPOS_UNITTEST_ASSERT(model->FBind((*root->Pdrgpsym())[0], bound));
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(root, join, model);
+		if (matched != (2 == boundWidth))
+		{
+			GPOS_TRACE_FORMAT("Join keys: typed=%d boundWidth=%lu reorder=%d matched=%d",
+				typed, boundWidth, reorder, matched);
+			eres = GPOS_FAILED;
+		}
+		if (matched && 2 == boundWidth)
+		{
+			const CColRefArray *aligned = model->PdrgpcrAttrs((*root->Pdrgpsym())[1]);
+			GPOS_UNITTEST_ASSERT(nullptr != aligned && 2 == aligned->Size());
+			for (ULONG i = 0; i < boundWidth; i++)
+				GPOS_UNITTEST_ASSERT((*aligned)[i] == (*rc)[reorder ? boundWidth - 1 - i : i]);
+		}
+		bound->Release(); model->Release(); join->Release(); on->Release();
+		first->Release(); second->Release(); left->Release(); right->Release(); rule->Release();
+	}
 	return eres;
 }
 
