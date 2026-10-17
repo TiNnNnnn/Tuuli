@@ -1,0 +1,63 @@
+{
+  "description": "InnerApply-to-Join composes actual left aggregate evaluation evidence",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "inner-group-source-route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"89f3e67ef03908c5\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformInnerApply2InnerJoin\n",
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "89f3e67ef03908c5",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalInnerApply",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2"
+    ]
+  }
+}

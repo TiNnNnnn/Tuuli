@@ -1,0 +1,60 @@
+{
+  "description": "LeftApply-to-Join composes actual left aggregate evidence and preserves NULL extension",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "left-group-source-route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"5d0ac0dfa041a119\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin\n",
+        "Xform: CXformLeftOuterApply2LeftOuterJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "5d0ac0dfa041a119",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "0,"
+    ],
+    "postgres_output": [
+      "0,"
+    ],
+    "off_output": [
+      "0,"
+    ]
+  }
+}
