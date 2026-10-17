@@ -1,0 +1,36 @@
+{
+  "description": "A projected FK key must not hide an independent equality and admit incorrect join elimination",
+  "plans": [
+    {
+      "name": "on",
+      "native": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"ef8a47cbc5fde4d7\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ef8a47cbc5fde4d7\"",
+        "Falling back to Postgres"
+      ],
+      "joins": 1
+    }
+  ],
+  "rows": {
+    "native": false,
+    "policy": "bindings.policy",
+    "output": [
+      "1",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "3"
+    ],
+    "off_output": [
+      "1",
+      "3"
+    ]
+  }
+}

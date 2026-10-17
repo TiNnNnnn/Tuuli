@@ -1,0 +1,3 @@
+# FK join elimination on the complete projected equality key. An additional
+# independent equality must not be hidden by the surrounding Proj binding.
+Proj*<a0 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a2 s1>(Input<t2>)|AttrsSub(a0,t0);AttrsSub(a1,t1);Unique(t1,a1);NotNull(t0,a0);Reference(t0,a0,t1,a1);t2 := t0;a2 := a0;s1 := s0

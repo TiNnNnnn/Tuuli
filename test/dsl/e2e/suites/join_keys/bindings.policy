@@ -1,0 +1,6 @@
+- rule: '*'
+  placement: cbo
+  budget:
+    per_node: 8
+    per_rule: 128
+    per_query: 1024

@@ -40,7 +40,7 @@ public:
 	// project expression must change while its defined output/schema stays fixed.
 	static GPOS_RESULT EresUnittest_InstantiateRebindsTargetAttrs();
 	static GPOS_RESULT EresUnittest_InstantiateRebindsDistinctKeys();
-	static GPOS_RESULT EresUnittest_JoinKeySubsetFollowsAttrsEq();
+	static GPOS_RESULT EresUnittest_JoinKeyBindingIsComplete();
 	static GPOS_RESULT EresUnittest_PreservesHiddenLimitShell();
 
 	// A memo-safe Select(TRUE) produced by dedup removal exposes an identity Proj
