@@ -5,15 +5,16 @@
       "CXformSelect2Apply",
       "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
     ],
-    "scope": "Scalar subquery used by correlated ALL followed by uncorrelated LeftApply lowering",
+    "scope": "Scalar subquery used by correlated ALL followed by uncorrelated LeftApply lowering with safe deterministic RHS and ON",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "d127259fb9f5958e",
       "a075e87909c5f2de",
-      "779f43bd677ca505"
+      "5d0ac0dfa041a119"
     ],
     "excluded_native_domains": [
-      "Whole-rule native observation proof for residual predicate extraction remains pending"
+      "Whole-rule native observation proof for residual predicate extraction remains pending",
+      "LeftApply RHS or ON not provably error-free and deterministic"
     ]
   },
   "plans": [
@@ -67,7 +68,7 @@
         "CXformDSLRule_Select",
         "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\"",
         "\"status\":\"applied\",\"rule_hash\":\"a075e87909c5f2de\"",
-        "\"status\":\"applied\",\"rule_hash\":\"779f43bd677ca505\""
+        "\"status\":\"applied\",\"rule_hash\":\"5d0ac0dfa041a119\""
       ],
       "provenance": {
         "required_sources": [

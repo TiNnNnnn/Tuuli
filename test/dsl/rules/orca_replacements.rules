@@ -635,16 +635,20 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);At
 # exact right-to-left dependency set separately from the scalar predicate's
 # ordinary child dependencies. AttrsEmpty alone does not prove equal RHS demand:
 # an empty left input can suppress an error that an independent Join evaluates.
-# SYNTAX_ONLY legacy_hash=ebadfb129130abb8; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
-InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
+# BAG_OUTCOME_EQ preserves left errors, but requires a safe, repeatable RHS/ON.
+# Previous legacy_hash ebadfb129130abb8 lacked these demand guards.
+# PARTIAL_BINDING legacy_hash=eb967d997c2f6274; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instances kernel-checked 2026-10-17, not deployment certificates.
+InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0)
 
 # Replaces CXformLeftOuterApply2LeftOuterJoinNoCorrelations. LeftApply shares
 # the JoinApply correlation contract with InnerApply but retains NULL-extension
 # through an explicit LeftJoin target. AttrsEmpty excludes dependencies on the
 # current left row while permitting references supplied by an enclosing scope,
 # matching the native correlation promise but not establishing equal RHS demand.
-# SYNTAX_ONLY legacy_hash=4fbf993ef8bfe114; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
-LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2)
+# The same shared observations proof and demand guards apply to LeftApply.
+# Previous legacy_hash 4fbf993ef8bfe114 lacked these demand guards.
+# PARTIAL_BINDING legacy_hash=11462cc21b166ff0; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instances kernel-checked 2026-10-17, not deployment certificates.
+LeftApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|LeftJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0)
 
 # Replaces the correlated-Filter branch of CXformInnerApply2InnerJoin.  The
 # Apply predicate and the right Filter predicate become one Join predicate;
