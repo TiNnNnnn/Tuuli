@@ -2073,6 +2073,9 @@ CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
 			templates->Append(COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(types[i % 2], 42));
 		pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		pmodel->FBind(attrs, templates);
+		const std::string pending = CDSLPlanTemplate::ConstructedBindings(prule, pmodel);
+		GPOS_UNITTEST_ASSERT(pending.find("\"complete\":false") != std::string::npos);
+		GPOS_UNITTEST_ASSERT(nullptr == pmodel->PexprExpr(expr));
 		ULONG failed = gpos::ulong_max;
 		if (!checker.FCheck(prule, pmodel, nullptr, &failed))
 		{
@@ -2088,6 +2091,11 @@ CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
 		}
 		else
 		{
+			const std::string constructed = CDSLPlanTemplate::ConstructedBindings(prule, pmodel);
+			GPOS_UNITTEST_ASSERT(constructed.find("\"constructor\":\"ExprNulls\",\"operands\":[\"a0\"]") != std::string::npos);
+			GPOS_UNITTEST_ASSERT(constructed.find("\"complete\":true") != std::string::npos);
+			GPOS_UNITTEST_ASSERT(constructed.find("\"source_paths\"") == std::string::npos);
+			GPOS_UNITTEST_ASSERT(list == pmodel->PexprExpr(expr));
 			for (ULONG i = 0; i < width; ++i)
 				if ((*cols)[i] != CScalarProjectElement::PopConvert((*list)[i]->Pop())->Pcr() ||
 					(*cols)[i] == (*templates)[i] || 42 != (*cols)[i]->TypeModifier() ||

@@ -547,11 +547,14 @@ class TraceFrameworkTest(unittest.TestCase):
         # Optional targets are the same evaluated candidate, not another route,
         # a debug plan or a claim that the source and target are equivalent.
         candidate["target_fingerprint"] = "fedcba9876543210"
+        construction = {"definitions": [], "bindings": {
+            "scope": "materialized_constructor_symbols", "symbols": [], "complete": True}}
         candidate["binding_context"]["target_context"] = {
             "capture": "after_instantiation", "scope": "constructed_rule_target",
-            "fingerprint": "fedcba9876543210", "plan_template": snapshot}
+            "fingerprint": "fedcba9876543210", "plan_template": snapshot, "construction": construction}
         captured = source_route_occurrences([route, candidate])[0]
         self.assertIs(captured["target_snapshot"], snapshot)
+        self.assertIs(captured["construction"], construction)
         self.assertEqual(captured["target_operators"], ["CLogicalProject"])
         for change in (
             lambda c: c.pop("target_fingerprint"),

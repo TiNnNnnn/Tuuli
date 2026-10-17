@@ -145,7 +145,8 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 		if (nullptr != target)
 			result += ",\"target_context\":{\"capture\":\"after_instantiation\","
 				"\"scope\":\"constructed_rule_target\",\"fingerprint\":\"" + Fingerprint(model->Pmp(), target) +
-				"\",\"plan_template\":" + CDSLPlanTemplate::SerializeCaptured(model->Pmp(), target) + '}';
+				"\",\"plan_template\":" + CDSLPlanTemplate::SerializeCaptured(model->Pmp(), target) +
+				",\"construction\":" + CDSLPlanTemplate::ConstructedBindings(rule, model) + '}';
 	}
 	return result + '}';
 }

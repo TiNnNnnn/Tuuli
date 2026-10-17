@@ -394,6 +394,8 @@ def source_route_occurrences(records: list[dict[str, object]]) -> list[dict[str,
                     raise ValueError("source route has an incomplete target tree")
                 occurrence.update(target_snapshot=actual_target,
                     target_operators=[n["orca_operator"] for n in actual_target["nodes"]])
+                if "construction" in target:
+                    occurrence["construction"] = target["construction"]
             occurrences.append(occurrence)
     return occurrences
 
