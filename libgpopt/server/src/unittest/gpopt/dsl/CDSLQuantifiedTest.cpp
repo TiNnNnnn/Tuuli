@@ -2506,12 +2506,11 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	CExpression *pexprTarget =
 		instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalInnerApply ==
+	GPOS_ASSERT(COperator::EopLogicalInnerCorrelatedApply ==
 				pexprTarget->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopScalarSubquery ==
 		CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
-	GPOS_ASSERT(COperator::EopLogicalMaxOneRow ==
-				(*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(pexprInner == (*pexprTarget)[1]);
 	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[2]->Pop()->Eopid());
 	GPOS_ASSERT(!(*pexprTarget)[2]->DeriveHasSubquery());
 

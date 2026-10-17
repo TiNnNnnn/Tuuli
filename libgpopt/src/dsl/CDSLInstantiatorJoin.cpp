@@ -26,7 +26,6 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
-#include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -756,16 +755,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(
 					m_mp, pdrgpcrInner, eopidOrigin);
 			}
-			else if (0 == pexprRight->DeriveOuterReferences()->Size())
+			else if (0 == pexprRight->DeriveOuterReferences()->Size() &&
+					 !fScalarSubquery &&
+					 (!fExprListScalarSubquery ||
+					  1 >= pexprRight->DeriveMaxCard().Ull()))
 			{
-				if (fScalarSubquery ||
-					(fExprListScalarSubquery &&
-					 1 < pexprRight->DeriveMaxCard().Ull()))
-				{
-					pexprRight = GPOS_NEW(m_mp) CExpression(
-						m_mp, GPOS_NEW(m_mp) CLogicalMaxOneRow(m_mp),
-						pexprRight);
-				}
 				popJoin = fLeftOuterApply
 					? static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalLeftOuterApply(
@@ -778,6 +772,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 			else
 			{
+				// Scalar SubPlans check cardinality before returning a value;
+				// a streaming MaxOneRow/Assert can be cut short by its consumer.
 				popJoin = fLeftOuterApply
 					? static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalLeftOuterCorrelatedApply(

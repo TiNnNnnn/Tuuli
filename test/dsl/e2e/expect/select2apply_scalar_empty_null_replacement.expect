@@ -1,0 +1,44 @@
+{
+  "description": "Scalar Filter extraction preserves NULL on an empty right input before testing the predicate",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ]
+  }
+}
