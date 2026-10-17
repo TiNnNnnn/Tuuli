@@ -1,5 +1,5 @@
 {
-  "description": "Empty rewrites require a provably error-free discarded input; the preprocessed Filter path composes native query proofs",
+  "description": "Direct and preprocessed constant-FALSE left joins compose native query proofs and require a provably error-free discarded input",
   "replacement": {
     "xforms": [
       "CXformSimplifyLeftOuterJoin"
@@ -7,10 +7,10 @@
     "scope": "Constant-FALSE left joins whose discarded right input is provably error-free",
     "status": "verified_partial_replacement",
     "excluded_native_domains": [
-      "Right inputs without a total, error-free query contract; direct false-join native proof remains pending"
+      "Right inputs without a total, error-free query contract"
     ],
     "dsl_rule_hashes": [
-      "8fedee6eed4956e9",
+      "8cbde18bc619406e",
       "998a6cfd4a3940ce"
     ]
   },
