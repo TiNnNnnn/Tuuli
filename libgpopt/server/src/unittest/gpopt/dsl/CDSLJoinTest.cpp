@@ -141,7 +141,7 @@ using namespace gpopt;
 	"LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|"                         \
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);"              \
 	"TableEq(t2,t0);TableEq(t3,t1);PredicateEq(p1,p0);"                \
-	"AttrsEq(a2,a0);AttrsEq(a3,a1)"
+	"AttrsEq(a2,a0);AttrsEq(a3,a1);ErrorFree(t1)"
 
 #define GPOPT_DSL_SEMI_JOIN_IDENTITY_RULE                             \
 	"SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"                        \
@@ -1880,6 +1880,24 @@ EresTestFalseLeftJoinBuildsEmptyInput(const CHAR *text)
 		eres = GPOS_FAILED;
 	}
 
+	// FALSE cannot erase a cardinality error in the discarded input.
+	pexprRight->AddRef();
+	CExpression *unsafeRight = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprRight);
+	CExpression *falsePredicate = CUtils::PexprScalarConstBool(mp, false);
+	CExpression *unsafeJoin = fix.PexprLogicalLeftOuterJoin(
+		pexprLeft, unsafeRight, falsePredicate);
+	falsePredicate->Release();
+	CDSLModel *unsafeModel = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), unsafeJoin, unsafeModel) ||
+		checker.FCheck(prule, unsafeModel))
+	{
+		eres = GPOS_FAILED;
+	}
+	unsafeModel->Release();
+	unsafeJoin->Release();
+	unsafeRight->Release();
+
 	pmodelTrue->Release();
 	pexprTrueJoin->Release();
 	CRefCount::SafeRelease(pexprTarget);
@@ -1899,7 +1917,7 @@ CDSLJoinTest::EresUnittest_FalseLeftJoinBuildsEmptyInput()
 		"LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
 		"LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|"
 		"AttrsSub(a0,t0);AttrsSub(a1,t1);PredicateFalse(p0);"
-		"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1"})
+		"t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;ErrorFree(t1)"})
 	{
 		if (GPOS_OK != EresTestFalseLeftJoinBuildsEmptyInput(text))
 			return GPOS_FAILED;
