@@ -1,14 +1,17 @@
 {
-  "description": "Runtime Empty rewrites cover direct and preprocessed constant-FALSE left joins; native semantic proof remains pending",
+  "description": "Empty rewrites require a provably error-free discarded input; the preprocessed Filter path composes native query proofs",
   "replacement": {
     "xforms": [
       "CXformSimplifyLeftOuterJoin"
     ],
-    "scope": "The complete native promise plus its real preprocess routing shape",
-    "status": "verified_full_replacement",
+    "scope": "Constant-FALSE left joins whose discarded right input is provably error-free",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Right inputs without a total, error-free query contract; direct false-join native proof remains pending"
+    ],
     "dsl_rule_hashes": [
-      "2823df41d0289615",
-      "ba79778a6a05d4ed"
+      "8fedee6eed4956e9",
+      "998a6cfd4a3940ce"
     ]
   },
   "plans": [
@@ -24,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ba79778a6a05d4ed\""
+        "\"status\":\"applied\",\"rule_hash\":\"998a6cfd4a3940ce\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
@@ -48,7 +51,7 @@
         "CXformSimplifyLeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ba79778a6a05d4ed\""
+        "\"status\":\"applied\",\"rule_hash\":\"998a6cfd4a3940ce\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
