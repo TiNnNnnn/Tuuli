@@ -1,0 +1,7 @@
+experiment: native-computed-join-keys
+discover: false
+template_route: 17
+template_fingerprint: d41f54f081fd4888
+template_root: r
+template_bindings: true
+cardinalities:
