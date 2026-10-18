@@ -44,6 +44,7 @@
 #include "gpopt/operators/CScalarAssertConstraint.h"
 #include "gpopt/operators/CScalarAssertConstraintList.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
+#include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalLimit.h"
@@ -118,6 +119,38 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
 	valid &= CDSLPlanTemplate::Serialize(mp, keyed).find(
 		"\"unique_keys\":[[" + column((*key_columns)[1]) + "]]") != std::string::npos;
 	keyed->Release();
+	CColRefArray *inner_columns = nullptr;
+	CExpression *inner = fixture.PexprLogicalGet("apply_layout", 2, &inner_columns);
+	const std::pair<COperator::EOperatorId, const CHAR *> origins[] = {
+		{COperator::EopScalarSubquery, "\"scalar\""},
+		{COperator::EopScalarSubqueryAny, "\"any\""},
+		{COperator::EopScalarSubqueryAll, "\"all\""},
+		{COperator::EopScalarSubqueryExists, "\"exists\""},
+		{COperator::EopScalarSubqueryNotExists, "\"not_exists\""},
+		{COperator::EopSentinel, "null"}};
+	for (const auto &origin : origins)
+	{
+		for (BOOL correlated : {false, true})
+		{
+			CColRefArray *selected = GPOS_NEW(mp) CColRefArray(mp);
+			selected->Append((*inner_columns)[1]);
+			selected->Append((*inner_columns)[0]);
+			COperator *op = correlated
+				? static_cast<COperator *>(GPOS_NEW(mp) CLogicalInnerCorrelatedApply(mp, selected, origin.first))
+				: static_cast<COperator *>(GPOS_NEW(mp) CLogicalInnerApply(mp, selected, origin.first));
+			get->AddRef();
+			inner->AddRef();
+			CExpression *apply = GPOS_NEW(mp) CExpression(mp, op, get, inner,
+				CUtils::PexprScalarConstBool(mp, true));
+			const std::string captured = CDSLPlanTemplate::Serialize(mp, apply);
+			valid &= captured.find(std::string("\"apply_origin\":") + origin.second) != std::string::npos &&
+				captured.find(std::string("\"apply_correlated\":") + (correlated ? "true" : "false")) != std::string::npos &&
+				captured.find("\"apply_inner_columns\":[" + column((*inner_columns)[1]) + ',' +
+					column((*inner_columns)[0]) + ']') != std::string::npos;
+			apply->Release();
+		}
+	}
+	inner->Release();
 	for (auto stage : {COperator::EgbaggtypeGlobal, COperator::EgbaggtypeLocal})
 	{
 		const BOOL duplicates = stage == COperator::EgbaggtypeLocal;

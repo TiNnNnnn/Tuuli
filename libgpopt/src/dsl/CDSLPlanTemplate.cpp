@@ -30,6 +30,7 @@
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CLogicalAssert.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalGet.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
@@ -238,6 +239,26 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
+		if (const auto *apply = dynamic_cast<const CLogicalApply *>(expr->Pop()))
+		{
+			const CHAR *origin = nullptr;
+			switch (apply->EopidOriginSubq())
+			{
+				case COperator::EopScalarSubquery: origin = "scalar"; break;
+				case COperator::EopScalarSubqueryAny: origin = "any"; break;
+				case COperator::EopScalarSubqueryAll: origin = "all"; break;
+				case COperator::EopScalarSubqueryExists: origin = "exists"; break;
+				case COperator::EopScalarSubqueryNotExists: origin = "not_exists"; break;
+				default: break;
+			}
+			*out << ",\"apply_origin\":" << (origin ? JsonString(origin) : "null")
+				<< ",\"apply_correlated\":" << (apply->FCorrelated() ? "true" : "false")
+				<< ",\"apply_inner_columns\":";
+			if (apply->PdrgPcrInner())
+				AppendColumns(mp, out, apply->PdrgPcrInner());
+			else
+				*out << "null";
+		}
 		if (const auto *limit = dynamic_cast<const CLogicalLimit *>(expr->Pop()))
 		{
 			*out << ",\"limit_global\":" << (limit->FGlobal() ? "true" : "false")
