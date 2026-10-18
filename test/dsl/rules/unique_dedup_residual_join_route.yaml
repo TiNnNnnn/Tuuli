@@ -1,0 +1,7 @@
+experiment: native-residual-join-keys
+discover: false
+template_route: 9
+template_fingerprint: 6847ab4e3bb25a6f
+template_root: r
+template_bindings: true
+cardinalities:
