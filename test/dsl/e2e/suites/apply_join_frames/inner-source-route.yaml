@@ -1,0 +1,7 @@
+experiment: apply-join-frame-source
+discover: false
+template_route: 5
+template_fingerprint: 449889ca13a1e2ff
+template_root: r
+template_bindings: true
+cardinalities:
