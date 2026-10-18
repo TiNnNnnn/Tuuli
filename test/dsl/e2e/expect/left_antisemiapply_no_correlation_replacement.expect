@@ -1,5 +1,5 @@
 {
-  "description": "Runtime uncorrelated AntiApply replacement; native Apply/Join demand equivalence remains unproved",
+  "description": "Native-off AntiApply replacement with a captured ROW_STREAM kernel check; arbitrary-input certification remains pending",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
@@ -43,8 +43,28 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
       ],
+      "stats_experiment": "anti_apply_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "4df97bead45bc844",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -68,6 +88,12 @@
       "3"
     ],
     "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
       "1",
       "1",
       "2",

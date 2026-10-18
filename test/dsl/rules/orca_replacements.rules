@@ -386,7 +386,7 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 # immediate outer/inner correlation separately from the top predicate's local
 # dependencies; AttrsEmpty states the native xform's correlation domain, not
 # equality of RHS demand or error behavior. Predicate safety alone is insufficient.
-# SYNTAX_ONLY legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
+# PARTIAL_BINDING legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN without source contracts; public ROW_STREAM source/target instance kernel-checked 2026-10-18, including Filter/Limit RHS scope transport. Arbitrary-input certification remains pending; the runtime/encoding-conditional receipt is not a deployment certificate.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces the base-input domain of
@@ -434,7 +434,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)
 # native correlation promise expressed as data. AntiJoin is ordinary NOT EXISTS
 # semantics, distinct from the NULL-aware AntiJoinNotIn family. Predicate safety
 # does not establish equal RHS demand or error behavior.
-# SYNTAX_ONLY legacy_hash=561de687652328df; native expression proof: UNKNOWN (Apply/Join demand proof pending; implicit Join lowering is not a certificate).
+# PARTIAL_BINDING legacy_hash=561de687652328df; native expression proof: UNKNOWN without source contracts; public ROW_STREAM source/target instance kernel-checked 2026-10-18, including Filter RHS scope transport. Arbitrary-input certification remains pending; the runtime/encoding-conditional receipt is not a deployment certificate.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.

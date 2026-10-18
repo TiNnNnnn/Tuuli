@@ -1,5 +1,5 @@
 {
-  "description": "Runtime uncorrelated SemiApply replacement; native Apply/Join demand equivalence remains unproved",
+  "description": "Native-off SemiApply replacement with a captured ROW_STREAM kernel check; arbitrary-input certification remains pending",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
@@ -47,11 +47,33 @@
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
       ],
+      "stats_experiment": "semi_apply_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "cf934dc15544cfa2",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -75,6 +97,12 @@
       "3"
     ],
     "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
       "1",
       "1",
       "2",
