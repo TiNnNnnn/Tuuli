@@ -1,5 +1,5 @@
 # Isolate the mixed-child residual replacement from every PushGb sibling.
-- rule: 49a0c7c4c7608241
+- rule: 58483b210e2ba41f
   enabled: false
 - rule: cac130f7ae75f028
   enabled: false
