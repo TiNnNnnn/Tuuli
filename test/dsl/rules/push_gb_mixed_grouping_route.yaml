@@ -1,0 +1,7 @@
+experiment: native-mixed-grouping-join
+discover: false
+template_route: 3
+template_fingerprint: d5fe0c790eeea58d
+template_root: r
+template_bindings: true
+cardinalities:
