@@ -693,6 +693,32 @@ CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
 	CExpression *pexprGet = fix.PexprLogicalGet("windowed", 2, &pdrgpcr);
 	CExpression *pexprLive =
 		PexprWindowRows(mp, fix, pexprGet, (*pdrgpcr)[0], (*pdrgpcr)[1]);
+	BOOL demand_safe = dslproperties::FQueryDemandInsensitive(pexprLive);
+	CWindowFrame *empty_frame = const_cast<CWindowFrame *>(CWindowFrame::PwfEmpty());
+	empty_frame->AddRef();
+	CExpression *ordered = PexprWindowRows(mp, fix, pexprGet,
+		(*pdrgpcr)[0], (*pdrgpcr)[1], PosOne(mp, (*pdrgpcr)[1], EdslsortAsc), empty_frame);
+	demand_safe &= !dslproperties::FQueryDemandInsensitive(ordered);
+	ordered->Release();
+	for (auto spec : {CWindowFrame::EfsRange, CWindowFrame::EfsRows})
+	for (auto end : {CWindowFrame::EfbCurrentRow, CWindowFrame::EfbUnboundedFollowing})
+	{
+		CExpression *framed = PexprWindowRows(mp, fix, pexprGet,
+			(*pdrgpcr)[0], (*pdrgpcr)[1], GPOS_NEW(mp) COrderSpec(mp),
+			GPOS_NEW(mp) CWindowFrame(mp, spec, CWindowFrame::EfbUnboundedPreceding,
+				end, nullptr, nullptr, CWindowFrame::EfesNone, 0, 0, 0, true, false));
+		demand_safe &= dslproperties::FQueryDemandInsensitive(framed) ==
+			(CWindowFrame::EfsRange == spec || CWindowFrame::EfbUnboundedFollowing == end);
+		framed->Release();
+	}
+	pexprGet->AddRef();
+	CExpression *asserted = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprGet);
+	CExpression *fallible = PexprWindowRows(mp, fix, asserted,
+		(*pdrgpcr)[0], (*pdrgpcr)[1]);
+	demand_safe &= !dslproperties::FQueryDemandInsensitive(fallible);
+	fallible->Release();
+	asserted->Release();
 
 	CDSLRule *prule = Prule(mp,
 		"WindowRows<a0 o0 w0>(Input<t0>)|"
@@ -702,7 +728,7 @@ CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip()
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 	CDSLMatcher matcher(mp, prule);
 	GPOS_RESULT eres = GPOS_OK;
-	if (nullptr == prule ||
+	if (!demand_safe || nullptr == prule ||
 		!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprLive, pmodel))
 	{
 		eres = GPOS_FAILED;

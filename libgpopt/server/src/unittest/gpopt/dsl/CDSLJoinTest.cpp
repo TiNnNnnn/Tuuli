@@ -1375,7 +1375,8 @@ CDSLJoinTest::EresUnittest_UncorrelatedAntiApplyBuildsAntiJoin()
 }
 
 static GPOS_RESULT
-EresTestUncorrelatedNotInApply(const CHAR *rule, BOOL reject = false)
+EresTestUncorrelatedNotInApply(const CHAR *rule, BOOL reject = false,
+							 BOOL unsafe_input = false)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -1391,6 +1392,9 @@ EresTestUncorrelatedNotInApply(const CHAR *rule, BOOL reject = false)
 		fix.PexprLogicalGet("not_in_outer", 2, &pdrgpcrOuter);
 	CExpression *pexprInner =
 		fix.PexprLogicalGet("not_in_inner", 2, &pdrgpcrInner);
+	if (unsafe_input)
+		pexprInner = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprInner);
 	CExpression *pexprViolation =
 		fix.PexprEqPred((*pdrgpcrOuter)[0], (*pdrgpcrInner)[0]);
 	pexprOuter->AddRef();
@@ -1406,7 +1410,13 @@ EresTestUncorrelatedNotInApply(const CHAR *rule, BOOL reject = false)
 	CDSLConstraintChecker checker(mp);
 	CExpression *pexprTarget = nullptr;
 	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel) ||
+	const BOOL matched =
+		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprApply, pmodel);
+	if (unsafe_input)
+	{
+		eres = matched ? GPOS_FAILED : GPOS_OK;
+	}
+	else if (!matched ||
 		!checker.FCheck(prule, pmodel))
 	{
 		eres = GPOS_FAILED;
@@ -1449,8 +1459,13 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 		"AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1)"
 	};
 	for (const CHAR *rule : rules)
+	{
 		if (GPOS_OK != EresTestUncorrelatedNotInApply(rule))
 			return GPOS_FAILED;
+		// A safe comparison does not discharge a fallible RHS cardinality check.
+		if (GPOS_OK != EresTestUncorrelatedNotInApply(rule, false, true))
+			return GPOS_FAILED;
+	}
 	// Parsing a Boolean expression does not certify it as an invertible ALL
 	// comparison. The shared NOT IN constructor must still reject it.
 	return EresTestUncorrelatedNotInApply(
