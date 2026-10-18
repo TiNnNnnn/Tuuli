@@ -1,13 +1,13 @@
 {
-  "description": "A SQLSolver-proved NULL-aware DSL rule replaces uncorrelated NOT IN Apply conversion",
+  "description": "Isolate the registered NULL-aware DSL conversion with native uncorrelated NOT IN Apply conversion disabled",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
     ],
-    "scope": "Uncorrelated single-column NOT IN across empty, match, inner-NULL, outer-NULL and nonmatching inputs",
-    "status": "verified_full_replacement",
+    "scope": "Uncorrelated single-column NOT IN over the tested total table/filter inputs; structural ALL proof is not a native demand/error deployment certificate",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e408be40e1d7fadb"
+      "555e37d08b6f12c4"
     ]
   },
   "plans": [
@@ -22,8 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_uncorrelated_notin_join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e408be40e1d7fadb\""
+        "\"status\":\"applied\",\"rule_hash\":\"555e37d08b6f12c4\""
       ],
       "alternative": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
@@ -48,8 +49,13 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
       ],
+      "policy": "isolate_uncorrelated_notin_join.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e408be40e1d7fadb\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"555e37d08b6f12c4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
       ],
       "provenance": {
         "required_sources": [
@@ -66,12 +72,18 @@
     "disable_xforms": [
       "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
     ],
+    "policy": "isolate_uncorrelated_notin_join.policy",
     "output": [
       "empty:1",
       "empty:2",
       "nonnull:5"
     ],
     "postgres_output": [
+      "empty:1",
+      "empty:2",
+      "nonnull:5"
+    ],
+    "off_output": [
       "empty:1",
       "empty:2",
       "nonnull:5"
