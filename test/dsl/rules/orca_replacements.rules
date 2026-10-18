@@ -300,10 +300,10 @@ Proj*<a0 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 # FORMALSQL_PROVED legacy_hash=43379498a899178d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-14; certificate 6ec275f61c85d754bced72150aac1cce244a0eaa2b90f6ebe50b50e713d337d9. Generic right-unique DISTINCT/InnerJoin pushdown with foreign-key bridge.
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2;s1 := s0;a7 := a2;s2 := s0
 
-# SYNTAX_ONLY legacy_hash=44f96c50a543df81; native expression proof: UNKNOWN (native residual Join proof pending).
-# Safety correction of dc768bb1f1a116ef: dedup changes residual evaluation
-# multiplicity; row-scalar alone is not repeatability.
-Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a7 := a3;a8 := a4;a9 := a2;s1 := s0;a10 := a2;s2 := s0;Deterministic(p0)
+# Retired legacy_hash=44f96c50a543df81: the mixed-output rule below also covers
+# outer-only grouping; intersecting those outputs with the outer input retains
+# the complete grouping. Its residual determinism guard is unchanged.
+# No additional native proof is claimed by removing this redundant branch.
 
 # SYNTAX_ONLY legacy_hash=6f1d9b45630f2aa2; native expression proof: UNKNOWN (native keyed Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0
@@ -677,8 +677,8 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)
 # The zero-on-empty sibling consumes the two generic Compute layers that carry
 # an aggregate result through an identity and replace NULL with its empty-input
 # default. EmptyInputCompensation validates that complete scalar dataflow.
-# SYNTAX_ONLY legacy_hash=80727e91f96e399d; native expression proof: UNKNOWN (native Compute/aggregate compensation composition pending; a structural program alias is not a certificate).
-Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a7 f0 s2 p1>(Filter<p2 a8 a9>(Input<t1>)))))|Compute<e2 a10 s3>(Compute<e3 a11 s4>(LeftJoin<p3 a12 a13>(Input<t2>,Agg<a14 a15 a16 f1 s5 p4>(Input<t3>))))|t2 := t0;t3 := t1;e2 := e0;a10 := a0;s3 := s0;e3 := e1;a11 := a1;s4 := s1;p3 := And(p0,p2);AttrsEq(a4,a9);AttrsNonEmpty(a4);AttrsUnion(a12,a2,a9);AttrsUnion(a13,a3,a8);AttrsUnion(a14,a5,a8);a15 := a6;a16 := a7;f1 := f0;SchemaUnion(s5,s2,a8);p4 := p1;CorrelationEquality(p2,a8,a9);AttrsNonEmpty(a8);EmptyInputCompensation(e0,e1,a7,f0);Deterministic(e0);Deterministic(e1);Deterministic(e2);Deterministic(e3);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(e0);ErrorFree(e1);ErrorFree(e2);ErrorFree(e3);ErrorFree(p0);ErrorFree(a6);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a15);ErrorFree(f1);ErrorFree(p4)
+# SYNTAX_ONLY legacy_hash=d86a75a72b65d12b; native expression proof: UNKNOWN (native Compute/aggregate compensation composition pending; source correlation symbols shared from previous legacy_hash 80727e91f96e399d, not a new certificate).
+Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a7 f0 s2 p1>(Filter<p2 a8 a4>(Input<t1>)))))|Compute<e2 a10 s3>(Compute<e3 a11 s4>(LeftJoin<p3 a12 a13>(Input<t2>,Agg<a14 a15 a16 f1 s5 p4>(Input<t3>))))|t2 := t0;t3 := t1;e2 := e0;a10 := a0;s3 := s0;e3 := e1;a11 := a1;s4 := s1;p3 := And(p0,p2);AttrsNonEmpty(a4);AttrsUnion(a12,a2,a4);AttrsUnion(a13,a3,a8);AttrsUnion(a14,a5,a8);a15 := a6;a16 := a7;f1 := f0;SchemaUnion(s5,s2,a8);p4 := p1;CorrelationEquality(p2,a8,a4);AttrsNonEmpty(a8);EmptyInputCompensation(e0,e1,a7,f0);Deterministic(e0);Deterministic(e1);Deterministic(e2);Deterministic(e3);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(e0);ErrorFree(e1);ErrorFree(e2);ErrorFree(e3);ErrorFree(p0);ErrorFree(a6);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a15);ErrorFree(f1);ErrorFree(p4)
 
 # Line 1 replaces the grouping-subset branch of CXformCollapseGbAgg, including
 # equal grouping sets. Proj* admits only pure, unsplit global dedup aggregates.
