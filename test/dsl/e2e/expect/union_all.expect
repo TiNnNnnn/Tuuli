@@ -1,5 +1,5 @@
 {
-  "description": "UnionAll branches with different filters must fail the fixture rule's TableEq premise",
+  "description": "Different UnionAll branches must not instantiate the fixture's shared Input symbol; the rule remains registered and produces no rewrite",
   "plans": [
     {
       "name": "off",
@@ -17,11 +17,10 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"506a71e16cd43fdb\"",
-        "\"failed_constraint\":\"TableEq\""
+        "\"rule_hash\":\"5e0b5d4d3d54ebf0\",\"binding_attempts\":0,\"bound_symbols\":0"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"506a71e16cd43fdb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5e0b5d4d3d54ebf0\"",
         "Falling back to Postgres"
       ]
     }
