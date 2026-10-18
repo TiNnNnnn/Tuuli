@@ -1,0 +1,7 @@
+experiment: semi-apply-correlated-source
+discover: false
+template_route: 4
+template_fingerprint: e69adf14bf8f5c76
+template_root: r
+template_bindings: true
+cardinalities:
