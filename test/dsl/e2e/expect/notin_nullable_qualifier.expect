@@ -13,6 +13,7 @@
       ],
       "policy": "isolate_qualified_notin_join.policy",
       "stats_experiment": "qualified_notin_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "Optimizer: pg_orca",
         "Anti Join",

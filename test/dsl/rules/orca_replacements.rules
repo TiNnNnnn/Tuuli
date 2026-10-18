@@ -454,7 +454,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t
 # CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn. The first target predicate
 # is the user-visible ALL comparison; the second is the RHS qualification that
 # selects which inner rows participate. The adapter emits ORCA's equivalent raw
-# predicate, inverse(comparison) AND qualification, without conflating the two
+# predicate, inverse(comparison) AND (qualification IS TRUE), without conflating the two
 # dependency domains. This exact RuleIR was proved EQ by SQLSolver on
 # 2026-08-31.
 # FORMALSQL_PROVED legacy_hash=288287626c213a1e; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-15; certificate 2fac5064012c8e5f4238491564a2bd13e3b92d2bb5edf1ff2f36ac69c306a988. Shared correlation symbols; previous legacy_hash 59a6d12ce1dd7d88.
