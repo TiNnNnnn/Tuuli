@@ -1,0 +1,7 @@
+experiment: qualified-notin-source
+discover: false
+template_route: 3
+template_fingerprint: 354b438033c31cb3
+template_root: r
+template_bindings: true
+cardinalities:

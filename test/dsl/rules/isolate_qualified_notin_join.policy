@@ -1,0 +1,5 @@
+# Execute the qualified NULL-aware join without unrelated DSL alternatives.
+- rule: '*'
+  enabled: false
+- rule: 4e89c95fb08e5a28
+  enabled: true
