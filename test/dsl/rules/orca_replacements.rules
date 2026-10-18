@@ -305,7 +305,7 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>
 # the complete grouping. Its residual determinism guard is unchanged.
 # No additional native proof is claimed by removing this redundant branch.
 
-# SYNTAX_ONLY legacy_hash=6f1d9b45630f2aa2; native expression proof: UNKNOWN (native keyed Join proof pending).
+# PARTIAL_BINDING legacy_hash=6f1d9b45630f2aa2; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instance kernel-checked 2026-10-19, not deployment certificates.
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0
 
 # SYNTAX_ONLY legacy_hash=9e31614582b50e06; native expression proof: UNKNOWN (native residual Join proof pending).

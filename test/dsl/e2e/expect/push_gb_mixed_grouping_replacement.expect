@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule pushes the outer-owned portion of a mixed grouping vector below an inner join",
+  "description": "DSL pushes mixed grouping below an inner join; the captured native instance is kernel-checked under source contracts",
   "replacement": {
     "xforms": [
       "CXformPushGbBelowJoin"
@@ -44,14 +44,29 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin"
       ],
       "policy": "isolate_push_gb_mixed_grouping.policy",
+      "stats_experiment": "push_gb_mixed_grouping_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"b52db53dcc916607\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "b52db53dcc916607",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
