@@ -1,0 +1,5 @@
+# Only the explicit ALL lowering; no legacy PredicateAll capture rule.
+- rule: '*'
+  enabled: false
+- rule: 2a403f8d75cfe226
+  enabled: true

@@ -1,0 +1,5 @@
+# Check the registered NULL-aware conversion without other DSL alternatives.
+- rule: '*'
+  enabled: false
+- rule: 555e37d08b6f12c4
+  enabled: true

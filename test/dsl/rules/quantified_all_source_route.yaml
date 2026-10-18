@@ -1,0 +1,7 @@
+experiment: registered-quantified-all
+discover: false
+template_route: 1
+template_fingerprint: cebd944297c48b82
+template_root: r
+template_bindings: true
+cardinalities:
