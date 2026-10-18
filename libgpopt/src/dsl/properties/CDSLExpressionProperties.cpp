@@ -29,6 +29,7 @@
 #include "naucrates/md/CMDTypeInt2GPDB.h"
 #include "naucrates/md/CMDTypeInt4GPDB.h"
 #include "naucrates/md/CMDTypeInt8GPDB.h"
+#include "naucrates/md/CMDTypeOidGPDB.h"
 #include "naucrates/md/IMDFunction.h"
 
 using namespace gpopt;
@@ -40,6 +41,27 @@ namespace dslproperties
 {
 namespace
 {
+BOOL
+FComparisonProvablyErrorFree(IMDId *mdid)
+{
+	if (!IMDId::IsValid(mdid) || IMDId::EmdidGeneral != mdid->MdidType())
+		return false;
+	// oid.c compares unsigned values directly; strictness alone is not evidence
+	// of totality for an arbitrary catalog operator.
+	switch (CMDIdGPDB::CastMdid(mdid)->Oid())
+	{
+		case GPDB_OID_EQ_OP:
+		case GPDB_OID_NEQ_OP:
+		case GPDB_OID_LT_OP:
+		case GPDB_OID_LEQ_OP:
+		case GPDB_OID_GT_OP:
+		case GPDB_OID_GEQ_OP:
+			return true;
+		default:
+			return CPredicateUtils::FBuiltInComparisonIsVeryStrict(mdid);
+	}
+}
+
 BOOL
 FScalarCastProvablyErrorFree(CExpression *pexpr)
 {
@@ -226,7 +248,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 			// and scalar argument, not just the comparison's function metadata.
 			return 2 == pexpr->Arity() && (*pexpr)[0]->Pop()->FLogical() &&
 				(*pexpr)[1]->Pop()->FScalar() &&
-				CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+				FComparisonProvablyErrorFree(
 					CScalarSubqueryQuantified::PopConvert(pexpr->Pop())->MdIdOp()) &&
 				FRelationalTreeProvablyErrorFree((*pexpr)[0]) &&
 				FScalarTreeProvablyErrorFree((*pexpr)[1]);
@@ -235,7 +257,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 			// Admit every comparison in ORCA's explicit built-in strict whitelist.
 			// This includes the <>/< <=/> >= operators used by quantified ALL, while
 			// still rejecting user-defined comparisons whose evaluation may throw.
-			if (!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+			if (!FComparisonProvablyErrorFree(
 					static_cast<CScalarCmp *>(pexpr->Pop())->MdIdOp()))
 			{
 				return false;
@@ -244,7 +266,7 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 		case COperator::EopScalarNullIf:
 			// NULL handling is total, but the underlying comparison need not
 			// be. Reuse the same built-in whitelist and check both operands.
-			if (!CPredicateUtils::FBuiltInComparisonIsVeryStrict(
+			if (!FComparisonProvablyErrorFree(
 					CScalarNullIf::PopConvert(pexpr->Pop())->MdIdOp()))
 			{
 				return false;
@@ -411,7 +433,7 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 			{
 				IMDId *equality = (*keys)[i]->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
 				if (!IMDId::IsValid(equality) || IMDId::EmdidGeneral != equality->MdidType() ||
-					!CPredicateUtils::FBuiltInComparisonIsVeryStrict(equality)) return false;
+					!FComparisonProvablyErrorFree(equality)) return false;
 			}
 			return FRelationalTreeProvablyErrorFree((*pexpr)[0], deterministic) &&
 				FScalarTreeProvablyErrorFree((*pexpr)[1], (*pexpr)[0]->DeriveMaxCard()) &&
@@ -465,7 +487,7 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 					IMDId *equality = CScalarIdent::PopConvert((*keys)[i]->Pop())->Pcr()
 						->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
 					if (!IMDId::IsValid(equality) || IMDId::EmdidGeneral != equality->MdidType() ||
-						!CPredicateUtils::FBuiltInComparisonIsVeryStrict(equality)) return false;
+						!FComparisonProvablyErrorFree(equality)) return false;
 				}
 			}
 			else if (CDistributionSpec::EdtSingleton != partition->Edt()) return false;

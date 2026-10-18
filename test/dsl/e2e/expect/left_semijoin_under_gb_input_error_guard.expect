@@ -1,0 +1,38 @@
+{
+  "description": "A safe ON predicate cannot authorize complete evaluation of an unsafe RHS input",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "policy": "isolate_distinct_semijoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"a99abbe636845413\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "policy": "isolate_distinct_semijoin.policy",
+    "error_sqlstate": "22003",
+    "output": [
+      "SQLSTATE 22003"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22003"
+    ],
+    "off_output": [
+      "SQLSTATE 22003"
+    ]
+  }
+}

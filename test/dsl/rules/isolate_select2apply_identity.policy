@@ -1,5 +1,4 @@
-# Keep representation-lowering identity tests causal. The proved InSub-to-join
-# replacement also recognizes correlated EXISTS through the shared InSub view;
-# it is an independent alternative, not part of Select2Apply lowering.
-- rule: 83e7dc664eb77128
+# Keep representation-lowering tests causal: the full-predicate semi-join
+# replacement is an independent alternative, not part of Select2Apply lowering.
+- rule: a99abbe636845413
   enabled: false
