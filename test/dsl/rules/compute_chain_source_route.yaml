@@ -1,0 +1,7 @@
+experiment: registered-compute-chain
+discover: false
+template_route: 7
+template_fingerprint: 2faa2100c097db0d
+template_root: r
+template_bindings: true
+cardinalities:

@@ -1,14 +1,13 @@
 {
-  "description": "Existing CBO concat and split rules both apply to a three-layer Compute chain",
+  "description": "The same typed Compute concat rule repeatedly collapses a three-layer independent chain",
   "replacement": {
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "Three nested Projects with independent and dependent expressions; not full preprocessing replacement",
+    "scope": "Three nested Projects with independent total deterministic scalar items; no claim of dependent split or full preprocessing replacement",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "c0b0ad755b723936",
-      "e3e696bb19f0eb43"
+      "f2532e414a3fb917"
     ]
   },
   "plans": [
@@ -23,9 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -49,25 +48,48 @@
       "disable_xforms": [
         "CXformCollapseProject"
       ],
+      "policy": "isolate_compute_concat_bindings.policy",
+      "stats_experiment": "compute_chain_source_route.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "c0b0ad755b723936",
-          "dst_rule": "e3e696bb19f0eb43",
+          "src_rule": "f2532e414a3fb917",
+          "dst_rule": "f2532e414a3fb917",
           "target_path": "r",
           "src_target_path": "r",
           "dst_source_path": "r",
           "dst_binding_path": "r",
           "path_kind": "instantiated_expression",
-          "candidate_status": "ready_cbo"
+          "candidate_status": "ready_cbo",
+          "relation": "memo_consumes",
+          "producer_outcome": "memo_inserted"
         }
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f2532e414a3fb917",
+          "route_sequence": 7,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -84,15 +106,21 @@
     "disable_xforms": [
       "CXformCollapseProject"
     ],
+    "policy": "isolate_compute_concat_bindings.policy",
     "output": [
-      "1,11,12,110,1010",
-      "2,21,22,120,1020",
-      "3,31,32,130,1030"
+      "1,t,f,f,f",
+      "2,t,t,f,f",
+      "3,t,t,t,f"
     ],
     "postgres_output": [
-      "1,11,12,110,1010",
-      "2,21,22,120,1020",
-      "3,31,32,130,1030"
+      "1,t,f,f,f",
+      "2,t,t,f,f",
+      "3,t,t,t,f"
+    ],
+    "off_output": [
+      "1,t,f,f,f",
+      "2,t,t,f,f",
+      "3,t,t,t,f"
     ]
   }
 }

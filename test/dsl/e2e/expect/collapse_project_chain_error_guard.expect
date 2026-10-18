@@ -1,0 +1,45 @@
+{
+  "description": "Keep the former dependent arithmetic chain as a rejection boundary: unbounded lower integer addition is not error-free",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "isolate_compute_concat_bindings.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "status=rejected constraint=DepsDisjoint",
+        "status=rejected constraint=ErrorFree"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "Xform: CXformCollapseProject",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "isolate_compute_concat_bindings.policy",
+    "output": [
+      "1,11,12,110,1010",
+      "2,21,22,120,1020",
+      "3,31,32,130,1030"
+    ],
+    "postgres_output": [
+      "1,11,12,110,1010",
+      "2,21,22,120,1020",
+      "3,31,32,130,1030"
+    ],
+    "off_output": [
+      "1,11,12,110,1010",
+      "2,21,22,120,1020",
+      "3,31,32,130,1030"
+    ]
+  }
+}
