@@ -1,5 +1,5 @@
 {
-  "description": "Two Rocq-proved DSL rules expose and decorrelate a correlated EXISTS below a safe Compute layer",
+  "description": "DSL exposes and decorrelates correlated EXISTS; the captured Apply-to-Join occurrence has a conditional ROW_STREAM kernel check",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoin"
@@ -50,6 +50,8 @@
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
+      "stats_experiment": "semi_apply_correlated_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
         "\"status\":\"applied\",\"rule_hash\":\"0510e782ed99f6ae\""
@@ -57,6 +59,23 @@
       "alternative": [
         "CXformDSLRule_Project",
         "CXformDSLRule_Exists"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0510e782ed99f6ae",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -79,6 +98,11 @@
       "30"
     ],
     "postgres_output": [
+      "10",
+      "20",
+      "30"
+    ],
+    "off_output": [
       "10",
       "20",
       "30"

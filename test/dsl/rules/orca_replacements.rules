@@ -531,6 +531,7 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # FORMALSQL_PROVED legacy_hash=e2adabe59e1f4460; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate fc594593199ff586bcb6e31124c227a900846c2f9847bf9e01df9eaabfbd1b7b. Shared correlation symbols; previous legacy_hash 977b505669323220.
 # The generic correlated Apply proof accepts typed predicate and table bindings; no
 # SemiApply-specific lemma is added.
+# Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Atomic composition of the generic Window/Filter movement and SemiApply
@@ -559,6 +560,7 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # FORMALSQL_PROVED legacy_hash=dd2859cc6b7c7c44; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 69727624e4d763b80d571cef8b0daf7f604aaecb7fd4d14260dac8e9c7400780. Shared correlation symbols; previous legacy_hash 5004b2a4db64e478.
 # The generic correlated AntiApply proof accepts conjunction/dependency premises; no
 # AntiApply-specific lemma is added.
+# Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Moves a correlated Filter above a safe Compute/LET layer, exposing the

@@ -1,5 +1,5 @@
 {
-  "description": "A Rocq-proved DSL rule decorrelates ordinary NOT EXISTS over a correlated Filter",
+  "description": "Native-off correlated NOT EXISTS decorrelation with a conditional ROW_STREAM kernel check of the captured Apply-to-Join occurrence",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
@@ -43,8 +43,27 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
+      "stats_experiment": "anti_apply_correlated_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0a81235e27fc1b62",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -65,6 +84,9 @@
       "20"
     ],
     "postgres_output": [
+      "20"
+    ],
+    "off_output": [
       "20"
     ]
   }
