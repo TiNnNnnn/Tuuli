@@ -3510,6 +3510,16 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 profile_targets(args)
 
+    def test_production_rules_share_source_symbols_and_bind_target_aliases(self) -> None:
+        import re
+
+        legacy_equality = re.compile(
+            r'\b(?:Table|Attrs|Predicate|Schema|ExprList|Func|Order|Frame|Window|Scalar)Eq\(')
+        for number, line in enumerate(
+                (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines(), 1):
+            if line and not line.startswith('#'):
+                self.assertNotRegex(line, legacy_equality, f'legacy equality on line {number}')
+
     def test_syntax_migrations_preserve_the_complete_legacy_rule(self) -> None:
         import re
 

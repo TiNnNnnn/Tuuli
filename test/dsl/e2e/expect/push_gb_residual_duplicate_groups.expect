@@ -1,0 +1,45 @@
+{
+  "description": "Dedup collapses two matching outer rows and retains the residual that rejects a different group",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_dedup_residual_safety.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin",
+      "CXformPushGbBelowJoin"
+    ],
+    "policy": "isolate_dedup_residual_safety.policy",
+    "output": [
+      "10"
+    ],
+    "postgres_output": [
+      "10"
+    ],
+    "off_output": [
+      "10"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "10"
+      ]
+    }
+  }
+}

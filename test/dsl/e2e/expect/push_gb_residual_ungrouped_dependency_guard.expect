@@ -1,0 +1,48 @@
+{
+  "description": "Dedup must retain every outer column read by the residual, not merely its equality key",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_dedup_residual_safety.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4022026ba775eb5a\"",
+        "\"failed_constraint\":\"AttrsSub\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin",
+      "CXformPushGbBelowJoin"
+    ],
+    "policy": "isolate_dedup_residual_safety.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
+      "10",
+      "20"
+    ],
+    "plan_outputs": {
+      "guard": [
+        "10",
+        "20"
+      ]
+    }
+  }
+}
