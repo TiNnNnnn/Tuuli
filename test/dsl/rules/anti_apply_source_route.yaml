@@ -1,0 +1,7 @@
+experiment: anti-apply-source
+discover: false
+template_route: 3
+template_fingerprint: b0717e1acc6c4a58
+template_root: r
+template_bindings: true
+cardinalities:

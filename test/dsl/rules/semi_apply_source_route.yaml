@@ -1,0 +1,7 @@
+experiment: semi-apply-source
+discover: false
+template_route: 6
+template_fingerprint: 3199cce8c24d4c41
+template_root: r
+template_bindings: true
+cardinalities:
