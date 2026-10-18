@@ -1,0 +1,40 @@
+{
+  "description": "Removing dedup above a key-preserving Compute must retain arithmetic overflow",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSimplifyGbAgg"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "isolate_unique_dedup.policy",
+    "error_sqlstate": "22003",
+    "output": [
+      "SQLSTATE 22003"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22003"
+    ],
+    "off_output": [
+      "SQLSTATE 22003"
+    ]
+  }
+}

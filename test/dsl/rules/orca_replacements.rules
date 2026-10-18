@@ -806,7 +806,7 @@ Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
 # dedup branch. Appending preserves every existing replacement rule line id.
-# PARTIAL_BINDING legacy_hash=a7d859279ffc7369; native expression proof: UNKNOWN without source contracts; public BAG_OUTCOME_EQ instances kernel-checked for Values, declared-key tables and residual InnerJoin inputs. Not a deployment certificate.
-# Original-output/error observation composes actual ON key evidence with child keys;
+# PARTIAL_BINDING legacy_hash=a7d859279ffc7369; native expression proof: UNKNOWN without source contracts; public BAG_OUTCOME_EQ instances kernel-checked for Values, declared-key tables, residual InnerJoin and key-preserving Compute inputs. Not a deployment certificate.
+# Original-output/error observation composes actual ON/SELECT evidence with child keys;
 # simplify_gbagg_residual_join_replacement covers the retired keyed/residual shortcut.
 Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);t1 := t0
