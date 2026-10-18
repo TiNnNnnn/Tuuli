@@ -1,0 +1,63 @@
+{
+  "description": "InnerApply-to-Join with a grouped RHS and checked frame independence",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin",
+        "CXformInnerApply2InnerJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "inner-source-route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4f5c5661271b4121\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformInnerApply2InnerJoin\n",
+        "Xform: CXformInnerApply2InnerJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "4f5c5661271b4121",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalInnerApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin",
+      "CXformInnerApply2InnerJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2"
+    ]
+  }
+}

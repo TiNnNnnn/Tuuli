@@ -1,0 +1,72 @@
+{
+  "description": "LeftApply-to-Join with a grouped RHS preserves duplicates and NULL extension",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "bindings.policy",
+      "stats_experiment": "left-source-route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3b8f8a884c9284e5\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin\n",
+        "Xform: CXformLeftOuterApply2LeftOuterJoinNoCorrelations\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "3b8f8a884c9284e5",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+    ],
+    "policy": "bindings.policy",
+    "output": [
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      ","
+    ],
+    "postgres_output": [
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      ","
+    ],
+    "off_output": [
+      "0,",
+      "1,",
+      "2,2",
+      "2,2",
+      ","
+    ]
+  }
+}

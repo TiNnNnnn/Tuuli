@@ -1,0 +1,4 @@
+- rule: '*'
+  placement: cbo
+  budget:
+    per_rule: 1
