@@ -1,13 +1,13 @@
 {
-  "description": "The proved Compute concat rule replaces full independent Project collapse",
+  "description": "The source-conditional Compute concat rule collapses independent total row-scalar projections",
   "replacement": {
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "all upper project elements are independent of the lower defined columns",
+    "scope": "upper project items are independent of the total deterministic lower items; not SRFs or unrestricted arithmetic",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "c0b0ad755b723936"
+      "f2532e414a3fb917"
     ]
   },
   "plans": [
@@ -22,8 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_compute_concat_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -47,11 +48,32 @@
       "disable_xforms": [
         "CXformCollapseProject"
       ],
+      "policy": "isolate_compute_concat_bindings.policy",
+      "stats_experiment": "compute_independent_source_route.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f2532e414a3fb917",
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -68,15 +90,21 @@
     "disable_xforms": [
       "CXformCollapseProject"
     ],
+    "policy": "isolate_compute_concat_bindings.policy",
     "output": [
-      "1,11,110",
-      "2,21,120",
-      "3,31,130"
+      "1,t,f",
+      "2,t,t",
+      "3,t,t"
     ],
     "postgres_output": [
-      "1,11,110",
-      "2,21,120",
-      "3,31,130"
+      "1,t,f",
+      "2,t,t",
+      "3,t,t"
+    ],
+    "off_output": [
+      "1,t,f",
+      "2,t,t",
+      "3,t,t"
     ]
   }
 }
