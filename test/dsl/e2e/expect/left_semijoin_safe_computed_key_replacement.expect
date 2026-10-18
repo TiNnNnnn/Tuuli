@@ -1,0 +1,95 @@
+{
+  "description": "The migrated membership rule deduplicates computed values, not their dependencies; two NULL inputs become one matching key",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "scope": "Single equality key materialized by a deterministic, error-free scalar projection",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Computed keys without a demand-insensitivity proof"
+    ],
+    "dsl_rule_hashes": [
+      "b24ead64771bc9fb"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "CScalarCoalesce/2"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiJoin2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership.policy",
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

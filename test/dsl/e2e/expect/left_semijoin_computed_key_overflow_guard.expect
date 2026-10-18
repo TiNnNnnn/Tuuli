@@ -1,0 +1,37 @@
+{
+  "description": "Immutable arithmetic is not error-free: membership-to-join must not bypass the computed-key demand guard",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership.policy",
+    "error_sqlstate": "22003",
+    "output": [
+      "SQLSTATE 22003"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22003"
+    ],
+    "off_output": [
+      "SQLSTATE 22003"
+    ]
+  }
+}
