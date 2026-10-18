@@ -1,0 +1,80 @@
+{
+  "description": "A NULL RHS filter is not a qualifying row of a DSL-generated NULL-aware anti join",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformImplementLeftAntiSemiCorrelatedApplyNotIn",
+        "CXformImplementApply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_qualified_notin_join.policy",
+      "stats_experiment": "qualified_notin_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Anti Join",
+        "\"status\":\"applied\",\"rule_hash\":\"4e89c95fb08e5a28\""
+      ],
+      "not_contains": [
+        "SubPlan",
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "4e89c95fb08e5a28",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoinNotIn",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6"
+      ]
+    }
+  }
+}

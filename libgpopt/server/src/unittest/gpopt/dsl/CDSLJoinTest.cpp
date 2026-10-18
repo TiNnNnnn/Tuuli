@@ -60,6 +60,7 @@
 #include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarBoolOp.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -1624,7 +1625,10 @@ EresTestCorrelatedNotInFilter(const CHAR *rule, BOOL reject = false)
 				nullptr == pdrgpexprConjuncts ||
 				2 != pdrgpexprConjuncts->Size() ||
 				!(*pdrgpexprConjuncts)[0]->Matches(pexprViolation) ||
-				!(*pdrgpexprConjuncts)[1]->Matches(pexprQualifier) ||
+				COperator::EopScalarBooleanTest != (*pdrgpexprConjuncts)[1]->Pop()->Eopid() ||
+				CScalarBooleanTest::EbtIsTrue != CScalarBooleanTest::PopConvert(
+					(*pdrgpexprConjuncts)[1]->Pop())->Ebt() ||
+				!(*(*pdrgpexprConjuncts)[1])[0]->Matches(pexprQualifier) ||
 				!(*pexprTarget)[1]->Matches(pexprInner))
 			{
 				eres = GPOS_FAILED;
@@ -1666,9 +1670,14 @@ EresTestCorrelatedNotInFilter(const CHAR *rule, BOOL reject = false)
 			CDSLModel *pmodelIdentity = nullptr;
 			if (GPOS_OK == eres && nullptr != pruleIdentity)
 			{
+				pexprQualifier->AddRef();
+				CExpression *guard = GPOS_NEW(mp) CExpression(
+					mp, GPOS_NEW(mp) CScalarBooleanTest(mp, CScalarBooleanTest::EbtIsTrue),
+					pexprQualifier);
 				CExpression *pexprReorderedPred =
-					CPredicateUtils::PexprConjunction(mp, pexprQualifier,
+					CPredicateUtils::PexprConjunction(mp, guard,
 													  pexprViolation);
+				guard->Release();
 				pexprTarget->Pop()->AddRef();
 				(*pexprTarget)[0]->AddRef();
 				(*pexprTarget)[1]->AddRef();
@@ -1691,6 +1700,14 @@ EresTestCorrelatedNotInFilter(const CHAR *rule, BOOL reject = false)
 				{
 					eres = GPOS_FAILED;
 				}
+				if (GPOS_OK == eres)
+				{
+					CDSLInstantiator next(mp);
+					CExpression *rebuilt = next.PexprInstantiate(pruleIdentity, pmodelIdentity);
+					if (nullptr == rebuilt || !CUtils::Equals(rebuilt, pexprTarget))
+						eres = GPOS_FAILED;
+					CRefCount::SafeRelease(rebuilt);
+				}
 				// Neither slot may bypass explicit source structure matching.
 				for (const CHAR *clause : {";Not(p9) := p0", ";Not(p9) := p1"})
 				{
@@ -1710,6 +1727,19 @@ EresTestCorrelatedNotInFilter(const CHAR *rule, BOOL reject = false)
 					model->Release();
 					structured->Release();
 				}
+				// The marker alone cannot certify the qualifier's TRUE-only observation.
+				pexprTarget->Pop()->AddRef();
+				(*pexprTarget)[0]->AddRef();
+				(*pexprTarget)[1]->AddRef();
+				CExpression *unguarded = GPOS_NEW(mp) CExpression(
+					mp, pexprTarget->Pop(), (*pexprTarget)[0], (*pexprTarget)[1],
+					CPredicateUtils::PexprConjunction(mp, pexprQualifier, pexprViolation));
+				CDSLModel *unguardedModel = GPOS_NEW(mp) CDSLModel(mp);
+				if (matcherIdentity.FMatch(pruleIdentity->PfragSrc()->PopRoot(),
+					unguarded, unguardedModel))
+					eres = GPOS_FAILED;
+				unguardedModel->Release();
+				unguarded->Release();
 			}
 			else
 			{

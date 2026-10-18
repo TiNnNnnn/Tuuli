@@ -40,6 +40,7 @@
 #include "gpopt/operators/CLogicalLeftOuterJoin.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CPredicateUtils.h"
 
 using namespace gpopt;
@@ -728,10 +729,10 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 	}
 
 	// A qualified AntiJoinNotIn keeps its user-visible ALL comparison separate
-	// from the row qualifier. ORCA executes inverse(comparison) AND qualifier as
+	// from the row qualifier. ORCA executes inverse(comparison) AND (qualifier IS TRUE) as
 	// one scalar child, whose AND inputs are unordered in the memo. The operator
 	// marker identifies the comparison by semantic expression equality;
-	// everything else is the exact qualifier, independent of conjunct order.
+	// the remaining IS TRUE guard recovers the qualifier, independent of conjunct order.
 	if (fAntiJoinNotIn && 6 == ulSymbols)
 	{
 		CExpression *pexprRawComparison =
@@ -772,6 +773,22 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprQualifier);
 		if (nullptr == pexprComparison)
 		{
+			pexprQualifier->Release();
+			return false;
+		}
+		if (COperator::EopScalarBooleanTest == pexprQualifier->Pop()->Eopid() &&
+			CScalarBooleanTest::EbtIsTrue ==
+				CScalarBooleanTest::PopConvert(pexprQualifier->Pop())->Ebt())
+		{
+			CExpression *unwrapped = (*pexprQualifier)[0];
+			unwrapped->AddRef();
+			pexprQualifier->Release();
+			pexprQualifier = unwrapped;
+		}
+		else if (!CUtils::FScalarConstTrue(pexprQualifier))
+		{
+			// An unguarded nullable predicate has a different NULL-aware observation.
+			pexprComparison->Release();
 			pexprQualifier->Release();
 			return false;
 		}

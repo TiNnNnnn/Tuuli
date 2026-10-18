@@ -1,0 +1,50 @@
+{
+  "description": "Execute a DSL-qualified anti join for empty RHS, matching rows and NULL comparisons",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformImplementLeftAntiSemiCorrelatedApplyNotIn",
+        "CXformImplementApply",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_qualified_notin_join.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Anti Join",
+        "\"status\":\"applied\",\"rule_hash\":\"4e89c95fb08e5a28\""
+      ],
+      "not_contains": [
+        "SubPlan",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "5"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "1",
+        "2",
+        "5"
+      ]
+    }
+  }
+}

@@ -27,6 +27,7 @@
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -594,6 +595,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			pexprRight->Release();
 			return nullptr;
 		}
+		// A filtered RHS accepts only TRUE, even though NOT IN also matches UNKNOWN.
+		pexprTargetQualifier = GPOS_NEW(m_mp) CExpression(
+			m_mp, GPOS_NEW(m_mp) CScalarBooleanTest(m_mp, CScalarBooleanTest::EbtIsTrue),
+			pexprTargetQualifier);
 		CExpression *pexprQualified = CPredicateUtils::PexprConjunction(
 			m_mp, pexprTargetPred, pexprTargetQualifier);
 		pexprTargetPred->Release();
