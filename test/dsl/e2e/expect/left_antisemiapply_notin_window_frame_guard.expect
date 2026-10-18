@@ -11,7 +11,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"match_rejected\",\"rule_hash\":\"fd05e98e4d5b9119\"",
-        "\"expected_operator\":\"WindowRows\",\"actual_operator\":\"CLogicalSequenceProject\""
+        "\"expected_operator\":\"AntiApplyNotIn\",\"actual_operator\":\"CLogicalLeftAntiSemiCorrelatedApplyNotIn\""
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"fd05e98e4d5b9119\""

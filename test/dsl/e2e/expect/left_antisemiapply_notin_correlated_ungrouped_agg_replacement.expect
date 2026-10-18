@@ -1,5 +1,5 @@
 {
-  "description": "Safety gap: unbounded COUNT cannot satisfy aggregate ErrorFree; preserve the original query and reject the unsafe rewrite",
+  "description": "Unbounded COUNT is not demand-insensitive; reject the native ALL carrier before binding and preserve the original query",
   "plans": [
     {
       "name": "native",
@@ -11,8 +11,7 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\"",
-        "\"failed_constraint\":\"ErrorFree\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -39,8 +38,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\"",
-        "\"failed_constraint\":\"ErrorFree\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\""
       ],
       "not_contains": [
         "Falling back to Postgres",

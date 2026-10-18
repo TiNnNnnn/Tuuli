@@ -2,17 +2,20 @@
 #include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarNullIf.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarSubquery.h"
@@ -429,6 +432,44 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 			while (COperator::EopScalarCast == offset->Pop()->Eopid()) offset = (*offset)[0];
 			if (deterministic && !CUtils::FScalarConstIntZero(offset)) return false;
 			return FRelationalTreeProvablyErrorFree(view.m_pexprChild, deterministic);
+		}
+		case COperator::EopLogicalSequenceProject:
+		{
+			// Without ordering, total MIN/MAX over a full frame observes the partition;
+			// arbitrary row order cannot change its value. Audit partition equality too.
+			const auto *window = CLogicalSequenceProject::PopConvert(pexpr->Pop());
+			if (2 != pexpr->Arity() || !(*pexpr)[0]->Pop()->FLogical() ||
+				COperator::EopScalarProjectList != (*pexpr)[1]->Pop()->Eopid() ||
+				COperator::EsptypeGlobalOneStep != window->Pspt() ||
+				window->FHasOrderSpecs()) return false;
+			for (ULONG i = 0; i < window->Pdrgpwf()->Size(); ++i)
+			{
+				const CWindowFrame *frame = (*window->Pdrgpwf())[i];
+				// RANGE CURRENT ROW includes all peers when ORDER BY is empty.
+				if (CWindowFrame::EfbUnboundedPreceding != frame->EfbLeading() ||
+					(CWindowFrame::EfbUnboundedFollowing != frame->EfbTrailing() &&
+					 !(CWindowFrame::EfsRange == frame->Efs() &&
+					   CWindowFrame::EfbCurrentRow == frame->EfbTrailing())) ||
+					frame->PexprLeading() || frame->PexprTrailing() ||
+					(CWindowFrame::EfesNone != frame->Efes() &&
+					 CWindowFrame::EfesNulls != frame->Efes())) return false;
+			}
+			CDistributionSpec *partition = window->Pds();
+			if (CDistributionSpec::EdtHashed == partition->Edt())
+			{
+				const CExpressionArray *keys =
+					CDistributionSpecHashed::PdsConvert(partition)->Pdrgpexpr();
+				for (ULONG i = 0; i < keys->Size(); ++i)
+				{
+					if (COperator::EopScalarIdent != (*keys)[i]->Pop()->Eopid()) return false;
+					IMDId *equality = CScalarIdent::PopConvert((*keys)[i]->Pop())->Pcr()
+						->RetrieveType()->GetMdidForCmpType(IMDType::EcmptEq);
+					if (!IMDId::IsValid(equality) || IMDId::EmdidGeneral != equality->MdidType() ||
+						!CPredicateUtils::FBuiltInComparisonIsVeryStrict(equality)) return false;
+				}
+			}
+			else if (CDistributionSpec::EdtSingleton != partition->Edt()) return false;
+			break;
 		}
 		case COperator::EopLogicalGet:
 		case COperator::EopLogicalConstTableGet:

@@ -12,6 +12,7 @@
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 
 #include <vector>
 
@@ -688,6 +689,14 @@ CDSLJoinMatcher::FMatch(const CDSLOp *popJoin, CExpression *pexprJoin,
 		{
 			return false;
 		}
+	}
+	// ALL continues after UNKNOWN; the DSL NULL-aware carrier may stop there.
+	// As for scalar quantified captures, both RHS and comparison must be safe.
+	if (fAntiApplyNotIn &&
+		(!dslproperties::FQueryDemandInsensitive((*pexprJoin)[1]) ||
+		 !dslproperties::FQueryDemandInsensitive((*pexprJoin)[2])))
+	{
+		return false;
 	}
 	if (fSemiApply &&
 		COperator::EopLogicalLeftSemiApplyIn == eopid &&

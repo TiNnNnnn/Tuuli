@@ -1,0 +1,36 @@
+{
+  "description": "A NULL comparison must not hide a later RHS error when changing ALL into a NULL-aware anti join",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ],
+      "policy": "isolate_uncorrelated_notin_join.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"555e37d08b6f12c4\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"555e37d08b6f12c4\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+    ],
+    "policy": "isolate_uncorrelated_notin_join.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}
