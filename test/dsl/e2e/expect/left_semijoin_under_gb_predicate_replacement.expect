@@ -4,12 +4,13 @@
     "xforms": [
       "CXformLeftSemiJoin2InnerJoinUnderGb"
     ],
-    "scope": "Semi join with a non-equality predicate and no extractable equality key",
-    "status": "verified_full_replacement",
+    "scope": "Semi join with a deterministic, error-free non-equality predicate and unique outer output",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Predicates or inputs without deterministic, error-free evidence"
+    ],
     "dsl_rule_hashes": [
-      "9dc5c70cd1245677",
-      "83e7dc664eb77128",
-      "cde8f8f8346e27bf"
+      "a99abbe636845413"
     ]
   },
   "plans": [
@@ -24,8 +25,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_distinct_semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cde8f8f8346e27bf\""
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoinUnderGb",
@@ -49,8 +51,9 @@
       "disable_xforms": [
         "CXformLeftSemiJoin2InnerJoinUnderGb"
       ],
+      "policy": "isolate_distinct_semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cde8f8f8346e27bf\""
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
@@ -70,11 +73,16 @@
     "disable_xforms": [
       "CXformLeftSemiJoin2InnerJoinUnderGb"
     ],
+    "policy": "isolate_distinct_semijoin.policy",
     "output": [
       "10",
       "20"
     ],
     "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
       "10",
       "20"
     ]

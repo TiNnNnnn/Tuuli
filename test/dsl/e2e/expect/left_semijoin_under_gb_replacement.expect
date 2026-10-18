@@ -1,13 +1,16 @@
 {
-  "description": "A proved DSL rule replaces keyed residual semi-join conversion under duplicate elimination",
+  "description": "One full-predicate DSL rule preserves equality keys and residual predicates together",
   "replacement": {
     "xforms": [
       "CXformLeftSemiJoin2InnerJoinUnderGb"
     ],
-    "scope": "Keyed semi join with at least one equality key and a residual predicate",
+    "scope": "Semi join with unique outer output and deterministic, error-free equality plus residual predicates",
     "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Predicates or inputs without deterministic, error-free evidence"
+    ],
     "dsl_rule_hashes": [
-      "83e7dc664eb77128"
+      "a99abbe636845413"
     ]
   },
   "plans": [
@@ -22,8 +25,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_distinct_semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"83e7dc664eb77128\""
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoinUnderGb",
@@ -43,13 +47,16 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiJoin2InnerJoinUnderGb"
       ],
+      "policy": "isolate_distinct_semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"83e7dc664eb77128\""
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
       ],
       "provenance": {
         "required_sources": [
@@ -66,11 +73,16 @@
     "disable_xforms": [
       "CXformLeftSemiJoin2InnerJoinUnderGb"
     ],
+    "policy": "isolate_distinct_semijoin.policy",
     "output": [
       "10",
       "20"
     ],
     "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
       "10",
       "20"
     ]

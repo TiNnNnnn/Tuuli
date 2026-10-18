@@ -4,5 +4,5 @@ WHERE EXISTS (
   SELECT 1
   FROM dsl_fk_child AS c
   WHERE c.parent_id = p.id
-    AND c.id + p.id > 0)
+    AND c.id < p.id)
 ORDER BY p.id;

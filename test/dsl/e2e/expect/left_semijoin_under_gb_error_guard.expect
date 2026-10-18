@@ -1,0 +1,40 @@
+{
+  "description": "Sample-safe integer addition does not prove the full ON predicate error-free",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "policy": "isolate_distinct_semijoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"a99abbe636845413\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "policy": "isolate_distinct_semijoin.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
+      "10",
+      "20"
+    ]
+  }
+}

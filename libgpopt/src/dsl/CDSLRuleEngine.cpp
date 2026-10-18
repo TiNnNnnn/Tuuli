@@ -157,6 +157,7 @@ CDSLRuleEngine::BucketByRoot()
 			const CDSLOp *popProj = prule->PfragSrc()->PopRoot();
 			if (1 == popProj->UlChildren() &&
 				(EdslopInSubFilter == (*popProj)[0]->Edslop() ||
+				 EdslopSemiJoin == (*popProj)[0]->Edslop() ||
 				 EdslopExists == (*popProj)[0]->Edslop()))
 			{
 				// A semi join whose outer output has a key is the representation of

@@ -285,12 +285,12 @@ Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input
 # SYNTAX_ONLY legacy_hash=c602af3fe55f92f7; native expression proof: UNKNOWN (native residual Join proof pending).
 Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a7 s1>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s1 := s0
 
-# SYNTAX_ONLY legacy_hash=9cab8c80b6430c16; native expression proof: UNKNOWN (native keyed membership proof pending).
-Proj*<a2 s1>(InSubFilter<a1 a0 p0 a3 a4>(Input<t0>,Input<t1>))|Proj*<a7 s2>(InnerJoin<a5 a6 p1 a8 a9>(Input<t2>,Input<t3>))|AttrsSub(a0,t1);AttrsSub(a1,t0);AttrsSub(a2,t0);AttrsSub(a3,t0);AttrsSub(a4,t1);Unique(t0,a2);t2 := t0;t3 := t1;a5 := a1;a6 := a0;p1 := p0;a8 := a3;a9 := a4;a7 := a2;s2 := s1
+# Retired legacy_hash=9cab8c80b6430c16: safe keyed predicates use the full-ON rule below.
+# Potentially throwing residuals are excluded, not silently certified by the merge.
 
-# Preserve the predicate-only semi-join domain (no extractable equality key).
-# FORMALSQL_PROVED legacy_hash=b9355da14af5a789; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate 92c29eff6699c14a1a5fe349a9183f016c8cb2a4848f1f8a769c69f5ba96d463. The generic DISTINCT semi-join observation contract covers the EXISTS/INNER JOIN lowering under explicit predicate safety.
-Proj*<a0 s0>(Exists<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);t2 := t0;t3 := t1;p1 := p0;a4 := a1;a5 := a2;a3 := a0;s1 := s0;ErrorFree(p0);Deterministic(p0)
+# Capture the complete ON predicate; also replaces predicate-only legacy_hash=b9355da14af5a789.
+# FORMALSQL_PROVED legacy_hash=93d057f85b627893; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-18; certificate 94fad39f1abe9a54af9fede585c5075e1b3da99c960d492371a139498f0caf12. The generic DISTINCT semi-join contract requires explicit predicate and input safety.
+Proj*<a0 s0>(SemiJoin<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);t2 := t0;t3 := t1;p1 := p0;a4 := a1;a5 := a2;a3 := a0;s1 := s0;ErrorFree(p0);Deterministic(p0);ErrorFree(t0);Deterministic(t0);ErrorFree(t1);Deterministic(t1)
 
 # A unique inner join key is sufficient for pure outer-key grouping pushdown:
 # unmatched outer keys disappear on both sides, so no Reference premise is needed.

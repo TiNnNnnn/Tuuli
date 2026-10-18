@@ -1,0 +1,5 @@
+# Prove the full-predicate DISTINCT lowering without other DSL alternatives.
+- rule: '*'
+  enabled: false
+- rule: 'a99abbe636845413'
+  enabled: true

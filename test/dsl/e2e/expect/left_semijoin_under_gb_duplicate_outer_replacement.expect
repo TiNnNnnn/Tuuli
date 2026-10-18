@@ -1,0 +1,93 @@
+{
+  "description": "Internal row-key deduplication must not erase duplicate visible outer values",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "scope": "Full-predicate semi join over duplicate visible rows with an internal row key",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Predicates or inputs without deterministic, error-free evidence"
+    ],
+    "dsl_rule_hashes": [
+      "a99abbe636845413"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_distinct_semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+      ],
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb",
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2InnerJoinUnderGb"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "policy": "isolate_distinct_semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiJoin2InnerJoinUnderGb"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "policy": "isolate_distinct_semijoin.policy",
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}
