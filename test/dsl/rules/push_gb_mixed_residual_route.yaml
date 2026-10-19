@@ -1,0 +1,7 @@
+experiment: native-mixed-residual-join
+discover: false
+template_route: 9
+template_fingerprint: 47d28e962c395a55
+template_root: r
+template_bindings: true
+cardinalities:

@@ -711,15 +711,17 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 	// Exercise both a real Project and the Project/Agg shell used for aggregate
 	// queries. The same unchanged rule must preserve the WHERE predicate below
 	// that shell even though its target eliminates the InSub operator.
-	for (ULONG ulCase = 0; ulCase < 3; ulCase++)
+	for (ULONG ulCase = 0; ulCase < 5; ulCase++)
 	{
 		const BOOL aggregate = 1 == ulCase;
+		const BOOL implicit_project = 3 <= ulCase;
 		CColRefArray *pdrgpcrOuter = nullptr;
 		CExpression *pexprOuter =
 			fix.PexprLogicalGet("residual_outer", 2, &pdrgpcrOuter, 0);
 		CColRefArray *pdrgpcrInner = nullptr;
 		CExpression *pexprInner =
 			fix.PexprLogicalGet("residual_inner", 2, &pdrgpcrInner, 0);
+		if (4 == ulCase) pexprInner = CUtils::PexprLimit(mp, pexprInner, 0, 1);
 		CExpression *pexprResidual = fix.PexprPredAtom((*pdrgpcrOuter)[1]);
 		CExpressionArray *pdrgpexprConj = GPOS_NEW(mp) CExpressionArray(mp);
 		pdrgpexprConj->Append(PexprScalarAny(
@@ -745,21 +747,31 @@ CDSLInSubTest::EresUnittest_PreApplyNestedResidual()
 		{
 			pdrgpcrOutput->Append((*pdrgpcrOuter)[0]);
 		}
-		CExpression *pexprSource = fix.PexprLogicalProject(pexprRel, pdrgpcrOutput);
+		CExpression *pexprSource = implicit_project ? pexprRel
+			: fix.PexprLogicalProject(pexprRel, pdrgpcrOutput);
 		pdrgpcrOutput->Release();
-		pexprRel->Release();
-		CDSLRule *prule = PruleParse(mp, 2 == ulCase
+		if (!implicit_project) pexprRel->Release();
+		CDSLRule *prule = PruleParse(mp, 2 <= ulCase
 			? GPOPT_DSL_TYPED_SEMIJOIN_TO_INNERJOIN_RULE
 			: GPOPT_DSL_SEMIJOIN_TO_INNERJOIN_RULE);
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp, prule);
-		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
+		const BOOL matched = matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel);
+		GPOS_UNITTEST_ASSERT(matched == (4 != ulCase));
+		if (!matched)
+		{
+			pmodel->Release();
+			prule->Release();
+			pexprSource->Release();
+			pexprResidual->Release();
+			continue;
+		}
 		CDSLConstraintChecker checker(mp);
 		GPOS_ASSERT(checker.FCheck(prule, pmodel));
 		CDSLInstantiator instantiator(mp);
 		CExpression *pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
 		GPOS_ASSERT(nullptr != pexprTarget);
-		CExpression *pexprJoin = (*pexprTarget)[0];
+		CExpression *pexprJoin = implicit_project ? pexprTarget : (*pexprTarget)[0];
 		if (aggregate)
 		{
 			GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprJoin->Pop()->Eopid());

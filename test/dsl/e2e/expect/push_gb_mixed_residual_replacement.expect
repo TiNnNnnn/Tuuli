@@ -1,5 +1,5 @@
 {
-  "description": "DSL pushes mixed grouping below an inner join with a deterministic residual; native proof migration remains pending",
+  "description": "DSL pushes mixed grouping below an inner join with a deterministic residual; actual BAG_OUTCOME_EQ is kernel-checked under source contracts, not deployment-certified",
   "replacement": {
     "xforms": [
       "CXformPushGbBelowJoin"
@@ -44,14 +44,29 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin"
       ],
       "policy": "isolate_push_gb_mixed_residual.policy",
+      "stats_experiment": "push_gb_mixed_residual_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "4022026ba775eb5a",
+          "route_sequence": 9,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
