@@ -384,7 +384,8 @@ CDSLProjMatcher::FMatch(const CDSLOp *popProj, CExpression *pexprProject,
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// ORCA represents identity column pruning as required columns. Capture an
 	// explicit identity program for the membership view, not just its column sets.
-	if (exact && COperator::EopLogicalLeftSemiJoin == pexprProject->Pop()->Eopid() &&
+	if (exact && (COperator::EopLogicalLeftSemiJoin == pexprProject->Pop()->Eopid() ||
+		COperator::EopLogicalSelect == pexprProject->Pop()->Eopid()) &&
 		1 == popProj->UlChildren() && EdslopInSubFilter == (*popProj)[0]->Edslop())
 	{
 		CColRefArray *columns = pexprProject->DeriveOutputColumns()->Pdrgpcr(m_mp);
