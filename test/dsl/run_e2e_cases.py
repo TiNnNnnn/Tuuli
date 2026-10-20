@@ -710,29 +710,39 @@ def main() -> int:
         }
         actual["plans"] = []
 
-        for plan in expectation.get("plans", []):
-            if args.disable_semantic_xforms and not plan.get("xform_trace", plan.get("trace", False)):
-                raise ValueError("execution baseline requires xform trace in every plan state")
-            output = run_plan(args, query, plan)
-            artifact = args.artifact_dir / f"{case_name}.{plan['name']}.plan"
-            artifact.write_text(output + "\n", encoding="utf-8")
-            if args.check_native_instances:
-                native_instances += check_native_routes(plan, output,
-                    args.artifact_dir / f"{case_name}.{plan['name']}.native-instances")
-            if args.disable_semantic_xforms:
-                validate_execution_trace(output, args.disable_xform)
-            actual["plans"].append(actual_plan(plan, output))
-        if "rows" in expectation:
-            actual["rows"] = actual_rows(args, query, expectation["rows"], expectation.get("plans"))
+        try:
+            for plan in expectation.get("plans", []):
+                if args.disable_semantic_xforms and not plan.get("xform_trace", plan.get("trace", False)):
+                    raise ValueError("execution baseline requires xform trace in every plan state")
+                output = run_plan(args, query, plan)
+                artifact = args.artifact_dir / f"{case_name}.{plan['name']}.plan"
+                artifact.write_text(output + "\n", encoding="utf-8")
+                if args.check_native_instances:
+                    native_instances += check_native_routes(plan, output,
+                        args.artifact_dir / f"{case_name}.{plan['name']}.native-instances")
+                if args.disable_semantic_xforms:
+                    validate_execution_trace(output, args.disable_xform)
+                actual["plans"].append(actual_plan(plan, output))
+            if "rows" in expectation:
+                actual["rows"] = actual_rows(args, query, expectation["rows"], expectation.get("plans"))
+        except subprocess.TimeoutExpired as error:
+            # A slow case must fail without hiding the rest of the regression.
+            actual["error"] = f"case step timed out after {error.timeout} seconds"
+            partial = "\n".join(
+                value.decode("utf-8", errors="replace") if isinstance(value, bytes) else value
+                for value in (error.stdout, error.stderr) if value
+            )
+            (args.artifact_dir / f"{case_name}.timeout").write_text(
+                actual["error"] + "\n" + partial, encoding="utf-8")
 
         actual_text = canonical(actual)
         result_path = args.result_dir / f"{case_name}.output"
         diff_path = args.diff_dir / f"{case_name}.diff"
         result_path.write_text(actual_text, encoding="utf-8")
-        if actual_text == expected_text:
+        if "error" not in actual and actual_text == expected_text:
             if diff_path.exists():
                 diff_path.unlink()
-            print(f"ok {case_name}")
+            print(f"ok {case_name}", flush=True)
         else:
             diff = difflib.unified_diff(
                 expected_text.splitlines(keepends=True),
@@ -742,7 +752,7 @@ def main() -> int:
             )
             diff_path.write_text("".join(diff), encoding="utf-8")
             failed.append(case_name)
-            print(f"not ok {case_name}: {diff_path}")
+            print(f"not ok {case_name}: {diff_path}", flush=True)
 
     if args.check_native_instances and not native_instances:
         raise ValueError("requested native checks but selected cases have no expected source routes")

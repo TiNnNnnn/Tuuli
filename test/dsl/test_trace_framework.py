@@ -263,6 +263,39 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 validate_execution_trace(output, disabled)
 
+    def test_e2e_timeout_fails_case_preserves_diagnostics_and_continues(self) -> None:
+        from run_e2e_cases import canonical, main
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for child in ("sql", "expect"):
+                (root / child).mkdir()
+            expectation = {"plans": [{"name": "dsl-on"}]}
+            for name in ("a_timeout", "b_success"):
+                (root / "sql" / f"{name}.sql").write_text("SELECT 1", encoding="utf-8")
+                (root / "expect" / f"{name}.expect").write_text(canonical(expectation), encoding="utf-8")
+            args = SimpleNamespace(cases=None, sql_dir=root / "sql", expect_dir=root / "expect",
+                result_dir=root / "result", diff_dir=root / "diff", artifact_dir=root / "artifacts",
+                disable_semantic_xforms=None, check_native_instances=False)
+            error = subprocess.TimeoutExpired("psql", 60, output=b"partial trace", stderr=b"diagnostic")
+            with patch("run_e2e_cases.parse_args", return_value=args), \
+                 patch("run_e2e_cases.run_plan", side_effect=[error, ""]) as run, \
+                 patch("builtins.print") as printer:
+                self.assertEqual(main(), 1)
+            self.assertEqual(run.call_count, 2)
+            printer.assert_any_call("ok b_success", flush=True)
+            self.assertEqual((root / "result/b_success.output").read_text(), canonical(expectation))
+            self.assertTrue((root / "diff/a_timeout.diff").exists())
+            self.assertFalse((root / "diff/b_success.diff").exists())
+            self.assertIn("timed out after 60", (root / "result/a_timeout.output").read_text())
+            self.assertEqual((root / "artifacts/a_timeout.timeout").read_text(),
+                             "case step timed out after 60 seconds\npartial trace\ndiagnostic")
+            (root / "expect/a_timeout.expect").write_text(
+                (root / "result/a_timeout.output").read_text(), encoding="utf-8")
+            args.cases = "a_timeout"
+            with patch("run_e2e_cases.parse_args", return_value=args), \
+                 patch("run_e2e_cases.run_plan", side_effect=error), patch("builtins.print"):
+                self.assertEqual(main(), 1)  # Updating expected cannot bless a timeout.
+
     def test_e2e_expected_sqlstate_rejects_success_and_other_failures(self) -> None:
         args = SimpleNamespace(psql="psql", host="socket", port="1")
         for code, output, accepted in (
