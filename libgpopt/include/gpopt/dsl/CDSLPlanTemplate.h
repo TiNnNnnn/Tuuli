@@ -33,7 +33,8 @@ public:
 	// Complete source trees only. Derives column metadata; Memo callers must
 	// pass a detached copy. Exported column sets are not ordered row layouts
 	// and do not certify source admissibility or rewrite equivalence.
-	static std::string Serialize(CMemoryPool *mp, const CExpression *expr);
+	static std::string Serialize(CMemoryPool *mp, const CExpression *expr,
+		BOOL *complete = nullptr);
 	// Copy a complete observed tree before deriving metadata. Partial Memo
 	// bindings and patterns produce JSON null, not a standalone plan.
 	static std::string SerializeCaptured(CMemoryPool *mp, const CExpression *expr);
