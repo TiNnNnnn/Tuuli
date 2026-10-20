@@ -27,6 +27,7 @@ public:
 	static GPOS_RESULT EresUnittest_PlanTemplateLeafLayout();
 	static GPOS_RESULT EresUnittest_RouteTemplateContext();
 	static GPOS_RESULT EresUnittest_PlanTemplateExpressions();
+	static GPOS_RESULT EresUnittest_WindowMetadata();
 	static GPOS_RESULT EresUnittest_RehashAlreadyEquivalentGroups();
 };
 }  // namespace gpopt

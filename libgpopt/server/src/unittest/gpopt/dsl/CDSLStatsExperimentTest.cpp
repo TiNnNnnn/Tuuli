@@ -24,6 +24,7 @@
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/COrderSpec.h"
+#include "gpopt/base/CColumnFactory.h"
 #include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
@@ -48,7 +49,9 @@
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/search/CGroup.h"
 #include "gpopt/search/CGroupExpression.h"
 #include "gpopt/search/CGroupProxy.h"
@@ -79,9 +82,109 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_WindowMetadata),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_WindowMetadata()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *cols = nullptr;
+	CExpression *get = fixture.PexprLogicalGet("window_metadata", 2, &cols);
+	CExpression *base = CXformUtils::PexprWindowWithRowNumber(mp, get, cols);
+	auto *base_op = CLogicalSequenceProject::PopConvert(base->Pop());
+	const std::string unspecified = CDSLPlanTemplate::Serialize(mp, base);
+	CWStringDynamic errors(mp);
+	// Identity shape probes capture serialization only, not rewrite coverage.
+	CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp,
+		"Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;o1 := o0;m1 := m0;w1 := w0", "EQ", &errors);
+	BOOL valid = nullptr != rule &&
+		unspecified.find("\"window_frames\":[{\"empty\":true}]") != std::string::npos &&
+		unspecified.find("\"start_in_range_function\"") == std::string::npos;
+	for (auto mode : {CWindowFrame::EfsRows, CWindowFrame::EfsRange, CWindowFrame::EfsGroups})
+	{
+		COrderSpecArray *orders = GPOS_NEW(mp) COrderSpecArray(mp);
+		COrderSpec *order = GPOS_NEW(mp) COrderSpec(mp);
+		for (ULONG i = 0; i < 2; ++i)
+		{
+			IMDId *comparison = (*cols)[i]->RetrieveType()->GetMdidForCmpType(
+				i ? IMDType::EcmptG : IMDType::EcmptL);
+			comparison->AddRef();
+			order->Append(comparison, (*cols)[i], i ? COrderSpec::EntLast : COrderSpec::EntFirst);
+		}
+		orders->Append(order);
+		orders->Append(GPOS_NEW(mp) COrderSpec(mp));
+		CWindowFrameArray *frames = GPOS_NEW(mp) CWindowFrameArray(mp);
+		auto *empty = const_cast<CWindowFrame *>(CWindowFrame::PwfEmpty());
+		empty->AddRef();
+		frames->Append(empty);
+		frames->Append(GPOS_NEW(mp) CWindowFrame(mp, mode,
+			CWindowFrame::EfbBoundedPreceding, CWindowFrame::EfbBoundedFollowing,
+			CUtils::PexprScalarConstInt8(mp, 2), CUtils::PexprScalarConstInt8(mp, 3),
+			CWindowFrame::EfesTies, 123, 456, 789, false, true));
+		CExpression *first = (*(*base)[1])[0];
+		first->AddRef();
+		(*first)[0]->AddRef();
+		CExpression *items = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
+			first, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectElement(mp,
+				COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+					CScalarProjectElement::PopConvert(first->Pop())->Pcr())), (*first)[0]));
+		(*base)[0]->AddRef();
+		base_op->Pds()->AddRef();
+		CExpression *window = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSequenceProject(
+			mp, base_op->Pspt(), base_op->Pds(), orders, frames), (*base)[0], items);
+		const std::string snapshot = CDSLPlanTemplate::Serialize(mp, window);
+		const std::string frame_prefix = "[{\"empty\":true},{\"empty\":false,\"mode\":" +
+			std::to_string(mode) + ",\"leading\":1,\"trailing\":4,\"exclusion\":4,";
+		valid &= snapshot.find("\"window_partition\":{\"kind\":\"hashed\"") != std::string::npos &&
+			snapshot.find("\"window_frames\":" + frame_prefix) != std::string::npos &&
+			snapshot.find("\"start_in_range_function\":123,\"end_in_range_function\":456,"
+				"\"in_range_collation\":789,\"in_range_ascending\":false,\"in_range_nulls_first\":true")
+				!= std::string::npos &&
+			snapshot.find("\"value\":2") != std::string::npos &&
+			snapshot.find("\"value\":3") != std::string::npos &&
+			snapshot.find("\"null_treatment\":1") < snapshot.find("\"null_treatment\":0");
+		if (rule)
+		{
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			valid &= CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), window, model);
+			const std::string bindings = CDSLPlanTemplate::MatchedSourceBindings(rule, model);
+			valid &= bindings.find("\"frames\":" + frame_prefix) != std::string::npos &&
+				bindings.find("\"orders\":[[{\"column\":") != std::string::npos &&
+				bindings.find("\"source_paths\":[\"r/m:0\"]") != std::string::npos &&
+				bindings.find("\"source_paths\":[\"r/o:0\"]") != std::string::npos &&
+				bindings.find("\"unsupported_payload\"") == std::string::npos &&
+				bindings.rfind("\"complete\":true}") == bindings.size() - 16;
+			const size_t begin = snapshot.find("\"window_orders\":") + 16;
+			const size_t end = snapshot.find(",\"window_frames\":", begin);
+			valid &= end != std::string::npos &&
+				bindings.find("\"orders\":" + snapshot.substr(begin, end - begin)) != std::string::npos;
+			CDSLModel *missing = GPOS_NEW(mp) CDSLModel(mp);
+			for (ULONG i = 0; i < rule->PfragSrc()->Pdrgpsym()->Size(); ++i)
+			{
+				const auto *symbol = (*rule->PfragSrc()->Pdrgpsym())[i];
+				if (EdslsymFrame != symbol->Esymkind() && model->PvalLookup(symbol))
+					missing->FBind(symbol, model->PvalLookup(symbol));
+			}
+			const std::string absent = CDSLPlanTemplate::MatchedSourceBindings(rule, missing);
+			valid &= absent.find("\"symbol\":\"m0\",\"kind\":\"m\",\"bound\":false,"
+				"\"unsupported_payload\":true") != std::string::npos &&
+				absent.rfind("\"complete\":false}") == absent.size() - 17;
+			missing->Release();
+			model->Release();
+		}
+		window->Release();
+	}
+	CRefCount::SafeRelease(rule);
+	base->Release();
+	get->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

@@ -18,6 +18,7 @@
       "name": "dsl-on",
       "trace": true,
       "policy": "window.policy",
+      "stats_experiment": "window-source-route.yaml",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"6c66d8357f05df23\"",
@@ -29,6 +30,58 @@
       ],
       "alternative": [
         "CXformDSLRule_Window"
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "6c66d8357f05df23",
+          "symbols": [
+            {
+              "symbol": "o0",
+              "kind": "o",
+              "bound": true,
+              "source_paths": [
+                "r/o:0"
+              ],
+              "orders": [
+                [
+                  {
+                    "column": {
+                      "id": 0,
+                      "type": "0.23.1.0",
+                      "typmod": -1
+                    },
+                    "comparison_mdid": "0.97.1.0",
+                    "null_treatment": 1
+                  }
+                ]
+              ]
+            },
+            {
+              "symbol": "m0",
+              "kind": "m",
+              "bound": true,
+              "source_paths": [
+                "r/m:0"
+              ],
+              "frames": [
+                {
+                  "empty": false,
+                  "mode": 0,
+                  "leading": 0,
+                  "trailing": 2,
+                  "exclusion": 1,
+                  "start_in_range_function": 0,
+                  "end_in_range_function": 0,
+                  "in_range_collation": 0,
+                  "in_range_ascending": false,
+                  "in_range_nulls_first": false,
+                  "leading_offset": null,
+                  "trailing_offset": null
+                }
+              ]
+            }
+          ]
+        }
       ]
     }
   ],

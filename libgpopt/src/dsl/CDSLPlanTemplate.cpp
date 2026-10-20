@@ -18,6 +18,7 @@
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/CDistributionSpec.h"
+#include "gpopt/base/CDistributionSpecHashed.h"
 #include "gpopt/dsl/CDSLEnums.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
@@ -220,13 +221,78 @@ AppendColumns(CMemoryPool *mp, std::ostringstream *out, const CColRefArray *colu
 	*out << ']';
 }
 
+BOOL AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out,
+	const CExpression *expression);
+
+void
+AppendOrderSpecs(CMemoryPool *mp, std::ostringstream *out, const COrderSpecArray *orders)
+{
+	*out << '[';
+	for (ULONG i = 0; i < orders->Size(); ++i)
+	{
+		if (i) *out << ',';
+		*out << '[';
+		const COrderSpec *order = (*orders)[i];
+		for (ULONG j = 0; j < order->UlSortColumns(); ++j)
+		{
+			if (j) *out << ',';
+			*out << "{\"column\":";
+			AppendColumn(mp, out, order->Pcr(j));
+			*out << ",\"comparison_mdid\":" << MetadataId(mp, order->GetMdIdSortOp(j))
+				<< ",\"null_treatment\":" << order->Ent(j) << '}';
+		}
+		*out << ']';
+	}
+	*out << ']';
+}
+
+BOOL
+AppendWindowFrames(CMemoryPool *mp, std::ostringstream *out, const CWindowFrameArray *frames)
+{
+	BOOL complete = true;
+	*out << '[';
+	for (ULONG i = 0; i < frames->Size(); ++i)
+	{
+		if (i) *out << ',';
+		const CWindowFrame *frame = (*frames)[i];
+		// An unspecified frame must not be reinterpreted as a concrete RANGE frame.
+		if (frame == CWindowFrame::PwfEmpty())
+		{
+			*out << "{\"empty\":true}";
+			continue;
+		}
+		*out << "{\"empty\":false,\"mode\":" << frame->Efs()
+			<< ",\"leading\":" << frame->EfbLeading()
+			<< ",\"trailing\":" << frame->EfbTrailing()
+			<< ",\"exclusion\":" << frame->Efes()
+			<< ",\"start_in_range_function\":" << frame->StartInRangeFunc()
+			<< ",\"end_in_range_function\":" << frame->EndInRangeFunc()
+			<< ",\"in_range_collation\":" << frame->InRangeColl()
+			<< ",\"in_range_ascending\":" << (frame->InRangeAsc() ? "true" : "false")
+			<< ",\"in_range_nulls_first\":" << (frame->InRangeNullsFirst() ? "true" : "false");
+		for (BOOL leading : {true, false})
+		{
+			*out << (leading ? ",\"leading_offset\":" : ",\"trailing_offset\":");
+			const CExpression *offset = leading ? frame->PexprLeading() : frame->PexprTrailing();
+			if (offset)
+				complete &= AppendBoundExpression(mp, out, offset);
+			else
+				*out << "null";
+		}
+		*out << '}';
+	}
+	*out << ']';
+	return complete;
+}
+
 // These are native metadata facts, not a certificate of row layout or rule
 // equivalence. Column sets have no SELECT-list order; ProjectElement paths do.
-void
+BOOL
 AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *expr)
 {
 	if (!expr->Pop()->FLogical() && !expr->Pop()->FScalar())
-		return;
+		return true;
+	BOOL complete = true;
 	// Property derivation populates caches without changing the source tree.
 	CExpression *derived = const_cast<CExpression *>(expr);
 	*out << ",\"column_facts\":{";
@@ -273,6 +339,39 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 				(CDistributionSpec::EdtSingleton == window->Pds()->Edt() ? "true" : "false")
 				<< ",\"window_ordered\":" << (window->FHasOrderSpecs() ? "true" : "false")
 				<< ",\"window_framed\":" << (window->FHasFrameSpecs() ? "true" : "false");
+			*out << ",\"window_partition\":";
+			if (CDistributionSpec::EdtSingleton == window->Pds()->Edt())
+				*out << "{\"kind\":\"singleton\"}";
+			else if (const auto *hashed = dynamic_cast<const CDistributionSpecHashed *>(window->Pds()))
+			{
+				*out << "{\"kind\":\"hashed\",\"nulls_colocated\":"
+					<< (hashed->FNullsColocated() ? "true" : "false") << ",\"expressions\":[";
+				for (ULONG i = 0; i < hashed->Pdrgpexpr()->Size(); ++i)
+				{
+					if (i) *out << ',';
+					complete &= AppendBoundExpression(mp, out, (*hashed->Pdrgpexpr())[i]);
+				}
+				*out << "],\"opfamilies\":";
+				if (const auto *families = hashed->Opfamilies())
+				{
+					*out << '[';
+					for (ULONG i = 0; i < families->Size(); ++i)
+						*out << (i ? "," : "") << MetadataId(mp, (*families)[i]);
+					*out << ']';
+				}
+				else
+					*out << "null";
+				*out << '}';
+			}
+			else
+			{
+				*out << "null";
+				complete = false;
+			}
+			*out << ",\"window_orders\":";
+			AppendOrderSpecs(mp, out, window->Pdrgpos());
+			*out << ",\"window_frames\":";
+			complete &= AppendWindowFrames(mp, out, window->Pdrgpwf());
 		}
 		if (const auto *assertion = dynamic_cast<const CLogicalAssert *>(expr->Pop()))
 		{
@@ -401,14 +500,16 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		}
 	}
 	*out << '}';
+	return complete;
 }
 
-void
+BOOL
 AppendExpressionTree(CMemoryPool *mp, std::ostringstream *out,
 	const CExpression *root, const std::string &root_path)
 {
 	std::vector<std::pair<const CExpression *, std::string>> pending{{root, root_path}};
 	BOOL first = true;
+	BOOL complete = true;
 	while (!pending.empty())
 	{
 		const auto current = pending.back();
@@ -421,12 +522,13 @@ AppendExpressionTree(CMemoryPool *mp, std::ostringstream *out,
 			<< ",\"operator_text\":" << JsonString(OperatorText(mp, current.first))
 			<< ",\"arity\":" << current.first->Arity();
 		CDSLPlanTemplate::AppendScalarContext(*out, current.first->Pop());
-		AppendColumnFacts(mp, out, current.first);
+		complete &= AppendColumnFacts(mp, out, current.first);
 		*out << '}';
 		for (ULONG i = current.first->Arity(); i > 0; --i)
 			pending.emplace_back((*current.first)[i - 1], current.second + "/" +
 				std::to_string(i - 1));
 	}
+	return complete;
 }
 
 void
@@ -1105,8 +1207,9 @@ AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out, const CExpressio
 	}
 	CAutoRef<UlongToColRefMap> columns(GPOS_NEW(mp) UlongToColRefMap(mp));
 	CAutoRef<CExpression> copy(expression->PexprCopyWithRemappedColumns(mp, columns.Value(), false));
-	*out << CDSLPlanTemplate::Serialize(mp, copy.Value());
-	return true;
+	BOOL complete;
+	*out << CDSLPlanTemplate::Serialize(mp, copy.Value(), &complete);
+	return complete;
 }
 
 // Address source captures using the already-validated definition graph.
@@ -1201,9 +1304,19 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 			}
 			out << ']';
 		}
+		else if (nullptr != value && EdslsymOrder == symbol->Esymkind())
+		{
+			out << ",\"orders\":";
+			AppendOrderSpecs(mp, &out, model->PdrgposOrder(symbol));
+		}
+		else if (nullptr != value && EdslsymFrame == symbol->Esymkind())
+		{
+			out << ",\"frames\":";
+			complete &= AppendWindowFrames(mp, &out, model->PdrgpwfFrame(symbol));
+		}
 		else
 		{
-			// ponytail: order/frame/context payloads need their own lowering contract.
+			// Unsupported payloads cannot silently become empty metadata.
 			out << ",\"unsupported_payload\":true";
 			complete = false;
 		}
@@ -1349,7 +1462,7 @@ CDSLPlanTemplate::AppendScalarContext(std::ostream &out, const COperator *op)
 }
 
 std::string
-CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
+CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr, BOOL *is_complete)
 {
 	GPOS_ASSERT(nullptr != mp && nullptr != expr);
 	std::ostringstream out;
@@ -1359,6 +1472,7 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 		   "\"placeholder\":\"Input\",\"nodes\":[";
 	std::vector<std::pair<const CExpression *, std::string>> pending{{expr, "r"}};
 	BOOL first_node = true;
+	BOOL complete = true;
 	while (!pending.empty())
 	{
 		GPOS_CHECK_ABORT;
@@ -1401,12 +1515,12 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 			out << "{\"position\":" << i << ",\"operator\":"
 				<< JsonString(child->Pop()->SzId()) << ",\"shape\":"
 				<< ExpressionShape(child) << ",\"tree\":[";
-			AppendExpressionTree(mp, &out, child, "s" + std::to_string(i));
+			complete &= AppendExpressionTree(mp, &out, child, "s" + std::to_string(i));
 			out << "]}";
 		}
 		out << ']';
 		AppendScalarContext(out, node->Pop());
-		AppendColumnFacts(mp, &out, node);
+		complete &= AppendColumnFacts(mp, &out, node);
 		out << '}';
 		for (ULONG i = relational.size(); i > 0; --i)
 			pending.emplace_back(relational[i - 1], path + "/" + std::to_string(i - 1));
@@ -1422,7 +1536,8 @@ CDSLPlanTemplate::Serialize(CMemoryPool *mp, const CExpression *expr)
 		AppendColumns(mp, &out, frame);
 		frame->Release();
 	}
-	out << ",\"complete\":true}";
+	out << ",\"complete\":" << (complete ? "true" : "false") << '}';
+	if (is_complete) *is_complete = complete;
 	return out.str();
 }
 

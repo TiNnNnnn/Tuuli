@@ -1,0 +1,7 @@
+experiment: window-metadata-source
+discover: false
+template_route: 1
+template_fingerprint: b13a953f46938082
+template_root: r
+template_bindings: true
+cardinalities:
