@@ -1648,12 +1648,10 @@ CTranslatorQueryToDXL::UpdateLeadLagWinSpecPos(
 //---------------------------------------------------------------------------
 CDXLWindowSpecArray *
 CTranslatorQueryToDXL::TranslateWindowSpecToDXL(
-	List *window_clause, IntToUlongMap *sort_col_attno_to_colid_mapping,
-	CDXLNode *project_list_dxlnode_node)
+	List *window_clause, IntToUlongMap *sort_col_attno_to_colid_mapping)
 {
 	GPOS_ASSERT(nullptr != window_clause);
 	GPOS_ASSERT(nullptr != sort_col_attno_to_colid_mapping);
-	GPOS_ASSERT(nullptr != project_list_dxlnode_node);
 
 	CDXLWindowSpecArray *window_spec_array =
 		GPOS_NEW(m_mp) CDXLWindowSpecArray(m_mp);
@@ -1699,8 +1697,7 @@ CTranslatorQueryToDXL::TranslateWindowSpecToDXL(
 		window_frame = m_scalar_translator->TranslateWindowFrameToDXL(
 			wc->frameOptions, wc->startOffset, wc->endOffset,
 			wc->startInRangeFunc, wc->endInRangeFunc, wc->inRangeColl,
-			wc->inRangeAsc, wc->inRangeNullsFirst, m_var_to_colid_map,
-			project_list_dxlnode_node);
+			wc->inRangeAsc, wc->inRangeNullsFirst, m_var_to_colid_map);
 
 		CDXLWindowSpec *window_spec_dxlnode = GPOS_NEW(m_mp) CDXLWindowSpec(
 			m_mp, part_columns, mdname, sort_col_list_dxl, window_frame);
@@ -1870,8 +1867,7 @@ CTranslatorQueryToDXL::TranslateWindowToDXL(
 
 	// translate window spec
 	CDXLWindowSpecArray *window_spec_array =
-		TranslateWindowSpecToDXL(window_clause, sort_col_attno_to_colid_mapping,
-								 new_child_project_list_dxlnode);
+		TranslateWindowSpecToDXL(window_clause, sort_col_attno_to_colid_mapping);
 
 	CDXLNode *new_child_dxlnode = nullptr;
 

@@ -1596,7 +1596,7 @@ CTranslatorScalarToDXL::TranslateWindowFrameToDXL(
 	int frame_options, const Node *start_offset, const Node *end_offset,
 	Oid start_in_range_func, Oid end_in_range_func, Oid in_range_coll,
 	bool in_range_asc, bool in_range_nulls_first,
-	const CMappingVarColId *var_colid_mapping, CDXLNode *new_scalar_proj_list)
+	const CMappingVarColId *var_colid_mapping)
 {
 	EdxlFrameSpec frame_spec;
 
@@ -1724,13 +1724,13 @@ CTranslatorScalarToDXL::TranslateWindowFrameToDXL(
 	if (nullptr != start_offset)
 	{
 		lead_edge->AddChild(TranslateWindowFrameEdgeToDXL(
-			start_offset, var_colid_mapping, new_scalar_proj_list));
+			start_offset, var_colid_mapping));
 	}
 
 	if (nullptr != end_offset)
 	{
 		trail_edge->AddChild(TranslateWindowFrameEdgeToDXL(
-			end_offset, var_colid_mapping, new_scalar_proj_list));
+			end_offset, var_colid_mapping));
 	}
 
 	CDXLWindowFrame *window_frame_dxl = GPOS_NEW(m_mp) CDXLWindowFrame(
@@ -1745,52 +1745,20 @@ CTranslatorScalarToDXL::TranslateWindowFrameToDXL(
 //		CTranslatorScalarToDXL::TranslateWindowFrameEdgeToDXL
 //
 //	@doc:
-//		Translate the window frame edge, if the column used in the edge is a
-// 		computed column then add it to the project list
+//		Keep frame offsets at their once-per-scan evaluation site. PG evaluates
+//		them before an input tuple exists, so a projected OUTER_VAR is invalid.
 //---------------------------------------------------------------------------
 CDXLNode *
 CTranslatorScalarToDXL::TranslateWindowFrameEdgeToDXL(
-	const Node *node, const CMappingVarColId *var_colid_mapping,
-	CDXLNode *new_scalar_proj_list)
+	const Node *node, const CMappingVarColId *var_colid_mapping)
 {
-	CDXLNode *val_node = TranslateScalarToDXL((Expr *) node, var_colid_mapping);
-
 	if (!m_context)
 	{
 		GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
 				   GPOS_WSZ_LIT("Window Frame in a stand-alone expression"));
 	}
 
-	if (!IsA(node, Var) && !IsA(node, Const))
-	{
-		GPOS_ASSERT(nullptr != new_scalar_proj_list);
-		CWStringConst unnamed_col(GPOS_WSZ_LIT("?column?"));
-		CMDName *alias_mdname = GPOS_NEW(m_mp) CMDName(m_mp, &unnamed_col);
-		ULONG project_element_id = m_context->m_colid_counter->next_id();
-
-		// construct a projection element
-		CDXLNode *project_element_node = GPOS_NEW(m_mp)
-			CDXLNode(m_mp, GPOS_NEW(m_mp) CDXLScalarProjElem(
-							   m_mp, project_element_id, alias_mdname));
-		project_element_node->AddChild(val_node);
-
-		// add it to the computed columns project list
-		new_scalar_proj_list->AddChild(project_element_node);
-
-		// construct a new scalar ident
-		CDXLScalarIdent *scalar_ident = GPOS_NEW(m_mp) CDXLScalarIdent(
-			m_mp,
-			GPOS_NEW(m_mp) CDXLColRef(
-				GPOS_NEW(m_mp) CMDName(m_mp, &unnamed_col), project_element_id,
-				GPOS_NEW(m_mp)
-					CMDIdGPDB(IMDId::EmdidGeneral,
-							  gpdb::ExprType(const_cast<Node *>(node))),
-				gpdb::ExprTypeMod(const_cast<Node *>(node))));
-
-		val_node = GPOS_NEW(m_mp) CDXLNode(m_mp, scalar_ident);
-	}
-
-	return val_node;
+	return TranslateScalarToDXL((Expr *) node, var_colid_mapping);
 }
 
 //---------------------------------------------------------------------------
