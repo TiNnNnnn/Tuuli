@@ -1,0 +1,49 @@
+{
+  "description": "Preserve the suffix expression error order around a scalar SubPlan",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "assert_maxonerow": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "SubPlan 1",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Custom Scan (Assert)"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "assert_maxonerow": true,
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}
