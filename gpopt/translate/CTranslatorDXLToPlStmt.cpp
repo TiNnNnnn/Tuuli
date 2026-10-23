@@ -277,12 +277,9 @@ CTranslatorDXLToPlStmt::GetPlannedStmtFromDXL(const CDXLNode *dxlnode,
 	planned_stmt->subplans = m_dxl_to_plstmt_context->GetSubplanEntriesList();
 	planned_stmt->planTree = plan;
 
-	/* Attach promoted InitPlans to the root plan node.  Any SubPlan with
-	 * setParam != NIL and parParam == NIL is an uncorrelated scalar subquery
-	 * that only needs to execute once.  The executor detects this via setParam
-	 * in ExecInitSubPlan and caches the result; but it only runs the subplan
-	 * if the SubPlan node appears in some plan node's initPlan list.  Attach
-	 * them all to the root so they run before the main plan tree. */
+	/* Subquery-local InitPlans are already attached to their owning bodies.
+	 * The remaining top-level InitPlans execute lazily at their PARAM_EXEC
+	 * lookup sites, not eagerly before the main plan. */
 	{
 		List *init_plans = m_dxl_to_plstmt_context->GetInitPlans();
 		if (init_plans != NIL)
@@ -417,9 +414,11 @@ CTranslatorDXLToPlStmt::GetPlannedStmtFromDXL(const CDXLNode *dxlnode,
 
 	/* Bubble extParam/allParam up through every Plan node now that the full
 	 * tree (incl. all SubPlan bodies) is assembled. */
-	FinalizeParamIds(planned_stmt->planTree);
+	// Bodies are registered after their nested SubPlans. Finalize their
+	// dependencies before the consumers that inherit them.
 	foreach (lc_rte, planned_stmt->subplans)
 		FinalizeParamIds((Plan *) lfirst(lc_rte));
+	FinalizeParamIds(planned_stmt->planTree);
 
 	return planned_stmt;
 }
@@ -773,6 +772,29 @@ CTranslatorDXLToPlStmt::FinalizeParamIds(Plan *plan)
 	 * extParam/allParam by walking the whole subtree.  extract_nodes_plan
 	 * follows lefttree/righttree and all plan-node-specific Plan children. */
 	SetParamIds(plan);
+
+	// The expression walker stops at SubPlan boundaries. Include indirect
+	// body dependencies so rescans invalidate nested InitPlan caches, while
+	// direct arguments and locally produced parameters stay local.
+	Bitmapset *produced = nullptr;
+	List *subplans = gpdb::ExtractNodesPlan(plan, T_SubPlan, true);
+	foreach (lc, subplans)
+	{
+		SubPlan *subplan = (SubPlan *) lfirst(lc);
+		Plan *body = (Plan *) gpdb::ListNth(
+			m_dxl_to_plstmt_context->GetSubplanEntriesList(), subplan->plan_id - 1);
+		Bitmapset *external = bms_copy(body->extParam);
+		ListCell *param;
+		foreach (param, subplan->parParam)
+			external = bms_del_member(external, lfirst_int(param));
+		plan->allParam = bms_add_members(plan->allParam, external);
+		bms_free(external);
+		foreach (param, subplan->setParam)
+			produced = bms_add_member(produced, lfirst_int(param));
+	}
+	plan->extParam = bms_difference(plan->allParam, produced);
+	bms_free(produced);
+	list_free(subplans);
 }
 
 List *

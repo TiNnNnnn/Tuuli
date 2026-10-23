@@ -913,8 +913,12 @@ CTranslatorDXLToScalar::TranslateDXLScalarSubplanToScalar(
 		m_num_of_segments);
 	CDXLTranslationContextArray *prev_siblings_ctxt_arr =
 		GPOS_NEW(m_mp) CDXLTranslationContextArray(m_mp);
+	List *parent_initplans = dxl_to_plstmt_ctxt->ExchangeInitPlans(NIL);
 	Plan *plan_child = dxl_to_plstmt_translator.TranslateDXLOperatorToPlan(
 		child_dxl, &subplan_translate_ctxt, prev_siblings_ctxt_arr);
+	plan_child->initPlan = list_concat(
+		plan_child->initPlan,
+		dxl_to_plstmt_ctxt->ExchangeInitPlans(parent_initplans));
 	prev_siblings_ctxt_arr->Release();
 
 	GPOS_ASSERT(nullptr != plan_child->targetlist &&
@@ -1176,33 +1180,40 @@ CTranslatorDXLToScalar::TranslateSubplanParams(
 	GPOS_ASSERT(nullptr != colid_var);
 
 	// Create the PARAM and ARG nodes
+	auto *mapping = dynamic_cast<CMappingColIdVarPlStmt *>(colid_var);
 	const ULONG size = outer_refs->Size();
 	for (ULONG ul = 0; ul < size; ul++)
 	{
 		CDXLColRef *dxl_colref = (*outer_refs)[ul];
-		dxl_colref->AddRef();
 		const CMappingElementColIdParamId *colid_to_param_id_map =
 			dxl_translator_ctxt->GetParamIdMappingElement(dxl_colref->Id());
-
-		// TODO: eliminate param, it's not *really* used, and it's (short-term) leaked
-		Param *param = TranslateParamFromMapping(colid_to_param_id_map);
-		subplan->parParam = gpdb::LAppendInt(subplan->parParam, param->paramid);
 
 		GPOS_ASSERT(
 			colid_to_param_id_map->MdidType()->Equals(dxl_colref->MdidType()));
 
+		// Like scalar identifier translation, prefer inherited parameters over
+		// child Vars. They are indirect dependencies, not per-row arguments.
+		if (nullptr != mapping->GetOutputContext()->GetParamIdMappingElement(
+					   dxl_colref->Id()))
+		{
+			continue;
+		}
+
+		dxl_colref->AddRef();
 		CDXLScalarIdent *scalar_ident_dxl =
 			GPOS_NEW(m_mp) CDXLScalarIdent(m_mp, dxl_colref);
 		Expr *arg = (Expr *) colid_var->VarFromDXLNodeScId(scalar_ident_dxl);
 
-		// not found in mapping, it must be an external parameter
 		if (nullptr == arg)
 		{
-			arg = (Expr *) TranslateParamFromMapping(colid_to_param_id_map);
-			GPOS_ASSERT(nullptr != arg);
+			scalar_ident_dxl->Release();
+			GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiDXL2PlStmtAttributeNotFound,
+					   dxl_colref->Id());
 		}
 
 		scalar_ident_dxl->Release();
+		subplan->parParam = gpdb::LAppendInt(
+			subplan->parParam, colid_to_param_id_map->ParamId());
 		subplan->args = gpdb::LAppend(subplan->args, arg);
 	}
 }

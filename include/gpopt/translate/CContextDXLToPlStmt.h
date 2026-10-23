@@ -220,6 +220,14 @@ public:
 	// Return list of promoted InitPlan SubPlan nodes.
 	List *GetInitPlans() const { return m_init_plans; }
 
+	// Enter/leave a subquery's InitPlan ownership scope.
+	List *ExchangeInitPlans(List *plans)
+	{
+		List *previous = m_init_plans;
+		m_init_plans = plans;
+		return previous;
+	}
+
 	// add a slice table entry
 	int AddSlice(PlanSlice *);
 

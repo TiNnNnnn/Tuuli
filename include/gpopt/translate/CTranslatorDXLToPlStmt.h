@@ -199,7 +199,7 @@ private:
 	// is assembled, this pass walks the tree post-order and bubbles each
 	// child's extParam up so chgParam can propagate during executor rescans
 	// (critical for correctness inside correlated SubPlans).
-	static void FinalizeParamIds(Plan *plan);
+	void FinalizeParamIds(Plan *plan);
 
 	static List *TranslatePartOids(IMdIdArray *parts, INT lockmode);
 
