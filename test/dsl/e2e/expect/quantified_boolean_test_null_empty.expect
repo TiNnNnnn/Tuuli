@@ -1,0 +1,47 @@
+{
+  "description": "Unsupported simplified Boolean quantified tests explicitly fall back and preserve all-NULL and empty-set results",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca",
+        "Assertion failed"
+      ]
+    },
+    {
+      "name": "on",
+      "dsl": true,
+      "trace": true,
+      "contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca",
+        "Assertion failed"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      ",,,,,,,,f,t,f,t,f,t,f,t"
+    ],
+    "postgres_output": [
+      ",,,,,,,,f,t,f,t,f,t,f,t"
+    ],
+    "plan_outputs": {
+      "off": [
+        ",,,,,,,,f,t,f,t,f,t,f,t"
+      ],
+      "on": [
+        ",,,,,,,,f,t,f,t,f,t,f,t"
+      ]
+    }
+  }
+}

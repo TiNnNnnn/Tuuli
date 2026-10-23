@@ -1,0 +1,55 @@
+{
+  "description": "Unsupported simplified Boolean quantified tests explicitly fall back and preserve polarity and NULL results",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca",
+        "Assertion failed"
+      ]
+    },
+    {
+      "name": "on",
+      "dsl": true,
+      "trace": true,
+      "contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca",
+        "Assertion failed"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "10,t,t,f,f,f,f,t,t",
+      "20,t,,,f,,f,t,",
+      "30,t,f,t,f,t,f,t,f"
+    ],
+    "postgres_output": [
+      "10,t,t,f,f,f,f,t,t",
+      "20,t,,,f,,f,t,",
+      "30,t,f,t,f,t,f,t,f"
+    ],
+    "plan_outputs": {
+      "off": [
+        "10,t,t,f,f,f,f,t,t",
+        "20,t,,,f,,f,t,",
+        "30,t,f,t,f,t,f,t,f"
+      ],
+      "on": [
+        "10,t,t,f,f,f,f,t,t",
+        "20,t,,,f,,f,t,",
+        "30,t,f,t,f,t,f,t,f"
+      ]
+    }
+  }
+}
