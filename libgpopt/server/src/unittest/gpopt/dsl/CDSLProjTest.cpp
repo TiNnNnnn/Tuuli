@@ -183,6 +183,80 @@ PexprProjectWithScalar(CMemoryPool *mp, CExpression *pexprChild,
 		mp, GPOS_NEW(mp) CLogicalProject(mp), pexprChild, pexprList);
 }
 
+static GPOS_RESULT
+EresScalarSubqueryCorrelationScope()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *left_cols = nullptr;
+	CColRefArray *right_cols = nullptr;
+	CExpression *left = fix.PexprLogicalGet("scope_left", 1, &left_cols);
+	CExpression *right = fix.PexprLogicalGet("scope_right", 1, &right_cols);
+	CColRef *enclosing = fix.PcrCreateInt4("enclosing_parameter");
+	for (ULONG scope = 0; scope < 4; ++scope)
+	{
+		CExpressionArray *predicates = GPOS_NEW(mp) CExpressionArray(mp);
+		if (scope & 1) predicates->Append(fix.PexprPredAtom((*left_cols)[0]));
+		if (scope & 2) predicates->Append(fix.PexprPredAtom(enclosing));
+		CExpression *predicate = CPredicateUtils::PexprConjunction(mp, predicates);
+		CExpression *inner = nullptr;
+		if (0 == scope)
+		{
+			right->AddRef();
+			inner = right;
+		}
+		else
+		{
+			inner = fix.PexprLogicalSelect(right, predicate);
+		}
+		predicate->Release();
+		CExpression *source = PexprProjectWithScalar(
+			mp, left, fix.PcrCreateInt4("scope_value"), GPOS_NEW(mp) CExpression(
+				mp, GPOS_NEW(mp) CScalarSubquery(mp, (*right_cols)[0], false, false),
+				inner));
+		for (BOOL omit_correlations : {false, true})
+		{
+			const CHAR *text = "Compute<e0 a0 s0>(Input<t0>)|"
+				"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|"
+				"t1 := t0;s1 := s0;"
+				"ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0;"
+				"a1 := ScalarDeps(e1)";
+			CDSLRule *rule = PdslruleParseLocal(mp, text);
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(
+				rule->PfragSrc()->PopRoot(), source, model));
+			if (omit_correlations)
+			{
+				CColRefArray *empty = GPOS_NEW(mp) CColRefArray(mp);
+				GPOS_UNITTEST_ASSERT(model->FBind(
+					(*(*rule->PfragTgt()->PopRoot())[0]->Pdrgpsym())[3], empty));
+				empty->Release();
+			}
+			const BOOL checked = CDSLConstraintChecker(mp).FCheck(rule, model);
+			GPOS_UNITTEST_ASSERT(checked == (!omit_correlations || 0 == scope));
+			CDSLInstantiator builder(mp);
+			CExpression *target = checked ? builder.PexprInstantiate(rule, model) : nullptr;
+			GPOS_UNITTEST_ASSERT((nullptr == target) ==
+				(omit_correlations && 0 != scope));
+			if (nullptr != target)
+			{
+				GPOS_UNITTEST_ASSERT(target->DeriveOuterReferences()->Equals(
+					source->DeriveOuterReferences()));
+				GPOS_UNITTEST_ASSERT((*(*target)[0])[1] == inner);
+			}
+			CRefCount::SafeRelease(target);
+			model->Release();
+			rule->Release();
+		}
+		source->Release();
+	}
+	left->Release();
+	right->Release();
+	return GPOS_OK;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjTest::EresUnittest
@@ -191,6 +265,7 @@ GPOS_RESULT
 CDSLProjTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresScalarSubqueryCorrelationScope),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_MatchBindsProjectedColumns),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_InstantiatePreservesOutput),
