@@ -1982,8 +1982,14 @@ CTranslatorScalarToDXL::CreateQuantifiedSubqueryFromSublink(
 	const CDXLColRef *dxl_colref = scalar_ident->GetDXLColRef();
 	const ULONG colid = dxl_colref->Id();
 
-	// get the test expression
-	GPOS_ASSERT(IsA(sublink->testexpr, OpExpr));
+	// PG may simplify a Boolean comparison to a Param or NOT expression.
+	// Such shapes are not binary quantified comparisons and cannot be cast.
+	if (sublink->testexpr == nullptr || !IsA(sublink->testexpr, OpExpr) ||
+		gpdb::ListLength(((OpExpr *) sublink->testexpr)->args) != 2)
+	{
+		GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+				   GPOS_WSZ_LIT("Unsupported quantified test expression"));
+	}
 	OpExpr *op_expr = (OpExpr *) sublink->testexpr;
 
 	IMDId *mdid = GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, op_expr->opno);
@@ -1992,9 +1998,7 @@ CTranslatorScalarToDXL::CreateQuantifiedSubqueryFromSublink(
 	const CWStringConst *str = GetDXLArrayCmpType(mdid);
 
 	// translate left hand side of the expression
-	GPOS_ASSERT(nullptr != op_expr->args);
 	Expr *LHS_expr = (Expr *) gpdb::ListNth(op_expr->args, 0);
-
 	CDXLNode *outer_dxlnode = TranslateScalarToDXL(LHS_expr, var_colid_mapping);
 
 	CDXLNode *dxlnode = nullptr;
