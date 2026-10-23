@@ -28,9 +28,11 @@
 #include "gpopt/operators/CLogicalLeftAntiSemiCorrelatedApplyNotIn.h"
 #include "gpopt/operators/CLogicalLeftSemiCorrelatedApplyIn.h"
 #include "gpopt/operators/CLogicalLeftSemiApplyIn.h"
+#include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CNormalizer.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarFunc.h"
@@ -1661,10 +1663,44 @@ EresLegacyMembershipProjectionSRF()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresQuantifiedNormalizePreservesTest()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (auto origin : {COperator::EopScalarSubqueryAny,
+						COperator::EopScalarSubqueryAll,
+						COperator::EopScalarSubqueryExists})
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *left = fix.PexprLogicalGet("normalize_outer", 1);
+		CExpression *right = fix.PexprLogicalGet("normalize_inner", 1, &columns);
+		CExpression *test = fix.PexprEqConst((*columns)[0], 1);
+		CAutoRef<CExpression> source(
+			CUtils::PexprLogicalApply<CLogicalLeftOuterCorrelatedApply>(
+				mp, left, right, (*columns)[0], origin, test));
+		CAutoRef<CExpression> normalized(CNormalizer::PexprNormalize(mp, source.Value()));
+		GPOS_UNITTEST_ASSERT(normalized->Pop()->Eopid() == source->Pop()->Eopid());
+		if (origin == COperator::EopScalarSubqueryExists)
+		{
+			GPOS_UNITTEST_ASSERT(CUtils::FScalarConstTrue((*normalized)[2]));
+			GPOS_UNITTEST_ASSERT((*normalized)[1]->Pop()->Eopid() == COperator::EopLogicalSelect);
+		}
+		else
+		{
+			GPOS_UNITTEST_ASSERT((*normalized)[2]->Matches(test));
+			GPOS_UNITTEST_ASSERT((*normalized)[1]->Matches(right));
+		}
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresQuantifiedNormalizePreservesTest),
 		GPOS_UNITTEST_FUNC(EresQuantifiedDistinctAggregate),
 		GPOS_UNITTEST_FUNC(EresQuantifiedCarrierDirection),
 		GPOS_UNITTEST_FUNC(EresQuantifiedConjunctionDemand),

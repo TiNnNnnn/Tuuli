@@ -1,16 +1,16 @@
 {
-  "description": "Unsupported simplified Boolean quantified tests explicitly fall back and preserve polarity and NULL results",
+  "description": "Simplified Boolean ANY/ALL retains polarity and NULL results in ORCA",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
       "contains": [
-        "Falling back to Postgres",
-        "Unsupported quantified test expression"
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Optimizer: pg_orca",
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
         "Assertion failed"
       ]
     },
@@ -19,11 +19,11 @@
       "dsl": true,
       "trace": true,
       "contains": [
-        "Falling back to Postgres",
-        "Unsupported quantified test expression"
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Optimizer: pg_orca",
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
         "Assertion failed"
       ]
     }

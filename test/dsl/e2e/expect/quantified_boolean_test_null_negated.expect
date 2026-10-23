@@ -1,0 +1,49 @@
+{
+  "description": "Boolean quantified null_negative preserves PG NULL and empty-input semantics; isolated Project2Apply DSL family",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
+        "Assertion failed"
+      ]
+    },
+    {
+      "name": "on",
+      "dsl": true,
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
+        "Assertion failed"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      ",,,"
+    ],
+    "postgres_output": [
+      ",,,"
+    ],
+    "plan_outputs": {
+      "off": [
+        ",,,"
+      ],
+      "on": [
+        ",,,"
+      ]
+    }
+  }
+}

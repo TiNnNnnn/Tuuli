@@ -1,0 +1,104 @@
+{
+  "description": "The DSL ANY replacement accepts PG simplified Boolean tests with NULL and empty inputs",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery"
+    ],
+    "scope": "One simplified Boolean quantified test in a Project value context",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "daf208e79534479c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply",
+        "Xform: CXformSimplifyProjectWithSubquery"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,f",
+      "2,f",
+      "3,t",
+      "4,",
+      "5,f",
+      "6,f"
+    ],
+    "postgres_output": [
+      "1,f",
+      "2,f",
+      "3,t",
+      "4,",
+      "5,f",
+      "6,f"
+    ]
+  }
+}

@@ -1,0 +1,93 @@
+{
+  "description": "Typed ANY lowering handles a PG simplified Boolean test without native subquery unnesting",
+  "replacement": {
+    "xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "scope": "Simplified Boolean quantified Filter with NULL and empty RHS",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "eb808b80935652d6"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSelect2Apply",
+        "Xform: CXformSimplifySelectWithSubquery"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformDSLRule_Select",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "alternative": [
+        "CXformSelect2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_explicit_quantified_apply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"eb808b80935652d6\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_explicit_quantified_apply.policy",
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ]
+  }
+}
