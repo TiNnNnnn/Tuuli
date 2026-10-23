@@ -1,16 +1,16 @@
 {
-  "description": "Unsupported simplified Boolean quantified tests explicitly fall back and preserve all-NULL and empty-set results",
+  "description": "Boolean quantified null_positive preserves PG NULL and empty-input semantics; isolated Project2Apply DSL family",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
       "contains": [
-        "Falling back to Postgres",
-        "Unsupported quantified test expression"
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Optimizer: pg_orca",
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
         "Assertion failed"
       ]
     },
@@ -18,29 +18,31 @@
       "name": "on",
       "dsl": true,
       "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
-        "Falling back to Postgres",
-        "Unsupported quantified test expression"
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Optimizer: pg_orca",
+        "Falling back to Postgres",
+        "Unsupported quantified test expression",
         "Assertion failed"
       ]
     }
   ],
   "rows": {
+    "policy": "isolate_project2apply_scalar_direct.policy",
     "output": [
-      ",,,,,,,,f,t,f,t,f,t,f,t"
+      ",,,"
     ],
     "postgres_output": [
-      ",,,,,,,,f,t,f,t,f,t,f,t"
+      ",,,"
     ],
     "plan_outputs": {
       "off": [
-        ",,,,,,,,f,t,f,t,f,t,f,t"
+        ",,,"
       ],
       "on": [
-        ",,,,,,,,f,t,f,t,f,t,f,t"
+        ",,,"
       ]
     }
   }

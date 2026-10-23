@@ -1982,24 +1982,48 @@ CTranslatorScalarToDXL::CreateQuantifiedSubqueryFromSublink(
 	const CDXLColRef *dxl_colref = scalar_ident->GetDXLColRef();
 	const ULONG colid = dxl_colref->Id();
 
-	// PG may simplify a Boolean comparison to a Param or NOT expression.
-	// Such shapes are not binary quantified comparisons and cannot be cast.
-	if (sublink->testexpr == nullptr || !IsA(sublink->testexpr, OpExpr) ||
-		gpdb::ListLength(((OpExpr *) sublink->testexpr)->args) != 2)
+	IMDId *mdid = nullptr;
+	CDXLNode *outer_dxlnode = nullptr;
+	if (sublink->testexpr != nullptr && IsA(sublink->testexpr, OpExpr) &&
+		gpdb::ListLength(((OpExpr *) sublink->testexpr)->args) == 2)
 	{
-		GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
-				   GPOS_WSZ_LIT("Unsupported quantified test expression"));
+		const OpExpr *op_expr = (OpExpr *) sublink->testexpr;
+		mdid = GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, op_expr->opno);
+		outer_dxlnode = TranslateScalarToDXL(
+			(Expr *) gpdb::ListNth(op_expr->args, 0), var_colid_mapping);
 	}
-	OpExpr *op_expr = (OpExpr *) sublink->testexpr;
-
-	IMDId *mdid = GPOS_NEW(m_mp) CMDIdGPDB(IMDId::EmdidGeneral, op_expr->opno);
+	else
+	{
+		// Boolean equality folding leaves Param or NOT Param. Reconstruct the
+		// same per-row truth value, including NULL, without changing ANY/ALL.
+		const Node *test = sublink->testexpr;
+		BOOL positive = true;
+		if (test != nullptr && IsA(test, BoolExpr) &&
+			((const BoolExpr *) test)->boolop == NOT_EXPR &&
+			gpdb::ListLength(((const BoolExpr *) test)->args) == 1)
+		{
+			test = (Node *) gpdb::ListNth(((const BoolExpr *) test)->args, 0);
+			positive = false;
+		}
+		const IMDType *type = m_md_accessor->RetrieveType(dxl_colref->MdidType());
+		if (test == nullptr || !IsA(test, Param) ||
+			((const Param *) test)->paramkind != PARAM_SUBLINK ||
+			((const Param *) test)->paramid != 1 ||
+			((const Param *) test)->paramtype != BOOLOID ||
+			type->GetDatumType() != IMDType::EtiBool)
+		{
+			GPOS_RAISE(gpdxl::ExmaDXL, gpdxl::ExmiQuery2DXLUnsupportedFeature,
+					   GPOS_WSZ_LIT("Unsupported quantified test expression"));
+		}
+		mdid = type->GetMdidForCmpType(IMDType::EcmptEq);
+		mdid->AddRef();
+		Expr *constant = (Expr *) gpdb::MakeBoolConst(positive, false /*isnull*/);
+		outer_dxlnode = TranslateScalarToDXL(constant, var_colid_mapping);
+		gpdb::GPDBFree(constant);
+	}
 
 	// get operator name
 	const CWStringConst *str = GetDXLArrayCmpType(mdid);
-
-	// translate left hand side of the expression
-	Expr *LHS_expr = (Expr *) gpdb::ListNth(op_expr->args, 0);
-	CDXLNode *outer_dxlnode = TranslateScalarToDXL(LHS_expr, var_colid_mapping);
 
 	CDXLNode *dxlnode = nullptr;
 	CDXLScalar *subquery = nullptr;
