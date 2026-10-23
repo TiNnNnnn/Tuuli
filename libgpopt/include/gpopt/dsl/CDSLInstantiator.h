@@ -232,14 +232,16 @@ private:
 	CColRefArray *PdrgpcrMapToTarget(const CDSLOp *popTarget,
 								CExpression *pexprTarget,
 								const CColRefArray *pdrgpcrSource,
-								const CDSLModel *pmodel) const;
+								const CDSLModel *pmodel,
+								const CColRefSet *parameters = nullptr) const;
 
 	// Remap an exact source predicate over a rebuilt binary target. Every used
-	// column must be supplied unambiguously by exactly one target child.
+	// column must be supplied by one target child or the explicit parameter scope.
 	CExpression *PexprRemapPredicateToChildren(
 		const CDSLOp *popLeft, CExpression *pexprLeft,
 		const CDSLOp *popRight, CExpression *pexprRight,
-		CExpression *pexprSourcePred, const CDSLModel *pmodel) const;
+		CExpression *pexprSourcePred, const CDSLModel *pmodel,
+		const CColRefSet *parameters = nullptr) const;
 
 	// Flatten a target Filter chain into one Select whose conjunction contains
 	// each target predicate plus matcher residuals exactly once.

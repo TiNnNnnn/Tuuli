@@ -14,6 +14,7 @@
 #include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLModel.h"
@@ -2343,9 +2344,11 @@ CDSLQuantifiedTest::EresUnittest_PredicateRemapPreservesInput()
 GPOS_RESULT
 CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 {
-	for (ULONG ul = 0; ul < 2; ul++)
+	for (ULONG ul = 0; ul < 8; ul++)
 	{
-		const BOOL fAll = 0 < ul;
+		const BOOL fAll = 0 != (ul & 1);
+		const BOOL enclosing = 0 != (ul & 2);
+		const BOOL typed = 0 != (ul & 4);
 		CAutoMemoryPool amp;
 		CMemoryPool *mp = amp.Pmp();
 		CDSLTestFixture fix(mp);
@@ -2358,7 +2361,8 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 			fAll ? "project_all_inner" : "project_any_inner", 1,
 			&pdrgpcrInner);
 		CExpression *pexprSubquery = PexprQuantified(
-			mp, fix, fAll, pexprInner, (*pdrgpcrOuter)[0],
+			mp, fix, fAll, pexprInner,
+			enclosing ? fix.PcrCreateInt4("enclosing_comparison") : (*pdrgpcrOuter)[0],
 			(*pdrgpcrInner)[0]);
 		const IMDTypeBool *pmdtypebool =
 			COptCtxt::PoctxtFromTLS()->Pmda()->PtMDType<IMDTypeBool>();
@@ -2366,9 +2370,15 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 			pmdtypebool, default_type_modifier);
 		CExpression *pexprSource = PexprProjectScalar(
 			mp, pexprOuter, pcrOutput, pexprSubquery);
-		CDSLRule *prule = PruleParse(
-			mp, fAll ? GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ALL_RULE
-					 : GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ANY_RULE);
+		const std::string typed_rule =
+			"Compute<e0 a0 s0>(Input<t0>)|"
+			"Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,"
+			"Compute<e2 a5 s2>(Input<t2>)))|t1 := t0;s1 := s0;ExprList" +
+			std::string(fAll ? "All" : "Any") +
+			"(e1,e2,a5,s2,p0,a2,a3,a4,a6,t2) := e0;a1 := ScalarDeps(e1)";
+		CDSLRule *prule = PruleParse(mp, typed ? typed_rule.c_str() :
+			(fAll ? GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ALL_RULE
+				  : GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_ANY_RULE));
 		GPOS_ASSERT(nullptr != prule);
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
 		CDSLMatcher matcher(mp);
@@ -2390,6 +2400,26 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedProjectQuantified()
 			CLogicalApply::PopConvert(pexprApply->Pop())->EopidOriginSubq());
 		GPOS_ASSERT(COperator::EopScalarCmp == (*pexprApply)[2]->Pop()->Eopid());
 		GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
+		GPOS_UNITTEST_ASSERT(pexprTarget->DeriveOuterReferences()->Equals(
+			pexprSource->DeriveOuterReferences()));
+		GPOS_UNITTEST_ASSERT(pmodel->PcrsSourceOuter()->Size() == (enclosing ? 1 : 0));
+		// Scalar bindings suffice for local inputs but cannot authorize parameters.
+		CDSLModel *unscoped = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(pmodel->FCopyExpressionBindingsTo(unscoped));
+		CExpression *unscoped_target = instantiator.PexprInstantiate(prule, unscoped);
+		GPOS_UNITTEST_ASSERT((nullptr == unscoped_target) == enclosing);
+		CRefCount::SafeRelease(unscoped_target);
+		unscoped->Release();
+		CExpression *other_left = fix.PexprLogicalGet("different_left", 1);
+		CColRefArray *deps_left = nullptr, *deps_right = nullptr;
+		const BOOL scopes_valid = CDSLJoinMatcher::FDerivePredicateDependencies(
+			mp, (*pexprApply)[2], other_left, (*pexprApply)[1],
+			&deps_left, &deps_right, pmodel->PcrsSourceOuter());
+		// A missing local column cannot be relabeled as an enclosing parameter.
+		GPOS_UNITTEST_ASSERT(scopes_valid == enclosing);
+		deps_left->Release();
+		deps_right->Release();
+		other_left->Release();
 
 		// This carrier computes a boolean over all inner rows. Treating it as
 		// an ordinary LeftApply would permit decorrelation to a row-wise LOJ.

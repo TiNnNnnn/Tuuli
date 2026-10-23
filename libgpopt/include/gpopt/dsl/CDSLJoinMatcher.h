@@ -99,11 +99,11 @@ private:
 public:
 	CDSLJoinMatcher(const CDSLJoinMatcher &) = delete;
 
-	// Shared by source matching and target validation; outside columns fail.
+	// Parameters, when supplied from the source scope, belong to the left environment.
 	static BOOL FDerivePredicateDependencies(
 		CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeft,
 		CExpression *pexprRight, CColRefArray **ppdrgpcrLeft,
-		CColRefArray **ppdrgpcrRight);
+		CColRefArray **ppdrgpcrRight, const CColRefSet *parameters = nullptr);
 
 	CDSLJoinMatcher(CMemoryPool *mp, const CDSLMatcher *pmatcher,
 				   const CDSLRule *prule)

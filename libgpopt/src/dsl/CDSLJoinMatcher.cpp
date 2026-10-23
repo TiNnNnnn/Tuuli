@@ -45,22 +45,26 @@
 
 using namespace gpopt;
 
-// Derive the exact left/right dependency vectors of a predicate. Predicates
-// using a column outside both relational inputs fail closed.
+// Derive exact left/right dependency vectors. Outside columns require an
+// explicit ambient parameter scope.
 BOOL
 CDSLJoinMatcher::FDerivePredicateDependencies(
 	CMemoryPool *mp, CExpression *pexprPred, CExpression *pexprLeft,
 	CExpression *pexprRight, CColRefArray **ppdrgpcrLeft,
-	CColRefArray **ppdrgpcrRight)
+	CColRefArray **ppdrgpcrRight, const CColRefSet *parameters)
 {
 	CColRefSet *pcrsUsed = pexprPred->DeriveUsedColumns();
-	CColRefSet *pcrsLeft = GPOS_NEW(mp) CColRefSet(mp, *pcrsUsed);
-	pcrsLeft->Intersection(pexprLeft->DeriveOutputColumns());
+	CColRefSet *pcrsLeft = GPOS_NEW(mp) CColRefSet(mp, *pexprLeft->DeriveOutputColumns());
+	if (nullptr != parameters) pcrsLeft->Union(parameters);
+	pcrsLeft->Intersection(pcrsUsed);
 	CColRefSet *pcrsRight = GPOS_NEW(mp) CColRefSet(mp, *pcrsUsed);
 	pcrsRight->Intersection(pexprRight->DeriveOutputColumns());
 	CColRefSet *pcrsDeclared = GPOS_NEW(mp) CColRefSet(mp, *pcrsLeft);
 	pcrsDeclared->Union(pcrsRight);
-	const BOOL fExact = pcrsDeclared->Equals(pcrsUsed);
+	const BOOL fExact = pcrsDeclared->Equals(pcrsUsed) &&
+		(nullptr == parameters ||
+		 (parameters->IsDisjoint(pexprLeft->DeriveOutputColumns()) &&
+		  parameters->IsDisjoint(pexprRight->DeriveOutputColumns())));
 	*ppdrgpcrLeft = pcrsLeft->Pdrgpcr(mp);
 	*ppdrgpcrRight = pcrsRight->Pdrgpcr(mp);
 	pcrsDeclared->Release();

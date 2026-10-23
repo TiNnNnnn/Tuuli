@@ -492,9 +492,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
+	// Quantified extraction preserves the original comparison's ambient parameters.
+	const CColRefSet *parameters = fExprListQuantified ? pmodel->PcrsSourceOuter() : nullptr;
 	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,
-		pmodel);
+		pmodel, parameters);
 	CRefCount::SafeRelease(pexprOwnedJoinPred);
 	if (nullptr == pexprTargetPred)
 	{
@@ -508,14 +510,15 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		// correct left/right partitions, and target inputs can be reordered.
 		CColRefArray *actual[2] = {nullptr, nullptr};
 		BOOL valid = CDSLJoinMatcher::FDerivePredicateDependencies(
-			m_mp, predicate, pexprLeft, pexprRight, &actual[0], &actual[1]);
+			m_mp, predicate, pexprLeft, pexprRight, &actual[0], &actual[1], parameters);
 		CExpression *children[2] = {pexprLeft, pexprRight};
 		for (ULONG i = 0; valid && i < 2; i++)
 		{
 			CColRefArray *declared = PdrgpcrResolveCols(
 				PsymResolve((*pdrgpsym)[offset + i + 1]), pmodel);
 			CColRefArray *mapped = nullptr == declared ? nullptr :
-				PdrgpcrMapToTarget((*pop)[i], children[i], declared, pmodel);
+				PdrgpcrMapToTarget((*pop)[i], children[i], declared, pmodel,
+					0 == i ? parameters : nullptr);
 			CColRefSet *expected = GPOS_NEW(m_mp) CColRefSet(m_mp);
 			if (nullptr != mapped)
 				expected->Include(mapped);

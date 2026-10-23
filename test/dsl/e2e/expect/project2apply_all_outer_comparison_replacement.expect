@@ -1,0 +1,70 @@
+{
+  "description": "Nested ALL retains outer comparison and RHS parameters, including NULL and empty inputs",
+  "plans": [
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9555abcd9b140797\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,t",
+      "2,t",
+      "3,f",
+      "4,f",
+      "5,f",
+      "6,"
+    ],
+    "postgres_output": [
+      "1,t",
+      "2,t",
+      "3,f",
+      "4,f",
+      "5,f",
+      "6,"
+    ]
+  }
+}

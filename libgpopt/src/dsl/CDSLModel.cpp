@@ -49,6 +49,7 @@ CDSLFrameBound::Matches(const CDSLFrameBound *other) const
 CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 	: m_mp(mp),
 	  m_pgexprSource(source),
+	  m_pexprMatchedSource(nullptr),
 	  m_phmSubqueryMarkers(nullptr),
 	  m_pdrgpexprResidual(nullptr),
 	  m_fDedupDrop(false),
@@ -83,6 +84,7 @@ CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 //---------------------------------------------------------------------------
 CDSLModel::~CDSLModel()
 {
+	CRefCount::SafeRelease(m_pexprMatchedSource);
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
 	m_phmSymToRef->Release();
@@ -106,6 +108,21 @@ CDSLModel::~CDSLModel()
 	m_pdrgpexprNaryUnionTails->Release();
 	CRefCount::SafeRelease(m_pdrgpexprResidual);
 	CRefCount::SafeRelease(m_pexprDistinctAgg);
+}
+
+void
+CDSLModel::SetMatchedSource(CExpression *source)
+{
+	source->AddRef();
+	CRefCount::SafeRelease(m_pexprMatchedSource);
+	m_pexprMatchedSource = source;
+}
+
+const CColRefSet *
+CDSLModel::PcrsSourceOuter() const
+{
+	return nullptr == m_pexprMatchedSource || !m_pexprMatchedSource->Pop()->FLogical()
+		? nullptr : m_pexprMatchedSource->DeriveOuterReferences();
 }
 
 BOOL
