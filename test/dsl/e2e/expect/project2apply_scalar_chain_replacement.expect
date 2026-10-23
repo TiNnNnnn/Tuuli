@@ -1,0 +1,51 @@
+{
+  "description": "Two scalar SubPlans retain their own correlated input and consumer column",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,10,30",
+      "2,30,",
+      "3,,"
+    ],
+    "postgres_output": [
+      "1,10,30",
+      "2,30,",
+      "3,,"
+    ]
+  }
+}

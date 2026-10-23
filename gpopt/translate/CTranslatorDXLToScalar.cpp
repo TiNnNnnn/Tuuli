@@ -938,22 +938,12 @@ CTranslatorDXLToScalar::TranslateDXLScalarSubplanToScalar(
 		subplan->useHashTable = true;
 	}
 
-	// Promote uncorrelated scalar subqueries to InitPlans, mirroring
-	// build_subplan() in the standard planner.  When parParam is NIL and the
-	// sublink is EXPR_SUBLINK the subquery result is constant for the whole
-	// query.  We:
-	//   1. Allocate a PARAM_EXEC slot and set subplan->setParam so the
-	//      executor knows this subplan writes a param (InitPlan semantics).
-	//   2. Record the SubPlan in m_init_plans so it gets attached to the
-	//      root plan node's initPlan list and runs exactly once.
-	//   3. Return a Param node referencing that slot so the call-site
-	//      expression uses the cached result instead of re-executing the
-	//      subplan per row.
-	// Also check plan_child->extParam: a correlated subquery may have
-	// parParam == NIL yet still reference outer PARAM_EXEC values passed via
-	// NestLoopParams.  Those show up in plan_child->extParam.  Only promote
-	// to InitPlan when the child plan has no external parameter dependencies
-	// at all, i.e. it truly executes independently of the outer query.
+	// Like build_subplan(), use a lazy InitPlan when there are no direct
+	// arguments. PARAM_EXEC evaluates it on demand and retains its result.
+	// Indirect dependencies may still exist in extParam: FinalizeParamIds
+	// propagates them, and ExecReScanSetParamPlan invalidates the cached value
+	// when those parameters change. parParam == NIL does not imply that the
+	// result is constant for the entire statement.
 	if (slink == EXPR_SUBLINK && subplan->parParam == NIL)
 	{
 		TargetEntry *te =
