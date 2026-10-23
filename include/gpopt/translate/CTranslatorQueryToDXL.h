@@ -183,8 +183,7 @@ private:
 
 	// translate window spec
 	CDXLWindowSpecArray *TranslateWindowSpecToDXL(
-		List *window_clause, IntToUlongMap *sort_col_attno_to_colid_mapping,
-		CDXLNode *project_list_dxlnode_node);
+		List *window_clause, IntToUlongMap *sort_col_attno_to_colid_mapping);
 
 	// update window spec positions of LEAD/LAG functions
 	void UpdateLeadLagWinSpecPos(

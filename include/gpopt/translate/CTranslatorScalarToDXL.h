@@ -244,11 +244,9 @@ private:
 	// get the operator name
 	const CWStringConst *GetDXLArrayCmpType(IMDId *mdid) const;
 
-	// translate the window frame edge, if the column used in the edge is a
-	// computed column then add it to the project list
+	// translate a frame offset without creating a per-row projection
 	CDXLNode *TranslateWindowFrameEdgeToDXL(
-		const Node *node, const CMappingVarColId *var_colid_mapping,
-		CDXLNode *new_scalar_proj_list);
+		const Node *node, const CMappingVarColId *var_colid_mapping);
 
 public:
 	// ctor
@@ -288,8 +286,7 @@ public:
 		int frame_options, const Node *start_offset, const Node *end_offset,
 		Oid start_in_range_func, Oid end_in_range_func, Oid in_range_coll,
 		bool in_range_asc, bool in_range_nulls_first,
-		const CMappingVarColId *var_colid_mapping,
-		CDXLNode *new_scalar_proj_list);
+		const CMappingVarColId *var_colid_mapping);
 
 	// translate stand-alone expression that's not part of a query
 	static CDXLNode *TranslateStandaloneExprToDXL(

@@ -1,0 +1,2 @@
+SELECT sum(v) OVER (ORDER BY id ROWS BETWEEN (-1)::bigint PRECEDING AND CURRENT ROW)
+FROM dsl_insub_outer;

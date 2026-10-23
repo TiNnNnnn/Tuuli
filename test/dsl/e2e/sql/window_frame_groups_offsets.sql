@@ -1,0 +1,2 @@
+SELECT id, sum(v) OVER (ORDER BY id GROUPS BETWEEN (1 + 0) PRECEDING AND (2 - 1) FOLLOWING)
+FROM dsl_insub_outer ORDER BY id;

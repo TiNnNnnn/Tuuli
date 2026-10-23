@@ -1,0 +1,51 @@
+{
+  "description": "Frame offsets execute before input tuples, once per scan, with PostgreSQL error semantics",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "dsl": true,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,30",
+      "2,60",
+      "3,50"
+    ],
+    "postgres_output": [
+      "1,30",
+      "2,60",
+      "3,50"
+    ],
+    "plan_outputs": {
+      "off": [
+        "1,30",
+        "2,60",
+        "3,50"
+      ],
+      "on": [
+        "1,30",
+        "2,60",
+        "3,50"
+      ]
+    }
+  }
+}
