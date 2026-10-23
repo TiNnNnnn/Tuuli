@@ -756,6 +756,8 @@ CDSLMatcher::FMatch(const CDSLOp *pop, CExpression *pexpr,
 	const ULONG ulDepth = m_ulMatchDepth++;
 	const BOOL fMatched = FMatchInternal(pop, pexpr, pmodel);
 	--m_ulMatchDepth;
+	if (fMatched && 0 == ulDepth)
+		pmodel->SetMatchedSource(pexpr);
 	if (!fMatched && (!m_fHasFailure || ulDepth > m_ulFailureDepth))
 	{
 		m_fHasFailure = true;

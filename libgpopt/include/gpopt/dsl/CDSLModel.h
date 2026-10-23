@@ -90,6 +90,9 @@ private:
 	CMemoryPool *m_mp;
 	// Borrowed Memo occurrence; absent for standalone matching and RBO.
 	CGroupExpression *m_pgexprSource;
+	CExpression *m_pexprMatchedSource;
+	friend class CDSLMatcher;
+	void SetMatchedSource(CExpression *source);
 	CDSLSymbolToRefMap *m_phmSymToRef;
 	CDSLSymbolToRefMap *m_phmScalarContexts;
 	// Symbols synthesized by constructive constraints during checking. Keeping
@@ -156,6 +159,9 @@ public:
 	explicit CDSLModel(CMemoryPool *mp, CGroupExpression *source = nullptr);
 
 	~CDSLModel() override;
+
+	// Ambient parameters come from the matched root, never target bindings.
+	const CColRefSet *PcrsSourceOuter() const;
 
 	// the pool this model (and any transient work a matcher does for it) lives
 	// in — the per-optimization xform pool, NOT the engine's long-lived pool.

@@ -406,13 +406,15 @@ CDSLInstantiator::PcrMapToTarget(const CDSLOp *popTarget,
 CColRefArray *
 CDSLInstantiator::PdrgpcrMapToTarget(
 	const CDSLOp *popTarget, CExpression *pexprTarget,
-	const CColRefArray *pdrgpcrSource, const CDSLModel *pmodel) const
+	const CColRefArray *pdrgpcrSource, const CDSLModel *pmodel,
+	const CColRefSet *parameters) const
 {
 	CColRefArray *pdrgpcrMapped = GPOS_NEW(m_mp) CColRefArray(m_mp);
 	for (ULONG ul = 0; ul < pdrgpcrSource->Size(); ul++)
 	{
-		CColRef *pcrMapped = PcrMapToTarget(
-			popTarget, pexprTarget, (*pdrgpcrSource)[ul], pmodel);
+		CColRef *pcrMapped = nullptr != parameters &&
+			parameters->FMember((*pdrgpcrSource)[ul]) ? (*pdrgpcrSource)[ul] :
+			PcrMapToTarget(popTarget, pexprTarget, (*pdrgpcrSource)[ul], pmodel);
 		if (nullptr == pcrMapped ||
 			!(*pdrgpcrSource)[ul]->RetrieveType()->MDId()->Equals(
 				pcrMapped->RetrieveType()->MDId()))
@@ -429,9 +431,13 @@ CExpression *
 CDSLInstantiator::PexprRemapPredicateToChildren(
 	const CDSLOp *popLeft, CExpression *pexprLeft,
 	const CDSLOp *popRight, CExpression *pexprRight,
-	CExpression *pexprSourcePred, const CDSLModel *pmodel) const
+	CExpression *pexprSourcePred, const CDSLModel *pmodel,
+	const CColRefSet *parameters) const
 {
-	if (nullptr == pexprSourcePred)
+	if (nullptr == pexprSourcePred ||
+		(nullptr != parameters &&
+		 (!parameters->IsDisjoint(pexprLeft->DeriveOutputColumns()) ||
+		  !parameters->IsDisjoint(pexprRight->DeriveOutputColumns()))))
 	{
 		return nullptr;
 	}
@@ -444,7 +450,8 @@ CDSLInstantiator::PexprRemapPredicateToChildren(
 	{
 		CColRef *pcrSource = (*pdrgpcrUsed)[ul];
 		if (pexprLeft->DeriveOutputColumns()->FMember(pcrSource) ||
-			pexprRight->DeriveOutputColumns()->FMember(pcrSource))
+			pexprRight->DeriveOutputColumns()->FMember(pcrSource) ||
+			(nullptr != parameters && parameters->FMember(pcrSource)))
 		{
 			continue;
 		}
@@ -484,6 +491,7 @@ CDSLInstantiator::PexprRemapPredicateToChildren(
 	CColRefSet *pcrsAvailable = GPOS_NEW(m_mp) CColRefSet(m_mp);
 	pcrsAvailable->Union(pexprLeft->DeriveOutputColumns());
 	pcrsAvailable->Union(pexprRight->DeriveOutputColumns());
+	if (nullptr != parameters) pcrsAvailable->Union(parameters);
 	const BOOL fAvailable = nullptr != pexprTargetPred &&
 		pcrsAvailable->ContainsAll(pexprTargetPred->DeriveUsedColumns());
 	pcrsAvailable->Release();
