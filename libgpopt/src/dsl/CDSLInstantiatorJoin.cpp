@@ -893,7 +893,14 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			PdrgpcrResolveCols(psymCorrelations, pmodel);
 		CColRefSet *pcrsActual = GPOS_NEW(m_mp) CColRefSet(
 			m_mp, *pexprRight->DeriveOuterReferences());
-		pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
+		// Subquery extraction captures every free RHS column, including
+		// parameters owned by an enclosing query. A matched Apply instead
+		// binds only references supplied by its immediate left input.
+		if (!fScalarSubquery && !fExprListScalarSubquery &&
+			!fExprListExistential && !fExprListQuantified)
+		{
+			pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
+		}
 		CColRefArray *pdrgpcrActual = pcrsActual->Pdrgpcr(m_mp);
 		const BOOL fCorrelationsPreserved = nullptr != pdrgpcrExpected &&
 			CColRef::Equals(pdrgpcrExpected, pdrgpcrActual);
