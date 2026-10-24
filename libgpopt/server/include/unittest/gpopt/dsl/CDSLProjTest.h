@@ -68,6 +68,7 @@ public:
 	// projection view, and can reuse it without changing LET semantics.
 	static GPOS_RESULT EresUnittest_ComputeExactRoundTrip();
 	static GPOS_RESULT EresUnittest_TypedProjectResultTypes();
+	static GPOS_RESULT EresUnittest_TypedVirtualIdentityProject();
 	static GPOS_RESULT EresUnittest_TypedScalarPhases();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedScalarSubquery();
 	static GPOS_RESULT EresUnittest_ExpressionDefinedSubqueryChain();
