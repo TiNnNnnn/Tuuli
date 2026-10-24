@@ -36,6 +36,7 @@
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarCast.h"
@@ -290,6 +291,7 @@ CDSLProjTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeExactRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedProjectResultTypes),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedVirtualIdentityProject),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_TypedScalarPhases),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ExpressionDefinedScalarSubquery),
@@ -3107,6 +3109,88 @@ CDSLProjTest::EresUnittest_NoFireOnWrongRoot()
 	pexprSelect->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_TypedVirtualIdentityProject()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Proj<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	CDSLOp *root = rule->PfragSrc()->PopRoot();
+	GPOS_RESULT result = GPOS_OK;
+	for (ULONG variant = 0; variant < 4; ++variant)
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("typed_virtual_project", 2, &columns);
+		CColRefArray *attrs = GPOS_NEW(mp) CColRefArray(mp);
+		CColRefArray *schema = GPOS_NEW(mp) CColRefArray(mp);
+		CColRef *first = 3 == variant ? fix.PcrCreateInt4("missing") : (*columns)[0];
+		attrs->Append(first);
+		attrs->Append((*columns)[1]);
+		schema->Append(2 == variant ? (*columns)[1] : first);
+		schema->Append(2 == variant ? first : (*columns)[1]);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		model->FBind((*(*root)[0]->Pdrgpsym())[0], input);
+		model->FBind((*root->Pdrgpsym())[0], attrs);
+		model->FBind((*root->Pdrgpsym())[1], schema);
+		if (1 != variant)
+		{
+			input->AddRef();
+			model->FSetVirtualIdentityProj((*root->Pdrgpsym())[1], input);
+		}
+		CDSLInstantiator instantiator(mp);
+		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		// No captured program is available. Only a recorded, exact column
+		// identity may pass; reordered or unavailable outputs cannot be guessed.
+		if ((0 == variant) != (nullptr != target) ||
+			(nullptr != target && target != input))
+			result = GPOS_FAILED;
+		CRefCount::SafeRelease(target);
+		model->Release();
+		schema->Release();
+		attrs->Release();
+		input->Release();
+	}
+	rule->Release();
+
+	// Exercise the producer of this carrier, not just manually bound models.
+	rule = PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;AttrsSub(a0,t0);Unique(t0,a0)");
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	{
+		CExpression *input = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalLeftSemiJoin(mp),
+			CUtils::PexprLogicalCTGDummy(mp), CUtils::PexprLogicalCTGDummy(mp),
+			CUtils::PexprScalarConstBool(mp, true));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		BOOL matched = CDSLMatcher(mp, rule).FMatch(
+			rule->PfragSrc()->PopRoot(), input, model);
+		if (!matched)
+			result = GPOS_FAILED;
+		if (matched)
+		{
+			CDSLSymbol *schema = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[1];
+			if (!model->FVirtualIdentityProj(schema) ||
+				nullptr != model->PexprProjList(schema) ||
+				!CDSLConstraintChecker(mp).FCheck(rule, model))
+				result = GPOS_FAILED;
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			if (target != input)
+				result = GPOS_FAILED;
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+		input->Release();
+	}
+	rule->Release();
+	return result;
 }
 
 // EOF
