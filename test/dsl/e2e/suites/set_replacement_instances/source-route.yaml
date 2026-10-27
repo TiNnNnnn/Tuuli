@@ -1,0 +1,7 @@
+experiment: set-replacement-source
+discover: false
+template_route: 1
+template_fingerprint: ed43d47b33325d38
+template_root: r
+template_bindings: true
+cardinalities:
