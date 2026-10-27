@@ -1,0 +1,57 @@
+{
+  "description": "Export positional SetOp maps while preserving reordered input columns, duplicates and NULLs",
+  "plans": [
+    {
+      "name": "export",
+      "dsl": false,
+      "trace": true,
+      "stats_experiment": "full-plan-slice.yaml",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "plan_slice": {
+        "schema": "pgorca.dsl.plan-slice.v1",
+        "root_path": "r",
+        "cut_paths": [],
+        "status": "ok",
+        "source_template": "SortBy<o0>(Union<a0 s0 a1 a2>(Input<t0>,Input<t1>))",
+        "error": null
+      }
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20",
+      ",20"
+    ],
+    "postgres_output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20",
+      ",20"
+    ],
+    "off_output": [
+      "1,10",
+      "1,10",
+      "1,10",
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20",
+      ",20"
+    ]
+  }
+}
