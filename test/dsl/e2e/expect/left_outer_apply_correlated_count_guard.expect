@@ -8,14 +8,14 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"20c6cc8ab706d5c6\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c5e34452ab8cabbe\"",
         "\"failed_constraint\":\"NullOnEmpty\"",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"c88c6f23709dab2a\"",
         "\"failed_constraint\":\"ErrorFree\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"20c6cc8ab706d5c6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c5e34452ab8cabbe\"",
         "\"status\":\"applied\",\"rule_hash\":\"c88c6f23709dab2a\"",
         "Falling back to Postgres",
         "Xform: CXformLeftOuterApply2LeftOuterJoin"
