@@ -7,7 +7,7 @@
     "scope": "A correlated ANY expression used inside an outer aggregate argument",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "595964cccb8cc1d0"
+      "27888ff28e651eba"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"595964cccb8cc1d0\""
+        "\"status\":\"applied\",\"rule_hash\":\"27888ff28e651eba\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"595964cccb8cc1d0\""
+        "\"status\":\"applied\",\"rule_hash\":\"27888ff28e651eba\""
       ],
       "provenance": {
         "required_sources": [
