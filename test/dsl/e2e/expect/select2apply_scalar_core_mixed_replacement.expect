@@ -1,0 +1,30 @@
+{
+  "description": "Core Filter Context skips an unsafe first scalar subquery and materializes the safe later occurrence; native fallback retains the dormant multirow subquery",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "policy": "isolate_select2apply_scalar_core.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_select2apply_scalar_core.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

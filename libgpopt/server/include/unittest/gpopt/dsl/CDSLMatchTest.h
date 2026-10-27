@@ -44,6 +44,7 @@ public:
 	static GPOS_RESULT EresUnittest_TypedPredicateResultTypes();
 	static GPOS_RESULT EresUnittest_TypedScalarValueKinds();
 	static GPOS_RESULT EresUnittest_ModelOptionalBindings();
+	static GPOS_RESULT EresUnittest_ContextSkipsUnsafeCandidates();
 };	// class CDSLMatchTest
 }  // namespace gpopt
 

@@ -1,0 +1,27 @@
+{
+  "description": "Core Context chooses the safe later subquery while preserving the earlier demanded scalar cardinality error",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "policy": "isolate_select2apply_scalar_core.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_select2apply_scalar_core.policy",
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}

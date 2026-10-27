@@ -9,6 +9,7 @@
 //		Mirrors WeTune Match.matchOne's dispatch skeleton.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 
 #include "gpos/base.h"
 
@@ -51,11 +52,11 @@ using namespace gpopt;
 
 namespace
 {
-BOOL FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+BOOL FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *symbol, CExpression *expression, CDSLModel *model, ULONG depth = 0);
 
 BOOL
-FMatchScalarContext(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+FMatchScalarContext(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *root_symbol, const CDSLSymbol *hole, CExpression *root,
 	CExpression *candidate, std::vector<ULONG> *path, CDSLModel *model, ULONG depth)
 {
@@ -67,7 +68,8 @@ FMatchScalarContext(CMemoryPool *mp, const CDSLExpressionDefinitions *definition
 		// sibling. Only scalar bindings participate, never Cascades search state.
 		CDSLModel *trial = GPOS_NEW(mp) CDSLModel(mp);
 		BOOL matched = model->FCopyExpressionBindingsTo(trial) &&
-			FMatchExpressionBinding(mp, definitions, hole, candidate, trial, depth);
+			FMatchExpressionBinding(mp, rule, hole, candidate, trial, depth) &&
+			CDSLConstraintChecker(mp).FCheckCapturedScalarProperties(rule, hole, trial);
 		if (matched)
 		{
 			CDSLScalarContext *context = GPOS_NEW(mp) CDSLScalarContext(root, *path);
@@ -78,12 +80,12 @@ FMatchScalarContext(CMemoryPool *mp, const CDSLExpressionDefinitions *definition
 		trial->Release();
 		if (matched) return true;
 	}
-	// Deterministic root-first, left-to-right occurrence selection. This does
-	// not enumerate all matches or backtrack after constraint checking.
+	// Choose the first structural candidate satisfying its captured scalar guards.
+	// Cross-symbol constraints still run after the complete source match.
 	for (ULONG i = 0; i < candidate->Arity(); ++i)
 	{
 		path->push_back(i);
-		const BOOL matched = FMatchScalarContext(mp, definitions, root_symbol, hole,
+		const BOOL matched = FMatchScalarContext(mp, rule, root_symbol, hole,
 			root, (*candidate)[i], path, model, depth);
 		path->pop_back();
 		if (matched) return true;
@@ -92,9 +94,10 @@ FMatchScalarContext(CMemoryPool *mp, const CDSLExpressionDefinitions *definition
 }
 
 BOOL
-FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+FMatchValueArguments(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *symbol, CExpressionArray *arguments, CDSLModel *model, ULONG depth)
 {
+	const auto *definitions = rule->Pexprdefs();
 	GPOS_CHECK_STACK_SIZE;
 	if (depth > definitions->UlDefinitions())
 		return false;
@@ -121,18 +124,19 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLExpressionDefinitions *definitio
 		(*arguments)[i]->AddRef();
 		tail->Append((*arguments)[i]);
 	}
-	const BOOL matched = FMatchExpressionBinding(mp, definitions, def->PsymOperand(0),
-		(*arguments)[0], model, depth + 1) && FMatchValueArguments(mp, definitions,
+	const BOOL matched = FMatchExpressionBinding(mp, rule, def->PsymOperand(0),
+		(*arguments)[0], model, depth + 1) && FMatchValueArguments(mp, rule,
 		def->PsymOperand(1), tail, model, depth + 1);
 	tail->Release();
 	return matched;
 }
 
 BOOL
-FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *definitions,
+FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 					   const CDSLSymbol *symbol, CExpression *expression,
 					   CDSLModel *model, ULONG depth)
 {
+	const auto *definitions = rule->Pexprdefs();
 	GPOS_CHECK_STACK_SIZE;
 	if (depth > definitions->UlDefinitions() ||
 		(EdslsymScalar == symbol->Esymkind() && !CDSLMatchView::FScalarValue(expression)) ||
@@ -173,7 +177,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	if (EdslexprContext == def->Edslexpr())
 	{
 		std::vector<ULONG> path;
-		return FMatchScalarContext(mp, definitions, symbol, def->PsymOperand(0),
+		return FMatchScalarContext(mp, rule, symbol, def->PsymOperand(0),
 			expression, expression, &path, model, depth + 1);
 	}
 	if (EdslexprNot == def->Edslexpr() &&
@@ -184,7 +188,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		(*expression)[0]->AddRef();
 		CExpression *exists = GPOS_NEW(mp) CExpression(mp,
 			GPOS_NEW(mp) CScalarSubqueryExists(mp), (*expression)[0]);
-		const BOOL matched = FMatchExpressionBinding(mp, definitions,
+		const BOOL matched = FMatchExpressionBinding(mp, rule,
 			def->PsymOperand(0), exists, model, depth + 1);
 		exists->Release();
 		return matched;
@@ -195,7 +199,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		// view. Correlated column references and demand-sensitive operators stay.
 		return COperator::EopScalarSubqueryExists == expression->Pop()->Eopid() &&
 			1 == expression->Arity() && (*expression)[0]->Pop()->FLogical() &&
-			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0),
+			FMatchExpressionBinding(mp, rule, def->PsymOperand(0),
 				(*expression)[0], model, depth + 1);
 	}
 	if (EdslexprCall == def->Edslexpr() || EdslexprCompare == def->Edslexpr())
@@ -219,7 +223,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 			(*expression)[i]->AddRef();
 			arguments->Append((*expression)[i]);
 		}
-		const BOOL matched = FMatchValueArguments(mp, definitions, def->PsymOperand(1),
+		const BOOL matched = FMatchValueArguments(mp, rule, def->PsymOperand(1),
 			arguments, model, depth + 1);
 		arguments->Release();
 		return matched;
@@ -249,7 +253,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		const BOOL selected = nullptr != bound ? bound->Equals(outputs)
 			: model->FBind(def->PsymOperand(0), outputs);
 		outputs->Release();
-		return selected && FMatchExpressionBinding(mp, definitions, def->PsymOperand(1),
+		return selected && FMatchExpressionBinding(mp, rule, def->PsymOperand(1),
 			(*expression)[0], model, depth + 1);
 	}
 	if (EdslexprAny == def->Edslexpr() || EdslexprAll == def->Edslexpr())
@@ -275,8 +279,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 				CDSLMatchView::FSameCallHead(bound, comparison_head)
 				: model->FBind(head, comparison_head)) &&
 			(nullptr != bound_outputs ? bound_outputs->Equals(outputs) : model->FBind(def->PsymOperand(2), outputs)) &&
-			FMatchValueArguments(mp, definitions, def->PsymOperand(1), arguments, model, depth + 1) &&
-			FMatchExpressionBinding(mp, definitions, def->PsymOperand(3), (*expression)[0], model, depth + 1);
+			FMatchValueArguments(mp, rule, def->PsymOperand(1), arguments, model, depth + 1) &&
+			FMatchExpressionBinding(mp, rule, def->PsymOperand(3), (*expression)[0], model, depth + 1);
 		comparison_head->Release();
 		outputs->Release();
 		arguments->Release();
@@ -288,7 +292,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		// Do not turn UNKNOWN into the filter-only "not true" interpretation.
 		return IMDType::EtiBool == COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(
 			CScalar::PopConvert(expression->Pop())->MdidType())->GetDatumType() &&
-			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0), expression, model, depth + 1);
+			FMatchExpressionBinding(mp, rule, def->PsymOperand(0), expression, model, depth + 1);
 	}
 	if (EdslexprCase == def->Edslexpr())
 	{
@@ -302,7 +306,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		if (!CDSLMatchView::FBooleanValue((*expression)[0]))
 			return false;
 		for (ULONG i = 0; i < 3; ++i)
-			if (!FMatchExpressionBinding(mp, definitions, def->PsymOperand(i),
+			if (!FMatchExpressionBinding(mp, rule, def->PsymOperand(i),
 				(*expression)[i], model, depth + 1))
 				return false;
 		return true;
@@ -336,8 +340,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		}
 		CExpression *tail = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
 		matched = matched &&
-			FMatchExpressionBinding(mp, definitions, def->PsymOperand(0), (*head)[0], model, depth + 1) &&
-			FMatchExpressionBinding(mp, definitions, def->PsymOperand(2), tail, model, depth + 1);
+			FMatchExpressionBinding(mp, rule, def->PsymOperand(0), (*head)[0], model, depth + 1) &&
+			FMatchExpressionBinding(mp, rule, def->PsymOperand(2), tail, model, depth + 1);
 		tail->Release();
 		return matched;
 	}
@@ -375,8 +379,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 		}
 		expression->Pop()->AddRef();
 		CExpression *prefix = GPOS_NEW(mp) CExpression(mp, expression->Pop(), children);
-		const BOOL matched = FMatchExpressionBinding(mp, definitions, def->PsymOperand(0),
-			prefix, model, depth + 1) && FMatchExpressionBinding(mp, definitions,
+		const BOOL matched = FMatchExpressionBinding(mp, rule, def->PsymOperand(0),
+			prefix, model, depth + 1) && FMatchExpressionBinding(mp, rule,
 			def->PsymOperand(1), (*expression)[expression->Arity() - 1], model, depth + 1);
 		prefix->Release();
 		return matched;
@@ -394,7 +398,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLExpressionDefinitions *defini
 	}
 	for (ULONG i = 0; i < def->Arity(); i++)
 	{
-		if (!FMatchExpressionBinding(mp, definitions, def->PsymOperand(i),
+		if (!FMatchExpressionBinding(mp, rule, def->PsymOperand(i),
 				(*expression)[i], model, depth + 1))
 			return false;
 	}
@@ -416,7 +420,7 @@ CDSLMatcher::FMatchExpression(const CDSLSymbol *symbol, CExpression *expression,
 {
 	if (nullptr != m_prule && m_prule->Pexprdefs()->FHasBindings())
 	{
-		return FMatchExpressionBinding(m_mp, m_prule->Pexprdefs(), symbol, expression, model);
+		return FMatchExpressionBinding(m_mp, m_prule, symbol, expression, model);
 	}
 	if (EdslsymFunc == symbol->Esymkind())
 	{

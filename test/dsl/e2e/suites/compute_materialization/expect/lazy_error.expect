@@ -9,8 +9,7 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "contains": [
-        "\"status\":\"constraint_rejected\"",
-        "\"failed_constraint\":\"ErrorFree\"",
+        "\"status\":\"match_rejected\"",
         "Falling back to Postgres"
       ],
       "not_contains": [
