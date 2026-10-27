@@ -1,0 +1,68 @@
+{
+  "description": "Registered Union replacement retains positional maps, duplicate multiplicities and NULLs",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformUnion2UnionAll",
+        "CXformPushGbBelowUnion",
+        "CXformPushGbBelowUnionAll"
+      ],
+      "stats_experiment": "source-route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"ce27c1ee32ac38dc\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformUnion2UnionAll\n",
+        "Xform: CXformPushGbBelowUnion\n",
+        "Xform: CXformPushGbBelowUnionAll\n"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "ce27c1ee32ac38dc",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalUnion",
+            "CLogicalConstTableGet",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalUnionAll",
+            "CLogicalConstTableGet",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformUnion2UnionAll",
+      "CXformPushGbBelowUnion",
+      "CXformPushGbBelowUnionAll"
+    ],
+    "output": [
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20"
+    ],
+    "postgres_output": [
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20"
+    ],
+    "off_output": [
+      "1,10",
+      "2,30",
+      "3,40",
+      ",20"
+    ]
+  }
+}
