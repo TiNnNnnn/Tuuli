@@ -7,7 +7,7 @@
     "scope": "A correlated count scalar subquery used as the argument of an outer aggregate",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "681e9f9f6c324774"
+      "7eacf072a04f1532"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"681e9f9f6c324774\""
+        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -55,7 +55,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"681e9f9f6c324774\""
+        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\""
       ],
       "provenance": {
         "required_sources": [

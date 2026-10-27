@@ -18,12 +18,12 @@
       "policy": "external_semiapply_global_aggregate_empty_guard.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"61159c193ab8677b\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1c145466514daebf\"",
         "\"failed_constraint\":\"AttrsNonEmpty\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"61159c193ab8677b\""
+        "\"status\":\"applied\",\"rule_hash\":\"1c145466514daebf\""
       ]
     }
   ],

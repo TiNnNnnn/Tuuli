@@ -7,8 +7,8 @@
     "scope": "A scalar subquery and correlated EXISTS in one aggregate argument",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "681e9f9f6c324774",
-      "93f331d88570bda2"
+      "7eacf072a04f1532",
+      "3ae8003581d24074"
     ]
   },
   "plans": [
@@ -28,8 +28,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"681e9f9f6c324774\"",
-        "\"status\":\"applied\",\"rule_hash\":\"93f331d88570bda2\""
+        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3ae8003581d24074\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -57,8 +57,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"681e9f9f6c324774\"",
-        "\"status\":\"applied\",\"rule_hash\":\"93f331d88570bda2\""
+        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3ae8003581d24074\""
       ],
       "provenance": {
         "required_sources": [
