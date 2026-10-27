@@ -232,7 +232,7 @@ public:
 	// Context candidates can reject bound unary guards before choosing a hole.
 	// The full check remains authoritative for dependent and derived constraints.
 	BOOL FCheckCapturedScalarProperties(const CDSLRule *rule,
-		const CDSLSymbol *symbol, const CDSLModel *model) const;
+		const CDSLModel *model, const CDSLModel *previous) const;
 
 	// Check every constraint of prule against pmodel; true iff all hold. When
 	// requested, report (without transferring ownership) the first failed
