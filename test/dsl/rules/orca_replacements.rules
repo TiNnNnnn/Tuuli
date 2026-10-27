@@ -493,10 +493,10 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoinNotIn
 # The predicate alias preserves the complete
 # three-valued ALL scalar tree independently of the RHS qualifier.
 # This exact RuleIR was accepted by the FormalSQL/Rocq kernel on 2026-08-31.
-# FORMALSQL_PROVED legacy_hash=2c84e52f43d8118e; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 460707b423f562d193a53be42f6adf51dcc0bc59ca9bffe210eedf58b6f172db. Shared correlation symbols; previous legacy_hash 74921e1e1400b2e8.
+# FORMALSQL_PROVED legacy_hash=d215eba1903c75b0; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-27; certificate 5ee17515e3eb47c3d1dfe8c8141b6e7ea68923fa480bc1e33be894989a027445. Shared correlation symbols; previous legacy_hash 74921e1e1400b2e8.
 # The generic aggregate decorrelation proof composes typed predicate/group/schema
 # constructors; no AntiApplyNotIn-specific lemma is added.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a2;a10 := a5;AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4)
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a13 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 a14 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a2;a10 := a5;AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4);a14 := a13
 
 # Extends NULL-aware decorrelation across a cumulative Window.  The runtime
 # rule composes atomic facts: equality correlation, non-empty local keys covered
@@ -663,10 +663,10 @@ Proj*<a0 s0>(Union*<a1 s1 a10 a11>(Input<t0>,Input<t1>))|Union*<a2 s2 a12 a13>(P
 # Replaces the functional-dependency metadata branch of
 # CXformSimplifyGbAgg for real aggregates. MinimalGrouping is an explicit
 # optimizer-property premise: it preserves the full semantic grouping while
-# deriving the smaller child-dependent grouping used by later xforms. The
-# exact RuleIR uses the shared aggregate structural proof; its scalar safety
+# deriving the smaller child-dependent grouping used by later xforms.
+# FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-27; certificate d26ffb0bfd199324a54099d6486b6dba876601e776345c80d0816260fad28a7f. Scalar safety
 # premises are explicit so the metadata rewrite cannot hide an evaluation error.
-Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a3 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;MinimalGrouping(a0,s0);ErrorFree(a0);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0)
+Agg<a0 a1 a4 f0 s0 p0>(Input<t0>)|Agg<a2 a3 a5 f1 s1 p1>(Input<t1>)|AttrsSub(a0,t0);AttrsSub(a1,t0);t1 := t0;a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0;MinimalGrouping(a0,s0);ErrorFree(a0);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);a5 := a4
 
 # Replaces CXformInnerApply2InnerJoinNoCorrelations. InnerApply exposes the
 # exact right-to-left dependency set separately from the scalar predicate's
@@ -704,10 +704,10 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|LeftJoin<p2 a5 a6>
 # is NULL-on-empty. This excludes COUNT's zero identity, whose native rewrite
 # requires an outer compensation expression. FormalSQL/Rocq accepted this
 # parameterized RuleIR on 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=5bf9bc76242fe505; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate f872107aee6d8319225ad58e2877947d443130f06b1e02122dbc45f6d9025f09. Shared correlation symbols; previous legacy_hash b8a54fa637de5d89.
+# FORMALSQL_PROVED legacy_hash=aadc8145770efb3b; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-27; certificate 69896921aff2dba11c06ac08c0dcdbb2ba67b4815db3d7fa950348cdcbe63172. Shared correlation symbols; previous legacy_hash b8a54fa637de5d89.
 # LeftApply decorrelation proof composes NullOnEmpty and schema constructors;
 # no LeftApply-specific semantic lemma is added.
-LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|LeftJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsNonEmpty(a2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);NullOnEmpty(f0);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
+LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|LeftJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 a12 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsNonEmpty(a2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);NullOnEmpty(f0);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4);a12 := a11
 
 # The zero-on-empty sibling consumes the two generic Compute layers that carry
 # an aggregate result through an identity and replace NULL with its empty-input

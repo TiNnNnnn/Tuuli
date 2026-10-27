@@ -11,11 +11,11 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"1225ccc58f264e3f\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"fff3ab6fa979b7fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"1225ccc58f264e3f\""
       ]
     },
     {
@@ -38,11 +38,11 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"fff3ab6fa979b7fb\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"1225ccc58f264e3f\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"fff3ab6fa979b7fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"1225ccc58f264e3f\""
       ]
     }
   ],
