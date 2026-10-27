@@ -2527,17 +2527,21 @@ CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
 
 BOOL
 CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
-	const CDSLSymbol *symbol, const CDSLModel *model) const
+	const CDSLModel *model, const CDSLModel *previous) const
 {
-	if (EdslsymScalar != symbol->Esymkind() || nullptr == model->PvalLookup(symbol))
-		return true;
 	CDSLInstantiator materializer(m_mp);
 	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
 	{
 		const auto *constraint = (*rule->Pdrgpcon())[i];
-		if ((EdslconErrorFree == constraint->Edslcon() ||
-			 EdslconDeterministic == constraint->Edslcon()) &&
-			materializer.PsymBindingOrigin(rule, (*constraint->Pdrgpsym())[0]) == symbol &&
+		if (EdslconErrorFree != constraint->Edslcon() &&
+			EdslconDeterministic != constraint->Edslcon()) continue;
+		const auto *symbol = materializer.PsymBindingOrigin(rule, (*constraint->Pdrgpsym())[0]);
+		// Nested constructors also capture scalar/predicate values; their guards
+		// must participate before committing the Context candidate.
+		if (nullptr != symbol &&
+			(EdslsymScalar == symbol->Esymkind() || EdslsymPred == symbol->Esymkind()) &&
+			nullptr == previous->PvalLookup(symbol) &&
+			nullptr != model->PvalLookup(symbol) &&
 			!FCheckScalarProperty(rule, constraint, model, materializer))
 			return false;
 	}

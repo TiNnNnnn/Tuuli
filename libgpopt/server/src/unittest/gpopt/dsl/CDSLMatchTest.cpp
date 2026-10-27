@@ -83,6 +83,7 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedScalarValueKinds),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ModelOptionalBindings),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ContextSkipsUnsafeCandidates),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ContextNestedGuards),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -691,6 +692,47 @@ CDSLMatchTest::EresUnittest_ContextSkipsUnsafeCandidates()
 			matched && model->PexprTable(input) == queries[mode == 0 ? 0 : 1];
 		model->Release(); list->Release();
 		queries[0]->Release(); queries[1]->Release(); rule->Release();
+		GPOS_UNITTEST_ASSERT(valid);
+	}
+	return GPOS_OK;
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_ContextNestedGuards()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG mode = 0; mode < 4; ++mode)
+	{
+		const std::string text =
+			"Filter<p0 a0>(Input<t0>)|Filter<p2 a1>(Input<t1>)|"
+			"Context(n0) := p0;BoolValue(p1) := n0;t1 := t0;p2 := p0;a1 := a0;" +
+			std::string(mode == 1 ? "p3 := p1;ErrorFree(p3)" : "ErrorFree(p1)") +
+			// An already captured ancestor's guard belongs to the full check.
+			(mode == 3 ? ";ErrorFree(p0)" : "");
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *columns = nullptr;
+		CExpression *query = fix.PexprLogicalGet("unbounded", 1, &columns);
+		CExpression *unsafe = CUtils::PexprScalarEqCmp(mp,
+			GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubquery(mp, (*columns)[0], false, false), query),
+			CUtils::PexprScalarConstInt4(mp, 0));
+		CExpression *second = mode == 2 ? unsafe : CUtils::PexprScalarConstBool(mp, true);
+		if (mode == 2) second->AddRef();
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		children->Append(unsafe); children->Append(second);
+		CExpression *expression = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, children);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const auto *root = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+		const auto *hole = rule->Pexprdefs()->Pdef(root)->PsymOperand(0);
+		const auto *predicate = rule->Pexprdefs()->Pdef(hole)->PsymOperand(0);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatchExpression(root, expression, model);
+		const BOOL valid = mode == 2
+			? !matched && nullptr == model->PvalLookup(hole) && nullptr == model->PvalLookup(predicate)
+			: matched && model->PexprPred(predicate) == second;
+		model->Release(); expression->Release(); rule->Release();
 		GPOS_UNITTEST_ASSERT(valid);
 	}
 	return GPOS_OK;

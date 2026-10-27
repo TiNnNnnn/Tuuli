@@ -69,7 +69,7 @@ FMatchScalarContext(CMemoryPool *mp, const CDSLRule *rule,
 		CDSLModel *trial = GPOS_NEW(mp) CDSLModel(mp);
 		BOOL matched = model->FCopyExpressionBindingsTo(trial) &&
 			FMatchExpressionBinding(mp, rule, hole, candidate, trial, depth) &&
-			CDSLConstraintChecker(mp).FCheckCapturedScalarProperties(rule, hole, trial);
+			CDSLConstraintChecker(mp).FCheckCapturedScalarProperties(rule, trial, model);
 		if (matched)
 		{
 			CDSLScalarContext *context = GPOS_NEW(mp) CDSLScalarContext(root, *path);
