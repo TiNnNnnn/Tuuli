@@ -211,6 +211,7 @@ SET pg_orca.dphyper_pair_budget={pair_budget};
 SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule={trace};
+{bool_guc_setting('debug_print_plan', plan.get('debug_plan'), False)}
 SET client_min_messages=log;
 EXPLAIN (COSTS OFF{', VERBOSE' if plan.get('verbose', False) else ''}) {query}
 """,
@@ -284,11 +285,19 @@ def bind_source_captures(snapshot: object, manifest: object) -> dict[str, dict[s
         if (binding.get("bound") is not True or binding.get("unsupported_payload")
                 or not isinstance(binding.get("kind"), str)
                 or not re.fullmatch(r"[tapsfneowmbrhvc]", binding["kind"])
-                or not any(key in binding for key in ("expression", "expressions", "columns"))
+                or not any(key in binding for key in ("expression", "expressions", "columns", "orders", "frames"))
                 or "expression" in binding and not isinstance(binding["expression"], dict)
                 or "columns" in binding and not isinstance(binding["columns"], list)
                 or "expressions" in binding and (not isinstance(binding["expressions"], list)
-                    or any(not isinstance(e, dict) for e in binding["expressions"]))):
+                    or any(not isinstance(e, dict) for e in binding["expressions"]))
+                or "orders" in binding and (binding["kind"] != "o"
+                    or not isinstance(binding["orders"], list)
+                    or any(not isinstance(order, list)
+                           or any(not isinstance(key, dict) for key in order)
+                           for order in binding["orders"]))
+                or "frames" in binding and (binding["kind"] != "m"
+                    or not isinstance(binding["frames"], list)
+                    or any(not isinstance(frame, dict) for frame in binding["frames"]))):
             raise ValueError("source capture has no complete native binding")
         for path in paths(binding):
             if path in by_path:
@@ -414,18 +423,35 @@ def native_rule_texts(output: str) -> dict[str, str]:
     return rules
 
 
+def native_server_abi():
+    """The E2E server is started from this same local PostgreSQL installation."""
+    import hashlib
+    config = pathlib.Path(os.environ["PG_CONFIG"]).resolve()
+    include = subprocess.check_output([str(config), "--includedir-server"], text=True, timeout=10).strip()
+    header = pathlib.Path(include) / "pg_config.h"
+    macros = subprocess.check_output(["cc", "-dM", "-E", "-include", str(header), "-"],
+                                     input="", text=True, timeout=10)
+    word_size = re.search(r"^#define SIZEOF_VOID_P ([48])$", macros, re.MULTILINE)
+    if not word_size:
+        raise ValueError("unknown local PostgreSQL server ABI")
+    return {"pg_config": str(config), "configuration_header": str(header),
+            "header_digest": hashlib.sha256(header.read_bytes()).hexdigest(),
+            "byteorder": "big" if re.search(r"^#define WORDS_BIGENDIAN\b", macros, re.MULTILINE) else "little",
+            "word_size": int(word_size[1])}
+
+
 def check_native_routes(expected: dict[str, object], output: str, destination: pathlib.Path) -> int:
     """Check all occurrences selected by the expectation, including their actual target."""
     patterns = expected.get("rule_source_routes", [])
     if not patterns:
         return 0
     observation = expected.get("native_observation", "exact_tree")
-    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "source_row_stream"):
+    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
     if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
-            observation in ("all_source_outputs", "source_row_stream") and equivalence != "OUTCOME_EQ") or (
-            observation == "source_outputs" and equivalence != "BAG_OUTCOME_EQ"):
+            observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer") and equivalence != "OUTCOME_EQ") or (
+            observation in ("source_outputs", "dsl_source_outputs") and equivalence != "BAG_OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
     if actual_plan({"rule_source_routes": patterns}, output)["rule_source_routes"] != patterns:
@@ -436,7 +462,8 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     from native_instance import check_native_instance
     rules = native_rule_texts(output)
     checked = 0
-    for occurrence in source_route_occurrences(trace_records(output)):
+    records = trace_records(output)
+    for occurrence in source_route_occurrences(records):
         if not any(all(occurrence.get(key) == value for key, value in pattern.items())
                    for pattern in patterns):
             continue
@@ -447,13 +474,38 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
             raise ValueError("native instance check requires the hash-matched canonical rule text")
         path = destination / f"route-{occurrence['route_sequence']}-candidate-{occurrence['candidate_sequence']}"
         path.mkdir(parents=True, exist_ok=True)
+        (path / "receipt.json").unlink(missing_ok=True)
         (path / "occurrence.json").write_text(canonical(occurrence), encoding="utf-8")
-        check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
-                              lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
-                              observe_compute=observation == "all_source_outputs",
-                              equivalence_mode=equivalence,
-                              **({"observe_outputs": True} if observation == "source_outputs" else {}),
-                              **({"execution_model": "ROW_STREAM"} if observation == "source_row_stream" else {}))
+        if observation == "selected_scalar_consumer":
+            from native_execution_observation import check_execution_observation
+            evidence = expected.get("execution_observation")
+            if not isinstance(evidence, dict) or "byteorder" in evidence:
+                raise ValueError("execution observation requires paths and the actual server ABI")
+            evidence = dict(evidence)
+            if "parameter_context" in evidence:
+                raise ValueError("inherited parameters require one actual query-input capture")
+            if "parameter_input_path" in evidence:
+                callers = [r.get("value", {}).get("input_context", {}).get("plan_template")
+                           for r in records if r.get("kind") == "candidate_context"
+                           and r.get("field") == "query_input_context"]
+                if len(callers) != 1 or not isinstance(callers[0], dict):
+                    raise ValueError("inherited parameters require one actual query-input capture")
+                evidence["parameter_context"] = {
+                    "snapshot": callers[0], "input_path": evidence.pop("parameter_input_path")}
+            abi = native_server_abi()
+            (path / "server-abi.json").write_text(canonical(abi), encoding="utf-8")
+            (path / "rule.txt").write_text(rule + "\n", encoding="utf-8")
+            # This proves the selected occurrence only, not a rule artifact.
+            check_execution_observation(occurrence["snapshot"], occurrence["target_snapshot"], output,
+                                        {**evidence, "byteorder": abi["byteorder"]}, path)
+        else:
+            check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
+                                  lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
+                                  observe_compute=observation == "all_source_outputs",
+                                  equivalence_mode=equivalence,
+                                  **({"observe_outputs": True} if observation in ("source_outputs", "dsl_source_outputs") else {}),
+                                  **({"row_interface": "dsl_outputs"} if observation == "dsl_source_outputs" else {}),
+                                  **({"execution_model": "ROW_STREAM"} if observation == "source_row_stream" else {}))
         checked += 1
     if not checked:
         raise ValueError("native instance check captured no matching occurrences")
@@ -465,9 +517,9 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         key: expected[key]
         for key in (
             "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
-            "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose",
+            "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose", "debug_plan",
             "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "native_observation",
-            "native_equivalence_mode"
+            "native_equivalence_mode", "execution_observation"
         )
         if key in expected
     }
@@ -754,7 +806,7 @@ def main() -> int:
             failed.append(case_name)
             print(f"not ok {case_name}: {diff_path}", flush=True)
 
-    if args.check_native_instances and not native_instances:
+    if args.check_native_instances and not native_instances and not failed:
         raise ValueError("requested native checks but selected cases have no expected source routes")
     if native_instances:
         print(f"Conditional native kernel checks: {native_instances}; not deployment certificates")

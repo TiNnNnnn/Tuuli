@@ -1,0 +1,7 @@
+experiment: core-filter-chain-first
+discover: false
+template_route: 1
+template_fingerprint: 33d1edf2378e1a69
+template_root: r
+template_bindings: true
+cardinalities:

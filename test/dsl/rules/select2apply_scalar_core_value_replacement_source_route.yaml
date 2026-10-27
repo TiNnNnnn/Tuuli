@@ -1,0 +1,7 @@
+experiment: core-filter-value-replacement
+discover: false
+template_route: 1
+template_fingerprint: 9533c158b5653baf
+template_root: r
+template_bindings: true
+cardinalities:

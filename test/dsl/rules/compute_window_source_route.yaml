@@ -1,0 +1,7 @@
+experiment: compute-window
+discover: false
+template_route: 3
+template_fingerprint: be0e341e86ff3d9d
+template_root: r
+template_bindings: true
+cardinalities:

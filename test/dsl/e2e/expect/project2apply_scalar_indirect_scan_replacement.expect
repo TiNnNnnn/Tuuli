@@ -1,0 +1,138 @@
+{
+  "description": "Indirect scalar InitPlan preserves the selected value and the empty RHS NULL",
+  "plans": [
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "stats_experiment": "project2apply_scalar_indirect_scan_source_route.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "source_scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "lookup_path": [],
+        "subplan_path": [
+          "subplans",
+          1,
+          "plan.initPlan",
+          0
+        ],
+        "initplan_lookup_path": [
+          "subplans",
+          1,
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr"
+        ],
+        "consumer_path": [
+          "subplans",
+          1,
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr"
+        ],
+        "apply_path": "r/0",
+        "scan_path": [
+          "subplans",
+          0
+        ],
+        "input_path": "r/0/1/0",
+        "column": {
+          "id": 16,
+          "type": "0.23.1.0",
+          "typmod": -1
+        },
+        "observe_consumer_query": true,
+        "parameter_input_path": "r/0/0/0"
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "SubPlan 1",
+        "SubPlan 2",
+        "id = o.id"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0b88ba995ef9c4cd",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,1",
+      "2,",
+      "3,3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "2,",
+      "3,3"
+    ]
+  }
+}

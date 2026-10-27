@@ -1,0 +1,97 @@
+{
+  "description": "Registered Compute/Window residual movement with actual typed source/target kernel binding",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "stats_experiment": "compute_window_residual_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "bc6fb058191edfb3",
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "decorrelation-disabled",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_compute_window.policy",
+    "output": [
+      "10,t",
+      "20,",
+      "30,t"
+    ],
+    "postgres_output": [
+      "10,t",
+      "20,",
+      "30,t"
+    ],
+    "plan_outputs": {
+      "off": [
+        "10,t",
+        "20,",
+        "30,t"
+      ],
+      "on": [
+        "10,t",
+        "20,",
+        "30,t"
+      ],
+      "decorrelation-disabled": [
+        "10,t",
+        "20,",
+        "30,t"
+      ]
+    }
+  }
+}

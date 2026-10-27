@@ -9,6 +9,7 @@
 //		Structural/property checks and ordered constraint dispatch. Legacy
 //		subquery extraction lives in CDSLConstraintCheckerLegacySubquery.cpp.
 //---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
 
@@ -909,9 +910,8 @@ CDSLConstraintChecker::FCheckRankAttrs(const CDSLConstraint *pcon,
 //
 //	@doc:
 //		OutputAttrs(a,t): a is exactly t's logical output set. ORCA Get also
-//		derives implicit system columns (ctid/xmin/etc.); those
-//		are storage artifacts rather than DSL table attributes and cannot safely
-//		become grouping columns.
+//		derives implicit system columns (ctid/xmin/etc.). Retain them only
+//		when explicitly used; every ordinary output remains observable.
 //		The attrs symbol is normally target-only, so matching leaves materialization
 //		to CDSLInstantiator. Key requirements use the independent Unique constraint.
 //		For expression lists, OutputAttrs is the exact ordered output vector.
@@ -957,7 +957,7 @@ CDSLConstraintChecker::FCheckOutputAttrs(const CDSLConstraint *pcon,
 	CColRefSetIter iter(*pexprTable->DeriveOutputColumns());
 	while (iter.Advance())
 	{
-		if (!iter.Pcr()->IsSystemCol())
+		if (CDSLColumnDomain::FObservable(iter.Pcr()))
 		{
 			pcrsLogicalOutput->Include(iter.Pcr());
 		}

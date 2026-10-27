@@ -736,6 +736,8 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 		{
 			return nullptr;
 		}
+		if (EdslexprContext == pdef->Edslexpr())
+			return PexprResolveContext(psym, pmodel, ulDepth);
 		if (EdslexprExists == pdef->Edslexpr())
 		{
 			CExpression *query = pmodel->PexprTable(PsymResolve(pdef->PsymOperand(0)));
@@ -911,7 +913,9 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			const CDSLSymbol *input = binding->PsymOperand(0);
 			CExpression *pexpr = EdslsymExpr == input->Esymkind()
 				? PexprResolveExpr(input, pmodel, ulDepth + 1)
-				: PexprResolveScalar(input, pmodel, ulDepth + 1);
+				: EdslsymPred == input->Esymkind()
+					? PexprResolvePredicate(input, pmodel, ulDepth + 1)
+					: PexprResolveScalar(input, pmodel, ulDepth + 1);
 			if (nullptr == pexpr) return nullptr;
 			CColRefArray *columns = pexpr->DeriveUsedColumns()->Pdrgpcr(m_mp);
 			pexpr->Release();

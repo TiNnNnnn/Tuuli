@@ -1167,52 +1167,57 @@ EresScalarContextBindings()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	const CHAR *text = "Filter<ValueBool(n0) a0>(Input<t0>)|"
+	for (const CHAR *text : {"Filter<ValueBool(n0) a0>(Input<t0>)|"
 		"Filter<ValueBool(n3) a1>(Input<t1>)|t1 := t0;a1 := a0;"
 		"Context(n1) := n0;BoolValue(p0) := n1;Not(p1) := p0;Not(p2) := p1;"
-		"Exists(t2) := p2;n2 := BoolValue(p2);n3 := Context(n4,n2);n4 := n0";
-	CDSLRule *rule = PruleParse(mp, text);
-	GPOS_UNITTEST_ASSERT(nullptr != rule);
-	CExpression *query = fix.PexprLogicalGet("context_binding_inner", 1);
-	CExpression *exists = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), query);
-	exists->AddRef();
-	CExpression *single = CUtils::PexprNegate(mp, exists);
-	CExpression *twice = CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, exists));
-	twice->AddRef();
-	CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
-	children->Append(single); children->Append(twice); children->Append(twice);
-	CExpression *root = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, children);
-	CExpression *nested = root;
-	for (ULONG i = 0; i < 32; ++i) nested = CUtils::PexprNegate(mp, nested);
-	CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
-		fix.PexprLogicalGet("context_binding_outer", 1), nested);
-	CDSLMatcher matcher(mp, rule);
-	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-	GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
-	GPOS_UNITTEST_ASSERT(matcher.FMatchPredicate((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], nested, model));
-	std::string path_json;
-	for (ULONG i = 0; i < 32; ++i) path_json += (i ? ",0" : "0");
-	path_json += ",1";
-	GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::MatchedSourceBindings(rule, model).find(
-		"\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[" +
-		path_json + "]}") != std::string::npos);
-	CDSLConstraintChecker checker(mp);
-	GPOS_UNITTEST_ASSERT(checker.FCheck(rule, model));
-	CDSLInstantiator inst(mp);
-	CExpression *target = inst.PexprInstantiate(rule, model);
-	GPOS_UNITTEST_ASSERT(nullptr != target);
-	CExpression *changed = CDSLExprListUtils::PexprAtScalarPath((*target)[1], std::vector<ULONG>(32, 0));
-	GPOS_UNITTEST_ASSERT(nullptr != changed && (*changed)[0] == single && (*changed)[1] == exists &&
-		(*changed)[2] == twice && (*root)[1] == twice);
-	// An identical pattern below a relational child belongs to another query.
-	source->AddRef();
-	CExpression *hidden = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
-		fix.PexprLogicalGet("context_hidden_outer", 1),
-		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), source));
-	CDSLModel *hiddenModel = GPOS_NEW(mp) CDSLModel(mp);
-	GPOS_UNITTEST_ASSERT(!matcher.FMatch(rule->PfragSrc()->PopRoot(), hidden, hiddenModel));
-	hiddenModel->Release(); hidden->Release();
-	target->Release(); model->Release(); source->Release(); rule->Release();
+		"Exists(t2) := p2;n2 := BoolValue(p2);n3 := Context(n4,n2);n4 := n0",
+		"Filter<p9 a0>(Input<t0>)|Filter<p10 a1>(Input<t1>)|t1 := t0;a1 := ScalarDeps(p10);"
+		"Context(n1) := p9;BoolValue(p0) := n1;Not(p1) := p0;Not(p2) := p1;"
+		"Exists(t2) := p2;n2 := BoolValue(p2);p10 := Context(p11,n2);p11 := p9"})
+	{
+		CDSLRule *rule = PruleParse(mp, text);
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CExpression *query = fix.PexprLogicalGet("context_binding_inner", 1);
+		CExpression *exists = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), query);
+		exists->AddRef();
+		CExpression *single = CUtils::PexprNegate(mp, exists);
+		CExpression *twice = CUtils::PexprNegate(mp, CUtils::PexprNegate(mp, exists));
+		twice->AddRef();
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		children->Append(single); children->Append(twice); children->Append(twice);
+		CExpression *root = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, children);
+		CExpression *nested = root;
+		for (ULONG i = 0; i < 32; ++i) nested = CUtils::PexprNegate(mp, nested);
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			fix.PexprLogicalGet("context_binding_outer", 1), nested);
+		CDSLMatcher matcher(mp, rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(matcher.FMatchPredicate((*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0], nested, model));
+		std::string path_json;
+		for (ULONG i = 0; i < 32; ++i) path_json += (i ? ",0" : "0");
+		path_json += ",1";
+		GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::MatchedSourceBindings(rule, model).find(
+			"\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[" +
+			path_json + "]}") != std::string::npos);
+		CDSLConstraintChecker checker(mp);
+		GPOS_UNITTEST_ASSERT(checker.FCheck(rule, model));
+		CDSLInstantiator inst(mp);
+		CExpression *target = inst.PexprInstantiate(rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		CExpression *changed = CDSLExprListUtils::PexprAtScalarPath((*target)[1], std::vector<ULONG>(32, 0));
+		GPOS_UNITTEST_ASSERT(nullptr != changed && (*changed)[0] == single && (*changed)[1] == exists &&
+			(*changed)[2] == twice && (*root)[1] == twice);
+		// An identical pattern below a relational child belongs to another query.
+		source->AddRef();
+		CExpression *hidden = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			fix.PexprLogicalGet("context_hidden_outer", 1),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubqueryExists(mp), source));
+		CDSLModel *hiddenModel = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(!matcher.FMatch(rule->PfragSrc()->PopRoot(), hidden, hiddenModel));
+		hiddenModel->Release(); hidden->Release();
+		target->Release(); model->Release(); source->Release(); rule->Release();
+	}
 	// A same-typed scalar is not an occurrence witness; direction and arity
 	// cannot be swapped to manufacture a source context on the target side.
 	for (const CHAR *invalid : {

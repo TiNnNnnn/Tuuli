@@ -1,18 +1,18 @@
 {
-  "description": "BottomUp RBO matches an InnerJoin source through a constraint-guided commuted view",
+  "description": "BottomUp RBO explicitly substitutes an equality-equivalent join key through ValueBool/Context/Column without implicit dependency remapping",
   "plans": [
     {
       "name": "rbo",
       "trace": true,
-      "policy": "wetune_bottom_up_rbo.policy",
+      "policy": "isolate_explicit_join_key_filter_rbo.policy",
       "contains": [
-        "\"rule_id\":63,\"status\":\"applied_rbo\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"41ccfe42f23f20f9\"",
         "\"placement\":\"rbo\""
       ]
     }
   ],
   "rows": {
-    "policy": "wetune_bottom_up_rbo.policy",
+    "policy": "isolate_explicit_join_key_filter_rbo.policy",
     "output": [
       "2,2",
       "2,2"

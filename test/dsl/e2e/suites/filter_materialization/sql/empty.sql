@@ -1,0 +1,1 @@
+SELECT a.i + 1 FROM binding_left a WHERE (SELECT v FROM (VALUES (2,true)) AS s(id,v) WHERE id=3) IS NULL ORDER BY 1 NULLS FIRST;

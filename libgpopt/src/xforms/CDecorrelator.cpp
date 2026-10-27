@@ -418,6 +418,13 @@ CDecorrelator::FProcessGbAgg(CMemoryPool *mp, CExpression *pexpr,
 {
 	CLogicalGbAgg *popAggOriginal = CLogicalGbAgg::PopConvert(pexpr->Pop());
 
+	// Adding correlation keys loses the global aggregate's empty-input row.
+	// Keep correlated execution until an explicit compensation is available.
+	if (0 == popAggOriginal->Pdrgpcr()->Size())
+	{
+		return false;
+	}
+
 	// fail if agg has outer references
 	if (!outerRefsToRemove->IsDisjoint((*pexpr)[1]->DeriveUsedColumns()))
 	{

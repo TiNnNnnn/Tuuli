@@ -11,12 +11,12 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"131414a716a7256e\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"e97f9646db60d736\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"131414a716a7256e\""
+        "\"status\":\"applied\",\"rule_hash\":\"e97f9646db60d736\""
       ]
     },
     {
@@ -36,12 +36,12 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"131414a716a7256e\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"e97f9646db60d736\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"131414a716a7256e\""
+        "\"status\":\"applied\",\"rule_hash\":\"e97f9646db60d736\""
       ]
     }
   ],

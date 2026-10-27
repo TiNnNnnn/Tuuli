@@ -16,6 +16,7 @@
     {
       "name": "replacement",
       "trace": true,
+      "debug_plan": true,
       "disable_xforms": [
         "CXformProject2Apply",
         "CXformSimplifyProjectWithSubquery",

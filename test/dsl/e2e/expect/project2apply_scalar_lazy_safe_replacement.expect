@@ -8,10 +8,10 @@
         "CXformProject2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_project2apply_scalar_direct.policy",
+      "policy": "isolate_project2apply_scalar_core.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -36,7 +36,7 @@
       "CXformProject2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_project2apply_scalar_direct.policy",
+    "policy": "isolate_project2apply_scalar_core.policy",
     "output": [
       "1,10",
       "2,0",

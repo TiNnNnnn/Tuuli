@@ -1,0 +1,34 @@
+{
+  "description": "The relational safety checker conservatively rejects unproved integer arithmetic, including addition by zero",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_in_base.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "policy": "isolate_external_semiapply_in_base.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ]
+  }
+}

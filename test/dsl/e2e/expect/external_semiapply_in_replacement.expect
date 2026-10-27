@@ -1,5 +1,5 @@
 {
-  "description": "The proved external SemiApply rule also expands the IN-tagged carrier without duplicating RuleIR",
+  "description": "The external SemiApply rule also expands the IN-tagged carrier without duplicating RuleIR",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
@@ -7,7 +7,7 @@
     "scope": "Base-input LeftSemiApplyIn whose comparison is current-domain and inner Filter is enclosing-domain",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a37ff381f87c49e3"
+      "1ab0ec8efdf91762"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
       ],
       "alternative": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
@@ -44,14 +44,36 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
       ],
       "policy": "isolate_external_semiapply_in_base.policy",
+      "stats_experiment": "external_semiapply_in_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "1ab0ec8efdf91762",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApplyIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

@@ -26,6 +26,7 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
@@ -49,10 +50,56 @@
     {
       "name": "replacement",
       "trace": true,
+      "debug_plan": true,
       "disable_xforms": [
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+      "stats_experiment": "select2apply_scalar_source_route.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "source_scalar_path": [
+          1
+        ],
+        "source_lookup_path": [
+          1
+        ],
+        "scalar_path": [
+          1
+        ],
+        "lookup_path": [
+          1
+        ],
+        "apply_path": "r/0",
+        "column": {
+          "id": 9,
+          "type": "0.23.1.0",
+          "typmod": -1
+        },
+        "subplan_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.lefttree",
+          "plan.qual",
+          0,
+          "args",
+          1
+        ],
+        "consumer_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.lefttree",
+          "plan.qual",
+          0
+        ],
+        "scan_path": [
+          "subplans",
+          0
+        ],
+        "input_path": "r/0/1/0",
+        "observe_consumer_query": true
+      },
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
@@ -60,6 +107,25 @@
       ],
       "alternative": [
         "CXformDSLRule_Select"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "d127259fb9f5958e",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -78,6 +144,7 @@
       "CXformSelect2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
+    "policy": "isolate_select2apply_predicate_scalar_direct.policy",
     "output": [
       "1"
     ],

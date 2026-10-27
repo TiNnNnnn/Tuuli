@@ -1,0 +1,7 @@
+experiment: grouped-chain-route-6
+discover: false
+template_route: 6
+template_fingerprint: ffb932bec09e39fe
+template_root: r
+template_bindings: true
+cardinalities:
