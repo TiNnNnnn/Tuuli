@@ -7,7 +7,7 @@
     "scope": "External IN equality below an aggregate whose grouping contains the local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5ea2046b8dd2a967"
+      "0573ade528949f8d"
     ]
   },
   "plans": [

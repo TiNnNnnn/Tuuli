@@ -608,13 +608,15 @@ Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
 # new grouping columns is intentionally a separate schema-construction domain.
-# PARTIAL_BINDING legacy_hash=acc0381a6ee39104; native expression proof: UNKNOWN without source contracts.
+# Explicit aggregate-output capture replaces the five-slot baseline acc0381a6ee39104.
+# PARTIAL_BINDING legacy_hash=95e7d75f6eb6ad18; native expression proof: UNKNOWN without source contracts.
 # Source-conditional OUTCOME_EQ kernel-checked against the actual native-off MIN occurrence (2026-10-25).
 # Target scope comes from the shared constructor check, not a movement axiom.
-# Source artifact 63345aa7fd2be2d3173ec37cec0746443ce40898e9a0e3d3da7bbfe57dcff79a.
+# Explicit-output source artifact 237be4282649b5819268a32112ca6835d496b58c4e526335423dd9f5a7d94643.
+# Two actual native instances rechecked 2026-10-27; the five-slot artifact is retired.
 # The old BAG_EQ certificate remains withdrawn; runtime premises are unchanged.
 # Conditional evidence is not a deployment certificate or full Apply coverage.
-Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
+Agg<a0 a1 a8 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 a9 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;a9 := a8;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
 # correlation columns are retained or added to grouping as needed. The atomic
