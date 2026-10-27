@@ -1,5 +1,5 @@
 {
-  "description": "The external SemiApply expansion composes with filter commute through a grouped Agg",
+  "description": "Existing GroupFilter and external SemiApply rules compose without the grouped monolithic rule",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
@@ -7,8 +7,8 @@
     "scope": "Equality correlations below a grouped aggregate whose grouping covers every local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5ea2046b8dd2a967",
-      "9548d8d8884227f5"
+      "1ab0ec8efdf91762",
+      "5ea2046b8dd2a967"
     ]
   },
   "plans": [
@@ -22,9 +22,12 @@
     },
     {
       "name": "shadow",
+      "xform_trace": true,
       "trace": true,
+      "policy": "isolate_external_semiapply_agg_chain.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9548d8d8884227f5\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -44,13 +47,80 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
+      "policy": "isolate_external_semiapply_agg_chain.policy",
+      "stats_experiment": "external_semiapply_agg_join_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9548d8d8884227f5\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "1ab0ec8efdf91762",
+          "route_sequence": 28,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+        ]
+      }
+    },
+    {
+      "name": "replacement_group",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_agg_chain.policy",
+      "stats_experiment": "external_semiapply_agg_filter_source_route.yaml",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "5ea2046b8dd2a967",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -67,6 +137,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
     ],
+    "policy": "isolate_external_semiapply_agg_chain.policy",
     "output": [
       "10",
       "20"

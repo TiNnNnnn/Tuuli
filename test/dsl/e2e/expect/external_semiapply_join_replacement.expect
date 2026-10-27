@@ -1,5 +1,5 @@
 {
-  "description": "The proved external SemiApply expansion accepts a relational Join as its opaque inner base",
+  "description": "The external SemiApply expansion accepts a relational Join as its opaque inner base",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
@@ -7,7 +7,7 @@
     "scope": "Keyed outer SemiApply with residual and external predicates above an inner Join",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a37ff381f87c49e3"
+      "1ab0ec8efdf91762"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -50,7 +50,7 @@
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
       ],
       "provenance": {
         "required_sources": [

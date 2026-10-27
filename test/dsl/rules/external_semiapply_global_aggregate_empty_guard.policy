@@ -1,0 +1,4 @@
+- rule: '*'
+  enabled: false
+- rule: 61159c193ab8677b
+  enabled: true

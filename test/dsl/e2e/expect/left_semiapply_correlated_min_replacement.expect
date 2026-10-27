@@ -1,5 +1,5 @@
 {
-  "description": "Integer MIN positive control: A proved aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
+  "description": "Integer MIN positive control: An aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoin"
@@ -37,16 +37,34 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
+      "stats_experiment": "group_filter_source_route.yaml",
       "contains": [
-        "Optimizer: pg_orca"
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "5ea2046b8dd2a967",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

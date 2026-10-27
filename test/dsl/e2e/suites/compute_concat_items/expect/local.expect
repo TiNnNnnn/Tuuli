@@ -141,6 +141,89 @@
           "CXformCollapseProject"
         ]
       }
+    },
+    {
+      "name": "replacement_stream",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "get-source-route-bindings.yaml",
+      "native_observation": "source_row_stream",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"139055af52f86b98\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "139055af52f86b98",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "139055af52f86b98",
+          "symbols": [
+            {
+              "symbol": "e0",
+              "kind": "e",
+              "bound": true,
+              "source_paths": [
+                "r/e:0"
+              ]
+            },
+            {
+              "symbol": "e1",
+              "kind": "e",
+              "bound": true,
+              "source_paths": [
+                "r/0/e:0/Item:2"
+              ]
+            },
+            {
+              "symbol": "n0",
+              "kind": "n",
+              "bound": true,
+              "source_paths": [
+                "r/0/e:0/Item:0"
+              ]
+            },
+            {
+              "symbol": "t0",
+              "kind": "t",
+              "bound": true,
+              "source_paths": [
+                "r/0/0/t:0"
+              ]
+            }
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
     }
   ],
   "rows": {
@@ -197,6 +280,14 @@
         "3,t,t,t,f"
       ],
       "replacement": [
+        ",,,t,f",
+        "0,f,f,f,f",
+        "1,t,f,f,f",
+        "2,t,f,,t",
+        "2,t,f,,t",
+        "3,t,t,t,f"
+      ],
+      "replacement_stream": [
         ",,,t,f",
         "0,f,f,f,f",
         "1,t,f,f,f",

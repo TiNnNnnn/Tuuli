@@ -1,0 +1,47 @@
+{
+  "description": "A potentially failing residual Filter must not move across the correlated Window filter",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_compute_window.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "plan_outputs": {
+      "off": [
+        "SQLSTATE 22012"
+      ],
+      "on": [
+        "SQLSTATE 22012"
+      ]
+    }
+  }
+}

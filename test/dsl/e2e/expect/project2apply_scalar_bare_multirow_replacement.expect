@@ -1,0 +1,153 @@
+{
+  "description": "An unfiltered scalar SubPlan preserves the second-row cardinality error without an artificial Filter",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply"
+    ],
+    "scope": "Unfiltered scalar value in a Project list; RHS and consumer kernel checked conditionally, physical cache protocol not certified",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "0b88ba995ef9c4cd"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "stats_experiment": "project2apply_scalar_bare_source_route.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "source_scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "lookup_path": [],
+        "subplan_path": [
+          "planTree",
+          "plan.initPlan",
+          0
+        ],
+        "initplan_lookup_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          1,
+          "expr"
+        ],
+        "consumer_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          1,
+          "expr"
+        ],
+        "apply_path": "r/0",
+        "scan_path": [
+          "subplans",
+          0
+        ],
+        "input_path": "r/0/1",
+        "column": {
+          "id": 9,
+          "type": "0.23.1.0",
+          "typmod": -1
+        },
+        "observe_consumer_query": true
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0b88ba995ef9c4cd",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ]
+  }
+}

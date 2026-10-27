@@ -16,6 +16,7 @@
       "name": "native",
       "dsl": false,
       "trace": true,
+      "debug_plan": true,
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformProject2Apply"
@@ -51,6 +52,7 @@
       "name": "replacement",
       "trace": true,
       "verbose": true,
+      "debug_plan": true,
       "disable_xforms": [
         "CXformProject2Apply",
         "CXformSimplifyProjectWithSubquery",

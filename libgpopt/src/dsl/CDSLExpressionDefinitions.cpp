@@ -14,6 +14,8 @@ namespace
 {
 const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprContext, "Context", 1, {EdslsymScalar, EdslsymScalar}},
+	{EdslexprContext, "Context", 1, {EdslsymPred, EdslsymScalar}},
+	{EdslexprContext, "Context", 2, {EdslsymPred, EdslsymPred, EdslsymScalar}},
 	{EdslexprContext, "Context", 2, {EdslsymScalar, EdslsymScalar, EdslsymScalar}},
 	{EdslexprContext, "Context", 1, {EdslsymExpr, EdslsymScalar}},
 	{EdslexprContext, "Context", 2, {EdslsymExpr, EdslsymExpr, EdslsymScalar}},
@@ -38,6 +40,7 @@ const CDSLExpressionDefinitions::SBindingSignature binding_signatures[] = {
 	{EdslexprColumn, "Column", 1, {EdslsymScalar, EdslsymAttrs}},
 	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymScalar}},
 	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymExpr}},
+	{EdslexprScalarDeps, "ScalarDeps", 1, {EdslsymAttrs, EdslsymPred}},
 	{EdslexprExists, "Exists", 1, {EdslsymPred, EdslsymTable}},
 	{EdslexprAny, "Any", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},
 	{EdslexprAll, "All", 4, {EdslsymPred, EdslsymCompareHead, EdslsymValueList, EdslsymAttrs, EdslsymTable}},

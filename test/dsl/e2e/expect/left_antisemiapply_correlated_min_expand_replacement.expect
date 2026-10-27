@@ -7,7 +7,7 @@
     "scope": "AntiApply with an ungrouped correlation key and total integer MIN",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "ccfade4b8892110e"
+      "77934c8a6188e116"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions"
@@ -39,7 +39,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ccfade4b8892110e\"",
+        "\"status\":\"applied\",\"rule_hash\":\"77934c8a6188e116\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

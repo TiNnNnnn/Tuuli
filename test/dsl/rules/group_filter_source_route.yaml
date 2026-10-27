@@ -1,0 +1,7 @@
+experiment: registered-group-filter
+discover: false
+template_route: 4
+template_fingerprint: b3cbba2815636236
+template_root: r
+template_bindings: true
+cardinalities:

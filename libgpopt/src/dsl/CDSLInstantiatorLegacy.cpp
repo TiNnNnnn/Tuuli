@@ -5,6 +5,7 @@
 // and their rule/test consumers are migrated; relational compatibility paths still live
 // beside their operator builders.
 //---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "gpos/common/CAutoRef.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
@@ -512,10 +513,10 @@ CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLMod
 		else if (EdslsymTable == psymTable->Esymkind())
 		{
 			CExpression *pexprTable = pmodel->PexprTable(psymTable);
-			// Executable alternatives carry only live columns, including used
-			// system columns. List outputs instead retain their exact order.
+			// OutputAttrs uses the same observable row domain as its checker.
+			// List outputs instead retain their exact order.
 			if (nullptr != pexprTable)
-				pdrgpcrResult = PdrgpcrLiveOutput(m_mp, pexprTable);
+				pdrgpcrResult = CDSLColumnDomain::PdrgpcrOutput(m_mp, pexprTable->DeriveOutputColumns());
 		}
 		if (nullptr == pdrgpcrResult) return nullptr;
 		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),

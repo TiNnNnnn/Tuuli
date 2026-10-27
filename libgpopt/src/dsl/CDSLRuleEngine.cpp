@@ -8,6 +8,7 @@
 //		Implementation of the shared rule engine (see CDSLRuleEngine.h).
 //		Phase 1: real lifecycle + loading + bucketing; stubbed three-stage.
 //---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLRuleEngine.h"
 
 #include <cstring>
@@ -835,7 +836,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 			// treats system columns as used). They are not DSL row attributes.
 			// Explicit system-column references and every ordinary column,
 			// including unused Project outputs, still require preservation.
-			if ((!col->IsSystemCol() || CColRef::EUsed == col->GetUsage(true, true)) &&
+			if (CDSLColumnDomain::FObservable(col) &&
 				!pexprTgt->DeriveOutputColumns()->FMember(col))
 			{
 				missingOutputs = true;

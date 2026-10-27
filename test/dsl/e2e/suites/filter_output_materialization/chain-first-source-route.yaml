@@ -1,0 +1,7 @@
+experiment: filter-output-chain
+discover: false
+template_route: 1
+template_fingerprint: dfd5b34028c8308b
+template_root: r
+template_bindings: true
+cardinalities:

@@ -10,6 +10,7 @@
 //		instantiator to build the target, and asserts the target's shape / output
 //		columns / preserved conjuncts.
 //---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLColumnDomain.h"
 #include "unittest/gpopt/dsl/CDSLInstantiateTest.h"
 
 #include <string>
@@ -731,6 +732,13 @@ EresSystemColumnOutputContract()
 			cols->Append(key); cols->Append(extra);
 			CExpression *input = GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CLogicalConstTableGet(mp, cols, GPOS_NEW(mp) IDatum2dArray(mp)));
+			CColRefArray *observable = CDSLColumnDomain::PdrgpcrOutput(mp, input->DeriveOutputColumns());
+			const BOOL retain = attno > 0 || CColRef::EUsed == usage;
+			ok &= observable->Size() == (retain ? 2 : 1) &&
+				CDSLColumnDomain::FObservable(extra) == retain;
+			observable->Release();
+			const std::string captured = CDSLPlanTemplate::Serialize(mp, input);
+			ok &= (captured.find("\"implicit_system_columns\":[]") != std::string::npos) == retain;
 			CExpression *predicate = fix.PexprPredAtom(key);
 			CExpression *filtered = fix.PexprLogicalSelect(input, predicate);
 			CExpression *source = fix.PexprLogicalGbAgg(filtered, cols);

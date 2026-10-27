@@ -1,0 +1,7 @@
+experiment: grouped-chain-route-28
+discover: false
+template_route: 28
+template_fingerprint: c4c8f1de3fc74739
+template_root: r
+template_bindings: true
+cardinalities:

@@ -1,0 +1,72 @@
+{
+  "description": "Predicate Context materialization: conjunction",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "conjunction-source-route.yaml",
+      "native_observation": "all_source_outputs",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3916d7c7ced95042\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "3916d7c7ced95042",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "3",
+      "3"
+    ],
+    "postgres_output": [
+      "3",
+      "3"
+    ]
+  }
+}

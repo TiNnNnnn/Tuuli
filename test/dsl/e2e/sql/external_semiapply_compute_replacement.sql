@@ -6,8 +6,8 @@ WHERE EXISTS (
   WHERE EXISTS (
     SELECT 1
     FROM (
-      SELECT c.id + 0 AS computed_id, c.parent_id
+      SELECT c.id::bigint AS computed_id, c.parent_id
       FROM dsl_fk_child AS c) AS q
-    WHERE q.computed_id = b.id
+    WHERE q.computed_id = b.id::bigint
       AND q.parent_id = p.id))
 ORDER BY p.id;

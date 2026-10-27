@@ -226,6 +226,11 @@ CREATE TABLE dsl_fractional_nullable_ndv(k int);
 INSERT INTO dsl_fractional_nullable_ndv VALUES
     (NULL),(NULL),(0),(1),(2),(3),(4),(5);
 
+CREATE TABLE dsl_window_partitions(id int PRIMARY KEY, k int, seq int, payload int);
+INSERT INTO dsl_window_partitions VALUES
+    (1,1,1,NULL), (2,1,2,-5), (3,1,3,8),
+    (4,2,1,-3), (5,2,2,-2), (6,3,1,NULL), (7,3,2,NULL), (8,NULL,1,100);
+
 ANALYZE;
 
 DO $$ BEGIN

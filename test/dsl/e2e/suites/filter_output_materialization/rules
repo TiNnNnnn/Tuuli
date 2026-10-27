@@ -1,0 +1,2 @@
+# Full source-output observation; safe predicate Context materialization.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply(Input<t1>,Input<t2>))|Context(n0) := p0;Subquery(a2,t3) := n0;t1 := t0;t2 := t3;n1 := Column(a2);p1 := Context(p0,n1);a1 := ScalarDeps(p1);OutputAttrs(a3,t0);OutputAttrs(a4,t3);DepsDisjoint(a3,a4);DepsDisjoint(p0,a4);ErrorFree(n0);Deterministic(n0)

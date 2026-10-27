@@ -78,6 +78,7 @@ from run_e2e_cases import (
     source_route_occurrences,
     native_rule_texts,
     check_native_routes,
+    native_server_abi,
     bool_guc_setting,
     disabled_xform_settings,
     memo_provenance,
@@ -296,6 +297,17 @@ class TraceFrameworkTest(unittest.TestCase):
                  patch("run_e2e_cases.run_plan", side_effect=error), patch("builtins.print"):
                 self.assertEqual(main(), 1)  # Updating expected cannot bless a timeout.
 
+            args.cases, args.check_native_instances = "b_success", True
+            with patch("run_e2e_cases.parse_args", return_value=args), \
+                 patch("run_e2e_cases.run_plan", return_value=""), \
+                 patch("run_e2e_cases.check_native_routes", side_effect=error), patch("builtins.print"):
+                self.assertEqual(main(), 1)  # A kernel timeout must retain its original failure.
+            with patch("run_e2e_cases.parse_args", return_value=args), \
+                 patch("run_e2e_cases.run_plan", return_value=""), \
+                 patch("run_e2e_cases.check_native_routes", return_value=0), patch("builtins.print"), \
+                 self.assertRaisesRegex(ValueError, "no expected source routes"):
+                main()
+
     def test_e2e_expected_sqlstate_rejects_success_and_other_failures(self) -> None:
         args = SimpleNamespace(psql="psql", host="socket", port="1")
         for code, output, accepted in (
@@ -418,6 +430,18 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIn(f"EXPLAIN ({options}) SELECT 1", run.call_args.args[1])
             self.assertNotIn("ANALYZE", run.call_args.args[1])
             self.assertEqual(actual_plan(plan, ""), plan)
+
+    def test_e2e_native_execution_capture_is_opt_in(self) -> None:
+        from run_e2e_cases import run_plan
+
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for plan, setting in (({}, "off"), ({"debug_plan": True}, "on")):
+            with self.subTest(plan=plan), patch("run_e2e_cases.run_sql", return_value="") as run:
+                run_plan(args, "SELECT 1", plan)
+            self.assertEqual(actual_plan(plan, ""), plan)
+            self.assertIn(f"SET debug_print_plan={setting};", run.call_args.args[1])
+            self.assertIn("EXPLAIN (COSTS OFF) SELECT 1", run.call_args.args[1])
+            self.assertNotIn("ANALYZE", run.call_args.args[1])
 
     def test_e2e_optional_off_rows_keep_other_optimizer_settings(self) -> None:
         args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
@@ -659,6 +683,11 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertEqual(checker.call_args.kwargs,
                              {"observe_compute": False, "observe_outputs": True, "equivalence_mode": "BAG_OUTCOME_EQ"})
             self.assertEqual(check_native_routes(
+                {**expected, "native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "dsl_source_outputs"},
+                output, Path(directory)), 1)
+            self.assertEqual(checker.call_args.kwargs, {"observe_compute": False, "observe_outputs": True,
+                "equivalence_mode": "BAG_OUTCOME_EQ", "row_interface": "dsl_outputs"})
+            self.assertEqual(check_native_routes(
                 {**expected, "native_observation": "source_row_stream"}, output, Path(directory)), 1)
             self.assertEqual(checker.call_args.kwargs, {"observe_compute": False,
                 "equivalence_mode": "OUTCOME_EQ", "execution_model": "ROW_STREAM"})
@@ -668,7 +697,8 @@ class TraceFrameworkTest(unittest.TestCase):
                             {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "all_source_outputs"},
                             {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "source_row_stream"},
                             {"native_equivalence_mode": "OUTCOME_EQ", "native_observation": "source_outputs"},
-                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_outputs"}):
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_outputs"},
+                            {"native_equivalence_mode": "OUTCOME_EQ", "native_observation": "dsl_source_outputs"}):
                 with self.assertRaisesRegex(ValueError, "unsupported native instance equivalence mode"):
                     check_native_routes({**expected, **options}, output, Path(directory))
             with self.assertRaisesRegex(ValueError, "unknown native instance observation"):
@@ -678,6 +708,75 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "kernel obligation"):
                 check_native_routes(expected, output, Path(directory))
             self.assertEqual(check_native_routes({}, "", Path(directory)), 0)
+
+    def test_native_execution_gate_is_separate_from_rule_artifact(self) -> None:
+        rule = "Input<t0>|Input<t1>|t1 := t0"
+        output = "Rule: " + rule + "\n"
+        rule_hash = next(iter(native_rule_texts(output)))
+        occurrence = {"rule_hash": rule_hash, "route_sequence": 1, "candidate_sequence": 2,
+                      "snapshot": {"source": True}, "target_snapshot": {"target": True}}
+        paths = {"source_scalar_path": [1, 0], "scalar_path": [1, 0], "lookup_path": [0]}
+        expected = {"native_observation": "selected_scalar_consumer", "execution_observation": paths,
+                    "rule_source_routes": [{"rule_hash": rule_hash}]}
+        checker = MagicMock()
+        artifact = MagicMock()
+        with tempfile.TemporaryDirectory() as directory, \
+             patch.dict("os.environ", {"WETUNE_HOME": directory}), \
+             patch.dict(sys.modules, {"native_instance": SimpleNamespace(check_native_instance=artifact),
+                 "native_execution_observation": SimpleNamespace(check_execution_observation=checker)}), \
+             patch.object(sys, "path", list(sys.path)), \
+             patch("run_e2e_cases.actual_plan", return_value={"rule_source_routes": expected["rule_source_routes"]}), \
+             patch("run_e2e_cases.source_route_occurrences", return_value=[occurrence]), \
+             patch("run_e2e_cases.native_server_abi", return_value={"byteorder": "big"}), \
+             patch("ml_orca.collect.run_workload_comparison.trace_records", return_value=[]) as reader:
+            self.assertEqual(check_native_routes(expected, output, Path(directory)), 1)
+            artifact.assert_not_called()
+            self.assertEqual(checker.call_args.args[:4], (occurrence["snapshot"],
+                occurrence["target_snapshot"], output, {**paths, "byteorder": "big"}))
+            self.assertEqual((Path(directory) / "route-1-candidate-2/rule.txt").read_text(), rule + "\n")
+            caller = {"nodes": [{"path": "r/0"}]}
+            record = {"kind": "candidate_context", "field": "query_input_context",
+                      "value": {"input_context": {"plan_template": caller}}}
+            indirect = {**paths, "parameter_input_path": "r/0"}
+            reader.return_value = [record]
+            self.assertEqual(check_native_routes({**expected, "execution_observation": indirect},
+                                                output, Path(directory)), 1)
+            self.assertEqual(checker.call_args.args[3], {**paths, "byteorder": "big",
+                "parameter_context": {"snapshot": caller, "input_path": "r/0"}})
+            self.assertEqual(indirect, {**paths, "parameter_input_path": "r/0"})
+            for records in ([], [record, record], [{**record, "value": {}}]):
+                reader.return_value = records
+                with self.assertRaisesRegex(ValueError, "actual query-input capture"):
+                    check_native_routes({**expected, "execution_observation": indirect}, output, Path(directory))
+            reader.return_value = [record]
+            for evidence in (paths, indirect):
+                with self.assertRaisesRegex(ValueError, "actual query-input capture"):
+                    check_native_routes({**expected, "execution_observation": {
+                        **evidence, "parameter_context": {"snapshot": caller, "input_path": "r/0"}}},
+                        output, Path(directory))
+            reader.return_value = []
+            for bad in (None, {**paths, "byteorder": "little"}):
+                old_receipt = Path(directory) / "route-1-candidate-2/receipt.json"
+                old_receipt.write_text('{"kernel_checked": true}')
+                with self.assertRaisesRegex(ValueError, "actual server ABI"):
+                    check_native_routes({**expected, "execution_observation": bad}, output, Path(directory))
+                self.assertFalse(old_receipt.exists())
+            with self.assertRaisesRegex(ValueError, "equivalence mode"):
+                check_native_routes({**expected, "native_equivalence_mode": "BAG_EQ"}, output, Path(directory))
+            checker.side_effect = ValueError("unclosed execution obligation")
+            with self.assertRaisesRegex(ValueError, "unclosed execution obligation"):
+                check_native_routes(expected, output, Path(directory))
+
+    def test_native_execution_abi_comes_from_local_server_configuration(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, patch.dict("os.environ", {"PG_CONFIG": directory + "/pg_config"}):
+            (Path(directory) / "pg_config.h").write_text("/* capture header */")
+            for macros, order in (("#define SIZEOF_VOID_P 8\n", "little"),
+                                  ("#define SIZEOF_VOID_P 8\n#define WORDS_BIGENDIAN 1\n", "big")):
+                with patch("run_e2e_cases.subprocess.check_output", side_effect=[directory, macros]):
+                    self.assertEqual(native_server_abi()["byteorder"], order)
+            with patch("run_e2e_cases.subprocess.check_output", side_effect=[directory, ""]), \
+                 self.assertRaisesRegex(ValueError, "unknown local PostgreSQL server ABI"):
+                native_server_abi()
 
     def test_kernel_capture_binding_uses_typed_paths_not_hidden_names(self) -> None:
         import copy
@@ -727,6 +826,21 @@ class TraceFrameworkTest(unittest.TestCase):
             with self.subTest(native=native, captures=captures):
                 with self.assertRaises(ValueError):
                     bind_source_captures(native, captures)
+
+    def test_kernel_capture_binding_keeps_typed_window_metadata(self) -> None:
+        for kind, field, payload in (("o", "orders", [[{"null_treatment": 1}]]),
+                                     ("m", "frames", [{"empty": True}])):
+            binding = {"symbol": kind + "0", "kind": kind, "bound": True,
+                       "source_paths": [f"r/{kind}:0"], field: payload}
+            snapshot = {"scope": "matched_source_symbols", "complete": True, "symbols": [binding]}
+            manifest = {"scope": "rule_source_captures", "captures": [
+                {"kind": kind, "term": "metadata", "source_paths": binding["source_paths"]}]}
+            self.assertIs(bind_source_captures(snapshot, manifest)["metadata"], binding)
+            for malformed in (None, {}, [None], [0]):
+                with self.subTest(kind=kind, malformed=malformed), self.assertRaises(ValueError):
+                    bind_source_captures({**snapshot, "symbols": [{**binding, field: malformed}]}, manifest)
+            with self.assertRaises(ValueError):
+                bind_source_captures({**snapshot, "symbols": [{**binding, "kind": "e"}]}, manifest)
 
     def test_transfer_models_are_frozen_before_target_observations(self) -> None:
         result = transport_check([1, 2, 4], [3, 5, 9], [1, 3, 8], [3, 7, 17])

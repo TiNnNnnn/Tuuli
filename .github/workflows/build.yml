@@ -180,6 +180,8 @@ jobs:
           test/dsl/e2e.sh --suite compute_alias_bindings
           test/dsl/e2e.sh --suite compute_concat_items
           test/dsl/e2e.sh --suite compute_materialization
+          test/dsl/e2e.sh --suite filter_materialization
+          test/dsl/e2e.sh --suite filter_output_materialization
           test/dsl/e2e.sh --suite computed_result_bindings
           test/dsl/e2e.sh --suite capture_references
           test/dsl/e2e.sh --suite select_items

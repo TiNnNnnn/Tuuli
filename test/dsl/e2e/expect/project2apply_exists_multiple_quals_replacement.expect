@@ -1,0 +1,175 @@
+{
+  "description": "Correlated EXISTS retains both equality and residual qualifiers with native lowering disabled",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery"
+    ],
+    "scope": "Correlated EXISTS with multiple ordered execution qualifiers",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "ca5bdb0f38257c24"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "debug_plan": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply",
+        "Xform: CXformSimplifyProjectWithSubquery"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSimplifyProjectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "stats_experiment": "project2apply_exists_multiple_quals_source_route.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "source_scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "lookup_path": [
+          0,
+          0,
+          0
+        ],
+        "apply_path": "r/0",
+        "column": {
+          "id": 20,
+          "type": "0.16.1.0",
+          "typmod": -1
+        },
+        "subplan_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr",
+          "args",
+          0,
+          "expr",
+          "args",
+          0,
+          "arg"
+        ],
+        "consumer_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr"
+        ],
+        "scan_path": [
+          "subplans",
+          0,
+          "plan.lefttree",
+          "plan.lefttree"
+        ],
+        "input_path": "r/0/1/0/0/0",
+        "observe_consumer_query": true
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "ca5bdb0f38257c24",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSimplifyProjectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSimplifyProjectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,f",
+      "2,t",
+      "3,f"
+    ],
+    "postgres_output": [
+      "1,f",
+      "2,t",
+      "3,f"
+    ]
+  }
+}

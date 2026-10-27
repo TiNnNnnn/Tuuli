@@ -1,0 +1,28 @@
+{
+  "description": "Explicit join-key substitution does not infer ErrorFree from sample data when integer addition can overflow",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "policy": "isolate_explicit_join_key_filter_rbo.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"41ccfe42f23f20f9\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"41ccfe42f23f20f9\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_explicit_join_key_filter_rbo.policy",
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ]
+  }
+}

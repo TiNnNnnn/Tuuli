@@ -1,0 +1,58 @@
+{
+  "description": "Adding grouping keys must preserve the global empty-input aggregate row; reject uncompensated expansion",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "policy": "semiapply_global_aggregate_empty_guard.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"e97f9646db60d736\"",
+        "\"failed_constraint\":\"AttrsNonEmpty\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"e97f9646db60d736\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "policy": "semiapply_global_aggregate_empty_guard.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ],
+    "plan_outputs": {
+      "native": [
+        "1",
+        "2"
+      ],
+      "guard": [
+        "1",
+        "2"
+      ]
+    }
+  }
+}

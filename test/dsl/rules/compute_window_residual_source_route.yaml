@@ -1,0 +1,7 @@
+experiment: compute-window-residual
+discover: false
+template_route: 4
+template_fingerprint: 3e9e665afb0edede
+template_root: r
+template_bindings: true
+cardinalities:

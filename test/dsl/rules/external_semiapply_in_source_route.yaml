@@ -1,0 +1,7 @@
+experiment: external-in-source-route
+discover: false
+template_route: 6
+template_fingerprint: e7118ce38cf764ba
+template_root: r
+template_bindings: true
+cardinalities:

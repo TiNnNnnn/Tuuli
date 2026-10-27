@@ -1,0 +1,7 @@
+experiment: scalar-null-consumer
+discover: false
+template_route: 1
+template_fingerprint: 336014e0a6a6b815
+template_root: r
+template_bindings: true
+cardinalities:

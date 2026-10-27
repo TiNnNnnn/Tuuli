@@ -57,10 +57,10 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4
 # view and instantiate its one-Filter target without duplicating residuals.
 Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Filter<p2 a2>(Input<t1>)|AttrsEq(a0,a1);PredicateEq(p0,p1);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsEq(a2,a0);PredicateEq(p2,p0);t1 := t0
 
-# A single-side Filter is normally pushed below an inner join before ORCA's
-# exploration phase. This ordinary rule verifies the reversible Select(Join)
-# view and target predicate rebinding from the right key to the left key.
-Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a1,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);AttrsSub(a5,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a0);PredicateEq(p1,p0);t2 := t0;t3 := t1
+# Explicitly replace one right-key Column with the equality-equivalent left key.
+# ValueBool retains the predicate/value boundary around the scalar Context;
+# dependency aliases alone must not silently rename predicate expressions.
+Filter<p0 a1>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);Deterministic(p0);ValueBool(n2) := p0;Context(n0) := n2;Column(a1) := n0;t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a0;n1 := Column(a5);n3 := Context(n2,n1);p1 := ValueBool(n3)
 
 # Reference is an inclusion dependency, so R.a -> R.a holds without explicit
 # FK metadata when the referred binding is the complete base relation. This

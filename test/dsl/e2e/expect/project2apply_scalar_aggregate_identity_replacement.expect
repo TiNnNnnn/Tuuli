@@ -1,5 +1,5 @@
 {
-  "description": "The expression-defined rule also lowers an uncorrelated scalar aggregate",
+  "description": "Core Item/Context/Subquery rule replaces scalar aggregate extraction without legacy ExprList definitions",
   "replacement": {
     "xforms": [
       "CXformProject2Apply"
@@ -7,7 +7,7 @@
     "scope": "Uncorrelated scalar aggregate in a Project list",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0b88ba995ef9c4cd"
+      "33a86dd897855e47"
     ]
   },
   "plans": [
@@ -23,11 +23,11 @@
     {
       "name": "shadow",
       "trace": true,
-      "policy": "isolate_project2apply_scalar_direct.policy",
+      "policy": "isolate_project2apply_scalar_core.policy",
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -51,14 +51,35 @@
         "CXformProject2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
-      "policy": "isolate_project2apply_scalar_direct.policy",
+      "policy": "isolate_project2apply_scalar_core.policy",
+      "stats_experiment": "project2apply_scalar_core_source_route.yaml",
+      "native_observation": "all_source_outputs",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterApply",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "33a86dd897855e47",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -77,7 +98,7 @@
       "CXformProject2Apply",
       "CXformSubquery2CorrelatedApply"
     ],
-    "policy": "isolate_project2apply_scalar_direct.policy",
+    "policy": "isolate_project2apply_scalar_core.policy",
     "output": [
       "1,30",
       "2,30",

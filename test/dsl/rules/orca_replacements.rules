@@ -163,41 +163,55 @@ Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;All(c0,v0,a3,t
 # Also replaces the legacy PredicateScalarSubquery/InnerApply shortcut;
 # keep NULL extension explicit before evaluating the residual predicate.
 # Dependency metadata follows the residual predicate, not the source subquery.
-# SYNTAX_ONLY: native expression proof: UNKNOWN (residual predicate dependencies changed; native observation lowering pending).
+# SYNTAX_ONLY: canonical ExprList source-artifact lowering remains unsupported.
+# Direct scalar SubPlan and complete unary consumer-model correspondence are
+# kernel-checked on actual captures; this is not a canonical rule certificate.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;n2 := BoolValue(p1);a1 := ScalarDeps(n2);ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0
 
 # DIRECT(expression-rewrite): lower one scalar subquery in a Compute list.
 # The scalar carrier checks cardinality before yielding a value; this is not
 # a whole native-program proof.
-# SYNTAX_ONLY: native expression proof: UNKNOWN (extraction changes list dependencies; native observation lowering pending).
+# SYNTAX_ONLY: canonical ExprList source-artifact lowering remains unsupported.
+# The captured complete consumer model (all Items/source outputs) and direct
+# scalar execution are checked separately; neither certifies this whole rule.
 # Replaces 5fa029945ad6953b; the old structural certificate does not certify this native program.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;s1 := s0;a1 := ScalarDeps(e1);ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := e0
 
 # DIRECT(expression-rewrite): Window items are an expression sequence just
 # like Compute and aggregate function lists. Lower one scalar subquery while
 # preserving the exact partition/order metadata and Window shell.
-# FORMALSQL_PROVED legacy_hash=f03b85207ada9a33; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 8e3cdd530ec7180c9abf7f8b244900db9cd15acdf08b51b2c65217268ff864a4. Generic WindowRows expression-list scalar-subquery bridge.
+# SYNTAX_ONLY legacy_hash=f03b85207ada9a33; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 8e3cdd530ec7180c9abf7f8b244900db9cd15acdf08b51b2c65217268ff864a4. Generic WindowRows expression-list scalar-subquery bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;ExprListScalarSubquery(w1,p0,a2,a3,a4,a5,t2) := w0
-# FORMALSQL_PROVED legacy_hash=f23d59b80126349c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9402c987a306708964c9a2ea8f59ccd75155a2c836c010be8eff5782b16a2094. Generic Window expression-list scalar-subquery bridge.
+# SYNTAX_ONLY legacy_hash=f23d59b80126349c; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9402c987a306708964c9a2ea8f59ccd75155a2c836c010be8eff5782b16a2094. Generic Window expression-list scalar-subquery bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListScalarSubquery(w1,p0,a2,a3,a4,a5,t2) := w0
 
 # The same Window sequence lowering handles boolean and quantified values;
 # their existing typed definitions retain empty-set and NULL semantics.
-# FORMALSQL_PROVED legacy_hash=9f11f6202c95bf22; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate b68417e78db5b15b3d9c80e09b0a58d0b0a99bedf0bbed7cb5646ae8a8b49ec1. Generic WindowRows expression-list EXISTS bridge.
+# SYNTAX_ONLY legacy_hash=9f11f6202c95bf22; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate b68417e78db5b15b3d9c80e09b0a58d0b0a99bedf0bbed7cb5646ae8a8b49ec1. Generic WindowRows expression-list EXISTS bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# FORMALSQL_PROVED legacy_hash=7c686f5f82593aa9; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate fd5695de2765059be24f2dd6d1249985c411ee3282f15946341b7fecaca33e07. Generic Window expression-list EXISTS bridge.
+# SYNTAX_ONLY legacy_hash=7c686f5f82593aa9; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate fd5695de2765059be24f2dd6d1249985c411ee3282f15946341b7fecaca33e07. Generic Window expression-list EXISTS bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# FORMALSQL_PROVED legacy_hash=f11d3d635df680f1; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 1e9bdf1a169f97c1c96c458fe5d99d5c589e40dcf27d18324856ae0cfea77030. Generic WindowRows expression-list NOT EXISTS bridge.
+# SYNTAX_ONLY legacy_hash=f11d3d635df680f1; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 1e9bdf1a169f97c1c96c458fe5d99d5c589e40dcf27d18324856ae0cfea77030. Generic WindowRows expression-list NOT EXISTS bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# FORMALSQL_PROVED legacy_hash=dfff717b90ec9b44; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 70930bf584193c683882b2c97fc0991d5e0201d7ca9920230a44c6817f2528a5. Generic Window expression-list NOT EXISTS bridge.
+# SYNTAX_ONLY legacy_hash=dfff717b90ec9b44; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 70930bf584193c683882b2c97fc0991d5e0201d7ca9920230a44c6817f2528a5. Generic Window expression-list NOT EXISTS bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# FORMALSQL_PROVED legacy_hash=7566dae00dc6d4e8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 64ef9a0228b2b8ff842cd8a5984dcb7201dbf69916b641f308ca6dc8857bab9a. Generic WindowRows expression-list ANY bridge.
+# SYNTAX_ONLY legacy_hash=7566dae00dc6d4e8; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 64ef9a0228b2b8ff842cd8a5984dcb7201dbf69916b641f308ca6dc8857bab9a. Generic WindowRows expression-list ANY bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAny(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
-# FORMALSQL_PROVED legacy_hash=4ba0126c0a78bc91; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 72ad74303e1fd49f3dce8586e5f37e629801f6ab47ca2d076337f3c6ed209ba0. Generic Window expression-list ANY bridge.
+# SYNTAX_ONLY legacy_hash=4ba0126c0a78bc91; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 72ad74303e1fd49f3dce8586e5f37e629801f6ab47ca2d076337f3c6ed209ba0. Generic Window expression-list ANY bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAny(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
-# FORMALSQL_PROVED legacy_hash=07f25b3eeffd351d; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ade932772859db85c098d2eab81039021d5483a7cfcfe1c252e75b1d79ece5fd. Generic WindowRows expression-list ALL bridge.
+# SYNTAX_ONLY legacy_hash=07f25b3eeffd351d; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ade932772859db85c098d2eab81039021d5483a7cfcfe1c252e75b1d79ece5fd. Generic WindowRows expression-list ALL bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAll(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
-# FORMALSQL_PROVED legacy_hash=1f6707057417dec8; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ee019d9c4b323580ea2c2e59424e8f69aa556c8fe880a97f65b7ec9557048b65. Generic Window expression-list ALL bridge.
+# SYNTAX_ONLY legacy_hash=1f6707057417dec8; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ee019d9c4b323580ea2c2e59424e8f69aa556c8fe880a97f65b7ec9557048b65. Generic Window expression-list ALL bridge.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListAll(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
 # DIRECT(expression-rewrite): lower one EXISTS value in a Compute list.  The
 # explicit TRUE marker and LIMIT preserve false-on-empty semantics without a
@@ -253,32 +267,37 @@ Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<
 # lowers a scalar subquery inside an aggregate function list. The target Agg
 # consumes the generated inner value directly; no aggregate production view is
 # involved. FormalSQL/Rocq accepted the contract on 2026-09-02.
-# FORMALSQL_PROVED legacy_hash=2e87323d09311142; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# SYNTAX_ONLY legacy_hash=2e87323d09311142; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # bbd7082e6334d08874c77a0ec36ee2f35409c90c46ba82476543900b7f1e241f.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a8 f1 s1 p1>(LeftApply<p2 a3 a4 a5>(Input<t1>,Input<t2>))|t1 := t0;a2 := a0;s1 := s0;p1 := p0;ExprListScalarSubquery(f1,p2,a3,a4,a5,a7,t2) := f0;FuncAttrs(a8,f1)
 
 # DIRECT(expression-rewrite): lower one EXISTS value inside a function list.
 # FuncAttrs derives the aggregate's exact inputs from the lowered functions;
 # the marker Compute remains an ordinary typed definition carrier.
-# FORMALSQL_PROVED legacy_hash=687f76b4e107b0ec; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# SYNTAX_ONLY legacy_hash=687f76b4e107b0ec; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 26f77d99929ad937b918a7a720f466697e4d7863d5b2b22e5218ca664f2a377e.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): the same existential lowering preserves the
 # opposite truth polarity for NOT EXISTS.
-# FORMALSQL_PROVED legacy_hash=8ec5f7fe33820adf; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# SYNTAX_ONLY legacy_hash=8ec5f7fe33820adf; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 3c223998f8828bbd19bd3619f8502e4489c549094c680662ca162b68847ffb10.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListNotExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value inside a function
 # list. FuncAttrs derives the exact marker dependencies consumed by the Agg.
-# FORMALSQL_PROVED legacy_hash=b62548ed876d3728; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# SYNTAX_ONLY legacy_hash=b62548ed876d3728; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # da07de7d3725c1916db323d9d659f316b1dd978b773676d136438135dc77aa4b.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAny(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1)
 
 # DIRECT(expression-rewrite): the quantified lowering also preserves ALL's
 # empty-set and three-valued semantics.
-# FORMALSQL_PROVED legacy_hash=408c56805b8331e3; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
+# SYNTAX_ONLY legacy_hash=408c56805b8331e3; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
+# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
 # 398d5a7735f10cc14fbe7291b574547190b2030c58e56c90c895624741a99555.
 Agg<a0 a1 f0 s0 p0>(Input<t0>)|Agg<a2 a11 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Compute<e0 a6 s2>(Input<t2>)))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListAll(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1)
 
@@ -395,39 +414,45 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t
 # and the enclosing query domain. OutputAttrs plus the equality-local columns
 # form the exact witness grouping; the final Filter consumes those witness
 # columns before projected observation returns the original outer row. The
-# RuleIR is parametric in every predicate, attribute vector, and table and is
-# accepted by the FormalSQL/Rocq external-semi-apply proof.
-# FORMALSQL_PROVED legacy_hash=611555770f814299; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. PredicateDomainSplit
-# is consumed as a generic domain-partition contract; no SemiApply-specific
-# binding or proof lemma is added.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);AttrsUnion(a10,a9,a7);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10)
+# Native predicate partitions are checked independently of scope transport and
+# witness multiplicity. The old structural constructor-equality premise was
+# not a realizable contract and cannot certify this rewrite.
+# Input<t1> is an arbitrary subtree: moving it out of per-row Apply requires
+# its own error freedom, bag repeatability and independence from the left row.
+# Predicate-only safety does not discharge these input obligations.
+# Corrected legacy-spelling baseline; previous contract identity 611555770f814299 lacked RHS safety/scope.
+# RHS-local witness-column baseline replaces 11fa492ec540019c; expression and input safety retained.
+# PARTIAL_BINDING legacy_hash=361c929a43360d30; native expression proof: UNKNOWN; FormalSQL/Rocq source-conditional
+# BAG_OUTCOME_EQ with source-output observation: kernel-checked 2026-10-26.
+# Current rule hash 1ab0ec8efdf91762; native-off SQL trigger and rows verified.
+# EXISTS and positive ANY native instances are kernel-checked on captured DSL
+# outputs (2026-10-27); unrestricted native/physical correspondence remains open.
+# Retain only RHS-local witness columns; native runtime/source obligations remain
+# explicit. This conditional theorem is not a deployment certificate or FULL coverage.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);OutputAttrs(a11,t1);AttrsIntersect(a12,a11,a7);AttrsUnion(a10,a9,a12);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a9);DepsDisjoint(a9,a11)
 
-# The grouped sibling is atomic only at the RuleIR/Cascades boundary: a parent
-# Apply binding is not required to wait for a child Agg(Filter) alternative.
-# Its proof composes the generic aggregate movement law from AttrsNonEmpty,
-# AttrsSub, ErrorFree, and Deterministic with the same
-# arbitrary-right-tree CorrelationEquality law as the rule above.  Local filter
-# dependencies must already be grouping keys, so this rule neither widens the
-# aggregate schema nor depends on an xform-specific exception.
-# PredicateDomainSplit below names the base input t1, not the aggregate output.
-# An ON predicate using a produced aggregate column can therefore generate an
-# out-of-scope target; the shared runtime scope guard rejects that application.
-# WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# FORMALSQL_PROVED legacy_hash=783c620153b85545; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
-# aggregate/schema constructors compose with the same domain-partition contract.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
+# The grouped sibling is atomic at the RuleIR/Cascades boundary. Local filter
+# dependencies must already be grouping keys; the runtime scope guard rejects
+# a target whose ON predicate reads a produced aggregate column out of scope.
+# Corrected legacy-spelling baseline; previous contract identity 783c620153b85545 lacked RHS safety/scope.
+# SYNTAX_ONLY legacy_hash=401671432d72f7a5; native expression proof: UNKNOWN.
+# The grouped E2E now isolates GroupFilter + the base external SemiApply rule.
+# Keep this monolithic candidate pending an applicability/redundancy proof;
+# the composed instance checks do not certify this abstract rule.
+# The former structural assignment assumed aggregate movement outright;
+# its PROJECTED_BAG_EQ certificate is withdrawn (2026-10-24).
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13)
 
 # When local correlation keys are not already grouped, construct the native
-# aggregate compensation with AttrsUnion/SchemaUnion. CorrelationEquality,
-# AttrsNonEmpty, scalar safety, and those constructors prove Filter movement,
-# while PredicateDomainSplit independently
-# routes the resulting current-join and enclosing-query conjuncts. This is the
-# same generic operator-local contract used by the ordinary aggregate
-# decorrelation rules, composed with the external expansion proof.
-# WeTune ProveDslRule: PROJECTED_BAG_EQ, FORMALSQL/Rocq, verified 2026-09-01.
-# FORMALSQL_PROVED legacy_hash=c865e55a4672d788; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The grouped
-# variant reuses the generic partition, correlation, and schema contracts.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14)
+# aggregate compensation with AttrsUnion/SchemaUnion. Predicate partition,
+# grouping-key expansion and projected witness multiplicity require separate
+# native semantic proofs; a structural assignment cannot stand in for them.
+# Corrected legacy-spelling baseline; previous contract identity c865e55a4672d788 lacked RHS safety/scope.
+# Baseline includes the nonempty grouping guard; 435056abc7513b1a omitted it.
+# SYNTAX_ONLY legacy_hash=14c5e2cde9c87a72; native expression proof: UNKNOWN.
+# PROJECTED_BAG_EQ certificate withdrawn (2026-10-25): it depended on the same
+# unrealizable structural PredicateDomainSplit premise as the ungrouped rule.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 f1 s1 p5>(Input<t3>))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a14,a13,a11);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13)
 
 # Replaces CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations. AntiApply
 # binds the exact inner-to-outer dependency set; AttrsEmpty is therefore the
@@ -510,17 +535,17 @@ Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m
 # Compose that movement through an enclosing safe Compute. This remains an
 # operator-local normalization over an arbitrary Input; it is not tied to an
 # Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN (native Compute/Window composition pending; a structural program alias is not a certificate).
+# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN; production source-conditional canonical proof checked 2026-10-24 (Closed). Actual frameless Window item/value binding remains unverified; not an EQ or native-instance certificate.
 Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=d6f44ab77e84cba0; native expression proof: UNKNOWN (native Compute/Window frame composition pending; a structural program alias is not a certificate).
+# PARTIAL_BINDING legacy_hash=d6f44ab77e84cba0; native expression proof: UNKNOWN without source contracts; source-conditional OUTCOME_EQ and actual Compute/Window source-target instance kernel-checked 2026-10-23. Standard runtime, schemas and input value types remain premises; not a deployment certificate.
 Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1);Deterministic(w0)
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the
 # outside; the residual remains at its original evaluation site.
-# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN (native residual Compute/Window composition pending; a structural program alias is not a certificate).
+# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN; production source-conditional canonical proof checked 2026-10-24 (Closed). Actual frameless Window item/value binding remains unverified; not an EQ or native-instance certificate.
 Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# SYNTAX_ONLY legacy_hash=7df75620258b37aa; native expression proof: UNKNOWN (native residual Compute/Window frame composition pending; a structural program alias is not a certificate).
+# PARTIAL_BINDING legacy_hash=7df75620258b37aa; native expression proof: UNKNOWN without source contracts; source-conditional OUTCOME_EQ and actual residual Compute/Window source-target instance kernel-checked 2026-10-23. The residual retains its Window dependency; runtime/schema/value premises remain, not a deployment certificate.
 Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1);Deterministic(w0)
 
 # Replaces the single correlated-Filter decorrelation domain of
@@ -583,29 +608,37 @@ Filter<p0 a1 a2>(Compute<e0 a0 s0>(Input<t0>))|Compute<e1 a3 s1>(Filter<p1 a4 a5
 # Pull a correlated predicate through a grouped aggregate when every local
 # dependency is an existing grouping key. General decorrelation that must add
 # new grouping columns is intentionally a separate schema-construction domain.
-# FormalSQL/Rocq BAG_EQ: the generic aggregate/filter movement theorem is
-# kernel-checked with typed symbol bindings; no rule-specific lemma is used.
-# FORMALSQL_PROVED legacy_hash=acc0381a6ee39104; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13; certificate 50b5910eb54e5ff2baf0583af2bbd5975dcb7aa024015219b205931d3800d960. Generic aggregate/filter movement.
+# PARTIAL_BINDING legacy_hash=acc0381a6ee39104; native expression proof: UNKNOWN without source contracts.
+# Source-conditional OUTCOME_EQ kernel-checked against the actual native-off MIN occurrence (2026-10-25).
+# Target scope comes from the shared constructor check, not a movement axiom.
+# Source artifact 63345aa7fd2be2d3173ec37cec0746443ce40898e9a0e3d3da7bbfe57dcff79a.
+# The old BAG_EQ certificate remains withdrawn; runtime premises are unchanged.
+# Conditional evidence is not a deployment certificate or full Apply coverage.
 Agg<a0 a1 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 f1 s1 p3>(Input<t1>))|t1 := t0;a4 := a0;a5 := a1;f1 := f0;s1 := s0;p3 := p0;p2 := p1;a6 := a2;a7 := a3;AttrsSub(a2,a0);AttrsNonEmpty(a2);Deterministic(p1);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(p1);ErrorFree(a5);ErrorFree(f1);ErrorFree(p3);ErrorFree(p2)
 
 # Atomically decorrelates a SemiApply across a grouped aggregate. Equality
 # correlation columns are retained or added to grouping as needed. The atomic
 # Apply-rooted replacement preserves
 # the Cascade memo output contract; ordered unions construct the expanded
-# grouping, predicate dependencies, and aggregate schema. This exact RuleIR is
-# accepted by the generic FormalSQL/Rocq proof kernel.
-# FORMALSQL_PROVED legacy_hash=de88cc37456ca76b; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 1b15133d7b5ab2928db237252de7206f9a39d11e120c1bdec7294522e74e943f. Shared correlation symbols; previous legacy_hash 88f3ce3adc6c520b.
-# The generic decorrelation proof composes typed predicate/group/schema constructors;
-# no SemiApply-specific lemma is added.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
+# grouping, predicate dependencies, and aggregate schema. Global aggregates
+# require separate empty-input compensation and cannot use this movement.
+# Baseline includes the nonempty grouping guard; de88cc37456ca76b omitted it.
+# SYNTAX_ONLY legacy_hash=718f08daf4e7d403; native expression proof: UNKNOWN.
+# Historical structural certificate withdrawn 2026-10-27: it did not protect
+# the global empty-input group. Require a nonempty original grouping domain.
+# Migration must compose native predicate, partition and schema certificates;
+# a structural aggregate movement premise cannot stand in for that proof.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
 
 # Negative-polarity counterpart of the atomic grouped decorrelation rule.
-# CorrelationEquality plus the group/schema constructors are polarity-independent;
-# FormalSQL/Rocq proves both EXISTS and NOT EXISTS conclusions from it.
-# FORMALSQL_PROVED legacy_hash=21e31a7d52a2edcb; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 8db5c2a1ac7e683e38702fb11a429d32ab8f0af8b7378effc5889fb1ab018274. Shared correlation symbols; previous legacy_hash 8acf52440ec02ea3.
-# The generic decorrelation proof handles the negative-polarity operator without a second
-# rule-specific lemma.
-AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
+# Correlation equality and group/schema construction are shared across
+# polarities; native proof composition is still required for each observation.
+# Baseline includes the nonempty grouping guard; 21e31a7d52a2edcb omitted it.
+# SYNTAX_ONLY legacy_hash=f1249c26638698a3; native expression proof: UNKNOWN.
+# The same empty-input boundary applies to NOT EXISTS; the historical
+# structural certificate is not a native proof of this corrected rule.
+# Preserve NOT EXISTS demand while composing the same operator-local laws.
+AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4)
 
 # Replaces the complete pure-grouping domain of CXformPushGbBelowUnionAll.
 # The outer grouping may be any subset of the UnionAll row. Explicit output
@@ -677,6 +710,8 @@ LeftApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)
 # The zero-on-empty sibling consumes the two generic Compute layers that carry
 # an aggregate result through an identity and replace NULL with its empty-input
 # default. EmptyInputCompensation validates that complete scalar dataflow.
+# The former structural whole-rewrite contract is retired: the runtime guard
+# alone does not prove native grouping construction or compensation values.
 # SYNTAX_ONLY legacy_hash=d86a75a72b65d12b; native expression proof: UNKNOWN (native Compute/aggregate compensation composition pending; source correlation symbols shared from previous legacy_hash 80727e91f96e399d, not a new certificate).
 Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a7 f0 s2 p1>(Filter<p2 a8 a4>(Input<t1>)))))|Compute<e2 a10 s3>(Compute<e3 a11 s4>(LeftJoin<p3 a12 a13>(Input<t2>,Agg<a14 a15 a16 f1 s5 p4>(Input<t3>))))|t2 := t0;t3 := t1;e2 := e0;a10 := a0;s3 := s0;e3 := e1;a11 := a1;s4 := s1;p3 := And(p0,p2);AttrsNonEmpty(a4);AttrsUnion(a12,a2,a4);AttrsUnion(a13,a3,a8);AttrsUnion(a14,a5,a8);a15 := a6;a16 := a7;f1 := f0;SchemaUnion(s5,s2,a8);p4 := p1;CorrelationEquality(p2,a8,a4);AttrsNonEmpty(a8);EmptyInputCompensation(e0,e1,a7,f0);Deterministic(e0);Deterministic(e1);Deterministic(e2);Deterministic(e3);Deterministic(p0);Deterministic(p1);Deterministic(p2);Deterministic(p3);Deterministic(p4);ErrorFree(e0);ErrorFree(e1);ErrorFree(e2);ErrorFree(e3);ErrorFree(p0);ErrorFree(a6);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a15);ErrorFree(f1);ErrorFree(p4)
 
@@ -810,3 +845,19 @@ Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p
 # Original-output/error observation composes actual ON/SELECT evidence with child keys;
 # simplify_gbagg_residual_join_replacement covers the retired keyed/residual shortcut.
 Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);t1 := t0
+
+# PARTIAL_BINDING: native Compute source/target kernel-checked with all source
+# outputs observed (2026-10-24). Core Item/Context/Subquery materialization;
+# ErrorFree/Deterministic and column-scope premises are checked on the captures.
+# Migrates the safe scalar-value domain of Project2Apply without ExprList macros.
+# The legacy extraction rule remains for the wider demand/error domain; its
+# structural certificate is not reused by this rule.
+Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply(Input<t1>,Input<t2>))|Context(n0) := e0;Subquery(a2,t3) := n0;t1 := t0;t2 := t3;s1 := s0;n1 := Column(a2);e1 := Context(e0,n1);a1 := ScalarDeps(e1);OutputAttrs(a3,t0);OutputAttrs(a4,t3);DepsDisjoint(a3,a4);a5 := ScalarDeps(e0);DepsDisjoint(a5,a4);ErrorFree(n0);Deterministic(n0)
+
+# PARTIAL_BINDING: core Context/Subquery materialization of a Filter consumer.
+# SOURCE_OUTPUTS BAG_OUTCOME_EQ observes every source column, including NULLs
+# and duplicates. The scalar must be deterministic/error-free; fresh outputs
+# must not shadow the input or residual predicate. Actual binding is conditional.
+# The legacy macro still overlaps this safe branch until its wider
+# demand/cardinality-error domain has canonical lowering.
+Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply(Input<t1>,Input<t2>))|Context(n0) := p0;Subquery(a2,t3) := n0;t1 := t0;t2 := t3;n1 := Column(a2);p1 := Context(p0,n1);a1 := ScalarDeps(p1);OutputAttrs(a3,t0);OutputAttrs(a4,t3);DepsDisjoint(a3,a4);DepsDisjoint(p0,a4);ErrorFree(n0);Deterministic(n0)

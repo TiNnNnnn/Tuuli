@@ -7,7 +7,7 @@
     "scope": "External IN correlation above an arbitrary safe Compute or joined inner subtree",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a37ff381f87c49e3"
+      "1ab0ec8efdf91762"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
       ],
       "alternative": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
@@ -51,7 +51,7 @@
       ],
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a37ff381f87c49e3\""
+        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
       ],
       "provenance": {
         "required_sources": [

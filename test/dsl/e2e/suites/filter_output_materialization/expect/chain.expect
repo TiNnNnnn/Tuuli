@@ -1,0 +1,145 @@
+{
+  "description": "Two safe subqueries use the same Context rule through a Memo dependency",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "first",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "chain-first-source-route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "8311785e3d5fecff",
+          "dst_rule": "8311785e3d5fecff",
+          "producer_relation": "memo_consumes",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "8311785e3d5fecff",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "second",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "chain-second-source-route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformSelect2Apply"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "8311785e3d5fecff",
+          "dst_rule": "8311785e3d5fecff",
+          "producer_relation": "memo_consumes",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "8311785e3d5fecff",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "0",
+      "1",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "0",
+      "1",
+      "2",
+      "2"
+    ]
+  }
+}

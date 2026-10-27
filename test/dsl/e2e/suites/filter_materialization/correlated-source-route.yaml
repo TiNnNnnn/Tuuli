@@ -1,0 +1,7 @@
+experiment: filter-materialization
+discover: false
+template_route: 1
+template_fingerprint: 990fa84e8656e071
+template_root: r
+template_bindings: true
+cardinalities:

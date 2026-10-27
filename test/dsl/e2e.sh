@@ -110,6 +110,7 @@ if [[ ! "$PORT" =~ ^[0-9]+$ ]] || (( PORT < 1 || PORT > 65535 )); then
     fail "DSL_E2E_PORT must be an integer between 1 and 65535"
 fi
 
+export PG_CONFIG
 PG_BINDIR="$($PG_CONFIG --bindir)"
 for program in initdb pg_ctl psql; do
     if [[ ! -x "$PG_BINDIR/$program" ]]; then

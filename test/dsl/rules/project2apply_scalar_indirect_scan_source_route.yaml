@@ -1,0 +1,7 @@
+experiment: compute-scalar-indirect-scan
+discover: false
+template_route: 3
+template_fingerprint: 558ebc40476e4716
+template_root: r
+template_bindings: true
+cardinalities:

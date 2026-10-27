@@ -1,0 +1,159 @@
+{
+  "description": "Scalar extraction preserves the original NULL-test consumer and empty-input value",
+  "replacement": {
+    "xforms": [
+      "CXformProject2Apply"
+    ],
+    "scope": "Correlated scalar lookup inside a NULL test, with runtime single-row enforcement",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "0b88ba995ef9c4cd"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Project",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "alternative": [
+        "CXformProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_project2apply_scalar_direct.policy",
+      "stats_experiment": "project2apply_scalar_null_source_route.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "subplan_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr",
+          "arg"
+        ],
+        "apply_path": "r/0",
+        "column": {
+          "id": 9,
+          "type": "0.23.1.0",
+          "typmod": -1
+        },
+        "scan_path": [
+          "subplans",
+          0
+        ],
+        "input_path": "r/0/1/0",
+        "source_scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "scalar_path": [
+          1,
+          0,
+          0
+        ],
+        "lookup_path": [
+          0
+        ],
+        "consumer_path": [
+          "planTree",
+          "plan.lefttree",
+          "plan.targetlist",
+          0,
+          "expr"
+        ],
+        "source_lookup_path": [
+          0
+        ],
+        "observe_consumer_query": true
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0b88ba995ef9c4cd",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_project2apply_scalar_direct.policy",
+    "output": [
+      "1,f",
+      "2,f",
+      "3,t"
+    ],
+    "postgres_output": [
+      "1,f",
+      "2,f",
+      "3,t"
+    ]
+  }
+}

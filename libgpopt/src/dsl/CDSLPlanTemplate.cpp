@@ -1,8 +1,10 @@
 //---------------------------------------------------------------------------
 // Lossless, addressable ORCA-plan view for DSL rule mining.
 //---------------------------------------------------------------------------
+#include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/base/CKeyCollection.h"
+#include "gpopt/base/CColRefTable.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -302,6 +304,17 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		AppendColumns(mp, out, derived->DeriveOutputColumns());
 		*out << ",\"outer\":";
 		AppendColumns(mp, out, derived->DeriveOuterReferences());
+		*out << ",\"implicit_system_columns\":[";
+		CColRefSetIter output_iter(*derived->DeriveOutputColumns());
+		BOOL first_implicit = true;
+		while (output_iter.Advance())
+		{
+			if (CDSLColumnDomain::FObservable(output_iter.Pcr())) continue;
+			if (!first_implicit) *out << ',';
+			first_implicit = false;
+			AppendColumn(mp, out, output_iter.Pcr());
+		}
+		*out << ']';
 		// A column set is not a row layout. Preserve a declared leaf layout
 		// only; derived operators require their own ordered lowering contract.
 		const CColRefArray *layout = nullptr;
@@ -393,6 +406,17 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 		{
 			layout = get->PdrgpcrOutput();
 			*out << ",\"relation_mdid\":" << MetadataId(mp, get->Ptabdesc()->MDId());
+			*out << ",\"base_attribute_numbers\":[";
+			for (ULONG i = 0; i < layout->Size(); ++i)
+			{
+				if (i) *out << ',';
+				const auto *column = dynamic_cast<const CColRefTable *>((*layout)[i]);
+				if (nullptr != column)
+					*out << column->AttrNum();
+				else
+					*out << "null";
+			}
+			*out << ']';
 			*out << ",\"unique_keys\":[";
 			const CKeyCollection *keys = derived->DeriveKeyCollection();
 			for (ULONG i = 0; nullptr != keys && i < keys->Keys(); ++i)

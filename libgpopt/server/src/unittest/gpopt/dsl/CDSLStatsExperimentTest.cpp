@@ -215,6 +215,7 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
 	const std::string artifact = CDSLPlanTemplate::Serialize(mp, get);
 	BOOL valid = artifact.find(layout) != std::string::npos &&
 		artifact.find("\"relation_mdid\":") != std::string::npos &&
+		artifact.find("\"base_attribute_numbers\":[2,1]") != std::string::npos &&
 		artifact.find("\"unique_keys\":[]") != std::string::npos &&
 		artifact.find("\"output\":[" + column((*cols)[0]) + ',' + column((*cols)[1]) + ']') != std::string::npos;
 	CColRefArray *key_columns = nullptr;
