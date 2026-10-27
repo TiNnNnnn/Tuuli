@@ -223,6 +223,37 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout()
 	valid &= CDSLPlanTemplate::Serialize(mp, keyed).find(
 		"\"unique_keys\":[[" + column((*key_columns)[1]) + "]]") != std::string::npos;
 	keyed->Release();
+	// Positional maps may differ from each child's column-ID order.
+	for (ULONG branches : {2U, 3U})
+	{
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		CColRef2dArray *maps = GPOS_NEW(mp) CColRef2dArray(mp);
+		std::string expected = "\"setop_inputs\":[";
+		for (ULONG i = 0; i < branches; ++i)
+		{
+			original->AddRef();
+			children->Append(original);
+			if (i) expected += ',';
+			if (i % 2 == 0)
+			{
+				maps->Append(reversed());
+				expected += '[' + column((*cols)[1]) + ',' + column((*cols)[0]) + ']';
+			}
+			else
+			{
+				cols->AddRef();
+				maps->Append(cols);
+				expected += '[' + column((*cols)[0]) + ',' + column((*cols)[1]) + ']';
+			}
+		}
+		expected += ']';
+		CExpression *set = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalUnionAll(mp, reversed(), maps), children);
+		const std::string exported = CDSLPlanTemplate::Serialize(mp, set);
+		valid &= exported.find(expected) != std::string::npos &&
+			exported.find(layout) != std::string::npos && nullptr == set->Pstats();
+		set->Release();
+	}
 	CColRefArray *inner_columns = nullptr;
 	CExpression *inner = fixture.PexprLogicalGet("apply_layout", 2, &inner_columns);
 	const std::pair<COperator::EOperatorId, const CHAR *> origins[] = {

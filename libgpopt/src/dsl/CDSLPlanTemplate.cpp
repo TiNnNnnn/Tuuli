@@ -38,6 +38,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
+#include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarBoolOp.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
@@ -402,7 +403,19 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			*out << ",\"aggregate_global\":" << (aggregate->FGlobal() ? "true" : "false")
 				<< ",\"generates_duplicates\":" << (aggregate->FGeneratesDuplicates() ? "true" : "false");
 		}
-		if (const auto *get = dynamic_cast<const CLogicalGet *>(expr->Pop()))
+		if (const auto *set = dynamic_cast<const CLogicalSetOp *>(expr->Pop()))
+		{
+			layout = set->PdrgpcrOutput();
+			*out << ",\"setop_inputs\":[";
+			const auto *inputs = set->PdrgpdrgpcrInput();
+			for (ULONG i = 0; i < inputs->Size(); ++i)
+			{
+				if (i) *out << ',';
+				AppendColumns(mp, out, (*inputs)[i]);
+			}
+			*out << ']';
+		}
+		else if (const auto *get = dynamic_cast<const CLogicalGet *>(expr->Pop()))
 		{
 			layout = get->PdrgpcrOutput();
 			*out << ",\"relation_mdid\":" << MetadataId(mp, get->Ptabdesc()->MDId());
