@@ -2525,6 +2525,25 @@ CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
 	return fMergedValid && fResidualValid;
 }
 
+BOOL
+CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
+	const CDSLSymbol *symbol, const CDSLModel *model) const
+{
+	if (EdslsymScalar != symbol->Esymkind() || nullptr == model->PvalLookup(symbol))
+		return true;
+	CDSLInstantiator materializer(m_mp);
+	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
+	{
+		const auto *constraint = (*rule->Pdrgpcon())[i];
+		if ((EdslconErrorFree == constraint->Edslcon() ||
+			 EdslconDeterministic == constraint->Edslcon()) &&
+			materializer.PsymBindingOrigin(rule, (*constraint->Pdrgpsym())[0]) == symbol &&
+			!FCheckScalarProperty(rule, constraint, model, materializer))
+			return false;
+	}
+	return true;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLConstraintChecker::FCheckScalarProperty

@@ -14,6 +14,7 @@
 #include "unittest/gpopt/dsl/CDSLMatchTest.h"
 
 #include <cstring>
+#include <string>
 
 #include "gpos/base.h"
 #include "gpos/memory/CAutoMemoryPool.h"
@@ -30,6 +31,8 @@
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarValuesList.h"
 #include "gpopt/operators/CScalarSwitchCase.h"
@@ -79,6 +82,7 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedPredicateResultTypes),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_TypedScalarValueKinds),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ModelOptionalBindings),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ContextSkipsUnsafeCandidates),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -639,6 +643,57 @@ CDSLMatchTest::EresUnittest_DeepestFailure()
 	pexprJoin->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_ContextSkipsUnsafeCandidates()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG mode = 0; mode < 5; ++mode)
+	{
+		const std::string text =
+			"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+			"Context(n0) := e0;Subquery(a2,t2) := n0;t1 := t0;"
+			"e1 := e0;a1 := a0;s1 := s0" + std::string(mode == 0 ? "" :
+				(mode == 2 ? ";n1 := n0;ErrorFree(n1)" :
+				 (mode == 4 ? ";Deterministic(n0)" : ";ErrorFree(n0)")));
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		CExpression *queries[2];
+		for (ULONG i = 0; i < 2; ++i)
+		{
+			CColRefArray *columns = nullptr;
+			if (i == 0 || mode == 3)
+				queries[i] = fix.PexprLogicalGet("unbounded", 1, &columns);
+			else
+			{
+				columns = GPOS_NEW(mp) CColRefArray(mp);
+				columns->Append(fix.PcrCreateInt4("empty_value"));
+				queries[i] = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+			}
+			queries[i]->AddRef();
+			CExpression *scalar = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubquery(mp, (*columns)[0], false, false), queries[i]);
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("result")), scalar));
+		}
+		CExpression *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const auto *root = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+		const auto *hole = rule->Pexprdefs()->Pdef(root)->PsymOperand(0);
+		const auto *input = rule->Pexprdefs()->Pdef(hole)->PsymOperand(1);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatchExpression(root, list, model);
+		const BOOL valid = mode == 3 ? !matched && nullptr == model->PvalLookup(hole) :
+			matched && model->PexprTable(input) == queries[mode == 0 ? 0 : 1];
+		model->Release(); list->Release();
+		queries[0]->Release(); queries[1]->Release(); rule->Release();
+		GPOS_UNITTEST_ASSERT(valid);
+	}
+	return GPOS_OK;
 }
 
 // EOF
