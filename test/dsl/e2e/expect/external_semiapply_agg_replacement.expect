@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "1ab0ec8efdf91762",
-      "5ea2046b8dd2a967"
+      "0573ade528949f8d"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "policy": "isolate_external_semiapply_agg_chain.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -58,7 +58,7 @@
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "rule_source_routes": [
         {
@@ -104,11 +104,11 @@
       "stats_experiment": "external_semiapply_agg_filter_source_route.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "5ea2046b8dd2a967",
+          "rule_hash": "0573ade528949f8d",
           "route_sequence": 6,
           "operators": [
             "CLogicalGbAgg",

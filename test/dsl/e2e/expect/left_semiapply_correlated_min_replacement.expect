@@ -45,14 +45,14 @@
       "stats_experiment": "group_filter_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"5ea2046b8dd2a967\""
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "5ea2046b8dd2a967",
+          "rule_hash": "0573ade528949f8d",
           "route_sequence": 4,
           "operators": [
             "CLogicalGbAgg",
