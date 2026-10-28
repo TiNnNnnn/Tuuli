@@ -1,0 +1,78 @@
+{
+  "description": "Mapped Set branches preserve a captured non-equality ON predicate; runtime construction regression only.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc8530e1573098\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc8530e1573098\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushJoinBelowLeftUnionAll"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "output": [
+      "120",
+      "120",
+      "130",
+      "130",
+      "230",
+      "230",
+      "230"
+    ],
+    "postgres_output": [
+      "120",
+      "120",
+      "130",
+      "130",
+      "230",
+      "230",
+      "230"
+    ]
+  }
+}

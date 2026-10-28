@@ -664,6 +664,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 				: PdrgpcrMapToTarget((*pop)[1], pexprRight,
 								 pdrgpcrRightAttrs, pmodel);
 			BOOL valid = nullptr != rgpdrgpcrInput[0] && nullptr != rgpdrgpcrInput[1];
+			BOOL freshen_right = false;
 			for (ULONG child = 0; valid && child < 2; ++child)
 			{
 				valid = rgpdrgpcrInput[child]->Size() == pdrgpcrAttrs->Size();
@@ -673,13 +674,30 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 					CColRef *output = (*pdrgpcrAttrs)[col];
 					valid = input->RetrieveType()->MDId()->Equals(output->RetrieveType()->MDId()) &&
 						input->TypeModifier() == output->TypeModifier();
-					// Non-first inputs cannot own a SetOp output identity.
 					for (ULONG i = 0; valid && child == 1 && i < pdrgpcrAttrs->Size(); ++i)
-						valid = input != (*pdrgpcrAttrs)[i];
+						freshen_right |= input == (*pdrgpcrAttrs)[i];
 				}
 			}
+			// Keep the existing ban on deep-remapping memo-derived aggregates:
+			// their Local/Global xform provenance cannot be copied with columns.
+			valid &= !freshen_right || !FContainsGbAgg(pexprRight);
 			if (valid)
 			{
+				// Explicit projections can restore the same schema in both
+				// branches; ORCA requires fresh identities in non-first inputs.
+				if (freshen_right)
+				{
+					UlongToColRefMap *mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+					CColRefArray *fresh = CUtils::PdrgpcrRemapAndCreate(
+						m_mp, rgpdrgpcrInput[1], mapping);
+					CExpression *copy = pexprRight->PexprCopyWithRemappedColumns(
+						m_mp, mapping, false /*must_exist*/);
+					mapping->Release();
+					pexprRight->Release();
+					rgpdrgpcrInput[1]->Release();
+					pexprRight = rgpexprTarget[1] = copy;
+					rgpdrgpcrInput[1] = fresh;
+				}
 				pdrgpcrOutput = pdrgpcrAttrs;
 				fOwnsInputMappings = true;
 			}
