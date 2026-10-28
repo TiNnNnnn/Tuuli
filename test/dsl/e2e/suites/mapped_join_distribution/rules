@@ -1,0 +1,2 @@
+# Construction regression only; the complete template proof remains open.
+InnerJoin<p0 a0 a1>(Union<a2 s0 a3 a4>(Input<t0>,Input<t1>),Input<t2>)|Union<a6 s1 a6 a6>(InnerJoin<p1 a7 a8>(Proj<a9 s2>(Input<t3>),Input<t4>),InnerJoin<p1 a7 a8>(Proj<a10 s2>(Input<t5>),Input<t4>))|t3 := t0;t5 := t1;t4 := t2;p1 := p0;a7 := a0;a8 := a1;a9 := a3;a10 := a4;s2 := s0;OutputAttrs(a5,t2);AttrsUnion(a6,a2,a5);SchemaFromAttrs(s1,a6);AttrsSub(a0,a2);AttrsSub(a1,t2);ErrorFree(p0);Deterministic(p0);ErrorFree(t2);Deterministic(t2)

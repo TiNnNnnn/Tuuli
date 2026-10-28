@@ -1,0 +1,74 @@
+{
+  "description": "Explicit SetOp input projections must construct independent Join branches; runtime regression, not a universal equivalence certificate.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc8530e1573098\""
+      ],
+      "alternative": [
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "not_contains": [
+        "Xform: CXformPushJoinBelowLeftUnionAll"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushJoinBelowLeftUnionAll"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2ddc8530e1573098\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformPushJoinBelowLeftUnionAll"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushJoinBelowLeftUnionAll"
+    ],
+    "output": [
+      "110",
+      "110",
+      "220",
+      "220",
+      "220"
+    ],
+    "postgres_output": [
+      "110",
+      "110",
+      "220",
+      "220",
+      "220"
+    ]
+  }
+}

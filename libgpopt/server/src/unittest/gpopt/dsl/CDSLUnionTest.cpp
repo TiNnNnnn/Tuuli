@@ -1343,83 +1343,104 @@ CDSLUnionTest::EresUnittest_LeftJoinDistributionBuildsFreshBranches()
 GPOS_RESULT
 CDSLUnionTest::EresUnittest_JoinDistributionBuildsFreshBranches()
 {
-	CAutoMemoryPool amp;
-	CMemoryPool *mp = amp.Pmp();
-	CDSLTestFixture fix(mp);
-	CDSLRule *prule =
-		PdslruleParseLocal(mp, GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE);
-	CColRefArray *pdrgpcrLeft0 = nullptr, *pdrgpcrLeft1 = nullptr,
-		*pdrgpcrOther = nullptr;
-	CExpression *pexprLeft0 =
-		fix.PexprLogicalGet("dist_l0", 2, &pdrgpcrLeft0);
-	CExpression *pexprLeft1 =
-		fix.PexprLogicalGet("dist_l1", 2, &pdrgpcrLeft1);
-	CExpression *pexprOther =
-		fix.PexprLogicalGet("dist_r", 2, &pdrgpcrOther);
-	CExpression *pexprUnion = PexprSetOp(
-		mp, false, pexprLeft0, pdrgpcrLeft0, pexprLeft1, pdrgpcrLeft1);
-	CExpression *pexprPred =
-		fix.PexprEqPred((*pdrgpcrLeft0)[0], (*pdrgpcrOther)[0]);
-	CExpression *pexprJoin =
-		fix.PexprLogicalInnerJoin(pexprUnion, pexprOther, pexprPred);
-	pexprPred->Release();
-
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp, prule);
-	CDSLConstraintChecker checker(mp);
-	CExpression *pexprTarget = nullptr;
-	GPOS_RESULT eres = GPOS_FAILED;
-	GPOS_UNITTEST_ASSERT(nullptr != prule);
-	GPOS_UNITTEST_ASSERT(
-		matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel));
-	GPOS_UNITTEST_ASSERT(checker.FCheck(prule, pmodel));
-	if (nullptr != prule)
+	for (BOOL mapped : {false, true})
 	{
-		CDSLInstantiator instantiator(mp);
-		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
-		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
-		if (nullptr != pexprTarget &&
-			COperator::EopLogicalUnionAll == pexprTarget->Pop()->Eopid() &&
-			2 == pexprTarget->Arity() &&
-			COperator::EopLogicalInnerJoin ==
-				(*pexprTarget)[0]->Pop()->Eopid() &&
-			COperator::EopLogicalInnerJoin ==
-				(*pexprTarget)[1]->Pop()->Eopid())
-		{
-			CExpression *pexprJoin0 = (*pexprTarget)[0];
-			CExpression *pexprJoin1 = (*pexprTarget)[1];
-			CLogicalSetOp *popTarget =
-				CLogicalSetOp::PopConvert(pexprTarget->Pop());
-			CColRefArray *pdrgpcrSourceOutput =
-				pexprJoin->DeriveOutputColumns()->Pdrgpcr(mp);
-			const BOOL fPredicatesBound =
-				pexprJoin0->DeriveOutputColumns()->ContainsAll(
-					(*pexprJoin0)[2]->DeriveUsedColumns()) &&
-				pexprJoin1->DeriveOutputColumns()->ContainsAll(
-					(*pexprJoin1)[2]->DeriveUsedColumns());
-			const BOOL fFreshRepeatedInput =
-				!(*pexprJoin1)[1]->DeriveOutputColumns()->FMember(
-					(*pdrgpcrOther)[0]) &&
-				!(*pexprJoin1)[1]->DeriveOutputColumns()->FMember(
-					(*pdrgpcrOther)[1]);
-			eres = CColRef::Equals(popTarget->PdrgpcrOutput(),
-								 pdrgpcrSourceOutput) &&
-				   fPredicatesBound && fFreshRepeatedInput
-				? GPOS_OK
-				: GPOS_FAILED;
-			pdrgpcrSourceOutput->Release();
-		}
-	}
+		CAutoMemoryPool amp;
+		CMemoryPool *mp = amp.Pmp();
+		CDSLTestFixture fix(mp);
+		CDSLRule *prule =
+			PdslruleParseLocal(mp, mapped ?
+				"InnerJoin<p0 a0 a1>(Union<a2 s0 a3 a4>(Input<t0>,Input<t1>),Input<t2>)|"
+				"Union<a6 s1 a6 a6>("
+				"InnerJoin<p1 a7 a8>(Proj<a9 s2>(Input<t3>),Input<t4>),"
+				"InnerJoin<p1 a7 a8>(Proj<a10 s2>(Input<t5>),Input<t4>))|"
+				"t3:=t0;t5:=t1;t4:=t2;p1:=p0;a7:=a0;a8:=a1;"
+				"a9:=a3;a10:=a4;s2:=s0;OutputAttrs(a5,t2);"
+				"AttrsUnion(a6,a2,a5);SchemaFromAttrs(s1,a6);"
+				"AttrsSub(a0,a2);AttrsSub(a1,t2);"
+				"ErrorFree(p0);Deterministic(p0);ErrorFree(t2);Deterministic(t2)"
+				: GPOPT_DSL_JOIN_UNION_DISTRIBUTION_RULE);
+		CColRefArray *pdrgpcrLeft0 = nullptr, *pdrgpcrLeft1 = nullptr,
+			*pdrgpcrOther = nullptr;
+		CExpression *pexprLeft0 =
+			fix.PexprLogicalGet("dist_l0", 2, &pdrgpcrLeft0);
+		CExpression *pexprLeft1 =
+			fix.PexprLogicalGet("dist_l1", 2, &pdrgpcrLeft1);
+		CExpression *pexprOther =
+			fix.PexprLogicalGet("dist_r", 2, &pdrgpcrOther);
+		CExpression *pexprUnion = PexprSetOp(
+			mp, false, pexprLeft0, pdrgpcrLeft0, pexprLeft1, pdrgpcrLeft1);
+		CExpression *pexprPred =
+			fix.PexprEqPred((*pdrgpcrLeft0)[0], (*pdrgpcrOther)[0]);
+		CExpression *pexprJoin =
+			fix.PexprLogicalInnerJoin(pexprUnion, pexprOther, pexprPred);
+		pexprPred->Release();
 
-	CRefCount::SafeRelease(pexprTarget);
-	pmodel->Release();
-	pexprJoin->Release();
-	pexprUnion->Release();
-	pexprOther->Release();
-	pexprLeft0->Release();
-	pexprLeft1->Release();
-	CRefCount::SafeRelease(prule);
-	return eres;
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		CDSLConstraintChecker checker(mp);
+		CExpression *pexprTarget = nullptr;
+		GPOS_RESULT eres = GPOS_FAILED;
+		GPOS_UNITTEST_ASSERT(nullptr != prule);
+		GPOS_UNITTEST_ASSERT(
+			matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprJoin, pmodel));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(prule, pmodel));
+		if (nullptr != prule)
+		{
+			CDSLInstantiator instantiator(mp);
+			pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+			GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
+			if (nullptr != pexprTarget &&
+				COperator::EopLogicalUnionAll == pexprTarget->Pop()->Eopid() &&
+				2 == pexprTarget->Arity() &&
+				COperator::EopLogicalInnerJoin ==
+					(*pexprTarget)[0]->Pop()->Eopid() &&
+				COperator::EopLogicalInnerJoin ==
+					(*pexprTarget)[1]->Pop()->Eopid())
+			{
+				CExpression *pexprJoin0 = (*pexprTarget)[0];
+				CExpression *pexprJoin1 = (*pexprTarget)[1];
+				CLogicalSetOp *popTarget =
+					CLogicalSetOp::PopConvert(pexprTarget->Pop());
+				CColRefArray *pdrgpcrSourceOutput =
+					pexprJoin->DeriveOutputColumns()->Pdrgpcr(mp);
+				const BOOL fPredicatesBound =
+					pexprJoin0->DeriveOutputColumns()->ContainsAll(
+						(*pexprJoin0)[2]->DeriveUsedColumns()) &&
+					pexprJoin1->DeriveOutputColumns()->ContainsAll(
+						(*pexprJoin1)[2]->DeriveUsedColumns());
+				const BOOL fFreshRepeatedInput =
+					!(*pexprJoin1)[1]->DeriveOutputColumns()->FMember(
+						(*pdrgpcrOther)[0]) &&
+					!(*pexprJoin1)[1]->DeriveOutputColumns()->FMember(
+						(*pdrgpcrOther)[1]);
+				eres = CColRef::Equals(popTarget->PdrgpcrOutput(),
+									 pdrgpcrSourceOutput) &&
+					   fPredicatesBound && fFreshRepeatedInput
+					? GPOS_OK
+					: GPOS_FAILED;
+				CColRefArray *second = (*popTarget->PdrgpdrgpcrInput())[1];
+				for (ULONG i = 0; i < second->Size(); ++i)
+				{
+					GPOS_UNITTEST_ASSERT(pexprJoin1->DeriveOutputColumns()->FMember((*second)[i]));
+					for (ULONG j = 0; j < pdrgpcrSourceOutput->Size(); ++j)
+						GPOS_UNITTEST_ASSERT((*second)[i] != (*pdrgpcrSourceOutput)[j]);
+				}
+				pdrgpcrSourceOutput->Release();
+			}
+		}
+
+		CRefCount::SafeRelease(pexprTarget);
+		pmodel->Release();
+		pexprJoin->Release();
+		pexprUnion->Release();
+		pexprOther->Release();
+		pexprLeft0->Release();
+		pexprLeft1->Release();
+		CRefCount::SafeRelease(prule);
+		if (GPOS_OK != eres) return eres;
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT
