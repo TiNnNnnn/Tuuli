@@ -1,0 +1,7 @@
+experiment: deferred-native-capture
+discover: false
+template_route: 1
+template_fingerprint: 6c590947e7e463fc
+template_root: r
+template_bindings: true
+cardinalities:
