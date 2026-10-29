@@ -1,0 +1,7 @@
+experiment: compute-stream-calls
+discover: false
+template_route: 2
+template_fingerprint: c497b8d6566184c2
+template_root: r
+template_bindings: true
+cardinalities:
