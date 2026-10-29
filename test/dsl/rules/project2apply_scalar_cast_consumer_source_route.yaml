@@ -1,0 +1,7 @@
+experiment: scalar_cast_consumer
+discover: false
+template_route: 1
+template_fingerprint: 2c33da1cb6e631eb
+template_root: r
+template_bindings: true
+cardinalities:
