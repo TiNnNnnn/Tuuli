@@ -1,0 +1,59 @@
+{
+  "description": "Bind preserves the complete aggregate function list, including an unchanged sibling argument",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "aggregate_sibling.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",
+        "CXformDSLRule_Agg",
+        "CLogicalLeftOuterCorrelatedApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "de56dc10243c9158",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformGbAgg2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "5,3"
+    ],
+    "postgres_output": [
+      "5,3"
+    ]
+  }
+}

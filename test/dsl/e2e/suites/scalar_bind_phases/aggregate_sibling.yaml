@@ -1,0 +1,7 @@
+experiment: bind-phase-aggregate-sibling
+discover: false
+template_route: 1
+template_fingerprint: d1263076065289e7
+template_root: r
+template_bindings: true
+cardinalities:
