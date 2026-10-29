@@ -608,7 +608,7 @@ EresCompleteExistentialApply()
 		GPOS_UNITTEST_ASSERT(target->Pop()->Eopid() == (negated
 			? COperator::EopLogicalLeftAntiSemiApply : COperator::EopLogicalLeftSemiApply));
 		GPOS_UNITTEST_ASSERT((*target)[0] == left && CUtils::FScalarConstTrue((*target)[2]));
-		if (shape < 4) GPOS_UNITTEST_ASSERT((*target)[1] == right);
+		if (shape < 4) GPOS_UNITTEST_ASSERT((*target)[1] == (2 == shape ? (*right)[0] : right));
 		else
 		{
 			// A witness column must not replace the zero-column input or
@@ -630,7 +630,15 @@ EresCompleteExistentialApply()
 		GPOS_UNITTEST_ASSERT(nextMatcher.FMatch(next->PfragSrc()->PopRoot(), target, nextModel));
 		GPOS_UNITTEST_ASSERT(checker.FCheck(next, nextModel));
 		CAutoRef<CExpression> replay(inst.PexprInstantiate(next, nextModel));
-		GPOS_UNITTEST_ASSERT(nullptr != replay.Value() && (*replay)[1] == (*target)[1]);
+		GPOS_UNITTEST_ASSERT(nullptr != replay.Value());
+		if (shape < 4) GPOS_UNITTEST_ASSERT((*replay)[1] == (*target)[1]);
+		else
+		{
+			CExpression *witness = (*replay)[1];
+			GPOS_UNITTEST_ASSERT(COperator::EopLogicalProject == witness->Pop()->Eopid());
+			GPOS_UNITTEST_ASSERT((*witness)[0] == right && 1 == (*witness)[1]->Arity());
+			GPOS_UNITTEST_ASSERT(CUtils::FScalarConstTrue((*(*(*witness)[1])[0])[0]));
+		}
 		CExpression *applyInput = (*target)[1];
 		// A non-TRUE ON must not be silently discarded by the zero-symbol form.
 		left->AddRef(); applyInput->AddRef(); target->Pop()->AddRef();

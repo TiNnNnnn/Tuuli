@@ -123,7 +123,8 @@ NotExists(Input<t0>,Filter<p0 a0 a1>(Input<t1>))|AntiApply<p1 a2 a3 a4>(Input<t2
 
 # Native FormalSQL OUTCOME_EQ: lower the complete existential input to Apply.
 # Zero-symbol Apply has TRUE ON; correlation remains inside its arbitrary right
-# child. Projection removal is a separate rule, not hidden in construction.
+# child. The native existential adapter drops unused leading SELECT values;
+# its captured target correspondence must preserve capped demand and errors.
 # FORMALSQL_PROVED legacy_hash=e2e072406216a7c4; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate ec89c67b518aec7c6d8d36129337f43e0da6d040acfce2c40037f91bc2424b6e. Generic EXISTS-to-SemiApply observation.
 Filter<Exists(t1) a0 a1>(Input<t0>)|SemiApply(Input<t2>,Input<t3>)|t2 := t0;t3 := t1
 # FORMALSQL_PROVED legacy_hash=60220412bc8838da; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate d8f60fdf542308bdcbedc365095f393af43a56a9cc086964c5f927cb9689c0d1. Generic NOT EXISTS-to-AntiApply observation.

@@ -1,0 +1,91 @@
+{
+  "description": "存在性安全检查忽略未消费的 SELECT 标量子查询；原生规则关闭后仍由 DSL 规则链生成计划",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "construct.policy",
+      "stats_experiment": "semi-source.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"235e16002a86b0d0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "235e16002a86b0d0",
+          "dst_rule": "f7eadea871960968",
+          "target_path": "r/0",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f7eadea871960968",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}

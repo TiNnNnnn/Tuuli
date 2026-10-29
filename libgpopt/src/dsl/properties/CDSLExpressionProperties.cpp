@@ -1,5 +1,6 @@
 // Native expression properties shared by DSL matching, checks and construction.
 #include "gpopt/dsl/CDSLExpressionProperties.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CDistributionSpecHashed.h"
@@ -151,6 +152,9 @@ FWindowFuncProvablyErrorFree(CScalarWindowFunc *popWindow)
 BOOL
 FExistenceInputProvablySafe(CExpression *expr, BOOL deterministic = false)
 {
+	// Only the leading SELECT values are unobserved. A projection below
+	// Filter/Limit or an SRF must retain its own demand and safety check.
+	expr = CDSLExprListUtils::PexprExistentialInput(expr);
 	// Fixed nonnegative slicing can change which rows survive, but not their
 	// count. Only existential demand may ignore that row nondeterminism.
 	while (COperator::EopLogicalLimit == expr->Pop()->Eopid())

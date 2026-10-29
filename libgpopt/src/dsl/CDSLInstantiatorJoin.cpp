@@ -232,8 +232,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	}
 	if ((fSemiApply || fAntiApply) && 0 == ulSymbols)
 	{
-		// An existential Apply without ON observes the complete right input.
-		// Do not strip projects, add LIMIT, or erase correlation from that tree.
+		// Without ON, only existence is observed. Unused SELECT values must
+		// not become evaluated SubPlan outputs when constructing the carrier.
 		CExpression *left = PexprBuild((*pop)[0], pmodel);
 		CExpression *right = PexprBuild((*pop)[1], pmodel);
 		if (nullptr == left || nullptr == right)
@@ -242,15 +242,10 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			CRefCount::SafeRelease(right);
 			return nullptr;
 		}
+		CExpression *demanded = CUtils::PexprExistentialInput(m_mp, right);
+		right->Release();
+		right = demanded;
 		CColRefSet *output = right->DeriveOutputColumns();
-		if (0 == output->Size())
-		{
-			// Supply only the executor's witness slot. Keep the entire input
-			// below it: even a zero-column relation can be empty or correlated.
-			right = CUtils::PexprAddProjection(
-				m_mp, right, CUtils::PexprScalarConstBool(m_mp, true));
-			output = right->DeriveOutputColumns();
-		}
 		// The executor's correlated-subplan fallback needs an inner column and
 		// the existential origin, even though EXISTS does not observe its value.
 		return fSemiApply
