@@ -90,41 +90,6 @@ FBindSubqueryOutputs(const CDSLSymbolArray *symbols, CDSLModel *model,
 }  // namespace
 
 BOOL
-CDSLConstraintChecker::FCheckPredicateExists(
-	const CDSLConstraint *pcon, CDSLModel *pmodel, BOOL fNegated) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (nullptr == pdrgpsym || 2 != pdrgpsym->Size() ||
-		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
-		EdslsymTable != (*pdrgpsym)[1]->Esymkind())
-	{
-		return false;
-	}
-
-	CExpression *pexprPredicate = pmodel->PexprPred((*pdrgpsym)[0]);
-	if (nullptr == pexprPredicate)
-	{
-		return false;
-	}
-	const COperator::EOperatorId eopid =
-		fNegated ? COperator::EopScalarSubqueryNotExists
-				 : COperator::EopScalarSubqueryExists;
-	if (1 != pexprPredicate->Arity() ||
-		eopid != pexprPredicate->Pop()->Eopid())
-	{
-		return false;
-	}
-	CExpression *pexprInput = (*pexprPredicate)[0];
-	if (!pexprInput->Pop()->FLogical())
-	{
-		return false;
-	}
-	CExpression *pexprBound = pmodel->PexprTable((*pdrgpsym)[1]);
-	return nullptr == pexprBound ? pmodel->FBind((*pdrgpsym)[1], pexprInput)
-							 : CDSLMatchView::FSameCapturedExpression(pexprBound, pexprInput);
-}
-
-BOOL
 CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 											 CDSLModel *pmodel,
 											 BOOL fAll) const

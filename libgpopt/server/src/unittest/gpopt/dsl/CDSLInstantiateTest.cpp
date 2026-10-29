@@ -1532,29 +1532,32 @@ CDSLInstantiateTest::EresUnittest_CallValues()
 					ok &= 0 == variant ? admitted : EdsldecisionConstraintRejected == checked->Status();
 					GPOS_DELETE(checked); equality->Release();
 				}
-				// Legacy extraction and carrier reuse must enforce that same
+				// Typed extraction and carrier reuse must enforce that same
 				// identity, including calls nested in a captured query body.
 				CDSLRule *exists_rule = PdslruleParseLocal(mp,
-					"Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|TableEq(t1,t0);PredicateExists(p0,t2)");
+					"Filter<p0 a0>(Input<t0>)|SemiApply(Input<t1>,Input<t2>)|t1 := t0;Exists(t3) := p0;t2 := t3");
 				if (nullptr == exists_rule) return GPOS_FAILED;
 				CDSLModel *captures = GPOS_NEW(mp) CDSLModel(mp);
-				const auto *existence = (*exists_rule->Pdrgpcon())[1]->Pdrgpsym();
+				const auto *predicate = (*exists_rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+				const auto *query = exists_rule->Pexprdefs()->Pdef(predicate)->PsymOperand(0);
 				CExpression *exists = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarSubqueryExists(mp), fix.PexprLogicalSelect(input, call));
 				CExpression *other_query = fix.PexprLogicalSelect(input, other);
-				ok &= captures->FBind((*existence)[0], exists);
-				ok &= captures->FBind((*existence)[1], other_query);
-				ok &= CDSLConstraintChecker(mp).FCheck(exists_rule, captures) == (0 == variant);
+				ok &= captures->FBind(query, other_query);
+				CExpression *existential_source = fix.PexprLogicalSelect(input, exists);
+				ok &= CDSLMatcher(mp, exists_rule).FMatch(exists_rule->PfragSrc()->PopRoot(),
+					existential_source, captures) == (0 == variant);
+				existential_source->Release();
 				const auto *attrs = (*exists_rule->PfragSrc()->PopRoot()->Pdrgpsym())[1];
 				ok &= captures->FSetJoinPred(attrs, attrs, call);
 				ok &= captures->FSetJoinPred(attrs, attrs, other) == (0 == variant);
 				ok &= captures->PexprJoinPred(attrs, attrs) == call;
 				exists->AddRef();
-				ok &= captures->FSetFilterCarrier((*existence)[0], exists);
+				ok &= captures->FSetFilterCarrier(predicate, exists);
 				other_query->AddRef();
 				CExpression *other_exists = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarSubqueryExists(mp), other_query);
-				ok &= captures->FSetFilterCarrier((*existence)[0], other_exists) == (0 == variant);
+				ok &= captures->FSetFilterCarrier(predicate, other_exists) == (0 == variant);
 				captures->Release();
 				exists->Release(); other_query->Release(); exists_rule->Release();
 				CDSLRule *functions = PdslruleParseLocal(mp,

@@ -62,10 +62,6 @@ EdslexprKind(const CDSLConstraint *pcon)
 			return EdslexprAnd;
 		case EdslconPredicateNullSafeEq:
 			return EdslexprNullSafeEq;
-		case EdslconPredicateExists:
-			return EdslexprExists;
-		case EdslconPredicateNotExists:
-			return EdslexprNotExists;
 		case EdslconPredicateAny:
 			return EdslexprAny;
 		case EdslconPredicateAll:
