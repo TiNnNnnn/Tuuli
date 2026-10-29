@@ -99,6 +99,7 @@ enum EDslOpKind
 	EdslopFullJoin,		   // full outer join
 	EdslopCTEConsumer,	   // source-only reference bound to its inline definition
 	EdslopCTEAnchor,		   // source-only inlinable CTE scope
+	EdslopBind,			   // target-only deferred scalar query binding
 	EdslopSentinel
 };
 

@@ -211,6 +211,7 @@ private:
 	// pmodel (resolving target symbols through the alias map). Returns NULL if a
 	// needed binding is missing or the operator kind is not yet supported.
 	CExpression *PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const;
+	CExpression *PexprBuildBind(const CDSLOp *pop, const CDSLModel *pmodel) const;
 
 	// Input<t>: the bound subtree (AddRef'd).
 	CExpression *PexprBuildInput(const CDSLOp *pop,

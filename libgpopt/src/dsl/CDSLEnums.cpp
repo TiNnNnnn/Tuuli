@@ -136,6 +136,7 @@ const SDslOpDesc rg_op_desc[] = {
 	  EdslsymPred, EdslsymAttrs, EdslsymAttrs}},
 	{EdslopCTEConsumer, "CTEConsumer", 0, 1, {EdslsymTable}},
 	{EdslopCTEAnchor, "CTEAnchor", 1, 0, {}},
+	{EdslopBind, "Bind", 1, 2, {EdslsymScalar, EdslsymAttrs}},
 };
 
 const ULONG ul_num_ops = GPOS_ARRAY_SIZE(rg_op_desc);
@@ -388,6 +389,7 @@ CDSLOpKindTable::FMatcherSupported(EDslOpKind edslop)
 			return true;
 		case EdslopAssertMaxOneRow:
 		case EdslopSentinel:
+		case EdslopBind:
 			return false;
 	}
 	return false;
@@ -429,6 +431,7 @@ CDSLOpKindTable::FInstantiatorSupported(EDslOpKind edslop)
 		case EdslopWindowFrame:
 		case EdslopRowNumber:
 		case EdslopAssertMaxOneRow:
+		case EdslopBind:
 			return true;
 		case EdslopMaxOneRow:
 		case EdslopCTEConsumer:
@@ -515,6 +518,7 @@ CDSLOpKindTable::Parse(const CHAR *sz_token, BOOL *pfStar,
 		{"AllFilter", EdslopAll, EdslsortNone},
 		{"Proj", EdslopProj, EdslsortNone},
 		{"Compute", EdslopCompute, EdslsortNone},
+		{"Bind", EdslopBind, EdslsortNone},
 		{"Agg", EdslopAgg, EdslsortNone},
 		{"Agg_sum", EdslopAgg, EdslsortNone},
 		{"Agg_average", EdslopAgg, EdslsortNone},

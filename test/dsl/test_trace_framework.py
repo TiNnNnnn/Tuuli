@@ -691,7 +691,17 @@ class TraceFrameworkTest(unittest.TestCase):
                 {**expected, "native_observation": "source_row_stream"}, output, Path(directory)), 1)
             self.assertEqual(checker.call_args.kwargs, {"observe_compute": False,
                 "equivalence_mode": "OUTCOME_EQ", "execution_model": "ROW_STREAM"})
+            deferred = MagicMock()
+            calls = checker.call_count
+            with patch.dict(sys.modules, {"native_subplan_consumer": SimpleNamespace(
+                    check_subplan_query_observation=deferred)}):
+                self.assertEqual(check_native_routes(
+                    {**expected, "native_observation": "deferred_query"}, output, Path(directory)), 1)
+                self.assertEqual(deferred.call_args.args[:2],
+                                 (occurrence["snapshot"], occurrence["target_snapshot"]))
+                self.assertEqual(checker.call_count, calls)
             for options in ({"native_equivalence_mode": "UNKNOWN"},
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "deferred_query"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "all_source_outputs"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_row_stream"},
                             {"native_equivalence_mode": "BAG_OUTCOME_EQ", "native_observation": "all_source_outputs"},

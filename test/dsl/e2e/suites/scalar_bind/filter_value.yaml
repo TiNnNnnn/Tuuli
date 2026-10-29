@@ -1,0 +1,7 @@
+experiment: bind-filter_value
+discover: false
+template_route: 1
+template_fingerprint: 4102a1a1d5c91c04
+template_root: r
+template_bindings: true
+cardinalities:
