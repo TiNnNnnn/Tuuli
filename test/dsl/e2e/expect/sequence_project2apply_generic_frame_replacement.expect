@@ -1,13 +1,16 @@
 {
-  "description": "One generic proved rule preserves GROUPS/RANGE frames and exclusion while lowering Window scalar subqueries",
+  "description": "Scalar Bind preserves GROUPS/RANGE frames and exclusion at runtime; canonical native phase proof remains pending",
   "replacement": {
     "xforms": [
       "CXformSequenceProject2Apply"
     ],
     "scope": "Correlated scalar aggregates in arbitrary preserved Window frames",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "41e41af17b2a1bb9"
+      "c6b2138483b028a0"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
     ]
   },
   "plans": [
@@ -27,7 +30,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"rule_hash\":\"41e41af17b2a1bb9\""
+        "\"rule_hash\":\"c6b2138483b028a0\""
       ],
       "alternative": [
         "CXformSequenceProject2Apply"
@@ -55,7 +58,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"41e41af17b2a1bb9\""
+        "\"status\":\"applied\",\"rule_hash\":\"c6b2138483b028a0\""
       ],
       "provenance": {
         "required_sources": [
