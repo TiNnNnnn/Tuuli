@@ -75,7 +75,7 @@
       },
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "SubPlan 1",
         "SubPlan 2",
         "id = o.id"
@@ -85,7 +85,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "0b88ba995ef9c4cd",
+          "rule_hash": "e45925375193782a",
           "route_sequence": 3,
           "operators": [
             "CLogicalProject",

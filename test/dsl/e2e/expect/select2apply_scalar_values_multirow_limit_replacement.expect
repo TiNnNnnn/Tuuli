@@ -13,7 +13,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "SubPlan 1",
-        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
         "Falling back to Postgres",

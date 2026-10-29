@@ -8,7 +8,7 @@
     "scope": "Scalar, EXISTS, NOT EXISTS, ANY, and ALL in one Project value list",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0b88ba995ef9c4cd",
+      "e45925375193782a",
       "ca5bdb0f38257c24",
       "21543dafb8c8f61b",
       "daf208e79534479c",
@@ -33,7 +33,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
         "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
         "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
@@ -66,7 +66,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
         "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
         "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\"",

@@ -2,7 +2,7 @@
 # lowering must compose from explicit bindings, not ExprListExists.
 - rule: '*'
   enabled: false
-- rule: d127259fb9f5958e
+- rule: 24b3fadb6375b83f
   enabled: true
 - rule: '4f3da4063a3836ad'
   enabled: true

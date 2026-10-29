@@ -53,14 +53,20 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		CRefCount::SafeRelease(value);
 		return nullptr;
 	}
-	// Keep demand at the value's lookup site, including atomic multirow errors.
+	// Eager evaluation is equivalent only for a total, stable scalar query.
 	outputs->AddRef();
 	CExpression *query = (*value)[0];
 	query->AddRef();
 	value->Release();
-	return GPOS_NEW(m_mp) CExpression(m_mp,
-		GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, outputs,
-			COperator::EopScalarSubquery), input, query, CUtils::PexprScalarConstBool(m_mp, true));
+	COperator *carrier = 0 == query->DeriveOuterReferences()->Size() &&
+		query->DeriveMaxCard().Ull() <= 1 &&
+		dslproperties::FQueryDemandInsensitive(query)
+		? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterApply(
+			m_mp, outputs, COperator::EopScalarSubquery))
+		: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(
+			m_mp, outputs, COperator::EopScalarSubquery));
+	return GPOS_NEW(m_mp) CExpression(m_mp, carrier, input, query,
+		CUtils::PexprScalarConstBool(m_mp, true));
 }
 
 namespace

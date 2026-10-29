@@ -446,11 +446,11 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     if not patterns:
         return 0
     observation = expected.get("native_observation", "exact_tree")
-    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query"):
+    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
     if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
-            observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query") and equivalence != "OUTCOME_EQ") or (
+            observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule") and equivalence != "OUTCOME_EQ") or (
             observation in ("source_outputs", "dsl_source_outputs") and equivalence != "BAG_OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
@@ -506,6 +506,7 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
             check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
                                   lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
                                   observe_compute=observation == "all_source_outputs",
+                                  **({"observe_deferred": True} if observation == "deferred_rule" else {}),
                                   equivalence_mode=equivalence,
                                   **({"observe_outputs": True} if observation in ("source_outputs", "dsl_source_outputs") else {}),
                                   **({"row_interface": "dsl_outputs"} if observation == "dsl_source_outputs" else {}),

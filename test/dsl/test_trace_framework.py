@@ -691,6 +691,10 @@ class TraceFrameworkTest(unittest.TestCase):
                 {**expected, "native_observation": "source_row_stream"}, output, Path(directory)), 1)
             self.assertEqual(checker.call_args.kwargs, {"observe_compute": False,
                 "equivalence_mode": "OUTCOME_EQ", "execution_model": "ROW_STREAM"})
+            self.assertEqual(check_native_routes(
+                {**expected, "native_observation": "deferred_rule"}, output, Path(directory)), 1)
+            self.assertEqual(checker.call_args.kwargs, {"observe_compute": False,
+                "observe_deferred": True, "equivalence_mode": "OUTCOME_EQ"})
             deferred = MagicMock()
             calls = checker.call_count
             with patch.dict(sys.modules, {"native_subplan_consumer": SimpleNamespace(
@@ -701,6 +705,7 @@ class TraceFrameworkTest(unittest.TestCase):
                                  (occurrence["snapshot"], occurrence["target_snapshot"]))
                 self.assertEqual(checker.call_count, calls)
             for options in ({"native_equivalence_mode": "UNKNOWN"},
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "deferred_rule"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "deferred_query"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "all_source_outputs"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "source_row_stream"},
@@ -3828,15 +3833,22 @@ class TraceFrameworkTest(unittest.TestCase):
             source, target, clauses = line.split('|')
             extraction = re.search(
                 r'ExprList(ScalarSubquery|Exists|NotExists|Any|All)\(', clauses)
-            if extraction is None:
+            deferred = '(Bind<' in target
+            if extraction is None and not deferred:
                 continue
             owner, source_list = re.match(r'(Compute|Filter)<([ep]\d+) ', source).groups()
             target_list, target_deps = re.match(r'(?:Compute|Filter)<([ep]\d+) (a\d+)[ >]', target).groups()
             self.assertNotEqual(source_list, target_list)
-            if owner == 'Filter':
+            if owner == 'Filter' and not deferred:
                 target_list = re.search(r'(n\d+) := BoolValue\(' + target_list + r'\)', clauses)[1]
             self.assertIn(f'{target_deps} := ScalarDeps({target_list})', clauses.split(';'))
-            observations.add((owner, extraction[1]))
+            if deferred:
+                self.assertNotIn('ExprList', clauses)
+                selected = re.search(r'Subquery\((a\d+),t\d+\) := n\d+', clauses)[1]
+                outputs = re.search(r'OutputAttrs\((a\d+),t\d+\)', clauses)[1]
+                self.assertIn(f'DepsDisjoint({source_list},{selected})', clauses.split(';'))
+                self.assertIn(f'DepsDisjoint({outputs},{selected})', clauses.split(';'))
+            observations.add((owner, 'ScalarSubquery' if deferred else extraction[1]))
         self.assertEqual(observations, {(owner, kind) for owner in ('Compute', 'Filter')
                                       for kind in ('ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All')})
 

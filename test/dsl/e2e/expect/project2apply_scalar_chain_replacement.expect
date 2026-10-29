@@ -14,14 +14,14 @@
       "native_observation": "deferred_query",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "0b88ba995ef9c4cd",
+          "rule_hash": "e45925375193782a",
           "route_sequence": 1,
           "operators": [
             "CLogicalProject",
@@ -67,14 +67,14 @@
       "native_observation": "deferred_query",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "0b88ba995ef9c4cd",
+          "rule_hash": "e45925375193782a",
           "route_sequence": 4,
           "operators": [
             "CLogicalProject",

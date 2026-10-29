@@ -1,7 +1,7 @@
 # Keep the Project2Apply family causal; native whole-rule proofs remain pending.
 - rule: '*'
   enabled: false
-- rule: 0b88ba995ef9c4cd
+- rule: e45925375193782a
   enabled: true
 - rule: ca5bdb0f38257c24
   enabled: true

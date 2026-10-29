@@ -1,5 +1,5 @@
 {
-  "description": "Reject unsafe eager COALESCE extraction with native rewrites disabled; explicitly retain PostgreSQL fallback",
+  "description": "Typed Bind preserves lazy consumer demand with native extraction disabled",
   "plans": [
     {
       "name": "guard",
@@ -11,11 +11,11 @@
       "policy": "isolate_project2apply_scalar_direct.policy",
       "assert_maxonerow": true,
       "contains": [
-        "Falling back to Postgres",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "Falling back to Postgres"
       ]
     }
   ],

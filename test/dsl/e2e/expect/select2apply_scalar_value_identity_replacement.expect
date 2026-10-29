@@ -10,7 +10,7 @@
       "Whole-rule native observation proof for residual predicate extraction remains pending"
     ],
     "dsl_rule_hashes": [
-      "d127259fb9f5958e"
+      "24b3fadb6375b83f"
     ]
   },
   "plans": [
@@ -30,7 +30,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"d127259fb9f5958e\""
+        "\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -103,14 +103,14 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "d127259fb9f5958e",
+          "rule_hash": "24b3fadb6375b83f",
           "route_sequence": 1,
           "operators": [
             "CLogicalSelect",
