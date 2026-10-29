@@ -1,0 +1,1 @@
+SELECT l.i, sum((SELECT max(r.i) FROM phase_right r WHERE r.i <= l.i)) OVER (ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) FROM phase_left l ORDER BY l.i;

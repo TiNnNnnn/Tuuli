@@ -1,0 +1,7 @@
+experiment: bind-phase-window_full
+discover: false
+template_route: 1
+template_fingerprint: 8a53e43bcc05238a
+template_root: r
+template_bindings: true
+cardinalities:

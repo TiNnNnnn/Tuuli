@@ -1,0 +1,44 @@
+{
+  "description": "New-syntax Bind retains aggregate/window argument demand; canonical phase proof remains pending",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",
+        "CXformDSLRule_Agg",
+        "CLogicalLeftOuterCorrelatedApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformGbAgg2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "6"
+    ],
+    "postgres_output": [
+      "6"
+    ]
+  }
+}
