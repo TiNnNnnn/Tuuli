@@ -3000,10 +3000,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 				FCheckPredicateNullRejecting(pcon, pmodel);
 		case EdslconPredicateNullSafeEq:
 			return FCheckPredicateNullSafeEq(pcon, pmodel);
-		case EdslconPredicateExists:
-			return FCheckPredicateExists(pcon, pmodel, false);
-		case EdslconPredicateNotExists:
-			return FCheckPredicateExists(pcon, pmodel, true);
 		case EdslconPredicateAny:
 			return FCheckPredicateQuantified(pcon, pmodel, false);
 		case EdslconPredicateAll:

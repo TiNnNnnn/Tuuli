@@ -157,9 +157,6 @@ private:
 	// Unlike property checks, these methods can bind extracted/rebuilt values.
 	// Subsequent constraints and target construction consume those bindings;
 	// do not reorder them or treat them as removable property annotations.
-	// PredicateExists(out,input) extracts the bound EXISTS relational operand.
-	BOOL FCheckPredicateExists(const CDSLConstraint *pcon, CDSLModel *pmodel,
-							   BOOL fNegated) const;
 	BOOL FCheckPredicateQuantified(const CDSLConstraint *pcon,
 							   CDSLModel *pmodel, BOOL fAll) const;
 	BOOL FCheckPredicateScalarSubquery(const CDSLConstraint *pcon,

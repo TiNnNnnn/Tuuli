@@ -445,6 +445,13 @@ EresExpressionBindings()
 	const std::string tree =
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|";
 	const std::string aliases = "TableEq(t1,t0);AttrsEq(a1,a0);";
+	for (const CHAR *legacy : {"PredicateExists(p0,t2)", "PredicateNotExists(p0,t2)"})
+	{
+		CDSLRule *rule = Parse(mp, (tree + aliases + "p1 := p0;" + legacy).c_str());
+		const BOOL rejected = nullptr == rule;
+		CRefCount::SafeRelease(rule);
+		GPOS_UNITTEST_ASSERT(rejected);
+	}
 	const CHAR *valid[] = {
 		"p1 := p0;ErrorFree(p1)",
 		"p1 := Not(p0);Deterministic(p1)",

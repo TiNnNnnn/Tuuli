@@ -551,16 +551,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if ((EdslconPredicateExists == edslcon ||
-			 EdslconPredicateNotExists == edslcon) &&
-			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymTable != (*pdrgpsym)[1]->Esymkind()))
-		{
-			bctx.Fail("existence predicate expects predicate and table symbols");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
 		if ((EdslconPredicateAny == edslcon ||
 			 EdslconPredicateAll == edslcon) &&
 			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||

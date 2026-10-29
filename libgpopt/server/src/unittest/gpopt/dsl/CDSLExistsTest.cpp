@@ -74,13 +74,13 @@ using namespace gpopt;
 	"AttrsSub(a0,t0);AttrsSub(a1,t1);TableEq(t2,t0);TableEq(t3,t1);"   \
 	"PredicateEq(p1,p0);AttrsEq(a2,a0);AttrsEq(a3,a1)"
 
-#define GPOPT_DSL_EXPRESSION_DEFINED_EXISTS_RULE                         \
-	"Filter<p0 a0>(Input<t0>)|Exists(Input<t1>,Input<t2>)|"             \
-	"TableEq(t1,t0);PredicateExists(p0,t2)"
+#define GPOPT_DSL_EXPRESSION_DEFINED_EXISTS_RULE                       \
+	"Filter<Exists(t3) a0>(Input<t0>)|SemiApply(Input<t1>,Input<t2>)|" \
+	"t1 := t0;t2 := t3"
 
-#define GPOPT_DSL_EXPRESSION_DEFINED_NOT_EXISTS_RULE                    \
-	"Filter<p0 a0>(Input<t0>)|NotExists(Input<t1>,Input<t2>)|"         \
-	"TableEq(t1,t0);PredicateNotExists(p0,t2)"
+#define GPOPT_DSL_EXPRESSION_DEFINED_NOT_EXISTS_RULE                        \
+	"Filter<Not(Exists(t3)) a0>(Input<t0>)|AntiApply(Input<t1>,Input<t2>)|" \
+	"t1 := t0;t2 := t3"
 
 static GPOS_RESULT
 EresSafeFilterMerge()
@@ -1065,55 +1065,60 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 			"EQ", &strErr);
 		GPOS_ASSERT(nullptr != prule);
 		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-		CDSLMatcher matcher(mp);
-		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
-								   pmodel));
+		CDSLMatcher matcher(mp, prule);
+		GPOS_UNITTEST_ASSERT(
+			matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource, pmodel));
 		CDSLConstraintChecker checker(mp);
-		const CDSLConstraint *extraction = (*prule->Pdrgpcon())[1];
-		const CDSLSymbol *predicate = (*extraction->Pdrgpsym())[0];
-		const CDSLSymbol *input = (*extraction->Pdrgpsym())[1];
-		// The legacy check produces a binding, not just a boolean result.
-		// Missing/non-subquery captures, opposite polarity and a conflicting
-		// prebound input must fail at this constraint without inventing an input.
-		for (ULONG shape = 0; shape < 5; ++shape)
+		const auto *definition = prule->Pexprdefs()->Pdef(
+			(*prule->PfragSrc()->PopRoot()->Pdrgpsym())[0]);
+		if (fNegated)
+			definition = prule->Pexprdefs()->Pdef(definition->PsymOperand(0));
+		const CDSLSymbol *input = definition->PsymOperand(0);
+		// Typed matching owns extraction; malformed/opposite predicates and
+		// conflicting prior captures must fail before target construction.
+		for (ULONG bad = 0; bad < 5; ++bad)
 		{
 			CDSLModel *rejected = GPOS_NEW(mp) CDSLModel(mp);
-			if (1 == shape)
+			CExpression *candidate = nullptr;
+			if (0 == bad)
 			{
-				CExpression *value = CUtils::PexprScalarConstBool(mp, true);
-				rejected->FBind(predicate, value);
-				value->Release();
+				pexprOuter->AddRef();
+				candidate = pexprOuter;
 			}
-			else if (2 == shape)
+			else if (3 == bad)
 			{
-				pexprInner->AddRef();
-				COperator *opposite = fNegated
-					? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp))
-					: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp));
-				CExpression *value = GPOS_NEW(mp) CExpression(mp, opposite, pexprInner);
-				rejected->FBind(predicate, value);
-				value->Release();
-			}
-			else if (3 == shape)
-			{
-				rejected->FBind(predicate, pexprPredicate);
 				rejected->FBind(input, pexprOuter);
+				pexprSource->AddRef();
+				candidate = pexprSource;
 			}
-			else if (4 == shape)
+			else
 			{
-				COperator *op = fNegated
-					? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
-					: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp));
-				CExpression *value = GPOS_NEW(mp) CExpression(mp, op,
-					CUtils::PexprScalarConstBool(mp, true));
-				rejected->FBind(predicate, value);
-				value->Release();
+				CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+				if (1 != bad)
+				{
+					const BOOL negate = 4 == bad ? fNegated : !fNegated;
+					COperator *op =
+						negate ? static_cast<COperator *>(
+									 GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+							   : static_cast<COperator *>(
+									 GPOS_NEW(mp) CScalarSubqueryExists(mp));
+					if (2 == bad)
+					{
+						predicate->Release();
+						pexprInner->AddRef();
+						predicate = pexprInner;
+					}
+					predicate = GPOS_NEW(mp) CExpression(mp, op, predicate);
+				}
+				pexprOuter->AddRef();
+				candidate = GPOS_NEW(mp) CExpression(
+					mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, predicate);
 			}
-			const CDSLConstraint *failed = nullptr;
-			ULONG index = gpos::ulong_max;
-			GPOS_ASSERT(!checker.FCheck(prule, rejected, &failed, &index));
-			GPOS_ASSERT(extraction == failed && 1 == index);
-			GPOS_ASSERT(rejected->PexprTable(input) == (3 == shape ? pexprOuter : nullptr));
+			GPOS_UNITTEST_ASSERT(!matcher.FMatch(prule->PfragSrc()->PopRoot(),
+												 candidate, rejected));
+			GPOS_UNITTEST_ASSERT(rejected->PexprTable(input) ==
+								 (3 == bad ? pexprOuter : nullptr));
+			candidate->Release();
 			rejected->Release();
 		}
 		GPOS_ASSERT(checker.FCheck(prule, pmodel));
@@ -1133,9 +1138,8 @@ CDSLExistsTest::EresUnittest_ExpressionDefinedExistence()
 			pexprTarget->DeriveOutputColumns()));
 
 		// Typed construction preserves the full scalar query, including
-		// correlation and demand-sensitive operators. Unlike the compatibility
-		// entry above, it does NOT implicitly lower to Apply. A textual migration
-		// alone would therefore lose the native-rule replacement capability.
+		// correlation and demand-sensitive operators. An existential target stays
+		// scalar; lowering to Apply must be explicit as in the rule above.
 		CDSLRule *typed = CDSLRuleParser::PdslruleParse(mp, fNegated
 			? "Filter<Not(Exists(t1)) a0>(Input<t0>)|NotExists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1"
 			: "Filter<Exists(t1) a0>(Input<t0>)|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1", "EQ", &strErr);
