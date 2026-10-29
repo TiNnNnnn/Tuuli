@@ -1,0 +1,1 @@
+SELECT l.i, CASE WHEN l.i < 0 THEN EXISTS(SELECT 1 FROM phase_right r WHERE 1/(r.i-r.i) > l.i) ELSE false END, CASE WHEN l.i < 0 THEN NOT EXISTS(SELECT 1 FROM phase_right r WHERE 1/(r.i-r.i) > l.i) ELSE true END FROM phase_left l ORDER BY l.i;

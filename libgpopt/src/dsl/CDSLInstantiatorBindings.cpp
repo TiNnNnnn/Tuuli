@@ -4,6 +4,7 @@
 // reach the explicit compatibility resolvers; a failed typed construction never falls back.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpos/common/CHashMapIter.h"
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
@@ -340,6 +341,15 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 			return false;
 		}
 	}
+	// Dependent metadata may have allocated a Bind result indirectly. Preserve
+	// that identity across the separate checker and target instantiator.
+	using Iterator = CHashMapIter<CDSLSymbol, CRefCount, gpos::HashPtr<CDSLSymbol>,
+		gpos::EqualPtr<CDSLSymbol>, CleanupNULL<CDSLSymbol>, CleanupRelease<CRefCount>>;
+	Iterator columns(m_phmDerivedCols);
+	while (columns.Advance())
+		if (EdslsideTarget == columns.Key()->Eside() &&
+			!pmodel->FBindDerived(columns.Key(), const_cast<CRefCount *>(columns.Value())))
+			return false;
 	return true;
 }
 
@@ -929,6 +939,47 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		return nullptr;
 	}
 
+	// Bind owns an implicit result column when no explicit definition supplies it.
+	// Cache the allocation so metadata checks and construction use the same column.
+	if (nullptr != binding) return PdrgpcrResolveLegacyCols(psym, pmodel, ulDepth);
+	for (ULONG i = 0; i < m_prule->Pdrgpcon()->Size(); ++i)
+	{
+		const auto *con = (*m_prule->Pdrgpcon())[i];
+		for (ULONG j = 0; j < con->Pdrgpsym()->Size(); ++j)
+			if ((*con->Pdrgpsym())[j] == psym &&
+				EdslsymSentinel != CDSLConstraintKindTable::EsymkindDerivedOutput(con->Edslcon(), j))
+				return PdrgpcrResolveLegacyCols(psym, pmodel, ulDepth);
+	}
+	const auto findBind = [&](const auto &self, const CDSLOp *op) -> const CDSLOp * {
+		if (EdslopBind == op->Edslop() && (*op->Pdrgpsym())[1] == psym) return op;
+		for (ULONG i = 0; i < op->UlChildren(); ++i)
+			if (const auto *found = self(self, (*op)[i])) return found;
+		return nullptr;
+	};
+	const auto *producer = findBind(findBind, m_prule->PfragTgt()->PopRoot());
+	if (nullptr != producer)
+	{
+		CExpression *value = PexprResolveScalar((*producer->Pdrgpsym())[0], pmodel, ulDepth + 1);
+		if (nullptr == value) return nullptr;
+		CColRef *column = nullptr;
+		if (COperator::EopScalarSubquery == value->Pop()->Eopid())
+			column = const_cast<CColRef *>(CScalarSubquery::PopConvert(value->Pop())->Pcr());
+		else if (COperator::EopScalarSubqueryExists == value->Pop()->Eopid() ||
+				 COperator::EopScalarSubqueryNotExists == value->Pop()->Eopid())
+			column = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+				COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(CScalar::PopConvert(value->Pop())->MdidType()),
+				CDSLMatchView::ScalarValueTypeModifier(value));
+		value->Release();
+		if (nullptr == column) return nullptr;
+		auto *columns = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		columns->Append(column);
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym), columns))
+		{
+			columns->Release();
+			return nullptr;
+		}
+		return columns;
+	}
 	return PdrgpcrResolveLegacyCols(psym, pmodel, ulDepth);
 }
 

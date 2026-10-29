@@ -8,13 +8,14 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "c6b2138483b028a0",
-      "010da715c3c1aa4c",
-      "e34945e09bcad197",
+      "3b96623c2182e139",
+      "528c2f987260a1d3",
       "fa3ffbd7833ed18c",
       "7bbf4d8e0ffbd361"
     ],
     "excluded_native_domains": [
-      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented",
+      "Canonical source/target proof for deferred existential values and fresh result columns remains pending"
     ]
   },
   "plans": [
@@ -62,8 +63,8 @@
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
         "\"status\":\"applied\",\"rule_hash\":\"c6b2138483b028a0\"",
-        "\"status\":\"applied\",\"rule_hash\":\"010da715c3c1aa4c\"",
-        "\"status\":\"applied\",\"rule_hash\":\"e34945e09bcad197\"",
+        "\"status\":\"applied\",\"rule_hash\":\"3b96623c2182e139\"",
+        "\"status\":\"applied\",\"rule_hash\":\"528c2f987260a1d3\"",
         "\"status\":\"applied\",\"rule_hash\":\"fa3ffbd7833ed18c\"",
         "\"status\":\"applied\",\"rule_hash\":\"7bbf4d8e0ffbd361\""
       ],

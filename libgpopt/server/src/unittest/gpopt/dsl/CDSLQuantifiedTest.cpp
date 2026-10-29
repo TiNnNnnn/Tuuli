@@ -2628,6 +2628,60 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		prule->Release();
 		pexprSource->Release();
 	}
+	for (BOOL negated : {false, true})
+	for (BOOL correlated : {false, true})
+	{
+		CExpression *outer = fix.PexprLogicalGet("exists_bind_outer", 1);
+		CExpression *inner = fix.PexprLogicalGet("exists_bind_inner", 1);
+		if (correlated) inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			inner, fix.PexprEqPred(outer->DeriveOutputColumns()->PcrFirst(), inner->DeriveOutputColumns()->PcrFirst()));
+		COperator *op = negated
+			? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+			: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			outer, GPOS_NEW(mp) CExpression(mp, op, inner));
+		std::string text = "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
+			"t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;";
+		text += negated ? "Not(p3) := p2;Exists(t2) := p3;" : "Exists(t2) := p2;";
+		text += "n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)";
+		for (BOOL duplicate : {false, true})
+		{
+			std::string invalid = text;
+			const std::string before = duplicate ? "Bind<n2 a3>(Input<t1>)" : "n2 := n0";
+			invalid.replace(invalid.find(before), before.size(), duplicate
+				? "Bind<n2 a3>(Bind<n2 a3>(Input<t1>))" : "n2 := Column(a3)");
+			GPOS_UNITTEST_ASSERT(nullptr == PruleParse(mp, invalid.c_str()));
+		}
+		CDSLRule *rule = PruleParse(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+		CDSLInstantiator instantiator(mp);
+		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		CExpression *apply = (*target)[0];
+		GPOS_UNITTEST_ASSERT((correlated ? COperator::EopLogicalLeftOuterCorrelatedApply :
+			COperator::EopLogicalLeftOuterApply) == apply->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq() ==
+			(correlated ? op->Eopid() : COperator::EopScalarSubquery));
+		const auto *result = CLogicalApply::PopConvert(apply->Pop())->PdrgPcrInner();
+		GPOS_UNITTEST_ASSERT(1 == result->Size() && !outer->DeriveOutputColumns()->FMember((*result)[0]));
+		GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember((*result)[0]));
+		GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveHasSubquery());
+		// Force construction during a metadata check, then instantiate separately.
+		std::string checked = text + ";DepsDisjoint(p0,a3)";
+		CDSLRule *checked_rule = PruleParse(mp, checked.c_str());
+		CDSLModel *checked_model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(nullptr != checked_rule &&
+			CDSLMatcher(mp, checked_rule).FMatch(checked_rule->PfragSrc()->PopRoot(), source, checked_model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(checked_rule, checked_model));
+		CDSLInstantiator checked_instantiator(mp);
+		CExpression *checked_target = checked_instantiator.PexprInstantiate(checked_rule, checked_model);
+		GPOS_UNITTEST_ASSERT(nullptr != checked_target && !(*checked_target)[1]->DeriveHasSubquery());
+		checked_target->Release(); checked_model->Release(); checked_rule->Release();
+		target->Release(); model->Release(); rule->Release(); source->Release();
+	}
 	return GPOS_OK;
 }
 

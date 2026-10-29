@@ -1,0 +1,1 @@
+SELECT l.i, EXISTS(SELECT 1 WHERE l.i > 1), NOT EXISTS(SELECT 1 WHERE l.i > 1) FROM phase_left l ORDER BY l.i;

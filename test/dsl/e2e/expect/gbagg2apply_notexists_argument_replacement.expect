@@ -5,9 +5,12 @@
       "CXformGbAgg2Apply"
     ],
     "scope": "A correlated NOT EXISTS nested in CASE inside an aggregate argument",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "66c4257f9b964525"
+      "c495ae45c6e7d9fa"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for deferred existential values and fresh result columns remains pending"
     ]
   },
   "plans": [
@@ -27,7 +30,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"66c4257f9b964525\""
+        "\"status\":\"applied\",\"rule_hash\":\"c495ae45c6e7d9fa\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -55,7 +58,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"66c4257f9b964525\""
+        "\"status\":\"applied\",\"rule_hash\":\"c495ae45c6e7d9fa\""
       ],
       "provenance": {
         "required_sources": [
