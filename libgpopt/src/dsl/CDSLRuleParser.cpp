@@ -563,19 +563,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			pdrgpcon->Release();
 			return nullptr;
 		}
-		if (EdslconPredicateScalarSubquery == edslcon &&
-			(EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
-			 EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
-			 EdslsymTable != (*pdrgpsym)[5]->Esymkind()))
-		{
-			bctx.Fail("PredicateScalarSubquery expects two predicates, three attrs, and a table symbol");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
 		if (EdslconExprListScalarSubquery == edslcon &&
 			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
 			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
@@ -873,7 +860,6 @@ FDeferredSemanticConstraint(EDslConstraintKind kind)
 		case EdslconExprSplit:
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
-		case EdslconPredicateScalarSubquery:
 		case EdslconExprListScalarSubquery:
 		case EdslconExprListExists:
 		case EdslconExprListNotExists:

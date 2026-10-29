@@ -193,7 +193,6 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
 	{EdslconPredicateAny, "PredicateAny", 4},
 	{EdslconPredicateAll, "PredicateAll", 4},
-	{EdslconPredicateScalarSubquery, "PredicateScalarSubquery", 6},
 	{EdslconExprListScalarSubquery, "ExprListScalarSubquery", 8},
 	{EdslconExprListExists, "ExprListExists", 11},
 	{EdslconExprListNotExists, "ExprListNotExists", 11},
@@ -637,7 +636,6 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconPredicateNullSafeEq:
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
-		case EdslconPredicateScalarSubquery:
 			return 0 == ulPosition ? EdslsymPred : EdslsymSentinel;
 		case EdslconExprListScalarSubquery:
 			return 1 == ulPosition
@@ -796,7 +794,6 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconPredicateDomainSplit:
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
-		case EdslconPredicateScalarSubquery:
 		case EdslconExprListScalarSubquery:
 		case EdslconExprListExists:
 		case EdslconExprListNotExists:

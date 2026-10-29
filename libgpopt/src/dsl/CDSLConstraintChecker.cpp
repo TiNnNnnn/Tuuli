@@ -3004,8 +3004,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateQuantified(pcon, pmodel, false);
 		case EdslconPredicateAll:
 			return FCheckPredicateQuantified(pcon, pmodel, true);
-		case EdslconPredicateScalarSubquery:
-			return FCheckPredicateScalarSubquery(pcon, pmodel);
 		case EdslconExprListScalarSubquery:
 			return FCheckExprListScalarSubquery(pcon, pmodel);
 		case EdslconExprListExists:

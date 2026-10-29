@@ -64,42 +64,6 @@ PopFreshRowApply(CMemoryPool *mp, BOOL outer, CExpression *right,
 }
 
 const CDSLExpressionDefinitions::CDefinition *
-PdefScalarApply(const CDSLExpressionDefinitions *pexprdefs,
-				const CDSLOp *popApply)
-{
-	if (nullptr == pexprdefs || nullptr == popApply ||
-		EdslopInnerApply != popApply->Edslop() ||
-		2 != popApply->UlChildren() || nullptr == popApply->Pdrgpsym() ||
-		4 != popApply->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-	const CDSLOp *popRight = (*popApply)[1];
-	if (EdslopInput != popRight->Edslop() ||
-		nullptr == popRight->Pdrgpsym() || 1 != popRight->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-	const CDSLSymbolArray *pdrgpsymApply = popApply->Pdrgpsym();
-	for (ULONG ul = 0; ul < pexprdefs->UlDefinitions(); ul++)
-	{
-		const CDSLExpressionDefinitions::CDefinition *pdef =
-			pexprdefs->PdefAt(ul);
-		if (EdslexprScalarSubquery == pdef->Edslexpr() &&
-			5 == pdef->Arity() &&
-			pdef->PsymOperand(0) == (*pdrgpsymApply)[0] &&
-			pdef->PsymOperand(1) == (*pdrgpsymApply)[1] &&
-			pdef->PsymOperand(2) == (*pdrgpsymApply)[2] &&
-			pdef->PsymOperand(3) == (*pdrgpsymApply)[3] &&
-			pdef->PsymOperand(4) == (*popRight->Pdrgpsym())[0])
-		{
-			return pdef;
-		}
-	}
-	return nullptr;
-}
-
-const CDSLExpressionDefinitions::CDefinition *
 PdefExprListApply(const CDSLExpressionDefinitions *pexprdefs,
 				   const CDSLOp *popApply)
 {
@@ -263,8 +227,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
-	const CDSLExpressionDefinitions::CDefinition *pdefScalarSubquery =
-		fInnerApply ? PdefScalarApply(m_prule->Pexprdefs(), pop) : nullptr;
 	const CDSLExpressionDefinitions::CDefinition *pdefExprListSubquery =
 		fLeftOuterApply
 			? PdefExprListApply(m_prule->Pexprdefs(), pop)
@@ -280,18 +242,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	const BOOL fScalarSubquery =
-		nullptr != pdefScalarSubquery &&
-		EdslexprScalarSubquery == pdefScalarSubquery->Edslexpr() &&
-		5 == pdefScalarSubquery->Arity() && 4 == ulSymbols &&
-		pdefScalarSubquery->PsymOperand(0) == (*pdrgpsym)[0] &&
-		pdefScalarSubquery->PsymOperand(1) == (*pdrgpsym)[1] &&
-		pdefScalarSubquery->PsymOperand(2) == (*pdrgpsym)[2] &&
-		pdefScalarSubquery->PsymOperand(3) == (*pdrgpsym)[3] &&
-		nullptr != (*pop)[1]->Pdrgpsym() &&
-		1 == (*pop)[1]->Pdrgpsym()->Size() &&
-		pdefScalarSubquery->PsymOperand(4) ==
-			(*(*pop)[1]->Pdrgpsym())[0];
 	const BOOL fExprListScalarSubquery =
 		nullptr != pdefExprListSubquery &&
 		EdslexprExprListScalarSubquery ==
@@ -727,12 +677,11 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 							  popCarrier->EopidOriginSubq()));
 			}
 		}
-		else if (fScalarSubquery || fExprListScalarSubquery ||
+		else if (fExprListScalarSubquery ||
 				 fExprListExistential || fExprListQuantified)
 		{
-			const CDSLSymbol *psymInner = fScalarSubquery
-				? (*pdrgpsym)[2]
-				: pdefExprListSubquery->PsymOperand(
+			const CDSLSymbol *psymInner =
+				pdefExprListSubquery->PsymOperand(
 					  (fExprListExistential || fExprListQuantified) ? 8 : 5);
 			CColRefArray *pdrgpcrInner =
 				PdrgpcrResolveCols(psymInner, pmodel);
@@ -761,7 +710,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 			// EXISTS adds a constant marker and LIMIT; audit its captured input.
 			else if (0 == pexprRight->DeriveOuterReferences()->Size() &&
-					 !fScalarSubquery &&
 					 dslproperties::FQueryDemandInsensitive(fExprListExistential
 						 ? pmodel->PexprTable(pdefExprListSubquery->PsymOperand(9))
 						 : pexprRight) &&
@@ -899,7 +847,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		// Subquery extraction captures every free RHS column, including
 		// parameters owned by an enclosing query. A matched Apply instead
 		// binds only references supplied by its immediate left input.
-		if (!fScalarSubquery && !fExprListScalarSubquery &&
+		if (!fExprListScalarSubquery &&
 			!fExprListExistential && !fExprListQuantified)
 		{
 			pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
@@ -913,26 +861,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		{
 			pexprResult->Release();
 			return nullptr;
-		}
-	}
-	if (fScalarSubquery)
-	{
-		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
-		if (nullptr != pdrgpexprResidual && 0 < pdrgpexprResidual->Size())
-		{
-			CExpressionArray *pdrgpexprCopy =
-				GPOS_NEW(m_mp) CExpressionArray(m_mp);
-			for (ULONG ul = 0; ul < pdrgpexprResidual->Size(); ul++)
-			{
-				CExpression *pexprConj = (*pdrgpexprResidual)[ul];
-				pexprConj->AddRef();
-				pdrgpexprCopy->Append(pexprConj);
-			}
-			CExpression *pexprResidual =
-				CPredicateUtils::PexprConjunction(m_mp, pdrgpexprCopy);
-			pexprResult = GPOS_NEW(m_mp) CExpression(
-				m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprResult,
-				pexprResidual);
 		}
 	}
 	return pexprResult;

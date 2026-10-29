@@ -159,8 +159,6 @@ private:
 	// do not reorder them or treat them as removable property annotations.
 	BOOL FCheckPredicateQuantified(const CDSLConstraint *pcon,
 							   CDSLModel *pmodel, BOOL fAll) const;
-	BOOL FCheckPredicateScalarSubquery(const CDSLConstraint *pcon,
-								   CDSLModel *pmodel) const;
 	BOOL FCheckExprListScalarSubquery(const CDSLConstraint *pcon,
 								  CDSLModel *pmodel) const;
 	BOOL FCheckExprListExistential(const CDSLConstraint *pcon,
