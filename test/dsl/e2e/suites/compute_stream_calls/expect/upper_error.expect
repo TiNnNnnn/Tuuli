@@ -1,0 +1,69 @@
+{
+  "description": "Stream fusion preserves lower/upper errors and row values with native CollapseProject disabled",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "upper-source-route.yaml",
+      "native_observation": "source_row_stream",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2c65d069321bd3a7\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "2c65d069321bd3a7",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "SQLSTATE 22012"
+      ]
+    }
+  }
+}

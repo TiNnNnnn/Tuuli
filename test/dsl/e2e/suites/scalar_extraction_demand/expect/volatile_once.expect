@@ -1,0 +1,55 @@
+{
+  "description": "Uncorrelated volatile scalar lookup retains one cached execution",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "CLogicalLeftOuterCorrelatedApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ],
+    "off_output": [
+      "1"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "1"
+      ]
+    }
+  }
+}

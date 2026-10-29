@@ -258,6 +258,48 @@ EresScalarSubqueryCorrelationScope()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresScalarSubqueryDemand()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		GPOPT_DSL_EXPRESSION_DEFINED_PROJECT_SUBQUERY_RULE);
+	GPOS_UNITTEST_ASSERT(nullptr != rule);
+	CExpression *left = fix.PexprLogicalGet("demand_left", 1);
+	for (BOOL fallible : {false, true})
+	{
+		CExpression *bounded = CUtils::PexprLogicalCTGDummy(mp);
+		CExpression *value = CUtils::PexprScalarConstInt4(mp, 1);
+		if (fallible)
+			value = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarCoerceViaIO(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, GPDB_INT4),
+				-1, COperator::EcfExplicitCast, -1), value);
+		CColRef *selected = fix.PcrCreateInt4("demand_value");
+		CExpression *inner = PexprProjectWithScalar(mp, bounded, selected, value);
+		bounded->Release();
+		GPOS_UNITTEST_ASSERT(1 >= inner->DeriveMaxCard().Ull());
+		CExpression *source = PexprProjectWithScalar(mp, left,
+			fix.PcrCreateInt4("demand_result"), GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarSubquery(mp, selected, false, false), inner));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+		CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		CExpression *apply = (*target)[0];
+		GPOS_UNITTEST_ASSERT(apply->Pop()->Eopid() == (fallible
+			? COperator::EopLogicalLeftOuterCorrelatedApply : COperator::EopLogicalLeftOuterApply));
+		GPOS_UNITTEST_ASSERT((*apply)[1] == inner);
+		GPOS_UNITTEST_ASSERT(CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq() ==
+			COperator::EopScalarSubquery);
+		target->Release(); model->Release(); source->Release();
+	}
+	left->Release(); rule->Release();
+	return GPOS_OK;
+}
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CDSLProjTest::EresUnittest
@@ -267,6 +309,7 @@ CDSLProjTest::EresUnittest()
 {
 	CUnittest rgut[] = {
 		GPOS_UNITTEST_FUNC(EresScalarSubqueryCorrelationScope),
+		GPOS_UNITTEST_FUNC(EresScalarSubqueryDemand),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_MatchBindsProjectedColumns),
 		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_InstantiatePreservesOutput),

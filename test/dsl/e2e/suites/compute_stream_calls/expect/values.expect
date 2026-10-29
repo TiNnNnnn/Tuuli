@@ -1,0 +1,88 @@
+{
+  "description": "Stream fusion preserves lower/upper errors and row values with native CollapseProject disabled",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "source-route.yaml",
+      "native_observation": "source_row_stream",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2c65d069321bd3a7\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "2c65d069321bd3a7",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      ",,t",
+      "0,0,f",
+      "1,-1,f",
+      "2,-2,",
+      "2,-2,",
+      "3,-3,t"
+    ],
+    "postgres_output": [
+      ",,t",
+      "0,0,f",
+      "1,-1,f",
+      "2,-2,",
+      "2,-2,",
+      "3,-3,t"
+    ],
+    "off_output": [
+      ",,t",
+      "0,0,f",
+      "1,-1,f",
+      "2,-2,",
+      "2,-2,",
+      "3,-3,t"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        ",,t",
+        "0,0,f",
+        "1,-1,f",
+        "2,-2,",
+        "2,-2,",
+        "3,-3,t"
+      ]
+    }
+  }
+}

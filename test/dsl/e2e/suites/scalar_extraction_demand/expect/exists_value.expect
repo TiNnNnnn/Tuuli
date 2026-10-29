@@ -1,0 +1,55 @@
+{
+  "description": "Subquery extraction preserves Item demand, first error and scalar cardinality",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
+        "CLogicalLeftOuterApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "2,t"
+    ],
+    "postgres_output": [
+      "2,t"
+    ],
+    "off_output": [
+      "2,t"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "2,t"
+      ]
+    }
+  }
+}

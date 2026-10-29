@@ -9,6 +9,7 @@
 #include "gpopt/base/CColRefSet.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -758,8 +759,12 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(
 					m_mp, pdrgpcrInner, eopidOrigin);
 			}
+			// EXISTS adds a constant marker and LIMIT; audit its captured input.
 			else if (0 == pexprRight->DeriveOuterReferences()->Size() &&
 					 !fScalarSubquery &&
+					 dslproperties::FQueryDemandInsensitive(fExprListExistential
+						 ? pmodel->PexprTable(pdefExprListSubquery->PsymOperand(9))
+						 : pexprRight) &&
 					 (!fExprListScalarSubquery ||
 					  1 >= pexprRight->DeriveMaxCard().Ull()))
 			{
@@ -775,8 +780,8 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			}
 			else
 			{
-				// Scalar SubPlans check cardinality before returning a value;
-				// a streaming MaxOneRow/Assert can be cut short by its consumer.
+				// SubPlans retain lookup demand and atomic cardinality checks;
+				// an eager Apply can expose RHS errors before earlier Items.
 				popJoin = fLeftOuterApply
 					? static_cast<COperator *>(GPOS_NEW(m_mp)
 						  CLogicalLeftOuterCorrelatedApply(

@@ -1,0 +1,61 @@
+{
+  "description": "Upper Items reading lower outputs cannot be fused by the independent-definition rule",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"2c65d069321bd3a7\"",
+        "\"failed_constraint\":\"DepsDisjoint\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "output": [
+      ",,",
+      "0,0,1",
+      "1,-1,0",
+      "2,-2,-1",
+      "2,-2,-1",
+      "3,-3,-2"
+    ],
+    "postgres_output": [
+      ",,",
+      "0,0,1",
+      "1,-1,0",
+      "2,-2,-1",
+      "2,-2,-1",
+      "3,-3,-2"
+    ],
+    "off_output": [
+      ",,",
+      "0,0,1",
+      "1,-1,0",
+      "2,-2,-1",
+      "2,-2,-1",
+      "3,-3,-2"
+    ],
+    "plan_outputs": {
+      "guard": [
+        ",,",
+        "0,0,1",
+        "1,-1,0",
+        "2,-2,-1",
+        "2,-2,-1",
+        "3,-3,-2"
+      ]
+    }
+  }
+}
