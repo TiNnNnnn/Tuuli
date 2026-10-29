@@ -456,6 +456,18 @@ EresAggregateContexts()
 		CAutoRef<CExpression> source(fix.PexprLogicalSelect(group, having.Value()));
 		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
 		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+		const std::string capture = CDSLPlanTemplate::MatchedSourceBindings(rule.Value(), model.Value());
+		GPOS_UNITTEST_ASSERT(capture.find("\"context_expression\":{") != std::string::npos);
+		if (mode < 4)
+			GPOS_UNITTEST_ASSERT(capture.find("\"path\":[1,0,0,0]") != std::string::npos);
+		const CDSLSymbol *function_symbol = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[outputs ? 3 : 2];
+		auto *functions = static_cast<CExpressionArray *>(model->PvalLookup(function_symbol));
+		CExpression *saved = (*functions)[0];
+		saved->AddRef(); original->AddRef();
+		functions->Replace(0, original);
+		GPOS_UNITTEST_ASSERT(CDSLPlanTemplate::MatchedSourceBindings(rule.Value(), model.Value()).find(
+			"\"scalar_context\":null") != std::string::npos);
+		functions->Replace(0, saved);
 		const BOOL checked = CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value());
 		CAutoRef<CExpression> target(checked ? CDSLInstantiator(mp).PexprInstantiate(rule.Value(), model.Value()) : nullptr);
 		GPOS_UNITTEST_ASSERT((nullptr != target.Value()) == (mode < 2));
