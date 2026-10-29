@@ -85,9 +85,9 @@ using namespace gpopt;
 	"ExprListAll(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)"
 
 #define GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE \
-	"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(" \
-	"Input<t1>,Input<t2>))|t1 := t0;n0 := BoolValue(p1);a1 := ScalarDeps(n0);" \
-	"ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0"
+	"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|" \
+	"t1 := t0;Context(n0) := p0;Subquery(a2,t2) := n0;" \
+	"n2 := n0;a3 := a2;n1 := Column(a2);p1 := Context(p0,n1);a1 := ScalarDeps(p1)"
 
 namespace
 {
@@ -2568,7 +2568,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE);
 	GPOS_ASSERT(nullptr != prule);
 	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
+	CDSLMatcher matcher(mp, prule);
 	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
 								 pmodel));
 	CDSLConstraintChecker checker(mp);
@@ -2586,6 +2586,26 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[1]->Pop()->Eopid());
 	GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
 
+	// A binding must retain the selected query column and query value kind.
+	for (BOOL wrong_column : {false, true})
+	{
+		std::string text = GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE;
+		const std::string before = wrong_column ? "a3 := a2" : "n2 := n0";
+		text.replace(text.find(before), before.size(),
+			wrong_column ? "a3 := a0" : "n2 := Column(a2)");
+		CDSLRule *invalid = PruleParse(mp, text.c_str());
+		GPOS_ASSERT(nullptr != invalid);
+		CDSLMatcher invalid_matcher(mp, invalid);
+		CDSLModel *invalid_model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_ASSERT(invalid_matcher.FMatch(invalid->PfragSrc()->PopRoot(),
+			pexprSource, invalid_model));
+		GPOS_ASSERT(checker.FCheck(invalid, invalid_model));
+		GPOS_ASSERT(nullptr == instantiator.PexprInstantiate(invalid, invalid_model));
+		invalid_model->Release();
+		invalid->Release();
+	}
+	GPOS_ASSERT(nullptr == PruleParse(mp,
+		"Bind<n0 a0>(Input<t0>)|Input<t1>|t1 := t0"));
 	pexprTarget->Release();
 	pmodel->Release();
 	prule->Release();

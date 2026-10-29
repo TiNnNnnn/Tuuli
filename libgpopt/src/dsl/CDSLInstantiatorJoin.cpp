@@ -29,11 +29,39 @@
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 
 using namespace gpopt;
 using namespace gpopt::dslinstantiator;
+
+CExpression *
+CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) const
+{
+	CExpression *input = PexprBuild((*pop)[0], model);
+	CExpression *value = PexprResolveScalar((*pop->Pdrgpsym())[0], model);
+	CColRefArray *outputs = PdrgpcrResolveCols((*pop->Pdrgpsym())[1], model);
+	if (nullptr == input || nullptr == value || nullptr == outputs ||
+		1 != outputs->Size() || value->Pop()->Eopid() != COperator::EopScalarSubquery ||
+		1 != value->Arity() ||
+		(*outputs)[0] != CScalarSubquery::PopConvert(value->Pop())->Pcr() ||
+		input->DeriveOutputColumns()->FMember((*outputs)[0]) ||
+		!(*value)[0]->DeriveOutputColumns()->FMember((*outputs)[0]))
+	{
+		CRefCount::SafeRelease(input);
+		CRefCount::SafeRelease(value);
+		return nullptr;
+	}
+	// Keep demand at the value's lookup site, including atomic multirow errors.
+	outputs->AddRef();
+	CExpression *query = (*value)[0];
+	query->AddRef();
+	value->Release();
+	return GPOS_NEW(m_mp) CExpression(m_mp,
+		GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, outputs,
+			COperator::EopScalarSubquery), input, query, CUtils::PexprScalarConstBool(m_mp, true));
+}
 
 namespace
 {

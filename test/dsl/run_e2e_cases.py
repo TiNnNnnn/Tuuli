@@ -446,11 +446,11 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     if not patterns:
         return 0
     observation = expected.get("native_observation", "exact_tree")
-    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer"):
+    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
     if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
-            observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer") and equivalence != "OUTCOME_EQ") or (
+            observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query") and equivalence != "OUTCOME_EQ") or (
             observation in ("source_outputs", "dsl_source_outputs") and equivalence != "BAG_OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
@@ -476,7 +476,11 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
         path.mkdir(parents=True, exist_ok=True)
         (path / "receipt.json").unlink(missing_ok=True)
         (path / "occurrence.json").write_text(canonical(occurrence), encoding="utf-8")
-        if observation == "selected_scalar_consumer":
+        if observation == "deferred_query":
+            from native_subplan_consumer import check_subplan_query_observation
+            (path / "rule.txt").write_text(rule + "\n", encoding="utf-8")
+            check_subplan_query_observation(occurrence["snapshot"], occurrence["target_snapshot"], path)
+        elif observation == "selected_scalar_consumer":
             from native_execution_observation import check_execution_observation
             evidence = expected.get("execution_observation")
             if not isinstance(evidence, dict) or "byteorder" in evidence:

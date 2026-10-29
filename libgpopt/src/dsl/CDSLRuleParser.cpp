@@ -313,6 +313,12 @@ PopBuild(SBuildCtx &bctx, dsl::DSLRuleParser::OpContext *op_ctx, EDslSide eside,
 		return nullptr;
 	}
 
+	if (EdslopBind == edslop && EdslsideSource == eside)
+	{
+		bctx.Fail("Bind is a target-only deferred value constructor");
+		return nullptr;
+	}
+
 	// symbols (declarations)
 	CDSLSymbolArray *pdrgpsym = PdrgpsymBuildDecls(
 		bctx, edslop, edslsort, op_ctx->symlist(), eside, pdrgpsym_frag);
@@ -888,6 +894,10 @@ FBindingTree(const CDSLOp *op, BOOL source)
 	{
 		return source && FBindingTree((*op)[0], source);
 	}
+	if (EdslopBind == op->Edslop())
+		return !source && nullptr != op->Pdrgpsym() &&
+			2 == op->Pdrgpsym()->Size() &&
+			1 == op->UlChildren() && FBindingTree((*op)[0], source);
 	const BOOL join = EdslopInnerJoin == op->Edslop() ||
 		EdslopLeftJoin == op->Edslop() || EdslopFullJoin == op->Edslop() ||
 		EdslopSemiJoin == op->Edslop() || EdslopAntiJoin == op->Edslop() ||
@@ -975,7 +985,7 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		!FBindingTree(target->PopRoot(), false))
 	{
 		bctx.Fail(
-			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/Sort/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow, single-/five-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and Set templates");
+			"expression bindings support Input/Empty/Filter/Proj/Proj*/Compute/Agg/Sort/Limit/Window/WindowRows/RowNumber, source-only MaxOneRow/CTEConsumer/CTEAnchor/AntiApplyNotIn, target-only AssertMaxOneRow/Bind, single-/five-slot InSubFilter, zero-slot Exists/NotExists, predicate-form Exists, quantified Any/All, complete-predicate Join/InnerApply/LeftApply/SemiApply/AntiApply, keyed InnerJoin/LeftJoin with optional residual slots, comparison/qualifier AntiJoinNotIn and Set templates");
 		return false;
 	}
 	// Constructor signatures declare types, not symbol-name prefixes. Source

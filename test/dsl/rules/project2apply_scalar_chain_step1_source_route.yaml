@@ -1,0 +1,7 @@
+experiment: scalar-chain-step-1
+discover: false
+template_route: 1
+template_fingerprint: 01aca3ddfb1e38e9
+template_root: r
+template_bindings: true
+cardinalities:

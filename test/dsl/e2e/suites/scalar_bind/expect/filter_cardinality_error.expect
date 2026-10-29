@@ -1,0 +1,59 @@
+{
+  "description": "Explicit scalar Bind: filter_cardinality_error",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"d6efb24852c76246\"",
+        "CLogicalLeftOuterCorrelatedApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ],
+    "off_output": [
+      "SQLSTATE 21000"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "SQLSTATE 21000"
+      ]
+    }
+  }
+}

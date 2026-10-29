@@ -1,0 +1,7 @@
+experiment: bind-correlated_chain
+discover: false
+template_route: 1
+template_fingerprint: 6e19c8b745b52b90
+template_root: r
+template_bindings: true
+cardinalities:

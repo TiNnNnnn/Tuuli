@@ -1,0 +1,56 @@
+{
+  "description": "Explicit Bind candidate: Subquery extraction preserves Item demand, first error and scalar cardinality",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c230a73d9fee9168\"",
+        "CLogicalLeftOuterCorrelatedApply"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "error_sqlstate": "21000",
+    "output": [
+      "SQLSTATE 21000"
+    ],
+    "postgres_output": [
+      "SQLSTATE 21000"
+    ],
+    "off_output": [
+      "SQLSTATE 21000"
+    ],
+    "plan_outputs": {
+      "replacement": [
+        "SQLSTATE 21000"
+      ]
+    }
+  }
+}

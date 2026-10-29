@@ -434,6 +434,8 @@ CDSLInstantiator::PexprBuild(const CDSLOp *pop, const CDSLModel *pmodel) const
 			return PexprBuildProj(pop, pmodel);
 		case EdslopCompute:
 			return PexprBuildCompute(pop, pmodel);
+		case EdslopBind:
+			return PexprBuildBind(pop, pmodel);
 		case EdslopAgg:
 			return PexprBuildAgg(pop, pmodel);
 		case EdslopExists:

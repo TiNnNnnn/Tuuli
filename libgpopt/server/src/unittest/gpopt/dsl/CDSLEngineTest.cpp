@@ -825,7 +825,8 @@ CDSLEngineTest::EresUnittest_CapabilityMetadata()
 	for (ULONG ul = 0; ul < EdslopSentinel; ul++)
 	{
 		const EDslOpKind edslop = static_cast<EDslOpKind>(ul);
-		const BOOL fMatcherExpected = EdslopAssertMaxOneRow != edslop;
+		const BOOL fMatcherExpected = EdslopAssertMaxOneRow != edslop &&
+			EdslopBind != edslop;
 		const BOOL fInstantiatorExpected = EdslopMaxOneRow != edslop &&
 			EdslopCTEConsumer != edslop && EdslopCTEAnchor != edslop;
 		if (fMatcherExpected != CDSLOpKindTable::FMatcherSupported(edslop) ||
