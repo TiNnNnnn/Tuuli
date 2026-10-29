@@ -3852,10 +3852,11 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(observations, {(owner, kind) for owner in ('Compute', 'Filter')
                                       for kind in ('ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All')})
 
-    def test_scalar_filter_extraction_retires_the_legacy_shortcut(self) -> None:
+    def test_scalar_extraction_retires_the_legacy_shortcuts(self) -> None:
         rules = [line for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines()
                  if line.strip() and not line.startswith('#')]
-        self.assertFalse(any('PredicateScalarSubquery(' in line for line in rules))
+        for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery('):
+            self.assertFalse(any(shortcut in line for line in rules))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"

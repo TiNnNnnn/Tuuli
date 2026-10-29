@@ -1,17 +1,20 @@
 {
-  "description": "Typed expression-list rules lower every supported Window subquery kind in one chain",
+  "description": "Scalar Bind composes with boolean and quantified Window extraction; canonical native phase proof remains pending",
   "replacement": {
     "xforms": [
       "CXformSequenceProject2Apply"
     ],
     "scope": "Correlated scalar, EXISTS, NOT EXISTS, ANY, and ALL values in one Window list",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "41e41af17b2a1bb9",
+      "c6b2138483b028a0",
       "010da715c3c1aa4c",
       "e34945e09bcad197",
       "fa3ffbd7833ed18c",
       "7bbf4d8e0ffbd361"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
     ]
   },
   "plans": [
@@ -58,7 +61,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
-        "\"status\":\"applied\",\"rule_hash\":\"41e41af17b2a1bb9\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c6b2138483b028a0\"",
         "\"status\":\"applied\",\"rule_hash\":\"010da715c3c1aa4c\"",
         "\"status\":\"applied\",\"rule_hash\":\"e34945e09bcad197\"",
         "\"status\":\"applied\",\"rule_hash\":\"fa3ffbd7833ed18c\"",

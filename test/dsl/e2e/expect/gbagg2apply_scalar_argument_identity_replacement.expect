@@ -7,7 +7,7 @@
     "scope": "One correlated scalar aggregate used as the argument of an outer aggregate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "7eacf072a04f1532"
+      "de56dc10243c9158"
     ],
     "excluded_native_domains": [
       "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
@@ -30,7 +30,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"rule_hash\":\"7eacf072a04f1532\""
+        "\"rule_hash\":\"de56dc10243c9158\""
       ],
       "alternative": [
         "CXformGbAgg2Apply"
@@ -58,7 +58,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\""
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\""
       ],
       "provenance": {
         "required_sources": [

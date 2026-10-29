@@ -1,14 +1,17 @@
 {
-  "description": "Typed scalar and existential definitions directly form one aggregate Apply chain",
+  "description": "Scalar Bind and existential extraction compose in one aggregate chain; canonical native phase proof remains pending",
   "replacement": {
     "xforms": [
       "CXformGbAgg2Apply"
     ],
     "scope": "A scalar subquery and correlated EXISTS in one aggregate argument",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "7eacf072a04f1532",
+      "de56dc10243c9158",
       "3ae8003581d24074"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
     ]
   },
   "plans": [
@@ -28,7 +31,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\"",
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",
         "\"status\":\"applied\",\"rule_hash\":\"3ae8003581d24074\""
       ],
       "alternative": [
@@ -57,7 +60,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
-        "\"status\":\"applied\",\"rule_hash\":\"7eacf072a04f1532\"",
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",
         "\"status\":\"applied\",\"rule_hash\":\"3ae8003581d24074\""
       ],
       "provenance": {
