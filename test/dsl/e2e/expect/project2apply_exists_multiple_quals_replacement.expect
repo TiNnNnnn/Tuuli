@@ -8,7 +8,7 @@
     "scope": "Correlated EXISTS with multiple ordered execution qualifiers",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "ca5bdb0f38257c24"
+      "79e4a60b8b2dde2d"
     ]
   },
   "plans": [
@@ -30,7 +30,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -71,11 +71,7 @@
           0,
           0
         ],
-        "lookup_path": [
-          0,
-          0,
-          0
-        ],
+        "lookup_path": [],
         "apply_path": "r/0",
         "column": {
           "id": 20,
@@ -87,13 +83,7 @@
           "plan.lefttree",
           "plan.targetlist",
           0,
-          "expr",
-          "args",
-          0,
-          "expr",
-          "args",
-          0,
-          "arg"
+          "expr"
         ],
         "consumer_path": [
           "planTree",
@@ -104,24 +94,22 @@
         ],
         "scan_path": [
           "subplans",
-          0,
-          "plan.lefttree",
-          "plan.lefttree"
+          0
         ],
-        "input_path": "r/0/1/0/0/0",
+        "input_path": "r/0/1/0/0",
         "observe_consumer_query": true
       },
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "ca5bdb0f38257c24",
+          "rule_hash": "79e4a60b8b2dde2d",
           "route_sequence": 1,
           "operators": [
             "CLogicalProject",
@@ -134,7 +122,6 @@
             "CLogicalProject",
             "CLogicalLeftOuterCorrelatedApply",
             "CLogicalGet",
-            "CLogicalLimit",
             "CLogicalProject",
             "CLogicalSelect",
             "CLogicalGet"

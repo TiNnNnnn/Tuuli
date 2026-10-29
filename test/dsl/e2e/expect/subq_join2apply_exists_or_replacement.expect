@@ -9,7 +9,7 @@
     "scope": "One correlated EXISTS value inside an inner-join OR predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e71082cbe42ae6c7"
+      "f40e83e7bf4c2bec"
     ],
     "excluded_native_domains": [
       "Whole-rule native observation proof for residual predicate extraction remains pending"
@@ -31,7 +31,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"e71082cbe42ae6c7\""
+        "\"rule_hash\":\"f40e83e7bf4c2bec\""
       ],
       "alternative": []
     },
@@ -58,7 +58,7 @@
       "policy": "isolate_select2apply_predicate_exists_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"e71082cbe42ae6c7\""
+        "\"status\":\"applied\",\"rule_hash\":\"f40e83e7bf4c2bec\""
       ],
       "alternative": [],
       "provenance": {

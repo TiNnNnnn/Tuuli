@@ -1,0 +1,7 @@
+experiment: deferred-compute-native
+discover: false
+template_route: 1
+template_fingerprint: 740955e21bd0b0cb
+template_root: r
+template_bindings: true
+cardinalities:

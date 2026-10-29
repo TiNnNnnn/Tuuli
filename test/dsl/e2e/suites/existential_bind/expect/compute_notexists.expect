@@ -1,0 +1,81 @@
+{
+  "description": "Canonical existential Bind in a complete Compute consumer",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSelect2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "compute_notexists.yaml",
+      "native_observation": "deferred_rule",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "2b9c7665d5e8b9bb",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSelect2Apply",
+          "CXformGbAgg2Apply",
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSelect2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "0,t",
+      "1,f",
+      "2,f",
+      "3,t"
+    ],
+    "postgres_output": [
+      "0,t",
+      "1,f",
+      "2,f",
+      "3,t"
+    ]
+  }
+}

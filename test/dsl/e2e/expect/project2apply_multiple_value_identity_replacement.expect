@@ -9,8 +9,8 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "e45925375193782a",
-      "ca5bdb0f38257c24",
-      "21543dafb8c8f61b",
+      "79e4a60b8b2dde2d",
+      "2b9c7665d5e8b9bb",
       "daf208e79534479c",
       "9555abcd9b140797"
     ]
@@ -34,8 +34,8 @@
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
         "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
-        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\"",
         "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
       ],
       "alternative": [
@@ -67,8 +67,8 @@
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
         "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\"",
-        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\"",
         "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\"",
         "\"status\":\"applied\",\"rule_hash\":\"9555abcd9b140797\""
       ],

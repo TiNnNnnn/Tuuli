@@ -1,4 +1,4 @@
-# Deferred existential candidates; canonical fresh-column and complete phase proofs remain pending.
+# Existential Bind: checked Filter/Compute instances; complete Group/Window phase proofs remain pending.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)

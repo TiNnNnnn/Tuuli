@@ -20,11 +20,7 @@
         "scalar_path": [
           1
         ],
-        "lookup_path": [
-          0,
-          0,
-          0
-        ],
+        "lookup_path": [],
         "subplan_path": [
           "planTree",
           "plan.lefttree",
@@ -32,11 +28,7 @@
           "plan.qual",
           0,
           "args",
-          0,
-          "expr",
-          "args",
-          0,
-          "arg"
+          0
         ],
         "consumer_path": [
           "planTree",
@@ -53,24 +45,22 @@
         },
         "scan_path": [
           "subplans",
-          0,
-          "plan.lefttree",
-          "plan.lefttree"
+          0
         ],
-        "input_path": "r/0/1/0/0/0",
+        "input_path": "r/0/1/0/0",
         "observe_consumer_query": true
       },
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"05b4683da3e431e0\""
+        "\"status\":\"applied\",\"rule_hash\":\"09bfed0ceda855ca\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "05b4683da3e431e0",
+          "rule_hash": "09bfed0ceda855ca",
           "route_sequence": 1,
           "operators": [
             "CLogicalSelect",
@@ -82,7 +72,6 @@
             "CLogicalSelect",
             "CLogicalLeftOuterCorrelatedApply",
             "CLogicalGet",
-            "CLogicalLimit",
             "CLogicalProject",
             "CLogicalSelect",
             "CLogicalGet"

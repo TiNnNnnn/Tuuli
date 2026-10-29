@@ -3844,18 +3844,25 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertIn(f'{target_deps} := ScalarDeps({target_list})', clauses.split(';'))
             if deferred:
                 self.assertNotIn('ExprList', clauses)
-                selected = re.search(r'Subquery\((a\d+),t\d+\) := n\d+', clauses)[1]
+                selected = re.search(r'Bind<n\d+ (a\d+)>', target)[1]
+                alias = re.search(r'(?:^|;)' + selected + r' := (a\d+)(?:;|$)', clauses)
+                if alias:
+                    selected = alias[1]
                 outputs = re.search(r'OutputAttrs\((a\d+),t\d+\)', clauses)[1]
                 self.assertIn(f'DepsDisjoint({source_list},{selected})', clauses.split(';'))
                 self.assertIn(f'DepsDisjoint({outputs},{selected})', clauses.split(';'))
-            observations.add((owner, 'ScalarSubquery' if deferred else extraction[1]))
+                kind = ('NotExists' if 'Not(' in clauses else 'Exists') if 'Exists(' in clauses else 'ScalarSubquery'
+            else:
+                kind = extraction[1]
+            observations.add((owner, kind))
         self.assertEqual(observations, {(owner, kind) for owner in ('Compute', 'Filter')
                                       for kind in ('ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All')})
 
     def test_scalar_extraction_retires_the_legacy_shortcuts(self) -> None:
         rules = [line for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines()
                  if line.strip() and not line.startswith('#')]
-        for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery('):
+        for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery(',
+                         'ExprListExists(', 'ExprListNotExists('):
             self.assertFalse(any(shortcut in line for line in rules))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
