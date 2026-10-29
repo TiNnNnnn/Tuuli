@@ -36,30 +36,14 @@
           0,
           0
         ],
-        "lookup_path": [
-          0,
-          0,
-          0
-        ],
+        "lookup_path": [],
         "subplan_path": [
-          "subplans",
-          1,
-          "plan.initPlan",
-          0
-        ],
-        "initplan_lookup_path": [
           "subplans",
           1,
           "plan.lefttree",
           "plan.targetlist",
           0,
-          "expr",
-          "args",
-          0,
-          "expr",
-          "args",
-          0,
-          "arg"
+          "expr"
         ],
         "consumer_path": [
           "subplans",
@@ -72,11 +56,9 @@
         "apply_path": "r/0",
         "scan_path": [
           "subplans",
-          0,
-          "plan.lefttree",
-          "plan.lefttree"
+          0
         ],
-        "input_path": "r/0/1/0/0/0",
+        "input_path": "r/0/1/0/0",
         "column": {
           "id": 29,
           "type": "0.16.1.0",
@@ -88,14 +70,14 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ca5bdb0f38257c24\""
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "ca5bdb0f38257c24",
+          "rule_hash": "79e4a60b8b2dde2d",
           "route_sequence": 3,
           "operators": [
             "CLogicalProject",
@@ -110,7 +92,6 @@
             "CLogicalLeftOuterCorrelatedApply",
             "CLogicalSelect",
             "CLogicalGet",
-            "CLogicalLimit",
             "CLogicalProject",
             "CLogicalSelect",
             "CLogicalGet"

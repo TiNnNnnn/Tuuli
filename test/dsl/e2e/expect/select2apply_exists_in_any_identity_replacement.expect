@@ -8,7 +8,7 @@
     "scope": "An uncorrelated EXISTS value used as the comparison value of correlated ANY",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "e71082cbe42ae6c7",
+      "f40e83e7bf4c2bec",
       "a633d2566796843b"
     ],
     "excluded_native_domains": [
@@ -33,7 +33,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"rule_hash\":\"e71082cbe42ae6c7\"",
+        "\"rule_hash\":\"f40e83e7bf4c2bec\"",
         "\"rule_hash\":\"a633d2566796843b\""
       ],
       "alternative": [
@@ -64,7 +64,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Select",
-        "\"status\":\"applied\",\"rule_hash\":\"e71082cbe42ae6c7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f40e83e7bf4c2bec\"",
         "\"status\":\"applied\",\"rule_hash\":\"a633d2566796843b\""
       ],
       "provenance": {
