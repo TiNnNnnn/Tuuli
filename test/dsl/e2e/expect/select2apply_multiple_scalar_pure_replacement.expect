@@ -7,7 +7,7 @@
     "scope": "Multiple deterministic error-free scalar queries in one Select predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d127259fb9f5958e"
+      "24b3fadb6375b83f"
     ],
     "excluded_native_domains": [
       "Throwing or effectful scalar queries need demand-preserving lowering, not speculative eager evaluation",
@@ -31,7 +31,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "Xform: CXformDSLRule_Select",
-        "\"rule_hash\":\"d127259fb9f5958e\""
+        "\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "alternative": [
         "CXformSelect2Apply"
@@ -62,7 +62,7 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -70,8 +70,8 @@
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "d127259fb9f5958e",
-          "dst_rule": "d127259fb9f5958e",
+          "src_rule": "24b3fadb6375b83f",
+          "dst_rule": "24b3fadb6375b83f",
           "target_path": "r",
           "relation": "memo_consumes",
           "producer_outcome": "memo_inserted"

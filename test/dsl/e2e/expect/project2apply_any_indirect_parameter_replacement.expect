@@ -24,7 +24,7 @@
       "policy": "isolate_project2apply_scalar_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
       ],
       "not_contains": [

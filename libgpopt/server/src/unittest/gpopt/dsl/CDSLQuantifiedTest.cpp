@@ -2550,66 +2550,84 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	CColRefArray *pdrgpcrOuter = nullptr;
-	CExpression *pexprOuter =
-		fix.PexprLogicalGet("scalar_outer", 1, &pdrgpcrOuter);
-	CColRefArray *pdrgpcrInner = nullptr;
-	CExpression *pexprInner =
-		fix.PexprLogicalGet("scalar_inner", 1, &pdrgpcrInner);
-	CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CScalarSubquery(
-			mp, (*pdrgpcrInner)[0], false, false),
-		pexprInner);
-	CExpression *pexprPredicate = CUtils::PexprScalarCmp(
-		mp, (*pdrgpcrOuter)[0], pexprSubquery, IMDType::EcmptEq);
-	CExpression *pexprSource = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprPredicate);
-	CDSLRule *prule =
-		PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE);
-	GPOS_ASSERT(nullptr != prule);
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp, prule);
-	GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
-								 pmodel));
-	CDSLConstraintChecker checker(mp);
-	GPOS_ASSERT(checker.FCheck(prule, pmodel));
-	CDSLInstantiator instantiator(mp);
-	CExpression *pexprTarget =
-		instantiator.PexprInstantiate(prule, pmodel);
-	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
-	CExpression *apply = (*pexprTarget)[0];
-	GPOS_ASSERT(COperator::EopLogicalLeftOuterCorrelatedApply == apply->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopScalarSubquery ==
-		CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq());
-	GPOS_ASSERT(pexprInner == (*apply)[1]);
-	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[1]->Pop()->Eopid());
-	GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
-
-	// A binding must retain the selected query column and query value kind.
-	for (BOOL wrong_column : {false, true})
+	for (ULONG shape = 0; shape < 3; ++shape)
 	{
-		std::string text = GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE;
-		const std::string before = wrong_column ? "a3 := a2" : "n2 := n0";
-		text.replace(text.find(before), before.size(),
-			wrong_column ? "a3 := a0" : "n2 := Column(a2)");
-		CDSLRule *invalid = PruleParse(mp, text.c_str());
-		GPOS_ASSERT(nullptr != invalid);
-		CDSLMatcher invalid_matcher(mp, invalid);
-		CDSLModel *invalid_model = GPOS_NEW(mp) CDSLModel(mp);
-		GPOS_ASSERT(invalid_matcher.FMatch(invalid->PfragSrc()->PopRoot(),
-			pexprSource, invalid_model));
-		GPOS_ASSERT(checker.FCheck(invalid, invalid_model));
-		GPOS_ASSERT(nullptr == instantiator.PexprInstantiate(invalid, invalid_model));
-		invalid_model->Release();
-		invalid->Release();
+		CColRefArray *pdrgpcrOuter = nullptr;
+		CExpression *pexprOuter =
+			fix.PexprLogicalGet("scalar_outer", 1, &pdrgpcrOuter);
+		CColRefArray *pdrgpcrInner = nullptr;
+		CExpression *pexprInner =
+			fix.PexprLogicalGet("scalar_inner", 1, &pdrgpcrInner);
+		CColRef *selected = (*pdrgpcrInner)[0];
+		if (shape == 1)
+		{
+			CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+			CColRef *result = fix.PcrCreateInt4("scalar_max");
+			CExpression *aggregate = fix.PexprLogicalGbAgg(pexprInner, keys, result, selected);
+			keys->Release();
+			pexprInner->Release();
+			pexprInner = aggregate;
+			selected = result;
+		}
+		else if (shape == 2)
+			pexprInner = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprInner);
+		CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CScalarSubquery(
+				mp, selected, false, false),
+			pexprInner);
+		CExpression *pexprPredicate = CUtils::PexprScalarCmp(
+			mp, (*pdrgpcrOuter)[0], pexprSubquery, IMDType::EcmptEq);
+		CExpression *pexprSource = GPOS_NEW(mp) CExpression(
+			mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprOuter, pexprPredicate);
+		CDSLRule *prule =
+			PruleParse(mp, GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE);
+		GPOS_ASSERT(nullptr != prule);
+		CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLMatcher matcher(mp, prule);
+		GPOS_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), pexprSource,
+									 pmodel));
+		CDSLConstraintChecker checker(mp);
+		GPOS_ASSERT(checker.FCheck(prule, pmodel));
+		CDSLInstantiator instantiator(mp);
+		CExpression *pexprTarget =
+			instantiator.PexprInstantiate(prule, pmodel);
+		GPOS_ASSERT(nullptr != pexprTarget);
+		GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+		CExpression *apply = (*pexprTarget)[0];
+		GPOS_ASSERT((shape == 1 ? COperator::EopLogicalLeftOuterApply :
+			COperator::EopLogicalLeftOuterCorrelatedApply) == apply->Pop()->Eopid());
+		GPOS_ASSERT(COperator::EopScalarSubquery ==
+			CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq());
+		GPOS_ASSERT(pexprInner == (*apply)[1]);
+		GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[1]->Pop()->Eopid());
+		GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
+
+		// A binding must retain the selected query column and query value kind.
+		for (BOOL wrong_column : {false, true})
+		{
+			std::string text = GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE;
+			const std::string before = wrong_column ? "a3 := a2" : "n2 := n0";
+			text.replace(text.find(before), before.size(),
+				wrong_column ? "a3 := a0" : "n2 := Column(a2)");
+			CDSLRule *invalid = PruleParse(mp, text.c_str());
+			GPOS_ASSERT(nullptr != invalid);
+			CDSLMatcher invalid_matcher(mp, invalid);
+			CDSLModel *invalid_model = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_ASSERT(invalid_matcher.FMatch(invalid->PfragSrc()->PopRoot(),
+				pexprSource, invalid_model));
+			GPOS_ASSERT(checker.FCheck(invalid, invalid_model));
+			GPOS_ASSERT(nullptr == instantiator.PexprInstantiate(invalid, invalid_model));
+			invalid_model->Release();
+			invalid->Release();
+		}
+		GPOS_ASSERT(nullptr == PruleParse(mp,
+			"Bind<n0 a0>(Input<t0>)|Input<t1>|t1 := t0"));
+		pexprTarget->Release();
+		pmodel->Release();
+		prule->Release();
+		pexprSource->Release();
 	}
-	GPOS_ASSERT(nullptr == PruleParse(mp,
-		"Bind<n0 a0>(Input<t0>)|Input<t1>|t1 := t0"));
-	pexprTarget->Release();
-	pmodel->Release();
-	prule->Release();
-	pexprSource->Release();
 	return GPOS_OK;
 }
 

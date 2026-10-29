@@ -12,7 +12,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"d6efb24852c76246\"",
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\"",
         "CLogicalLeftOuterCorrelatedApply"
       ],
       "not_contains": [

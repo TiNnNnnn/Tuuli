@@ -1,5 +1,5 @@
 {
-  "description": "Reject unsafe scalar extraction across a split Filter residual",
+  "description": "Typed Bind preserves lazy consumer demand with native extraction disabled",
   "plans": [
     {
       "name": "guard",
@@ -11,12 +11,11 @@
       "policy": "isolate_select2apply_predicate_scalar_direct.policy",
       "assert_maxonerow": true,
       "contains": [
-        "Falling back to Postgres",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"d127259fb9f5958e\"",
-        "\"failed_constraint\":\"ExprListScalarSubquery\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+        "Falling back to Postgres"
       ]
     }
   ],

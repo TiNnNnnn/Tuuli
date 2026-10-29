@@ -7,7 +7,7 @@
     "scope": "Two correlated scalar aggregates in an inner-join predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "d127259fb9f5958e"
+      "24b3fadb6375b83f"
     ],
     "excluded_native_domains": [
       "Whole-rule native observation proof for residual predicate extraction remains pending"
@@ -29,7 +29,7 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_hash\":\"d127259fb9f5958e\""
+        "\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "alternative": []
     },
@@ -50,7 +50,7 @@
       "policy": "isolate_subq_join2apply_scalar_chain_direct.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"d127259fb9f5958e\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "alternative": [],
       "provenance": {

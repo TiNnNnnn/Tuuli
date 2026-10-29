@@ -7,7 +7,7 @@
     "scope": "Correlated scalar value in a Project list with NULL extension and single-row enforcement",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0b88ba995ef9c4cd"
+      "e45925375193782a"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -97,14 +97,14 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"0b88ba995ef9c4cd\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "alternative": [
         "CXformDSLRule_Project"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "0b88ba995ef9c4cd",
+          "rule_hash": "e45925375193782a",
           "route_sequence": 1,
           "operators": [
             "CLogicalProject",
