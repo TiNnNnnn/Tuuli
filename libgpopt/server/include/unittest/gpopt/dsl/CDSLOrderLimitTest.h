@@ -22,6 +22,7 @@ public:
 	static GPOS_RESULT EresUnittest_WindowRowsRoundTrip();
 	static GPOS_RESULT EresUnittest_WindowFilterBindings();
 	static GPOS_RESULT EresUnittest_WindowContextBindings();
+	static GPOS_RESULT EresUnittest_WindowDeferredBinding();
 	static GPOS_RESULT EresUnittest_RowNumberConstructiveTarget();
 	static GPOS_RESULT EresUnittest_MaxOneRowReplacement();
 };

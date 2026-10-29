@@ -22,6 +22,7 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
+#include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/xforms/CXformUtils.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -158,6 +159,7 @@ CDSLOrderLimitTest::EresUnittest()
 			CDSLOrderLimitTest::EresUnittest_WindowRowsRoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_WindowFilterBindings),
 		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_WindowContextBindings),
+		GPOS_UNITTEST_FUNC(CDSLOrderLimitTest::EresUnittest_WindowDeferredBinding),
 		GPOS_UNITTEST_FUNC(
 			CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget),
 		GPOS_UNITTEST_FUNC(
@@ -539,6 +541,54 @@ CDSLOrderLimitTest::EresUnittest_WindowContextBindings()
 		input->Release();
 	}
 	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLOrderLimitTest::EresUnittest_WindowDeferredBinding()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL framed : {false, true})
+	{
+		CColRefArray *outer = nullptr, *inner = nullptr;
+		CExpression *input = fix.PexprLogicalGet("bind_window", 2, &outer);
+		CExpression *query = fix.PexprLogicalGet("bind_query", 1, &inner);
+		CWindowFrame *frame = framed ? GPOS_NEW(mp) CWindowFrame(mp,
+			CWindowFrame::EfsRows, CWindowFrame::EfbUnboundedPreceding,
+			CWindowFrame::EfbCurrentRow, nullptr, nullptr,
+			CWindowFrame::EfesNone, 0, 0, 0, true, false) : nullptr;
+		CExpression *source = PexprWindowRows(mp, fix, input, (*outer)[0], (*outer)[1],
+			framed ? PosOne(mp, (*outer)[1], EdslsortDesc) : nullptr, frame);
+		CExpression *function = (*(*(*source)[1])[0])[0];
+		function->PdrgPexpr()->Replace(0, GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubquery(mp, (*inner)[0], false, false), query));
+		const std::string pair = framed
+			? "Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|m1 := m0;"
+			: "WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|";
+		CDSLRule *rule = Prule(mp, (pair + "OutputAttrs(a4,t0);DepsDisjoint(w0,a2);"
+			"DepsDisjoint(a4,a2);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;"
+			"Subquery(a2,t2) := n0;n2 := n0;a3 := a2;n1 := Column(a2);w1 := Context(w0,n1)").c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model));
+		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+		CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+		GPOS_UNITTEST_ASSERT(nullptr != target);
+		GPOS_UNITTEST_ASSERT(source->Pop()->Matches(target->Pop()));
+		GPOS_UNITTEST_ASSERT(COperator::EopLogicalLeftOuterCorrelatedApply == (*target)[0]->Pop()->Eopid());
+		GPOS_UNITTEST_ASSERT(query == (*(*target)[0])[1]);
+		CExpression *target_item = (*(*target)[1])[0];
+		GPOS_UNITTEST_ASSERT((*(*source)[1])[0]->Pop()->Matches(target_item->Pop()));
+		GPOS_UNITTEST_ASSERT(function->Pop()->Matches((*target_item)[0]->Pop()));
+		GPOS_UNITTEST_ASSERT(CScalarIdent::PopConvert((*(*target_item)[0])[0]->Pop())->Pcr() == (*inner)[0]);
+		target->Release();
+		model->Release();
+		rule->Release();
+		source->Release();
+		input->Release();
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

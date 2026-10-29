@@ -1,14 +1,17 @@
 {
-  "description": "A proved expression-list rule lowers a scalar subquery inside a Window item",
+  "description": "Runtime extraction lowers a scalar subquery inside a Window argument; canonical native phase proof remains pending",
   "replacement": {
     "xforms": [
       "CXformSequenceProject2Apply"
     ],
     "scope": "One correlated scalar aggregate used with a full-partition Window frame",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "9da05f7f7bb65995",
       "41e41af17b2a1bb9"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
     ]
   },
   "plans": [

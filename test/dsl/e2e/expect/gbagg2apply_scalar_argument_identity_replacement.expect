@@ -1,13 +1,16 @@
 {
-  "description": "A proved typed function-list rule directly lowers a scalar subquery inside an aggregate argument",
+  "description": "Runtime extraction lowers a scalar subquery inside an aggregate argument; canonical native phase proof remains pending",
   "replacement": {
     "xforms": [
       "CXformGbAgg2Apply"
     ],
     "scope": "One correlated scalar aggregate used as the argument of an outer aggregate",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "7eacf072a04f1532"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
     ]
   },
   "plans": [
