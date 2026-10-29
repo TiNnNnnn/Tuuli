@@ -1,5 +1,5 @@
 {
-  "description": "Runtime deferred existential binding; complete native rule proof remains pending",
+  "description": "Canonical Bind source and actual existential SubPlan target; conditional native proof and native-off execution",
   "plans": [
     {
       "name": "replacement",
@@ -11,12 +11,35 @@
         "CXformSequenceProject2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
+      "stats_experiment": "filter_exists.yaml",
+      "native_observation": "deferred_rule",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"f40e83e7bf4c2bec\""
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f40e83e7bf4c2bec",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
