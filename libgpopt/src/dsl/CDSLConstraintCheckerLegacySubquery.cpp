@@ -133,32 +133,6 @@ CDSLConstraintChecker::FCheckPredicateQuantified(const CDSLConstraint *pcon,
 
 namespace
 {
-CExpression *
-PexprOnlySubquery(CExpression *pexpr, COperator::EOperatorId eopid,
-				  ULONG *pulCount)
-{
-	if (eopid == pexpr->Pop()->Eopid())
-	{
-		(*pulCount)++;
-		return pexpr;
-	}
-	if (!pexpr->Pop()->FScalar())
-	{
-		return nullptr;
-	}
-	CExpression *pexprFound = nullptr;
-	for (ULONG ul = 0; ul < pexpr->Arity(); ul++)
-	{
-		CExpression *pexprChild =
-			PexprOnlySubquery((*pexpr)[ul], eopid, pulCount);
-		if (nullptr != pexprChild && nullptr == pexprFound)
-		{
-			pexprFound = pexprChild;
-		}
-	}
-	return pexprFound;
-}
-
 BOOL
 FFindScalarPath(CExpression *pexpr, CExpression *needle,
 	ULONG selectedDepth, ULONG depth, std::vector<ULONG> *path)
@@ -344,85 +318,6 @@ PvalReplaceNodeInSequence(CMemoryPool *mp, CDSLModel *pmodel,
 	return pdrgpexprLowered;
 }
 }  // namespace
-
-BOOL
-CDSLConstraintChecker::FCheckPredicateScalarSubquery(
-	const CDSLConstraint *pcon, CDSLModel *pmodel) const
-{
-	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (nullptr == pdrgpsym || 6 != pdrgpsym->Size() ||
-		EdslsymPred != (*pdrgpsym)[0]->Esymkind() ||
-		EdslsymPred != (*pdrgpsym)[1]->Esymkind() ||
-		EdslsymAttrs != (*pdrgpsym)[2]->Esymkind() ||
-		EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
-		EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
-		EdslsymTable != (*pdrgpsym)[5]->Esymkind())
-	{
-		return false;
-	}
-	CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
-	for (ULONG ul = 0;
-		 nullptr != pdrgpexprResidual && ul < pdrgpexprResidual->Size(); ul++)
-	{
-		if ((*pdrgpexprResidual)[ul]->DeriveHasSubquery())
-		{
-			return false;
-		}
-	}
-
-	CExpression *pexprPredicate = pmodel->PexprPred((*pdrgpsym)[0]);
-	ULONG ulSubqueries = 0;
-	CExpression *pexprSubquery = nullptr == pexprPredicate
-		? nullptr
-		: PexprOnlySubquery(pexprPredicate,
-						COperator::EopScalarSubquery, &ulSubqueries);
-	if (1 != ulSubqueries || nullptr == pexprSubquery ||
-		1 != pexprSubquery->Arity() ||
-		!FSubqueryDemandSafe(pexprPredicate, pexprSubquery, gpos::ulong_max,
-			pdrgpexprResidual))
-	{
-		return false;
-	}
-
-	CScalarSubquery *popSubquery =
-		CScalarSubquery::PopConvert(pexprSubquery->Pop());
-	if (popSubquery->FGeneratedByQuantified())
-	{
-		return false;
-	}
-	if (!(*pexprSubquery)[0]->DeriveOutputColumns()->FMember(
-			popSubquery->Pcr()))
-	{
-		return false;
-	}
-	CColRef *pcrInner = const_cast<CColRef *>(popSubquery->Pcr());
-	CExpression *pexprIdent = CUtils::PexprScalarIdent(m_mp, pcrInner);
-	BOOL replaced = false;
-	CExpression *pexprLowered = PexprReplaceNode(
-		m_mp, pexprPredicate, pexprSubquery, pexprIdent, gpos::ulong_max, 0, &replaced);
-	GPOS_ASSERT(nullptr == pexprLowered || replaced);
-	pexprIdent->Release();
-	if (nullptr == pexprLowered) return false;
-
-	CColRefSet *pcrsLeft =
-		GPOS_NEW(m_mp) CColRefSet(m_mp, *pexprLowered->DeriveUsedColumns());
-	pcrsLeft->Exclude(pcrInner);
-	CColRefArray *pdrgpcrLeft = pcrsLeft->Pdrgpcr(m_mp);
-	pcrsLeft->Release();
-	CColRefArray *pdrgpcrRight = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	pdrgpcrRight->Append(pcrInner);
-	CExpression *pexprInner = (*pexprSubquery)[0];
-	CColRefArray *pdrgpcrCorrelation =
-		pexprInner->DeriveOuterReferences()->Pdrgpcr(m_mp);
-
-	const BOOL fMatches = FBindSubqueryOutputs(pdrgpsym, pmodel,
-		{pexprLowered, pdrgpcrLeft, pdrgpcrRight, pdrgpcrCorrelation, pexprInner});
-	pexprLowered->Release();
-	pdrgpcrLeft->Release();
-	pdrgpcrRight->Release();
-	pdrgpcrCorrelation->Release();
-	return fMatches;
-}
 
 BOOL
 CDSLConstraintChecker::FCheckExprListScalarSubquery(

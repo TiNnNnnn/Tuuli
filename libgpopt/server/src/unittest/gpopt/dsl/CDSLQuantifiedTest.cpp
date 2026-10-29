@@ -84,10 +84,10 @@ using namespace gpopt;
 	"Compute<e2 a5 s2>(Input<t2>)))|TableEq(t1,t0);SchemaEq(s1,s0);"         \
 	"ExprListAll(e0,e1,e2,a5,s2,p0,a2,a3,a4,a6,t2)"
 
-#define GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE                         \
-	"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,"      \
-	"Input<t2>)|TableEq(t1,t0);"                                        \
-	"PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)"
+#define GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE \
+	"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(" \
+	"Input<t1>,Input<t2>))|t1 := t0;n0 := BoolValue(p1);a1 := ScalarDeps(n0);" \
+	"ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0"
 
 namespace
 {
@@ -737,7 +737,6 @@ EresSubqueryOutputBindings()
 	CDSLTestFixture fix(mp);
 	BOOL ok = true;
 	const CHAR *rules[] = {
-		GPOPT_DSL_EXPRESSION_DEFINED_SCALAR_RULE,
 		"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
 		"ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)",
 		"Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);"
@@ -763,7 +762,7 @@ EresSubqueryOutputBindings()
 		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, rules[kind], nullptr, &error);
 		if (nullptr == rule) { ok = false; GPOS_TRACE(error.GetBuffer()); continue; }
 		const auto *symbols = (*rule->Pdrgpcon())[1]->Pdrgpsym();
-		const BOOL freshMarker = kind >= 5 && kind <= 8;
+		const BOOL freshMarker = kind >= 4 && kind <= 7;
 		CColRefArray *outerCols = nullptr, *innerCols = nullptr;
 		CExpression *outer = fix.PexprLogicalGet("capture_outer", 2, &outerCols);
 		CExpression *inner = fix.PexprLogicalGet("capture_inner", 1, &innerCols);
@@ -775,16 +774,16 @@ EresSubqueryOutputBindings()
 		inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
 			mp, innerCols, GPOS_NEW(mp) IDatum2dArray(mp)));
 		CExpression *scalar = nullptr;
-		if (kind < 5)
+		if (kind < 4)
 			scalar = CUtils::PexprScalarCmp(mp, (*outerCols)[0],
 				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarSubquery(
 					mp, (*innerCols)[0], false, false), inner), IMDType::EcmptEq);
-		else if (kind < 7)
-			scalar = GPOS_NEW(mp) CExpression(mp, kind == 5
+		else if (kind < 6)
+			scalar = GPOS_NEW(mp) CExpression(mp, kind == 4
 				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp))
 				: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp)), inner);
 		else
-			scalar = PexprQuantified(mp, fix, kind == 8 || kind == 10, inner, (*outerCols)[0], (*innerCols)[0]);
+			scalar = PexprQuantified(mp, fix, kind == 7 || kind == 9, inner, (*outerCols)[0], (*innerCols)[0]);
 		CRefCount *source = scalar;
 		if (EdslsymFunc == (*symbols)[0]->Esymkind())
 		{
@@ -819,7 +818,7 @@ EresSubqueryOutputBindings()
 		// A shared expression pointer denotes two evaluation occurrences, not
 		// one cached subquery result. Lower only the selected occurrence, keeping
 		// the other intact even when it is shallower in the scalar tree.
-		if (accepted && kind >= 1 && kind <= 8)
+		if (accepted && kind <= 7)
 		for (BOOL deeper : {false, true})
 		{
 			scalar->AddRef();
@@ -952,7 +951,7 @@ EresSubqueryOutputBindings()
 				if (checked)
 				{
 					ok &= checker.FCheck(rule, model);
-					if (1 == kind) ok &= model->FDerivedBinding((*symbols)[1]);
+					if (0 == kind) ok &= model->FDerivedBinding((*symbols)[1]);
 				}
 				else
 				{
@@ -964,13 +963,14 @@ EresSubqueryOutputBindings()
 				capture->Release(); model->Release();
 			}
 		}
-		if (kind < 2)
+		if (kind == 0)
+		for (BOOL compatible : {false, true})
 		{
 			// Repeated output symbols must agree with each other even when none
 			// is already bound: two empty vectors agree; outer/inner keys do not.
 			std::string text(rules[kind]);
-			const std::string oldName = kind == 0 ? "a2" : "a3";
-			const std::string newName = kind == 0 ? "a1" : "a2";
+			const std::string oldName = compatible ? "a3" : "a5";
+			const std::string newName = "a2";
 			for (size_t pos = text.find(oldName, text.rfind('|') + 1); pos != std::string::npos;
 				 pos = text.find(oldName, pos + newName.size()))
 				text.replace(pos, oldName.size(), newName);
@@ -984,19 +984,19 @@ EresSubqueryOutputBindings()
 				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 				ok &= model->FBind((*aliased)[0], source);
 				const BOOL checked = checker.FCheck(alias, model);
-				if (checked != (1 == kind)) GPOS_TRACE_FORMAT("aliased subquery output kind=%d accepted=%d", kind, checked);
-				ok &= checked == (1 == kind);
+				if (checked != compatible) GPOS_TRACE_FORMAT("aliased subquery output compatible=%d accepted=%d", compatible, checked);
+				ok &= checked == compatible;
 				if (checked) ok &= checker.FCheck(alias, model);
 				else for (ULONG slot = 1; slot < aliased->Size(); ++slot)
 					ok &= nullptr == model->PvalLookup((*aliased)[slot]);
 				model->Release(); alias->Release();
 			}
 		}
-		if (kind >= 7)
+		if (kind >= 6)
 		{
 			// A correlated reference is not a selected output of the inner query.
 			inner->AddRef();
-			CExpression *invalid = PexprQuantified(mp, fix, kind == 8 || kind == 10,
+			CExpression *invalid = PexprQuantified(mp, fix, kind == 7 || kind == 9,
 				inner, (*outerCols)[0], (*outerCols)[1]);
 			if (EdslsymExpr == (*symbols)[0]->Esymkind())
 			{
@@ -2577,13 +2577,14 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	CExpression *pexprTarget =
 		instantiator.PexprInstantiate(prule, pmodel);
 	GPOS_ASSERT(nullptr != pexprTarget);
-	GPOS_ASSERT(COperator::EopLogicalInnerCorrelatedApply ==
-				pexprTarget->Pop()->Eopid());
+	GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
+	CExpression *apply = (*pexprTarget)[0];
+	GPOS_ASSERT(COperator::EopLogicalLeftOuterCorrelatedApply == apply->Pop()->Eopid());
 	GPOS_ASSERT(COperator::EopScalarSubquery ==
-		CLogicalApply::PopConvert(pexprTarget->Pop())->EopidOriginSubq());
-	GPOS_ASSERT(pexprInner == (*pexprTarget)[1]);
-	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[2]->Pop()->Eopid());
-	GPOS_ASSERT(!(*pexprTarget)[2]->DeriveHasSubquery());
+		CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq());
+	GPOS_ASSERT(pexprInner == (*apply)[1]);
+	GPOS_ASSERT(COperator::EopScalarCmp == (*pexprTarget)[1]->Pop()->Eopid());
+	GPOS_ASSERT(!(*pexprTarget)[1]->DeriveHasSubquery());
 
 	pexprTarget->Release();
 	pmodel->Release();

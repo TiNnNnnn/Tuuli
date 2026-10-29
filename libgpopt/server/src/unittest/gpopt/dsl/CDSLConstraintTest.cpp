@@ -211,12 +211,8 @@ EresScalarSubqueryTotality()
 			const BOOL lazy = context == 1 || context == 4 || context == 5 ||
 				context == 6 || context == 8;
 			for (const CHAR *text : {
-				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
-				"TableEq(t1,t0);PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
 				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
 				"TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)",
-				"Filter<p0 a0>(Input<t0>)|InnerApply<p1 a1 a2 a3>(Input<t1>,Input<t2>)|"
-				"t1 := t0;PredicateScalarSubquery(p0,p1,a1,a2,a3,t2)",
 				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
 				"t1 := t0;ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0"})
 			{
