@@ -1,0 +1,58 @@
+{
+  "description": "Runtime deferred existential binding; complete native rule proof remains pending",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSelect2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSelect2Apply",
+          "CXformGbAgg2Apply",
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSelect2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "0,f,t",
+      "1,f,t",
+      "2,f,t",
+      "3,f,t"
+    ],
+    "postgres_output": [
+      "0,f,t",
+      "1,f,t",
+      "2,f,t",
+      "3,f,t"
+    ]
+  }
+}

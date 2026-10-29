@@ -1267,10 +1267,31 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	// Dataflow, not declaration order, determines availability. Source matches
 	// produce captures; target constructions consume them. Reject disconnected
 	// patterns and undefined leaves instead of admitting non-executable rules.
+	std::unordered_map<const CDSLSymbol *, const CDSLSymbol *> bindOutputs;
+	const auto collectBindOutputs = [&](const auto &self, const CDSLOp *op) -> BOOL {
+		if (EdslopBind == op->Edslop())
+		{
+			const auto *output = (*op->Pdrgpsym())[1];
+			if (!available.count(output) && nullptr == definitions->Pdef(output) &&
+				!columnDerivations.count(output) && !aliases.count(output) &&
+				!bindOutputs.emplace(output, (*op->Pdrgpsym())[0]).second)
+				return false;
+		}
+		for (ULONG i = 0; i < op->UlChildren(); ++i)
+			if (!self(self, (*op)[i])) return false;
+		return true;
+	};
+	if (!collectBindOutputs(collectBindOutputs, target->PopRoot()))
+	{
+		bctx.Fail("a deferred result column has multiple Bind producers");
+		return false;
+	}
 	size_t previous;
 	do
 	{
 		previous = available.size();
+		for (const auto &entry : bindOutputs)
+			if (available.count(entry.second)) available.insert(entry.first);
 		for (const auto &alias : aliases)
 		{
 			if (available.count(alias.second))

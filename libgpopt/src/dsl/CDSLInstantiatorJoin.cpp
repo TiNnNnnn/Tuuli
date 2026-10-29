@@ -28,7 +28,9 @@
 #include "gpopt/operators/CLogicalLeftSemiApply.h"
 #include "gpopt/operators/CLogicalLeftSemiJoin.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CScalarBooleanTest.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "naucrates/traceflags/traceflags.h"
@@ -42,16 +44,56 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 	CExpression *input = PexprBuild((*pop)[0], model);
 	CExpression *value = PexprResolveScalar((*pop->Pdrgpsym())[0], model);
 	CColRefArray *outputs = PdrgpcrResolveCols((*pop->Pdrgpsym())[1], model);
+	const auto origin = nullptr == value ? COperator::EopSentinel : value->Pop()->Eopid();
+	const BOOL existential = COperator::EopScalarSubqueryExists == origin ||
+		COperator::EopScalarSubqueryNotExists == origin;
 	if (nullptr == input || nullptr == value || nullptr == outputs ||
-		1 != outputs->Size() || value->Pop()->Eopid() != COperator::EopScalarSubquery ||
+		1 != outputs->Size() || (!existential && origin != COperator::EopScalarSubquery) ||
 		1 != value->Arity() ||
-		(*outputs)[0] != CScalarSubquery::PopConvert(value->Pop())->Pcr() ||
 		input->DeriveOutputColumns()->FMember((*outputs)[0]) ||
-		!(*value)[0]->DeriveOutputColumns()->FMember((*outputs)[0]))
+		(existential ?
+		 (!(*outputs)[0]->RetrieveType()->MDId()->Equals(CScalar::PopConvert(value->Pop())->MdidType()) ||
+		  (*value)[0]->DeriveOutputColumns()->FMember((*outputs)[0]) ||
+		  value->DeriveUsedColumns()->FMember((*outputs)[0])) :
+		 ((*outputs)[0] != CScalarSubquery::PopConvert(value->Pop())->Pcr() ||
+		  !(*value)[0]->DeriveOutputColumns()->FMember((*outputs)[0]))))
 	{
 		CRefCount::SafeRelease(input);
 		CRefCount::SafeRelease(value);
 		return nullptr;
+	}
+	if (existential)
+	{
+		CExpression *query = CDSLExprListUtils::PexprExistentialInput((*value)[0]);
+		query->AddRef();
+		const BOOL eager = 0 == query->DeriveOuterReferences()->Size() &&
+			dslproperties::FQueryDemandInsensitive(query);
+		CExpression *result = nullptr;
+		if (eager)
+		{
+			// A total uncorrelated value can be a real one-row input column,
+			// including when a later quantified SubPlan uses it as a parameter.
+			query = GPOS_NEW(m_mp) CExpression(m_mp,
+				GPOS_NEW(m_mp) CLogicalLimit(m_mp, GPOS_NEW(m_mp) COrderSpec(m_mp), true, true, false),
+				query, CUtils::PexprScalarConstInt8(m_mp, 0), CUtils::PexprScalarConstInt8(m_mp, 1));
+			query = CUtils::PexprCountStar(m_mp, query);
+			result = CUtils::PexprScalarCmp(m_mp, query->DeriveOutputColumns()->PcrFirst(),
+				CUtils::PexprScalarConstInt8(m_mp, 0),
+				COperator::EopScalarSubqueryExists == origin ? IMDType::EcmptG : IMDType::EcmptEq);
+		}
+		else result = CUtils::PexprScalarConstBool(m_mp, true);
+		auto *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		items->Append(CUtils::PexprScalarProjectElement(m_mp, (*outputs)[0], result));
+		query = CUtils::PexprLogicalProject(m_mp, query,
+			GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items), true);
+		value->Release();
+		outputs->AddRef();
+		// EXISTS/NOT EXISTS SubPlans preserve demand and false/true on empty input.
+		return GPOS_NEW(m_mp) CExpression(m_mp,
+			eager ? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterApply(
+				m_mp, outputs, COperator::EopScalarSubquery)) :
+				static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, outputs, origin)),
+			input, query, CUtils::PexprScalarConstBool(m_mp, true));
 	}
 	// Eager evaluation is equivalent only for a total, stable scalar query.
 	outputs->AddRef();

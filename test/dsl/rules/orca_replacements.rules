@@ -175,20 +175,13 @@ Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Bind<n2 a3>(Input<t1>))|OutputAtt
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a2);DepsDisjoint(a4,a2);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;Subquery(a2,t2) := n0;n2 := n0;a3 := a2;n1 := Column(a2);w1 := Context(w0,n1)
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a2);DepsDisjoint(a4,a2);t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;Subquery(a2,t2) := n0;n2 := n0;a3 := a2;n1 := Column(a2);w1 := Context(w0,n1)
 
-# The same Window sequence lowering handles boolean and quantified values;
-# their existing typed definitions retain empty-set and NULL semantics.
-# SYNTAX_ONLY legacy_hash=9f11f6202c95bf22; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate b68417e78db5b15b3d9c80e09b0a58d0b0a99bedf0bbed7cb5646ae8a8b49ec1. Generic WindowRows expression-list EXISTS bridge.
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# SYNTAX_ONLY legacy_hash=7c686f5f82593aa9; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate fd5695de2765059be24f2dd6d1249985c411ee3282f15946341b7fecaca33e07. Generic Window expression-list EXISTS bridge.
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# SYNTAX_ONLY legacy_hash=f11d3d635df680f1; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 1e9bdf1a169f97c1c96c458fe5d99d5c589e40dcf27d18324856ae0cfea77030. Generic WindowRows expression-list NOT EXISTS bridge.
-WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
-# SYNTAX_ONLY legacy_hash=dfff717b90ec9b44; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 70930bf584193c683882b2c97fc0991d5e0201d7ca9920230a44c6817f2528a5. Generic Window expression-list NOT EXISTS bridge.
-Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|t1 := t0;a1 := a0;o1 := o0;m1 := m0;ExprListNotExists(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0;ScalarOne(n0);ScalarZero(n1)
+# Deferred existential value: retain the complete consumer context and its metadata.
+# SYNTAX_ONLY: complete native phase and fresh-column proofs remain UNKNOWN;
+# native-off E2E checks runtime extraction; WindowRows has no PostgreSQL frame-free witness.
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
+WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
+Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
 # SYNTAX_ONLY legacy_hash=7566dae00dc6d4e8; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
 # Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 64ef9a0228b2b8ff842cd8a5984dcb7201dbf69916b641f308ca6dc8857bab9a. Generic WindowRows expression-list ANY bridge.
 WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 a2 a3 a4>(Input<t1>,Compute<e0 a5 s0>(Input<t2>)))|t1 := t0;a1 := a0;o1 := o0;ExprListAny(w1,e0,a5,s0,p0,a2,a3,a4,a6,t2) := w0
@@ -257,20 +250,11 @@ Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Compute<
 # native-off E2E covers runtime extraction, including lazy/cardinality behavior.
 Agg<a0 a1 a9 f0 s0 p0>(Input<t0>)|Agg<a2 a8 a10 f1 s1 p1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(a1,a5);DepsDisjoint(a4,a5);t1 := t0;a2 := a0;s1 := s0;p1 := p0;a10 := a9;Context(n0) := f0;Subquery(a5,t2) := n0;n2 := n0;a3 := a5;n1 := Column(a5);f1 := Context(f0,n1);FuncAttrs(a8,f1)
 
-# DIRECT(expression-rewrite): lower one EXISTS value inside a function list.
-# FuncAttrs derives the aggregate's exact inputs from the lowered functions;
-# the marker Compute remains an ordinary typed definition carrier.
-# SYNTAX_ONLY legacy_hash=77b1e4da974fc6c8; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 26f77d99929ad937b918a7a720f466697e4d7863d5b2b22e5218ca664f2a377e.
-Agg<a0 a1 a12 f0 s0 p0>(Input<t0>)|Agg<a2 a11 a13 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1);a13 := a12
+# Deferred existential values preserve the complete aggregate context and grouping metadata.
+# SYNTAX_ONLY: full native phase and fresh-column proofs remain UNKNOWN; native-off E2E covers runtime.
+Agg<a0 a1 a12 f0 s0 p0>(Input<t0>)|Agg<a2 a8 a10 f1 s1 p1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(a1,a3);DepsDisjoint(a4,a3);t1 := t0;a2 := a0;a10 := a12;s1 := s0;p1 := p0;Context(n0) := f0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);f1 := Context(f0,n1);FuncAttrs(a8,f1)
 
-# DIRECT(expression-rewrite): the same existential lowering preserves the
-# opposite truth polarity for NOT EXISTS.
-# SYNTAX_ONLY legacy_hash=c1123ce00060dd17; native expression proof: UNKNOWN (typed extraction requires native value demand; historical structural certificate is not a native proof).
-# Historical structural evidence only: FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-11; certificate
-# 3c223998f8828bbd19bd3619f8502e4489c549094c680662ca162b68847ffb10.
-Agg<a0 a1 a12 f0 s0 p0>(Input<t0>)|Agg<a2 a11 a13 f1 s1 p3>(LeftApply<p2 a3 a4 a5>(Input<t1>,Limit<n0 n1>(Compute<e0 a6 s2>(Input<t2>))))|t1 := t0;a2 := a0;s1 := s0;p3 := p0;ExprListNotExists(f1,e0,a6,s2,p2,a3,a4,a5,a10,t2) := f0;FuncAttrs(a11,f1);ScalarOne(n0);ScalarZero(n1);a13 := a12
+Agg<a0 a1 a12 f0 s0 p0>(Input<t0>)|Agg<a2 a8 a10 f1 s1 p1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(a1,a3);DepsDisjoint(a4,a3);t1 := t0;a2 := a0;a10 := a12;s1 := s0;p1 := p0;Context(n0) := f0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);f1 := Context(f0,n1);FuncAttrs(a8,f1)
 
 # DIRECT(expression-rewrite): lower one quantified ANY value inside a function
 # list. FuncAttrs derives the exact marker dependencies consumed by the Agg.
