@@ -1306,22 +1306,6 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 		{
 			out << ",\"expression\":";
 			complete &= AppendBoundExpression(mp, &out, expression);
-			if (const auto *context = model->PcontextScalar(symbol))
-			{
-				// Export the stored occurrence, never rediscover a same-shaped hole.
-				if (context->PexprRoot() != expression)
-				{
-					out << ",\"scalar_context\":null";
-					complete = false;
-				}
-				else
-				{
-					out << ",\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[";
-					for (ULONG j = 0; j < context->Path().size(); ++j)
-						out << (j ? "," : "") << context->Path()[j];
-					out << "]}";
-				}
-			}
 		}
 		else if (nullptr != value && (EdslsymAttrs == symbol->Esymkind() ||
 			EdslsymSchema == symbol->Esymkind() || EdslsymRank == symbol->Esymkind()))
@@ -1356,6 +1340,42 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 			// Unsupported payloads cannot silently become empty metadata.
 			out << ",\"unsupported_payload\":true";
 			complete = false;
+		}
+		if (const auto *context = model->PcontextScalar(symbol))
+		{
+			const CExpression *root = context->PexprRoot();
+			BOOL same = root == expression;
+			const BOOL functions = nullptr != value && EdslsymFunc == symbol->Esymkind();
+			if (functions)
+			{
+				const auto *array = static_cast<CExpressionArray *>(value);
+				same = COperator::EopScalarProjectList == root->Pop()->Eopid() &&
+					root->Arity() == array->Size();
+				for (ULONG j = 0; same && j < array->Size(); ++j)
+				{
+					const CExpression *item = (*root)[j];
+					same = COperator::EopScalarProjectElement == item->Pop()->Eopid() &&
+						1 == item->Arity() && (*item)[0] == (*array)[j];
+				}
+			}
+			if (!same)
+			{
+				out << ",\"scalar_context\":null";
+				complete = false;
+			}
+			else
+			{
+				// FUNC stores an array; the occurrence belongs to its labelled list.
+				if (functions)
+				{
+					out << ",\"context_expression\":";
+					complete &= AppendBoundExpression(mp, &out, root);
+				}
+				out << ",\"scalar_context\":{\"encoding\":\"native_scalar_child_indices\",\"path\":[";
+				for (ULONG j = 0; j < context->Path().size(); ++j)
+					out << (j ? "," : "") << context->Path()[j];
+				out << "]}";
+			}
 		}
 		if (nullptr != paths)
 		{

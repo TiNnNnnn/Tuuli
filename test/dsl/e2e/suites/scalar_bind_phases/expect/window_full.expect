@@ -19,6 +19,26 @@
       "not_contains": [
         "Falling back to Postgres"
       ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "c6b2138483b028a0",
+          "symbols": [
+            {
+              "symbol": "w0",
+              "kind": "w",
+              "bound": true,
+              "scalar_context": {
+                "encoding": "native_scalar_child_indices",
+                "path": [
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
+        }
+      ],
       "provenance": {
         "required_sources": [
           "dsl"

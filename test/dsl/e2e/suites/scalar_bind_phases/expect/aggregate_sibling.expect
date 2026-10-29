@@ -32,6 +32,27 @@
           ]
         }
       ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "de56dc10243c9158",
+          "symbols": [
+            {
+              "symbol": "f0",
+              "kind": "f",
+              "bound": true,
+              "scalar_context": {
+                "encoding": "native_scalar_child_indices",
+                "path": [
+                  0,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            }
+          ]
+        }
+      ],
       "provenance": {
         "required_sources": [
           "dsl"
