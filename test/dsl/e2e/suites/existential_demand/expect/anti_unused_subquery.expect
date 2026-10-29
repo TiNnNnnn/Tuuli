@@ -1,0 +1,82 @@
+{
+  "description": "存在性安全检查忽略未消费的 SELECT 标量子查询；原生规则关闭后仍由 DSL 规则链生成计划",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "construct.policy",
+      "stats_experiment": "anti-source.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f489170cc9013ac8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d02e2eb78f0ff3b4\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "f489170cc9013ac8",
+          "dst_rule": "d02e2eb78f0ff3b4",
+          "target_path": "r/0",
+          "dst_binding_path": "r",
+          "candidate_status": "ready_cbo"
+        }
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "d02e2eb78f0ff3b4",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "construct.policy",
+    "output": [
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "2",
+      "2"
+    ]
+  }
+}

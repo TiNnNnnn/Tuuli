@@ -38,6 +38,7 @@
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
 #include "gpopt/operators/CScalarProjectList.h"
+#include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "gpopt/operators/CScalarBoolOp.h"
@@ -351,6 +352,58 @@ EresAggregateTotalityScope()
 		aggregate->Release();
 	}
 	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
+EresExistentialProjectionDemand()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG shape = 0; shape < 7; ++shape)
+	for (BOOL negated : {false, true})
+	{
+		CColRefArray *cols = nullptr;
+		CExpression *input = fix.PexprLogicalGet("existence_projection", 1, &cols);
+		input->AddRef();
+		CExpression *value = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarSubquery(mp, (*cols)[0], false, false), input);
+		GPOS_UNITTEST_ASSERT(!dslproperties::FScalarTreeProvablyErrorFree(value));
+		if (3 == shape)
+		{
+			value->Release();
+			value = fix.PexprGenerateSeries((*cols)[0]);
+		}
+		if (1 == shape) input = CUtils::PexprLimit(mp, input, 1, 1);
+		CExpression *query = CUtils::PexprAddProjection(mp, input, value);
+		CColRef *result = CScalarProjectElement::PopConvert((*(*query)[1])[0]->Pop())->Pcr();
+		if (4 == shape || 6 == shape)
+		{
+			query = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLimit(mp, GPOS_NEW(mp) COrderSpec(mp), true, true, false),
+				query, CUtils::PexprScalarConstInt8(mp, 4 == shape ? -1 : 1),
+				CUtils::PexprScalarConstInt8(mp, 1));
+			query = CUtils::PexprAddProjection(mp, query, CUtils::PexprScalarConstInt4(mp, 0));
+		}
+		if (2 == shape)
+		{
+			CExpression *predicate = fix.PexprPredAtom(result);
+			CExpression *filtered = fix.PexprLogicalSelect(query, predicate);
+			predicate->Release();
+			query->Release();
+			query = filtered;
+		}
+		COperator *op = 5 == shape
+			? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubquery(mp, result, false, false))
+			: (negated ? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+				: GPOS_NEW(mp) CScalarSubqueryExists(mp));
+		CExpression *observation = GPOS_NEW(mp) CExpression(mp, op, query);
+		const BOOL safe = shape < 2;
+		GPOS_UNITTEST_ASSERT(dslproperties::FScalarTreeProvablyErrorFree(observation) == safe);
+		GPOS_UNITTEST_ASSERT(dslproperties::FScalarTreeProvablyDeterministic(observation) == safe);
+		observation->Release();
+	}
+	return GPOS_OK;
 }
 
 static GPOS_RESULT
@@ -676,6 +729,7 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
 		GPOS_UNITTEST_FUNC(EresScalarSubqueryTotality),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
+		GPOS_UNITTEST_FUNC(EresExistentialProjectionDemand),
 		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
 		GPOS_UNITTEST_FUNC(EresSubsetBindings),
 		GPOS_UNITTEST_FUNC(EresDependencyBindings),

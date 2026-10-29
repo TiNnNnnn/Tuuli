@@ -20,7 +20,7 @@
         "\"placement\":\"cbo\",\"status\":\"ready_cbo\"",
         "\"kind\":\"rule_candidate_outcome\",\"engine\":\"pgorca\",\"experiment\":\"dsl-e2e-discover\"",
         "\"rule_hash\":\"0fab0293bf556f94\",\"status\":\"memo_inserted\",\"memo_version_before\":",
-        "\"selected_plan_cbo_dsl_rules\":{\"0fab0293bf556f94\":1,\"f7eadea871960968\":12}",
+        "\"selected_plan_cbo_dsl_rules\":{\"0fab0293bf556f94\":1,\"f7eadea871960968\":1}",
         "\"origin\":\"CXformReduceAggInputViaCTE\"",
         "\"operator\":\"CPhysicalCTEProducer\"",
         "\"kind\":\"rule_edge_batch\",\"engine\":\"pgorca\",\"scheduler\":\"cbo\",\"schema_version\":4",
