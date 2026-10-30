@@ -4,11 +4,15 @@
 #include "unittest/gpopt/dsl/CDSLMatchViewTest.h"
 
 #include "gpos/memory/CAutoMemoryPool.h"
+#include "gpos/common/CAutoRef.h"
+#include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
 
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
+#include "gpopt/dsl/CDSLMatcher.h"
+#include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CPredicateUtils.h"
@@ -21,6 +25,7 @@ GPOS_RESULT
 CDSLMatchViewTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(CDSLMatchViewTest::EresUnittest_RepeatedInput),
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchViewTest::EresUnittest_AggregateAndOrderViews),
 		GPOS_UNITTEST_FUNC(
@@ -269,6 +274,47 @@ CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView()
 		mp, pexprPreservedSelect));
 	pexprPreservedSelect->Release();
 	pexprLeftJoin->Release();
+	return GPOS_OK;
+}
+
+// Repeated source identifiers compare exact captured trees, not allocation addresses.
+// This is a matching probe, not a registered identity rewrite.
+GPOS_RESULT
+CDSLMatchViewTest::EresUnittest_RepeatedInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CWStringDynamic error(mp);
+	CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp,
+		"Input<t0>|Input<t1>|t1 := t0", nullptr, &error));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	const auto *pattern = rule->PfragSrc()->PopRoot();
+	const auto *table = (*pattern->Pdrgpsym())[0];
+	CColRefArray *columns = nullptr;
+	CAutoRef<CExpression> input(fix.PexprLogicalGet("repeated_input", 2, &columns));
+	CAutoRef<CExpression> predicate(fix.PexprEqPred((*columns)[0], (*columns)[0]));
+	CAutoRef<CExpression> source(fix.PexprLogicalSelect(input.Value(), predicate.Value()));
+	CAutoRef<UlongToColRefMap> mapping(GPOS_NEW(mp) UlongToColRefMap(mp));
+	CAutoRef<CExpression> copy(source->PexprCopyWithRemappedColumns(mp, mapping.Value(), false));
+	GPOS_UNITTEST_ASSERT(source.Value() != copy.Value() &&
+		(*source)[0] != (*copy)[0] && (*source)[1] != (*copy)[1]);
+	CDSLMatcher matcher(mp, rule.Value());
+	CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+	GPOS_UNITTEST_ASSERT(matcher.FMatch(pattern, source.Value(), model.Value()));
+	GPOS_UNITTEST_ASSERT(matcher.FMatch(pattern, copy.Value(), model.Value()));
+	GPOS_UNITTEST_ASSERT(model->PexprTable(table) == source.Value());
+
+	// The same base relation is insufficient: predicates, columns and tree
+	// structure remain part of the capture. A rejected rebind preserves it.
+	CAutoRef<CExpression> otherPredicate(fix.PexprEqPred((*columns)[0], (*columns)[1]));
+	CAutoRef<CExpression> changed(fix.PexprLogicalSelect(input.Value(), otherPredicate.Value()));
+	CAutoRef<CExpression> renamed(fix.PexprLogicalGet("repeated_input", 2));
+	for (CExpression *invalid : {changed.Value(), input.Value(), renamed.Value(), predicate.Value()})
+	{
+		GPOS_UNITTEST_ASSERT(!matcher.FMatch(pattern, invalid, model.Value()));
+		GPOS_UNITTEST_ASSERT(model->PexprTable(table) == source.Value());
+	}
 	return GPOS_OK;
 }
 
