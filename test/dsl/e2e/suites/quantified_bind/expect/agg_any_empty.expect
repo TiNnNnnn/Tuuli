@@ -1,0 +1,52 @@
+{
+  "description": "Quantified Bind preserves NULL and empty-input observations",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSelect2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a55fff01d3e1e68c\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSelect2Apply",
+          "CXformGbAgg2Apply",
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSelect2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "0"
+    ],
+    "postgres_output": [
+      "0"
+    ]
+  }
+}

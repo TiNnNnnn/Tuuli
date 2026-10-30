@@ -2628,21 +2628,27 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		prule->Release();
 		pexprSource->Release();
 	}
-	for (BOOL negated : {false, true})
+	for (ULONG kind = 0; kind < 4; ++kind)
 	for (BOOL correlated : {false, true})
 	{
+		const BOOL negated = 1 == kind;
+		const BOOL quantified = 2 <= kind;
 		CExpression *outer = fix.PexprLogicalGet("exists_bind_outer", 1);
 		CExpression *inner = fix.PexprLogicalGet("exists_bind_inner", 1);
 		if (correlated) inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
 			inner, fix.PexprEqPred(outer->DeriveOutputColumns()->PcrFirst(), inner->DeriveOutputColumns()->PcrFirst()));
-		COperator *op = negated
-			? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
-			: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp));
-		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
-			outer, GPOS_NEW(mp) CExpression(mp, op, inner));
+		CExpression *value = quantified
+			? PexprQuantified(mp, fix, 3 == kind, inner,
+				outer->DeriveOutputColumns()->PcrFirst(), inner->DeriveOutputColumns()->PcrFirst())
+			: GPOS_NEW(mp) CExpression(mp, negated
+				? static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryNotExists(mp))
+				: static_cast<COperator *>(GPOS_NEW(mp) CScalarSubqueryExists(mp)), inner);
+		COperator *op = value->Pop();
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp), outer, value);
 		std::string text = "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
 			"t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;";
-		text += negated ? "Not(p3) := p2;Exists(t2) := p3;" : "Exists(t2) := p2;";
+		text += quantified ? (3 == kind ? "All(c0,v0,a2,t2) := p2;" : "Any(c0,v0,a2,t2) := p2;")
+			: negated ? "Not(p3) := p2;Exists(t2) := p3;" : "Exists(t2) := p2;";
 		text += "n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)";
 		for (BOOL duplicate : {false, true})
 		{
@@ -2661,12 +2667,12 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		CExpression *target = instantiator.PexprInstantiate(rule, model);
 		GPOS_UNITTEST_ASSERT(nullptr != target);
 		CExpression *apply = (*target)[0];
-		GPOS_UNITTEST_ASSERT((correlated ? COperator::EopLogicalLeftOuterCorrelatedApply :
+		GPOS_UNITTEST_ASSERT(((correlated || quantified) ? COperator::EopLogicalLeftOuterCorrelatedApply :
 			COperator::EopLogicalLeftOuterApply) == apply->Pop()->Eopid());
 		GPOS_UNITTEST_ASSERT(CLogicalApply::PopConvert(apply->Pop())->EopidOriginSubq() ==
-			(correlated ? op->Eopid() : COperator::EopScalarSubquery));
+			((correlated || quantified) ? op->Eopid() : COperator::EopScalarSubquery));
 		const auto *result = CLogicalApply::PopConvert(apply->Pop())->PdrgPcrInner();
-		GPOS_UNITTEST_ASSERT(1 == result->Size() && !outer->DeriveOutputColumns()->FMember((*result)[0]));
+		GPOS_UNITTEST_ASSERT((quantified ? 2 : 1) == result->Size() && !outer->DeriveOutputColumns()->FMember((*result)[0]));
 		GPOS_UNITTEST_ASSERT((*target)[1]->DeriveUsedColumns()->FMember((*result)[0]));
 		GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveHasSubquery());
 		// Force construction during a metadata check, then instantiate separately.

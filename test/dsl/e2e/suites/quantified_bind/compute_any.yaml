@@ -1,0 +1,7 @@
+experiment: quantified-bind-native
+discover: false
+template_route: 1
+template_fingerprint: 4764248fc31008ad
+template_root: r
+template_bindings: true
+cardinalities:

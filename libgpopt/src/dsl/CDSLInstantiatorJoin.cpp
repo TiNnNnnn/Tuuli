@@ -13,6 +13,7 @@
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLJoinMatcher.h"
 #include "gpopt/dsl/CDSLMatchView.h"
+#include "gpopt/dsl/CDSLQuantifiedMatcher.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
@@ -32,6 +33,7 @@
 #include "gpopt/operators/CScalarBooleanTest.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "naucrates/traceflags/traceflags.h"
 
@@ -47,11 +49,13 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 	const auto origin = nullptr == value ? COperator::EopSentinel : value->Pop()->Eopid();
 	const BOOL existential = COperator::EopScalarSubqueryExists == origin ||
 		COperator::EopScalarSubqueryNotExists == origin;
+	const BOOL quantified = COperator::EopScalarSubqueryAny == origin ||
+		COperator::EopScalarSubqueryAll == origin;
 	if (nullptr == input || nullptr == value || nullptr == outputs ||
-		1 != outputs->Size() || (!existential && origin != COperator::EopScalarSubquery) ||
-		1 != value->Arity() ||
+		1 != outputs->Size() || (!existential && !quantified && origin != COperator::EopScalarSubquery) ||
+		(quantified ? 2 : 1) != value->Arity() ||
 		input->DeriveOutputColumns()->FMember((*outputs)[0]) ||
-		(existential ?
+		((existential || quantified) ?
 		 (!(*outputs)[0]->RetrieveType()->MDId()->Equals(CScalar::PopConvert(value->Pop())->MdidType()) ||
 		  (*value)[0]->DeriveOutputColumns()->FMember((*outputs)[0]) ||
 		  value->DeriveUsedColumns()->FMember((*outputs)[0])) :
@@ -61,6 +65,32 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		CRefCount::SafeRelease(input);
 		CRefCount::SafeRelease(value);
 		return nullptr;
+	}
+	if (quantified)
+	{
+		const CColRef *selected = CScalarSubqueryQuantified::PopConvert(value->Pop())->Pcr();
+		if (!(*value)[0]->DeriveOutputColumns()->FMember(selected))
+		{
+			input->Release();
+			value->Release();
+			return nullptr;
+		}
+		CExpression *comparison = CDSLQuantifiedMatcher::PexprComparison(m_mp, value);
+		CExpression *query = (*value)[0];
+		query->AddRef();
+		auto *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		items->Append(CUtils::PexprScalarProjectElement(m_mp, (*outputs)[0],
+			CUtils::PexprScalarConstBool(m_mp, true)));
+		query = CUtils::PexprLogicalProject(m_mp, query,
+			GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items), true);
+		auto *inner = GPOS_NEW(m_mp) CColRefArray(m_mp);
+		inner->Append((*outputs)[0]);
+		inner->Append(const_cast<CColRef *>(selected));
+		value->Release();
+		// The SubPlan owns comparison demand, NULL and empty-set semantics.
+		return GPOS_NEW(m_mp) CExpression(m_mp,
+			GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, inner, origin),
+			input, query, comparison);
 	}
 	if (existential)
 	{

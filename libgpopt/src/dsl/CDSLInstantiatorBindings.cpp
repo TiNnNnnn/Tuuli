@@ -966,9 +966,13 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 			column = const_cast<CColRef *>(CScalarSubquery::PopConvert(value->Pop())->Pcr());
 		else if (COperator::EopScalarSubqueryExists == value->Pop()->Eopid() ||
 				 COperator::EopScalarSubqueryNotExists == value->Pop()->Eopid())
+			// Eager EXISTS constructs a fresh COUNT input, so its result stays fresh.
 			column = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
 				COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(CScalar::PopConvert(value->Pop())->MdidType()),
 				CDSLMatchView::ScalarValueTypeModifier(value));
+		else if (COperator::EopScalarSubqueryAny == value->Pop()->Eopid() ||
+				 COperator::EopScalarSubqueryAll == value->Pop()->Eopid())
+			column = pmodel->PcrCreateSubqueryResult(producer, value);
 		value->Release();
 		if (nullptr == column) return nullptr;
 		auto *columns = GPOS_NEW(m_mp) CColRefArray(m_mp);
