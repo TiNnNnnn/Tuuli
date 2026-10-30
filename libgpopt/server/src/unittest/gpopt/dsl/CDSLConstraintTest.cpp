@@ -179,9 +179,9 @@ EresScalarSubqueryTotality()
 			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model) == safe);
 			model->Release(); rule->Release();
 		}
-		// Reuse the cardinality/effects matrix for both legacy extraction
-		// entries. Mandatory operands retain their existing domain; lazy
-		// operands require the same totality and repeatability as typed builds.
+		// Bind preserves lazy demand using a correlated carrier when the query
+		// is fallible or may return multiple rows; property guards stay strict.
+		CExpression *outer = fix.PexprLogicalGet("scalar_bind_outer", 1);
 		for (ULONG context = 0; context < 9; ++context)
 		{
 			predicate->AddRef();
@@ -208,45 +208,38 @@ EresScalarSubqueryTotality()
 			else if (context == 7)
 				owner = GPOS_NEW(mp) CExpression(mp,
 					GPOS_NEW(mp) CScalarBoolOp(mp, CScalarBoolOp::EboolopNot), predicate);
-			const BOOL lazy = context == 1 || context == 4 || context == 5 ||
-				context == 6 || context == 8;
-			for (const CHAR *text : {
-				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
-				"TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)",
-				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|"
-				"t1 := t0;ExprListScalarSubquery(p1,p2,a2,a3,a4,a5,t2) := p0"})
+			const CHAR *text =
+				"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
+				"OutputAttrs(a4,t0);DepsDisjoint(p0,a2);DepsDisjoint(a4,a2);"
+				"t1 := t0;Context(n0) := p0;Subquery(a2,t2) := n0;"
+				"n2 := n0;a3 := a2;n1 := Column(a2);p1 := Context(p0,n1);a1 := ScalarDeps(p1)";
+			CDSLRule *rule = PdslruleParseLocal(mp, text);
+			GPOS_UNITTEST_ASSERT(nullptr != rule);
+			CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+			GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "t0"), outer));
+			if (context == 8)
 			{
-				CDSLRule *rule = PdslruleParseLocal(mp, text);
-				GPOS_UNITTEST_ASSERT(nullptr != rule);
-				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
-				BindTableAndAttr(model, PsymByName(rule, "t0"), carrier,
-					PsymByName(rule, "a0"), (*columns)[0], mp);
-				const BOOL matched = CDSLMatcher(mp, rule).FMatchExpression(
-					PsymByName(rule, "p0"), owner, model);
-				if (!matched)
-					GPOS_TRACE_FORMAT("scalar capture rows=%d shape=%d context=%d boolean=%d kind=%d rule=%s",
-						rows, shape, context, CDSLMatchView::FBooleanValue(owner),
-						PsymByName(rule, "p0")->Esymkind(), text);
-				GPOS_UNITTEST_ASSERT(matched);
-				if (context == 8)
-				{
-					// The original AND's other operand is no longer on the scalar
-					// capture path, but it can still suppress query evaluation.
-					CExpressionArray *residual = GPOS_NEW(mp) CExpressionArray(mp);
-					residual->Append(CUtils::PexprScalarConstBool(mp, false));
-					model->SetResidualConjuncts(residual);
-				}
-				const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
-				const BOOL expected = shape != 4 && (!lazy || safe);
-				if (accepted != expected)
-					GPOS_TRACE_FORMAT("scalar extraction rows=%d shape=%d context=%d accepted=%d rule=%s",
-						rows, shape, context, accepted, text);
-				GPOS_UNITTEST_ASSERT(accepted == expected);
-				model->Release(); rule->Release();
+				CExpressionArray *residual = GPOS_NEW(mp) CExpressionArray(mp);
+				residual->Append(CUtils::PexprScalarConstBool(mp, false));
+				model->SetResidualConjuncts(residual);
 			}
+			const BOOL matched = CDSLMatcher(mp, rule).FMatchExpression(
+				PsymByName(rule, "p0"), owner, model);
+			GPOS_UNITTEST_ASSERT(matched == (shape != 4 && shape != 5));
+			if (matched)
+			{
+				GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
+				CExpression *target = CDSLInstantiator(mp).PexprInstantiate(rule, model);
+				GPOS_UNITTEST_ASSERT(nullptr != target);
+				GPOS_UNITTEST_ASSERT((*target)[0]->Pop()->Eopid() == (safe
+					? COperator::EopLogicalLeftOuterApply : COperator::EopLogicalLeftOuterCorrelatedApply));
+				GPOS_UNITTEST_ASSERT(!(*target)[1]->DeriveHasSubquery());
+				target->Release();
+			}
+			model->Release(); rule->Release();
 			owner->Release();
 		}
-		predicate->Release(); carrier->Release();
+		outer->Release(); predicate->Release(); carrier->Release();
 	}
 	return GPOS_OK;
 }
