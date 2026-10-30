@@ -1280,6 +1280,19 @@ CDSLParserTest::EresUnittest_Constraints()
 		bad->Release();
 		return GPOS_FAILED;
 	}
+	for (const CHAR *retired : {"ExprListScalarSubquery", "ExprListExists",
+		"ExprListNotExists", "ExprListAny", "ExprListAll"})
+	{
+		GPOS_UNITTEST_ASSERT(EdslconSentinel == CDSLConstraintKindTable::Parse(retired));
+		for (const CHAR *syntax : {"(t0,t1)", "(t1) := t0"})
+		{
+			std::string text = std::string("Input<t0>|Input<t1>|") + retired + syntax;
+			CDSLRule *rule = Parse(mp, text.c_str());
+			const BOOL rejected = nullptr == rule;
+			CRefCount::SafeRelease(rule);
+			GPOS_UNITTEST_ASSERT(rejected);
+		}
+	}
 	// constraint referencing undeclared symbol -> error.
 	bad = Parse(mp, "Input<t0>|Input<t1>|TableEq(t1,t9)");
 	if (nullptr != bad)

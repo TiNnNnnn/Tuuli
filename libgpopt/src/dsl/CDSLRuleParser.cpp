@@ -472,16 +472,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 				EDslSymbolKind esymkind =
 					CDSLConstraintKindTable::EsymkindDerivedOutput(edslcon,
 															 ulSym);
-				if ((EdslconExprListScalarSubquery == edslcon ||
-					 EdslconExprListExists == edslcon ||
-					 EdslconExprListNotExists == edslcon ||
-					 EdslconExprListAny == edslcon ||
-					 EdslconExprListAll == edslcon) &&
-					1 == ulSym &&
-					0 < pdrgpsym->Size())
-				{
-					esymkind = (*pdrgpsym)[0]->Esymkind();
-				}
 				if (EdslsymSentinel == esymkind)
 				{
 					bctx.Fail("constraint references undeclared symbol '" + name +
@@ -565,48 +555,6 @@ PdrgpconBuild(SBuildCtx &bctx,
 			 EdslsymTable != (*pdrgpsym)[3]->Esymkind()))
 		{
 			bctx.Fail("quantified predicate expects two predicates, attrs, and table symbols");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
-		if (EdslconExprListScalarSubquery == edslcon &&
-			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
-			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
-			 EdslsymPred != (*pdrgpsym)[2]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[4]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[5]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
-			 EdslsymTable != (*pdrgpsym)[7]->Esymkind()))
-		{
-			bctx.Fail("ExprListScalarSubquery expects two equal-kind scalar sequences, a predicate, four attrs, and a table symbol");
-			pdrgpsym->Release();
-			pdrgpcon->Release();
-			return nullptr;
-		}
-		if ((EdslconExprListExists == edslcon ||
-			 EdslconExprListNotExists == edslcon ||
-			 EdslconExprListAny == edslcon ||
-			 EdslconExprListAll == edslcon) &&
-			((EdslsymExpr != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymFunc != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymPred != (*pdrgpsym)[0]->Esymkind() &&
-			  EdslsymWindow != (*pdrgpsym)[0]->Esymkind()) ||
-			 (*pdrgpsym)[0]->Esymkind() != (*pdrgpsym)[1]->Esymkind() ||
-			 EdslsymExpr != (*pdrgpsym)[2]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[3]->Esymkind() ||
-			 EdslsymSchema != (*pdrgpsym)[4]->Esymkind() ||
-			 EdslsymPred != (*pdrgpsym)[5]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[6]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[7]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[8]->Esymkind() ||
-			 EdslsymAttrs != (*pdrgpsym)[9]->Esymkind() ||
-			 EdslsymTable != (*pdrgpsym)[10]->Esymkind()))
-		{
-			bctx.Fail("ExprListExists/NotExists/Any/All expects two equal-kind scalar sequences, a marker expression list, attrs/schema metadata, a predicate, four attrs, and a table symbol");
 			pdrgpsym->Release();
 			pdrgpcon->Release();
 			return nullptr;
@@ -866,11 +814,6 @@ FDeferredSemanticConstraint(EDslConstraintKind kind)
 		case EdslconExprSplit:
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
-		case EdslconExprListScalarSubquery:
-		case EdslconExprListExists:
-		case EdslconExprListNotExists:
-		case EdslconExprListAny:
-		case EdslconExprListAll:
 			return true;
 		default:
 			return false;
@@ -1544,76 +1487,6 @@ CDSLRuleParser::PdslruleParse(CMemoryPool *mp, const CHAR *sz_dsl,
 			if (nullptr != pfrag_src)
 			{
 				pfrag_tgt = PfragBuild(bctx, frags[1], EdslsideTarget);
-			}
-			// These multi-output observations already have a checked runtime
-			// adapter. Keep both spellings on that path, not scalar constructors.
-			// shortcut: retain legacy IR until explicit capture/build replaces these observations.
-			if (nullptr != pfrag_tgt && nullptr != tree->constraints())
-			{
-				const auto isObservation = [](dsl::DSLRuleParser::BindingContext *binding) {
-					auto *call = nullptr == binding ? nullptr : binding->call();
-					const auto kind = nullptr == call ? EdslconSentinel :
-						CDSLConstraintKindTable::Parse(call->ID()->getText().c_str());
-					return EdslconExprListScalarSubquery == kind ||
-						EdslconExprListExists == kind || EdslconExprListNotExists == kind ||
-						EdslconExprListAny == kind || EdslconExprListAll == kind;
-				};
-				std::unordered_set<std::string> captured;
-				for (const auto &entry : bctx.symtab)
-					if (EdslsideSource == entry.second->Eside()) captured.insert(entry.first);
-				std::vector<dsl::DSLRuleParser::BindingContext *> pending, ordered;
-				for (auto *child : tree->constraints()->children)
-				{
-					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
-					if (isObservation(binding)) pending.push_back(binding);
-				}
-				// A residual list is another capture; declarations need not be in
-				// dependency order. Unrooted cycles never acquire a source binding.
-				while (!pending.empty())
-				{
-					const auto before = pending.size();
-					for (auto it = pending.begin(); it != pending.end();)
-					{
-						auto *binding = *it;
-						if (binding->getStart()->getType() != dsl::DSLRuleParser::ID ||
-							0 == captured.count(binding->SYMBOL(0)->getText())) { ++it; continue; }
-						for (auto *operand : binding->call()->SYMBOL())
-							captured.insert(operand->getText());
-						ordered.push_back(binding);
-						it = pending.erase(it);
-					}
-					if (pending.size() == before)
-					{
-						bctx.Fail("expression-list observation requires a captured source input");
-						break;
-					}
-				}
-				std::string clauses;
-				BOOL loweredObservation = false;
-				size_t observationIndex = 0;
-				for (auto *child : tree->constraints()->children)
-				{
-					if (!bctx.err.empty()) break;
-					auto *binding = dynamic_cast<dsl::DSLRuleParser::BindingContext *>(child);
-					if (!isObservation(binding))
-					{
-						clauses += child->getText();
-						continue;
-					}
-					binding = ordered[observationIndex++];
-					auto *call = binding->call();
-					clauses += call->ID()->getText() + "(" + binding->SYMBOL(0)->getText();
-					for (auto *operand : call->SYMBOL()) clauses += "," + operand->getText();
-					clauses += ")";
-					loweredObservation = true;
-				}
-				if (loweredObservation && bctx.err.empty())
-				{
-					pfrag_src->Release();
-					pfrag_tgt->Release();
-					const std::string lowered = source + "|" + target + "|" + clauses;
-					return PdslruleParse(mp, lowered.c_str(), sz_verdict, pstrErr);
-				}
 			}
 			if (nullptr != pfrag_tgt && bctx.err.empty() &&
 				FDeclareBindings(bctx, tree->constraints(), pfrag_src,

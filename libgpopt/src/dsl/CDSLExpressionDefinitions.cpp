@@ -66,16 +66,6 @@ EdslexprKind(const CDSLConstraint *pcon)
 			return EdslexprAny;
 		case EdslconPredicateAll:
 			return EdslexprAll;
-		case EdslconExprListScalarSubquery:
-			return EdslexprExprListScalarSubquery;
-		case EdslconExprListExists:
-			return EdslexprExprListExists;
-		case EdslconExprListNotExists:
-			return EdslexprExprListNotExists;
-		case EdslconExprListAny:
-			return EdslexprExprListAny;
-		case EdslconExprListAll:
-			return EdslexprExprListAll;
 		case EdslconExprNulls:
 			return EdslexprNulls;
 		case EdslconPredicateNotTrue:
@@ -100,13 +90,6 @@ PsymOutput(const CDSLConstraint *pcon)
 		 2 != pcon->Pdrgpsym()->Size()) ||
 		((EdslexprAny == edslexpr || EdslexprAll == edslexpr) &&
 		 4 != pcon->Pdrgpsym()->Size()) ||
-		(EdslexprExprListScalarSubquery == edslexpr &&
-		 8 != pcon->Pdrgpsym()->Size()) ||
-		((EdslexprExprListExists == edslexpr ||
-		  EdslexprExprListNotExists == edslexpr ||
-		  EdslexprExprListAny == edslexpr ||
-		  EdslexprExprListAll == edslexpr) &&
-		 11 != pcon->Pdrgpsym()->Size()) ||
 		(EdslexprNulls == edslexpr && 3 != pcon->Pdrgpsym()->Size()))
 	{
 		return nullptr;

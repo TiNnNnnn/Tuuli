@@ -3861,11 +3861,15 @@ class TraceFrameworkTest(unittest.TestCase):
                                       for kind in ('ScalarSubquery', 'Exists', 'NotExists', 'Any', 'All')})
 
     def test_scalar_extraction_retires_the_legacy_shortcuts(self) -> None:
-        rules = [line for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines()
-                 if line.strip() and not line.startswith('#')]
-        for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery(',
-                         'ExprListExists(', 'ExprListNotExists(', 'ExprListAny(', 'ExprListAll('):
-            self.assertFalse(any(shortcut in line for line in rules))
+        rule_files = [SCRIPT_DIR / 'rules/orca_replacements.rules',
+                      *sorted((SCRIPT_DIR / 'e2e/suites').glob('*/rules'))]
+        for path in rule_files:
+            rules = [line for line in path.read_text().splitlines()
+                     if line.strip() and not line.lstrip().startswith('#')]
+            for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery(',
+                             'ExprListExists(', 'ExprListNotExists(', 'ExprListAny(', 'ExprListAll('):
+                with self.subTest(path=path, shortcut=shortcut):
+                    self.assertFalse(any(shortcut in line for line in rules))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:
         rule_file = SCRIPT_DIR / "rules" / "orca_replacements.rules"

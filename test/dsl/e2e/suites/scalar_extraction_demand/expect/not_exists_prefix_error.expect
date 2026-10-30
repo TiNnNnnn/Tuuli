@@ -11,7 +11,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"21543dafb8c8f61b\"",
+        "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\"",
         "CLogicalLeftOuterCorrelatedApply"
       ],
       "not_contains": [

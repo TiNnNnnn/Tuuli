@@ -59,10 +59,9 @@ def check_alpha_and_binding(binary, directory):
             'TableEq(t2,t0);TableEq(t3,t1)')
     reordered = join.replace('Input<t0>,Filter<p0 a2>(Input<t1>)',
                              'Filter<p0 a2>(Input<t1>),Input<t0>')
-    # a5 is introduced by a constructive constraint, not an operator slot.
-    derived = ('Filter<p0 a0>(Input<t0>)|Filter<p1 a1>('
-               'LeftApply<p2 a2 a3 a4>(Input<t1>,Input<t2>))|'
-               'TableEq(t1,t0);ExprListScalarSubquery(p0,p1,p2,a2,a3,a4,a5,t2)')
+    # a5 is introduced by constructive metadata, not an operator slot.
+    derived = ('Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|'
+               't1 := t0;p1 := p0;a1 := a0;OutputAttrs(a5,t0)')
     cases = [base, renamed, rebound, shared, join, reordered, derived,
              re.sub(r'\b([a-z])(\d+)\b', lambda m: m[1] + str(300 + int(m[2])), derived)]
     inputs = directory / 'learning-input'

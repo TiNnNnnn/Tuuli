@@ -184,85 +184,6 @@ PopFreshRowApply(CMemoryPool *mp, BOOL outer, CExpression *right,
 		? static_cast<COperator *>(GPOS_NEW(mp) CLogicalLeftOuterApply(mp, inner, COperator::EopSentinel))
 		: static_cast<COperator *>(GPOS_NEW(mp) CLogicalInnerApply(mp, inner, COperator::EopSentinel));
 }
-
-const CDSLExpressionDefinitions::CDefinition *
-PdefExprListApply(const CDSLExpressionDefinitions *pexprdefs,
-				   const CDSLOp *popApply)
-{
-	if (nullptr == pexprdefs || nullptr == popApply ||
-		EdslopLeftOuterApply != popApply->Edslop() ||
-		2 != popApply->UlChildren() || nullptr == popApply->Pdrgpsym() ||
-		4 != popApply->Pdrgpsym()->Size())
-	{
-		return nullptr;
-	}
-
-	const CDSLSymbolArray *pdrgpsymApply = popApply->Pdrgpsym();
-	const CDSLOp *popRight = (*popApply)[1];
-	const CDSLExpressionDefinitions::CDefinition *pdefMatch = nullptr;
-	for (ULONG ul = 0; ul < pexprdefs->UlDefinitions(); ul++)
-	{
-		const CDSLExpressionDefinitions::CDefinition *pdef =
-			pexprdefs->PdefAt(ul);
-		BOOL fMatches = false;
-		if (EdslexprExprListScalarSubquery == pdef->Edslexpr() &&
-			7 == pdef->Arity() && EdslopInput == popRight->Edslop() &&
-			nullptr != popRight->Pdrgpsym() &&
-			1 == popRight->Pdrgpsym()->Size())
-		{
-			fMatches = pdef->PsymOperand(1) == (*pdrgpsymApply)[0] &&
-				pdef->PsymOperand(2) == (*pdrgpsymApply)[1] &&
-				pdef->PsymOperand(3) == (*pdrgpsymApply)[2] &&
-				pdef->PsymOperand(4) == (*pdrgpsymApply)[3] &&
-				pdef->PsymOperand(6) == (*popRight->Pdrgpsym())[0];
-		}
-		else
-		{
-			const BOOL fExistential =
-				EdslexprExprListExists == pdef->Edslexpr() ||
-				EdslexprExprListNotExists == pdef->Edslexpr();
-			const BOOL fQuantified =
-				EdslexprExprListAny == pdef->Edslexpr() ||
-				EdslexprExprListAll == pdef->Edslexpr();
-			const CDSLOp *popMarker = fExistential &&
-					EdslopLimit == popRight->Edslop() &&
-					1 == popRight->UlChildren()
-				? (*popRight)[0]
-				: (fQuantified ? popRight : nullptr);
-			const CDSLOp *popInput = nullptr != popMarker &&
-					EdslopCompute == popMarker->Edslop() &&
-					1 == popMarker->UlChildren()
-				? (*popMarker)[0]
-				: nullptr;
-			if ((fExistential || fQuantified) && 10 == pdef->Arity() &&
-				nullptr != popMarker && nullptr != popMarker->Pdrgpsym() &&
-				3 == popMarker->Pdrgpsym()->Size() && nullptr != popInput &&
-				EdslopInput == popInput->Edslop() &&
-				nullptr != popInput->Pdrgpsym() &&
-				1 == popInput->Pdrgpsym()->Size())
-			{
-				fMatches =
-					pdef->PsymOperand(1) == (*popMarker->Pdrgpsym())[0] &&
-					pdef->PsymOperand(2) == (*popMarker->Pdrgpsym())[1] &&
-					pdef->PsymOperand(3) == (*popMarker->Pdrgpsym())[2] &&
-					pdef->PsymOperand(4) == (*pdrgpsymApply)[0] &&
-					pdef->PsymOperand(5) == (*pdrgpsymApply)[1] &&
-					pdef->PsymOperand(6) == (*pdrgpsymApply)[2] &&
-					pdef->PsymOperand(7) == (*pdrgpsymApply)[3] &&
-					pdef->PsymOperand(9) == (*popInput->Pdrgpsym())[0];
-			}
-		}
-		if (fMatches)
-		{
-			if (nullptr != pdefMatch)
-			{
-				return nullptr;
-			}
-			pdefMatch = pdef;
-		}
-	}
-	return pdefMatch;
-}
 }  // namespace
 
 //---------------------------------------------------------------------------
@@ -349,10 +270,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	const BOOL fPredicateApply =
 		fSemiApply || fAntiApply || fAntiApplyNotIn || fInnerApply ||
 		fLeftOuterApply;
-	const CDSLExpressionDefinitions::CDefinition *pdefExprListSubquery =
-		fLeftOuterApply
-			? PdefExprListApply(m_prule->Pexprdefs(), pop)
-			: nullptr;
 	const BOOL fQualifiedAntiJoinNotIn = fAntiJoinNotIn && 6 == ulSymbols;
 	const BOOL fValidSymbols = fPredicateJoin
 		? (3 == ulSymbols || fQualifiedAntiJoinNotIn)
@@ -364,18 +281,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 	{
 		return nullptr;
 	}
-	const BOOL fExprListScalarSubquery =
-		nullptr != pdefExprListSubquery &&
-		EdslexprExprListScalarSubquery ==
-			pdefExprListSubquery->Edslexpr();
-	const BOOL fExprListExistential =
-		nullptr != pdefExprListSubquery &&
-		(EdslexprExprListExists == pdefExprListSubquery->Edslexpr() ||
-		 EdslexprExprListNotExists == pdefExprListSubquery->Edslexpr());
-	const BOOL fExprListQuantified =
-		nullptr != pdefExprListSubquery &&
-		(EdslexprExprListAny == pdefExprListSubquery->Edslexpr() ||
-		 EdslexprExprListAll == pdefExprListSubquery->Edslexpr());
 	const BOOL fPredicateOnly = 3 == ulSymbols || fQualifiedAntiJoinNotIn ||
 		(fPredicateApply && 4 == ulSymbols);
 	const BOOL fBindsPredicate =
@@ -560,11 +465,9 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		return nullptr;
 	}
 
-	// Quantified extraction preserves the original comparison's ambient parameters.
-	const CColRefSet *parameters = fExprListQuantified ? pmodel->PcrsSourceOuter() : nullptr;
 	CExpression *pexprTargetPred = PexprRemapPredicateToChildren(
 		(*pop)[0], pexprLeft, (*pop)[1], pexprRight, pexprJoinPred,
-		pmodel, parameters);
+		pmodel, nullptr);
 	CRefCount::SafeRelease(pexprOwnedJoinPred);
 	if (nullptr == pexprTargetPred)
 	{
@@ -578,7 +481,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 		// correct left/right partitions, and target inputs can be reordered.
 		CColRefArray *actual[2] = {nullptr, nullptr};
 		BOOL valid = CDSLJoinMatcher::FDerivePredicateDependencies(
-			m_mp, predicate, pexprLeft, pexprRight, &actual[0], &actual[1], parameters);
+			m_mp, predicate, pexprLeft, pexprRight, &actual[0], &actual[1], nullptr);
 		CExpression *children[2] = {pexprLeft, pexprRight};
 		for (ULONG i = 0; valid && i < 2; i++)
 		{
@@ -586,7 +489,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 				PsymResolve((*pdrgpsym)[offset + i + 1]), pmodel);
 			CColRefArray *mapped = nullptr == declared ? nullptr :
 				PdrgpcrMapToTarget((*pop)[i], children[i], declared, pmodel,
-					0 == i ? parameters : nullptr);
+					nullptr);
 			CColRefSet *expected = GPOS_NEW(m_mp) CColRefSet(m_mp);
 			if (nullptr != mapped)
 				expected->Include(mapped);
@@ -799,70 +702,6 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 							  popCarrier->EopidOriginSubq()));
 			}
 		}
-		else if (fExprListScalarSubquery ||
-				 fExprListExistential || fExprListQuantified)
-		{
-			const CDSLSymbol *psymInner =
-				pdefExprListSubquery->PsymOperand(
-					  (fExprListExistential || fExprListQuantified) ? 8 : 5);
-			CColRefArray *pdrgpcrInner =
-				PdrgpcrResolveCols(psymInner, pmodel);
-			if (nullptr == pdrgpcrInner ||
-				((fExprListExistential || fExprListQuantified) ? 2 : 1) !=
-					pdrgpcrInner->Size())
-			{
-				pexprTargetPred->Release();
-				pexprLeft->Release();
-				pexprRight->Release();
-				return nullptr;
-			}
-			pdrgpcrInner->AddRef();
-			const COperator::EOperatorId eopidOrigin = fExprListQuantified
-				? (EdslexprExprListAll == pdefExprListSubquery->Edslexpr()
-					   ? COperator::EopScalarSubqueryAll
-					   : COperator::EopScalarSubqueryAny)
-				: COperator::EopScalarSubquery;
-			if (fExprListQuantified)
-			{
-				// ANY/ALL is evaluated by the correlated subplan carrier.  This
-				// preserves empty-set and NULL results without duplicating ORCA's
-				// aggregate-based decorrelation implementation in the DSL runtime.
-				popJoin = GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(
-					m_mp, pdrgpcrInner, eopidOrigin);
-			}
-			// EXISTS adds a constant marker and LIMIT; audit its captured input.
-			else if (0 == pexprRight->DeriveOuterReferences()->Size() &&
-					 dslproperties::FQueryDemandInsensitive(fExprListExistential
-						 ? pmodel->PexprTable(pdefExprListSubquery->PsymOperand(9))
-						 : pexprRight) &&
-					 (!fExprListScalarSubquery ||
-					  1 >= pexprRight->DeriveMaxCard().Ull()))
-			{
-				popJoin = fLeftOuterApply
-					? static_cast<COperator *>(GPOS_NEW(m_mp)
-						  CLogicalLeftOuterApply(
-							  m_mp, pdrgpcrInner,
-							  eopidOrigin))
-					: static_cast<COperator *>(GPOS_NEW(m_mp)
-						  CLogicalInnerApply(
-							  m_mp, pdrgpcrInner,
-							  eopidOrigin));
-			}
-			else
-			{
-				// SubPlans retain lookup demand and atomic cardinality checks;
-				// an eager Apply can expose RHS errors before earlier Items.
-				popJoin = fLeftOuterApply
-					? static_cast<COperator *>(GPOS_NEW(m_mp)
-						  CLogicalLeftOuterCorrelatedApply(
-							  m_mp, pdrgpcrInner,
-							  eopidOrigin))
-					: static_cast<COperator *>(GPOS_NEW(m_mp)
-						  CLogicalInnerCorrelatedApply(
-							  m_mp, pdrgpcrInner,
-							  eopidOrigin));
-			}
-		}
 	}
 	switch (pop->Edslop())
 	{
@@ -966,14 +805,7 @@ CDSLInstantiator::PexprBuildJoin(const CDSLOp *pop,
 			PdrgpcrResolveCols(psymCorrelations, pmodel);
 		CColRefSet *pcrsActual = GPOS_NEW(m_mp) CColRefSet(
 			m_mp, *pexprRight->DeriveOuterReferences());
-		// Subquery extraction captures every free RHS column, including
-		// parameters owned by an enclosing query. A matched Apply instead
-		// binds only references supplied by its immediate left input.
-		if (!fExprListScalarSubquery &&
-			!fExprListExistential && !fExprListQuantified)
-		{
-			pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
-		}
+		pcrsActual->Intersection(pexprLeft->DeriveOutputColumns());
 		CColRefArray *pdrgpcrActual = pcrsActual->Pdrgpcr(m_mp);
 		const BOOL fCorrelationsPreserved = nullptr != pdrgpcrExpected &&
 			CColRef::Equals(pdrgpcrExpected, pdrgpcrActual);

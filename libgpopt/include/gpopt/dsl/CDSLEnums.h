@@ -224,17 +224,6 @@ enum EDslConstraintKind
 	EdslconPredicateAny,
 	// PredicateAll(out,comparison,outer_attrs,input): out is comparison ALL(input).
 	EdslconPredicateAll,
-	// ExprListScalarSubquery(source,lowered,predicate,left,right,correlation,
-	// output,input): replace the sole scalar subquery in an expression list.
-	EdslconExprListScalarSubquery,
-	// ExprListExists(source,lowered,marker_expr,marker_attrs,marker_schema,
-	// predicate,left,right,correlation,required_inner,input).
-	EdslconExprListExists,
-	EdslconExprListNotExists,
-	// ExprListAny/All share the existential marker carrier but preserve the
-	// quantified comparison as the Apply predicate.
-	EdslconExprListAny,
-	EdslconExprListAll,
 	// FuncAttrs(output,funcs): output is the exact dependency set of funcs.
 	EdslconFuncAttrs,
 	// NullOnEmpty(funcs): every aggregate in the function list returns SQL

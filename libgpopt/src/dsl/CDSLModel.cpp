@@ -50,7 +50,6 @@ CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 	: m_mp(mp),
 	  m_pgexprSource(source),
 	  m_pexprMatchedSource(nullptr),
-	  m_phmSubqueryMarkers(nullptr),
 	  m_pdrgpexprResidual(nullptr),
 	  m_fDedupDrop(false),
 	  m_pexprDistinctAgg(nullptr)
@@ -90,7 +89,6 @@ CDSLModel::~CDSLModel()
 	m_phmSymToRef->Release();
 	CRefCount::SafeRelease(m_phmScalarContexts);
 	m_pdrgpsymDerived->Release();
-	CRefCount::SafeRelease(m_phmSubqueryMarkers);
 	CRefCount::SafeRelease(m_phmInSubPred);
 	CRefCount::SafeRelease(m_phmInSubCarrier);
 	CRefCount::SafeRelease(m_phmFilterCarrier);
@@ -706,21 +704,6 @@ CDSLModel::FDerivedBinding(const CDSLSymbol *psym) const
 }
 
 CColRef *
-CDSLModel::PcrSubqueryMarker(const CDSLConstraint *constraint) const
-{
-	return nullptr == m_phmSubqueryMarkers ? nullptr : m_phmSubqueryMarkers->Find(constraint);
-}
-
-CColRef *
-CDSLModel::PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
-	CExpression *subquery) const
-{
-	CColRef *marker = PcrSubqueryMarker(constraint);
-	if (nullptr != marker) return marker;
-	return PcrCreateSubqueryResult(constraint, subquery);
-}
-
-CColRef *
 CDSLModel::PcrCreateSubqueryResult(const void *constructor_slot,
 	CExpression *subquery) const
 {
@@ -740,16 +723,6 @@ CDSLModel::PcrCreateSubqueryResult(const void *constructor_slot,
 		context->Pmda()->PtMDType<gpmd::IMDTypeBool>(), default_type_modifier);
 }
 
-BOOL
-CDSLModel::FRecordSubqueryMarker(const CDSLConstraint *constraint, CColRef *marker)
-{
-	GPOS_ASSERT(nullptr != constraint && nullptr != marker);
-	CColRef *existing = PcrSubqueryMarker(constraint);
-	if (nullptr != existing) return existing == marker;
-	if (nullptr == m_phmSubqueryMarkers)
-		m_phmSubqueryMarkers = GPOS_NEW(m_mp) ConstraintToMarkerMap(m_mp);
-	return m_phmSubqueryMarkers->Insert(const_cast<CDSLConstraint *>(constraint), marker);
-}
 
 //---------------------------------------------------------------------------
 //	@function:
