@@ -934,6 +934,26 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 	// Constructor signatures declare types, not symbol-name prefixes. Source
 	// captures precede target terms; references and overloads share inference.
 	std::vector<dsl::DSLRuleParser::BindingContext *> pending;
+	// Metadata outputs participate in type inference before aliases are declared.
+	std::unordered_map<std::string, EDslSymbolKind> metadataTypes;
+	for (auto *con : ctx->constraint())
+	{
+		const auto kind = CDSLConstraintKindTable::Parse(con->ID()->getText().c_str());
+		const auto symbols = con->SYMBOL();
+		if (!CDSLConstraintKindTable::FBindingMetadata(kind) ||
+			symbols.size() != CDSLConstraintKindTable::UlArity(kind)) continue;
+		for (ULONG slot = 0; slot < symbols.size(); slot++)
+		{
+			const auto type = CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot);
+			if (EdslsymSentinel != type) metadataTypes.emplace(symbols[slot]->getText(), type);
+		}
+	}
+	auto knownType = [&](const std::string &name) {
+		const auto known = bctx.symtab.find(name);
+		if (bctx.symtab.end() != known) return known->second->Esymkind();
+		const auto metadata = metadataTypes.find(name);
+		return metadataTypes.end() == metadata ? EdslsymSentinel : metadata->second;
+	};
 	auto declare = [&](const std::string &name, EDslSymbolKind kind, BOOL match) {
 		auto it = bctx.symtab.find(name);
 		if (bctx.symtab.end() == it)
@@ -976,20 +996,16 @@ FDeclareBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			if (nullptr == call)
 			{
 				const auto input = binding->SYMBOL(1)->getText();
-				auto known = bctx.symtab.find(output);
-				if (bctx.symtab.end() == known) known = bctx.symtab.find(input);
-				if (bctx.symtab.end() == known) { ++it; continue; }
-				const auto kind = known->second->Esymkind();
+				auto kind = knownType(output);
+				if (EdslsymSentinel == kind) kind = knownType(input);
+				if (EdslsymSentinel == kind) { ++it; continue; }
 				if (kind >= EdslsymSentinel || !declare(output, kind, false) ||
 					!declare(input, kind, false)) return false;
 				it = pending.erase(it);
 				continue;
 			}
 			std::vector<EDslSymbolKind> types;
-			auto knownType = [&](const std::string &name) {
-				const auto known = bctx.symtab.find(name);
-				return bctx.symtab.end() == known ? EdslsymSentinel : known->second->Esymkind();
-			};
+
 			types.push_back(knownType(output));
 			for (auto *operand : call->SYMBOL()) types.push_back(knownType(operand->getText()));
 			const auto *signature = CDSLExpressionDefinitions::PsigBinding(
@@ -1061,6 +1077,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 		// one. The runtime checker must still establish the property.
 		if (EdslconErrorFree == kind || EdslconDeterministic == kind ||
 			EdslconPredicateNullRejecting == kind || EdslconAttrsSub == kind ||
+			EdslconAttrsNonEmpty == kind ||
 			EdslconTableShared == kind || EdslconUnique == kind ||
 			EdslconCorrelationEquality == kind || EdslconDepsDisjoint == kind)
 			continue;
@@ -1073,14 +1090,11 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			continue;
 		}
 		BOOL sourcePremise = true;
-		// Non-emptiness cannot invent a target column list.
-		const BOOL capturedCheck = EdslconAttrsNonEmpty == kind;
 		for (ULONG slot = 0; slot < con->Pdrgpsym()->Size(); slot++)
 		{
 			sourcePremise &=
 				EdslsideSource == (*con->Pdrgpsym())[slot]->Eside() &&
-				(capturedCheck || EdslsymSentinel ==
-					CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot));
+				EdslsymSentinel == CDSLConstraintKindTable::EsymkindDerivedOutput(kind, slot);
 		}
 		if (sourcePremise)
 			continue;  // Checked after capture matching; never produces a value.
@@ -1312,6 +1326,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			EdslconDeterministic == con->Edslcon() ||
 			EdslconPredicateNullRejecting == con->Edslcon() ||
 			EdslconAttrsSub == con->Edslcon() ||
+			EdslconAttrsNonEmpty == con->Edslcon() ||
 			EdslconDepsDisjoint == con->Edslcon() ||
 			EdslconTableShared == con->Edslcon() ||
 			EdslconUnique == con->Edslcon() ||

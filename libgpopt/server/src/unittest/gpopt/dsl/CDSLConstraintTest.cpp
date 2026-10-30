@@ -661,6 +661,38 @@ EresSubsetBindings()
 }
 
 static GPOS_RESULT
+EresDerivedAttrsNonEmpty()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CExpression *input = fix.PexprLogicalGet("nonempty_input", 2);
+	BOOL valid = true;
+	for (BOOL checkFirst : {false, true})
+	for (BOOL empty : {false, true})
+	for (BOOL bound : {false, true})
+	{
+		const std::string metadata = empty ? "AttrsEmpty(a2)" : "OutputAttrs(a2,t0)";
+		const std::string check = "AttrsNonEmpty(a3)";
+		const std::string text = "Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|"
+			"t1 := t0;p1 := p0;a1 := a0;a3 := a2;" +
+			(checkFirst ? check + ";" + metadata : metadata + ";" + check);
+		CWStringDynamic error(mp);
+		CDSLRule *rule = CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error);
+		if (nullptr == rule) GPOS_TRACE_FORMAT("Nonempty fixture rejected: %s (%ls)", text.c_str(), error.GetBuffer());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		if (bound) model->FBind(PsymByName(rule, "t0"), input);
+		const BOOL accepted = CDSLConstraintChecker(mp).FCheck(rule, model);
+		valid &= accepted == (bound && !empty);
+		model->Release();
+		rule->Release();
+	}
+	input->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
+}
+
+static GPOS_RESULT
 EresUniqueOnCardinalityBound()
 {
 	CAutoMemoryPool amp;
@@ -721,6 +753,7 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresExistentialProjectionDemand),
 		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
 		GPOS_UNITTEST_FUNC(EresSubsetBindings),
+		GPOS_UNITTEST_FUNC(EresDerivedAttrsNonEmpty),
 		GPOS_UNITTEST_FUNC(EresDependencyBindings),
 		GPOS_UNITTEST_FUNC(EresUniqueOnCardinalityBound),
 		GPOS_UNITTEST_FUNC(CDSLConstraintTest::EresUnittest_ExactBindingEquality),

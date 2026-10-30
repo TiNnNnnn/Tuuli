@@ -1,0 +1,69 @@
+{
+  "description": "A computed IN key remains demand-sensitive even when the fixture values do not overflow; retain the native baseline and reject eager DSL membership lowering",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "native-enabled-guard",
+      "trace": true,
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiJoin2InnerJoin"
+      ]
+    },
+    {
+      "name": "native-disabled-guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin"
+      ],
+      "policy": "isolate_typed_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "Xform: CXformLeftSemiJoin2InnerJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin"
+    ],
+    "policy": "isolate_typed_membership.policy",
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ],
+    "off_output": [
+      "2"
+    ]
+  }
+}

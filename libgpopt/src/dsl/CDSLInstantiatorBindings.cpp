@@ -56,6 +56,7 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		(prule->Pexprdefs()->FHasBindings() &&
 		 (EdslconAttrsSub == pcon->Edslcon() || EdslconUnique == pcon->Edslcon() ||
 		  EdslconDepsDisjoint == pcon->Edslcon() ||
+		  EdslconAttrsNonEmpty == pcon->Edslcon() ||
 		  EdslconCorrelationEquality == pcon->Edslcon()));
 	const BOOL partition = prule->Pexprdefs()->FHasBindings() &&
 		EdslconPredicateDomainSplit == pcon->Edslcon();

@@ -2952,7 +2952,9 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			case EdslconAttrsEmpty:
 				return FCheckAttrsEmpty(pcon, pmodel);
 		case EdslconAttrsNonEmpty:
-			return FCheckAttrsNonEmpty(pcon, pmodel);
+			return (!prule->Pexprdefs()->FHasBindings() ||
+				materializer.FMaterializeConstraintBindings(prule, pcon, pmodel, true)) &&
+				FCheckAttrsNonEmpty(pcon, pmodel);
 		case EdslconOrderEmpty:
 			return FCheckOrderEmpty(pcon, pmodel);
 		case EdslconSliceCompose:

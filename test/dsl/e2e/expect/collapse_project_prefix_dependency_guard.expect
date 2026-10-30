@@ -1,0 +1,37 @@
+{
+  "description": "An upper first Item reading a lower output cannot move into the same Compute list",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "isolate_compute_prefix_bindings.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"41f44fdd44ad9c76\"",
+        "\"failed_constraint\":\"DepsDisjoint\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\"",
+        "Xform: CXformCollapseProject"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "isolate_compute_prefix_bindings.policy",
+    "output": [
+      "1,f,f",
+      "2,f,t",
+      "3,f,t"
+    ],
+    "postgres_output": [
+      "1,f,f",
+      "2,f,t",
+      "3,f,t"
+    ]
+  }
+}

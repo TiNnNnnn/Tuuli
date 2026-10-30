@@ -412,6 +412,10 @@ EresExpressionBindings()
 		"a1 := a0;a5 := a3;s1 := s0;AttrsUnion(a0,a3,a4)",
 		"AttrsUnion(a1,a0,a3);AttrsUnion(a1,a0,a4);AttrsEq(a1,a0);a5 := a3;s1 := s0",
 		"AttrsEmpty(a1);a5 := a3;SchemaUnion(s1,s0,a4)",
+		"a1 := a0;a5 := a3;s1 := s0;AttrsNonEmpty(a5)",
+		"AttrsNonEmpty(a5);a1 := a0;OutputAttrs(a5,t0);s1 := s0",
+		"a1 := a0;a5 := a3;s1 := s0;AttrsNonEmpty(a7);a7 := a6;OutputAttrs(a6,t0)",
+		"OutputAttrs(a6,t0);a7 := a6;AttrsNonEmpty(a7);a1 := a0;a5 := a3;s1 := s0",
 		"OutputAttrs(a1,t0);AttrsIntersect(a5,a3,t0);SchemaFromAttrs(s1,a1)"})
 	{
 		CDSLRule *rule = Parse(mp, (projection + clauses).c_str());
@@ -431,6 +435,9 @@ EresExpressionBindings()
 		"a1 := a0;Eq(a5,a1)", "a1 := a0;AttrsSub(a5,a0)",
 		"a1 := a0;a5 := a3;AttrsSub(a0,a9)",
 		"a1 := a0;AttrsUnion(a5,a6,a3);AttrsUnion(a6,a5,a3)",
+		"a1 := a0;a5 := a3;a7 := a6;OutputAttrs(a6,t9);AttrsNonEmpty(a7)",
+		"a1 := a0;a5 := a3;a7 := a6;OutputAttrs(a6,t0);SchemaFromAttrs(a6,a0)",
+		"a1 := a0;a5 := a3;a7 := a6;AttrsUnion(a6,a7,a0);AttrsNonEmpty(a7)",
 		"a1 := a0;ErrorFree(a5)", "a1 := a0;AttrsNonEmpty(a5)"})
 	{
 		CDSLRule *rule = Parse(mp, (projection + "s1 := s0;" + clauses).c_str());
@@ -458,6 +465,8 @@ EresExpressionBindings()
 		"p1 := Not(p0);Deterministic(p1)",
 		"Deterministic(p1);p1 := Not(p0)",
 		"p1 := p0;AttrsNonEmpty(a0)",
+		"p1 := p0;AttrsNonEmpty(a1)",
+		"p1 := p0;AttrsNonEmpty(a3);a3 := a2;OutputAttrs(a2,t0)",
 		"Exists(t2) := p0;p1 := Exists(t2)",
 		"Exists(t2) := p0;t3 := t2;p1 := Exists(t3)",
 		"NullSafeEq(a2,a3) := p0;p1 := NullSafeEq(a2,a3)",
@@ -549,7 +558,6 @@ EresExpressionBindings()
 		"p1 := p0;PredicateFalse(p1)",
 		"p1 := p0;PredicateNotTrue(p2,p0)",
 		"p1 := p0;AttrsEq(a1,t0)",
-		"p1 := p0;AttrsNonEmpty(a1)",
 		"p1 := p0;AttrsNonEmpty(a9)",
 		"p1 := p0;PredicateNullRejecting(p1,a9)",
 		"p1 := p0;PredicateNullRejecting(p9,a0)",

@@ -1,0 +1,105 @@
+{
+  "description": "Move an independent first Item into the lower Compute while preserving the dependent residual",
+  "replacement": {
+    "xforms": [
+      "CXformCollapseProject"
+    ],
+    "scope": "Source-conditional independent total deterministic first Item and lower list; nonempty residual; arbitrary-position maximal subset remains uncovered",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "41f44fdd44ad9c76"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_compute_prefix_bindings.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\""
+      ],
+      "alternative": [
+        "CXformCollapseProject",
+        "CXformDSLRule_Project"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "policy": "isolate_compute_prefix_bindings.policy",
+      "stats_experiment": "compute_prefix_source_route.yaml",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\""
+      ],
+      "not_contains": [
+        "Xform: CXformCollapseProject"
+      ],
+      "alternative": [
+        "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "41f44fdd44ad9c76",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformCollapseProject"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
+    "policy": "isolate_compute_prefix_bindings.policy",
+    "output": [
+      "1,f,f",
+      "2,t,f",
+      "3,t,f"
+    ],
+    "postgres_output": [
+      "1,f,f",
+      "2,t,f",
+      "3,t,f"
+    ]
+  }
+}

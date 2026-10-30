@@ -1,0 +1,7 @@
+experiment: registered-compute-prefix
+discover: false
+template_route: 2
+template_fingerprint: af2b20ef8c579215
+template_root: r
+template_bindings: true
+cardinalities:
