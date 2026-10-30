@@ -324,24 +324,18 @@ EresMemoSubqueryMarkerIdentity()
 		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
 			mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
 	};
-	for (BOOL bind : {false, true})
-	for (ULONG kind = bind ? 2 : 0; kind < 4; ++kind)
+	for (BOOL eager : {false, true})
+	for (ULONG kind = 0; kind < 4; ++kind)
 	{
 		const BOOL existential = kind < 2;
 		const CHAR *names[] = {"Exists", "NotExists", "Any", "All"};
-		const std::string legacy =
-			std::string("Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,") +
-			(existential ? "Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|" :
-				"Compute<e0 a5 s0>(Input<t2>)))|") + "TableEq(t1,t0);ExprList" + names[kind] +
-			"(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)" +
-			(existential ? ";ScalarOne(n0);ScalarZero(n1)" : "");
 		const std::string capture = kind == 0 ? "Exists(t2) := p2;" : kind == 1
 			? "Not(p3) := p2;Exists(t2) := p3;"
 			: std::string(names[kind]) + "(c0,v0,a2,t2) := p2;";
-		const std::string text = bind ?
-			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
+		const std::string text =
+			"Filter<p0 a0 a4>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
 			"t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;" + capture +
-			"n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)" : legacy;
+			"n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)";
 		CWStringDynamic error(mp);
 		CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
 		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
@@ -360,7 +354,12 @@ EresMemoSubqueryMarkerIdentity()
 			if (entry != canonical) entry->Release();
 			return canonical;
 		};
-		CAutoRef<CExpression> inner(input());
+		CAutoRef<CExpression> base(input());
+		CAutoRef<CExpression> correlation(fix.PexprEqPred(
+			base->DeriveOutputColumns()->PcrFirst(), fix.PcrCreateInt4("marker_parameter")));
+		if (eager) base->AddRef();
+		CAutoRef<CExpression> inner(eager ? base.Value() :
+			fix.PexprLogicalSelect(base.Value(), correlation.Value()));
 		inner->AddRef();
 		CExpression *scalar = nullptr;
 		if (existential)
@@ -396,17 +395,42 @@ EresMemoSubqueryMarkerIdentity()
 			CAutoRef<CExpressionArray> extracted(index.PdrgpexprBindings(mp, entry));
 			GPOS_UNITTEST_ASSERT(0 < extracted->Size() && (*extracted)[0] != bound);
 			CDSLRewriteDecision *again = engine->PdecisionEvaluate(mp, rule.Value(), (*extracted)[0]);
+			if (EdsldecisionReady != first->Status() || EdsldecisionReady != again->Status())
+				GPOS_TRACE_FORMAT("Bind Memo identity eager=%d kind=%d first=%d again=%d", eager, kind,
+					first->Status(), again->Status());
 			GPOS_UNITTEST_ASSERT(EdsldecisionReady == first->Status() &&
 				EdsldecisionReady == again->Status());
 			const auto markerOf = [](const CDSLRewriteDecision *decision) {
 				return (*CLogicalApply::PopConvert((*decision->PexprTarget())[0]->Pop())->PdrgPcrInner())[0];
 			};
+			GPOS_UNITTEST_ASSERT((*first->PexprTarget())[0]->Pop()->Eopid() ==
+				(eager && existential ? COperator::EopLogicalLeftOuterApply :
+				 COperator::EopLogicalLeftOuterCorrelatedApply));
 			CColRef *marker = markerOf(first);
-			// Re-evaluating the same Memo occurrence must not manufacture an
-			// alpha-renamed alternative, but another source scope stays fresh.
+			// Re-evaluating the same Memo occurrence must preserve its public
+			// result identity, but another source scope stays fresh.
 			GPOS_UNITTEST_ASSERT(nullptr != marker && marker != previous);
 			GPOS_UNITTEST_ASSERT(marker == markerOf(again));
-			GPOS_UNITTEST_ASSERT(first->PexprTarget()->Matches(again->PexprTarget()));
+			CExpression *replay = again->PexprTarget();
+			if (eager && existential)
+			{
+				// Only the private COUNT result is freshly allocated; public Bind
+				// outputs retain their identity across Memo alternatives.
+				CExpression *count = (*(*(*first->PexprTarget())[0])[1])[0];
+				CExpression *replayedCount = (*(*(*replay)[0])[1])[0];
+				GPOS_UNITTEST_ASSERT(COperator::EopLogicalGbAgg == count->Pop()->Eopid() &&
+					COperator::EopLogicalGbAgg == replayedCount->Pop()->Eopid());
+				CColRef *column = count->DeriveOutputColumns()->PcrFirst();
+				CColRef *replayedColumn = replayedCount->DeriveOutputColumns()->PcrFirst();
+				GPOS_UNITTEST_ASSERT(column != marker && replayedColumn != marker);
+				auto *mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
+				mapping->Insert(GPOS_NEW(mp) ULONG(replayedColumn->Id()), column);
+				replay = replay->PexprCopyWithRemappedColumns(mp, mapping, false);
+				mapping->Release();
+			}
+			else replay->AddRef();
+			GPOS_UNITTEST_ASSERT(first->PexprTarget()->Matches(replay));
+			replay->Release();
 			// Select(outer, subquery) and Select(Select(outer, TRUE), subquery)
 			// are different bindings in one logical scope, not new SQL occurrences.
 			CAutoRef<CExpression> truth(CUtils::PexprScalarConstBool(mp, true));
