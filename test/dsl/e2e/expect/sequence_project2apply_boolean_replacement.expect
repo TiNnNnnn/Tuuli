@@ -10,8 +10,8 @@
       "c6b2138483b028a0",
       "3b96623c2182e139",
       "528c2f987260a1d3",
-      "fa3ffbd7833ed18c",
-      "7bbf4d8e0ffbd361"
+      "f7fdfa6e8f34afff",
+      "246bb54f8a078070"
     ],
     "excluded_native_domains": [
       "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented",
@@ -65,8 +65,8 @@
         "\"status\":\"applied\",\"rule_hash\":\"c6b2138483b028a0\"",
         "\"status\":\"applied\",\"rule_hash\":\"3b96623c2182e139\"",
         "\"status\":\"applied\",\"rule_hash\":\"528c2f987260a1d3\"",
-        "\"status\":\"applied\",\"rule_hash\":\"fa3ffbd7833ed18c\"",
-        "\"status\":\"applied\",\"rule_hash\":\"7bbf4d8e0ffbd361\""
+        "\"status\":\"applied\",\"rule_hash\":\"f7fdfa6e8f34afff\"",
+        "\"status\":\"applied\",\"rule_hash\":\"246bb54f8a078070\""
       ],
       "provenance": {
         "required_sources": [

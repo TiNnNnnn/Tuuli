@@ -1,0 +1,74 @@
+{
+  "description": "Quantified Bind preserves NULL and empty-input observations",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSelect2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "stats_experiment": "filter_any.yaml",
+      "native_observation": "deferred_rule",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7174d8d6080cfdb8\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "7174d8d6080cfdb8",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSelect2Apply",
+          "CXformGbAgg2Apply",
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSelect2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

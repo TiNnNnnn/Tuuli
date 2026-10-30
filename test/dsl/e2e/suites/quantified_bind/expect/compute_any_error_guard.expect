@@ -1,0 +1,52 @@
+{
+  "description": "Existing quantified demand guard rejects a potentially throwing RHS; native-disabled planning may fall back",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformProject2Apply",
+        "CXformSelect2Apply",
+        "CXformGbAgg2Apply",
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "contains": [],
+      "not_contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"337794b6f59bc43d\""
+      ],
+      "provenance": {
+        "required_sources": [],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformProject2Apply",
+          "CXformSelect2Apply",
+          "CXformGbAgg2Apply",
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformProject2Apply",
+      "CXformSelect2Apply",
+      "CXformGbAgg2Apply",
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "output": [
+      "1,t",
+      "2,t",
+      "3,f"
+    ],
+    "postgres_output": [
+      "1,t",
+      "2,t",
+      "3,f"
+    ]
+  }
+}

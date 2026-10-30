@@ -1,0 +1,1 @@
+SELECT l.i,sum((l.i <> ALL(SELECT r.i FROM bind_right r))::int) OVER (ORDER BY l.i ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM bind_left l ORDER BY l.i;

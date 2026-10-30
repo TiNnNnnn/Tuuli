@@ -11,8 +11,8 @@
       "e45925375193782a",
       "79e4a60b8b2dde2d",
       "2b9c7665d5e8b9bb",
-      "daf208e79534479c",
-      "9555abcd9b140797"
+      "337794b6f59bc43d",
+      "59b39ac59ec8b8f0"
     ]
   },
   "plans": [
@@ -36,7 +36,7 @@
         "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\"",
         "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\"",
-        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
+        "\"status\":\"applied\",\"rule_hash\":\"337794b6f59bc43d\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -69,8 +69,8 @@
         "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
         "\"status\":\"applied\",\"rule_hash\":\"79e4a60b8b2dde2d\"",
         "\"status\":\"applied\",\"rule_hash\":\"2b9c7665d5e8b9bb\"",
-        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\"",
-        "\"status\":\"applied\",\"rule_hash\":\"9555abcd9b140797\""
+        "\"status\":\"applied\",\"rule_hash\":\"337794b6f59bc43d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"59b39ac59ec8b8f0\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

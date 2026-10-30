@@ -8,7 +8,7 @@
     "scope": "One simplified Boolean quantified test in a Project value context",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "daf208e79534479c"
+      "337794b6f59bc43d"
     ]
   },
   "plans": [
@@ -29,7 +29,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Project",
-        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
+        "\"status\":\"applied\",\"rule_hash\":\"337794b6f59bc43d\""
       ],
       "alternative": [
         "CXformProject2Apply"
@@ -59,7 +59,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
-        "\"status\":\"applied\",\"rule_hash\":\"daf208e79534479c\""
+        "\"status\":\"applied\",\"rule_hash\":\"337794b6f59bc43d\""
       ],
       "alternative": [
         "CXformDSLRule_Project"

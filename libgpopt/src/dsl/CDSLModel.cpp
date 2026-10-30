@@ -717,6 +717,13 @@ CDSLModel::PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
 {
 	CColRef *marker = PcrSubqueryMarker(constraint);
 	if (nullptr != marker) return marker;
+	return PcrCreateSubqueryResult(constraint, subquery);
+}
+
+CColRef *
+CDSLModel::PcrCreateSubqueryResult(const void *constructor_slot,
+	CExpression *subquery) const
+{
 	// Equivalent alternatives in one source group share scalar output identity.
 	// Standalone/RBO trees, synthetic views and distinct constructor slots stay
 	// fresh. Output binding/provenance is still validated on every invocation.
@@ -726,7 +733,7 @@ CDSLModel::PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
 		// Use the group's existing first expression as the identity owner; no
 		// new Memo state or changes to group equivalence are needed.
 		CGroupProxy group(m_pgexprSource->Pgroup());
-		return group.PgexprFirst()->PcrDSLSubqueryMarker(constraint, subquery->Pgexpr());
+		return group.PgexprFirst()->PcrDSLSubqueryMarker(constructor_slot, subquery->Pgexpr());
 	}
 	COptCtxt *context = COptCtxt::PoctxtFromTLS();
 	return context->Pcf()->PcrCreate(

@@ -41,13 +41,13 @@ FORCE_GENERATE_DBGSTR(CGroupExpression);
 const CGroupExpression CGroupExpression::m_gexprInvalid{};
 
 CColRef *
-CGroupExpression::PcrDSLSubqueryMarker(const CDSLConstraint *constraint,
+CGroupExpression::PcrDSLSubqueryMarker(const void *slot,
 	const CGroupExpression *subquery)
 {
-	GPOS_ASSERT(nullptr != constraint && nullptr != subquery);
+	GPOS_ASSERT(nullptr != slot && nullptr != subquery);
 	if (!m_dslSubqueryMarkers)
 		m_dslSubqueryMarkers = std::make_unique<DSLSubqueryMarkerMap>();
-	CColRef *&marker = (*m_dslSubqueryMarkers)[constraint][subquery];
+	CColRef *&marker = (*m_dslSubqueryMarkers)[slot][subquery];
 	if (nullptr == marker)
 	{
 		COptCtxt *context = COptCtxt::PoctxtFromTLS();

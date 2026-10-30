@@ -184,6 +184,8 @@ public:
 	CColRef *PcrSubqueryMarker(const CDSLConstraint *constraint) const;
 	CColRef *PcrCreateSubqueryMarker(const CDSLConstraint *constraint,
 		CExpression *subquery) const;
+	CColRef *PcrCreateSubqueryResult(const void *constructor_slot,
+		CExpression *subquery) const;
 	BOOL FRecordSubqueryMarker(const CDSLConstraint *constraint, CColRef *marker);
 
 	// look up a bound artifact (NULL if unbound). Does NOT AddRef.

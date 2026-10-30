@@ -3851,7 +3851,9 @@ class TraceFrameworkTest(unittest.TestCase):
                 outputs = re.search(r'OutputAttrs\((a\d+),t\d+\)', clauses)[1]
                 self.assertIn(f'DepsDisjoint({source_list},{selected})', clauses.split(';'))
                 self.assertIn(f'DepsDisjoint({outputs},{selected})', clauses.split(';'))
-                kind = ('NotExists' if 'Not(' in clauses else 'Exists') if 'Exists(' in clauses else 'ScalarSubquery'
+                quantified = re.search(r';(Any|All)\(', clauses)
+                kind = (quantified[1] if quantified else
+                        ('NotExists' if 'Not(' in clauses else 'Exists') if 'Exists(' in clauses else 'ScalarSubquery')
             else:
                 kind = extraction[1]
             observations.add((owner, kind))
@@ -3862,7 +3864,7 @@ class TraceFrameworkTest(unittest.TestCase):
         rules = [line for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines()
                  if line.strip() and not line.startswith('#')]
         for shortcut in ('PredicateScalarSubquery(', 'ExprListScalarSubquery(',
-                         'ExprListExists(', 'ExprListNotExists('):
+                         'ExprListExists(', 'ExprListNotExists(', 'ExprListAny(', 'ExprListAll('):
             self.assertFalse(any(shortcut in line for line in rules))
 
     def test_replacement_rule_identities_are_explicitly_classified(self) -> None:

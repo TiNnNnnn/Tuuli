@@ -324,16 +324,24 @@ EresMemoSubqueryMarkerIdentity()
 		return GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalConstTableGet(
 			mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
 	};
-	for (ULONG kind = 0; kind < 4; ++kind)
+	for (BOOL bind : {false, true})
+	for (ULONG kind = bind ? 2 : 0; kind < 4; ++kind)
 	{
 		const BOOL existential = kind < 2;
 		const CHAR *names[] = {"Exists", "NotExists", "Any", "All"};
-		const std::string text =
+		const std::string legacy =
 			std::string("Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(LeftApply<p2 a2 a3 a4>(Input<t1>,") +
 			(existential ? "Limit<n0 n1>(Compute<e0 a5 s0>(Input<t2>))))|" :
 				"Compute<e0 a5 s0>(Input<t2>)))|") + "TableEq(t1,t0);ExprList" + names[kind] +
 			"(p0,p1,e0,a5,s0,p2,a2,a3,a4,a6,t2)" +
 			(existential ? ";ScalarOne(n0);ScalarZero(n1)" : "");
+		const std::string capture = kind == 0 ? "Exists(t2) := p2;" : kind == 1
+			? "Not(p3) := p2;Exists(t2) := p3;"
+			: std::string(names[kind]) + "(c0,v0,a2,t2) := p2;";
+		const std::string text = bind ?
+			"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|"
+			"t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;" + capture +
+			"n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)" : legacy;
 		CWStringDynamic error(mp);
 		CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp, text.c_str(), "EQ", &error));
 		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
@@ -390,12 +398,14 @@ EresMemoSubqueryMarkerIdentity()
 			CDSLRewriteDecision *again = engine->PdecisionEvaluate(mp, rule.Value(), (*extracted)[0]);
 			GPOS_UNITTEST_ASSERT(EdsldecisionReady == first->Status() &&
 				EdsldecisionReady == again->Status());
-			const CDSLConstraint *constraint = (*rule->Pdrgpcon())[1];
-			CColRef *marker = first->Pmodel()->PcrSubqueryMarker(constraint);
+			const auto markerOf = [](const CDSLRewriteDecision *decision) {
+				return (*CLogicalApply::PopConvert((*decision->PexprTarget())[0]->Pop())->PdrgPcrInner())[0];
+			};
+			CColRef *marker = markerOf(first);
 			// Re-evaluating the same Memo occurrence must not manufacture an
 			// alpha-renamed alternative, but another source scope stays fresh.
 			GPOS_UNITTEST_ASSERT(nullptr != marker && marker != previous);
-			GPOS_UNITTEST_ASSERT(marker == again->Pmodel()->PcrSubqueryMarker(constraint));
+			GPOS_UNITTEST_ASSERT(marker == markerOf(again));
 			GPOS_UNITTEST_ASSERT(first->PexprTarget()->Matches(again->PexprTarget()));
 			// Select(outer, subquery) and Select(Select(outer, TRUE), subquery)
 			// are different bindings in one logical scope, not new SQL occurrences.
@@ -413,11 +423,11 @@ EresMemoSubqueryMarkerIdentity()
 			CAutoRef<CExpressionArray> alternativeBindings(index.PdrgpexprBindings(mp, alternate));
 			CDSLRewriteDecision *equivalent = engine->PdecisionEvaluate(mp, rule.Value(), (*alternativeBindings)[0]);
 			GPOS_UNITTEST_ASSERT(EdsldecisionReady == equivalent->Status() &&
-				marker == equivalent->Pmodel()->PcrSubqueryMarker(constraint));
+				marker == markerOf(equivalent));
 			GPOS_DELETE(equivalent);
 			CDSLRewriteDecision *separate = engine->PdecisionEvaluate(mp, other.Value(), bound);
 			GPOS_UNITTEST_ASSERT(EdsldecisionReady == separate->Status() &&
-				marker != separate->Pmodel()->PcrSubqueryMarker((*other->Pdrgpcon())[1]));
+				marker != markerOf(separate));
 			GPOS_DELETE(separate);
 			previous = marker;
 			GPOS_DELETE(again);

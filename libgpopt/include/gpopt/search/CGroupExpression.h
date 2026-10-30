@@ -105,7 +105,7 @@ private:
 	// Generated DSL columns belong to one source occurrence and constructor
 	// slot, not one extraction of its children. Memo owns the scalar keys;
 	// the column factory owns values. This state does not affect Matches/hash.
-	using DSLSubqueryMarkerMap = std::unordered_map<const CDSLConstraint *,
+	using DSLSubqueryMarkerMap = std::unordered_map<const void *,
 		std::unordered_map<const CGroupExpression *, CColRef *>>;
 	std::unique_ptr<DSLSubqueryMarkerMap> m_dslSubqueryMarkers;
 
@@ -342,7 +342,7 @@ public:
 	// a later native xform
 	BOOL FHasDSLProvenance() const;
 
-	CColRef *PcrDSLSubqueryMarker(const CDSLConstraint *constraint,
+	CColRef *PcrDSLSubqueryMarker(const void *slot,
 		const CGroupExpression *subquery);
 
 	// whether this expression was produced by DPHyper, directly or through a
