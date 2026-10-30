@@ -7,6 +7,7 @@
 
 #include "gpopt/base/CColRef.h"
 #include "gpopt/base/CColRefSet.h"
+#include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
@@ -65,6 +66,20 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		CRefCount::SafeRelease(input);
 		CRefCount::SafeRelease(value);
 		return nullptr;
+	}
+	// Captured values do not authorize new parameters or shadowing of old ones.
+	const CColRefSet *parameters = model->PcrsSourceOuter();
+	CColRefSetIter used(*value->DeriveUsedColumns());
+	while (used.Advance())
+	{
+		const BOOL local = input->DeriveOutputColumns()->FMember(used.Pcr());
+		const BOOL parameter = nullptr != parameters && parameters->FMember(used.Pcr());
+		if ((!local && !parameter) || (local && parameter))
+		{
+			input->Release();
+			value->Release();
+			return nullptr;
+		}
 	}
 	if (quantified)
 	{
