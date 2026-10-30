@@ -3004,16 +3004,6 @@ CDSLConstraintChecker::FCheckOne(const CDSLRule *prule,
 			return FCheckPredicateQuantified(pcon, pmodel, false);
 		case EdslconPredicateAll:
 			return FCheckPredicateQuantified(pcon, pmodel, true);
-		case EdslconExprListScalarSubquery:
-			return FCheckExprListScalarSubquery(pcon, pmodel);
-		case EdslconExprListExists:
-			return FCheckExprListExistential(pcon, pmodel, false);
-		case EdslconExprListNotExists:
-			return FCheckExprListExistential(pcon, pmodel, true);
-		case EdslconExprListAny:
-			return FCheckExprListQuantified(pcon, pmodel, false);
-		case EdslconExprListAll:
-			return FCheckExprListQuantified(pcon, pmodel, true);
 		case EdslconCumulativeFrame:
 			return FCheckWindowFrame(pcon, pmodel, false);
 		case EdslconFullPartitionFrame:

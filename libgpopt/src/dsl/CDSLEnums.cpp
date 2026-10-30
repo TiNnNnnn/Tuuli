@@ -194,11 +194,6 @@ const SDslConDesc rg_con_desc[] = {
 	{EdslconPredicateDomainSplit, "PredicateDomainSplit", 9},
 	{EdslconPredicateAny, "PredicateAny", 4},
 	{EdslconPredicateAll, "PredicateAll", 4},
-	{EdslconExprListScalarSubquery, "ExprListScalarSubquery", 8},
-	{EdslconExprListExists, "ExprListExists", 11},
-	{EdslconExprListNotExists, "ExprListNotExists", 11},
-	{EdslconExprListAny, "ExprListAny", 11},
-	{EdslconExprListAll, "ExprListAll", 11},
 	{EdslconFuncAttrs, "FuncAttrs", 2},
 	{EdslconNullOnEmpty, "NullOnEmpty", 1},
 	{EdslconEmptyInputCompensation, "EmptyInputCompensation", 4},
@@ -641,17 +636,6 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
 			return 0 == ulPosition ? EdslsymPred : EdslsymSentinel;
-		case EdslconExprListScalarSubquery:
-			return 1 == ulPosition
-				? EdslsymExpr
-				: (6 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
-		case EdslconExprListExists:
-		case EdslconExprListNotExists:
-		case EdslconExprListAny:
-		case EdslconExprListAll:
-			return 1 == ulPosition
-				? EdslsymExpr
-				: (9 == ulPosition ? EdslsymAttrs : EdslsymSentinel);
 		case EdslconAttrsIntersect:
 		case EdslconAttrsUnion:
 		case EdslconFuncAttrs:
@@ -798,11 +782,6 @@ CDSLConstraintKindTable::FCheckerSupported(EDslConstraintKind edslcon)
 		case EdslconPredicateDomainSplit:
 		case EdslconPredicateAny:
 		case EdslconPredicateAll:
-		case EdslconExprListScalarSubquery:
-		case EdslconExprListExists:
-		case EdslconExprListNotExists:
-		case EdslconExprListAny:
-		case EdslconExprListAll:
 		case EdslconFuncAttrs:
 		case EdslconNullOnEmpty:
 		case EdslconEmptyInputCompensation:

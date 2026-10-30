@@ -1,6 +1,6 @@
 - rule: '*'
   enabled: false
-- rule: c77a1ed544e4cfa1
+- rule: 6bd91f27930d4267
   enabled: true
   placement: rbo
   phase: pre_join
@@ -8,7 +8,7 @@
   priority: 0
   order: bottom_up
   fixpoint: true
-- rule: b39365f7144f4044
+- rule: 41ccfe42f23f20f9
   enabled: true
   placement: rbo
   phase: pre_join

@@ -270,16 +270,6 @@ CDSLInstantiator::FMaterializeConstraintBindings(
 		{
 			esymkind = psym->Esymkind();
 		}
-		if ((EdslconExprListScalarSubquery == pcon->Edslcon() ||
-			 EdslconExprListExists == pcon->Edslcon() ||
-			 EdslconExprListNotExists == pcon->Edslcon() ||
-			 EdslconExprListAny == pcon->Edslcon() ||
-			 EdslconExprListAll == pcon->Edslcon()) &&
-			1 == ul &&
-			0 < pdrgpsym->Size())
-		{
-			esymkind = (*pdrgpsym)[0]->Esymkind();
-		}
 		if (EdslsymSentinel == esymkind)
 		{
 			continue;

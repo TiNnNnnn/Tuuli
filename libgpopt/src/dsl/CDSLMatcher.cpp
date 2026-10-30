@@ -93,6 +93,20 @@ FMatchScalarContext(CMemoryPool *mp, const CDSLRule *rule,
 	return false;
 }
 
+// Rebinding a captured sequence compares its ordered expressions, not the
+// temporary vector allocated by a matcher. Keep the original model artifact.
+BOOL
+FBindCapturedExpressions(const CDSLSymbol *symbol, CExpressionArray *values, CDSLModel *model)
+{
+	if (nullptr == values) return false;
+	const auto *existing = static_cast<CExpressionArray *>(model->PvalLookup(symbol));
+	if (nullptr == existing) return model->FBind(symbol, values);
+	if (existing->Size() != values->Size()) return false;
+	for (ULONG i = 0; i < existing->Size(); ++i)
+		if (!CDSLMatchView::FSameCapturedExpression((*existing)[i], (*values)[i])) return false;
+	return true;
+}
+
 BOOL
 FMatchValueArguments(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *symbol, CExpressionArray *arguments, CDSLModel *model, ULONG depth)
@@ -103,14 +117,7 @@ FMatchValueArguments(CMemoryPool *mp, const CDSLRule *rule,
 		return false;
 	for (ULONG i = 0; i < arguments->Size(); ++i)
 		if (!CDSLMatchView::FScalarValue((*arguments)[i])) return false;
-	const auto *existing = static_cast<CExpressionArray *>(model->PvalLookup(symbol));
-	if (nullptr != existing)
-	{
-		if (existing->Size() != arguments->Size()) return false;
-		for (ULONG i = 0; i < existing->Size(); ++i)
-			if (!CDSLMatchView::FSameCapturedExpression((*existing)[i], (*arguments)[i])) return false;
-	}
-	else if (!model->FBind(symbol, arguments)) return false;
+	if (!FBindCapturedExpressions(symbol, arguments, model)) return false;
 	const auto *def = definitions->Pdef(symbol);
 	if (nullptr == def)
 		return true;
@@ -149,7 +156,7 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 	if (EdslsymFunc == symbol->Esymkind())
 	{
 		CExpressionArray *functions = CDSLExprListUtils::PdrgpexprFunctions(mp, expression);
-		const BOOL matched = nullptr != functions && model->FBind(symbol, functions);
+		const BOOL matched = FBindCapturedExpressions(symbol, functions, model);
 		CRefCount::SafeRelease(functions);
 		if (!matched) return false;
 	}

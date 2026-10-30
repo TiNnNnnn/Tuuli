@@ -102,13 +102,6 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		const CDSLRule *prule = (*pdrgprule)[ul];
 		const CDSLOp *popSrcRoot = prule->PfragSrc()->PopRoot();
 		const CDSLExpressionDefinitions *pexprdefs = prule->Pexprdefs();
-		BOOL fExprListScalar = false;
-		for (ULONG ulDef = 0; ulDef < pexprdefs->UlDefinitions(); ulDef++)
-		{
-			fExprListScalar = fExprListScalar ||
-				EdslexprExprListScalarSubquery ==
-					pexprdefs->PdefAt(ulDef)->Edslexpr();
-		}
 
 		// Subquery-filter operators can match both the translated Select/scalar-
 		// subquery form and the canonical Apply form. Running the same rule in both
@@ -123,9 +116,8 @@ CXformDSLRule_Select::Transform(CXformContext *pxfctxt, CXformResult *pxfres,
 		// Exact expression bindings retain the scalar subquery tree and cannot
 		// match the Apply view. They must run here even with native unnesting on.
 		if (fNativeSelect2Apply && !pexprdefs->FHasBindings() &&
-			(fExprListScalar ||
-			 CDSLOpKindTable::FHasPreUnnestRepresentation(
-				 popSrcRoot->Edslop())))
+			CDSLOpKindTable::FHasPreUnnestRepresentation(
+				popSrcRoot->Edslop()))
 		{
 			continue;
 		}
