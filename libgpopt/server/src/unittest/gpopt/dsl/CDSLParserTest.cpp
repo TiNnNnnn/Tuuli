@@ -660,91 +660,66 @@ EresExpressionBindings()
 	return GPOS_OK;
 }
 GPOS_RESULT
-EresExpressionListObservations()
+EresExpressionListBindings()
 {
 	CAutoMemoryPool amp;
 	auto *mp = amp.Pmp();
-	const std::string chain = "Compute<e0 a0 s0>(Input<t0>)|"
-		"Compute<e2 a1 s1>(LeftApply<p1 a6 a7 a8>("
-		"LeftApply<p0 a2 a3 a4>(Input<t1>,Input<t2>),"
-		"Limit<n0 n1>(Compute<e3 a9 s2>(Input<t3>))))|"
-		"t1 := t0;s1 := s0;a1 := ScalarDeps(e2);ScalarOne(n0);ScalarZero(n1);";
-	const std::string scalar = "ExprListScalarSubquery(e1,p0,a2,a3,a4,a5,t2) := ";
-	const std::string exists = "ExprListExists(e2,e3,a9,s2,p1,a6,a7,a8,a10,t3) := e1";
-	for (const std::string &bindings : {scalar + "e0;" + exists, exists + ";" + scalar + "e0"})
-	{
-		CWStringDynamic error(mp);
-		auto *rule = CDSLRuleParser::PdslruleParse(mp, (chain + bindings).c_str(), nullptr, &error);
-		if (nullptr == rule) GPOS_TRACE(error.GetBuffer());
-		GPOS_UNITTEST_ASSERT(nullptr != rule);
-		CWStringDynamic canonical(mp);
-		COstreamString os(&canonical);
-		rule->OsPrint(os);
-		std::string printed;
-		for (ULONG i = 0; i < canonical.Length(); ++i)
-			printed += (CHAR) canonical.GetBuffer()[i];
-		const BOOL stable = FRoundTrips(mp, printed.c_str());
-		rule->Release();
-		if (!stable) return GPOS_FAILED;
-	}
-	for (const CHAR *unrooted : {"e2", "e4", "t0"})
-	{
-		auto *bad = Parse(mp, (chain + scalar + unrooted + ";" + exists).c_str());
-		if (nullptr != bad) { bad->Release(); return GPOS_FAILED; }
-	}
 	const CHAR *sources[] = {
 		"Filter<p0 a0>(Input<t0>)", "Compute<e0 a0 s0>(Input<t0>)",
-		"Agg<a0 a1 f0 s0 p0>(Input<t0>)", "WindowRows<a0 o0 w0>(Input<t0>)"};
+		"Agg<a0 a1 a9 f0 s0 p0>(Input<t0>)", "WindowRows<a0 o0 w0>(Input<t0>)"};
 	const CHAR *targets[] = {
 		"Filter<p1 a1>", "Compute<e1 a1 s1>",
-		"Agg<a2 a3 f1 s1 p1>", "WindowRows<a1 o1 w1>"};
+		"Agg<a2 a3 a10 f1 s1 p1>", "WindowRows<a1 o1 w1>"};
 	const CHAR *inputs[] = {"p0", "e0", "f0", "w0"};
 	const CHAR *outputs[] = {"p1", "e1", "f1", "w1"};
+	const CHAR *metadata[] = {"a1 := ScalarDeps(p1)",
+		"s1 := s0;a1 := ScalarDeps(e1)",
+		"a2 := a0;a10 := a9;s1 := s0;p1 := p0;FuncAttrs(a3,f1)", "a1 := a0;o1 := o0"};
+	const CHAR *captures[] = {"Subquery(a4,t2) := n0;a5 := a4",
+		"BoolValue(p2) := n0;Exists(t2) := p2",
+		"BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3",
+		"BoolValue(p2) := n0;Any(c0,v0,a4,t2) := p2",
+		"BoolValue(p2) := n0;All(c0,v0,a4,t2) := p2"};
 	for (ULONG i = 0; i < GPOS_ARRAY_SIZE(sources); ++i)
-	{
-		for (const CHAR *name : {"ExprListScalarSubquery", "ExprListExists",
-								"ExprListNotExists", "ExprListAny", "ExprListAll"})
+		for (const CHAR *capture : captures)
 		{
-			const BOOL scalar = std::string(name) == "ExprListScalarSubquery";
 			const std::string prefix = std::string(sources[i]) + "|" + targets[i] +
-				"(LeftApply<p2 a4 a5 a6>(Input<t1>," +
-				(scalar ? "Input<t2>" : "Compute<e2 a8 s2>(Input<t2>)") + "))|t1 := t0;";
-			const std::string operands = std::string(outputs[i]) +
-				(scalar ? "" : ",e2,a8,s2") +
-				",p2,a4,a5,a6,a7,t2";
-			const std::string old = prefix + name + "(" + inputs[i] + "," + operands + ")";
-			const std::string typed = prefix + name + "(" + operands + ") := " + inputs[i];
-			auto *legacy = Parse(mp, old.c_str());
-			auto *binding = Parse(mp, typed.c_str());
-			const BOOL equal = nullptr != legacy && nullptr != binding &&
-				std::string(legacy->SzIdentity()) == binding->SzIdentity();
-			CRefCount::SafeRelease(legacy);
-			CRefCount::SafeRelease(binding);
-			if (!equal)
+				"(Bind<n2 a5>(Input<t1>))|t1 := t0;" + metadata[i] + ";";
+			const std::string capture_prefix = "Context(n0) := ";
+			const std::string build = std::string(capture) + ";n2 := n0;n1 := Column(a5);" +
+				outputs[i] + " := Context(" + inputs[i] + ",n1)";
+			// Definition order is independent of dependency order in the rule text.
+			for (const std::string &bindings : {
+				capture_prefix + inputs[i] + ";" + build,
+				build + ";" + capture_prefix + inputs[i]})
 			{
-				CWStringConst message(mp, typed.c_str());
-				GPOS_TRACE(message.GetBuffer());
-				return GPOS_FAILED;
-			}
-			for (const std::string &invalid : {
-				prefix + name + "(" + outputs[i] + ") := " + inputs[i],
-				prefix + name + "(" + operands + ") := t0",
-				prefix + name + "(" + operands + ") := " + outputs[i],
-				prefix + inputs[i] + " := " + name + "(" + operands + ")"})
-			{
-				auto *bad = Parse(mp, invalid.c_str());
-				if (nullptr != bad)
+				const std::string text = prefix + bindings;
+				auto *rule = Parse(mp, text.c_str());
+				if (nullptr == rule) return GPOS_FAILED;
+				CWStringDynamic canonical(mp);
+				COstreamString os(&canonical);
+				rule->OsPrint(os);
+				rule->Release();
+				std::string printed;
+				for (ULONG j = 0; j < canonical.Length(); ++j)
+					printed += (CHAR) canonical.GetBuffer()[j];
+				if (!FRoundTrips(mp, printed.c_str()))
 				{
-					CWStringConst message(mp, invalid.c_str());
+					CWStringConst message(mp, text.c_str());
 					GPOS_TRACE(message.GetBuffer());
-					bad->Release();
 					return GPOS_FAILED;
 				}
 			}
+			// Captures must stay source-rooted, typed and acyclic.
+			for (const CHAR *unrooted : {outputs[i], "e99", "t0"})
+			{
+				auto *bad = Parse(mp, (prefix + capture_prefix + unrooted + ";" + build).c_str());
+				if (nullptr != bad) { bad->Release(); return GPOS_FAILED; }
+			}
 		}
-	}
 	return GPOS_OK;
 }
+
 }  // namespace
 
 GPOS_RESULT
@@ -754,7 +729,7 @@ CDSLParserTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresSurfaceEquality),
 		GPOS_UNITTEST_FUNC(EresInlineExpressions),
 		GPOS_UNITTEST_FUNC(EresExpressionBindings),
-		GPOS_UNITTEST_FUNC(EresExpressionListObservations),
+		GPOS_UNITTEST_FUNC(EresExpressionListBindings),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_RoundTrip),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_SymbolArity),
 		GPOS_UNITTEST_FUNC(CDSLParserTest::EresUnittest_Aliases),
@@ -967,10 +942,10 @@ CDSLParserTest::EresUnittest_RoundTrip()
 		"TableEq(t1,t0);AttrsEq(a1,a0);OrderEq(o1,o0);FrameEq(m1,m0);"
 		"WindowEq(w1,w0);RowsFrame(m0,b0,b1);ErrorFree(w0)",
 		// Window items are scalar-expression sequences and therefore share the
-		// same subquery-lowering constraint as Compute and aggregate functions.
-		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(LeftApply<p0 "
-		"a2 a3 a4>(Input<t1>,Input<t2>))|TableEq(t1,t0);AttrsEq(a1,a0);"
-		"OrderEq(o1,o0);ExprListScalarSubquery(w0,w1,p0,a2,a3,a4,a5,t2)",
+		// same Context/Bind composition as Compute and aggregate functions.
+		"WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|"
+		"t1 := t0;a1 := a0;o1 := o0;Context(n0) := w0;Subquery(a2,t2) := n0;"
+		"n2 := n0;a3 := a2;n1 := Column(a2);w1 := Context(w0,n1)",
 		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|TableEq(t1,t0)",
 		"MaxOneRow(Input<t0>)|AssertMaxOneRow(Input<t1>)|t1 := t0",
 		"RowNumber<a0 o0 r0>(Input<t0>)|RowNumber<a1 o1 r1>(Input<t1>)|"
