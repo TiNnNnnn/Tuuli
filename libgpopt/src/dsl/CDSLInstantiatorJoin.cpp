@@ -114,8 +114,9 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		else result = CUtils::PexprScalarConstBool(m_mp, true);
 		auto *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
 		items->Append(CUtils::PexprScalarProjectElement(m_mp, (*outputs)[0], result));
+		// The bound result identity is reused; each eager COUNT has private inputs.
 		query = CUtils::PexprLogicalProject(m_mp, query,
-			GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items), true);
+			GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items), false);
 		value->Release();
 		outputs->AddRef();
 		// EXISTS/NOT EXISTS SubPlans preserve demand and false/true on empty input.
