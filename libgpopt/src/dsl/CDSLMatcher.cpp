@@ -673,9 +673,9 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 //		Input<t> is an opaque relational placeholder: any logical operator
 //		qualifies, but scalar and physical expressions are not table bindings.
 //		We bind the single <t> symbol to
-//		the whole pexpr subtree (FBind AddRefs it). If <t> is already bound (same
-//		symbol appears again under an equality class), FBind enforces it points at
-//		the SAME subtree.
+//		the whole pexpr subtree (FBind AddRefs it). Repeated source symbols
+//		require the same complete tree and column identities, even when Memo
+//		extraction allocated a new CExpression. The original capture is retained.
 //---------------------------------------------------------------------------
 BOOL
 CDSLMatcher::FMatchInput(const CDSLOp *pop, CExpression *pexpr,
@@ -695,7 +695,10 @@ CDSLMatcher::FMatchInput(const CDSLOp *pop, CExpression *pexpr,
 	}
 
 	const CDSLSymbol *psymTable = (*pdrgpsym)[0];
-	return pmodel->FBind(psymTable, pexpr);
+	CExpression *existing = pmodel->PexprTable(psymTable);
+	return nullptr != existing
+		? CDSLMatchView::FSameCapturedExpression(existing, pexpr)
+		: pmodel->FBind(psymTable, pexpr);
 }
 
 BOOL

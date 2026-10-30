@@ -14,6 +14,7 @@ class CDSLMatchViewTest
 {
 public:
 	static GPOS_RESULT EresUnittest();
+	static GPOS_RESULT EresUnittest_RepeatedInput();
 	static GPOS_RESULT EresUnittest_AggregateAndOrderViews();
 	static GPOS_RESULT EresUnittest_JoinSpineAndCarrierViews();
 	static GPOS_RESULT EresUnittest_NullRejectedInnerJoinView();
