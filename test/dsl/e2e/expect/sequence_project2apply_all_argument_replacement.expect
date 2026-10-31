@@ -1,0 +1,91 @@
+{
+  "description": "Actual Window all argument extraction with an explicit full-partition frame",
+  "replacement": {
+    "xforms": [
+      "CXformSequenceProject2Apply"
+    ],
+    "scope": "Correlated all in a full-partition Window argument",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "246bb54f8a078070"
+    ],
+    "excluded_native_domains": [
+      "Physical Bind demand and cache/executor correspondence remain unproved"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_sequence_project2apply_boolean.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window"
+      ],
+      "alternative": [
+        "CXformSequenceProject2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSequenceProject2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_sequence_project2apply_boolean.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Window",
+        "\"status\":\"applied\",\"rule_hash\":\"246bb54f8a078070\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSequenceProject2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSequenceProject2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_sequence_project2apply_boolean.policy",
+    "output": [
+      "1,2",
+      "2,2",
+      "3,2"
+    ],
+    "postgres_output": [
+      "1,2",
+      "2,2",
+      "3,2"
+    ]
+  }
+}
