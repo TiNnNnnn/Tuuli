@@ -1,0 +1,88 @@
+{
+  "description": "Sequential aggregate Bind extraction preserves the previously bound input; complete native phase proof remains pending",
+  "replacement": {
+    "xforms": [
+      "CXformGbAgg2Apply"
+    ],
+    "scope": "Two correlated extrema in one int4 aggregate argument; the second extraction retains the first binding",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "de56dc10243c9158"
+    ],
+    "excluded_native_domains": [
+      "Canonical source/target proof for subqueries inside aggregate/window argument evaluation is not yet implemented"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Xform: CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"rule_hash\":\"de56dc10243c9158\""
+      ],
+      "alternative": [
+        "CXformGbAgg2Apply"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformGbAgg2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "not_contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformGbAgg2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CXformDSLRule_Agg",
+        "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformGbAgg2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformGbAgg2Apply",
+      "CXformSubquery2CorrelatedApply"
+    ],
+    "policy": "isolate_gbagg2apply_multi_scalar_direct.policy",
+    "output": [
+      "60"
+    ],
+    "postgres_output": [
+      "60"
+    ]
+  }
+}
