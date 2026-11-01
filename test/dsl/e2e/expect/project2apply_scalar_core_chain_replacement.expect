@@ -11,15 +11,15 @@
       "policy": "isolate_project2apply_scalar_core.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "not_contains": [
         "Falling back to Postgres"
       ],
       "rule_edges": [
         {
-          "src_rule": "33a86dd897855e47",
-          "dst_rule": "33a86dd897855e47"
+          "src_rule": "e45925375193782a",
+          "dst_rule": "e45925375193782a"
         }
       ],
       "alternative": [
