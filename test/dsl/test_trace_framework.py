@@ -721,7 +721,22 @@ class TraceFrameworkTest(unittest.TestCase):
                 self.assertEqual(deferred.call_args.args[:2],
                                  (occurrence["snapshot"], occurrence["target_snapshot"]))
                 self.assertEqual(checker.call_count, calls)
+            owned = MagicMock()
+            with patch.dict(sys.modules, {"native_function_instance": SimpleNamespace(
+                    check_function_instance=owned)}):
+                self.assertEqual(check_native_routes(
+                    {**expected, "native_observation": "restored_function_program"}, output, Path(directory)), 1)
+                self.assertEqual(owned.call_args.args[:3],
+                                 (canonical_rule, occurrence["snapshot"], occurrence["target_snapshot"]))
+                with patch("run_e2e_cases.bind_source_captures", return_value={"checked": True}) as binder:
+                    self.assertEqual(owned.call_args.args[3]({"captures": []}), {"checked": True})
+                    binder.assert_called_once_with(occurrence["bindings"], {"captures": []})
+                owned.side_effect = ValueError("unclosed function phase")
+                with self.assertRaisesRegex(ValueError, "unclosed function phase"):
+                    check_native_routes({**expected, "native_observation": "restored_function_program"}, output, Path(directory))
+                self.assertEqual(checker.call_count, calls)
             for options in ({"native_equivalence_mode": "UNKNOWN"},
+                            {"native_equivalence_mode": "BAG_EQ", "native_observation": "restored_function_program"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "deferred_rule"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "deferred_query"},
                             {"native_equivalence_mode": "BAG_EQ", "native_observation": "all_source_outputs"},

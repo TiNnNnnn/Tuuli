@@ -10,6 +10,7 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "stats_experiment": "aggregate_sibling.yaml",
+      "native_observation": "restored_function_program",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",

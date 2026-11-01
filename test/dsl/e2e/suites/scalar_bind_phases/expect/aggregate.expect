@@ -1,5 +1,5 @@
 {
-  "description": "New-syntax Bind retains aggregate/window argument demand; canonical phase proof remains pending",
+  "description": "Bind preserves native argument demand; optional kernel check connects the public rule to the restored logical phase, not physical execution",
   "plans": [
     {
       "name": "replacement",
@@ -10,6 +10,7 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "stats_experiment": "aggregate.yaml",
+      "native_observation": "restored_function_program",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"de56dc10243c9158\"",
@@ -18,6 +19,27 @@
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "de56dc10243c9158",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
