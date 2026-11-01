@@ -1,5 +1,5 @@
 {
-  "description": "Reject eager materialization of a potentially multirow scalar subquery in a lazy branch; native-off planning currently falls back",
+  "description": "Bind preserves lazy scalar subquery demand with native Project2Apply disabled",
   "plans": [
     {
       "name": "dsl-on",
@@ -9,11 +9,13 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "contains": [
-        "\"status\":\"match_rejected\"",
-        "Falling back to Postgres"
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\"",
+        "CLogicalLeftOuterCorrelatedApply",
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+        "CLogicalLeftOuterApply",
+        "Falling back to Postgres"
       ]
     }
   ],

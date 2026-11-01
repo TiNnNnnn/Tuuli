@@ -14,7 +14,7 @@
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterApply",
-        "\"status\":\"applied\",\"rule_hash\":\"33a86dd897855e47\""
+        "\"status\":\"applied\",\"rule_hash\":\"e45925375193782a\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -24,7 +24,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "33a86dd897855e47",
+          "rule_hash": "e45925375193782a",
           "route_sequence": 1,
           "operators": [
             "CLogicalProject",
@@ -43,7 +43,7 @@
       ],
       "rule_binding_matches": [
         {
-          "rule_hash": "33a86dd897855e47",
+          "rule_hash": "e45925375193782a",
           "symbols": [
             {
               "symbol": "e0",
