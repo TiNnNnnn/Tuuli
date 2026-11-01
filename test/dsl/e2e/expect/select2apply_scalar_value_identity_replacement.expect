@@ -137,6 +137,54 @@
           "CXformSubquery2CorrelatedApply"
         ]
       }
+    },
+    {
+      "name": "replacement_rule",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_select2apply_predicate_scalar_direct.policy",
+      "stats_experiment": "select2apply_scalar_source_route.yaml",
+      "native_observation": "deferred_rule",
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Select"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "24b3fadb6375b83f",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
     }
   ],
   "rows": {
