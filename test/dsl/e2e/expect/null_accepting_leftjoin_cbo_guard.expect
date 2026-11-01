@@ -1,0 +1,40 @@
+{
+  "description": "A predicate accepting NULL-extended rows must not reduce LeftJoin to InnerJoin",
+  "plans": [
+    {
+      "name": "cbo",
+      "trace": true,
+      "policy": "null_rejection_cbo.policy",
+      "outer_join_reduction": false,
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5e87dc02d937835e\"",
+        "\"failed_constraint\":\"PredicateNullRejecting\"",
+        "Optimizer: pg_orca",
+        "Left Join"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ]
+  }
+}

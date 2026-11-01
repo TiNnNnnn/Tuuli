@@ -1,0 +1,7 @@
+experiment: null-rejection-source
+discover: false
+template_route: 2
+template_fingerprint: a703400bd07dfe0f
+template_root: r
+template_bindings: true
+cardinalities:

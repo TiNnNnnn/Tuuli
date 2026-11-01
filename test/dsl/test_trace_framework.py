@@ -431,6 +431,23 @@ class TraceFrameworkTest(unittest.TestCase):
             self.assertNotIn("ANALYZE", run.call_args.args[1])
             self.assertEqual(actual_plan(plan, ""), plan)
 
+    def test_e2e_outer_join_reduction_applies_to_plans_and_both_dsl_states(self) -> None:
+        from run_e2e_cases import run_plan
+
+        args = SimpleNamespace(policy_dir=SCRIPT_DIR / "rules", disable_xform=[])
+        for plan, setting in (({}, "on"), ({"outer_join_reduction": False}, "off"),
+                              ({"outer_join_reduction": "default"}, None)):
+            with self.subTest(plan=plan), patch("run_e2e_cases.run_sql", return_value="1\n") as run:
+                run_plan(args, "SELECT 1", plan)
+                rows = actual_rows(args, "SELECT 1", {**plan, "off_output": ["1"]})
+            expected = (f"SET pg_orca.enable_outer_join_to_inner_join={setting};" if setting
+                        else "RESET pg_orca.enable_outer_join_to_inner_join;")
+            for call in (run.call_args_list[0], run.call_args_list[1], run.call_args_list[3]):
+                self.assertIn(expected, call.args[1])
+            self.assertEqual(actual_plan(plan, ""), plan)
+            for key, value in plan.items():
+                self.assertEqual(rows[key], value)
+
     def test_e2e_native_execution_capture_is_opt_in(self) -> None:
         from run_e2e_cases import run_plan
 

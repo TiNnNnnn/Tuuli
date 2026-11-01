@@ -24,6 +24,7 @@ extern bool pg_orca_enable_dynamic_tablescan;
 // pg_orca.enable_dsl_rule GUC (pg_orca.cpp): preserve logical ops for DSL match.
 extern bool pg_orca_enable_dsl_rule;
 extern bool pg_orca_enable_assert_maxonerow;
+extern bool pg_orca_enable_outer_join_to_inner_join;
 extern bool pg_orca_enable_dphyper;
 // pg_orca.dsl_only_xforms / pg_orca.trace_dsl_rule (pg_orca.cpp): scoped
 // native-xform suppression and per-rule attribution for replacement tests.
@@ -50,7 +51,6 @@ static bool orca_enable_sort         = true;
 static bool enable_materialize       = true;
 static bool enable_partition_prop    = true;
 static bool enable_partition_sel     = true;
-static bool enable_oj_rewrite        = true;
 static bool derive_stats_all_groups  = true;
 static bool enable_space_pruning     = true;
 static bool force_multistage_agg     = false;
@@ -208,7 +208,7 @@ CConfigParamMapping::SConfigMappingElem CConfigParamMapping::m_elements[] = {
 	{EopttraceDisablePartSelection, &enable_partition_sel,
 	 true,  GPOS_WSZ_LIT("Disable partition selection in optimizer.")},
 
-	{EopttraceDisableOuterJoin2InnerJoinRewrite, &enable_oj_rewrite,
+	{EopttraceDisableOuterJoin2InnerJoinRewrite, &pg_orca_enable_outer_join_to_inner_join,
 	 true,  GPOS_WSZ_LIT("Disable outer join to inner join rewrite in optimizer.")},
 
 	{EopttraceDonotDeriveStatsForAllGroups, &derive_stats_all_groups,

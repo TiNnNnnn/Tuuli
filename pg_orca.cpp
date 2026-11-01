@@ -177,8 +177,9 @@ bool  pg_orca_enable_dynamic_tablescan = true;
  */
 bool  pg_orca_enable_dsl_rule = false;
 
-/* Expose ORCA's existing MaxOneRow implementation gate for replacement tests. */
+/* Expose existing native implementation/normalization gates for replacement tests. */
 bool  pg_orca_enable_assert_maxonerow = false;
+bool  pg_orca_enable_outer_join_to_inner_join = true;
 
 /* Enable the in-Cascades DPHyper join-region enumerator. */
 // Standalone tools do not run _PG_init(), so keep conservative storage
@@ -893,6 +894,15 @@ void _PG_init(void)
         NULL,
         &pg_orca_enable_dsl_rule,
         false,
+        PGC_USERSET,
+        0, NULL, NULL, NULL);
+
+    DefineCustomBoolVariable(
+        "pg_orca.enable_outer_join_to_inner_join",
+        "Enable native null-rejecting outer join reduction during preprocessing and normalization.",
+        NULL,
+        &pg_orca_enable_outer_join_to_inner_join,
+        true,
         PGC_USERSET,
         0, NULL, NULL, NULL);
 

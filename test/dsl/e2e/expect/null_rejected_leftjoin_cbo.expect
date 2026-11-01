@@ -1,0 +1,90 @@
+{
+  "description": "CBO null-rejection replacement with native outer join reduction disabled",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Left Join",
+        "Right Join",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Left Join"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "policy": "null_rejection_cbo.policy",
+      "stats_experiment": "null_rejection_source_route.yaml",
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "5e87dc02d937835e",
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2"
+    ],
+    "plan_outputs": {
+      "native": [
+        "2,2",
+        "2,2"
+      ],
+      "negative": [
+        "2,2",
+        "2,2"
+      ],
+      "replacement": [
+        "2,2",
+        "2,2"
+      ]
+    }
+  }
+}

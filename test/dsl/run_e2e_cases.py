@@ -202,6 +202,7 @@ SET pg_orca.enable_dsl_rule={enabled};
 {policy_setting(args, plan)}
 {experiment_setting(args, plan)}
 {bool_guc_setting('pg_orca.enable_assert_maxonerow', plan.get('assert_maxonerow'), False)}
+{bool_guc_setting('pg_orca.enable_outer_join_to_inner_join', plan.get('outer_join_reduction'), True)}
 {bool_guc_setting('pg_orca.enable_dphyper', plan.get('dphyper'), False)}
 {bool_guc_setting('pg_orca.dphyper_shadow', plan.get('dphyper_shadow'), False)}
 SET pg_orca.dphyper_edge_budget={edge_budget};
@@ -523,7 +524,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
         for key in (
             "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose", "debug_plan",
-            "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "native_observation",
+            "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "outer_join_reduction", "native_observation",
             "native_equivalence_mode", "execution_observation"
         )
         if key in expected
@@ -653,6 +654,7 @@ SET pg_orca.enable_dsl_rule={'on' if expected.get('dsl', True) else 'off'};
 {policy_setting(args, expected)}
 {experiment_setting(args, expected)}
 {bool_guc_setting('pg_orca.enable_assert_maxonerow', expected.get('assert_maxonerow'), False)}
+{bool_guc_setting('pg_orca.enable_outer_join_to_inner_join', expected.get('outer_join_reduction'), True)}
 {bool_guc_setting('pg_orca.enable_dphyper', expected.get('dphyper'), False)}
 {bool_guc_setting('pg_orca.dphyper_shadow', expected.get('dphyper_shadow'), False)}
 SET pg_orca.dphyper_edge_budget={int(expected.get('dphyper_edge_budget', 100000))};
@@ -700,7 +702,7 @@ COPY ({query}) TO STDOUT WITH (FORMAT csv);
         for key in (
             "dsl", "dphyper", "dphyper_shadow", "dphyper_edge_budget",
             "dphyper_pair_budget", "native", "disable_xforms", "policy",
-            "assert_maxonerow", "stats_experiment", "error_sqlstate"
+            "assert_maxonerow", "outer_join_reduction", "stats_experiment", "error_sqlstate"
         )
         if key in expected
     }
