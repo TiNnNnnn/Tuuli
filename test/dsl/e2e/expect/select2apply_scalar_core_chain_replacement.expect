@@ -24,7 +24,7 @@
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -32,15 +32,15 @@
       ],
       "rule_edges": [
         {
-          "src_rule": "8311785e3d5fecff",
-          "dst_rule": "8311785e3d5fecff",
+          "src_rule": "24b3fadb6375b83f",
+          "dst_rule": "24b3fadb6375b83f",
           "producer_relation": "memo_consumes",
           "candidate_status": "ready_cbo"
         }
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "8311785e3d5fecff",
+          "rule_hash": "24b3fadb6375b83f",
           "route_sequence": 1,
           "operators": [
             "CLogicalSelect",
@@ -81,7 +81,7 @@
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -89,15 +89,15 @@
       ],
       "rule_edges": [
         {
-          "src_rule": "8311785e3d5fecff",
-          "dst_rule": "8311785e3d5fecff",
+          "src_rule": "24b3fadb6375b83f",
+          "dst_rule": "24b3fadb6375b83f",
           "producer_relation": "memo_consumes",
           "candidate_status": "ready_cbo"
         }
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "8311785e3d5fecff",
+          "rule_hash": "24b3fadb6375b83f",
           "route_sequence": 5,
           "operators": [
             "CLogicalSelect",

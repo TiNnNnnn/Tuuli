@@ -1,13 +1,18 @@
 {
-  "description": "Core Context chooses the safe later subquery while preserving the earlier demanded scalar cardinality error",
+  "description": "Canonical Bind preserves scalar subquery results and demanded errors",
   "plans": [
     {
       "name": "replacement",
       "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
       "policy": "isolate_select2apply_scalar_core.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"8311785e3d5fecff\""
+        "\"status\":\"applied\",\"rule_hash\":\"24b3fadb6375b83f\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -15,6 +20,11 @@
     }
   ],
   "rows": {
+    "disable_xforms": [
+      "CXformSelect2Apply",
+      "CXformSimplifySelectWithSubquery",
+      "CXformSubquery2CorrelatedApply"
+    ],
     "policy": "isolate_select2apply_scalar_core.policy",
     "error_sqlstate": "21000",
     "output": [

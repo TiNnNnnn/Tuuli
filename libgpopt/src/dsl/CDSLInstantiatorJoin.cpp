@@ -112,7 +112,8 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		CExpression *query = CDSLExprListUtils::PexprExistentialInput((*value)[0]);
 		query->AddRef();
 		const BOOL eager = 0 == query->DeriveOuterReferences()->Size() &&
-			dslproperties::FQueryDemandInsensitive(query);
+			dslproperties::FQueryDemandInsensitive(query) &&
+			dslproperties::FDeferredColumnsProvablySafe(input, input->DeriveOutputColumns(), true);
 		CExpression *result = nullptr;
 		if (eager)
 		{
@@ -141,14 +142,15 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 				static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, outputs, origin)),
 			input, query, CUtils::PexprScalarConstBool(m_mp, true));
 	}
-	// Eager evaluation is equivalent only for a total, stable scalar query.
+	// A row Join also projects prior deferred values: preserve their demand.
 	outputs->AddRef();
 	CExpression *query = (*value)[0];
 	query->AddRef();
 	value->Release();
 	COperator *carrier = 0 == query->DeriveOuterReferences()->Size() &&
 		query->DeriveMaxCard().Ull() <= 1 &&
-		dslproperties::FQueryDemandInsensitive(query)
+		dslproperties::FQueryDemandInsensitive(query) &&
+		dslproperties::FDeferredColumnsProvablySafe(input, input->DeriveOutputColumns(), true)
 		? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterApply(
 			m_mp, outputs, COperator::EopScalarSubquery))
 		: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(

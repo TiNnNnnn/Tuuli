@@ -591,7 +591,7 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 			? nullptr
 			: (*pexprTarget)[0];
 		if (nullptr == pexprOuterApply ||
-			COperator::EopLogicalLeftOuterApply !=
+			COperator::EopLogicalLeftOuterCorrelatedApply !=
 				pexprOuterApply->Pop()->Eopid() ||
 			COperator::EopLogicalLeftOuterCorrelatedApply !=
 				(*pexprOuterApply)[0]->Pop()->Eopid() ||
@@ -604,7 +604,8 @@ CDSLProjTest::EresUnittest_ExpressionDefinedSubqueryChain()
 		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
 		GPOS_UNITTEST_ASSERT(3 == (*pexprTarget)[1]->Arity() &&
 			(*(*pexprTarget)[1])[2]->Matches((*(*pexprSource)[1])[2]));
-		GPOS_UNITTEST_ASSERT((*(*(*(*pexprOuterApply)[1])[0])[0])[0]->Matches(existsBase));
+		// The later EXISTS must not project the earlier fallible scalar query.
+		GPOS_UNITTEST_ASSERT((*(*pexprOuterApply)[1])[0]->Matches(existsBase));
 		GPOS_UNITTEST_ASSERT(COperator::EopLogicalProject == pexprExistsInner->Pop()->Eopid());
 		// Replay the complete scalar -> existential lowering chain after target
 		// construction, retaining the same checked result identity.
