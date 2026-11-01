@@ -789,8 +789,9 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # null-rejection proof accepts typed aliases and the dependency union.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
-# FORMALSQL_PROVED legacy_hash=e7ded0e32f745546; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
-# null-rejection theorem preserves the captured predicate and ordered output.
+# PARTIAL_BINDING legacy_hash=e7ded0e32f745546; native expression proof: UNKNOWN without source contracts;
+# source-conditional OUTCOME_EQ and an actual native-disabled CBO occurrence kernel-checked 2026-11-01.
+# The structural Join assumption is retired; native predicate/NULL evaluation preserves ordered outputs.
 Filter<p0 a0>(LeftJoin<p1 a1 a2>(Input<t0>,Input<t1>))|Filter<p2 a3>(InnerJoin<p3 a4 a5>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p2 := p0;p3 := p1;a3 := a0;a4 := a1;a5 := a2;OutputAttrs(a6,t1);PredicateNullRejecting(p0,a6);ErrorFree(p0);Deterministic(p0)
 
 # Reuse the proved framework rule for CXformSimplifyGbAgg's key-backed pure
