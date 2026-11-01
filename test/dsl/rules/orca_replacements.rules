@@ -786,8 +786,8 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(InnerJoin<p1 a5 a6>(I
 # correlated aggregate; finally the same predicate reduces LeftJoin to
 # InnerJoin.
 # PARTIAL_BINDING legacy_hash=f169b79b650c81ee; the structural Apply assumption is retired.
-# Generic matched/padded-row lemmas are kernel-checked; production predicate copying
-# and target construction still require a native expression proof.
+# Source-conditional OUTCOME_EQ now checks predicate copying and actual target construction.
+# Native-format instances pass; the real InnerCorrelatedApply SubPlan correspondence remains open.
 InnerApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|Filter<p1 a3>(LeftApply<p2 a4 a5 a6>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;p2 := p0;a4 := a0;a5 := a1;a6 := a2;AttrsUnion(a3,a4,a5);AttrsNonEmpty(a2);PredicateNullRejecting(p0,a1);ErrorFree(p0);Deterministic(p0)
 
 # PARTIAL_BINDING legacy_hash=e7ded0e32f745546; native expression proof: UNKNOWN without source contracts;
