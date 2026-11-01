@@ -156,6 +156,7 @@ public:
 
 	// Ambient parameters come from the matched root, never target bindings.
 	const CColRefSet *PcrsSourceOuter() const;
+	BOOL FDeferredColumnsProvablySafe(const CColRefSet *used, BOOL deterministic) const;
 
 	// the pool this model (and any transient work a matcher does for it) lives
 	// in — the per-optimization xform pool, NOT the engine's long-lived pool.

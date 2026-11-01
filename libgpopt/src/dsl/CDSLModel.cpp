@@ -10,6 +10,7 @@
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLMatchView.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpos/common/CHashMapIter.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -642,6 +643,23 @@ CDSLModel::FBindScalarContext(const CDSLSymbol *symbol, CDSLScalarContext *conte
 		m_phmScalarContexts = GPOS_NEW(m_mp) CDSLSymbolToRefMap(m_mp);
 	context->AddRef();
 	return m_phmScalarContexts->Insert(const_cast<CDSLSymbol *>(symbol), context);
+}
+
+BOOL
+CDSLModel::FDeferredColumnsProvablySafe(const CColRefSet *used, BOOL deterministic) const
+{
+	if (!dslproperties::FDeferredColumnsProvablySafe(m_pexprMatchedSource, used, deterministic))
+		return false;
+	// Match views may introduce carriers absent from the original source tree.
+	if (nullptr != m_phmApplyCarrier)
+	{
+		CHashMapIter<CDSLSymbol, CExpression, gpos::HashPtr<CDSLSymbol>,
+			gpos::EqualPtr<CDSLSymbol>, CleanupNULL<CDSLSymbol>, CleanupRelease<CExpression>> iter(m_phmApplyCarrier);
+		while (iter.Advance())
+			if (!dslproperties::FDeferredColumnsProvablySafe(
+				const_cast<CExpression *>(iter.Value()), used, deterministic)) return false;
+	}
+	return true;
 }
 
 BOOL

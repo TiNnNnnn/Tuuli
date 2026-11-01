@@ -20,6 +20,9 @@ BOOL FScalarTreeProvablyErrorFree(CExpression *pexpr,
 BOOL FScalarTreeProvablyDeterministic(CExpression *pexpr);
 BOOL FRelationalTreeProvablyErrorFree(CExpression *pexpr,
 	BOOL deterministic = false);
+// A deferred SubPlan output is an evaluation, not an ordinary stored column.
+BOOL FDeferredColumnsProvablySafe(CExpression *source, const CColRefSet *used,
+	BOOL deterministic);
 
 // Sufficient evidence that early termination and full evaluation agree.
 // Also accepts scalar operands using the same totality/repeatability checks.

@@ -32,6 +32,7 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
+#include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
 #include "gpopt/operators/CScalarNullTest.h"
 #include "gpopt/operators/CScalarConst.h"
@@ -178,6 +179,39 @@ EresScalarSubqueryTotality()
 			GPOS_UNITTEST_ASSERT(model->FBind(PsymByName(rule, "p0"), predicate));
 			GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model) == safe);
 			model->Release(); rule->Release();
+		}
+		if (shape <= 3)
+		for (BOOL readsSubplan : {false, true})
+		{
+			// Extraction must not turn a fallible SubPlan lookup into a safe column.
+			CColRefArray *selectedColumns = GPOS_NEW(mp) CColRefArray(mp);
+			selectedColumns->Append((*columns)[0]);
+			query->AddRef();
+			CExpression *apply = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalLeftOuterCorrelatedApply(mp, selectedColumns,
+					COperator::EopScalarSubquery),
+				fix.PexprLogicalGet("deferred_outer", 1), query,
+				CUtils::PexprScalarConstBool(mp, true));
+			CExpression *lookup = readsSubplan ? GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarNullTest(mp), CUtils::PexprScalarIdent(mp, selected))
+				: CUtils::PexprScalarConstBool(mp, true);
+			CExpression *consumer = fix.PexprLogicalSelect(apply, lookup);
+			for (const CHAR *property : {"ErrorFree", "Deterministic"})
+			for (ULONG reference = 0; reference < 3; ++reference)
+			{
+				const std::string text = std::string(
+					"Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Input<t1>)|") +
+					property + (reference == 2 ? "(a1);" : "(p1);") +
+					(reference == 1 ? "p1 := And(p0,p0);" : "p1 := p0;") +
+					"a1 := a0;t1 := t0";
+				CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+				GPOS_UNITTEST_ASSERT(nullptr != rule);
+				CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+				GPOS_UNITTEST_ASSERT(CDSLMatcher(mp).FMatch(rule->PfragSrc()->PopRoot(), consumer, model));
+				GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model) == (!readsSubplan || safe));
+				model->Release(); rule->Release();
+			}
+			consumer->Release(); lookup->Release(); apply->Release();
 		}
 		// Bind preserves lazy demand using a correlated carrier when the query
 		// is fallible or may return multiple rows; property guards stay strict.

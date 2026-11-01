@@ -8,6 +8,7 @@
 #include "gpopt/base/CUtils.h"
 #include "gpopt/mdcache/CMDAccessor.h"
 #include "gpopt/operators/CExpression.h"
+#include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
@@ -519,6 +520,33 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 	{
 		if (!FRelationalTreeProvablyErrorFree((*pexpr)[ul], deterministic)) return false;
 	}
+	return true;
+}
+
+BOOL
+FDeferredColumnsProvablySafe(CExpression *source, const CColRefSet *used,
+	BOOL deterministic)
+{
+	if (nullptr == source || 0 == used->Size()) return true;
+	const auto id = source->Pop()->Eopid();
+	if (id == COperator::EopLogicalInnerCorrelatedApply ||
+		id == COperator::EopLogicalLeftOuterCorrelatedApply)
+	{
+		const auto *apply = CLogicalApply::PopConvert(source->Pop());
+		CColRefArray *selected = apply->PdrgPcrInner();
+		for (ULONG i = 0; nullptr != selected && i < selected->Size(); ++i)
+		{
+			if (!used->FMember((*selected)[i])) continue;
+			if (3 != source->Arity() ||
+				COperator::EopScalarSubquery != apply->EopidOriginSubq() ||
+				!CDSLMatchView::FSelectedSubqueryInput((*source)[1], (*selected)[i]) ||
+				1 < (*source)[1]->DeriveMaxCard().Ull() ||
+				!FRelationalTreeProvablyErrorFree((*source)[1], deterministic))
+				return false;
+		}
+	}
+	for (ULONG i = 0; i < source->Arity(); ++i)
+		if (!FDeferredColumnsProvablySafe((*source)[i], used, deterministic)) return false;
 	return true;
 }
 

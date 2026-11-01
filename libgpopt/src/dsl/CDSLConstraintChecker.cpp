@@ -11,6 +11,7 @@
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLConstraintChecker.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpopt/dsl/CDSLExpressionProperties.h"
 
 #include <unordered_map>
@@ -2576,6 +2577,14 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 	// value. In particular, Proj attrs also carry a source scalar-list contract.
 	const CDSLSymbol *psymBound = materializer.PsymBindingOrigin(prule, psym);
 	if (nullptr == psymBound) return false;
+	const BOOL deterministic = EdslconDeterministic == pcon->Edslcon();
+	const auto columnsSafe = [&](const CColRefSet *used) {
+		return pmodel->FDeferredColumnsProvablySafe(used, deterministic);
+	};
+	const auto scalarSafe = [&](CExpression *value) {
+		return (deterministic ? dslproperties::FScalarTreeProvablyDeterministic(value)
+			: dslproperties::FScalarTreeProvablyErrorFree(value)) && columnsSafe(value->DeriveUsedColumns());
+	};
 	if (nullptr == pmodel->PvalLookup(psymBound))
 	{
 		// Inspect exactly what target construction would build, including nested
@@ -2583,9 +2592,7 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		CExpression *pexpr = materializer.PexprInstantiateBinding(prule, psym, pmodel);
 		if (nullptr != pexpr)
 		{
-			const BOOL safe = EdslconErrorFree == pcon->Edslcon()
-				? dslproperties::FScalarTreeProvablyErrorFree(pexpr)
-				: dslproperties::FScalarTreeProvablyDeterministic(pexpr);
+			const BOOL safe = scalarSafe(pexpr);
 			pexpr->Release();
 			return safe;
 		}
@@ -2599,12 +2606,15 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		case EdslsymAttrs:
 			pexpr = PexprProjectListForAttrs(
 				prule->PfragSrc()->PopRoot(), psymBound, pmodel);
-			// A bare attribute vector denotes existing column references and has no
-			// evaluation of its own. Project-defined attrs retain their exact scalar
-			// list above and must pass the normal checks.
+			// Ordinary columns are values; deferred SubPlan outputs still evaluate.
+			// Project-defined attrs retain their exact scalar list above.
 			if (nullptr == pexpr)
 			{
-				return nullptr != pmodel->PdrgpcrAttrs(psymBound);
+				CColRefArray *attrs = pmodel->PdrgpcrAttrs(psymBound);
+				if (nullptr == attrs) return false;
+				CAutoRef<CColRefSet> used(GPOS_NEW(m_mp) CColRefSet(m_mp));
+				used->Include(attrs);
+				return columnsSafe(used.Value());
 			}
 			break;
 		case EdslsymFunc:
@@ -2617,17 +2627,7 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 			for (ULONG ul = 0; ul < pdrgpexpr->Size(); ul++)
 			{
 				CExpression *pexprFunc = (*pdrgpexpr)[ul];
-				if (EdslconErrorFree == pcon->Edslcon())
-				{
-					if (!dslproperties::FScalarTreeProvablyErrorFree(pexprFunc))
-					{
-						return false;
-					}
-				}
-				else if (!dslproperties::FScalarTreeProvablyDeterministic(pexprFunc))
-				{
-					return false;
-				}
+				if (!scalarSafe(pexprFunc)) return false;
 			}
 			return true;
 		}
@@ -2661,12 +2661,7 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		return false;
 	}
 
-	if (EdslconErrorFree == pcon->Edslcon())
-	{
-		return dslproperties::FScalarTreeProvablyErrorFree(pexpr);
-	}
-	GPOS_ASSERT(EdslconDeterministic == pcon->Edslcon());
-	return dslproperties::FScalarTreeProvablyDeterministic(pexpr);
+	return scalarSafe(pexpr);
 }
 
 BOOL
