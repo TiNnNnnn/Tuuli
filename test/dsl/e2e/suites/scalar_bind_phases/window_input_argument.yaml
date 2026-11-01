@@ -1,0 +1,7 @@
+experiment: bind-phase-window_input_argument
+discover: false
+template_route: 1
+template_fingerprint: 37f848f8854cc996
+template_root: r
+template_bindings: true
+cardinalities:
