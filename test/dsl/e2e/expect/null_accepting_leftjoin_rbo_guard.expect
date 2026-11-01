@@ -1,0 +1,30 @@
+{
+  "description": "A predicate accepting NULL-extended rows must not reduce LeftJoin to InnerJoin",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "null_rejection_rbo.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5e87dc02d937835e\"",
+        "\"failed_constraint\":\"PredicateNullRejecting\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"5e87dc02d937835e\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "null_rejection_rbo.policy",
+    "output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ]
+  }
+}

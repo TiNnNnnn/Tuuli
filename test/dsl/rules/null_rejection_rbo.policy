@@ -1,0 +1,11 @@
+# Isolate the existing explicit Filter(LeftJoin) rule in the RBO regression.
+- rule: '*'
+  enabled: false
+- rule: 5e87dc02d937835e
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: changes_join_graph
+  priority: 0
+  order: bottom_up
+  fixpoint: true

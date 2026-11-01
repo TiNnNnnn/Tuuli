@@ -1,18 +1,18 @@
 {
-  "description": "BottomUp RBO exposes a proven null-rejected LeftJoin as an InnerJoin DSL source",
+  "description": "BottomUp RBO applies the explicit null-rejection rule to Filter(LeftJoin)",
   "plans": [
     {
       "name": "rbo",
       "trace": true,
-      "policy": "join_match_views_bottom_up_rbo.policy",
+      "policy": "null_rejection_rbo.policy",
       "contains": [
-        "\"rule_id\":63,\"status\":\"applied_rbo\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"5e87dc02d937835e\"",
         "\"placement\":\"rbo\""
       ]
     }
   ],
   "rows": {
-    "policy": "join_match_views_bottom_up_rbo.policy",
+    "policy": "null_rejection_rbo.policy",
     "output": [
       "2,2",
       "2,2"
