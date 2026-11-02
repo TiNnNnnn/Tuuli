@@ -4,13 +4,14 @@
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
     ],
-    "scope": "AntiApply with an ungrouped correlation key and total integer MIN",
+    "scope": "AntiApply with an ungrouped correlation key and total integer MIN; safe repeatable independent RHS with disjoint input outputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b6a40f034f4edda2"
+      "f0f9a77b5ee0d692"
     ],
     "excluded_native_domains": [
-      "Unbounded COUNT and other potentially throwing aggregate functions"
+      "Unbounded COUNT and other potentially throwing aggregate functions",
+      "RHS without error-freedom, repeatability or independence evidence"
     ]
   },
   "plans": [
@@ -39,7 +40,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b6a40f034f4edda2\"",
+        "\"status\":\"applied\",\"rule_hash\":\"f0f9a77b5ee0d692\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

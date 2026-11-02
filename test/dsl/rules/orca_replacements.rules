@@ -591,22 +591,28 @@ Agg<a0 a1 a8 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 a
 # grouping, predicate dependencies, and aggregate schema. Global aggregates
 # require separate empty-input compensation and cannot use this movement.
 # Baseline includes the nonempty grouping guard; de88cc37456ca76b omitted it.
-# SYNTAX_ONLY legacy_hash=6aa1c1037ed25f19; native expression proof: UNKNOWN.
+# Previous legacy_hash=6aa1c1037ed25f19 lacked whole-RHS demand guards.
+# PARTIAL_BINDING: native expression proof: UNKNOWN (grouped decorrelation search).
+# Build output keys before aggregate results; only a safe, repeatable independent
+# RHS may move from per-row Apply demand to a standalone Join input.
 # Historical structural certificate withdrawn 2026-10-27: it did not protect
 # the global empty-input group. Require a nonempty original grouping domain.
 # Migration must compose native predicate, partition and schema certificates;
 # a structural aggregate movement premise cannot stand in for that proof.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 a12 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4);a12 := a11
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|SemiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 a12 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;AttrsUnion(a13,a9,a11);SchemaFromAttrs(s1,a13);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4);a12 := a11;ErrorFree(t1);Deterministic(t1);OutputAttrs(a14,t0);OutputAttrs(a15,t1);DepsDisjoint(t1,a14);DepsDisjoint(a14,a15)
 
 # Negative-polarity counterpart of the atomic grouped decorrelation rule.
 # Correlation equality and group/schema construction are shared across
 # polarities; native proof composition is still required for each observation.
 # Baseline includes the nonempty grouping guard; 21e31a7d52a2edcb omitted it.
-# SYNTAX_ONLY legacy_hash=cc8c6babd433f7f1; native expression proof: UNKNOWN.
+# Previous legacy_hash=cc8c6babd433f7f1 lacked whole-RHS demand guards.
+# PARTIAL_BINDING: native expression proof: UNKNOWN (grouped decorrelation search).
+# Build output keys before aggregate results; only a safe, repeatable independent
+# RHS may move from per-row Apply demand to a standalone Join input.
 # The same empty-input boundary applies to NOT EXISTS; the historical
 # structural certificate is not a native proof of this corrected rule.
 # Preserve NOT EXISTS demand while composing the same operator-local laws.
-AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 a12 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;SchemaUnion(s1,s0,a5);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4);a12 := a11
+AntiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoin<p3 a7 a8>(Input<t2>,Agg<a9 a10 a12 f1 s1 p4>(Input<t3>))|t2 := t0;t3 := t1;p3 := And(p0,p2);AttrsUnion(a7,a0,a2);AttrsUnion(a8,a1,a5);AttrsUnion(a9,a3,a5);a10 := a4;f1 := f0;AttrsUnion(a13,a9,a11);SchemaFromAttrs(s1,a13);p4 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p2);Deterministic(p3);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a10);ErrorFree(f1);ErrorFree(p4);a12 := a11;ErrorFree(t1);Deterministic(t1);OutputAttrs(a14,t0);OutputAttrs(a15,t1);DepsDisjoint(t1,a14);DepsDisjoint(a14,a15)
 
 # Replaces the complete pure-grouping domain of CXformPushGbBelowUnionAll.
 # The outer grouping may be any subset of the UnionAll row. Explicit output

@@ -4,13 +4,14 @@
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoin"
     ],
-    "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key; ordinary integer MIN only",
+    "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key; ordinary integer MIN only; safe repeatable independent RHS with disjoint input outputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1f071751c9d9e03a"
+      "32e0e9eab52d713a"
     ],
     "excluded_native_domains": [
-      "Unbounded COUNT and other potentially throwing aggregate functions"
+      "Unbounded COUNT and other potentially throwing aggregate functions",
+      "RHS without error-freedom, repeatability or independence evidence"
     ]
   },
   "plans": [
@@ -39,7 +40,7 @@
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1f071751c9d9e03a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"32e0e9eab52d713a\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

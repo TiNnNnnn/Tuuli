@@ -1,0 +1,34 @@
+{
+  "description": "Grouped decorrelation must check the opaque RHS, not only safe MIN and correlation predicates",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "rule_hash=f0f9a77b5ee0d692 status=rejected constraint=ErrorFree"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f0f9a77b5ee0d692\"",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin\n"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ],
+    "off_output": [
+      "2"
+    ]
+  }
+}
