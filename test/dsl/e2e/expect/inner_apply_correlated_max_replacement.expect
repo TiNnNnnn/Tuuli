@@ -1,0 +1,116 @@
+{
+  "description": "Grouped InnerApply preserves duplicate outer rows and NULL aggregates while excluding absent groups, with its native xform disabled",
+  "replacement": {
+    "xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "scope": "InnerApply correlation on an existing grouping key with safe integer MAX",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability",
+      "Correlation columns requiring additional grouping keys",
+      "Global aggregation without grouping keys",
+      "Potentially throwing aggregate functions"
+    ],
+    "dsl_rule_hashes": [
+      "307e9b61f726a180"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_group_innerapply.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformInnerApply2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformInnerApply2InnerJoin"
+      ],
+      "policy": "isolate_group_innerapply.policy",
+      "stats_experiment": "group_innerapply_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"307e9b61f726a180\"",
+        "CLogicalInnerJoin"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformInnerApply2InnerJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "307e9b61f726a180",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalInnerApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformInnerApply2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformInnerApply2InnerJoin"
+    ],
+    "policy": "isolate_group_innerapply.policy",
+    "output": [
+      "1,1,20",
+      "2,2,",
+      "2,2,"
+    ],
+    "postgres_output": [
+      "1,1,20",
+      "2,2,",
+      "2,2,"
+    ],
+    "off_output": [
+      "1,1,20",
+      "2,2,",
+      "2,2,"
+    ]
+  }
+}

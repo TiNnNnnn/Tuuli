@@ -1,5 +1,5 @@
 {
-  "description": "The shared Agg/HAVING view lets the base LeftApply rule preserve an existing correlation grouping key",
+  "description": "Grouped LeftApply preserves duplicate outer rows, NULL aggregates and NULL padding for absent groups with its native xform disabled",
   "replacement": {
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
@@ -7,7 +7,10 @@
     "scope": "Correlated LeftApply with a safe repeatable independent grouped RHS and NULL-on-empty aggregates whose correlation key is already grouped",
     "status": "verified_partial_replacement",
     "excluded_native_domains": [
-      "Assert decorrelation that changes strict error reachability"
+      "Assert decorrelation that changes strict error reachability",
+      "Correlation columns requiring additional grouping keys",
+      "Global aggregation without grouping keys",
+      "Potentially throwing aggregate functions"
     ],
     "dsl_rule_hashes": [
       "a4e6320e7e60378e"
@@ -25,6 +28,7 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_group_leftapply.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\""
       ]
@@ -46,9 +50,36 @@
       "disable_xforms": [
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
+      "policy": "isolate_group_leftapply.policy",
+      "stats_experiment": "group_leftapply_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
+        "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"a4e6320e7e60378e\"",
         "CLogicalLeftOuterJoin"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a4e6320e7e60378e",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
@@ -65,15 +96,24 @@
     "disable_xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
     ],
+    "policy": "isolate_group_leftapply.policy",
     "output": [
       "1,1,20",
       "2,2,",
-      "3,3,5"
+      "2,2,",
+      "4,,"
     ],
     "postgres_output": [
       "1,1,20",
       "2,2,",
-      "3,3,5"
+      "2,2,",
+      "4,,"
+    ],
+    "off_output": [
+      "1,1,20",
+      "2,2,",
+      "2,2,",
+      "4,,"
     ]
   }
 }

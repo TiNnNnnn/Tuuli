@@ -1,0 +1,158 @@
+{
+  "description": "NOT EXISTS over integer MIN: isolated grouped filter movement and AntiApply decorrelation retain duplicate outer rows, NULL aggregate values and absent groups",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "scope": "AntiApply correlation on an existing grouping key with safe integer MIN",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "0573ade528949f8d",
+      "30467bddf13c87b6"
+    ],
+    "excluded_native_domains": [
+      "Correlation columns requiring additional grouping keys",
+      "Global aggregation without grouping keys",
+      "Potentially throwing aggregate functions"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_group_antiapply.policy"
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_group_antiapply.policy",
+      "stats_experiment": "group_antifilter_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0573ade528949f8d",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+        ]
+      }
+    },
+    {
+      "name": "decorrelation",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_group_antiapply.policy",
+      "stats_experiment": "group_antiapply_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "30467bddf13c87b6",
+          "route_sequence": 16,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_group_antiapply.policy",
+    "output": [
+      "2",
+      "2",
+      "4"
+    ],
+    "postgres_output": [
+      "2",
+      "2",
+      "4"
+    ],
+    "off_output": [
+      "2",
+      "2",
+      "4"
+    ]
+  }
+}

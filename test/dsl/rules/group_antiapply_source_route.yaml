@@ -1,0 +1,7 @@
+experiment: group-antiapply-composition
+discover: false
+template_route: 16
+template_fingerprint: a92de8ddc101f2d0
+template_root: r
+template_bindings: true
+cardinalities:
