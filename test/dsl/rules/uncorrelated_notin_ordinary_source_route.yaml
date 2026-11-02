@@ -1,0 +1,7 @@
+experiment: uncorrelated-notin-ordinary-source
+discover: false
+template_route: 35
+template_fingerprint: ccb6cc7f6f4f9c94
+template_root: r
+template_bindings: true
+cardinalities:
