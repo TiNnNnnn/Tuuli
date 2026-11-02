@@ -1054,7 +1054,10 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	pcrsExpectedSchema->Include(pdrgpcrGroup);
 	pcrsExpectedSchema->Include(pdrgpcrAggOutputs);
 	pcrsSchema->Include(pdrgpcrSchema);
-	BOOL fSchemaValid = pcrsExpectedSchema->Equals(pcrsSchema);
+	// Set equality alone hides repeated or overlapping output identities.
+	BOOL fSchemaValid = pcrsExpectedSchema->Equals(pcrsSchema) &&
+		pcrsExpectedSchema->Size() ==
+			pdrgpcrGroup->Size() + pdrgpcrAggOutputs->Size();
 
 	BOOL fColumnsValid = fInputsValid && fSchemaValid &&
 					 pcrsChild->ContainsAll(pcrsGroup) &&

@@ -1707,6 +1707,18 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 		{
 			eres = GPOS_FAILED;
 		}
+		CRefCount::SafeRelease(pexprTgt);
+		pexprTgt = nullptr;
+		CColRefArray *grouping = pmodel->PdrgpcrAttrs(
+			(*prule->PfragSrc()->PopRoot()->Pdrgpsym())[0]);
+		GPOS_UNITTEST_ASSERT(nullptr != grouping && 0 < grouping->Size());
+		// A duplicate key keeps the same output set but is not a valid SELECT layout.
+		grouping->Append((*grouping)[0]);
+		pexprTgt = inst.PexprInstantiate(prule, pmodel);
+		if (nullptr != pexprTgt)
+		{
+			eres = GPOS_FAILED;
+		}
 	}
 
 	CRefCount::SafeRelease(pexprTgt);
