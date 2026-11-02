@@ -525,14 +525,14 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(t1);Deterministic(t1);OutputAttrs(a7,t0);OutputAttrs(a8,t1);DepsDisjoint(t1,a7);DepsDisjoint(a7,a8)
 
-# Atomic composition of the generic Window/Filter movement and SemiApply
-# decorrelation laws. It is needed when Cascades cannot place the intermediate
-# Window alternative in the Apply's original memo group. FormalSQL/Rocq
-# accepted the table-only interpretation on 2026-09-05.
-# PARTIAL_BINDING legacy_hash=89d76d6fc25aebd2; the base-table-only structural certificate is withdrawn (2026-11-02). native expression proof: UNKNOWN without source contracts.
-# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
-# Native Window/Filter and correlated Apply composition still needs complete input evidence.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a2>(Input<t1>)))|SemiJoin<p2 a6 a7>(Input<t2>,Window<a8 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a6,a0,a2);AttrsUnion(a7,a1,a4);a8 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a2);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w0);ErrorFree(w1)
+# Retired the atomic Window/SemiApply composition (legacy 89d76d6fc25aebd2).
+# Existing Window/Filter movement followed by correlated SemiApply decorrelation
+# now chains through Memo for both EXISTS and IN. Keep the complete Window
+# under the latter rule's ordinary RHS safety/repeatability checks; item-level
+# safety alone does not certify the ordered query. The native-off regressions
+# isolate these two rules, including rejection of unsafe opaque RHS inputs.
+
+
 
 # Collapses any two adjacent correlated or ordinary Filters into one explicit
 # conjunction. This is an independently Rocq-proved normalization rule, not an

@@ -4,13 +4,15 @@
     "xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
-    "scope": "LeftSemiApplyIn whose correlated Filter is below a partition-compatible Window",
-    "status": "verified_full_replacement",
+    "scope": "Correlated IN over a safe repeatable partition-compatible MIN/MAX Window",
+    "status": "verified_partial_replacement",
     "excluded_native_domains": [
-      "Assert decorrelation that changes strict error reachability"
+      "Assert decorrelation that changes strict error reachability",
+      "Window outputs whose values depend on peer ordering or repeated RHS evaluation"
     ],
     "dsl_rule_hashes": [
-      "f2eb2e023ad311c5"
+      "7ac97a55ff9b47c8",
+      "91905ebab4da4402"
     ]
   },
   "plans": [
@@ -26,9 +28,11 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_window_apply.policy",
       "contains": [
+        "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
-        "\"status\":\"applied\",\"rule_hash\":\"f2eb2e023ad311c5\""
+        "\"status\":\"applied\",\"rule_hash\":\"91905ebab4da4402\""
       ]
     },
     {
@@ -49,8 +53,11 @@
       "disable_xforms": [
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
+      "policy": "isolate_window_apply.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2eb2e023ad311c5\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"91905ebab4da4402\""
       ],
       "provenance": {
         "required_sources": [
@@ -67,6 +74,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
+    "policy": "isolate_window_apply.policy",
     "output": [
       "10",
       "30"
