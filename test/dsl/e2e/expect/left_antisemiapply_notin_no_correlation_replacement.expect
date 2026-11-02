@@ -44,18 +44,39 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
       "trace": true,
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
       ],
       "policy": "isolate_uncorrelated_notin_join.policy",
+      "stats_experiment": "uncorrelated_notin_source_route.yaml",
+      "native_observation": "source_row_stream",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"555e37d08b6f12c4\""
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "555e37d08b6f12c4",
+          "route_sequence": 31,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoinNotIn",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
