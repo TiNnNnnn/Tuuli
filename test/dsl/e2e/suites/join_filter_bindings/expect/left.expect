@@ -1,0 +1,77 @@
+{
+  "description": "Explicit right Filter fusion preserves NULL and duplicate rows; conditional logical proof, not deployment certification.",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\"",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "xform_trace": true,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "policy": "bindings.policy",
+      "stats_experiment": "left-source-route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c069bc915105c3f2\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c069bc915105c3f2",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "bindings.policy",
+    "output": [
+      ",",
+      "0,3",
+      "1,3",
+      "2,3",
+      "2,3"
+    ],
+    "postgres_output": [
+      ",",
+      "0,3",
+      "1,3",
+      "2,3",
+      "2,3"
+    ],
+    "off_output": [
+      ",",
+      "0,3",
+      "1,3",
+      "2,3",
+      "2,3"
+    ]
+  }
+}
