@@ -1,11 +1,11 @@
 {
-  "description": "A proved Window/Filter normalization composes with the correlated SemiApply rule",
+  "description": "Window/Filter normalization composes with the correlated SemiApply rule",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoin"
     ],
     "scope": "LeftSemiApply whose inner correlated Filter is below a partition-compatible aggregate Window",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "excluded_native_domains": [
       "Assert decorrelation that changes strict error reachability"
     ],

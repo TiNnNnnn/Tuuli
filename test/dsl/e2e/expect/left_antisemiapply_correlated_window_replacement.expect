@@ -5,7 +5,7 @@
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
     ],
     "scope": "LeftAntiSemiApply whose inner correlated Filter is below a partition-compatible aggregate Window",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "excluded_native_domains": [
       "Assert decorrelation that changes strict error reachability"
     ],

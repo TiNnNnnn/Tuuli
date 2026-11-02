@@ -510,21 +510,20 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter
-# predicate reference different columns. This exact RuleIR is accepted by the
-# generic FormalSQL/Rocq proof kernel.
-# FORMALSQL_PROVED legacy_hash=e2adabe59e1f4460; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate fc594593199ff586bcb6e31124c227a900846c2f9847bf9e01df9eaabfbd1b7b. Shared correlation symbols; previous legacy_hash 977b505669323220.
-# The generic correlated Apply proof accepts typed predicate and table bindings; no
-# SemiApply-specific lemma is added.
+# predicate reference different columns. Native instance evidence is conditional.
+# PARTIAL_BINDING legacy_hash=e2adabe59e1f4460; the base-table-only structural certificate is withdrawn (2026-11-02).
+# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
+# The native shared proof checks actual input and predicate contracts.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
 # Atomic composition of the generic Window/Filter movement and SemiApply
 # decorrelation laws. It is needed when Cascades cannot place the intermediate
 # Window alternative in the Apply's original memo group. FormalSQL/Rocq
-# accepted this RuleIR on 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=89d76d6fc25aebd2; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate b467cc0cc926f05a4c3363d81a08535feee6cb5febc55fd1cbdadb23d8828581. Shared correlation symbols; previous legacy_hash 9a5153fdbf92bd49.
-# Window/Filter and correlated Apply composition accepts the typed metadata;
-# no window- or Apply-specific semantic lemma is added.
+# accepted the table-only interpretation on 2026-09-05.
+# PARTIAL_BINDING legacy_hash=89d76d6fc25aebd2; the base-table-only structural certificate is withdrawn (2026-11-02).
+# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
+# Native Window/Filter and correlated Apply composition still needs complete input evidence.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a2>(Input<t1>)))|SemiJoin<p2 a6 a7>(Input<t2>,Window<a8 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a6,a0,a2);AttrsUnion(a7,a1,a4);a8 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a2);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w0);ErrorFree(w1)
 
 # Collapses any two adjacent correlated or ordinary Filters into one explicit
@@ -540,10 +539,10 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # CXformLeftAntiSemiApply2LeftAntiSemiJoin. This is ordinary NOT EXISTS
 # semantics; AntiJoinNotIn remains a separate NULL-aware operator family.
 # And and AttrsUnion preserve the same dependency partition as the
-# positive SemiApply rule. This exact RuleIR is accepted by FormalSQL/Rocq.
-# FORMALSQL_PROVED legacy_hash=dd2859cc6b7c7c44; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-15; certificate 69727624e4d763b80d571cef8b0daf7f604aaecb7fd4d14260dac8e9c7400780. Shared correlation symbols; previous legacy_hash 5004b2a4db64e478.
-# The generic correlated AntiApply proof accepts conjunction/dependency premises; no
-# AntiApply-specific lemma is added.
+# positive SemiApply rule. Native instance evidence is conditional.
+# PARTIAL_BINDING legacy_hash=dd2859cc6b7c7c44; the base-table-only structural certificate is withdrawn (2026-11-02).
+# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
+# The native shared proof checks actual input and predicate contracts.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
 AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
 
