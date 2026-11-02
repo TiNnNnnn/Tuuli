@@ -1,0 +1,30 @@
+{
+  "description": "A safe fixed dataset does not certify arbitrary RHS arithmetic; whole-input ErrorFree must reject the rewrite.",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"82414bfee3baf962\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"82414bfee3baf962\"",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

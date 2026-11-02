@@ -1,0 +1,73 @@
+{
+  "description": "Native-off existential LIMIT replacement; --check-native-instances verifies the actual captured source and target under BAG_OUTCOME_EQ database premises, not a deployment certificate.",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ],
+      "stats_experiment": "semi_empty-source.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"c745c6ecca0cf6c2\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+      ],
+      "alternative": [
+        "CXformDSLRule_Exists"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c745c6ecca0cf6c2",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}

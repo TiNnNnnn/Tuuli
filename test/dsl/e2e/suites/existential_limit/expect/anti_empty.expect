@@ -1,0 +1,88 @@
+{
+  "description": "Native-off existential LIMIT replacement; --check-native-instances verifies the actual captured source and target under BAG_OUTCOME_EQ database premises, not a deployment certificate.",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "stats_experiment": "anti_empty-source.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"82414bfee3baf962\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "alternative": [
+        "CXformDSLRule_NotExists"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "82414bfee3baf962",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ],
+    "off_output": [
+      "1",
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}

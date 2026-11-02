@@ -185,6 +185,7 @@ jobs:
           test/dsl/e2e.sh --suite compute_materialization
           test/dsl/e2e.sh --suite filter_materialization
           test/dsl/e2e.sh --suite existential_demand
+          test/dsl/e2e.sh --suite existential_limit
           test/dsl/e2e.sh --suite scalar_extraction_demand
           test/dsl/e2e.sh --suite scalar_bind
           test/dsl/e2e.sh --suite scalar_bind_phases
