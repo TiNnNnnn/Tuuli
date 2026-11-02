@@ -1,0 +1,38 @@
+{
+  "description": "Implicit length coercions can raise truncation errors on other rows; safe sample values do not prove ErrorFree.",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c83cc9b54086d16c\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "A",
+      "A"
+    ],
+    "postgres_output": [
+      "A",
+      "A"
+    ],
+    "off_output": [
+      "A",
+      "A"
+    ]
+  }
+}

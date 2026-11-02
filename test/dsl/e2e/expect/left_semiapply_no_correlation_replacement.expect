@@ -1,13 +1,13 @@
 {
-  "description": "Native-off SemiApply replacement with a captured ROW_STREAM kernel check; arbitrary-input certification remains pending",
+  "description": "Native-off SemiApply replacement with RHS safety guards; BAG_OUTCOME_EQ instance evidence remains conditional",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
     ],
-    "scope": "LeftSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_direct_replacement",
+    "scope": "Uncorrelated EXISTS with canonical FETCH 1/OFFSET 0, error-free repeatable child and independent input output domains",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "cf934dc15544cfa2"
+      "c745c6ecca0cf6c2"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c745c6ecca0cf6c2\""
       ],
       "alternative": [
         "CXformLeftSemiApply2LeftSemiJoinNoCorrelations",
@@ -48,16 +48,16 @@
         "CXformLeftSemiApply2LeftSemiJoinNoCorrelations"
       ],
       "stats_experiment": "semi_apply_source_route.yaml",
-      "native_observation": "source_row_stream",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c745c6ecca0cf6c2\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "cf934dc15544cfa2",
+          "rule_hash": "c745c6ecca0cf6c2",
           "route_sequence": 6,
           "operators": [
             "CLogicalLeftSemiCorrelatedApply",

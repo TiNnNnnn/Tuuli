@@ -1,13 +1,13 @@
 {
-  "description": "The proved SemiApply DSL rule also replaces the uncorrelated IN-tagged Apply conversion",
+  "description": "Guarded SemiApply DSL replacement for the safe uncorrelated IN domain",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
     ],
-    "scope": "LeftSemiApplyIn whose inner subtree has no references to its current outer child",
-    "status": "verified_full_replacement",
+    "scope": "Uncorrelated IN with error-free, repeatable RHS and predicate; independent input output domains",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "cf934dc15544cfa2"
+      "c83cc9b54086d16c"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
       ],
       "alternative": [
         "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations",
@@ -48,7 +48,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

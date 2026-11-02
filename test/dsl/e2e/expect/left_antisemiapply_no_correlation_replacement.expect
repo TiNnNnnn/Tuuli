@@ -1,13 +1,13 @@
 {
-  "description": "Native-off AntiApply replacement with a captured ROW_STREAM kernel check; arbitrary-input certification remains pending",
+  "description": "Native-off AntiApply replacement with RHS safety guards; BAG_OUTCOME_EQ instance evidence remains conditional",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
     ],
-    "scope": "LeftAntiSemiApply whose inner subtree has no references to its current outer child",
-    "status": "verified_direct_replacement",
+    "scope": "Uncorrelated NOT EXISTS with error-free repeatable RHS and predicate, and independent input output domains",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "4df97bead45bc844"
+      "65a5256ee2c9513c"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
+        "\"status\":\"applied\",\"rule_hash\":\"65a5256ee2c9513c\""
       ]
     },
     {
@@ -44,13 +44,13 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
       ],
       "stats_experiment": "anti_apply_source_route.yaml",
-      "native_observation": "source_row_stream",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4df97bead45bc844\""
+        "\"status\":\"applied\",\"rule_hash\":\"65a5256ee2c9513c\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "4df97bead45bc844",
+          "rule_hash": "65a5256ee2c9513c",
           "route_sequence": 3,
           "operators": [
             "CLogicalLeftAntiSemiCorrelatedApply",

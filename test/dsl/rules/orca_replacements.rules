@@ -364,8 +364,12 @@ CTEAnchor(Input<t0>)|Input<t1>|t1 := t0
 # immediate outer/inner correlation separately from the top predicate's local
 # dependencies; AttrsEmpty states the native xform's correlation domain, not
 # equality of RHS demand or error behavior. Predicate safety alone is insufficient.
-# PARTIAL_BINDING legacy_hash=e3458abf2b3167d5; native expression proof: UNKNOWN without source contracts; public ROW_STREAM source/target instance kernel-checked 2026-10-18, including Filter/Limit RHS scope transport. Arbitrary-input certification remains pending; the runtime/encoding-conditional receipt is not a deployment certificate.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(p0);ErrorFree(p1)
+# PARTIAL_BINDING previous_legacy_hash=e3458abf2b3167d5; current_hash=c83cc9b54086d16c; native expression proof: UNKNOWN without source contracts. Source-conditional BAG_OUTCOME_EQ (2026-11-02), not a deployment certificate.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|SemiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);OutputAttrs(a5,t0);OutputAttrs(a6,t1);DepsDisjoint(a5,a6)
+
+# Cardinality-only existential domain: sliced rows need not be repeatable.
+# Source-conditional BAG_OUTCOME_EQ and actual native instances checked 2026-11-02.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Limit<n0 n1>(Input<t1>))|SemiJoin<p1 a3 a4>(Input<t2>,Limit<n2 n3>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n2 := n0;n3 := n1;ScalarOne(n0);ScalarZero(n1);a7 := ScalarDeps(p0);AttrsSub(a7,t0);AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);OutputAttrs(a5,t0);OutputAttrs(a6,t1);DepsDisjoint(a5,a6)
 
 # Replaces the base-input domain of
 # CXformLeftSemiApplyWithExternalCorrs2InnerJoin. PredicateDomainSplit
@@ -418,8 +422,12 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<
 # native correlation promise expressed as data. AntiJoin is ordinary NOT EXISTS
 # semantics, distinct from the NULL-aware AntiJoinNotIn family. Predicate safety
 # does not establish equal RHS demand or error behavior.
-# PARTIAL_BINDING legacy_hash=561de687652328df; native expression proof: UNKNOWN without source contracts; public ROW_STREAM source/target instance kernel-checked 2026-10-18, including Filter RHS scope transport. Arbitrary-input certification remains pending; the runtime/encoding-conditional receipt is not a deployment certificate.
-AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
+# PARTIAL_BINDING previous_legacy_hash=561de687652328df; current_hash=65a5256ee2c9513c; native expression proof: UNKNOWN without source contracts. Source-conditional BAG_OUTCOME_EQ (2026-11-02), not a deployment certificate.
+AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);OutputAttrs(a5,t0);OutputAttrs(a6,t1);DepsDisjoint(a5,a6)
+
+# Cardinality-only existential domain: sliced rows need not be repeatable.
+# Source-conditional BAG_OUTCOME_EQ and actual native instances checked 2026-11-02.
+AntiApply<p0 a0 a1 a2>(Input<t0>,Limit<n0 n1>(Input<t1>))|AntiJoin<p1 a3 a4>(Input<t2>,Limit<n2 n3>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n2 := n0;n3 := n1;ScalarOne(n0);ScalarOne(n1);a7 := ScalarDeps(p0);AttrsSub(a7,t0);AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);OutputAttrs(a5,t0);OutputAttrs(a6,t1);DepsDisjoint(a5,a6)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
 # AntiApplyNotIn and AntiJoinNotIn are first-class NULL-aware operators rather
@@ -511,7 +519,7 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. Native instance evidence is conditional.
-# PARTIAL_BINDING legacy_hash=e2adabe59e1f4460; current_hash=91905ebab4da4402; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02.
+# PARTIAL_BINDING previous_legacy_hash=e2adabe59e1f4460; current_hash=91905ebab4da4402; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02. native expression proof: UNKNOWN without source contracts.
 # Explicit RHS safety, repeatability, independence and output separation guard eager evaluation.
 # The base-table-only certificate is withdrawn; native source evidence remains required.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
@@ -521,7 +529,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>
 # decorrelation laws. It is needed when Cascades cannot place the intermediate
 # Window alternative in the Apply's original memo group. FormalSQL/Rocq
 # accepted the table-only interpretation on 2026-09-05.
-# PARTIAL_BINDING legacy_hash=89d76d6fc25aebd2; the base-table-only structural certificate is withdrawn (2026-11-02).
+# PARTIAL_BINDING legacy_hash=89d76d6fc25aebd2; the base-table-only structural certificate is withdrawn (2026-11-02). native expression proof: UNKNOWN without source contracts.
 # Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
 # Native Window/Filter and correlated Apply composition still needs complete input evidence.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Window<a3 o0 m0 w0>(Filter<p1 a4 a2>(Input<t1>)))|SemiJoin<p2 a6 a7>(Input<t2>,Window<a8 o1 m1 w1>(Input<t3>))|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a6,a0,a2);AttrsUnion(a7,a1,a4);a8 := a3;o1 := o0;m1 := m0;w1 := w0;CorrelationEquality(p1,a4,a2);AttrsNonEmpty(a4);AttrsSub(a4,a3);DepsDisjoint(a3,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);AttrsSub(a0,t0);AttrsSub(a4,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(w0);ErrorFree(w1)
@@ -540,7 +548,7 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # semantics; AntiJoinNotIn remains a separate NULL-aware operator family.
 # And and AttrsUnion preserve the same dependency partition as the
 # positive SemiApply rule. Native instance evidence is conditional.
-# PARTIAL_BINDING legacy_hash=dd2859cc6b7c7c44; current_hash=30467bddf13c87b6; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02.
+# PARTIAL_BINDING previous_legacy_hash=dd2859cc6b7c7c44; current_hash=30467bddf13c87b6; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02. native expression proof: UNKNOWN without source contracts.
 # Explicit RHS safety, repeatability, independence and output separation guard eager evaluation.
 # The base-table-only certificate is withdrawn; native source evidence remains required.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.

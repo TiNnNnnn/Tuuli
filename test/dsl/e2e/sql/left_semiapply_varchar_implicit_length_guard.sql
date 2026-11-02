@@ -1,0 +1,1 @@
+SELECT o.k FROM (VALUES ('A'::varchar), ('A'::varchar), ('B'::varchar)) AS o(k) WHERE o.k IN (SELECT pg_catalog.varchar(i.k, 6, false) FROM (VALUES ('A'::varchar), ('C'::varchar)) AS i(k)) ORDER BY o.k;

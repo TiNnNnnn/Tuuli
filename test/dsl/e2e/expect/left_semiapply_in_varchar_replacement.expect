@@ -1,0 +1,73 @@
+{
+  "description": "Guarded SemiApply DSL replacement for the safe uncorrelated IN domain",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "scope": "Uncorrelated IN with error-free, repeatable RHS and predicate; independent input output domains",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "c83cc9b54086d16c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "A",
+      "A"
+    ],
+    "postgres_output": [
+      "A",
+      "A"
+    ]
+  }
+}

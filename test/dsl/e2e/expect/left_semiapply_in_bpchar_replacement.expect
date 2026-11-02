@@ -1,13 +1,13 @@
 {
-  "description": "The generic ErrorFree predicate check admits PostgreSQL fixed-length character comparisons",
+  "description": "Guarded SemiApply DSL replacement for the safe uncorrelated IN domain",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
     ],
-    "scope": "Uncorrelated IN over built-in bpchar comparison operators",
-    "status": "verified_full_replacement",
+    "scope": "Uncorrelated IN with error-free, repeatable RHS and predicate; independent input output domains",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "cf934dc15544cfa2"
+      "c83cc9b54086d16c"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftSemiApplyIn2LeftSemiJoinNoCorrelations"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cf934dc15544cfa2\""
+        "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
       ],
       "provenance": {
         "required_sources": [

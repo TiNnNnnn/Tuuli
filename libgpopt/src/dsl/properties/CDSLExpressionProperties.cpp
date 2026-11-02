@@ -17,6 +17,7 @@
 #include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarConst.h"
+#include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarNullIf.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
@@ -100,6 +101,31 @@ FScalarCastProvablyErrorFree(CExpression *pexpr)
 			754 == oidFunction /*int28*/) ||
 		(GPDB_INT4 == oidSource && GPDB_INT8 == oidTarget &&
 			481 == oidFunction /*int48*/);
+}
+
+BOOL
+FStringLengthCoercionProvablyErrorFree(CExpression *expr)
+{
+	if (3 != expr->Arity() || !CUtils::FScalarConstTrue((*expr)[2]) ||
+		COperator::EopScalarConst != (*expr)[1]->Pop()->Eopid() ||
+		!(*expr)[0]->Pop()->FScalar()) return false;
+	const auto *func = CScalarFunc::PopConvert(expr->Pop());
+	IMDId *id = func->FuncMdId();
+	IMDId *result = func->MdidType();
+	IMDId *input = CScalar::PopConvert((*expr)[0]->Pop())->MdidType();
+	if (!IMDId::IsValid(id) || IMDId::EmdidGeneral != id->MdidType() ||
+		!IMDId::IsValid(result) || IMDId::EmdidGeneral != result->MdidType() ||
+		!IMDId::IsValid(input) || !input->Equals(result)) return false;
+	const OID oid = CMDIdGPDB::CastMdid(id)->Oid();
+	const OID type = CMDIdGPDB::CastMdid(result)->Oid();
+	if (!((668 == oid && GPDB_CHAR == type) ||
+		  (669 == oid && GPDB_VARCHAR == type))) return false;
+	auto *datum = CScalarConst::PopConvert((*expr)[1]->Pop())->GetDatum();
+	if (datum->IsNull() || IMDType::EtiInt4 != datum->GetDatumType()) return false;
+	const INT typmod = dynamic_cast<const IDatumInt4 *>(datum)->Value();
+	// varchar.c truncates explicit casts; implicit casts may error. Keep the
+	// declared-size domain from PostgreSQL's MaxAttrSize plus VARHDRSZ.
+	return 4 <= typmod && typmod <= 10 * 1024 * 1024 + 4;
 }
 
 BOOL
@@ -284,6 +310,9 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 			{
 				return false;
 			}
+			break;
+		case COperator::EopScalarFunc:
+			if (!FStringLengthCoercionProvablyErrorFree(pexpr)) return false;
 			break;
 		case COperator::EopScalarAggFunc:
 		{
