@@ -1,0 +1,34 @@
+{
+  "description": "A safe correlation predicate does not authorize changing demand of an opaque RHS containing LIMIT and potentially failing arithmetic",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "rule_hash=30467bddf13c87b6 status=rejected constraint=ErrorFree"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\"",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin\n"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "output": [
+      "4"
+    ],
+    "postgres_output": [
+      "4"
+    ],
+    "off_output": [
+      "4"
+    ]
+  }
+}

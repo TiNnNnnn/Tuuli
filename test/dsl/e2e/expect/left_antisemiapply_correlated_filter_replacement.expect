@@ -7,7 +7,7 @@
     "scope": "LeftAntiSemiApply whose right child is one correlated Filter",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0a81235e27fc1b62"
+      "30467bddf13c87b6"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ]
     },
     {
@@ -46,11 +46,11 @@
       "stats_experiment": "anti_apply_correlated_source_route.yaml",
       "native_observation": "source_row_stream",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "0a81235e27fc1b62",
+          "rule_hash": "30467bddf13c87b6",
           "route_sequence": 3,
           "operators": [
             "CLogicalLeftAntiSemiCorrelatedApply",

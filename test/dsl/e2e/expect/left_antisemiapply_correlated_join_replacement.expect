@@ -7,7 +7,7 @@
     "scope": "LeftAntiSemiApply whose inner Compute/LET contains a correlated InnerJoin ON predicate",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0a81235e27fc1b62"
+      "30467bddf13c87b6"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ],
       "alternative": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
@@ -49,7 +49,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ],
       "provenance": {
         "required_sources": [

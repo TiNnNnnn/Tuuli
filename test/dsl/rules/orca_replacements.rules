@@ -511,11 +511,11 @@ Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
 # complete per-child dependencies when the Apply predicate and pulled Filter
 # predicate reference different columns. Native instance evidence is conditional.
-# PARTIAL_BINDING legacy_hash=e2adabe59e1f4460; the base-table-only structural certificate is withdrawn (2026-11-02).
-# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
-# The native shared proof checks actual input and predicate contracts.
+# PARTIAL_BINDING legacy_hash=e2adabe59e1f4460; current_hash=91905ebab4da4402; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02.
+# Explicit RHS safety, repeatability, independence and output separation guard eager evaluation.
+# The base-table-only certificate is withdrawn; native source evidence remains required.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
+SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(t1);Deterministic(t1);OutputAttrs(a7,t0);OutputAttrs(a8,t1);DepsDisjoint(t1,a7);DepsDisjoint(a7,a8)
 
 # Atomic composition of the generic Window/Filter movement and SemiApply
 # decorrelation laws. It is needed when Cascades cannot place the intermediate
@@ -540,11 +540,11 @@ Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := 
 # semantics; AntiJoinNotIn remains a separate NULL-aware operator family.
 # And and AttrsUnion preserve the same dependency partition as the
 # positive SemiApply rule. Native instance evidence is conditional.
-# PARTIAL_BINDING legacy_hash=dd2859cc6b7c7c44; the base-table-only structural certificate is withdrawn (2026-11-02).
-# Arbitrary Input subtrees require native demand, repeatability and scope evidence; standalone proof remains UNKNOWN.
-# The native shared proof checks actual input and predicate contracts.
+# PARTIAL_BINDING legacy_hash=dd2859cc6b7c7c44; current_hash=30467bddf13c87b6; source-conditional BAG_OUTCOME_EQ kernel-checked 2026-11-02.
+# Explicit RHS safety, repeatability, independence and output separation guard eager evaluation.
+# The base-table-only certificate is withdrawn; native source evidence remains required.
 # Public native ROW_STREAM instance kernel-checked 2026-10-18; runtime/encoding conditions remain explicit, not an arbitrary-input deployment certificate.
-AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2)
+AntiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoin<p2 a5 a6>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := And(p0,p1);AttrsUnion(a5,a0,a2);AttrsUnion(a6,a1,a3);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);Deterministic(p2);ErrorFree(p0);ErrorFree(p1);ErrorFree(p2);ErrorFree(t1);Deterministic(t1);OutputAttrs(a7,t0);OutputAttrs(a8,t1);DepsDisjoint(t1,a7);DepsDisjoint(a7,a8)
 
 # Moves a correlated Filter above a safe Compute/LET layer, exposing the
 # Filter-rooted inner alternative consumed by the SemiApply decorrelation rule

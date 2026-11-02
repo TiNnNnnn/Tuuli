@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "a3a384e829b6c009",
-      "0a81235e27fc1b62"
+      "30467bddf13c87b6"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ],
       "alternative": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin",
@@ -53,7 +53,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"0a81235e27fc1b62\""
+        "\"status\":\"applied\",\"rule_hash\":\"30467bddf13c87b6\""
       ],
       "provenance": {
         "required_sources": [
