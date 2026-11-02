@@ -1,0 +1,7 @@
+experiment: group-apply-composition
+discover: false
+template_route: 17
+template_fingerprint: 5aea4e55999bb514
+template_root: r
+template_bindings: true
+cardinalities:

@@ -1,14 +1,18 @@
 {
-  "description": "Integer MIN positive control: An aggregate/filter commute rule exposes a grouped correlated subquery to the SemiApply replacement",
+  "description": "Integer MIN: isolated Agg/Filter movement and SemiApply decorrelation, with both actual occurrences checked",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
     "scope": "LeftSemiApply whose grouped inner input filters on an existing grouping key; ordinary integer MIN only",
     "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [],
+    "dsl_rule_hashes": [
+      "0573ade528949f8d",
+      "91905ebab4da4402"
+    ],
     "excluded_native_domains": [
-      "Unbounded COUNT and other potentially throwing aggregate functions"
+      "Unbounded COUNT and other potentially throwing aggregate functions",
+      "Correlation columns requiring additional grouping keys"
     ]
   },
   "plans": [
@@ -22,7 +26,8 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "policy": "isolate_group_apply.policy"
     },
     {
       "name": "negative",
@@ -42,10 +47,12 @@
       "disable_xforms": [
         "CXformLeftSemiApplyIn2LeftSemiJoin"
       ],
+      "policy": "isolate_group_apply.policy",
       "stats_experiment": "group_filter_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"91905ebab4da4402\""
       ],
       "not_contains": [
         "Falling back to Postgres"
@@ -75,16 +82,69 @@
           "CXformLeftSemiApplyIn2LeftSemiJoin"
         ]
       }
+    },
+    {
+      "name": "decorrelation",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyIn2LeftSemiJoin"
+      ],
+      "policy": "isolate_group_apply.policy",
+      "stats_experiment": "group_apply_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"91905ebab4da4402\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "91905ebab4da4402",
+          "route_sequence": 17,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApplyIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyIn2LeftSemiJoin"
+        ]
+      }
     }
   ],
   "rows": {
     "disable_xforms": [
       "CXformLeftSemiApplyIn2LeftSemiJoin"
     ],
+    "policy": "isolate_group_apply.policy",
     "output": [
       "3"
     ],
     "postgres_output": [
+      "3"
+    ],
+    "off_output": [
       "3"
     ]
   }
