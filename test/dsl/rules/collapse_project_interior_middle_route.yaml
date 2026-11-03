@@ -1,0 +1,7 @@
+experiment: collapse_project_interior_middle
+discover: false
+template_route: 2
+template_fingerprint: a60498be87c35f52
+template_root: r
+template_bindings: true
+cardinalities:

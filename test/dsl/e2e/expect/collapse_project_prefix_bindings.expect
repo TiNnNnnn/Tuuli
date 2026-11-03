@@ -4,10 +4,10 @@
     "xforms": [
       "CXformCollapseProject"
     ],
-    "scope": "Source-conditional independent total deterministic first Item and lower list; nonempty residual; arbitrary-position maximal subset remains uncovered",
+    "scope": "Source-conditional independent total deterministic Item at any position and safe lower list; nonempty ordered residual; maximal subset and SRFs remain uncovered",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "41f44fdd44ad9c76"
+      "8a9abb305aaa9684"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_compute_prefix_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\""
+        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -50,8 +50,10 @@
       ],
       "policy": "isolate_compute_prefix_bindings.policy",
       "stats_experiment": "compute_prefix_source_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\""
+        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\""
       ],
       "not_contains": [
         "Xform: CXformCollapseProject"
@@ -61,7 +63,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "41f44fdd44ad9c76",
+          "rule_hash": "8a9abb305aaa9684",
           "route_sequence": 2,
           "operators": [
             "CLogicalProject",

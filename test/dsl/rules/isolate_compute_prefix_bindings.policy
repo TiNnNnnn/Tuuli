@@ -1,5 +1,5 @@
 # Isolate partial fusion from native collapse and other DSL rules.
 - rule: '*'
   enabled: false
-- rule: 41f44fdd44ad9c76
+- rule: 8a9abb305aaa9684
   enabled: true

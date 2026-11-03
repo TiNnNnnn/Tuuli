@@ -1,5 +1,5 @@
 {
-  "description": "An upper first Item reading a lower output cannot move into the same Compute list",
+  "description": "No upper Item can move when every Item reads a lower Compute output",
   "plans": [
     {
       "name": "guard",
@@ -9,11 +9,10 @@
       ],
       "policy": "isolate_compute_prefix_bindings.policy",
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"41f44fdd44ad9c76\"",
-        "\"failed_constraint\":\"DepsDisjoint\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"8a9abb305aaa9684\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"41f44fdd44ad9c76\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\"",
         "Xform: CXformCollapseProject"
       ]
     }
@@ -25,13 +24,13 @@
     "policy": "isolate_compute_prefix_bindings.policy",
     "output": [
       "1,f,f",
-      "2,f,t",
-      "3,f,t"
+      "2,f,f",
+      "3,f,f"
     ],
     "postgres_output": [
       "1,f,f",
-      "2,f,t",
-      "3,f,t"
+      "2,f,f",
+      "3,f,f"
     ]
   }
 }
