@@ -71,9 +71,12 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 		return false;
 	}
 
-	const BOOL fBound = m_pmatcher->FMatchExpression((*pdrgpsym)[0], pexprList, pmodel) &&
-		pmodel->FBind((*pdrgpsym)[1], pdrgpcrAttrs) &&
-		pmodel->FBind((*pdrgpsym)[2], pdrgpcrSchema);
+	// Bind the input before choosing a list decomposition so its dependency
+	// guards can distinguish a movable item from a structurally identical one.
+	const BOOL fBound = pmodel->FBind((*pdrgpsym)[1], pdrgpcrAttrs) &&
+		pmodel->FBind((*pdrgpsym)[2], pdrgpcrSchema) &&
+		m_pmatcher->FMatch((*popCompute)[0], (*pexprProject)[0], pmodel) &&
+		m_pmatcher->FMatchExpression((*pdrgpsym)[0], pexprList, pmodel);
 	pdrgpcrAttrs->Release();
 	pdrgpcrSchema->Release();
 	if (fBound && exact)
@@ -84,8 +87,7 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 			return false;
 		}
 	}
-	return fBound &&
-		m_pmatcher->FMatch((*popCompute)[0], (*pexprProject)[0], pmodel);
+	return fBound;
 }
 
 //---------------------------------------------------------------------------

@@ -181,6 +181,34 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 	}
 	if (CDSLExpressionDefinitions::EMatch != def->Binding())
 		return false;
+	if (EdslexprConcat == def->Edslexpr())
+	{
+		for (ULONG cut = 0; cut <= expression->Arity(); ++cut)
+		{
+			CExpressionArray *parts[2] = {GPOS_NEW(mp) CExpressionArray(mp),
+				GPOS_NEW(mp) CExpressionArray(mp)};
+			for (ULONG i = 0; i < expression->Arity(); ++i)
+			{
+				(*expression)[i]->AddRef();
+				parts[i < cut ? 0 : 1]->Append((*expression)[i]);
+			}
+			CExpression *prefix = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectList(mp), parts[0]);
+			CExpression *suffix = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectList(mp), parts[1]);
+			CDSLModel *trial = GPOS_NEW(mp) CDSLModel(mp);
+			const BOOL matched = model->FCopyExpressionBindingsTo(trial) &&
+				FMatchExpressionBinding(mp, rule, def->PsymOperand(0), prefix, trial, depth + 1) &&
+				FMatchExpressionBinding(mp, rule, def->PsymOperand(1), suffix, trial, depth + 1) &&
+				CDSLConstraintChecker(mp).FCheckCapturedScalarProperties(rule, trial, model) &&
+				trial->FCopyExpressionBindingsTo(model);
+			trial->Release();
+			prefix->Release();
+			suffix->Release();
+			if (matched) return true;
+		}
+		return false;
+	}
 	if (EdslexprContext == def->Edslexpr())
 	{
 		std::vector<ULONG> path;

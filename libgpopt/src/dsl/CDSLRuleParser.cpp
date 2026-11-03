@@ -1190,7 +1190,7 @@ FBuildBindings(SBuildCtx &bctx, dsl::DSLRuleParser::ConstraintsContext *ctx,
 			call->ID()->getText().c_str(), operands.size(), types);
 		GPOS_ASSERT(nullptr == call || nullptr != signature);
 		if (match && nullptr != signature &&
-			(EdslexprScalarDeps == signature->kind || EdslexprConcat == signature->kind ||
+			(EdslexprScalarDeps == signature->kind ||
 			 EdslexprNulls == signature->kind))
 		{
 			bctx.Fail("this constructor supports target bindings only");

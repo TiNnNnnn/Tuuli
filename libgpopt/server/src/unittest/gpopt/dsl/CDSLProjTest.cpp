@@ -339,6 +339,7 @@ CDSLProjTest::EresUnittest()
 			CDSLProjTest::EresUnittest_CollapseIndependentCompute),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute),
+		GPOS_UNITTEST_FUNC(CDSLProjTest::EresUnittest_SourceListDecomposition),
 		GPOS_UNITTEST_FUNC(
 			CDSLProjTest::EresUnittest_ComputeSrfNativeDifferential),
 		GPOS_UNITTEST_FUNC(
@@ -1804,6 +1805,55 @@ CDSLProjTest::EresUnittest_SplitPartiallyIndependentCompute()
 	pexprGet->Release();
 	prule->Release();
 	return eres;
+}
+
+GPOS_RESULT
+CDSLProjTest::EresUnittest_SourceListDecomposition()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	// Round-trip every possible selected position; all earlier structural
+	// matches fail the dependency guard and must leave no bindings behind.
+	CDSLRule *rule = PdslruleParseLocal(mp,
+		"Compute<ExprConcat(e0,Item(n0,a6,e1)) a0 s0>(Compute<e2 a1 s1>(Input<t0>))|"
+		"Compute<ExprConcat(e0,Item(n0,a6,e1)) a2 s2>(Compute<e3 a3 s3>(Input<t1>))|"
+		"t1 := t0;e3 := e2;a2 := a0;s2 := s0;a3 := a1;s3 := s1;"
+		"a4 := ScalarDeps(n0);DepsDisjoint(a4,s1);ErrorFree(n0);Deterministic(n0)");
+	if (nullptr == rule) return GPOS_FAILED;
+	GPOS_RESULT result = GPOS_OK;
+	for (ULONG selected = 0; selected <= 4; ++selected)
+	{
+		CColRefArray *columns = nullptr;
+		CExpression *input = fix.PexprLogicalGet("concat_input", 1, &columns);
+		CColRef *innerColumn = fix.PcrCreateInt4("concat_inner");
+		CExpression *inner = PexprProjectWithScalar(mp, input, innerColumn,
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp, (*columns)[0])));
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		for (ULONG i = 0; i < 4; ++i)
+			items->Append(GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CScalarProjectElement(mp, fix.PcrCreateInt4("concat_output")),
+				GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarIdent(mp,
+					i == selected ? (*columns)[0] : innerColumn))));
+		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
+			inner, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
+		if (matched != (selected < 4)) result = GPOS_FAILED;
+		if (matched)
+		{
+			if (!CDSLConstraintChecker(mp).FCheck(rule, model)) result = GPOS_FAILED;
+			CDSLInstantiator instantiator(mp);
+			CExpression *target = instantiator.PexprInstantiate(rule, model);
+			if (nullptr == target || !source->Matches(target)) result = GPOS_FAILED;
+			CRefCount::SafeRelease(target);
+		}
+		model->Release();
+		source->Release();
+		input->Release();
+	}
+	rule->Release();
+	return result;
 }
 
 GPOS_RESULT

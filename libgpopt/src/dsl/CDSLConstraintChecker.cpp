@@ -2534,13 +2534,30 @@ CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
 	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
 	{
 		const auto *constraint = (*rule->Pdrgpcon())[i];
+		if (EdslconDepsDisjoint == constraint->Edslcon() ||
+			EdslconAttrsNonEmpty == constraint->Edslcon())
+		{
+			// Derived operands may depend on a sibling not matched yet. Check only
+			// ready guards, without keeping speculative materialization bindings.
+			CDSLModel *ready = GPOS_NEW(m_mp) CDSLModel(m_mp);
+			const BOOL available = model->FCopyExpressionBindingsTo(ready) &&
+				materializer.FMaterializeConstraintBindings(rule, constraint, ready, true);
+			const BOOL valid = !available ||
+				(EdslconDepsDisjoint == constraint->Edslcon()
+					? FCheckDepsDisjoint(constraint, ready)
+					: FCheckAttrsNonEmpty(constraint, ready));
+			ready->Release();
+			if (!valid) return false;
+			continue;
+		}
 		if (EdslconErrorFree != constraint->Edslcon() &&
 			EdslconDeterministic != constraint->Edslcon()) continue;
 		const auto *symbol = materializer.PsymBindingOrigin(rule, (*constraint->Pdrgpsym())[0]);
 		// Nested constructors also capture scalar/predicate values; their guards
 		// must participate before committing the Context candidate.
 		if (nullptr != symbol &&
-			(EdslsymScalar == symbol->Esymkind() || EdslsymPred == symbol->Esymkind()) &&
+			(EdslsymScalar == symbol->Esymkind() || EdslsymPred == symbol->Esymkind() ||
+			 EdslsymExpr == symbol->Esymkind()) &&
 			nullptr == previous->PvalLookup(symbol) &&
 			nullptr != model->PvalLookup(symbol) &&
 			!FCheckScalarProperty(rule, constraint, model, materializer))

@@ -78,6 +78,7 @@ public:
 	static GPOS_RESULT EresUnittest_IOCoercePropertiesRoundTrip();
 	static GPOS_RESULT EresUnittest_CollapseIndependentCompute();
 	static GPOS_RESULT EresUnittest_SplitPartiallyIndependentCompute();
+	static GPOS_RESULT EresUnittest_SourceListDecomposition();
 	static GPOS_RESULT EresUnittest_ComputeSrfNativeDifferential();
 	static GPOS_RESULT EresUnittest_ComputeRecursiveRewrite();
 	static GPOS_RESULT EresUnittest_ConstructTypedNullExpressions();

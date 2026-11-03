@@ -218,8 +218,8 @@ public:
 		GPOS_ASSERT(nullptr != mp);
 	}
 
-	// Context candidates can reject bound unary guards before choosing a hole.
-	// The full check remains authoritative for dependent and derived constraints.
+	// Context/list candidates reject ready safety and dependency guards.
+	// The full check remains authoritative after the complete source match.
 	BOOL FCheckCapturedScalarProperties(const CDSLRule *rule,
 		const CDSLModel *model, const CDSLModel *previous) const;
 
