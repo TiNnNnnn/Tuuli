@@ -1,0 +1,7 @@
+experiment: compute-window-composition
+discover: false
+template_route: 7
+template_fingerprint: d8d1f2014856808a
+template_root: r
+template_bindings: true
+cardinalities:

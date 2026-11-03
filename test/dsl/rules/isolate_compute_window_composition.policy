@@ -1,0 +1,9 @@
+- rule: '*'
+  enabled: false
+# Existing operator-local steps; no compound Compute/Window rule.
+- rule: 7ac97a55ff9b47c8
+  enabled: true
+- rule: a3a384e829b6c009
+  enabled: true
+- rule: 397081c4258773d1
+  enabled: true

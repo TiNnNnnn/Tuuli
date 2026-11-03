@@ -499,13 +499,10 @@ WindowRows<a0 o0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(WindowRows<a3
 # proof covers explicit frames without a frame-specific lemma.
 Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m1 w1>(Input<t1>))|t1 := t0;a3 := a0;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a4 := a1;a5 := a2;CorrelationEquality(p0,a1,a2);AttrsNonEmpty(a1);AttrsSub(a1,a0);DepsDisjoint(a0,a2);DepsDisjoint(o0,a2);DepsDisjoint(m0,a2);DepsDisjoint(w0,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(p1);ErrorFree(w0);ErrorFree(w1)
 
-# Compose that movement through an enclosing safe Compute. This remains an
-# operator-local normalization over an arbitrary Input; it is not tied to an
-# Apply family. Legacy RuleIR: FormalSQL/Rocq OUTCOME_EQ, verified 2026-09-06.
-# SYNTAX_ONLY legacy_hash=88f307f1b76e73ef; native expression proof: UNKNOWN; production source-conditional canonical proof checked 2026-10-24 (Closed). Actual frameless Window item/value binding remains unverified; not an EQ or native-instance certificate.
-Compute<e0 a0 s0>(WindowRows<a1 o0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(WindowRows<a7 o1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1)
-# PARTIAL_BINDING legacy_hash=d6f44ab77e84cba0; native expression proof: UNKNOWN without source contracts; source-conditional OUTCOME_EQ and actual Compute/Window source-target instance kernel-checked 2026-10-23. Standard runtime, schemas and input value types remain premises; not a deployment certificate.
-Compute<e0 a0 s0>(Window<a1 o0 m0 w0>(Filter<p0 a2 a3>(Input<t0>)))|Filter<p1 a5 a6>(Compute<e1 a4 s1>(Window<a7 o1 m1 w1>(Input<t1>)))|t1 := t0;e1 := e0;a4 := a0;s1 := s0;a7 := a1;o1 := o0;m1 := m0;w1 := w0;p1 := p0;a5 := a2;a6 := a3;CorrelationEquality(p0,a2,a3);AttrsNonEmpty(a2);AttrsSub(a2,a1);DepsDisjoint(a1,a3);DepsDisjoint(o0,a3);DepsDisjoint(m0,a3);DepsDisjoint(w0,a3);DepsDisjoint(p0,s0);Deterministic(e0);ErrorFree(e0);Deterministic(p0);ErrorFree(p0);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p1);ErrorFree(w1);Deterministic(w0)
+# An enclosing safe Compute composes the Window/Filter movement above with
+# the Compute/Filter rule below. Both frame forms have conditional proofs;
+# the framed PostgreSQL chain checks each actual source/target occurrence.
+# The two standalone Compute/Window rules are retired as redundant.
 
 # A residual Filter may consume a Window result and therefore stays below the
 # Compute. Safe predicate commutation moves only the buried correlation to the

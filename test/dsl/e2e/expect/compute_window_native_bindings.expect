@@ -1,38 +1,84 @@
 {
-  "description": "Registered Compute/Window movement with actual typed source/target kernel binding",
+  "description": "Window/Filter then Compute/Filter replace compound movement; both actual steps are kernel checked",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
-      "policy": "isolate_compute_window.policy",
+      "policy": "isolate_compute_window_composition.policy",
       "contains": [
         "Optimizer: pg_orca"
       ],
       "not_contains": [
         "\"status\":\"applied\"",
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"873db6237b4714e0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"de8b38fa3d50444e\""
       ]
     },
     {
-      "name": "on",
+      "name": "window",
       "trace": true,
-      "policy": "isolate_compute_window.policy",
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window_composition.policy",
       "stats_experiment": "compute_window_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"873db6237b4714e0\""
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\""
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"873db6237b4714e0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"de8b38fa3d50444e\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "873db6237b4714e0",
+          "rule_hash": "7ac97a55ff9b47c8",
+          "route_sequence": 3,
           "operators": [
-            "CLogicalProject",
             "CLogicalSequenceProject",
             "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "compute",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window_composition.policy",
+      "stats_experiment": "compute_filter_window_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"873db6237b4714e0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"de8b38fa3d50444e\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a3a384e829b6c009",
+          "route_sequence": 7,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
             "CLogicalGet"
           ],
           "target_operators": [
@@ -43,27 +89,10 @@
           ]
         }
       ]
-    },
-    {
-      "name": "decorrelation-disabled",
-      "trace": true,
-      "disable_xforms": [
-        "CXformLeftOuterApply2LeftOuterJoin",
-        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
-      ],
-      "policy": "isolate_compute_window.policy",
-      "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"873db6237b4714e0\""
-      ],
-      "not_contains": [
-        "Falling back to Postgres",
-        "Xform: CXformLeftOuterApply2LeftOuterJoin"
-      ]
     }
   ],
   "rows": {
-    "policy": "isolate_compute_window.policy",
+    "policy": "isolate_compute_window_composition.policy",
     "output": [
       "10,t",
       "20,",
@@ -80,12 +109,12 @@
         "20,",
         "30,t"
       ],
-      "on": [
+      "window": [
         "10,t",
         "20,",
         "30,t"
       ],
-      "decorrelation-disabled": [
+      "compute": [
         "10,t",
         "20,",
         "30,t"
