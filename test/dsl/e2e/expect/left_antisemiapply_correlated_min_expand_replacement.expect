@@ -1,10 +1,10 @@
 {
-  "description": "Integer MIN positive control for shared-correlation AntiApply grouping expansion",
+  "description": "NOT EXISTS with an added grouping key: isolated atomic AntiApply decorrelation preserves duplicate outer rows, NULL aggregate values and absent groups",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
     ],
-    "scope": "AntiApply with an ungrouped correlation key and total integer MIN; safe repeatable independent RHS with disjoint input outputs",
+    "scope": "LeftAntiSemiApply whose grouped inner correlation key is not already a grouping key; ordinary integer MIN only; safe repeatable independent RHS with disjoint input outputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "abcd4af97695ed2f"
@@ -22,7 +22,8 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "policy": "isolate_group_expand_apply.policy"
     },
     {
       "name": "negative",
@@ -30,6 +31,9 @@
       "trace": true,
       "disable_xforms": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ]
     },
     {
@@ -39,12 +43,14 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
+      "policy": "isolate_group_expand_apply.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "provenance": {
         "required_sources": [
@@ -61,14 +67,21 @@
     "disable_xforms": [
       "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
     ],
+    "policy": "isolate_group_expand_apply.policy",
     "output": [
-      "2"
+      "2",
+      "2",
+      "4"
     ],
     "postgres_output": [
-      "2"
+      "2",
+      "2",
+      "4"
     ],
     "off_output": [
-      "2"
+      "2",
+      "2",
+      "4"
     ]
   }
 }

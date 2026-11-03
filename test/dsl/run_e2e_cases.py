@@ -141,10 +141,12 @@ def disabled_xform_settings(
     for xform in xforms:
         if not isinstance(xform, str) or not re.fullmatch(r"[A-Za-z0-9_]+", xform):
             raise ValueError(f"invalid xform name: {xform!r}")
-        # DO avoids adding the disable_xform() result row to COPY output while
-        # retaining the setting in this psql session.
+        # Unknown names return text, not SQL errors; require actual disabling.
+        # DO also keeps the acknowledgment out of COPY output.
         statements.append(
-            f"DO $dsl$ BEGIN PERFORM disable_xform('{xform}'); END $dsl$;"
+            f"DO $dsl$ BEGIN IF disable_xform('{xform}') IS DISTINCT FROM "
+            f"'{xform} is disabled' THEN RAISE EXCEPTION "
+            f"'failed to disable xform: {xform}'; END IF; END $dsl$;"
         )
     return "\n".join(statements)
 

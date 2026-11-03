@@ -22,7 +22,8 @@
     },
     {
       "name": "shadow",
-      "trace": true
+      "trace": true,
+      "policy": "isolate_group_expand_apply.policy"
     },
     {
       "name": "negative",
@@ -30,6 +31,9 @@
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
       ]
     },
     {
@@ -39,12 +43,14 @@
       "disable_xforms": [
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
+      "policy": "isolate_group_expand_apply.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"4fcc49fec25dcb37\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
       ],
       "provenance": {
         "required_sources": [
@@ -61,12 +67,18 @@
     "disable_xforms": [
       "CXformLeftSemiApply2LeftSemiJoin"
     ],
+    "policy": "isolate_group_expand_apply.policy",
     "output": [
       "1",
       "1",
       "3"
     ],
     "postgres_output": [
+      "1",
+      "1",
+      "3"
+    ],
+    "off_output": [
       "1",
       "1",
       "3"

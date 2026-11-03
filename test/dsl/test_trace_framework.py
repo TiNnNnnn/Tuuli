@@ -4398,8 +4398,10 @@ class TraceFrameworkTest(unittest.TestCase):
             disabled_xform_settings(
                 {"disable_xforms": ["CXformImplementLeftAntiSemiJoin"]}
             ),
-            "DO $dsl$ BEGIN PERFORM disable_xform("
-            "'CXformImplementLeftAntiSemiJoin'); END $dsl$;",
+            "DO $dsl$ BEGIN IF disable_xform("
+            "'CXformImplementLeftAntiSemiJoin') IS DISTINCT FROM "
+            "'CXformImplementLeftAntiSemiJoin is disabled' THEN RAISE EXCEPTION "
+            "'failed to disable xform: CXformImplementLeftAntiSemiJoin'; END IF; END $dsl$;",
         )
         self.assertEqual(
             disabled_xform_settings(
