@@ -89,7 +89,7 @@ CDSLFilterSplitTest::EresUnittest()
 				EresUnittest_CorrelatedFilterKeepsSelectBoundary),
 		GPOS_UNITTEST_FUNC(
 			CDSLFilterSplitTest::
-				EresUnittest_NormalizedDuplicateFilterMatchesOnce),
+				EresUnittest_TypedDuplicateFilterRequiresBothNodes),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
@@ -648,60 +648,46 @@ CDSLFilterSplitTest::EresUnittest_SubsetMatchWithResidual()
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLFilterSplitTest::EresUnittest_NormalizedDuplicateFilterMatchesOnce
+//		CDSLFilterSplitTest::EresUnittest_TypedDuplicateFilterRequiresBothNodes
 //
 //	@doc:
-//		ORCA removes duplicate AND children before DSL xforms. Two source Filter
-//		variables may therefore bind the same remaining conjunct; it is consumed
-//		once and produces no residual.
+//		Typed templates observe actual nodes. Predicate normalization must not
+//		invent an extra Filter occurrence, while a real repeated chain still matches.
 //---------------------------------------------------------------------------
 GPOS_RESULT
-CDSLFilterSplitTest::EresUnittest_NormalizedDuplicateFilterMatchesOnce()
+CDSLFilterSplitTest::EresUnittest_TypedDuplicateFilterRequiresBothNodes()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-
-	CDSLRule *prule = PdslruleParseLocal(
-		mp,
-		"Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Input<t1>|TableEq(t1,t0)");
-	if (nullptr == prule)
-	{
-		return GPOS_FAILED;
-	}
+	CDSLRule *prule = PdslruleParseLocal(mp,
+		"Filter<p0 a0>(Filter<p0 a0>(Input<t0>))|Filter<p1 a1>(Input<t1>)|"
+		"AttrsSub(a0,t0);t1 := t0;p1 := p0;a1 := a0;"
+		"ErrorFree(p0);Deterministic(p0)");
+	if (nullptr == prule) return GPOS_FAILED;
 
 	CExpression *pexprGet = nullptr;
 	CExpression *pexprSelect = nullptr;
 	CColRefArray *pdrgpcrOut = nullptr;
-	// only ONE conjunct
 	BuildSelectOverAtoms(fix, 3 /*cols*/, 1 /*atoms*/, &pexprGet, &pexprSelect,
 						 &pdrgpcrOut);
-
-	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
-	CDSLMatcher matcher(mp);
+	CDSLMatcher matcher(mp, prule);
 	CDSLOp *popRoot = prule->PfragSrc()->PopRoot();
+	CDSLModel *pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	GPOS_RESULT eres = matcher.FMatch(popRoot, pexprSelect, pmodel)
+		? GPOS_FAILED : GPOS_OK;
+	pmodel->Release();
 
-	GPOS_RESULT eres = GPOS_OK;
-	if (!matcher.FMatch(popRoot, pexprSelect, pmodel))
+	CExpression *pexprChain = fix.PexprLogicalSelect(pexprSelect, (*pexprSelect)[1]);
+	pmodel = GPOS_NEW(mp) CDSLModel(mp);
+	if (!matcher.FMatch(popRoot, pexprChain, pmodel) ||
+		pmodel->PexprPred((*popRoot->Pdrgpsym())[0]) != (*pexprSelect)[1] ||
+		nullptr != pmodel->PdrgpexprResidual())
 	{
 		eres = GPOS_FAILED;
 	}
-	else
-	{
-		CDSLOp *popInner = (*popRoot)[0];
-		CExpression *pexprP0 =
-			pmodel->PexprPred((*popInner->Pdrgpsym())[0]);
-		CExpression *pexprP1 =
-			pmodel->PexprPred((*popRoot->Pdrgpsym())[0]);
-		CExpressionArray *pdrgpexprResidual = pmodel->PdrgpexprResidual();
-		if (nullptr == pexprP0 || pexprP0 != pexprP1 ||
-			nullptr == pdrgpexprResidual || 0 != pdrgpexprResidual->Size())
-		{
-			eres = GPOS_FAILED;
-		}
-	}
-
 	pmodel->Release();
+	pexprChain->Release();
 	pexprGet->Release();
 	pexprSelect->Release();
 	prule->Release();

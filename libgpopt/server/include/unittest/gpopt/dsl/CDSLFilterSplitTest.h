@@ -62,7 +62,7 @@ public:
 
 	// ORCA normalizes Filter(p,Filter(p,x)) to one conjunct; both placeholders
 	// may bind that same conjunct and it is consumed only once.
-	static GPOS_RESULT EresUnittest_NormalizedDuplicateFilterMatchesOnce();
+	static GPOS_RESULT EresUnittest_TypedDuplicateFilterRequiresBothNodes();
 };	// class CDSLFilterSplitTest
 }  // namespace gpopt
 

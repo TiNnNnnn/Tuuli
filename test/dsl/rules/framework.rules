@@ -52,10 +52,10 @@ LeftJoin<a0 a1>(Input<t0>,Input<t1>)|InnerJoin<a2 a3>(Input<t2>,Input<t3>)|Attrs
 # column while target attrs select the opposite join-key representative.
 Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0);t2 := t0;t3 := t1
 
-# ORCA canonicalizes duplicate predicates before xform exploration. This probe
-# verifies that a two-Filter DSL source can use the normalized single-conjunct
-# view and instantiate its one-Filter target without duplicating residuals.
-Filter<p1 a1>(Filter<p0 a0>(Input<t0>))|Filter<p2 a2>(Input<t1>)|AttrsEq(a0,a1);PredicateEq(p0,p1);AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsEq(a2,a0);PredicateEq(p2,p0);t1 := t0
+# ORCA canonicalizes duplicate predicates before xform exploration. A typed
+# two-Filter source requires both actual nodes; it cannot reuse one normalized
+# predicate as two occurrences; safe duplication removal needs real nodes.
+Filter<p0 a0>(Filter<p0 a0>(Input<t0>))|Filter<p1 a1>(Input<t1>)|AttrsSub(a0,t0);t1 := t0;p1 := p0;a1 := a0;ErrorFree(p0);Deterministic(p0)
 
 # Explicitly replace one right-key Column with the equality-equivalent left key.
 # ValueBool retains the predicate/value boundary around the scalar Context;
