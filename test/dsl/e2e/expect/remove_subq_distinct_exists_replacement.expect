@@ -7,7 +7,7 @@
     "scope": "positive EXISTS over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0b8d60ce1b8155f8"
+      "d584f662a90176de"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0b8d60ce1b8155f8\""
+        "\"status\":\"applied\",\"rule_hash\":\"d584f662a90176de\""
       ],
       "not_contains": [
         "\"kind\":\"rule_candidate\""
@@ -59,7 +59,7 @@
       ],
       "policy": "isolate_remove_subq_distinct_exists_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"0b8d60ce1b8155f8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d584f662a90176de\"",
         "\"status\":\"applied\",\"rule_hash\":\"f7eadea871960968\"",
         "\"status\":\"applied\",\"rule_hash\":\"c83cc9b54086d16c\""
       ],
@@ -67,7 +67,7 @@
         {
           "scheduler": "cbo",
           "src_rule": "f7eadea871960968",
-          "dst_rule": "0b8d60ce1b8155f8",
+          "dst_rule": "d584f662a90176de",
           "target_path": "r"
         }
       ],

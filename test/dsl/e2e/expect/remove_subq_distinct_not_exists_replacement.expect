@@ -1,5 +1,5 @@
 {
-  "description": "Explicit DISTINCT removal preserves column projection without a redundant Compute, followed by AntiApply lowering and DSL decorrelation",
+  "description": "Existential demand removes the complete dedup projection, followed by AntiApply lowering and DSL decorrelation",
   "replacement": {
     "xforms": [
       "CXformRemoveSubqDistinct"
@@ -7,7 +7,7 @@
     "scope": "NOT EXISTS over a pure global DISTINCT subquery",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "c21c58ba5e91d0c6"
+      "30c5e7be96881a14"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\""
+        "\"status\":\"applied\",\"rule_hash\":\"30c5e7be96881a14\""
       ],
       "alternative": [
         "CXformRemoveSubqDistinct",
@@ -53,14 +53,14 @@
       ],
       "policy": "isolate_remove_subq_distinct_not_exists_pipeline.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c21c58ba5e91d0c6\"",
+        "\"status\":\"applied\",\"rule_hash\":\"30c5e7be96881a14\"",
         "\"status\":\"applied\",\"rule_hash\":\"f37f3cbe4c7c9b10\"",
         "\"status\":\"applied\",\"rule_hash\":\"65a5256ee2c9513c\""
       ],
       "rule_edges": [
         {
           "scheduler": "cbo",
-          "src_rule": "c21c58ba5e91d0c6",
+          "src_rule": "30c5e7be96881a14",
           "dst_rule": "f37f3cbe4c7c9b10",
           "target_path": "r"
         },

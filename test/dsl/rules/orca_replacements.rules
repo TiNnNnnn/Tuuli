@@ -81,16 +81,10 @@ Compute<Item(n0,a6,e0) a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Co
 # FORMALSQL_PROVED legacy_hash=4f678f34086c5cd7; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 43acc55ed6bd05ab0c275a7b96ed5fc8b729a7f4e00b90ad979e81f7df188ab9. Generic IN-subquery metadata preservation.
 InSubFilter<a0>(Input<t0>,Proj*<a1 s0>(Input<t1>))|InSubFilter<a2>(Input<t2>,Proj<a3 s1>(Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t2 := t0;t3 := t1;a2 := a0;a3 := a1;s1 := s0
 
-# FormalSQL OUTCOME_EQ: DISTINCT is unobserved by existential demand.
-# New bindings retain the scalar EXISTS tree; unnesting remains a separate rule.
-# FORMALSQL_PROVED legacy_hash=bc2d97446eab95bb; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 79c743fc77e5e2f3d9ca584b29690533c56016a7c8. Generic existential projection observation.
-Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0
-
-# FORMALSQL_PROVED legacy_hash=34dcead32519d2dd; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 2557fc5704e448238499948f21bcf62f86082a79f0a7314ed61fee48f574f243. Generic NOT EXISTS projection observation.
-NotExists(Input<t0>,Proj*<a0 s0>(Input<t1>))|NotExists(Input<t2>,Proj<a1 s1>(Input<t3>))|AttrsSub(a0,t1);t2 := t0;t3 := t1;a1 := a0;s1 := s0
-
 # Native FormalSQL OUTCOME_EQ: existential demand ignores the entire key-only
-# dedup projection, not just DISTINCT. Expose the arbitrary child directly so
+# dedup projection, not just DISTINCT. This also replaces the former targets
+# Exists/NotExists(outer, Proj(inner)), which lower to the same native tree.
+# Expose the arbitrary child directly so
 # the explicit Filter-to-Apply rules can continue without legacy unnesting.
 # FORMALSQL_PROVED legacy_hash=c5f8a0d48bd0caa0; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate d134c6d6755786586338b082e7415ec175ea2e2a77d9eb741a2ba0f0d921fca0. Generic EXISTS projection erasure.
 Exists(Input<t0>,Proj*<a0 s0>(Input<t1>))|Exists(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;AttrsSub(a0,t1)
