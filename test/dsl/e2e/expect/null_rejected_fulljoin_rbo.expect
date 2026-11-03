@@ -1,18 +1,20 @@
 {
-  "description": "BottomUp RBO exposes a FullJoin as InnerJoin only when the Select rejects NULLs from both sides",
+  "description": "Explicit typed FullJoin-to-InnerJoin reduction requires both NULL-rejection guards",
   "plans": [
     {
       "name": "rbo",
       "trace": true,
-      "policy": "join_match_views_bottom_up_rbo.policy",
+      "policy": "full_join_null_rejection_rbo.policy",
+      "outer_join_reduction": false,
       "contains": [
-        "\"rule_id\":63,\"status\":\"applied_rbo\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"7665f23e6a3fcac8\"",
         "\"placement\":\"rbo\""
       ]
     }
   ],
   "rows": {
-    "policy": "join_match_views_bottom_up_rbo.policy",
+    "policy": "full_join_null_rejection_rbo.policy",
+    "outer_join_reduction": false,
     "output": [
       "2,2",
       "2,2"

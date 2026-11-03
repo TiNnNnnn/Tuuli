@@ -1,0 +1,44 @@
+{
+  "description": "A disjunction retaining either unmatched side must not reduce FullJoin to InnerJoin",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Full Join"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "full_join_null_rejection_cbo.policy",
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Full Join",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7665f23e6a3fcac8\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"7665f23e6a3fcac8\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "full_join_null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "3,",
+      ",4"
+    ],
+    "postgres_output": [
+      "3,",
+      ",4"
+    ],
+    "off_output": [
+      "3,",
+      ",4"
+    ]
+  }
+}

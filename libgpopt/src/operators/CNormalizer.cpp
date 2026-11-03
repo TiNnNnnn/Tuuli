@@ -420,7 +420,8 @@ CNormalizer::FSimplifySelectOnFullJoin(
 
 	CColRefSet *pcrsOutputLeftChild = pexprLeftChild->DeriveOutputColumns();
 
-	if (CPredicateUtils::FNullRejecting(mp, pexprPred, pcrsOutputLeftChild))
+	if (!GPOS_FTRACE(EopttraceDisableOuterJoin2InnerJoinRewrite) &&
+		CPredicateUtils::FNullRejecting(mp, pexprPred, pcrsOutputLeftChild))
 	{
 		// we have a predicate on top of FOJ that uses FOJ's outer child,
 		// if the predicate filters-out nulls, we can convert the FOJ to LOJ

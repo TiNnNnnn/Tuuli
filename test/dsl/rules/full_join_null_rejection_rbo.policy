@@ -1,0 +1,9 @@
+- rule: '*'
+  enabled: false
+- rule: 7665f23e6a3fcac8
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: changes_join_graph
+  order: bottom_up
+  fixpoint: true

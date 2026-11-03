@@ -1,0 +1,93 @@
+{
+  "description": "Explicit FullJoin reduction with native null-rejection rewrites disabled",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Full Join",
+        "Left Join",
+        "Right Join",
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Full Join"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "policy": "full_join_null_rejection_cbo.policy",
+      "stats_experiment": "full_join_null_rejection_source_route.yaml",
+      "outer_join_reduction": false,
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7665f23e6a3fcac8\""
+      ],
+      "not_contains": [
+        "Full Join",
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "7665f23e6a3fcac8",
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalFullOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "full_join_null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "2,2",
+      "2,2"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2"
+    ],
+    "plan_outputs": {
+      "native": [
+        "2,2",
+        "2,2"
+      ],
+      "negative": [
+        "2,2",
+        "2,2"
+      ],
+      "replacement": [
+        "2,2",
+        "2,2"
+      ]
+    }
+  }
+}

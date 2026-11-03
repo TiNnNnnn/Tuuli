@@ -1,0 +1,7 @@
+experiment: full-join-null-rejection-source
+discover: false
+template_route: 25
+template_fingerprint: 3e7e807ad35876bb
+template_root: r
+template_bindings: true
+cardinalities:
