@@ -1,5 +1,5 @@
 {
-  "description": "Explicit typed FullJoin-to-InnerJoin reduction requires both NULL-rejection guards",
+  "description": "Bottom-up FullJoin/LeftJoin then LeftJoin/InnerJoin compose with native reduction disabled",
   "plans": [
     {
       "name": "rbo",
@@ -7,8 +7,9 @@
       "policy": "full_join_null_rejection_rbo.policy",
       "outer_join_reduction": false,
       "contains": [
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"7665f23e6a3fcac8\"",
-        "\"placement\":\"rbo\""
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"68da9247c32c2760\"",
+        "\"placement\":\"rbo\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"5e87dc02d937835e\""
       ]
     }
   ],

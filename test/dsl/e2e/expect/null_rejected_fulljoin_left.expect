@@ -1,0 +1,52 @@
+{
+  "description": "Rejecting NULL left columns removes only unmatched right rows",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Full Join"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "full_join_null_rejection_cbo.policy",
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Left Join",
+        "\"status\":\"applied\",\"rule_hash\":\"68da9247c32c2760\""
+      ],
+      "not_contains": [
+        "Full Join",
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "full_join_null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ]
+  }
+}

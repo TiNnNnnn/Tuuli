@@ -1,5 +1,8 @@
 - rule: '*'
   enabled: false
-- rule: 7665f23e6a3fcac8
+- rule: 68da9247c32c2760
+  enabled: true
+  placement: cbo
+- rule: 5e87dc02d937835e
   enabled: true
   placement: cbo

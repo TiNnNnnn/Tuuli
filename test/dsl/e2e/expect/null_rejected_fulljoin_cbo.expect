@@ -1,5 +1,5 @@
 {
-  "description": "Explicit FullJoin reduction with native null-rejection rewrites disabled",
+  "description": "FullJoin/LeftJoin then LeftJoin/InnerJoin compose with native reduction disabled",
   "plans": [
     {
       "name": "native",
@@ -35,7 +35,8 @@
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"7665f23e6a3fcac8\""
+        "\"status\":\"applied\",\"rule_hash\":\"68da9247c32c2760\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
       ],
       "not_contains": [
         "Full Join",
@@ -43,10 +44,44 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "7665f23e6a3fcac8",
+          "rule_hash": "68da9247c32c2760",
           "operators": [
             "CLogicalSelect",
             "CLogicalFullOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "inner",
+      "trace": true,
+      "policy": "full_join_null_rejection_cbo.policy",
+      "stats_experiment": "full_join_second_step_source_route.yaml",
+      "outer_join_reduction": false,
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"68da9247c32c2760\"",
+        "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
+      ],
+      "not_contains": [
+        "Full Join",
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "5e87dc02d937835e",
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterJoin",
             "CLogicalGet",
             "CLogicalGet"
           ],
@@ -85,6 +120,10 @@
         "2,2"
       ],
       "replacement": [
+        "2,2",
+        "2,2"
+      ],
+      "inner": [
         "2,2",
         "2,2"
       ]

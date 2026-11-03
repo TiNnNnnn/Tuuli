@@ -1,0 +1,7 @@
+experiment: full-join-second-step-source
+discover: false
+template_route: 33
+template_fingerprint: e1be8c4f3e4f8985
+template_root: r
+template_bindings: true
+cardinalities:

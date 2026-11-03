@@ -18,10 +18,10 @@
       "contains": [
         "Optimizer: pg_orca",
         "Full Join",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7665f23e6a3fcac8\""
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"68da9247c32c2760\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"7665f23e6a3fcac8\""
+        "\"status\":\"applied\",\"rule_hash\":\"68da9247c32c2760\""
       ]
     }
   ],
