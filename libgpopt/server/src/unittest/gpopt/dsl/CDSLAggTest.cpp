@@ -1949,13 +1949,15 @@ CDSLAggTest::EresUnittest_HavingRoundTrip()
 	}
 	// Agg's HAVING view also exists below another literal operator. The trie
 	// must admit every source accepted by the full matcher, with or without it.
-	CDSLRule *nested = PdslruleParseLocal(mp,
+	const std::string nestedText =
 		"InnerJoin<p2 a6 a7>(Input<t2>,Agg<a0 a1 f0 s0 p0>(Input<t0>))|"
 		"InnerJoin<p3 a8 a9>(Input<t3>,Agg<a2 a3 f1 s1 p1>(Input<t1>))|"
 		"t3 := t2;t1 := t0;p3 := p2;a8 := a6;a9 := a7;"
-		"a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0");
+		"a2 := a0;a3 := a1;f1 := f0;s1 := s0;p1 := p0";
+	CDSLRule *nested = PdslruleParseLocal(mp, nestedText.c_str());
 	GPOS_UNITTEST_ASSERT(nullptr != nested);
-	CExpression *outer = fix.PexprLogicalGet("having_outer", 1);
+	CColRefArray *outerColumns = nullptr;
+	CExpression *outer = fix.PexprLogicalGet("having_outer", 1, &outerColumns);
 	CExpression *on = CUtils::PexprScalarConstBool(mp, true);
 	for (CExpression *right : {pexprGbAgg, pexprSelect, pexprGet})
 	{
@@ -1973,6 +1975,23 @@ CDSLAggTest::EresUnittest_HavingRoundTrip()
 		model->Release();
 		join->Release();
 	}
+	// Moving HAVING to a shared RHS must not retain a dependency on the left row.
+	CAutoRef<CDSLRule> independent(PdslruleParseLocal(mp,
+		(nestedText + ";OutputAttrs(a10,t2);DepsDisjoint(p0,a10)").c_str()));
+	GPOS_UNITTEST_ASSERT(nullptr != independent.Value());
+	for (BOOL correlated : {false, true})
+	{
+		CAutoRef<CExpression> predicate(fix.PexprEqPred(
+			pcrAggOut, correlated ? (*outerColumns)[0] : pcrAggOut));
+		CAutoRef<CExpression> filtered(fix.PexprLogicalSelect(pexprGbAgg, predicate.Value()));
+		CAutoRef<CExpression> join(fix.PexprLogicalInnerJoin(outer, filtered.Value(), on));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		const BOOL matched = CDSLMatcher(mp, independent.Value()).FMatch(
+			independent->PfragSrc()->PopRoot(), join.Value(), model.Value());
+		GPOS_UNITTEST_ASSERT((matched && CDSLConstraintChecker(mp).FCheck(
+			independent.Value(), model.Value())) == !correlated);
+	}
+
 	on->Release();
 	outer->Release();
 	nested->Release();

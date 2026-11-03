@@ -7,7 +7,7 @@
     "scope": "LeftSemiApply whose grouped inner correlation key is not already a grouping key; ordinary integer MIN only; safe repeatable independent RHS with disjoint input outputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "32e0e9eab52d713a"
+      "4fcc49fec25dcb37"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions",
@@ -40,7 +40,7 @@
         "CXformLeftSemiApply2LeftSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"32e0e9eab52d713a\"",
+        "\"status\":\"applied\",\"rule_hash\":\"4fcc49fec25dcb37\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

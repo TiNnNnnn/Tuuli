@@ -7,7 +7,7 @@
     "scope": "AntiApply with an ungrouped correlation key and total integer MIN; safe repeatable independent RHS with disjoint input outputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f0f9a77b5ee0d692"
+      "abcd4af97695ed2f"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions",
@@ -40,7 +40,7 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f0f9a77b5ee0d692\"",
+        "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

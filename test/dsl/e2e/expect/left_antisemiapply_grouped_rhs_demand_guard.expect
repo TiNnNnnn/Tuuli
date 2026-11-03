@@ -9,10 +9,10 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "rule_hash=f0f9a77b5ee0d692 status=rejected constraint=ErrorFree"
+        "rule_hash=abcd4af97695ed2f status=rejected constraint=ErrorFree"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f0f9a77b5ee0d692\"",
+        "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\"",
         "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin\n"
       ]
     }
