@@ -1,0 +1,7 @@
+experiment: residual-rows-swap
+discover: false
+template_route: 8
+template_fingerprint: 0152f1b21ca32d52
+template_root: r
+template_bindings: true
+cardinalities:

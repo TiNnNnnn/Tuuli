@@ -1,0 +1,55 @@
+{
+  "description": "Volatile residual predicates cannot exchange across a correlated Window filter",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "isolate_compute_window.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c3335dfd6865eb60\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "isolate_compute_window.policy",
+    "output": [
+      "10,t",
+      "20,",
+      "30,t"
+    ],
+    "postgres_output": [
+      "10,t",
+      "20,",
+      "30,t"
+    ],
+    "plan_outputs": {
+      "off": [
+        "10,t",
+        "20,",
+        "30,t"
+      ],
+      "on": [
+        "10,t",
+        "20,",
+        "30,t"
+      ]
+    }
+  }
+}

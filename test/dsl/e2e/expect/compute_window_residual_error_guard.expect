@@ -21,7 +21,7 @@
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
         "Falling back to Postgres"
       ]
     }

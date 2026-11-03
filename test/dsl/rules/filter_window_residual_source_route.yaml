@@ -1,0 +1,7 @@
+experiment: residual-swap
+discover: false
+template_route: 7
+template_fingerprint: 663a4880ac03a9d3
+template_root: r
+template_bindings: true
+cardinalities:

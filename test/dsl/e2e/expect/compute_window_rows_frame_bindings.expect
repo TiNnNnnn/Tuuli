@@ -11,29 +11,119 @@
       ],
       "not_contains": [
         "\"status\":\"applied\"",
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
       ]
     },
     {
-      "name": "on",
+      "name": "window",
       "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window.policy",
+      "stats_experiment": "window_rows_residual_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "7ac97a55ff9b47c8",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalSequenceProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window.policy",
+      "stats_experiment": "filter_window_rows_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c3335dfd6865eb60",
+          "route_sequence": 8,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "compute",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
       "policy": "isolate_compute_window.policy",
       "stats_experiment": "compute_window_rows_frame_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "bc6fb058191edfb3",
+          "rule_hash": "a3a384e829b6c009",
+          "route_sequence": 14,
           "operators": [
             "CLogicalProject",
             "CLogicalSelect",
-            "CLogicalSequenceProject",
             "CLogicalSelect",
+            "CLogicalSequenceProject",
             "CLogicalGet"
           ],
           "target_operators": [
@@ -44,23 +134,6 @@
             "CLogicalGet"
           ]
         }
-      ]
-    },
-    {
-      "name": "decorrelation-disabled",
-      "trace": true,
-      "disable_xforms": [
-        "CXformLeftOuterApply2LeftOuterJoin",
-        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
-      ],
-      "policy": "isolate_compute_window.policy",
-      "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
-      ],
-      "not_contains": [
-        "Falling back to Postgres",
-        "Xform: CXformLeftOuterApply2LeftOuterJoin"
       ]
     }
   ],
@@ -97,7 +170,7 @@
         "7,f",
         "8,f"
       ],
-      "on": [
+      "window": [
         "1,t",
         "2,t",
         "3,t",
@@ -107,7 +180,17 @@
         "7,f",
         "8,f"
       ],
-      "decorrelation-disabled": [
+      "swap": [
+        "1,t",
+        "2,t",
+        "3,t",
+        "4,f",
+        "5,f",
+        "6,f",
+        "7,f",
+        "8,f"
+      ],
+      "compute": [
         "1,t",
         "2,t",
         "3,t",

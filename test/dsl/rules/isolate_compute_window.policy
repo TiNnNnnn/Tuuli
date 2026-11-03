@@ -1,6 +1,11 @@
 - rule: '*'
   enabled: false
-- rule: 64e079597a2e0d86
+# Window/Filter, Filter exchange, Compute/Filter; no compound Window rules.
+- rule: 7ac97a55ff9b47c8
   enabled: true
-- rule: bc6fb058191edfb3
+- rule: a3a384e829b6c009
+  enabled: true
+- rule: 397081c4258773d1
+  enabled: true
+- rule: c3335dfd6865eb60
   enabled: true

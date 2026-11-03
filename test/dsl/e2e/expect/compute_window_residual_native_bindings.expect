@@ -1,5 +1,5 @@
 {
-  "description": "Registered Compute/Window residual movement with actual typed source/target kernel binding",
+  "description": "Residual Window movement composes three operator-local rules; each actual step is kernel checked",
   "plans": [
     {
       "name": "off",
@@ -11,29 +11,119 @@
       ],
       "not_contains": [
         "\"status\":\"applied\"",
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
       ]
     },
     {
-      "name": "on",
+      "name": "window",
       "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window.policy",
+      "stats_experiment": "compute_window_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "7ac97a55ff9b47c8",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalSequenceProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "swap",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
+      "policy": "isolate_compute_window.policy",
+      "stats_experiment": "filter_window_residual_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c3335dfd6865eb60",
+          "route_sequence": 7,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "compute",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
+      ],
       "policy": "isolate_compute_window.policy",
       "stats_experiment": "compute_window_residual_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c3335dfd6865eb60\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\""
       ],
       "not_contains": [
-        "Falling back to Postgres"
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"64e079597a2e0d86\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "bc6fb058191edfb3",
+          "rule_hash": "a3a384e829b6c009",
+          "route_sequence": 13,
           "operators": [
             "CLogicalProject",
             "CLogicalSelect",
-            "CLogicalSequenceProject",
             "CLogicalSelect",
+            "CLogicalSequenceProject",
             "CLogicalGet"
           ],
           "target_operators": [
@@ -44,23 +134,6 @@
             "CLogicalGet"
           ]
         }
-      ]
-    },
-    {
-      "name": "decorrelation-disabled",
-      "trace": true,
-      "disable_xforms": [
-        "CXformLeftOuterApply2LeftOuterJoin",
-        "CXformLeftOuterApply2LeftOuterJoinNoCorrelations"
-      ],
-      "policy": "isolate_compute_window.policy",
-      "contains": [
-        "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"bc6fb058191edfb3\""
-      ],
-      "not_contains": [
-        "Falling back to Postgres",
-        "Xform: CXformLeftOuterApply2LeftOuterJoin"
       ]
     }
   ],
@@ -82,12 +155,17 @@
         "20,",
         "30,t"
       ],
-      "on": [
+      "window": [
         "10,t",
         "20,",
         "30,t"
       ],
-      "decorrelation-disabled": [
+      "swap": [
+        "10,t",
+        "20,",
+        "30,t"
+      ],
+      "compute": [
         "10,t",
         "20,",
         "30,t"

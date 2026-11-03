@@ -499,13 +499,9 @@ Window<a0 o0 m0 w0>(Filter<p0 a1 a2>(Input<t0>))|Filter<p1 a4 a5>(Window<a3 o1 m
 # the framed PostgreSQL chain checks each actual source/target occurrence.
 # The two standalone Compute/Window rules are retired as redundant.
 
-# A residual Filter may consume a Window result and therefore stays below the
-# Compute. Safe predicate commutation moves only the buried correlation to the
-# outside; the residual remains at its original evaluation site.
-# SYNTAX_ONLY legacy_hash=d43abe8392779e2a; native expression proof: UNKNOWN; production source-conditional canonical proof checked 2026-10-24 (Closed). Actual frameless Window item/value binding remains unverified; not an EQ or native-instance certificate.
-Compute<e0 a0 s0>(Filter<p0 a1>(WindowRows<a2 o0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(WindowRows<a9 o1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1)
-# PARTIAL_BINDING legacy_hash=7df75620258b37aa; native expression proof: UNKNOWN without source contracts; source-conditional OUTCOME_EQ and actual residual Compute/Window source-target instance kernel-checked 2026-10-23. The residual retains its Window dependency; runtime/schema/value premises remain, not a deployment certificate.
-Compute<e0 a0 s0>(Filter<p0 a1>(Window<a2 o0 m0 w0>(Filter<p1 a3 a4>(Input<t0>))))|Filter<p2 a5 a6>(Compute<e1 a7 s1>(Filter<p3 a8>(Window<a9 o1 m1 w1>(Input<t1>))))|t1 := t0;e1 := e0;a7 := a0;s1 := s0;p3 := p0;a8 := a1;a9 := a2;o1 := o0;m1 := m0;w1 := w0;p2 := p1;a5 := a3;a6 := a4;CorrelationEquality(p1,a3,a4);AttrsNonEmpty(a3);AttrsSub(a3,a2);DepsDisjoint(a2,a4);DepsDisjoint(o0,a4);DepsDisjoint(m0,a4);DepsDisjoint(w0,a4);DepsDisjoint(p1,s0);ErrorFree(e0);Deterministic(e0);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(w0);ErrorFree(e1);Deterministic(e1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(w1);Deterministic(w0)
+# Residual Window filters compose Window/Filter movement, safe Filter exchange,
+# and Compute/Filter movement. Retired the two compound frame variants
+# (64e079597a2e0d86 and bc6fb058191edfb3); preserve the residual's Window input.
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftSemiApply2LeftSemiJoin. AttrsUnion derives the target predicate's
@@ -534,6 +530,13 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|SemiJoin<p2 a5 a6>
 # local/outer dependency partition checked by the Filter builder.
 # FORMALSQL_PROVED legacy_hash=7c68bb1fdb16fe65; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-15; certificate b190385b7a2457008bad49c7ec6b52c5eb6243a37ce0cc246aef420d2938cfab. Native Filter composition with rooted attributes and context-local safety.
 Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Input<t1>)|t1 := t0;p2 := And(p0,p1);AttrsUnion(a4,a0,a2);AttrsUnion(a5,a1,a3);AttrsSub(a0,t0);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p1);ErrorFree(p0);ErrorFree(p1)
+
+# Exchange complete predicates and their local/outer dependencies, not aliases
+# of the same predicate. Both predicates must be total and deterministic.
+# FORMALSQL_PROVED: OUTCOME_EQ kernel-checked 2026-11-04 using the existing
+# generic filter-swap proof; actual Window residual source/target also checked.
+# DIRECT(predicate-order): exchange two distinct predicates and their dependencies.
+Filter<p0 a0 a1>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a4 a5>(Filter<p3 a6 a7>(Input<t1>))|t1 := t0;p2 := p1;a4 := a2;a5 := a3;p3 := p0;a6 := a0;a7 := a1;ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1)
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftAntiSemiApply2LeftAntiSemiJoin. This is ordinary NOT EXISTS

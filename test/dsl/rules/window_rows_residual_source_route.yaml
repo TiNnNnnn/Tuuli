@@ -1,0 +1,7 @@
+experiment: residual-rows-window
+discover: false
+template_route: 4
+template_fingerprint: 450b9190d9479448
+template_root: r
+template_bindings: true
+cardinalities:
