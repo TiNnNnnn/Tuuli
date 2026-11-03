@@ -1,15 +1,19 @@
 {
-  "description": "BottomUp RBO removes redundant dedup projection and then merges the normalized HAVING filters",
+  "description": "BottomUp RBO removes the outer dedup but must not invent a second Filter below normalized HAVING",
   "plans": [
     {
       "name": "rbo",
       "trace": true,
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
-        "\"rule_id\":43,\"status\":\"applied_rbo\"",
-        "\"rule_id\":58,\"status\":\"applied_rbo\"",
-        "\"kind\":\"rule_edge\",\"engine\":\"pgorca\",\"scheduler\":\"rbo\",\"src_rule\":\"6b97ac3107f4ab98\",\"dst_rule\":\"a6e921b11d78e153\",\"target_path\":\"r\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"a4f9a0884e7ffb52\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"4ac7f329480c4ad5\"",
+        "\"expected_operator\":\"Filter\",\"actual_operator\":\"CLogicalGbAgg\"",
         "\"placement\":\"rbo\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"4ac7f329480c4ad5\"",
+        "\"src_rule\":\"a4f9a0884e7ffb52\",\"dst_rule\":\"4ac7f329480c4ad5\""
       ]
     }
   ],
