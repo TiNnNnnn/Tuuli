@@ -201,30 +201,30 @@ WindowRows<a0 o0 w0>(Input<t0>)|WindowRows<a1 o1 w1>(Bind<n2 a3>(Input<t1>))|Out
 # SYNTAX_ONLY: standalone allocation and full phase proof remain UNKNOWN; native-off E2E checks runtime.
 Window<a0 o0 m0 w0>(Input<t0>)|Window<a1 o1 m1 w1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(w0,a3);DepsDisjoint(a4,a3);t1 := t0;a1 := a0;o1 := o0;m1 := m0;Context(n0) := w0;BoolValue(p2) := n0;All(c0,v0,a20,t2) := p2;n2 := n0;n1 := Column(a3);w1 := Context(w0,n1)
 # DIRECT(expression-rewrite): bind one EXISTS value in a Compute context.
-# SYNTAX_ONLY: standalone proof UNKNOWN (native allocation evidence required); canonical and physical Compute instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(e0,a3);DepsDisjoint(a4,a3);t1 := t0;s1 := s0;Context(n0) := e0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);e1 := Context(e0,n1);a1 := ScalarDeps(e1)
 
 # DIRECT(expression-rewrite): bind one NOT EXISTS value in a Compute context.
-# SYNTAX_ONLY: standalone proof UNKNOWN (native allocation evidence required); canonical and physical Compute instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(e0,a3);DepsDisjoint(a4,a3);t1 := t0;s1 := s0;Context(n0) := e0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);e1 := Context(e0,n1);a1 := ScalarDeps(e1)
 
 # DIRECT(expression-rewrite): bind one ANY value in the Compute context.
-# SYNTAX_ONLY: standalone allocation proof UNKNOWN; canonical captured source/target instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(e0,a3);DepsDisjoint(a4,a3);t1 := t0;s1 := s0;Context(n0) := e0;BoolValue(p2) := n0;Any(c0,v0,a20,t2) := p2;n2 := n0;n1 := Column(a3);e1 := Context(e0,n1);a1 := ScalarDeps(e1)
 
 # DIRECT(expression-rewrite): bind one ALL value in the Compute context.
-# SYNTAX_ONLY: standalone allocation proof UNKNOWN; canonical captured source/target instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(e0,a3);DepsDisjoint(a4,a3);t1 := t0;s1 := s0;Context(n0) := e0;BoolValue(p2) := n0;All(c0,v0,a20,t2) := p2;n2 := n0;n1 := Column(a3);e1 := Context(e0,n1);a1 := ScalarDeps(e1)
 
 # DIRECT(expression-rewrite): lower one EXISTS value anywhere inside a Filter
 # predicate. The same typed definition used by Compute/Agg replaces only the
 # selected scalar node; the surrounding boolean expression remains unchanged.
-# SYNTAX_ONLY: standalone proof UNKNOWN (native allocation evidence required); canonical and physical Filter instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule and physical consumer instances are checked.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(p0,a3);DepsDisjoint(a4,a3);t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;Exists(t2) := p2;n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)
 
 # DIRECT(expression-rewrite): NOT EXISTS shares the same predicate-value
 # carrier and preserves the opposite empty-input polarity.
-# SYNTAX_ONLY: standalone proof UNKNOWN (native allocation evidence required); canonical and physical Filter instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule and physical consumer instances are checked.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(p0,a3);DepsDisjoint(a4,a3);t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)
 
 # DIRECT(expression-rewrite): bind one ANY value in the Filter context.

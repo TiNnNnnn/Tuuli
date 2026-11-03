@@ -56,6 +56,8 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_project2apply_scalar_direct.policy",
+      "stats_experiment": "project2apply_any_value_identity_replacement_route.yaml",
+      "native_observation": "deferred_rule",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
@@ -63,6 +65,26 @@
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "337794b6f59bc43d",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

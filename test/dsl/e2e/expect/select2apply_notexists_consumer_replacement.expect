@@ -38,11 +38,7 @@
           0
         ],
         "apply_path": "r/0",
-        "column": {
-          "id": 17,
-          "type": "0.16.1.0",
-          "typmod": -1
-        },
+        "column": null,
         "scan_path": [
           "subplans",
           0
@@ -50,6 +46,57 @@
         "input_path": "r/0/1/0/0",
         "observe_consumer_query": true
       },
+      "contains": [
+        "Optimizer: pg_orca",
+        "CLogicalLeftOuterCorrelatedApply",
+        "\"status\":\"applied\",\"rule_hash\":\"09bfed0ceda855ca\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "09bfed0ceda855ca",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformSelect2Apply",
+          "CXformSimplifySelectWithSubquery",
+          "CXformSubquery2CorrelatedApply"
+        ]
+      }
+    },
+    {
+      "name": "replacement_rule",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSelect2Apply",
+        "CXformSimplifySelectWithSubquery",
+        "CXformSubquery2CorrelatedApply"
+      ],
+      "policy": "isolate_select2apply_predicate_notexists_direct.policy",
+      "stats_experiment": "select2apply_notexists_consumer_source_route.yaml",
+      "native_observation": "deferred_rule",
       "contains": [
         "Optimizer: pg_orca",
         "CLogicalLeftOuterCorrelatedApply",
