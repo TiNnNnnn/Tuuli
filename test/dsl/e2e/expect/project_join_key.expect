@@ -5,23 +5,61 @@
       "name": "off",
       "dsl": false,
       "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
       "not_contains": [
-        "Rule: Proj<a2 s0>(InnerJoin<a0 a1>"
+        "Rule: Compute<e0 a2 s0>(InnerJoin<p0 a0 a1>",
+        "Falling back to Postgres"
       ]
     },
     {
       "name": "on",
       "trace": true,
+      "disable_xforms": [
+        "CXformCollapseProject"
+      ],
+      "stats_experiment": "project_join_key_source_route.yaml",
+      "native_observation": "exact_tree",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "Rule: Proj<a2 s0>(InnerJoin<a0 a1>",
-        "\"rule_id\":79,\"status\":\"applied\""
+        "Rule: Compute<e0 a2 s0>(InnerJoin<p0 a0 a1>",
+        "\"rule_id\":79,\"status\":\"applied\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
       ],
       "alternative": [
         "CXformDSLRule_Project"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "fe09a3900cdcbe65",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ]
     }
   ],
   "rows": {
+    "disable_xforms": [
+      "CXformCollapseProject"
+    ],
     "output": [
       "1",
       "1",
@@ -33,6 +71,26 @@
       "1",
       "2",
       "2"
-    ]
+    ],
+    "off_output": [
+      "1",
+      "1",
+      "2",
+      "2"
+    ],
+    "plan_outputs": {
+      "off": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ],
+      "on": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ]
+    }
   }
 }

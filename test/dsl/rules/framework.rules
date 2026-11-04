@@ -74,10 +74,9 @@ Filter<p0 a2>(InnerJoin<a0 a1>(Input<t0>,Input<t0>))|Filter<p1 a5>(InnerJoin<a3 
 # alternatives remain consumable by later DSL rules.
 Proj<a1 s1>(Proj*<a0 s0>(Input<t0>))|Proj*<a2 s2>(Input<t1>)|AttrsEq(a0,a1);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsEq(a2,a0);SchemaEq(s2,s1);t1 := t0
 
-# MONSOON/dataset/rules/6t2n_normal_reduce.txt:37. A computed Project remains
-# explicit in ORCA; target attrs replace its input with the equality-equivalent
-# key from the other InnerJoin child while SchemaEq keeps its defined output.
-Proj<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a5 s1>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsEq(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t0);AttrsEq(a3,a0);AttrsEq(a4,a1);AttrsEq(a5,a1);SchemaEq(s1,s0);t2 := t0;t3 := t1
+# Replace a selected Column inside any Compute scalar Context using a checked
+# inner-join equality. Preserve the surrounding expression and output binding.
+Compute<e0 a2 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Compute<e1 a5 s1>(InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);CorrelationEquality(p0,a0,a1);Context(n0) := e0;Column(a0) := n0;t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n1 := Column(a1);e1 := Context(e0,n1);a5 := ScalarDeps(e1);s1 := s0;ValueBool(n4) := p0;Call(h0,v0) := n4;Args(n2,v1) := v0;Column(a0) := n2;Args(n3,v2) := v1;Column(a1) := n3;Args() := v2
 
 # MONSOON/dataset/rules/6t2n_normal_reduce.txt:6. This uses a pass-through SQL
 # SELECT list, so the query-output Project surface (rather than a computed
