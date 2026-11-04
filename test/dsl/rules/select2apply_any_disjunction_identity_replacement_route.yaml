@@ -1,0 +1,7 @@
+experiment: bind-rule-migration
+discover: false
+template_route: 1
+template_fingerprint: 7e1f2b8332a7d1d1
+template_root: r
+template_bindings: true
+cardinalities:

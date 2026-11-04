@@ -228,11 +228,11 @@ Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(p0,a3);DepsDisjoint(a4,a3);t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;Not(p3) := p2;Exists(t2) := p3;n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)
 
 # DIRECT(expression-rewrite): bind one ANY value in the Filter context.
-# SYNTAX_ONLY: standalone allocation proof UNKNOWN; canonical captured source/target instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(p0,a3);DepsDisjoint(a4,a3);t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;Any(c0,v0,a20,t2) := p2;n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)
 
 # DIRECT(expression-rewrite): bind one ALL value in the Filter context.
-# SYNTAX_ONLY: standalone allocation proof UNKNOWN; canonical captured source/target instances are checked.
+# SOURCE_CONDITIONAL: fresh-column allocation remains a premise; native-off complete-rule instances are kernel checked.
 Filter<p0 a0>(Input<t0>)|Filter<p1 a1>(Bind<n2 a3>(Input<t1>))|OutputAttrs(a4,t0);DepsDisjoint(p0,a3);DepsDisjoint(a4,a3);t1 := t0;Context(n0) := p0;BoolValue(p2) := n0;All(c0,v0,a20,t2) := p2;n2 := n0;n1 := Column(a3);p1 := Context(p0,n1);a1 := ScalarDeps(p1)
 
 # Extract an aggregate argument with the same deferred Bind context; FuncAttrs
