@@ -1,0 +1,7 @@
+experiment: insub-join-key-source
+discover: false
+template_route: 655
+template_fingerprint: a26c8703c99f2a99
+template_root: r
+template_bindings: true
+cardinalities:

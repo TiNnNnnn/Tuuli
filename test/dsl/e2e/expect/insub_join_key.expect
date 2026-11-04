@@ -1,5 +1,5 @@
 {
-  "description": "InSub join-key remap preserves a post-unnest SetOp carrier",
+  "description": "Explicit SemiJoin ON key substitution uses equality established by its InnerJoin child",
   "plans": [
     {
       "name": "off-native-on",
@@ -13,9 +13,81 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "stage=applied bindings=",
-        "Rule: InSubFilter",
-        "Generated:"
+        "\"rule_id\":96,\"status\":\"applied\"",
+        "Rule: SemiJoin<"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
+      "stats_experiment": "insub_join_key_source_route.yaml",
+      "native_observation": "exact_tree",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_id\":96,\"status\":\"applied\"",
+        "Rule: SemiJoin<"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_InSub"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "6ecc177626804bdf",
+          "route_sequence": 655,
+          "operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet",
+            "CLogicalUnionAll",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet",
+            "CLogicalUnionAll",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "on-dphyper",
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"rule_id\":96,\"status\":\"applied\"",
+        "Rule: SemiJoin<"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformInnerJoinCommutativity",
+        "Xform: CXformJoinAssociativity"
       ],
       "alternative": [
         "CXformDSLRule_InSub"
@@ -34,6 +106,32 @@
       "1",
       "2",
       "2"
-    ]
+    ],
+    "plan_outputs": {
+      "off-native-on": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ],
+      "on-native-on": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ],
+      "on": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ],
+      "on-dphyper": [
+        "1",
+        "1",
+        "2",
+        "2"
+      ]
+    }
   }
 }
