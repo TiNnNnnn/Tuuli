@@ -75,11 +75,7 @@
           1
         ],
         "apply_path": "r/0",
-        "column": {
-          "id": 20,
-          "type": "0.16.1.0",
-          "typmod": -1
-        },
+        "column": null,
         "subplan_path": [
           "planTree",
           "plan.lefttree",
