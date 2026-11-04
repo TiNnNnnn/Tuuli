@@ -1,0 +1,7 @@
+experiment: join-filter-output-source
+discover: false
+template_route: 13
+template_fingerprint: 77425a2da6739a02
+template_root: r
+template_bindings: true
+cardinalities:

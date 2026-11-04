@@ -58,7 +58,7 @@
       "rule_source_routes": [
         {
           "rule_hash": "58483b210e2ba41f",
-          "route_sequence": 28,
+          "route_sequence": 42,
           "operators": [
             "CLogicalGbAgg",
             "CLogicalInnerJoin",

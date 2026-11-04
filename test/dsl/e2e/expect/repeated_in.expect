@@ -40,7 +40,7 @@
       "contains": [
         "Optimizer: pg_orca"
       ],
-      "joins": 2
+      "joins": 1
     }
   ],
   "rows": {

@@ -1,23 +1,63 @@
 {
-  "description": "Join shell reconstructs a predicate pushed into one input",
+  "description": "Explicit Filter movement exposes an equality-key substitution on the actual Join tree",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
       "not_contains": [
-        "Rule: Filter<p0 a2>(InnerJoin<a0 a1>"
+        "Rule: Filter<f0 a2>(InnerJoin<p0 a0 a1>",
+        "Falling back to Postgres"
       ]
     },
     {
       "name": "on",
       "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
+      "stats_experiment": "join_filter_input_route.yaml",
+      "native_observation": "exact_tree",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "Rule: Filter<p0 a2>(InnerJoin<a0 a1>",
-        "\"rule_id\":63,\"status\":\"applied\""
+        "Rule: Filter<f0 a2>(InnerJoin<p0 a0 a1>",
+        "\"rule_id\":63,\"status\":\"applied\"",
+        "Optimizer: pg_orca",
+        "\"rule_id\":102,\"status\":\"applied\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
       ],
       "alternative": [
         "CXformDSLRule_InnerJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "6838e6bb57192952",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalInnerJoin",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalInnerJoin",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ]
     },
     {
@@ -25,25 +65,78 @@
       "dphyper": true,
       "dphyper_shadow": false,
       "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
       "contains": [
         "DPHyper: status=applied",
         "fingerprint=",
         "mode=replacement",
-        "\"rule_id\":63,\"status\":\"applied\""
+        "\"rule_id\":63,\"status\":\"applied\"",
+        "Optimizer: pg_orca",
+        "\"rule_id\":102,\"status\":\"applied\""
       ],
       "not_contains": [
         "Xform: CXformExpandNAryJoinDPv2",
         "Xform: CXformInnerJoinCommutativity",
-        "Xform: CXformJoinAssociativity"
+        "Xform: CXformJoinAssociativity",
+        "Falling back to Postgres"
       ],
       "alternative": [
         "CXformDSLRule_InnerJoin"
+      ]
+    },
+    {
+      "name": "on-key",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifySelectWithSubquery",
+        "CXformSelect2Apply"
+      ],
+      "stats_experiment": "join_filter_output_route.yaml",
+      "native_observation": "exact_tree",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"rule_id\":63,\"status\":\"applied\"",
+        "Optimizer: pg_orca",
+        "\"rule_id\":102,\"status\":\"applied\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_InnerJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "b6be8143b8d468e1",
+          "route_sequence": 13,
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalInnerJoin",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalInnerJoin",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ]
     }
   ],
   "rows": {
     "dphyper": true,
     "dphyper_shadow": false,
+    "disable_xforms": [
+      "CXformSimplifySelectWithSubquery",
+      "CXformSelect2Apply"
+    ],
     "output": [
       "2,2",
       "2,2"
@@ -51,6 +144,28 @@
     "postgres_output": [
       "2,2",
       "2,2"
-    ]
+    ],
+    "off_output": [
+      "2,2",
+      "2,2"
+    ],
+    "plan_outputs": {
+      "off": [
+        "2,2",
+        "2,2"
+      ],
+      "on": [
+        "2,2",
+        "2,2"
+      ],
+      "on-dphyper-replacement": [
+        "2,2",
+        "2,2"
+      ],
+      "on-key": [
+        "2,2",
+        "2,2"
+      ]
+    }
   }
 }

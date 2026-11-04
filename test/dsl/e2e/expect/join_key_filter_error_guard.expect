@@ -6,11 +6,11 @@
       "trace": true,
       "policy": "isolate_explicit_join_key_filter_rbo.policy",
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"41ccfe42f23f20f9\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"dbf736da4a97ee09\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"41ccfe42f23f20f9\""
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"dbf736da4a97ee09\""
       ]
     }
   ],

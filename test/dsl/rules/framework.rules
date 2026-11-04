@@ -58,9 +58,9 @@ Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj*<a5 s1>(InnerJoin<a3 a4
 Filter<p0 a0>(Filter<p0 a0>(Input<t0>))|Filter<p1 a1>(Input<t1>)|AttrsSub(a0,t0);t1 := t0;p1 := p0;a1 := a0;ErrorFree(p0);Deterministic(p0)
 
 # Explicitly replace one right-key Column with the equality-equivalent left key.
-# ValueBool retains the predicate/value boundary around the scalar Context;
-# dependency aliases alone must not silently rename predicate expressions.
-Filter<p0 a1>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Filter<p1 a5>(InnerJoin<a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);Deterministic(p0);ValueBool(n2) := p0;Context(n0) := n2;Column(a1) := n0;t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a0;n1 := Column(a5);n3 := Context(n2,n1);p1 := ValueBool(n3)
+# Bind the actual ON expression and its checked same-row key equality.
+# Scalar Context preserves the surrounding predicate and its errors.
+Filter<f0 a2>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Filter<f1 a5>(InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);CorrelationEquality(p0,a1,a0);Context(n0) := f0;Column(a1) := n0;t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n1 := Column(a0);f1 := Context(f0,n1);a5 := ScalarDeps(f1);ValueBool(n4) := p0;Call(h0,v0) := n4;Args(n2,v1) := v0;Column(a0) := n2;Args(n3,v2) := v1;Column(a1) := n3;Args() := v2
 
 # Reference is an inclusion dependency, so R.a -> R.a holds without explicit
 # FK metadata when the referred binding is the complete base relation. This
@@ -99,3 +99,5 @@ InSubFilter<a2>(InnerJoin<a0 a1>(Input<t0>,Input<t1>),Input<t2>)|InSubFilter<a5>
 # selects the earlier rule but trace-only validation must still report this full
 # match/constraint/instantiation/safety success as applicable, not applied.
 Proj*<a0 s0>(Input<t0>)|Input<t1>|AttrsSub(a0,t0);Unique(t0,a0);t1 := t0
+InnerJoin<p0 a0 a1>(Input<t0>,Filter<f0 a2>(Input<t1>))|Filter<f1 a5>(InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;f1 := f0;a3 := a0;a4 := a1;a5 := a2;AttrsSub(a2,t1);ErrorFree(p0);Deterministic(p0);ErrorFree(f0);Deterministic(f0)
+Filter<f0 a2>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Filter<f1 a5>(InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);CorrelationEquality(p0,a0,a1);Context(n0) := f0;Column(a0) := n0;t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n1 := Column(a1);f1 := Context(f0,n1);a5 := ScalarDeps(f1);ValueBool(n4) := p0;Call(h0,v0) := n4;Args(n2,v1) := v0;Column(a0) := n2;Args(n3,v2) := v1;Column(a1) := n3;Args() := v2;ErrorFree(f0);Deterministic(f0)
