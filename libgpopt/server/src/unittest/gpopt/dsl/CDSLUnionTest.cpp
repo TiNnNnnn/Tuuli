@@ -43,6 +43,8 @@
 #include "gpopt/operators/CPhysicalSetOp.h"
 #include "gpopt/xforms/CXformImplementSetOp.h"
 #include "gpopt/xforms/CXformUtils.h"
+#include "gpopt/xforms/CXformPushGbBelowUnion.h"
+#include "gpopt/xforms/CXformPushGbBelowUnionAll.h"
 #include "gpos/io/COstreamString.h"
 #include "naucrates/dxl/CDXLUtils.h"
 #include "naucrates/dxl/operators/CDXLPhysicalSetOp.h"
@@ -606,10 +608,53 @@ EresCTEExportColumnUsage()
 	return GPOS_OK;
 }
 
+static GPOS_RESULT
+EresNativeGroupingSetBindingColumns()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (BOOL distinct : {false, true})
+	for (BOOL missing : {false, true})
+	{
+		CColRefArray *leftCols = nullptr, *rightCols = nullptr;
+		CExpression *left = fix.PexprLogicalGet("group_set_left", 2, &leftCols);
+		CExpression *right = fix.PexprLogicalGet("group_set_right", 2, &rightCols);
+		CColRefArray *leftMap = GPOS_NEW(mp) CColRefArray(mp);
+		CColRefArray *rightMap = GPOS_NEW(mp) CColRefArray(mp);
+		leftMap->Append((*leftCols)[0]); rightMap->Append((*rightCols)[0]);
+		CExpression *set = PexprSetOp(mp, distinct, left, leftMap, right, rightMap);
+		CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+		keys->Append((*leftCols)[missing ? 1 : 0]);
+		// A Memo binding can select a pruned SetOp below the original grouping.
+		CExpression *source = fix.PexprLogicalGbAgg(set, keys);
+		CXform *xform = distinct
+			? static_cast<CXform *>(GPOS_NEW(mp) CXformPushGbBelowUnion(mp))
+			: static_cast<CXform *>(GPOS_NEW(mp) CXformPushGbBelowUnionAll(mp));
+		CXformContext *context = GPOS_NEW(mp) CXformContext(mp);
+		CXformResult *result = GPOS_NEW(mp) CXformResult(mp);
+		xform->Transform(context, result, source);
+		GPOS_UNITTEST_ASSERT(result->Size() == (missing ? 0UL : 1UL));
+		if (!missing)
+		{
+			CExpression *target = (*result->Pdrgpexpr())[0];
+			CExpression *targetSet = (*target)[0];
+			GPOS_UNITTEST_ASSERT(CColRef::Equals(CLogicalGbAgg::PopConvert(target->Pop())->Pdrgpcr(), keys));
+			for (ULONG branch = 0; branch < 2; ++branch)
+				GPOS_UNITTEST_ASSERT((*targetSet)[branch]->DeriveOuterReferences()->Size() == 0);
+		}
+		result->Release(); context->Release(); xform->Release();
+		source->Release(); keys->Release(); set->Release();
+		leftMap->Release(); rightMap->Release(); left->Release(); right->Release();
+	}
+	return GPOS_OK;
+}
+
 GPOS_RESULT
 CDSLUnionTest::EresUnittest()
 {
 	CUnittest rgut[] = {
+		GPOS_UNITTEST_FUNC(EresNativeGroupingSetBindingColumns),
 		GPOS_UNITTEST_FUNC(EresTypedGroupingSetMaps),
 		GPOS_UNITTEST_FUNC(EresExplicitSetOpInputMaps),
 		GPOS_UNITTEST_FUNC(EresTypedOutputColumnProjection),

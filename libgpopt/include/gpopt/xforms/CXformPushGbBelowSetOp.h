@@ -104,6 +104,16 @@ public:
 		CColRefArray *pdrgpcrGb = popGbAgg->Pdrgpcr();
 		CColRefArray *pdrgpcrOutput = popSetOp->PdrgpcrOutput();
 		CColRefSet *pcrsOutput = GPOS_NEW(mp) CColRefSet(mp, pdrgpcrOutput);
+		// A Memo binding may select a SetOp alternative with pruned columns.
+		// Only push keys that this operator can map to every child.
+		for (ULONG col = 0; col < pdrgpcrGb->Size(); ++col)
+		{
+			if (!pcrsOutput->FMember((*pdrgpcrGb)[col]))
+			{
+				pcrsOutput->Release();
+				return;
+			}
+		}
 		CColRef2dArray *pdrgpdrgpcrInput = popSetOp->PdrgpdrgpcrInput();
 		CExpressionArray *pdrgpexprNewChildren =
 			GPOS_NEW(mp) CExpressionArray(mp);
