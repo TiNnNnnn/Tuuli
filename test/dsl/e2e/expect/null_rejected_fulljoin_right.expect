@@ -1,0 +1,82 @@
+{
+  "description": "Right NULL rejection exchanges FullJoin inputs with native reduction disabled",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "outer_join_reduction": false,
+      "contains": [
+        "Optimizer: pg_orca",
+        "Full Join"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "on",
+      "trace": true,
+      "policy": "full_join_right_null_rejection_cbo.policy",
+      "stats_experiment": "full_join_right_null_rejection_source_route.yaml",
+      "outer_join_reduction": false,
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
+      ],
+      "not_contains": [
+        "Full Join",
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "8ac3dc0a2d8d982a",
+          "operators": [
+            "CLogicalSelect",
+            "CLogicalFullOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalLeftOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "full_join_right_null_rejection_cbo.policy",
+    "outer_join_reduction": false,
+    "output": [
+      "2,2",
+      "2,2",
+      ",4"
+    ],
+    "postgres_output": [
+      "2,2",
+      "2,2",
+      ",4"
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      ",4"
+    ],
+    "plan_outputs": {
+      "off": [
+        "2,2",
+        "2,2",
+        ",4"
+      ],
+      "on": [
+        "2,2",
+        "2,2",
+        ",4"
+      ]
+    }
+  }
+}
