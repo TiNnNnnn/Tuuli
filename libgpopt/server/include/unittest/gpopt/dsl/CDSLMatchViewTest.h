@@ -17,7 +17,7 @@ public:
 	static GPOS_RESULT EresUnittest_RepeatedInput();
 	static GPOS_RESULT EresUnittest_AggregateAndOrderViews();
 	static GPOS_RESULT EresUnittest_JoinSpineAndCarrierViews();
-	static GPOS_RESULT EresUnittest_NullRejectedInnerJoinView();
+	static GPOS_RESULT EresUnittest_FilterJoinKindIsExact();
 	static GPOS_RESULT EresUnittest_CorrelatedInnerJoinFilterView();
 };
 }  // namespace gpopt

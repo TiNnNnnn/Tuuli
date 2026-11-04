@@ -55,10 +55,6 @@ private:
 			EafProjectPeelLimit = 1,
 			EafProjectPeelAgg = 2,
 			EafGbAggGlobal = 4,
-			// A Filter(InnerJoin) matcher can expose a null-rejected
-			// Select(LeftJoin) as the same logical source shape. The index may
-			// admit that conservative candidate; the matcher proves null rejection.
-			EafNullRejectedInnerJoin = 16,
 			// A pre-unnest Agg(Apply) view exists only while the Global GbAgg's
 			// scalar project list still contains a subquery.
 			EafGbAggHasSubquery = 32,

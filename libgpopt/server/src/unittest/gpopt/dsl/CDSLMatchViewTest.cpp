@@ -14,6 +14,7 @@
 #include "gpopt/dsl/CDSLMatcher.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CLogicalLimit.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarSubqueryExists.h"
@@ -31,7 +32,7 @@ CDSLMatchViewTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchViewTest::EresUnittest_JoinSpineAndCarrierViews),
 		GPOS_UNITTEST_FUNC(
-			CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView),
+			CDSLMatchViewTest::EresUnittest_FilterJoinKindIsExact),
 		GPOS_UNITTEST_FUNC(
 			CDSLMatchViewTest::EresUnittest_CorrelatedInnerJoinFilterView),
 	};
@@ -231,50 +232,60 @@ CDSLMatchViewTest::EresUnittest_JoinSpineAndCarrierViews()
 }
 
 GPOS_RESULT
-CDSLMatchViewTest::EresUnittest_NullRejectedInnerJoinView()
+CDSLMatchViewTest::EresUnittest_FilterJoinKindIsExact()
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-
-	CColRefArray *pdrgpcrLeft = nullptr;
-	CExpression *pexprLeft =
-		fix.PexprLogicalGet("match_view_loj_left", 1, &pdrgpcrLeft);
-	CColRefArray *pdrgpcrRight = nullptr;
-	CExpression *pexprRight =
-		fix.PexprLogicalGet("match_view_loj_right", 1, &pdrgpcrRight);
-	CExpression *pexprJoinPred =
-		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrRight)[0]);
-	CExpression *pexprLeftJoin = fix.PexprLogicalLeftOuterJoin(
-		pexprLeft, pexprRight, pexprJoinPred);
-	pexprLeft->Release();
-	pexprRight->Release();
-	pexprJoinPred->Release();
-
-	CExpression *pexprRejecting = CUtils::PexprNegate(
-		mp, fix.PexprPredAtom((*pdrgpcrRight)[0]));
-	CExpression *pexprSelect =
-		fix.PexprLogicalSelect(pexprLeftJoin, pexprRejecting);
-	pexprRejecting->Release();
-	CExpression *pexprView =
-		CDSLMatchView::PexprNullRejectedInnerJoin(mp, pexprSelect);
-	GPOS_ASSERT(nullptr != pexprView);
-	GPOS_ASSERT(COperator::EopLogicalSelect == pexprView->Pop()->Eopid());
-	GPOS_ASSERT(COperator::EopLogicalInnerJoin ==
-				(*pexprView)[0]->Pop()->Eopid());
-	pexprView->Release();
-	pexprSelect->Release();
-
-	CExpression *pexprPreservedPred =
-		fix.PexprEqPred((*pdrgpcrLeft)[0], (*pdrgpcrLeft)[0]);
-	CExpression *pexprPreservedSelect =
-		fix.PexprLogicalSelect(pexprLeftJoin, pexprPreservedPred);
-	pexprPreservedPred->Release();
-	GPOS_ASSERT(nullptr == CDSLMatchView::PexprNullRejectedInnerJoin(
-		mp, pexprPreservedSelect));
-	pexprPreservedSelect->Release();
-	pexprLeftJoin->Release();
-	return GPOS_OK;
+	CWStringDynamic error(mp);
+	CAutoRef<CDSLRule> rule(CDSLRuleParser::PdslruleParse(mp,
+		"Filter<p0 a0>(InnerJoin<a1 a2>(Input<t0>,Input<t1>))|Input<t2>|t2 := t0",
+		nullptr, &error));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	CColRefArray *leftColumns = nullptr;
+	CColRefArray *rightColumns = nullptr;
+	CExpression *left = fix.PexprLogicalGet("exact_filter_left", 1, &leftColumns);
+	CExpression *right = fix.PexprLogicalGet("exact_filter_right", 1, &rightColumns);
+	CExpression *on = fix.PexprEqPred((*leftColumns)[0], (*rightColumns)[0]);
+	CExpressionArray *conjuncts = GPOS_NEW(mp) CExpressionArray(mp);
+	conjuncts->Append(CUtils::PexprNegate(mp, fix.PexprPredAtom((*leftColumns)[0])));
+	conjuncts->Append(CUtils::PexprNegate(mp, fix.PexprPredAtom((*rightColumns)[0])));
+	CExpression *predicate = CPredicateUtils::PexprConjunction(mp, conjuncts);
+	GPOS_UNITTEST_ASSERT(CPredicateUtils::FNullRejecting(mp, predicate, left->DeriveOutputColumns()));
+	GPOS_UNITTEST_ASSERT(CPredicateUtils::FNullRejecting(mp, predicate, right->DeriveOutputColumns()));
+	BOOL valid = true;
+	for (ULONG kind = 0; kind < 3; ++kind)
+	{
+		CExpression *join = nullptr;
+		if (0 == kind)
+			join = fix.PexprLogicalInnerJoin(left, right, on);
+		else if (1 == kind)
+			join = fix.PexprLogicalLeftOuterJoin(left, right, on);
+		else
+		{
+			left->AddRef();
+			right->AddRef();
+			on->AddRef();
+			join = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalFullOuterJoin(mp), left, right, on);
+		}
+		CExpression *source = fix.PexprLogicalSelect(join, predicate);
+		// Even a predicate rejecting both NULL sides cannot change the matched kind.
+		for (BOOL typed : {false, true})
+		{
+			CDSLMatcher matcher(mp, typed ? rule.Value() : nullptr);
+			CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+			valid = (matcher.FMatch(rule->PfragSrc()->PopRoot(), source, model.Value()) ==
+				(0 == kind)) && valid;
+		}
+		source->Release();
+		join->Release();
+	}
+	predicate->Release();
+	on->Release();
+	left->Release();
+	right->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 // Repeated source identifiers compare exact captured trees, not allocation addresses.

@@ -177,12 +177,6 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 									  COperator *pop,
 									  BOOL fGbAggHasSubquery)
 {
-	const BOOL fNullRejectedInnerView =
-		0 != (pedge->m_ulAdapterFlags &
-			  SExactEdge::EafNullRejectedInnerJoin) &&
-		COperator::EopLogicalInnerJoin == pedge->m_eopid &&
-		(COperator::EopLogicalLeftOuterJoin == pop->Eopid() ||
-		 COperator::EopLogicalFullOuterJoin == pop->Eopid());
 	const BOOL fDedupAggView =
 		COperator::EopLogicalGbAgg == pedge->m_eopid &&
 		COperator::EopLogicalGbAggDeduplicate == pop->Eopid();
@@ -207,7 +201,7 @@ CDSLRulePrefixIndex::FEdgeMatchesOperator(const SExactEdge *pedge,
 		 COperator::EopLogicalInnerCorrelatedApply == pop->Eopid()) ||
 		(COperator::EopLogicalLeftOuterApply == pedge->m_eopid &&
 		 COperator::EopLogicalLeftOuterCorrelatedApply == pop->Eopid());
-	if (pedge->m_eopid != pop->Eopid() && !fNullRejectedInnerView &&
+	if (pedge->m_eopid != pop->Eopid() &&
 		!fDedupAggView && !fCorrelatedNotInApplyView &&
 		!fSemiApplyView && !fAntiApplyView && !fCorrelatedJoinApplyView)
 	{
@@ -278,12 +272,7 @@ CDSLRulePrefixIndex::PnodeInsertOp(SNode *pnode, const CDSLOp *pop,
 		}
 		SNode *pnodeCurrent = PnodeExact(
 			pnode, COperator::EopLogicalSelect, 1 /*relational child*/);
-		const ULONG ulBaseAdapterFlags =
-			EdslopInnerJoin == popBase->Edslop()
-				? SExactEdge::EafNullRejectedInnerJoin
-				: SExactEdge::EafNone;
-		return PnodeInsertOp(pnodeCurrent, popBase, false, pfComplete,
-							 ulBaseAdapterFlags);
+		return PnodeInsertOp(pnodeCurrent, popBase, false, pfComplete);
 	}
 
 	if (fSourceRoot && EdslopProj == pop->Edslop() &&

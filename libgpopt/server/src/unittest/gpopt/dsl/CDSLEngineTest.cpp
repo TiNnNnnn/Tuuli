@@ -30,6 +30,8 @@
 #include "gpopt/operators/CLogicalLeftOuterApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalInnerJoin.h"
+#include "gpopt/operators/CLogicalLeftOuterJoin.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
 #include "gpopt/operators/CLogicalSequenceProject.h"
@@ -263,6 +265,25 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 			 pruleFilterAny == (*pdrgprule)[1];
 	pdrgprule->Release();
 	pexpr->Release();
+	// NULL-rejection rules match the outer kind explicitly; InnerJoin never
+	// becomes a candidate merely because a Select surrounds an outer join.
+	for (BOOL full : {false, true})
+	{
+		COperator *op = full
+			? static_cast<COperator *>(GPOS_NEW(mp) CLogicalFullOuterJoin(mp))
+			: static_cast<COperator *>(GPOS_NEW(mp) CLogicalLeftOuterJoin(mp));
+		pexpr = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			GPOS_NEW(mp) CExpression(mp, op, PexprPrefixLeaf(mp),
+				PexprPrefixLeaf(mp), PexprPrefixLeaf(mp)), PexprPrefixLeaf(mp));
+		pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+		fValid = fValid && (full ? 1UL : 2UL) == pdrgprule->Size() &&
+			(full ? pruleFilterAny : pruleFilterLeft) == (*pdrgprule)[0];
+		if (!full)
+			fValid = fValid && pruleFilterAny == (*pdrgprule)[1];
+		pdrgprule->Release();
+		pexpr->Release();
+	}
+
 	GPOS_DELETE(pindex);
 	pruleFilterAny->Release();
 	pruleFilterInner->Release();

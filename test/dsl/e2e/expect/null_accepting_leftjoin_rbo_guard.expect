@@ -5,17 +5,21 @@
       "name": "rbo",
       "trace": true,
       "policy": "null_rejection_rbo.policy",
+      "outer_join_reduction": false,
       "contains": [
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"5e87dc02d937835e\"",
-        "\"failed_constraint\":\"PredicateNullRejecting\""
+        "\"failed_constraint\":\"PredicateNullRejecting\"",
+        "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"5e87dc02d937835e\""
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"5e87dc02d937835e\"",
+        "Falling back to Postgres"
       ]
     }
   ],
   "rows": {
     "policy": "null_rejection_rbo.policy",
+    "outer_join_reduction": false,
     "output": [
       "2,2",
       "2,2",
@@ -25,6 +29,18 @@
       "2,2",
       "2,2",
       "3,"
-    ]
+    ],
+    "off_output": [
+      "2,2",
+      "2,2",
+      "3,"
+    ],
+    "plan_outputs": {
+      "rbo": [
+        "2,2",
+        "2,2",
+        "3,"
+      ]
+    }
   }
 }

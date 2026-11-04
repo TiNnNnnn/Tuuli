@@ -931,49 +931,6 @@ CDSLMatchView::PexprApplyInPredicate(CMemoryPool *mp,
 }
 
 CExpression *
-CDSLMatchView::PexprNullRejectedInnerJoin(CMemoryPool *mp,
-									 CExpression *pexprSelect)
-{
-	GPOS_ASSERT(nullptr != mp);
-	GPOS_ASSERT(nullptr != pexprSelect);
-
-	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
-		2 != pexprSelect->Arity())
-	{
-		return nullptr;
-	}
-	CExpression *pexprOuterJoin = (*pexprSelect)[0];
-	CExpression *pexprPred = (*pexprSelect)[1];
-	const COperator::EOperatorId eopid = pexprOuterJoin->Pop()->Eopid();
-	if ((COperator::EopLogicalLeftOuterJoin != eopid &&
-		 COperator::EopLogicalFullOuterJoin != eopid) ||
-		3 != pexprOuterJoin->Arity())
-	{
-		return nullptr;
-	}
-	const BOOL fRejectsRight = CPredicateUtils::FNullRejecting(
-		mp, pexprPred, (*pexprOuterJoin)[1]->DeriveOutputColumns());
-	const BOOL fRejectsLeft =
-		COperator::EopLogicalFullOuterJoin != eopid ||
-		CPredicateUtils::FNullRejecting(
-			mp, pexprPred, (*pexprOuterJoin)[0]->DeriveOutputColumns());
-	if (!fRejectsLeft || !fRejectsRight)
-	{
-		return nullptr;
-	}
-
-	(*pexprOuterJoin)[0]->AddRef();
-	(*pexprOuterJoin)[1]->AddRef();
-	(*pexprOuterJoin)[2]->AddRef();
-	pexprPred->AddRef();
-	CExpression *pexprInnerJoin = GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalInnerJoin(mp), (*pexprOuterJoin)[0],
-		(*pexprOuterJoin)[1], (*pexprOuterJoin)[2]);
-	return GPOS_NEW(mp) CExpression(
-		mp, GPOS_NEW(mp) CLogicalSelect(mp), pexprInnerJoin, pexprPred);
-}
-
-CExpression *
 CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
 										  CExpression *pexprJoin,
 										  BOOL fCompletePredicate)

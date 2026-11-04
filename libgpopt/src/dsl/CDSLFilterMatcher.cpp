@@ -901,38 +901,6 @@ CDSLFilterMatcher::FMatch(const CDSLOp *popFilterRoot,
 		PexprCollectSelectChain(m_mp, pexprSelect, ulFilters,
 							fCollectAllSelects, pdrgpexprConj);
 
-	// A predicate that rejects NULLs from a LeftJoin's nullable side makes the
-	// filtered result exactly equivalent to filtering an InnerJoin. Expose that
-	// representation to InnerJoin-rooted DSL rules before the ordinary matcher;
-	// the view is read-only and CPredicateUtils proves the semantic precondition.
-	const COperator::EOperatorId eopidFilterChild =
-		pexprBase->Pop()->Eopid();
-	if (EdslopInnerJoin == popBase->Edslop() &&
-		(COperator::EopLogicalLeftOuterJoin == eopidFilterChild ||
-		 COperator::EopLogicalFullOuterJoin == eopidFilterChild))
-	{
-		CExpressionArray *pdrgpexprPred = GPOS_NEW(m_mp) CExpressionArray(m_mp);
-		CUtils::AddRefAppend(pdrgpexprPred, pdrgpexprConj);
-		CExpression *pexprCombined =
-			CPredicateUtils::PexprConjunction(m_mp, pdrgpexprPred);
-		pexprBase->AddRef();
-		CExpression *pexprSelectView = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CLogicalSelect(m_mp), pexprBase,
-			pexprCombined);
-		CExpression *pexprInnerView =
-			CDSLMatchView::PexprNullRejectedInnerJoin(m_mp, pexprSelectView);
-		pexprSelectView->Release();
-		if (nullptr == pexprInnerView)
-		{
-			pdrgpexprConj->Release();
-			return false;
-		}
-		BOOL fMatched = FMatch(popFilterRoot, pexprInnerView, pmodel);
-		pexprInnerView->Release();
-		pdrgpexprConj->Release();
-		return fMatched;
-	}
-
 	const ULONG ulConj = pdrgpexprConj->Size();
 
 	BOOL fMatched = false;

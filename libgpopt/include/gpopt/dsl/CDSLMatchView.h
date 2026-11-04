@@ -196,13 +196,6 @@ public:
 	static CExpression *PexprApplyInPredicate(CMemoryPool *mp,
 									 CExpression *pexprApply);
 
-	// Expose Select(OuterJoin, predicate) as Select(InnerJoin, predicate) only
-	// when the predicate rejects every null-supplying side (the right side of a
-	// LeftJoin, or both sides of a FullJoin). The caller owns the returned
-	// transient expression; NULL means no safe view.
-	static CExpression *PexprNullRejectedInnerJoin(CMemoryPool *mp,
-										 CExpression *pexprSelect);
-
 	// Expose correlated or subquery InnerJoin ON conjuncts as a Filter, retaining
 	// ordinary local conjuncts in the InnerJoin. This exact relational identity
 	// gives the DSL one canonical predicate view.
