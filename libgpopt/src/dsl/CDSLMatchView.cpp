@@ -1025,47 +1025,6 @@ CDSLMatchView::PexprCorrelatedInnerJoinFilter(CMemoryPool *mp,
 		(*pexprJoin)[2]);
 }
 
-CExpressionArray *
-CDSLMatchView::PdrgpexprNullRejectedLeftJoins(CMemoryPool *mp,
-										 CExpression *pexprSelect)
-{
-	GPOS_ASSERT(nullptr != mp);
-	GPOS_ASSERT(nullptr != pexprSelect);
-	CExpressionArray *pdrgpexpr = GPOS_NEW(mp) CExpressionArray(mp);
-	if (COperator::EopLogicalSelect != pexprSelect->Pop()->Eopid() ||
-		2 != pexprSelect->Arity())
-	{
-		return pdrgpexpr;
-	}
-	CExpression *pexprFullJoin = (*pexprSelect)[0];
-	CExpression *pexprPred = (*pexprSelect)[1];
-	if (COperator::EopLogicalFullOuterJoin !=
-			pexprFullJoin->Pop()->Eopid() ||
-		3 != pexprFullJoin->Arity())
-	{
-		return pdrgpexpr;
-	}
-
-	for (ULONG ulPreserved = 0; ulPreserved < 2; ulPreserved++)
-	{
-		if (!CPredicateUtils::FNullRejecting(
-				mp, pexprPred,
-				(*pexprFullJoin)[ulPreserved]->DeriveOutputColumns()))
-		{
-			continue;
-		}
-		CExpression *pexprPreserved = (*pexprFullJoin)[ulPreserved];
-		CExpression *pexprNullable = (*pexprFullJoin)[1 - ulPreserved];
-		pexprPreserved->AddRef();
-		pexprNullable->AddRef();
-		(*pexprFullJoin)[2]->AddRef();
-		pdrgpexpr->Append(GPOS_NEW(mp) CExpression(
-			mp, GPOS_NEW(mp) CLogicalLeftOuterJoin(mp), pexprPreserved,
-			pexprNullable, (*pexprFullJoin)[2]));
-	}
-	return pdrgpexpr;
-}
-
 CDSLMatchView::SJoinSpineRouteArray *
 CDSLMatchView::PdrgprouteJoinSpine(CMemoryPool *mp, CExpression *pexpr,
 								  COperator::EOperatorId eopidCarrier,

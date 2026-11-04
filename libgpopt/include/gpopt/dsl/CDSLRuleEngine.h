@@ -102,13 +102,8 @@ private:
 	// bucket a freshly loaded library by source-root EOperatorId
 	void BucketByRoot();
 
-	// Evaluate against an expression that already has the exact source
-	// representation expected by the rule. Public evaluation may first expose
-	// a semantically equivalent match view and then delegates here.
+	// Keep decision provenance tied to the supplied source expression.
 	CDSLRewriteDecision *PdecisionEvaluateDirect(
-		CMemoryPool *mp, const CDSLRule *prule, CExpression *pexpr,
-		BOOL fFingerprint) const;
-	CDSLRewriteDecision *PdecisionEvaluateWithViews(
 		CMemoryPool *mp, const CDSLRule *prule, CExpression *pexpr,
 		BOOL fFingerprint) const;
 

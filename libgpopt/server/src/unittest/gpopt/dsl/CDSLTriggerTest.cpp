@@ -29,6 +29,7 @@
 #include "gpopt/dsl/CDSLRuleEngine.h"
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CPredicateUtils.h"
+#include "gpopt/operators/CLogicalFullOuterJoin.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 using namespace gpopt;
@@ -107,9 +108,49 @@ CDSLTriggerTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(
 			CDSLTriggerTest::EresUnittest_FiredTargetPreservesResiduals),
 		GPOS_UNITTEST_FUNC(CDSLTriggerTest::EresUnittest_RewriteDecision),
+		GPOS_UNITTEST_FUNC(CDSLTriggerTest::EresUnittest_JoinKindRequiresExplicitRule),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLTriggerTest::EresUnittest_JoinKindRequiresExplicitRule()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *leftColumns = nullptr;
+	CColRefArray *rightColumns = nullptr;
+	CExpression *left = fix.PexprLogicalGet("exact_join_left", 1, &leftColumns);
+	CExpression *right = fix.PexprLogicalGet("exact_join_right", 1, &rightColumns);
+	CExpression *full = GPOS_NEW(mp) CExpression(
+		mp, GPOS_NEW(mp) CLogicalFullOuterJoin(mp), left, right,
+		fix.PexprEqPred((*leftColumns)[0], (*rightColumns)[0]));
+	CExpression *predicate = fix.PexprEqPred((*leftColumns)[0], (*leftColumns)[0]);
+	CExpression *source = fix.PexprLogicalSelect(full, predicate);
+	predicate->Release();
+	// NULL rejection permits a separate rewrite, never a different source match.
+	const CHAR *rules[] = {
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|LeftJoin<a2 a3>(Input<t2>,Input<t3>)|"
+		"TableEq(t2,t0);TableEq(t3,t1);AttrsEq(a2,a0);AttrsEq(a3,a1)",
+		"LeftJoin<a0 a1>(Input<t0>,Input<t1>)|LeftJoin<a2 a3>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t1;a2 := a0;a3 := a1"};
+	BOOL valid = true;
+	for (const CHAR *text : rules)
+	{
+		CDSLRule *rule = PdslruleParseLocal(mp, text);
+		GPOS_ASSERT(nullptr != rule);
+		CDSLRewriteDecision *decision =
+			CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, rule, source, true);
+		valid = valid && EdsldecisionMatchRejected == decision->Status() &&
+			nullptr == decision->PexprTarget();
+		GPOS_DELETE(decision);
+		rule->Release();
+	}
+	source->Release();
+	full->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT

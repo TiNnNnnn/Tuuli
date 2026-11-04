@@ -323,15 +323,6 @@ CDSLRuleEngine::BucketByRoot()
 					(ULONG) COperator::EopLogicalInnerJoin;
 			}
 		}
-		// A null-rejecting Select over FullJoin is semantically a Select over a
-		// LeftJoin that preserves the rejected side. Keep this representation
-		// adaptation in the DSL shell rather than changing ORCA's native
-		// normalizer; the Select shell constructs and validates the temporary
-		// LeftJoin view before applying any data rule.
-		if (EdslopLeftJoin == prule->PfragSrc()->PopRoot()->Edslop())
-		{
-			rgulOpid[ulBuckets++] = (ULONG) COperator::EopLogicalSelect;
-		}
 
 		for (ULONG ulBucket = 0; ulBucket < ulBuckets; ulBucket++)
 		{
@@ -987,98 +978,9 @@ CDSLRuleEngine::PdecisionEvaluate(CMemoryPool *mp, const CDSLRule *prule,
 		if (nullptr != path && '\0' != path[0])
 			context = CDSLStatsExperimentSnapshot::InputContext(pexpr, mp);
 	}
-	CDSLRewriteDecision *decision = PdecisionEvaluateWithViews(mp, prule, pexpr, fFingerprint);
+	CDSLRewriteDecision *decision = PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
 	decision->SetInputContext(std::move(context));
 	return decision;
-}
-
-CDSLRewriteDecision *
-CDSLRuleEngine::PdecisionEvaluateWithViews(CMemoryPool *mp, const CDSLRule *prule,
-										 CExpression *pexpr, BOOL fFingerprint) const
-{
-	GPOS_ASSERT(nullptr != mp);
-	GPOS_ASSERT(nullptr != prule);
-	GPOS_ASSERT(nullptr != pexpr);
-	const CDSLOp *popSource = prule->PfragSrc()->PopRoot();
-	// Explicit scalar patterns describe the actual tree, not an equivalent
-	// null-rejection view with a different join kind and evaluation context.
-	if (prule->Pexprdefs()->FHasBindings() || EdslopLeftJoin != popSource->Edslop())
-	{
-		return PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
-	}
-
-	CExpressionArray *pdrgpexprView =
-		CDSLMatchView::PdrgpexprNullRejectedLeftJoins(mp, pexpr);
-	if (0 == pdrgpexprView->Size())
-	{
-		pdrgpexprView->Release();
-		return PdecisionEvaluateDirect(mp, prule, pexpr, fFingerprint);
-	}
-
-	CDSLRewriteDecision *pdecisionRejected = nullptr;
-	for (ULONG ul = 0; ul < pdrgpexprView->Size(); ul++)
-	{
-		CDSLRewriteDecision *pdecision = PdecisionEvaluateDirect(
-			mp, prule, (*pdrgpexprView)[ul], false /*fingerprint view*/);
-		if (EdsldecisionReady == pdecision->Status() ||
-			EdsldecisionDuplicate == pdecision->Status())
-		{
-			CExpression *pexprTarget = pdecision->PexprDetachTarget();
-			CDSLTargetInputOriginArray inputOrigins =
-				pdecision->TargetInputOrigins();
-			(*pexpr)[1]->AddRef();
-			CExpression *pexprWrapped =
-				CUtils::PexprSafeSelect(mp, pexprTarget, (*pexpr)[1]);
-			if (pexprWrapped != pexprTarget)
-			{
-				for (SDSLTargetInputOrigin &input : inputOrigins)
-				{
-					input.m_expression_path.insert(1, "/0");
-				}
-			}
-			const BOOL fSchemaPreserved =
-				pexprWrapped->DeriveOutputColumns()->Equals(
-					pexpr->DeriveOutputColumns());
-			const EDslRewriteDecisionStatus status = !fSchemaPreserved
-				? EdsldecisionInstantiateRejected
-				: (pexprWrapped->Matches(pexpr) ? EdsldecisionDuplicate
-											 : EdsldecisionReady);
-			if (!fSchemaPreserved)
-			{
-				pexprWrapped->Release();
-				pexprWrapped = nullptr;
-				inputOrigins.clear();
-			}
-			CDSLRewriteDecision *pdecisionWrapped = GPOS_NEW(mp)
-				CDSLRewriteDecision(
-					pdecision->PmodelDetach(), pexprWrapped, status, nullptr,
-					gpos::ulong_max, pdecision->UlMatchUs(),
-					pdecision->UlConstraintUs(),
-					pdecision->UlInstantiateUs(),
-					fFingerprint ? CExpression::HashValue(pexpr) : 0,
-					nullptr == pexprWrapped || !fFingerprint
-						? 0
-						: CExpression::HashValue(pexprWrapped),
-					inputOrigins);
-			GPOS_DELETE(pdecision);
-			GPOS_DELETE(pdecisionRejected);
-			pdrgpexprView->Release();
-			return pdecisionWrapped;
-		}
-		GPOS_DELETE(pdecisionRejected);
-		pdecisionRejected = pdecision;
-	}
-	pdrgpexprView->Release();
-	GPOS_ASSERT(nullptr != pdecisionRejected);
-	CDSLRewriteDecision *pdecisionResult = GPOS_NEW(mp) CDSLRewriteDecision(
-		pdecisionRejected->PmodelDetach(), nullptr,
-		pdecisionRejected->Status(), pdecisionRejected->PconFailed(),
-		pdecisionRejected->UlFailedConstraint(),
-		pdecisionRejected->UlMatchUs(), pdecisionRejected->UlConstraintUs(),
-		pdecisionRejected->UlInstantiateUs(),
-		fFingerprint ? CExpression::HashValue(pexpr) : 0, 0);
-	GPOS_DELETE(pdecisionRejected);
-	return pdecisionResult;
 }
 
 CDSLRewriteDecision *

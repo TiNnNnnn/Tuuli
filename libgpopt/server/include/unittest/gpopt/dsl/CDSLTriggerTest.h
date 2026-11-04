@@ -64,6 +64,7 @@ public:
 	// The shared scheduler-neutral evaluation object reports both successful
 	// instantiation and root mismatch without reserving a Cascades budget.
 	static GPOS_RESULT EresUnittest_RewriteDecision();
+	static GPOS_RESULT EresUnittest_JoinKindRequiresExplicitRule();
 };	// class CDSLTriggerTest
 }  // namespace gpopt
 

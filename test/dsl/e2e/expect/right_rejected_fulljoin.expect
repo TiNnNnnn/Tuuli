@@ -1,10 +1,11 @@
 {
-  "description": "Null-rejected FullJoin exposes an equivalent LeftJoin view",
+  "description": "Explicit FullJoin reduction then FK LeftJoin reduction; native outer-join reduction disabled",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
+      "outer_join_reduction": false,
       "not_contains": [
         "\"rule_id\":48,\"status\":\"applied\""
       ]
@@ -12,8 +13,10 @@
     {
       "name": "on",
       "trace": true,
+      "outer_join_reduction": false,
       "contains": [
-        "\"rule_id\":48,\"status\":\"applied\""
+        "\"rule_id\":48,\"status\":\"applied\"",
+        "\"status\":\"applied\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -22,15 +25,18 @@
     {
       "name": "all-rules-bottom-up-rbo",
       "trace": true,
-      "policy": "join_match_views_bottom_up_rbo.policy",
+      "policy": "full_join_fk_chain_rbo.policy",
+      "outer_join_reduction": false,
       "contains": [
         "\"rule_id\":48,\"status\":\"applied_rbo\"",
-        "\"placement\":\"rbo\""
+        "\"placement\":\"rbo\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
       ]
     }
   ],
   "rows": {
-    "policy": "join_match_views_bottom_up_rbo.policy",
+    "policy": "full_join_fk_chain_rbo.policy",
+    "outer_join_reduction": false,
     "output": [
       "1,10",
       "2,10",
@@ -40,6 +46,28 @@
       "1,10",
       "2,10",
       "3,20"
-    ]
+    ],
+    "off_output": [
+      "1,10",
+      "2,10",
+      "3,20"
+    ],
+    "plan_outputs": {
+      "off": [
+        "1,10",
+        "2,10",
+        "3,20"
+      ],
+      "on": [
+        "1,10",
+        "2,10",
+        "3,20"
+      ],
+      "all-rules-bottom-up-rbo": [
+        "1,10",
+        "2,10",
+        "3,20"
+      ]
+    }
   }
 }

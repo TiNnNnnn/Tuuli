@@ -226,12 +226,6 @@ public:
 	static CExpression *PexprDistinctUnion(CMemoryPool *mp,
 									  CExpression *pexprGbAgg);
 
-	// Return every LeftJoin view of Select(FullJoin, predicate) for which the
-	// predicate rejects NULLs from the side made preserved by the view. The
-	// returned array owns each transient LeftJoin expression.
-	static CExpressionArray *PdrgpexprNullRejectedLeftJoins(
-		CMemoryPool *mp, CExpression *pexprSelect);
-
 	// Return every safe view obtained by pulling one carrier from a join spine.
 	// Inner paths are transparent; an outer join is crossed only on its preserved
 	// side. Every route owns its reconstructed relation and carrier reference.
