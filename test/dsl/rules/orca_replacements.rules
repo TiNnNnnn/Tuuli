@@ -281,16 +281,18 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj*<a2 s0>(InnerJoin<p1 a3 a4>(Input<t
 # Right-unique DISTINCT/InnerJoin pushdown retains checked correlation, source column capture and predicate safety; not a deployment certificate.
 Proj*<a0 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<p1 a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t1);Unique(t1,a1);CorrelationEquality(p0,a0,a1);t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;a5 := a0;s1 := s0;a7 := a0;s2 := s0;ErrorFree(p0);Deterministic(p0)
 
-# FORMALSQL_PROVED legacy_hash=43379498a899178d; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-14; certificate 6ec275f61c85d754bced72150aac1cce244a0eaa2b90f6ebe50b50e713d337d9. Generic right-unique DISTINCT/InnerJoin pushdown with foreign-key bridge.
-Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a2,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;a5 := a2;s1 := s0;a7 := a2;s2 := s0
+# Retired legacy_hash=a93a21a037a81e17 (intermediate explicit hash=304683e526d1ae4c).
+# The mixed-output rule below includes outer-only grouping: intersecting an
+# outer-owned column vector preserves its entire order and schema.
 
 # Retired legacy_hash=44f96c50a543df81: the mixed-output rule below also covers
 # outer-only grouping; intersecting those outputs with the outer input retains
 # the complete grouping. Its residual determinism guard is unchanged.
 # No additional native proof is claimed by removing this redundant branch.
 
-# PARTIAL_BINDING legacy_hash=6f1d9b45630f2aa2; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native instance kernel-checked 2026-10-19, not deployment certificates.
-Proj*<a2 s0>(InnerJoin<a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0
+# Explicit source replaces legacy_hash=b52db53dcc916607 (previous legacy_hash=6f1d9b45630f2aa2).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: exact/observed templates and native mixed grouping instance kernel-checked 2026-11-05.
+Proj*<a2 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<p1 a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);CorrelationEquality(p0,a0,a1);t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0;ErrorFree(p0);Deterministic(p0)
 
 # PARTIAL_BINDING legacy_hash=9e31614582b50e06; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native residual Join instance kernel-checked 2026-10-19, not deployment certificates.
 # The same repeatability correction replaces c29e145d47af5690, not a syntax-only change.

@@ -7,7 +7,7 @@
     "scope": "Pure outer grouping attrs contain a nullable FK joined to a unique referred key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "a93a21a037a81e17"
+      "8e57ee08e04f7d78"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a93a21a037a81e17\""
+        "\"status\":\"applied\",\"rule_hash\":\"8e57ee08e04f7d78\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -44,14 +44,29 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin"
       ],
       "policy": "isolate_push_gb_dedup_fk.policy",
+      "stats_experiment": "push_gb_subset_source_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a93a21a037a81e17\""
+        "\"status\":\"applied\",\"rule_hash\":\"8e57ee08e04f7d78\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "8e57ee08e04f7d78",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

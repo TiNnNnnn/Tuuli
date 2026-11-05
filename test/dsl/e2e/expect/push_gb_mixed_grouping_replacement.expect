@@ -7,7 +7,7 @@
     "scope": "Pure grouping attrs span both children and contain an outer FK joined to a unique inner key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b52db53dcc916607"
+      "8e57ee08e04f7d78"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_mixed_grouping.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b52db53dcc916607\""
+        "\"status\":\"applied\",\"rule_hash\":\"8e57ee08e04f7d78\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -54,11 +54,11 @@
       "native_observation": "source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b52db53dcc916607\""
+        "\"status\":\"applied\",\"rule_hash\":\"8e57ee08e04f7d78\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "b52db53dcc916607",
+          "rule_hash": "8e57ee08e04f7d78",
           "route_sequence": 3,
           "operators": [
             "CLogicalGbAgg",
