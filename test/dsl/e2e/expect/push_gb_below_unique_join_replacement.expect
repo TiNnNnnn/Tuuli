@@ -7,7 +7,7 @@
     "scope": "Grouping is exactly the outer join key and the inner join key is unique",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "cac130f7ae75f028"
+      "3be889247b60ce47"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_unique.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
+        "\"status\":\"applied\",\"rule_hash\":\"3be889247b60ce47\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -49,11 +49,26 @@
         "CXformPushGbBelowJoin"
       ],
       "policy": "isolate_push_gb_unique.policy",
+      "stats_experiment": "push_gb_unique_source_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
+        "\"status\":\"applied\",\"rule_hash\":\"3be889247b60ce47\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "3be889247b60ce47",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

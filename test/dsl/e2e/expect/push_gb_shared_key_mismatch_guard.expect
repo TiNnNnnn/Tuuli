@@ -10,10 +10,10 @@
       "policy": "isolate_push_gb_unique.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"cac130f7ae75f028\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"3be889247b60ce47\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"cac130f7ae75f028\""
+        "\"status\":\"applied\",\"rule_hash\":\"3be889247b60ce47\""
       ]
     }
   ],

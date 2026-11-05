@@ -1,0 +1,7 @@
+experiment: distinct-join-migration
+discover: false
+template_route: 3
+template_fingerprint: 64f059b099591233
+template_root: r
+template_bindings: true
+cardinalities:
