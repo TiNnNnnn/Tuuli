@@ -155,19 +155,6 @@ CDSLRuleEngine::BucketByRoot()
 		{
 			rgulOpid[ulBuckets++] =
 				(ULONG) COperator::EopLogicalGbAggDeduplicate;
-			const CDSLOp *popProj = prule->PfragSrc()->PopRoot();
-			if (1 == popProj->UlChildren() &&
-				(EdslopInSubFilter == (*popProj)[0]->Edslop() ||
-				 EdslopSemiJoin == (*popProj)[0]->Edslop() ||
-				 EdslopExists == (*popProj)[0]->Edslop()))
-			{
-				// A semi join whose outer output has a key is the representation of
-				// an enclosing DISTINCT. Route this exact source shape to the
-				// semi-join bucket; the aggregate matcher independently verifies the
-				// key before exposing the view.
-				rgulOpid[ulBuckets++] =
-					(ULONG) COperator::EopLogicalLeftSemiJoin;
-			}
 		}
 		// A canonical Union* source is represented by ORCA as a pure global
 		// GbAgg over UnionAll. The union matcher verifies the exact full-row

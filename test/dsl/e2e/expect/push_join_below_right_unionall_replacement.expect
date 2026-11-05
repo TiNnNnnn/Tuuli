@@ -1,13 +1,13 @@
 {
-  "description": "The existing equality-only DSL rule distributes InnerJoin over its right UnionAll input; native expression proof remains UNKNOWN",
+  "description": "Explicit InnerJoin/right Union distribution preserves the complete safe ON and positional maps; source-conditional template and native instance are kernel-checked.",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowRightUnionAll"
     ],
-    "scope": "equality-only InnerJoin with exactly one right UnionAll input and no outer references or scalar subqueries; residual predicates are not covered",
+    "scope": "InnerJoin over a right binary UnionAll with safe repeatable LHS and predicate, explicit positional projections, and disjoint input columns",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f2ac7b4091944c8e"
+      "cd14cb3d4979e06b"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2ac7b4091944c8e\""
+        "\"status\":\"applied\",\"rule_hash\":\"cd14cb3d4979e06b\""
       ],
       "alternative": [
         "CXformPushJoinBelowRightUnionAll",
@@ -43,13 +43,31 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushJoinBelowRightUnionAll"
       ],
+      "stats_experiment": "right_union_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f2ac7b4091944c8e\""
+        "\"status\":\"applied\",\"rule_hash\":\"cd14cb3d4979e06b\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "cd14cb3d4979e06b",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalUnionAll",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

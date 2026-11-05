@@ -3248,7 +3248,7 @@ CDSLProjTest::EresUnittest_TypedVirtualIdentityProject()
 	}
 	rule->Release();
 
-	// Exercise the producer of this carrier, not just manually bound models.
+	// A unique SemiJoin no longer fabricates a DISTINCT capture.
 	rule = PdslruleParseLocal(mp,
 		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1>(Input<t1>)|"
 		"t1 := t0;a1 := a0;s1 := s0;AttrsSub(a0,t0);Unique(t0,a0)");
@@ -3261,21 +3261,8 @@ CDSLProjTest::EresUnittest_TypedVirtualIdentityProject()
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		BOOL matched = CDSLMatcher(mp, rule).FMatch(
 			rule->PfragSrc()->PopRoot(), input, model);
-		if (!matched)
-			result = GPOS_FAILED;
 		if (matched)
-		{
-			CDSLSymbol *schema = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[1];
-			if (!model->FVirtualIdentityProj(schema) ||
-				nullptr != model->PexprProjList(schema) ||
-				!CDSLConstraintChecker(mp).FCheck(rule, model))
-				result = GPOS_FAILED;
-			CDSLInstantiator instantiator(mp);
-			CExpression *target = instantiator.PexprInstantiate(rule, model);
-			if (target != input)
-				result = GPOS_FAILED;
-			CRefCount::SafeRelease(target);
-		}
+			result = GPOS_FAILED;
 		model->Release();
 		input->Release();
 	}

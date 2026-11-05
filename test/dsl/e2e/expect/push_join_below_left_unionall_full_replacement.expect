@@ -1,14 +1,14 @@
 {
-  "description": "Existing equality-only DSL rules independently restore InnerJoin and LeftJoin distribution with the native xform disabled; native expression proof remains UNKNOWN",
+  "description": "Explicit InnerJoin and LeftJoin distribution restore both branches with the native xform disabled; this is partial coverage.",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowLeftUnionAll"
     ],
-    "scope": "equality-only InnerJoin and LeftJoin over left binary or n-ary UnionAll; residual predicates are rejected, not covered",
+    "scope": "Safe InnerJoin and LeftJoin predicates over left binary or n-ary UnionAll with explicit branch maps; copied RHS evaluation must be safe and repeatable",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8423cca3e71db53d",
-      "b2f799f43c075320"
+      "3da20b1af3fae6c3",
+      "d3c4238efedfb6ec"
     ]
   },
   "plans": [
@@ -24,8 +24,8 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\"",
-        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d3c4238efedfb6ec\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll",
@@ -51,8 +51,8 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\"",
-        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d3c4238efedfb6ec\""
       ],
       "alternative": [
         "CXformDSLRule_InnerJoin",

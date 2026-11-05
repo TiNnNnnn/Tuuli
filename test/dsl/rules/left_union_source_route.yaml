@@ -1,0 +1,7 @@
+experiment: left-union-migration
+discover: false
+template_route: 4
+template_fingerprint: a6321175b73fde42
+template_root: r
+template_bindings: true
+cardinalities:

@@ -417,8 +417,9 @@ CDSLInSubTest::EresUnittest_ResidualExpressionBindings()
 			GPOS_UNITTEST_ASSERT(nullptr != dedup_rule.Value());
 			CAutoRef<CDSLModel> dedup_model(GPOS_NEW(mp) CDSLModel(mp));
 			CDSLMatcher dedup_matcher(mp, dedup_rule.Value());
-			GPOS_UNITTEST_ASSERT(dedup_matcher.FMatch(dedup_rule->PfragSrc()->PopRoot(),
-				source, dedup_model.Value()) == unique);
+			// A unique input does not materialize a missing DISTINCT source node.
+			GPOS_UNITTEST_ASSERT(!dedup_matcher.FMatch(dedup_rule->PfragSrc()->PopRoot(),
+				source, dedup_model.Value()));
 			CAutoRef<CExpression> explicit_dedup(fix.PexprLogicalGbAgg(source, left_cols));
 			CDSLRulePrefixIndex index(mp);
 			index.Insert(dedup_rule.Value(), 0, explicit_dedup->Pop()->Eopid());

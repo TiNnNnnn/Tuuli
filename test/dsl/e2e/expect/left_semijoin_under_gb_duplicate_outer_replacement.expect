@@ -10,7 +10,7 @@
       "Predicates or inputs without deterministic, error-free evidence"
     ],
     "dsl_rule_hashes": [
-      "a99abbe636845413"
+      "2f1594ef8d7dd7f7"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "trace": true,
       "policy": "isolate_distinct_semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+        "\"status\":\"applied\",\"rule_hash\":\"2f1594ef8d7dd7f7\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoinUnderGb",
@@ -52,11 +52,25 @@
         "CXformLeftSemiJoin2InnerJoinUnderGb"
       ],
       "policy": "isolate_distinct_semijoin.policy",
+      "stats_experiment": "semi_join_duplicate_source_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+        "\"status\":\"applied\",\"rule_hash\":\"2f1594ef8d7dd7f7\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "2f1594ef8d7dd7f7",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

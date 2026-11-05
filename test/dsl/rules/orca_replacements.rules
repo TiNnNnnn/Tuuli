@@ -38,20 +38,29 @@ Intersect<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(SemiJoin<p0 a3 a4>(RowNu
 # second rule-specific lemma.
 Except<a0 s0 a1 a2>(Input<t0>,Input<t1>)|Proj<a9 s1>(AntiJoin<p0 a3 a4>(RowNumber<a5 o0 r0>(Input<t2>),RowNumber<a6 o1 r1>(Input<t3>)))|AttrsSub(a1,t0);AttrsSub(a2,t1);t2 := t0;t3 := t1;a5 := a1;a6 := a2;OrderEmpty(o0);OrderEmpty(o1);RankAttrs(a7,r0);RankAttrs(a8,r1);AttrsUnion(a3,a5,a7);AttrsUnion(a4,a6,a8);p0 := NullSafeEq(a3,a4);a9 := a5;s1 := s0;ErrorFree(r0);ErrorFree(r1)
 
-# Key-only Join distribution covers equality predicates, not an implicit
-# non-equality residual. Wider predicate distribution needs an explicit proof.
-# FORMALSQL_PROVED legacy_hash=e99bceacc9aaf130; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate f1cbfe1787be6e52eb477e561fb2af97f4615385fbf0f3ce21f4a22f21eab1a6. The shared inner-join/UNION ALL contract handles the operator-level distribution without a rule-specific lemma.
-InnerJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
+# Explicit left-Union InnerJoin distribution retains the complete ON predicate
+# and both positional input maps. Repeated RHS evaluation must be safe.
+# Replaces 8423cca3e71db53d without an implicit key-only Join/Union contract.
+# PARTIAL_BINDING: native expression proof: UNKNOWN without source contracts;
+# source-conditional BAG_OUTCOME_EQ and a captured native instance kernel-checked
+# 2026-11-05 (proof 7cb1c7485c4e648df1157f88ab1febc5e5ff88648f11b3ea88a294137ea33373).
+# This conditional instance is not a deployment certificate or FULL xform coverage.
+InnerJoin<p0 a0 a1>(Union<a2 s0 a3 a4>(Input<t0>,Input<t1>),Input<t2>)|Union<a5 s1 a6 a7>(InnerJoin<p1 a8 a9>(Proj<a10 s2>(Input<t3>),Input<t4>),InnerJoin<p2 a11 a12>(Proj<a13 s3>(Input<t5>),Input<t6>))|t3 := t0;t5 := t1;t4 := t2;t6 := t2;p1 := p0;p2 := p0;a8 := a0;a11 := a0;a9 := a1;a12 := a1;a10 := a3;s2 := s0;a13 := a4;s3 := s0;OutputAttrs(a14,t2);AttrsUnion(a5,a2,a14);SchemaFromAttrs(s1,a5);a6 := a5;a7 := a5;AttrsSub(a0,a2);AttrsSub(a1,t2);ErrorFree(p0);Deterministic(p0);ErrorFree(t2);Deterministic(t2);DepsDisjoint(a2,a14)
 
-# FORMALSQL_PROVED legacy_hash=44c687f715ecbe0b; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate b5dc2874fa5c1d25d4a926bc13339e1015704db78903c4f0453e1334dabce1a2. The shared left-join/UNION ALL contract preserves the left input without a rule-specific lemma.
-LeftJoin<a0 a1 a2 s0>(Union(Input<t0>,Input<t1>),Input<t2>)|Union<a7 s1>(LeftJoin<a3 a4>(Input<t3>,Input<t4>),LeftJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t2);t3 := t0;t5 := t1;t4 := t2;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
+# Explicit LeftJoin distribution retains the full ON and positional Union maps.
+# Matched and NULL-padded rows have separately checked SELECT observations.
+# Replaces b2f799f43c075320; source-conditional BAG_OUTCOME_EQ and a captured
+# native instance kernel-checked 2026-11-05. Not a deployment certificate or
+# FULL CXformPushJoinBelowLeftUnionAll coverage.
+LeftJoin<p0 a0 a1>(Union<a2 s0 a3 a4>(Input<t0>,Input<t1>),Input<t2>)|Union<a5 s1 a6 a7>(LeftJoin<p1 a8 a9>(Proj<a10 s2>(Input<t3>),Input<t4>),LeftJoin<p2 a11 a12>(Proj<a13 s3>(Input<t5>),Input<t6>))|t3 := t0;t5 := t1;t4 := t2;t6 := t2;p1 := p0;p2 := p0;a8 := a0;a11 := a0;a9 := a1;a12 := a1;a10 := a3;s2 := s0;a13 := a4;s3 := s0;OutputAttrs(a14,t2);AttrsUnion(a5,a2,a14);SchemaFromAttrs(s1,a5);a6 := a5;a7 := a5;AttrsSub(a0,a2);AttrsSub(a1,t2);ErrorFree(p0);Deterministic(p0);ErrorFree(t2);Deterministic(t2);DepsDisjoint(a2,a14)
 
-# Replace CXformPushJoinBelowRightUnionAll after correcting its native pattern
-# to the bag-equivalent InnerJoin domain. This is the mirror of the existing
-# left-input distribution and uses the same generic Union/Join path.
-# WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-09-06.
-# FORMALSQL_PROVED legacy_hash=71aee9b8ad124cf9; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. Certificate 7d49af00c95e066c66051d1705d4de5cd356de57308bc427e6a48ef7625a0548. The same inner-join/UNION ALL contract covers right-input distribution with a positional binding adapter.
-InnerJoin<a0 a1 a2 s0>(Input<t0>,Union(Input<t1>,Input<t2>))|Union<a7 s1>(InnerJoin<a3 a4>(Input<t3>,Input<t4>),InnerJoin<a5 a6>(Input<t5>,Input<t6>))|AttrsSub(a0,t0);AttrsSub(a1,t1);t3 := t0;t5 := t0;t4 := t1;t6 := t2;a3 := a0;a5 := a0;a4 := a1;a6 := a1;a7 := a2;s1 := s0
+# Explicit right-input Union distribution preserves the full safe ON predicate
+# and positional branch maps. The copied LHS must be safe and repeatable.
+# Replaces f2ac7b4091944c8e; no implicit equality-only Join/Union contract.
+# PARTIAL_BINDING: source-conditional BAG_OUTCOME_EQ and a captured native
+# source/target instance kernel-checked 2026-11-05. Not a deployment certificate
+# or FULL CXformPushJoinBelowRightUnionAll coverage.
+InnerJoin<p0 a0 a1>(Input<t0>,Union<a2 s0 a3 a4>(Input<t1>,Input<t2>))|Union<a5 s1 a6 a7>(InnerJoin<p1 a8 a9>(Input<t3>,Proj<a10 s2>(Input<t4>)),InnerJoin<p2 a11 a12>(Input<t5>,Proj<a13 s3>(Input<t6>)))|t3 := t0;t5 := t0;t4 := t1;t6 := t2;p1 := p0;p2 := p0;a8 := a0;a11 := a0;a9 := a1;a12 := a1;a10 := a3;s2 := s0;a13 := a4;s3 := s0;OutputAttrs(a14,t0);AttrsUnion(a5,a14,a2);SchemaFromAttrs(s1,a5);a6 := a5;a7 := a5;AttrsSub(a0,t0);AttrsSub(a1,a2);ErrorFree(p0);Deterministic(p0);ErrorFree(t0);Deterministic(t0);DepsDisjoint(a14,a2)
 
 # Canonical binding migration of the complete equality-membership lowering.
 # The demand-sensitive distinction is represented by the operator/constraint
@@ -261,9 +270,9 @@ Agg<a0 a1 a12 f0 s0 p0>(Input<t0>)|Agg<a2 a8 a10 f1 s1 p1>(Bind<n2 a3>(Input<t1>
 # Retired legacy_hash=9cab8c80b6430c16: safe keyed predicates use the full-ON rule below.
 # Potentially throwing residuals are excluded, not silently certified by the merge.
 
-# Capture the complete ON predicate; also replaces predicate-only legacy_hash=b9355da14af5a789.
-# FORMALSQL_PROVED legacy_hash=93d057f85b627893; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-18; certificate 94fad39f1abe9a54af9fede585c5075e1b3da99c960d492371a139498f0caf12. The generic DISTINCT semi-join contract requires explicit predicate and input safety.
-Proj*<a0 s0>(SemiJoin<p0 a1 a2>(Input<t0>,Input<t1>))|Proj*<a3 s1>(InnerJoin<p1 a4 a5>(Input<t2>,Input<t3>))|AttrsSub(a0,t0);AttrsSub(a1,t0);AttrsSub(a2,t1);Unique(t0,a0);t2 := t0;t3 := t1;p1 := p0;a4 := a1;a5 := a2;a3 := a0;s1 := s0;ErrorFree(p0);Deterministic(p0);ErrorFree(t0);Deterministic(t0);ErrorFree(t1);Deterministic(t1)
+# Direct source replaces legacy_hash=a99abbe636845413 (including predicate-only legacy_hash=b9355da14af5a789).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: complete predicate, retained physical row key; no virtual source DISTINCT.
+SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj*<a2 s0>(InnerJoin<p1 a3 a4>(Input<t2>,Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsIntersect(a2,t0,t0);SchemaFromAttrs(s0,a2);Unique(t0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);Deterministic(p0);ErrorFree(t0);Deterministic(t0);ErrorFree(t1);Deterministic(t1)
 
 # A unique inner join key is sufficient for pure outer-key grouping pushdown:
 # unmatched outer keys disappear on both sides, so no Reference premise is needed.
@@ -756,11 +765,10 @@ Compute<e0 a0 s0>(Compute<e1 a1 s1>(LeftApply<p0 a2 a3 a4>(Input<t0>,Agg<a5 a6 a
 # pre-unnest form and CLogicalLeftSemiJoin; the target deduplicates the inner
 # key before joining, preserving semi-join bag multiplicity.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.
-# Line 5 is the proved InnerJoin branch of CXformPushJoinBelowLeftUnionAll.
-# Complete source Join output binding lets the new target Union preserve the
-# parent row, while shared positional mapping remaps predicates and freshens
-# repeated target inputs. WeTune ProveDslRule: EQ, SQLSOLVER, 2026-08-28.
-# Line 7 is the independently proved LeftJoin branch of the same xform.
+# The explicit InnerJoin rule above covers the safe complete-ON branch of
+# CXformPushJoinBelowLeftUnionAll through checked positional projections.
+# Its FormalSQL template and captured source-output instance are conditional.
+# The legacy equality-only LeftJoin branch of the same xform remains separate.
 # It distributes only across the preserved (left) input; right-side LeftJoin
 # distribution is intentionally excluded because it is not bag-equivalent.
 # WeTune ProveDslRule: EQ, SQLSOLVER, verified 2026-08-28.

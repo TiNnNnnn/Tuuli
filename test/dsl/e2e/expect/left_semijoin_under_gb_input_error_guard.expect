@@ -10,12 +10,12 @@
       "policy": "isolate_distinct_semijoin.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"a99abbe636845413\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"2f1594ef8d7dd7f7\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"a99abbe636845413\""
+        "\"status\":\"applied\",\"rule_hash\":\"2f1594ef8d7dd7f7\""
       ]
     }
   ],

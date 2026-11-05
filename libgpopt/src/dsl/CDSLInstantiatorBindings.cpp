@@ -886,6 +886,22 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		return nullptr;
 	}
 	psym = PsymResolve(psym);
+	// Relational domains retain physical row-identity columns; OutputAttrs
+	// separately selects the observable output vector.
+	if (EdslsymTable == psym->Esymkind())
+	{
+		auto *cached = dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
+		if (nullptr != cached) return cached;
+		CExpression *input = pmodel->PexprTable(psym);
+		if (nullptr == input) return nullptr;
+		CColRefArray *columns = input->DeriveOutputColumns()->Pdrgpcr(m_mp);
+		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym), columns))
+		{
+			columns->Release();
+			return nullptr;
+		}
+		return columns;
+	}
 	if (EdslsymAttrs != psym->Esymkind() &&
 		EdslsymSchema != psym->Esymkind())
 	{

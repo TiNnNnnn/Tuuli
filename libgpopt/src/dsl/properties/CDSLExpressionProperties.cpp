@@ -14,6 +14,8 @@
 #include "gpopt/operators/CLogicalSequenceProject.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarArray.h"
+#include "gpopt/operators/CScalarArrayCmp.h"
 #include "gpopt/operators/CScalarCast.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarConst.h"
@@ -293,6 +295,15 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 			{
 				return false;
 			}
+			break;
+		case COperator::EopScalarArrayCmp:
+			if (2 != pexpr->Arity() || !FComparisonProvablyErrorFree(
+					CScalarArrayCmp::PopConvert(pexpr->Pop())->MdIdOp()))
+				return false;
+			break;
+		case COperator::EopScalarArray:
+			// Flat arrays add no shape errors; nested arrays may have unequal dimensions.
+			if (CScalarArray::PopConvert(pexpr->Pop())->FMultiDimensional()) return false;
 			break;
 		case COperator::EopScalarNullIf:
 			// NULL handling is total, but the underlying comparison need not

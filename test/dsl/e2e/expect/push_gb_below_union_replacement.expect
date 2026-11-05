@@ -1,5 +1,5 @@
 {
-  "description": "A proved DSL rule pushes a grouping subset into both branches of Union distinct",
+  "description": "A proved DSL rule pushes a grouping subset into both Union distinct branches; the actual source/target instance is conditionally kernel-checked.",
   "replacement": {
     "xforms": [
       "CXformPushGbBelowUnion"
@@ -47,11 +47,28 @@
       "disable_xforms": [
         "CXformPushGbBelowUnion"
       ],
+      "stats_experiment": "dedup_union_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"bf7357563a7b7249\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "bf7357563a7b7249",
+          "route_sequence": 41,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalUnion",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

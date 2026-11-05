@@ -1,13 +1,13 @@
 {
-  "description": "The existing equality-only DSL rule distributes InnerJoin over its left UnionAll input; native expression proof remains UNKNOWN",
+  "description": "Explicit InnerJoin/Union column maps preserve the complete safe ON predicate; a captured source-output BAG_OUTCOME_EQ instance is kernel-checked.",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowLeftUnionAll"
     ],
-    "scope": "equality-only InnerJoin with exactly one left UnionAll input and no outer references or scalar subqueries",
+    "scope": "InnerJoin over a left binary UnionAll with safe repeatable RHS and predicate, explicit positional projections, and disjoint input columns",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8423cca3e71db53d"
+      "3da20b1af3fae6c3"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll",
@@ -49,7 +49,7 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\""
       ],
       "provenance": {
         "required_sources": [

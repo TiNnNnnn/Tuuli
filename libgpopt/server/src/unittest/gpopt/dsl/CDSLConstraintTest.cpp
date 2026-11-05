@@ -38,6 +38,8 @@
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarAggFunc.h"
+#include "gpopt/operators/CScalarArray.h"
+#include "gpopt/operators/CScalarArrayCmp.h"
 #include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/operators/CScalarProjectElement.h"
 #include "gpopt/operators/CScalarSortGroupClause.h"
@@ -430,6 +432,47 @@ EresExistentialProjectionDemand()
 }
 
 static GPOS_RESULT
+EresArrayComparisonTotality()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *input = fix.PexprLogicalGet("array_totality", 1, &columns);
+	for (ULONG shape = 0; shape < 5; ++shape)
+	for (auto quantifier : {CScalarArrayCmp::EarrcmpAny, CScalarArrayCmp::EarrcmpAll})
+	{
+		CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+		if (4 != shape)
+		{
+			CExpression *element = CUtils::PexprScalarConstInt4(mp, 1);
+			if (3 == shape)
+			{
+				element->Release();
+				input->AddRef();
+				element = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, (*columns)[0], false, false), input);
+			}
+			items->Append(element);
+		}
+		CExpression *array = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarArray(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 23),
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 1007), 2 == shape), items);
+		CExpression *predicate = GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CScalarArrayCmp(mp,
+				GPOS_NEW(mp) CMDIdGPDB(IMDId::EmdidGeneral, 1 == shape ? 100400 : 96),
+				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), quantifier),
+			CUtils::PexprScalarIdent(mp, (*columns)[0]), array);
+		GPOS_UNITTEST_ASSERT(dslproperties::FScalarTreeProvablyErrorFree(predicate) ==
+			(0 == shape || 4 == shape));
+		predicate->Release();
+	}
+	input->Release();
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresDeterministicOperatorHeads()
 {
 	CAutoMemoryPool amp;
@@ -784,6 +827,7 @@ CDSLConstraintTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresAggregateTotalityScope),
 		GPOS_UNITTEST_FUNC(EresScalarSubqueryTotality),
 		GPOS_UNITTEST_FUNC(EresDeterministicOperatorHeads),
+		GPOS_UNITTEST_FUNC(EresArrayComparisonTotality),
 		GPOS_UNITTEST_FUNC(EresExistentialProjectionDemand),
 		GPOS_UNITTEST_FUNC(EresMetadataAliasPremises),
 		GPOS_UNITTEST_FUNC(EresSubsetBindings),

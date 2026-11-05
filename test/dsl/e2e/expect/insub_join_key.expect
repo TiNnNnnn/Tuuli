@@ -47,7 +47,7 @@
       "rule_source_routes": [
         {
           "rule_hash": "6ecc177626804bdf",
-          "route_sequence": 655,
+          "route_sequence": 406,
           "operators": [
             "CLogicalLeftSemiJoin",
             "CLogicalInnerJoin",

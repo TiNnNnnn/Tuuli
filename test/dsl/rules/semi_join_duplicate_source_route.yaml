@@ -1,0 +1,7 @@
+experiment: semi-key-migration
+discover: false
+template_route: 6
+template_fingerprint: 4a5a751a1c493a2d
+template_root: r
+template_bindings: true
+cardinalities:

@@ -1,13 +1,13 @@
 {
-  "description": "The existing equality-only DSL rule distributes LeftJoin over its preserved left UnionAll input; native expression proof remains UNKNOWN",
+  "description": "Explicit LeftJoin distribution preserves full ON predicates and NULL padding; the captured native source/target instance is conditionally kernel-checked.",
   "replacement": {
     "xforms": [
       "CXformPushJoinBelowLeftUnionAll"
     ],
-    "scope": "equality-only LeftJoin with exactly one left UnionAll input and no outer references or scalar subqueries",
+    "scope": "Safe LeftJoin ON predicate over a left UnionAll with explicit branch maps and a safe repeatable RHS; partial native xform coverage",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b2f799f43c075320"
+      "d3c4238efedfb6ec"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
+        "\"status\":\"applied\",\"rule_hash\":\"d3c4238efedfb6ec\""
       ],
       "alternative": [
         "CXformPushJoinBelowLeftUnionAll",
@@ -43,13 +43,31 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushJoinBelowLeftUnionAll"
       ],
+      "stats_experiment": "left_union_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b2f799f43c075320\""
+        "\"status\":\"applied\",\"rule_hash\":\"d3c4238efedfb6ec\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "d3c4238efedfb6ec",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftOuterJoin",
+            "CLogicalUnionAll",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

@@ -632,7 +632,8 @@ CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLMod
 	const CDSLSymbol *psymInput = (*pconDef->Pdrgpsym())[1];
 	const CDSLSymbol *psymDomain =
 		PsymResolve((*pconDef->Pdrgpsym())[2]);
-	if (psymInput->Esymkind() != psym->Esymkind())
+	if (psymInput->Esymkind() != psym->Esymkind() &&
+		EdslsymTable != psymInput->Esymkind())
 	{
 		return nullptr;
 	}

@@ -1,5 +1,5 @@
 {
-  "description": "Safety boundary: an equality-only Join distribution rule must not match a non-equality residual; explicit residual distribution still needs proof",
+  "description": "Explicit ON capture distributes non-equality InnerJoin predicates over UnionAll with native distribution disabled.",
   "plans": [
     {
       "name": "native",
@@ -12,11 +12,12 @@
     {
       "name": "shadow",
       "trace": true,
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\""
       ],
       "alternative": [
-        "CXformPushJoinBelowLeftUnionAll"
+        "CXformPushJoinBelowLeftUnionAll",
+        "CXformDSLRule_InnerJoin"
       ]
     },
     {
@@ -38,13 +39,13 @@
         "CXformPushJoinBelowLeftUnionAll"
       ],
       "contains": [
-        "Optimizer: pg_orca"
-      ],
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8423cca3e71db53d\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3da20b1af3fae6c3\""
       ],
       "provenance": {
-        "required_sources": [],
+        "required_sources": [
+          "dsl"
+        ],
         "required_origins": [],
         "forbidden_origins": [
           "CXformPushJoinBelowLeftUnionAll"

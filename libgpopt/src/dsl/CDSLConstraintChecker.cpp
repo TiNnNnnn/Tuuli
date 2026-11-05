@@ -1155,14 +1155,19 @@ CDSLConstraintChecker::FCheckAttrsIntersect(const CDSLConstraint *pcon,
 	const CDSLSymbol *psymDomain = (*pdrgpsym)[2];
 	if ((EdslsymAttrs != psymOut->Esymkind() &&
 		 EdslsymSchema != psymOut->Esymkind()) ||
-		psymOut->Esymkind() != psymInput->Esymkind())
+		(psymOut->Esymkind() != psymInput->Esymkind() &&
+		 EdslsymTable != psymInput->Esymkind()))
 	{
 		return false;
 	}
 
-	CRefCount *pvalInput = pmodel->PvalLookup(psymInput);
-	CColRefArray *pdrgpcrInput =
-		dynamic_cast<CColRefArray *>(pvalInput);
+	CExpression *relation = EdslsymTable == psymInput->Esymkind()
+		? pmodel->PexprTable(psymInput) : nullptr;
+	CAutoRef<CColRefArray> relationColumns(nullptr == relation
+		? nullptr : relation->DeriveOutputColumns()->Pdrgpcr(m_mp));
+	CColRefArray *pdrgpcrInput = nullptr == relation
+		? dynamic_cast<CColRefArray *>(pmodel->PvalLookup(psymInput))
+		: relationColumns.Value();
 	if (nullptr == pdrgpcrInput)
 	{
 		return false;

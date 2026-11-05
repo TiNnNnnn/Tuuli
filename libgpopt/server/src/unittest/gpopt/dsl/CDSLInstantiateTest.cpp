@@ -737,6 +737,21 @@ EresSystemColumnOutputContract()
 			ok &= observable->Size() == (retain ? 2 : 1) &&
 				CDSLColumnDomain::FObservable(extra) == retain;
 			observable->Release();
+			for (BOOL physical : {false, true})
+			{
+				const std::string columns = physical
+					? "AttrsIntersect(a0,t1,t0)" : "OutputAttrs(a0,t0)";
+				CDSLRule *domainRule = PdslruleParseLocal(mp,
+					("Input<t0>|Proj*<a0 s0>(Input<t1>)|t1 := t0;" + columns +
+					 ";SchemaFromAttrs(s0,a0)").c_str());
+				GPOS_UNITTEST_ASSERT(nullptr != domainRule);
+				CDSLRewriteDecision *domain = CDSLRuleEngine::Instance()->PdecisionEvaluate(mp, domainRule, input);
+				ok &= EdsldecisionReady == domain->Status() && nullptr != domain->PexprTarget() &&
+					domain->PexprTarget()->DeriveOutputColumns()->Size() == (physical || retain ? 2 : 1) &&
+					domain->PexprTarget()->DeriveOutputColumns()->FMember(extra) == (physical || retain);
+				GPOS_DELETE(domain);
+				domainRule->Release();
+			}
 			const std::string captured = CDSLPlanTemplate::Serialize(mp, input);
 			ok &= (captured.find("\"implicit_system_columns\":[]") != std::string::npos) == retain;
 			CExpression *predicate = fix.PexprPredAtom(key);

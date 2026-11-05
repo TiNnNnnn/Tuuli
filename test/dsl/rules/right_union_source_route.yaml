@@ -1,0 +1,7 @@
+experiment: right-union-migration
+discover: false
+template_route: 4
+template_fingerprint: 56baf246b314622c
+template_root: r
+template_bindings: true
+cardinalities:

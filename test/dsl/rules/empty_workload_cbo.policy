@@ -6,12 +6,12 @@
 
 # These equivalences duplicate one or both inputs. Bound their workload search
 # breadth while retaining the unbounded mode for explicit diagnostics.
-- rule: 8423cca3e71db53d
+- rule: 3da20b1af3fae6c3
   budget:
     per_node: 1
     per_rule: 1
     per_query: 128
-- rule: f2ac7b4091944c8e
+- rule: cd14cb3d4979e06b
   budget:
     per_node: 1
     per_rule: 1
