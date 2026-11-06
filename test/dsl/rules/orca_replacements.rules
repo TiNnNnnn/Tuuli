@@ -301,10 +301,10 @@ Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJ
 # Push a complete real aggregate through the referencing side of an equality
 # join. The target grouping is the source grouping intersected with the outer
 # input; the unique referred row restores any inner grouping columns.
-# FormalSQL/Rocq: EQ, verified 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=78c046d1ea440878; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-13. The generic
-# key/reference aggregate-pushdown proof accepts the typed schema constructors.
-Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<a3 a4>(Input<t0>,Input<t1>))|InnerJoin<a5 a6>(Agg<a7 a8 a9 f1 s1 p1>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a5 := a3;a6 := a4;AttrsIntersect(a7,a0,t0);a8 := a1;a9 := a2;f1 := f0;AttrsUnion(a10,a7,a9);SchemaFromAttrs(s1,a10);p1 := p0;AttrsSub(a1,t0);AttrsSub(a3,a7);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a8);ErrorFree(f1);ErrorFree(p1)
+# Explicit complete ON replaces legacy_hash=a6c78fb8157c63ef (previous 78c046d1ea440878).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: generated template and native
+# outer/mixed grouping MIN instances kernel-checked 2026-11-06. ErrorFree remains required.
+Agg<a0 a1 a2 f0 s0 p0>(InnerJoin<p2 a3 a4>(Input<t0>,Input<t1>))|InnerJoin<p3 a5 a6>(Agg<a7 a8 a9 f1 s1 p1>(Input<t2>),Input<t3>)|t2 := t0;t3 := t1;a5 := a3;a6 := a4;AttrsIntersect(a7,a0,t0);a8 := a1;a9 := a2;f1 := f0;AttrsUnion(a10,a7,a9);SchemaFromAttrs(s1,a10);p1 := p0;AttrsSub(a1,t0);AttrsSub(a3,a7);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a3,t1,a4);Unique(t1,a4);ErrorFree(a1);ErrorFree(f0);ErrorFree(p0);ErrorFree(a8);ErrorFree(f1);ErrorFree(p1);p3 := p2;CorrelationEquality(p2,a3,a4);ErrorFree(p2);Deterministic(p2)
 
 # Residual-predicate sibling. The complete predicate and its exact dependency
 # split are preserved; every outer dependency must survive in the grouping.

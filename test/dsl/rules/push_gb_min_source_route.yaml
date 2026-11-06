@@ -1,0 +1,7 @@
+experiment: aggregate-functional-capture
+discover: false
+template_route: 3
+template_fingerprint: 81c7934cdf8bb557
+template_root: r
+template_bindings: true
+cardinalities:
