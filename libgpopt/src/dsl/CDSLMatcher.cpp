@@ -56,6 +56,59 @@ BOOL FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *symbol, CExpression *expression, CDSLModel *model, ULONG depth = 0);
 
 BOOL
+FMatchConjunctionPartition(CMemoryPool *mp, const CDSLRule *rule,
+	const CDSLExpressionDefinitions::CDefinition *definition,
+	CExpression *expression, CDSLModel *model, ULONG depth)
+{
+	CDSLConstraintChecker checker(mp);
+	// Equality guards classify each leaf; complete coverage is checked after grouping.
+	for (ULONG c = 0; c < rule->Pdrgpcon()->Size(); ++c)
+	{
+		const auto *constraint = (*rule->Pdrgpcon())[c];
+		if (EdslconCorrelationEquality != constraint->Edslcon()) continue;
+		const auto *key = rule->Pexprdefs()->PsymRefRoot((*constraint->Pdrgpsym())[0]);
+		ULONG side = key == definition->PsymOperand(0) ? 0 : 1;
+		if (key != definition->PsymOperand(side)) continue;
+		CExpressionArray *conjuncts = CPredicateUtils::PdrgpexprConjuncts(mp, expression);
+		CExpressionArray *parts[2] = {GPOS_NEW(mp) CExpressionArray(mp),
+			GPOS_NEW(mp) CExpressionArray(mp)};
+		for (ULONG i = 0; i < conjuncts->Size(); ++i)
+		{
+			CExpression *child = (*conjuncts)[i];
+			const BOOL selected = checker.FCorrelationEqualityConjunct(
+				rule, constraint, key, child, model);
+			child->AddRef();
+			parts[selected ? side : 1 - side]->Append(child);
+		}
+		conjuncts->Release();
+		if (0 == parts[0]->Size() || 0 == parts[1]->Size())
+		{
+			parts[0]->Release(); parts[1]->Release();
+			continue;
+		}
+		CExpression *captures[2];
+		for (ULONG i = 0; i < 2; ++i)
+		{
+			// Keep repeated occurrences; predicate simplification would change the capture.
+			if (1 == parts[i]->Size())
+			{
+				captures[i] = (*parts[i])[0]; captures[i]->AddRef(); parts[i]->Release();
+			}
+			else captures[i] = CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, parts[i]);
+		}
+		CDSLModel *trial = GPOS_NEW(mp) CDSLModel(mp);
+		const BOOL matched = model->FCopyExpressionBindingsTo(trial) &&
+			FMatchExpressionBinding(mp, rule, definition->PsymOperand(0), captures[0], trial, depth + 1) &&
+			FMatchExpressionBinding(mp, rule, definition->PsymOperand(1), captures[1], trial, depth + 1) &&
+			checker.FCheckCapturedScalarProperties(rule, trial, model) &&
+			trial->FCopyExpressionBindingsTo(model);
+		trial->Release(); captures[0]->Release(); captures[1]->Release();
+		if (matched) return true;
+	}
+	return false;
+}
+
+BOOL
 FMatchScalarContext(CMemoryPool *mp, const CDSLRule *rule,
 	const CDSLSymbol *root_symbol, const CDSLSymbol *hole, CExpression *root,
 	CExpression *candidate, std::vector<ULONG> *path, CDSLModel *model, ULONG depth)
@@ -398,6 +451,9 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 		right->Release();
 		return matched;
 	}
+	if (EdslexprAnd == def->Edslexpr() && CPredicateUtils::FAnd(expression) &&
+		dslproperties::FQueryDemandInsensitive(expression) &&
+		FMatchConjunctionPartition(mp, rule, def, expression, model, depth)) return true;
 	if ((EdslexprAnd == def->Edslexpr() || EdslexprOr == def->Edslexpr()) &&
 		2 < expression->Arity() && CUtils::FScalarBoolOp(expression,
 			EdslexprAnd == def->Edslexpr() ? CScalarBoolOp::EboolopAnd : CScalarBoolOp::EboolopOr))

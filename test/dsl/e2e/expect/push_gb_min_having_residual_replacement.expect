@@ -11,7 +11,7 @@
       "Unbounded COUNT and other potentially throwing aggregate functions"
     ],
     "dsl_rule_hashes": [
-      "58d1bad0909933f4"
+      "d819d49a34cd7796"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"58d1bad0909933f4\""
+        "\"status\":\"applied\",\"rule_hash\":\"d819d49a34cd7796\""
       ],
       "alternative": [
         "CXformPushGbWithHavingBelowJoin",
@@ -53,7 +53,7 @@
         "CXformPushGbWithHavingBelowJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"58d1bad0909933f4\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d819d49a34cd7796\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [

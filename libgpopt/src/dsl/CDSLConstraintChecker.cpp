@@ -568,7 +568,7 @@ FCollectCrossEqualityColumns(CExpression *pexprPred,
 BOOL
 FCorrelationEqualityHolds(CMemoryPool *mp, CExpression *pexprPred,
 						  CColRefArray *pdrgpcrLocal,
-						  CColRefArray *pdrgpcrOuter)
+						  CColRefArray *pdrgpcrOuter, BOOL complete = true)
 {
 	if (nullptr == pexprPred || nullptr == pdrgpcrLocal ||
 		nullptr == pdrgpcrOuter || 0 == pdrgpcrLocal->Size() ||
@@ -587,9 +587,9 @@ FCorrelationEqualityHolds(CMemoryPool *mp, CExpression *pexprPred,
 	const BOOL fDisjoint = !pcrsLocal->FIntersects(pcrsOuter);
 	const BOOL fEqualityOnly = fDisjoint && FCollectCrossEqualityColumns(
 		pexprPred, pcrsLocal, pcrsOuter, pcrsSeenLocal, pcrsSeenOuter);
-	const BOOL fComplete = fEqualityOnly &&
-		pcrsSeenLocal->ContainsAll(pcrsLocal) &&
-		pcrsSeenOuter->ContainsAll(pcrsOuter);
+	const BOOL fComplete = fEqualityOnly && (!complete ||
+		(pcrsSeenLocal->ContainsAll(pcrsLocal) &&
+		 pcrsSeenOuter->ContainsAll(pcrsOuter)));
 
 	pcrsSeenOuter->Release();
 	pcrsSeenLocal->Release();
@@ -2532,6 +2532,23 @@ CDSLConstraintChecker::FCheckExprSplit(const CDSLConstraint *pcon,
 }
 
 BOOL
+CDSLConstraintChecker::FCorrelationEqualityConjunct(const CDSLRule *rule,
+	const CDSLConstraint *constraint, const CDSLSymbol *symbol,
+	CExpression *expression, const CDSLModel *model) const
+{
+	CDSLModel *trial = GPOS_NEW(m_mp) CDSLModel(m_mp);
+	CDSLInstantiator materializer(m_mp);
+	const auto *symbols = constraint->Pdrgpsym();
+	const BOOL matches = model->FCopyExpressionBindingsTo(trial) &&
+		trial->FBind(symbol, expression) &&
+		materializer.FMaterializeConstraintBindings(rule, constraint, trial, true) &&
+		FCorrelationEqualityHolds(m_mp, expression,
+			trial->PdrgpcrAttrs((*symbols)[1]), trial->PdrgpcrAttrs((*symbols)[2]), false);
+	trial->Release();
+	return matches;
+}
+
+BOOL
 CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
 	const CDSLModel *model, const CDSLModel *previous) const
 {
@@ -2539,7 +2556,8 @@ CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
 	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
 	{
 		const auto *constraint = (*rule->Pdrgpcon())[i];
-		if (EdslconDepsDisjoint == constraint->Edslcon() ||
+		if (EdslconCorrelationEquality == constraint->Edslcon() ||
+			EdslconDepsDisjoint == constraint->Edslcon() ||
 			EdslconAttrsNonEmpty == constraint->Edslcon())
 		{
 			// Derived operands may depend on a sibling not matched yet. Check only
@@ -2548,7 +2566,9 @@ CDSLConstraintChecker::FCheckCapturedScalarProperties(const CDSLRule *rule,
 			const BOOL available = model->FCopyExpressionBindingsTo(ready) &&
 				materializer.FMaterializeConstraintBindings(rule, constraint, ready, true);
 			const BOOL valid = !available ||
-				(EdslconDepsDisjoint == constraint->Edslcon()
+				(EdslconCorrelationEquality == constraint->Edslcon()
+					? FCheckCorrelationEquality(constraint, ready)
+				: EdslconDepsDisjoint == constraint->Edslcon()
 					? FCheckDepsDisjoint(constraint, ready)
 					: FCheckAttrsNonEmpty(constraint, ready));
 			ready->Release();

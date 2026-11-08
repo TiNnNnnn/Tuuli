@@ -23,6 +23,7 @@
 
 #include "gpopt/base/CUtils.h"
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "gpopt/dsl/CDSLExpressionDefinitions.h"
 #include "gpopt/dsl/CDSLExprListUtils.h"
 #include "gpopt/dsl/CDSLMatchView.h"
@@ -84,9 +85,83 @@ CDSLMatchTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ModelOptionalBindings),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ContextSkipsUnsafeCandidates),
 		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ContextNestedGuards),
+		GPOS_UNITTEST_FUNC(CDSLMatchTest::EresUnittest_ConjunctionKeyPartition),
 	};
 
 	return CUnittest::EresExecute(rgut, GPOS_ARRAY_SIZE(rgut));
+}
+
+GPOS_RESULT
+CDSLMatchTest::EresUnittest_ConjunctionKeyPartition()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG mode = 0; mode < 7; ++mode)
+	{
+		const std::string text =
+			"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
+			"InnerJoin<p3 a5 a6>(Input<t2>,Input<t3>)|"
+			"t2 := t0;t3 := t1;p3 := p0;a5 := a0;a6 := a1;" +
+			std::string(mode == 1 ? "And(p2,p1) := p0;" : "And(p1,p2) := p0;") +
+			(mode == 4 ? "OutputAttrs(a3,t0);OutputAttrs(a4,t1);" :
+			 "a2 := ScalarDeps(p1);AttrsIntersect(a3,a2,t0);AttrsIntersect(a4,a2,t1);") +
+			"CorrelationEquality(p1,a3,a4)";
+		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != rule);
+		CColRefArray *left_columns = nullptr;
+		CColRefArray *right_columns = nullptr;
+		CExpression *left = fix.PexprLogicalGet("left", 2, &left_columns);
+		CExpression *right = fix.PexprLogicalGet("right", 2, &right_columns);
+		CExpression *residual = fix.PexprEqPred((*left_columns)[0], (*left_columns)[1]);
+		if (mode == 5)
+		{
+			residual->Release();
+			CColRefArray *query_columns = nullptr;
+			CExpression *query = fix.PexprLogicalGet("unbounded", 1, &query_columns);
+			residual = CUtils::PexprScalarEqCmp(mp,
+				GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CScalarSubquery(mp, (*query_columns)[0], false, false), query),
+				CUtils::PexprScalarConstInt4(mp, 0));
+		}
+		CExpressionArray *children = GPOS_NEW(mp) CExpressionArray(mp);
+		children->Append(fix.PexprEqPred((*left_columns)[0], (*right_columns)[0]));
+		children->Append(residual);
+		CExpressionArray *tail = GPOS_NEW(mp) CExpressionArray(mp);
+		if (mode != 4) tail->Append(fix.PexprEqPred((*right_columns)[1], (*left_columns)[1]));
+		tail->Append(fix.PexprEqPred((*left_columns)[0], (*right_columns)[0]));
+		if (mode == 6)
+			for (ULONG i = 0; i < 64; ++i)
+				tail->Append(fix.PexprEqPred((*left_columns)[i % 2], (*right_columns)[i % 2]));
+		if (mode == 2)
+			children->Append(CUtils::PexprScalarBoolOp(mp, CScalarBoolOp::EboolopAnd, tail));
+		else
+		{
+			for (ULONG i = 0; i < tail->Size(); ++i)
+			{ (*tail)[i]->AddRef(); children->Append((*tail)[i]); }
+			tail->Release();
+		}
+		CExpression *predicate = CUtils::PexprScalarBoolOp(mp,
+			mode == 3 ? CScalarBoolOp::EboolopOr : CScalarBoolOp::EboolopAnd, children);
+		CExpression *join = fix.PexprLogicalInnerJoin(left, right, predicate);
+		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
+		const auto *root = (*rule->PfragSrc()->PopRoot()->Pdrgpsym())[0];
+		const auto *definition = rule->Pexprdefs()->Pdef(root);
+		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), join, model) &&
+			CDSLConstraintChecker(mp).FCheck(rule, model);
+		BOOL valid = mode >= 3 && mode <= 5 ? !matched : matched;
+		if (matched)
+		{
+			const auto *keys = definition->PsymOperand(mode == 1 ? 1 : 0);
+			valid = valid && model->PexprPred(root) == predicate &&
+				model->PexprPred(definition->PsymOperand(mode == 1 ? 0 : 1)) == residual &&
+				model->PexprPred(keys)->Arity() == (mode == 6 ? 67 : 3);
+		}
+		model->Release(); join->Release(); predicate->Release();
+		left->Release(); right->Release(); rule->Release();
+		GPOS_UNITTEST_ASSERT(valid);
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

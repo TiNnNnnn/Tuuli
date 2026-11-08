@@ -223,6 +223,11 @@ public:
 	BOOL FCheckCapturedScalarProperties(const CDSLRule *rule,
 		const CDSLModel *model, const CDSLModel *previous) const;
 
+	// Classify one AND leaf; complete key coverage is checked on the final capture.
+	BOOL FCorrelationEqualityConjunct(const CDSLRule *rule,
+		const CDSLConstraint *constraint, const CDSLSymbol *symbol,
+		CExpression *expression, const CDSLModel *model) const;
+
 	// Check every constraint of prule against pmodel; true iff all hold. When
 	// requested, report (without transferring ownership) the first failed
 	// constraint and its zero-based position for verbose differential traces.
