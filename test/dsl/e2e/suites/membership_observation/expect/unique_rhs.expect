@@ -1,0 +1,77 @@
+{
+  "description": "Complete ON membership observation with duplicate left rows: unique_rhs",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\""
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "stats_experiment": "unique_rhs-source.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"3d0f2f64db91e3ee\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "3d0f2f64db91e3ee",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "1",
+      "2"
+    ]
+  }
+}
