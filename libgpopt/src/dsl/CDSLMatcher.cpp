@@ -451,8 +451,8 @@ FMatchExpressionBinding(CMemoryPool *mp, const CDSLRule *rule,
 		right->Release();
 		return matched;
 	}
+	// Key partitions capture occurrences; they do not reassociate the complete ON.
 	if (EdslexprAnd == def->Edslexpr() && CPredicateUtils::FAnd(expression) &&
-		dslproperties::FQueryDemandInsensitive(expression) &&
 		FMatchConjunctionPartition(mp, rule, def, expression, model, depth)) return true;
 	if ((EdslexprAnd == def->Edslexpr() || EdslexprOr == def->Edslexpr()) &&
 		2 < expression->Arity() && CUtils::FScalarBoolOp(expression,

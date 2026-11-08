@@ -97,7 +97,7 @@ CDSLMatchTest::EresUnittest_ConjunctionKeyPartition()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	for (ULONG mode = 0; mode < 7; ++mode)
+	for (ULONG mode = 0; mode < 9; ++mode)
 	{
 		const std::string text =
 			"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|"
@@ -106,7 +106,8 @@ CDSLMatchTest::EresUnittest_ConjunctionKeyPartition()
 			std::string(mode == 1 ? "And(p2,p1) := p0;" : "And(p1,p2) := p0;") +
 			(mode == 4 ? "OutputAttrs(a3,t0);OutputAttrs(a4,t1);" :
 			 "a2 := ScalarDeps(p1);AttrsIntersect(a3,a2,t0);AttrsIntersect(a4,a2,t1);") +
-			"CorrelationEquality(p1,a3,a4)";
+			(mode == 7 ? "Deterministic(p0)" : "CorrelationEquality(p1,a3,a4)") +
+			(mode == 8 ? ";ErrorFree(p0)" : "");
 		CDSLRule *rule = PdslruleParseLocal(mp, text.c_str());
 		GPOS_UNITTEST_ASSERT(nullptr != rule);
 		CColRefArray *left_columns = nullptr;
@@ -114,7 +115,7 @@ CDSLMatchTest::EresUnittest_ConjunctionKeyPartition()
 		CExpression *left = fix.PexprLogicalGet("left", 2, &left_columns);
 		CExpression *right = fix.PexprLogicalGet("right", 2, &right_columns);
 		CExpression *residual = fix.PexprEqPred((*left_columns)[0], (*left_columns)[1]);
-		if (mode == 5)
+		if (mode == 5 || mode >= 7)
 		{
 			residual->Release();
 			CColRefArray *query_columns = nullptr;
@@ -149,7 +150,7 @@ CDSLMatchTest::EresUnittest_ConjunctionKeyPartition()
 		const auto *definition = rule->Pexprdefs()->Pdef(root);
 		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), join, model) &&
 			CDSLConstraintChecker(mp).FCheck(rule, model);
-		BOOL valid = mode >= 3 && mode <= 5 ? !matched : matched;
+		BOOL valid = mode == 3 || mode == 4 || mode >= 7 ? !matched : matched;
 		if (matched)
 		{
 			const auto *keys = definition->PsymOperand(mode == 1 ? 1 : 0);

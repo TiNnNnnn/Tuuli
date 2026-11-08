@@ -294,9 +294,12 @@ Proj*<a0 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<p1 
 # CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: exact/observed templates and native mixed grouping instance kernel-checked 2026-11-05.
 Proj*<a2 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<p1 a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);CorrelationEquality(p0,a0,a1);t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0;ErrorFree(p0);Deterministic(p0)
 
-# PARTIAL_BINDING legacy_hash=9e31614582b50e06; native expression proof: UNKNOWN without source contracts; source-conditional BAG_OUTCOME_EQ and actual native residual Join instance kernel-checked 2026-10-19, not deployment certificates.
-# The same repeatability correction replaces c29e145d47af5690, not a syntax-only change.
-Proj*<a2 s0>(InnerJoin<a0 a1 p0 a3 a4>(Input<t0>,Input<t1>))|Proj<a10 s2>(InnerJoin<a5 a6 p1 a7 a8>(Proj*<a9 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,t0);AttrsSub(a0,a2);AttrsSub(a1,t1);AttrsSub(a3,a2);AttrsSub(a3,t0);AttrsSub(a4,t1);Reference(t0,a0,t1,a1);Unique(t1,a1);t2 := t0;t3 := t1;a5 := a0;a6 := a1;p1 := p0;a7 := a3;a8 := a4;AttrsIntersect(a9,a2,t0);AttrsIntersect(s1,s0,t0);a10 := a2;s2 := s0;Deterministic(p0)
+# Explicit complete ON replaces legacy_hash=4022026ba775eb5a (previous 9e31614582b50e06).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: template, mixed grouping and
+# division-by-zero instances kernel-checked 2026-11-08; not deployment certificates.
+# Unique is sufficient; no foreign-key or ErrorFree premise is added.
+# Key captures account for every conjunct; the target retains the original ON.
+Proj*<a2 s0>(InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>))|Proj<a7 s2>(InnerJoin<p1 a3 a4>(Proj*<a5 s1>(Input<t2>),Input<t3>))|AttrsSub(a0,a2);AttrsSub(a0,t0);AttrsSub(a1,t1);And(p2,p3) := p0;a8 := ScalarDeps(p2);AttrsIntersect(a9,a8,t0);AttrsIntersect(a10,a8,t1);Unique(t1,a10);CorrelationEquality(p2,a9,a10);t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsIntersect(a5,a2,t0);AttrsIntersect(s1,s0,t0);a7 := a2;s2 := s0;Deterministic(p0)
 
 # Push a complete real aggregate through the referencing side of an equality
 # join. The target grouping is the source grouping intersected with the outer

@@ -11,12 +11,12 @@
       "policy": "isolate_dedup_residual_safety.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4022026ba775eb5a\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f1923d3fdd977bda\"",
         "\"failed_constraint\":\"AttrsSub\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ]
     }
   ],

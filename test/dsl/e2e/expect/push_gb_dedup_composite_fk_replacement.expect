@@ -1,5 +1,5 @@
 {
-  "description": "DSL handles composite foreign-key dedup pushdown with a deterministic residual; native proof migration remains pending",
+  "description": "DSL handles composite foreign-key dedup pushdown with a deterministic residual; uses the proved complete-ON template",
   "replacement": {
     "xforms": [
       "CXformPushGbDedupBelowJoin"
@@ -7,7 +7,7 @@
     "scope": "Composite FK grouping attrs and every dependency of the deterministic residual",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "4022026ba775eb5a"
+      "f1923d3fdd977bda"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ],
       "alternative": [
         "CXformPushGbDedupBelowJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_push_gb_dedup_fk_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ],
       "alternative": [
         "CXformDSLRule_Agg"

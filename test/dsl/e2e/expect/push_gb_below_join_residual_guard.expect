@@ -10,7 +10,7 @@
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"d8e3bfd930532f66\"",
         "\"status\":\"applied\",\"rule_hash\":\"8e57ee08e04f7d78\"",
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ]
     }
   ],

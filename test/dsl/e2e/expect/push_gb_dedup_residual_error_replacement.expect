@@ -1,0 +1,57 @@
+{
+  "description": "Complete ON dedup pushdown retains division-by-zero under native-off DSL execution",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformPushGbDedupBelowJoin",
+        "CXformPushGbBelowJoin"
+      ],
+      "policy": "isolate_dedup_residual_safety.policy",
+      "stats_experiment": "push_gb_dedup_residual_error_route.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f1923d3fdd977bda",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformPushGbDedupBelowJoin",
+      "CXformPushGbBelowJoin"
+    ],
+    "policy": "isolate_dedup_residual_safety.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

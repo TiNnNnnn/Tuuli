@@ -7,7 +7,7 @@
     "scope": "Mixed grouping contains the FK and all outer dependencies of the deterministic residual",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "4022026ba775eb5a"
+      "f1923d3fdd977bda"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_push_gb_mixed_residual.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -54,11 +54,11 @@
       "native_observation": "source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"4022026ba775eb5a\""
+        "\"status\":\"applied\",\"rule_hash\":\"f1923d3fdd977bda\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "4022026ba775eb5a",
+          "rule_hash": "f1923d3fdd977bda",
           "route_sequence": 9,
           "operators": [
             "CLogicalGbAgg",
