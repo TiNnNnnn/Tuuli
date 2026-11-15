@@ -289,6 +289,45 @@ CDSLEngineTest::EresUnittest_PrefixIndex()
 	pruleFilterInner->Release();
 	pruleFilterLeft->Release();
 
+	// Target-only bindings keep a literal root Select, while nested Filters
+	// and rules routed to another root must retain their conservative views.
+	CDSLRule *directFilter = PrulePrefix(mp,
+		"Filter<p0 a2>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>))|"
+		"Input<t2>|t2 := t0");
+	CDSLRule *nestedFilter = PrulePrefix(mp,
+		"Filter<p2 a3>(Filter<p0 a2>(InnerJoin<p1 a0 a1>(Input<t0>,Input<t1>)))|"
+		"Input<t2>|t2 := t0");
+	GPOS_UNITTEST_ASSERT(nullptr != directFilter && nullptr != nestedFilter);
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(directFilter, 0, COperator::EopLogicalSelect);
+	pindex->Insert(nestedFilter, 1, COperator::EopLogicalSelect);
+	for (BOOL joined : {false, true})
+	{
+		CExpression *input = joined
+			? PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp))
+			: PexprPrefixLeaf(mp);
+		pexpr = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
+			input, PexprPrefixLeaf(mp));
+		pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+		fValid = fValid && 0 == pindex->UlFallbackRules() &&
+			(joined ? 2UL : 1UL) == pdrgprule->Size() &&
+			(joined ? directFilter : nestedFilter) == (*pdrgprule)[0];
+		pdrgprule->Release();
+		pexpr->Release();
+	}
+	GPOS_DELETE(pindex);
+	pindex = GPOS_NEW(mp) CDSLRulePrefixIndex(mp);
+	pindex->Insert(directFilter, 0, COperator::EopLogicalInnerJoin);
+	pexpr = PexprPrefixJoin(mp, PexprPrefixLeaf(mp), PexprPrefixLeaf(mp));
+	pdrgprule = pindex->PdrgpruleCandidates(mp, pexpr);
+	fValid = fValid && 1 == pindex->UlFallbackRules() &&
+		1 == pdrgprule->Size() && directFilter == (*pdrgprule)[0];
+	pdrgprule->Release();
+	pexpr->Release();
+	GPOS_DELETE(pindex);
+	directFilter->Release();
+	nestedFilter->Release();
+
 	// Filter(LeftApply) is the production view of a value subquery under a
 	// general boolean expression. Before Select2Apply, the live Select child is
 	// still the original outer relation, so the index must retain the rule based

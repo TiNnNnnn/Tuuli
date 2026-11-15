@@ -461,7 +461,16 @@ CDSLRulePrefixIndex::Insert(CDSLRule *prule, ULONG ulOrdinal,
 		// branches, but honor operators with multiple native representations.
 		// Pure references stop at Filter view boundaries without changing the
 		// exact adapters of other operators (e.g. Proj* and fused Limit/Sort).
-		pnodeTerminal = PnodeInsertOp(pnodeTerminal, popRoot, false,
+		// In its direct Select bucket, even a target-only binding matches the
+		// actual root Filter. Nested Filters may still use representation views.
+		const CDSLOp *prefix = popRoot;
+		if (EdslopFilter == popRoot->Edslop() &&
+			!prule->Pexprdefs()->FHasMatchBindings())
+		{
+			pnodeTerminal = PnodeExact(pnodeTerminal, COperator::EopLogicalSelect, 1);
+			prefix = (*popRoot)[0];
+		}
+		pnodeTerminal = PnodeInsertOp(pnodeTerminal, prefix, false,
 			&fComplete, 0, true /*literal*/,
 			!prule->Pexprdefs()->FHasMatchBindings());
 	}
