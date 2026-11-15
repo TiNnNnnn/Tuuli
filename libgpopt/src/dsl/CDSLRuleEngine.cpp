@@ -797,14 +797,15 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 	BOOL missingOutputs = false;
 	if (EdsldecisionReady == pdecision->Status() && prule->Pexprdefs()->FHasBindings())
 	{
-		// Extracted expressions inherit cached group properties, which can be
-		// wider than this alternative after native column pruning. Preserve the
-		// selected source operator's outputs, not columns it no longer produces.
+		// Preserve actual outputs belonging to the Memo interface: cached group
+		// columns can survive pruning, and alternatives can add pass-through columns.
 		// Children retain their memo interfaces; physical required-column checks
 		// still decide which alternatives can serve each optimization context.
 		CExpressionHandle handle(mp);
 		handle.Attach(pexpr);
 		CColRefSet *outputs = CLogical::PopConvert(pexpr->Pop())->DeriveOutputColumns(mp, handle);
+		const CColRefSet *memoOutputs = nullptr == pexpr->Pgexpr()
+			? nullptr : pexpr->DeriveOutputColumns();
 		CColRefSetIter iter(*outputs);
 		while (iter.Advance())
 		{
@@ -815,6 +816,7 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 			// Explicit system-column references and every ordinary column,
 			// including unused Project outputs, still require preservation.
 			if (CDSLColumnDomain::FObservable(col) &&
+				(nullptr == memoOutputs || memoOutputs->FMember(col)) &&
 				!pexprTgt->DeriveOutputColumns()->FMember(col))
 			{
 				missingOutputs = true;
@@ -829,8 +831,8 @@ CDSLRuleEngine::PexprApply(CMemoryPool *mp, const CDSLRule *prule,
 		  FTargetDependsOnGroup(mp, pexprTgt, pexpr->Pgexpr()->Pgroup()))))
 	{
 		// This is a valid algebraic result but not a legal Cascades insertion
-		// if an exact expression binding loses source-operator outputs (including
-		// Project pass-through columns), or reuses an ancestor of that group.
+		// if an exact binding loses source outputs in the Memo interface, or
+		// reuses an ancestor of that group.
 		// ponytail: legacy compatibility views retain their existing schema
 		// contract until migrated to exact bindings. RBO checks its whole tree.
 		if (GPOS_FTRACE(EopttracePrintDSLRule))

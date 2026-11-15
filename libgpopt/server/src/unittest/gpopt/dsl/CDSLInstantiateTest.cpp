@@ -863,6 +863,49 @@ EresMemoSourceOutputContract()
 			CExpression *target = CDSLRuleEngine::Instance()->PexprApply(mp, lossy, wide);
 			ok &= nullptr == target;
 			CRefCount::SafeRelease(target);
+			// A wide alternative may expose columns outside its Memo interface.
+			// Keep the interface column, but still reject losing that column.
+			CDSLRule *passThrough = PdslruleParseLocal(mp,
+				"Filter<p0 a0>(Input<t0>)|"
+				"Proj*<a1 s1>(Filter<Not(Not(p0)) a2>(Input<t1>))|"
+				"t1 := t0;a1 := a0;SchemaFromAttrs(s1,a1);a2 := a0");
+			GPOS_UNITTEST_ASSERT(nullptr != passThrough);
+			for (ULONG required : {0UL, 1UL})
+			{
+				CColRefArray *extra = GPOS_NEW(mp) CColRefArray(mp);
+				for (ULONG i = 0; i < 2; ++i) extra->Append(fix.PcrCreateInt4("extra_output"));
+				CExpression *base = GPOS_NEW(mp) CExpression(mp,
+					GPOS_NEW(mp) CLogicalConstTableGet(mp, extra, GPOS_NEW(mp) IDatum2dArray(mp)));
+				CExpression *pred = fix.PexprPredAtom((*extra)[0]);
+				CExpression *filter = fix.PexprLogicalSelect(base, pred);
+				CColRefArray *visible = GPOS_NEW(mp) CColRefArray(mp);
+				visible->Append((*extra)[required]);
+				CExpression *interface = fix.PexprLogicalGbAgg(filter, visible);
+				CGroupExpression *origin = insert(insert, interface, nullptr);
+				CExpression *alternative = fix.PexprLogicalGbAgg(filter, extra);
+				alternative->Pop()->AddRef(); alternative->PdrgPexpr()->AddRef();
+				CExpression *extracted = GPOS_NEW(mp) CExpression(mp, alternative->Pop(), origin,
+					alternative->PdrgPexpr(), nullptr, nullptr);
+				ok &= 1 == extracted->DeriveOutputColumns()->Size() &&
+					2 == alternative->DeriveOutputColumns()->Size();
+				CExpression *result = CDSLRuleEngine::Instance()->PexprApply(mp, lossy, extracted);
+				ok &= (nullptr != result) == (0 == required);
+				CRefCount::SafeRelease(result);
+				// Select shares its child's output set; checking the Memo interface
+				// must not prune that cached set, even when rejecting the rewrite.
+				filter->Pop()->AddRef(); filter->PdrgPexpr()->AddRef();
+				CExpression *shared = GPOS_NEW(mp) CExpression(mp, filter->Pop(), origin,
+					filter->PdrgPexpr(), nullptr, nullptr);
+				result = CDSLRuleEngine::Instance()->PexprApply(mp, passThrough, shared);
+				ok &= (nullptr != result) == (0 == required);
+				ok &= 2 == base->DeriveOutputColumns()->Size() &&
+					2 == filter->DeriveOutputColumns()->Size();
+				CRefCount::SafeRelease(result);
+				shared->Release();
+				extracted->Release(); alternative->Release(); interface->Release(); visible->Release();
+				filter->Release(); pred->Release(); base->Release();
+			}
+			passThrough->Release();
 			lossy->Release();
 		}
 		// Logical binding enumeration can pair a wide top grouping with a
