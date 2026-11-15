@@ -2567,7 +2567,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
-	for (ULONG shape = 0; shape < 3; ++shape)
+	for (ULONG shape = 0; shape < 4; ++shape)
 	{
 		CColRefArray *pdrgpcrOuter = nullptr;
 		CExpression *pexprOuter =
@@ -2589,6 +2589,16 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		else if (shape == 2)
 			pexprInner = GPOS_NEW(mp) CExpression(mp,
 				GPOS_NEW(mp) CLogicalMaxOneRow(mp), pexprInner);
+		else if (shape == 3)
+		{
+			auto *columns = GPOS_NEW(mp) CColRefArray(mp);
+			columns->Append(selected);
+			columns->Append((*pdrgpcrOuter)[0]);
+			pexprInner->Release();
+			pexprInner = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, columns,
+					GPOS_NEW(mp) IDatum2dArray(mp)));
+		}
 		CExpression *pexprSubquery = GPOS_NEW(mp) CExpression(
 			mp, GPOS_NEW(mp) CScalarSubquery(
 				mp, selected, false, false),
@@ -2609,6 +2619,13 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		CDSLInstantiator instantiator(mp);
 		CExpression *pexprTarget =
 			instantiator.PexprInstantiate(prule, pmodel);
+		if (shape == 3)
+		{
+			// The selected value is fresh, but a hidden RHS output aliases the input.
+			GPOS_UNITTEST_ASSERT(nullptr == pexprTarget);
+			pmodel->Release(); prule->Release(); pexprSource->Release();
+			continue;
+		}
 		GPOS_ASSERT(nullptr != pexprTarget);
 		GPOS_ASSERT(COperator::EopLogicalSelect == pexprTarget->Pop()->Eopid());
 		CExpression *apply = (*pexprTarget)[0];
@@ -2647,9 +2664,9 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		pexprSource->Release();
 	}
 	for (ULONG kind = 0; kind < 4; ++kind)
-	for (ULONG scope = 0; scope < 3; ++scope)
+	for (ULONG scope = 0; scope < 4; ++scope)
 	{
-		const BOOL correlated = 0 != scope;
+		const BOOL correlated = 1 == scope || 2 == scope;
 		const BOOL negated = 1 == kind;
 		const BOOL quantified = 2 <= kind;
 		CExpression *outer = fix.PexprLogicalGet("exists_bind_outer", 1);
@@ -2657,6 +2674,16 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		if (correlated) inner = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalSelect(mp),
 			inner, fix.PexprEqPred(2 == scope ? fix.PcrCreateInt4("enclosing_bind_parameter") :
 				outer->DeriveOutputColumns()->PcrFirst(), inner->DeriveOutputColumns()->PcrFirst()));
+		if (3 == scope)
+		{
+			auto *columns = GPOS_NEW(mp) CColRefArray(mp);
+			columns->Append(inner->DeriveOutputColumns()->PcrFirst());
+			columns->Append(outer->DeriveOutputColumns()->PcrFirst());
+			inner->Release();
+			inner = GPOS_NEW(mp) CExpression(mp,
+				GPOS_NEW(mp) CLogicalConstTableGet(mp, columns,
+					GPOS_NEW(mp) IDatum2dArray(mp)));
+		}
 		CExpression *value = quantified
 			? PexprQuantified(mp, fix, 3 == kind, inner,
 				outer->DeriveOutputColumns()->PcrFirst(), inner->DeriveOutputColumns()->PcrFirst())
@@ -2685,6 +2712,12 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule, model));
 		CDSLInstantiator instantiator(mp);
 		CExpression *target = instantiator.PexprInstantiate(rule, model);
+		if (3 == scope && quantified)
+		{
+			GPOS_UNITTEST_ASSERT(nullptr == target);
+			model->Release(); rule->Release(); source->Release();
+			continue;
+		}
 		GPOS_UNITTEST_ASSERT(nullptr != target);
 		CExpression *apply = (*target)[0];
 		GPOS_UNITTEST_ASSERT(((correlated || quantified) ? COperator::EopLogicalLeftOuterCorrelatedApply :

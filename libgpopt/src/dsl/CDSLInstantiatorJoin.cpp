@@ -41,6 +41,27 @@
 using namespace gpopt;
 using namespace gpopt::dslinstantiator;
 
+namespace
+{
+CExpression *
+PexprBindApply(CMemoryPool *mp, COperator *apply, CExpression *input,
+			   CExpression *query, CExpression *predicate)
+{
+	// Apply exposes both inputs, including unselected subquery columns.
+	if (!input->DeriveOutputColumns()->IsDisjoint(query->DeriveOutputColumns()))
+	{
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+			GPOS_TRACE(GPOS_WSZ_LIT("DSL_INSTANTIATE_TRACE operator=Bind status=rejected reason=overlapping_child_outputs"));
+		apply->Release();
+		input->Release();
+		query->Release();
+		predicate->Release();
+		return nullptr;
+	}
+	return GPOS_NEW(mp) CExpression(mp, apply, input, query, predicate);
+}
+}  // namespace
+
 CExpression *
 CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) const
 {
@@ -103,7 +124,7 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		inner->Append(const_cast<CColRef *>(selected));
 		value->Release();
 		// The SubPlan owns comparison demand, NULL and empty-set semantics.
-		return GPOS_NEW(m_mp) CExpression(m_mp,
+		return PexprBindApply(m_mp,
 			GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, inner, origin),
 			input, query, comparison);
 	}
@@ -136,7 +157,7 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 		value->Release();
 		outputs->AddRef();
 		// EXISTS/NOT EXISTS SubPlans preserve demand and false/true on empty input.
-		return GPOS_NEW(m_mp) CExpression(m_mp,
+		return PexprBindApply(m_mp,
 			eager ? static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterApply(
 				m_mp, outputs, COperator::EopScalarSubquery)) :
 				static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(m_mp, outputs, origin)),
@@ -155,7 +176,7 @@ CDSLInstantiator::PexprBuildBind(const CDSLOp *pop, const CDSLModel *model) cons
 			m_mp, outputs, COperator::EopScalarSubquery))
 		: static_cast<COperator *>(GPOS_NEW(m_mp) CLogicalLeftOuterCorrelatedApply(
 			m_mp, outputs, COperator::EopScalarSubquery));
-	return GPOS_NEW(m_mp) CExpression(m_mp, carrier, input, query,
+	return PexprBindApply(m_mp, carrier, input, query,
 		CUtils::PexprScalarConstBool(m_mp, true));
 }
 
