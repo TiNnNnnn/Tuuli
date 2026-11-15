@@ -175,12 +175,19 @@ CDSLMatchTest::EresUnittest_ModelOptionalBindings()
 	{
 		CDSLSymbol *key = GPOS_NEW(mp) CDSLSymbol(mp, kind, "columns", 0, EdslsideSource);
 		CDSLModel *columns_model = GPOS_NEW(mp) CDSLModel(mp);
+		CDSLModel *copy = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(0 == columns_model->Size() &&
+			nullptr == columns_model->PvalLookup(key) &&
+			columns_model->FCopyExpressionBindingsTo(copy) && 0 == copy->Size());
 		CColRef *first = fix.PcrCreateInt4("first");
 		CColRef *second = fix.PcrCreateInt4("second");
 		CColRefArray *columns = GPOS_NEW(mp) CColRefArray(mp);
 		columns->Append(first);
 		columns->Append(second);
 		GPOS_UNITTEST_ASSERT(columns_model->FBind(key, columns));
+		GPOS_UNITTEST_ASSERT(copy->FCopyExpressionBindingsTo(columns_model) &&
+			1 == columns_model->Size() && columns_model->FCopyExpressionBindingsTo(copy) &&
+			1 == copy->Size() && columns == copy->PvalLookup(key));
 		for (ULONG variant = 0; variant < 4; ++variant)
 		{
 			CColRefArray *other = GPOS_NEW(mp) CColRefArray(mp);
@@ -192,6 +199,8 @@ CDSLMatchTest::EresUnittest_ModelOptionalBindings()
 		}
 		columns->Release();
 		columns_model->Release();
+		GPOS_UNITTEST_ASSERT(columns == copy->PvalLookup(key));
+		copy->Release();
 		key->Release();
 	}
 	CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);

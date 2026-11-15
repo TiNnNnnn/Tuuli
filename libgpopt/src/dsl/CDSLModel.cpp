@@ -56,7 +56,8 @@ CDSLModel::CDSLModel(CMemoryPool *mp, CGroupExpression *source)
 	  m_pexprDistinctAgg(nullptr)
 {
 	GPOS_ASSERT(nullptr != mp);
-	m_phmSymToRef = GPOS_NEW(mp) CDSLSymbolToRefMap(mp);
+	// Attempts rejected before their first capture need no binding table.
+	m_phmSymToRef = nullptr;
 	m_phmScalarContexts = nullptr;
 	m_pdrgpsymDerived = GPOS_NEW(mp) CDSLSymbolArray(mp);
 	// Most match attempts never use these operator-specific bindings. Allocate
@@ -87,7 +88,7 @@ CDSLModel::~CDSLModel()
 	CRefCount::SafeRelease(m_pexprMatchedSource);
 	// releasing the map releases every stored value (CleanupRelease); keys are
 	// unowned (CleanupNULL).
-	m_phmSymToRef->Release();
+	CRefCount::SafeRelease(m_phmSymToRef);
 	CRefCount::SafeRelease(m_phmScalarContexts);
 	m_pdrgpsymDerived->Release();
 	CRefCount::SafeRelease(m_phmInSubPred);
@@ -602,7 +603,7 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 	GPOS_ASSERT(nullptr != psym);
 	GPOS_ASSERT(nullptr != pval);
 
-	CRefCount *pvalExisting = m_phmSymToRef->Find(psym);
+	CRefCount *pvalExisting = PvalLookup(psym);
 	if (nullptr != pvalExisting)
 	{
 		// Matchers allocate fresh vectors for each occurrence of shared columns.
@@ -618,6 +619,8 @@ CDSLModel::FBind(const CDSLSymbol *psym, CRefCount *pval)
 		return pvalExisting == pval;
 	}
 
+	if (nullptr == m_phmSymToRef)
+		m_phmSymToRef = GPOS_NEW(m_mp) CDSLSymbolToRefMap(m_mp);
 	pval->AddRef();
 	// key is const in the map's eyes; CHashMap takes non-const K*, and the map
 	// never mutates or owns the key (CleanupNULL).
@@ -750,7 +753,7 @@ CRefCount *
 CDSLModel::PvalLookup(const CDSLSymbol *psym) const
 {
 	GPOS_ASSERT(nullptr != psym);
-	return m_phmSymToRef->Find(psym);
+	return nullptr == m_phmSymToRef ? nullptr : m_phmSymToRef->Find(psym);
 }
 
 //---------------------------------------------------------------------------

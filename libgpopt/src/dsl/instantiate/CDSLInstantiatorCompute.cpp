@@ -260,5 +260,11 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 	{
 		pdrgpcrSchema->Release();
 	}
+	// An empty Compute defines no values; Proj keeps its own matching interface.
+	if (0 == pexprList->Arity())
+	{
+		pexprList->Release();
+		return pexprChild;
+	}
 	return PexprProjectWithoutSelfAliases(m_mp, pexprChild, pexprList);
 }

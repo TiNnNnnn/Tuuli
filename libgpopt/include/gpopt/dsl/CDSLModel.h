@@ -200,7 +200,7 @@ public:
 	CColRefArray *PdrgpcrRank(const CDSLSymbol *psym) const;
 	CWindowFrameArray *PdrgpwfFrame(const CDSLSymbol *psym) const;
 
-	ULONG Size() const { return m_phmSymToRef->Size(); }
+	ULONG Size() const { return nullptr == m_phmSymToRef ? 0 : m_phmSymToRef->Size(); }
 
 	//------------------------------------------------------------------
 	// residual conjuncts (filter split — #25 produces, #27 consumes)

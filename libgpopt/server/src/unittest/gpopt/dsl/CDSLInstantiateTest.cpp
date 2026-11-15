@@ -1171,7 +1171,7 @@ EresEmptyProjectIdempotence()
 		if (nullptr == target.Value())
 			GPOS_TRACE_FORMAT("Empty Compute constructed=%d computed=%d rejected", constructed, computed);
 		GPOS_UNITTEST_ASSERT(nullptr != target.Value() &&
-			target->Matches(computed ? source.Value() : inner.Value()) &&
+			target->Matches(computed ? inner.Value() : input) &&
 			target->DeriveOutputColumns()->Equals(source->DeriveOutputColumns()));
 	}
 	return GPOS_OK;
