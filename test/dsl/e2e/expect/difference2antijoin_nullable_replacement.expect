@@ -49,11 +49,29 @@
         "CXformDifference2LeftAntiSemiJoin"
       ],
       "policy": "isolate_difference2antijoin.policy",
+      "stats_experiment": "difference_source_route.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"bbca236752e2719a\""
       ],
       "alternative": [
         "CXformDSLRule_Difference"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "bbca236752e2719a",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalDifference",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

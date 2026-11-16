@@ -49,11 +49,29 @@
         "CXformIntersect2Join"
       ],
       "policy": "isolate_intersect2join.policy",
+      "stats_experiment": "intersect_source_route.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"0b18c35ac61e866c\""
       ],
       "alternative": [
         "CXformDSLRule_Intersect"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0b18c35ac61e866c",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalIntersect",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
