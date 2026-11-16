@@ -4997,6 +4997,15 @@ CTranslatorDXLToPlStmt::TranslateDXLCTEConsumerToSharedScan(
 	plan->qual = NIL;
 	SetParamIds(plan);
 
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		GPOS_TRACE_FORMAT(
+			"DSL_CTE_BINDING cte_id=%u plan_id=%d parameter=%d "
+			"scan_relation=%u plan_node_id=%d",
+			cte_id, cte_info.plan_id, cte_info.param_id, scan_relid,
+			plan->plan_node_id);
+	}
+
 	return (Plan *) cte_scan;
 }
 
