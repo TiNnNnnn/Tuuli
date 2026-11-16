@@ -159,18 +159,6 @@ Filter<Any(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|Any<p1 a3>(Input<t2>,Input<t
 # ALL certificate: ca7c19247f80ef46c8c4e3cc264be81b5117e89effaaefe5e232f034f2c502ba
 Filter<All(c0,Args(n0,Args()),a2,t1) a0>(Input<t0>)|All<p1 a3>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;a3 := ScalarDeps(n0);n1 := Column(a2);v3 := Args();v2 := Args(n1,v3);v1 := Args(n0,v2);p1 := Compare(c0,v1)
 
-# DIRECT(expression-rewrite): typed quantifier matching captures the source
-# comparison, value list, output attributes and query; the target rebuilds the
-# comparison and reuses those typed captures through ordinary aliases.
-# FORMALSQL_PROVED legacy_hash=b1d9ece967912f1c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 14f68317a41320c300bf2cc11d59afd004b8a14a8bd275d0cf7d0805cdc890ae. Generic typed ANY bridge.
-Filter<p0 a0>(Input<t0>)|Any<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;Any(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
-
-# DIRECT(expression-rewrite): PredicateAll shares quantified comparison
-# decomposition with ANY while preserving NULL-aware ALL semantics.
-# The same typed-bridge compatibility boundary applies as for ANY above.
-# FORMALSQL_PROVED legacy_hash=a08e24d9155e2f5c; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13; certificate 9883251f9f6b343cbfd4159809e17beb4912e6786e87b53c800b653c06b67125. Generic typed ALL bridge.
-Filter<p0 a0>(Input<t0>)|All<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;All(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)
-
 # DIRECT(expression-rewrite): extract one scalar query through a typed Context.
 # CONDITIONAL OUTCOME_EQ: canonical Filter/Compute rules and actual
 # extraction instances kernel-checked. DepsDisjoint prevents capture when the

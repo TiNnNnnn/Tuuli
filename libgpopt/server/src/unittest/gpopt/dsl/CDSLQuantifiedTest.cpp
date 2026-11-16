@@ -402,6 +402,20 @@ EresCapturedComparison()
 		GPOS_ASSERT(nullptr == inst.PexprInstantiate(bad_rule, bad_model));
 		bad_model->Release();
 		bad_rule->Release();
+		// Quantifier arguments omit the selected RHS column; Compare needs both operands.
+		const std::string quant = all ? "All" : "Any";
+		const std::string missing_rhs = "Filter<p0 a0>(Input<t0>)|" + quant +
+			"<p1 a1>(Input<t1>,Input<t2>)|t1 := t0;" + quant +
+			"(c0,v0,a3,t3) := p0;a1 := a3;t2 := t3;p1 := Compare(c0,v0)";
+		CDSLRule *incomplete = PruleParse(mp, missing_rhs.c_str());
+		GPOS_UNITTEST_ASSERT(nullptr != incomplete);
+		CDSLModel *incomplete_model = GPOS_NEW(mp) CDSLModel(mp);
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, incomplete).FMatch(
+			incomplete->PfragSrc()->PopRoot(), source, incomplete_model));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(incomplete, incomplete_model));
+		GPOS_UNITTEST_ASSERT(nullptr == inst.PexprInstantiate(incomplete, incomplete_model));
+		incomplete_model->Release();
+		incomplete->Release();
 		model->Release();
 		source->Release();
 		rule->Release();
