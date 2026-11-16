@@ -17,6 +17,7 @@
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpopt/base/COptCtxt.h"
+#include "gpopt/base/CCTEInfo.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/base/CDistributionSpec.h"
@@ -32,6 +33,9 @@
 #include "gpopt/dsl/CDSLRuleParser.h"
 #include "gpopt/operators/CExpression.h"
 #include "gpopt/operators/CLogicalConstTableGet.h"
+#include "gpopt/operators/CLogicalCTEAnchor.h"
+#include "gpopt/operators/CLogicalCTEConsumer.h"
+#include "gpopt/operators/CLogicalCTEProducer.h"
 #include "gpopt/operators/CLogicalAssert.h"
 #include "gpopt/operators/CLogicalApply.h"
 #include "gpopt/operators/CLogicalGet.h"
@@ -316,9 +320,25 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			AppendColumn(mp, out, output_iter.Pcr());
 		}
 		*out << ']';
-		// A column set is not a row layout. Preserve a declared leaf layout
-		// only; derived operators require their own ordered lowering contract.
+		// A column set is not a row layout; preserve declared positional ports.
 		const CColRefArray *layout = nullptr;
+		if (const auto *consumer = dynamic_cast<const CLogicalCTEConsumer *>(expr->Pop()))
+		{
+			*out << ",\"cte_id\":" << consumer->UlCTEId();
+			layout = consumer->Pdrgpcr();
+		}
+		if (const auto *producer = dynamic_cast<const CLogicalCTEProducer *>(expr->Pop()))
+		{
+			*out << ",\"cte_id\":" << producer->UlCTEId();
+			layout = producer->Pdrgpcr();
+		}
+		if (const auto *anchor = dynamic_cast<const CLogicalCTEAnchor *>(expr->Pop()))
+		{
+			*out << ",\"cte_id\":" << anchor->Id() << ",\"cte_producer\":";
+			// Capture the registered definition once at its scope, never inline consumers.
+			complete &= AppendBoundExpression(mp, out,
+				COptCtxt::PoctxtFromTLS()->Pcteinfo()->PexprCTEProducer(anchor->Id()));
+		}
 		if (const auto *apply = dynamic_cast<const CLogicalApply *>(expr->Pop()))
 		{
 			const CHAR *origin = nullptr;
@@ -1228,6 +1248,7 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 BOOL
 AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out, const CExpression *expression)
 {
+	GPOS_CHECK_STACK_SIZE;
 	std::vector<const CExpression *> pending{expression};
 	while (!pending.empty())
 	{

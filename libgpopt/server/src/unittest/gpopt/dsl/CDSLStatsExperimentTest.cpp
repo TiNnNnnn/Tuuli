@@ -23,6 +23,9 @@
 #include "gpopt/operators/CPatternLeaf.h"
 #include "gpopt/base/CDrvdPropRelational.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CCTEInfo.h"
+#include "gpopt/operators/CLogicalCTEAnchor.h"
+#include "gpopt/operators/CLogicalCTEProducer.h"
 #include "gpopt/base/COrderSpec.h"
 #include "gpopt/base/CColumnFactory.h"
 #include "gpopt/xforms/CXformUtils.h"
@@ -80,12 +83,75 @@ CDSLStatsExperimentTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateSymbols),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateLeafLayout),
+		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateSharedInputs),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RouteTemplateContext),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_PlanTemplateExpressions),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_WindowMetadata),
 		GPOS_UNITTEST_FUNC(CDSLStatsExperimentTest::EresUnittest_RehashAlreadyEquivalentGroups),
 	};
 	return CUnittest::EresExecute(tests, GPOS_ARRAY_SIZE(tests));
+}
+
+GPOS_RESULT
+CDSLStatsExperimentTest::EresUnittest_PlanTemplateSharedInputs()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fixture(mp);
+	CColRefArray *columns = nullptr;
+	CExpression *table = fixture.PexprLogicalGet("shared_input", 2, &columns);
+	// Registering a producer derives stats; use VALUES without synthetic table stats.
+	columns->AddRef();
+	CExpression *source = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalConstTableGet(mp, columns, GPOS_NEW(mp) IDatum2dArray(mp)));
+	CCTEInfo *info = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+	const ULONG id = info->next_id();
+	CExpression *producer = CXformUtils::PexprAddCTEProducer(mp, id, columns, source);
+	const IStatistics *producer_stats = producer->Pstats();
+	const CColRefArray *ports = CLogicalCTEProducer::PopConvert(producer->Pop())->Pdrgpcr();
+	columns->AddRef();
+	CExpression *first = CXformUtils::PexprCTEConsumer(mp, id, columns);
+	CColRefArray *second_columns = CUtils::PdrgpcrCopy(mp, columns);
+	CColRefArray *reversed = GPOS_NEW(mp) CColRefArray(mp);
+	reversed->Append((*second_columns)[1]);
+	reversed->Append((*second_columns)[0]);
+	CExpression *second = CXformUtils::PexprCTEConsumer(mp, id, reversed);
+	CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+	CExpression *join = fixture.PexprLogicalInnerJoin(first, second, predicate);
+	CExpression *anchor = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CLogicalCTEAnchor(mp, id), join);
+	const auto column = [](const CColRef *col) {
+		return "{\"id\":" + std::to_string(col->Id()) +
+			",\"type\":\"0.23.1.0\",\"typmod\":-1}";
+	};
+	const auto layout = [&](const CColRefArray *cols) {
+		return "\"output_layout\":[" + column((*cols)[0]) + ',' + column((*cols)[1]) + ']';
+	};
+	BOOL complete = false;
+	const std::string snapshot = CDSLPlanTemplate::Serialize(mp, anchor, &complete);
+	const std::string binding = "\"cte_id\":" + std::to_string(id);
+	const std::string definition = binding + ",\"cte_producer\":";
+	const size_t producer_offset = snapshot.find(definition);
+	BOOL valid = complete && producer_offset != std::string::npos &&
+		snapshot.find(definition, producer_offset + definition.size()) == std::string::npos &&
+		snapshot.find(binding + ',' + layout(ports)) != std::string::npos &&
+		snapshot.find(binding + ',' + layout(columns)) != std::string::npos &&
+		snapshot.find(binding + ',' + layout(reversed)) != std::string::npos &&
+		snapshot.find("\"orca_operator\":\"CLogicalCTEProducer\"") != std::string::npos &&
+		snapshot.find("\"constant_rows\":[]") != std::string::npos &&
+		(*ports)[0] != (*columns)[0] && producer_stats == producer->Pstats();
+	// Capturing a consumer alone must not invent a scope or duplicate its definition.
+	const std::string consumer = CDSLPlanTemplate::SerializeCaptured(mp, second);
+	valid &= consumer.find(binding + ',' + layout(reversed)) != std::string::npos &&
+		consumer.find("\"cte_producer\":") == std::string::npos;
+	anchor->Release();
+	predicate->Release();
+	first->Release();
+	second->Release();
+	second_columns->Release();
+	source->Release();
+	table->Release();
+	return valid ? GPOS_OK : GPOS_FAILED;
 }
 
 GPOS_RESULT
