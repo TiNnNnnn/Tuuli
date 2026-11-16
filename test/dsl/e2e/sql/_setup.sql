@@ -164,6 +164,7 @@ INSERT INTO dsl_composite_fk_child VALUES
 
 CREATE TABLE dsl_eq_left(k int NOT NULL);
 CREATE TABLE dsl_eq_right(k int NOT NULL);
+CREATE TABLE dsl_eq_empty_pair_left(a int, b int);
 INSERT INTO dsl_eq_left VALUES (1),(1),(2),(3);
 INSERT INTO dsl_eq_right VALUES (1),(2),(2),(4);
 

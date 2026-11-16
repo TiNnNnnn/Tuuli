@@ -342,22 +342,26 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj<a4 s0>(InnerJoin<p1 a2 a3>(Input<t2
 # Replaces CXformLeftAntiSemiJoin2CrossProduct without its empty-input and
 # nullable-predicate defects. For a predicate independent of the inner input,
 # the two UNION ALL branches cover non-empty and empty inner relations;
-# PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs keep the
-# expansion valid for arbitrary subtrees. FormalSQL/Rocq: OUTCOME_EQ, verified
-# 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=4ace459761869246; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-10. The generic
+# PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs avoid
+# separate runtime copies. The legacy OUTCOME_EQ certificate (2026-09-05)
+# interprets Inputs as base tables, not arbitrary query/error outcomes.
+# FORMALSQL_PROVED legacy_hash=02fa8d41fd179f73; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-11-16. The legacy
 # AntiIndependentExpansionRuleSupported theorem requires PredicateNotTrue,
 # shared inputs and explicit output columns.
-AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
+# Safety correction replaces 4ace459761869246: ErrorFree(t1) prevents eager RHS failures.
+# Full captured-query migration remains pending: empty-left RHS demand and
+# repeated input observations must be justified independently of TableShared.
+AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1)
 
 # Replace CXformLeftAntiSemiJoinNotIn2CrossProduct for an ALL comparison that
 # does not depend on the inner input. A non-empty inner keeps TRUE outer rows;
-# an empty inner keeps every outer row. FormalSQL/Rocq: OUTCOME_EQ, verified
-# 2026-09-05.
-# FORMALSQL_PROVED legacy_hash=1cffa7aedcedb510; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-10-13. The generic
+# an empty inner keeps every outer row. The legacy OUTCOME_EQ certificate
+# (2026-09-05) uses base-table Inputs; complete captured-query lowering is pending.
+# FORMALSQL_PROVED legacy_hash=44094ceb70214301; FormalSQL/Rocq OUTCOME_EQ: kernel-checked 2026-11-16. The legacy
 # AllIndependentExpansionRuleSupported theorem accepts the typed REF aliases;
 # no NULL-aware anti-join-specific lemma is added.
-AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0)
+# Safety correction replaces 1cffa7aedcedb510: shared RHS demand also requires ErrorFree(t1).
+AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1)
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
 # column-remapped inline definition; the same rule composes under Filter.

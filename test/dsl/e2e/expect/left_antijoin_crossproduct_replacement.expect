@@ -1,13 +1,17 @@
 {
-  "description": "A DSL syntax migration exercises inner-independent AntiJoin expansion with a kernel-checked generic proof",
+  "description": "Guarded inner-independent AntiJoin expansion retains safe RHS behavior; complete captured-query proof remains pending",
   "replacement": {
     "xforms": [
       "CXformLeftAntiSemiJoin2CrossProduct"
     ],
-    "scope": "Deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
-    "status": "verified_full_replacement",
+    "scope": "Provably error-free RHS and deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
+    "status": "verified_partial_replacement",
+    "excluded_native_domains": [
+      "RHS not provably error-free: shared producer evaluation can precede an empty left input",
+      "Complete captured-query shared input and demand proof remains pending"
+    ],
     "dsl_rule_hashes": [
-      "f6380fe3f040110a"
+      "a14e5e02a664e6c1"
     ]
   },
   "plans": [
@@ -24,7 +28,7 @@
       "trace": true,
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\""
       ]
     },
     {
@@ -46,7 +50,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\""
       ],
       "provenance": {
         "required_sources": [

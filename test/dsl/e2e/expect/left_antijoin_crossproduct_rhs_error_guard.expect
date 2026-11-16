@@ -1,0 +1,50 @@
+{
+  "description": "An empty left input must not start a failing shared RHS; the generic ErrorFree input premise rejects AntiJoin expansion",
+  "plans": [
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"a14e5e02a664e6c1\"",
+        "\"failed_constraint\":\"ErrorFree\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\"",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "output": [],
+    "postgres_output": [],
+    "plan_outputs": {
+      "negative": [],
+      "replacement": []
+    }
+  }
+}

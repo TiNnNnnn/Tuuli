@@ -9,7 +9,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f6380fe3f040110a\""
+        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\""
       ],
       "not_contains": [
         "Xform: CXformLeftAntiSemiJoin2CrossProduct"
