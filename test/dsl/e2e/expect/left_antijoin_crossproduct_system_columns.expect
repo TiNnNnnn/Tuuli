@@ -10,7 +10,9 @@
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\"",
-        "DSL_CTE_BINDING"
+        "DSL_CTE_BINDING",
+        "DSL_CTE_PRODUCER_PORT",
+        "DSL_CTE_CONSUMER_PORT"
       ],
       "not_contains": [
         "Xform: CXformLeftAntiSemiJoin2CrossProduct"

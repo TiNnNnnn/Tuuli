@@ -4863,7 +4863,19 @@ CTranslatorDXLToPlStmt::TranslateDXLCTEProducerToSharedScan(
 	child_contexts->Release();
 
 	// Register in subplans and record cte_id → (plan_id, param_id).
-	m_dxl_to_plstmt_context->RegisterCTEPlan(cte_id, child_plan);
+	int cte_plan_id = m_dxl_to_plstmt_context->RegisterCTEPlan(cte_id, child_plan);
+	if (GPOS_FTRACE(EopttracePrintDSLRule))
+	{
+		ULongPtrArray *columns = cte_prod_dxlop->GetOutputColIdsArray();
+		for (ULONG ul = 0; ul < columns->Size(); ul++)
+		{
+			ULONG column = *(*columns)[ul];
+			const TargetEntry *entry = child_context.GetTargetEntry(column);
+			GPOS_TRACE_FORMAT(
+				"DSL_CTE_PRODUCER_PORT cte_id=%u plan_id=%d column=%u attribute=%d",
+				cte_id, cte_plan_id, column, nullptr == entry ? 0 : entry->resno);
+		}
+	}
 
 	// Return child_plan to satisfy the Plan* interface; the caller
 	// (TranslateDXLSequence) ignores this return value for CTEProducers.
@@ -4992,6 +5004,12 @@ CTranslatorDXLToPlStmt::TranslateDXLCTEConsumerToSharedScan(
 		TargetEntry *te =
 			(TargetEntry *) gpdb::ListNth(plan->targetlist, (int) ul);
 		output_context->InsertMapping(consumer_colid, te);
+		if (GPOS_FTRACE(EopttracePrintDSLRule))
+		{
+			GPOS_TRACE_FORMAT(
+				"DSL_CTE_CONSUMER_PORT cte_id=%u plan_node_id=%d column=%u attribute=%d",
+				cte_id, plan->plan_node_id, consumer_colid, ((Var *) te->expr)->varattno);
+		}
 	}
 
 	plan->qual = NIL;
