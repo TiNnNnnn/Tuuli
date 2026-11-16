@@ -27,7 +27,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
         "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\""
       ],
       "not_contains": [
@@ -52,6 +52,7 @@
     },
     {
       "name": "without-membership",
+      "trace": true,
       "disable_xforms": [
         "CXformSelect2Apply",
         "CXformSubquery2CorrelatedApply",
@@ -60,9 +61,16 @@
         "CXformSimplifyGbAgg"
       ],
       "policy": "without_membership.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Hash Semi Join"
+      ],
       "not_contains": [
-        "Optimizer: pg_orca"
-      ]
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\""
+      ],
+      "joins": 1
     },
     {
       "name": "without-join-removal",
@@ -77,7 +85,7 @@
       "policy": "without_join_removal.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\"",

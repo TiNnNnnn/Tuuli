@@ -1,0 +1,7 @@
+experiment: membership-dedup-source
+discover: false
+template_route: 1
+template_fingerprint: 7315c065e3688e6a
+template_root: r
+template_bindings: true
+cardinalities:

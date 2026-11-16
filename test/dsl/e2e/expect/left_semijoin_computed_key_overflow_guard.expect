@@ -1,5 +1,5 @@
 {
-  "description": "Immutable arithmetic is not error-free: membership-to-join must not bypass the computed-key demand guard",
+  "description": "Relational SemiJoin conversion preserves the computed RHS and its result or error; scalar IN adapter safety is a separate boundary",
   "plans": [
     {
       "name": "guard",
@@ -10,11 +10,10 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
-        "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "Falling back to Postgres"
       ]
     }
   ],

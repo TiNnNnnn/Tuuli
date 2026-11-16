@@ -1,0 +1,16 @@
+CREATE EXTENSION IF NOT EXISTS pg_orca;
+CREATE TABLE membership_left(k int, v int NOT NULL);
+CREATE TABLE membership_right(k int PRIMARY KEY);
+CREATE TABLE membership_pairs(k int NOT NULL, v int NOT NULL);
+CREATE TABLE membership_duplicates(k int NOT NULL);
+CREATE TABLE membership_other(k int);
+INSERT INTO membership_left VALUES (1,10),(1,10),(2,20),(3,30),(NULL,40);
+INSERT INTO membership_right VALUES (1),(2),(4);
+INSERT INTO membership_pairs VALUES (1,10),(1,10),(1,11),(2,20),(4,40);
+INSERT INTO membership_duplicates VALUES (1),(2),(2),(4);
+INSERT INTO membership_other VALUES (2),(2),(3),(NULL);
+ANALYZE membership_left;
+ANALYZE membership_right;
+ANALYZE membership_pairs;
+ANALYZE membership_duplicates;
+ANALYZE membership_other;

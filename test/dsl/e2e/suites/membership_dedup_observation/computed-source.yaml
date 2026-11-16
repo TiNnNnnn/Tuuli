@@ -1,0 +1,7 @@
+experiment: membership-computed-source
+discover: false
+template_route: 1
+template_fingerprint: 2c1e23223cabb5af
+template_root: r
+template_bindings: true
+cardinalities:

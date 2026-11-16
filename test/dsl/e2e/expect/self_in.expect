@@ -1,5 +1,5 @@
 {
-  "description": "A valid CBO rule chain preserves the residual; the original self-IN rule is rejected because its Input equality premise is false",
+  "description": "A valid CBO rule chain preserves the residual; the shared-input self-IN pattern is rejected because its two captures differ",
   "replacement": {
     "xforms": [
       "CXformSelect2Apply"
@@ -7,8 +7,8 @@
     "scope": "CBO: positive single-column IN under Select with a residual predicate, using membership-to-join and Reference-based join removal",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "9dc5c70cd1245677",
-      "083269c328fea89f"
+      "a261a04c12ff6cb5",
+      "41f0464b2d141f50"
     ]
   },
   "plans": [
@@ -29,9 +29,9 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
-        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0d3437a13186f35\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"8dba1c607b8e70a5\""
       ],
       "alternative": [
         "CXformSelect2Apply",
@@ -61,8 +61,8 @@
       "contains": [
         "Optimizer: pg_orca",
         "DSL_TRACE {\"kind\":\"application\",\"engine\":\"pgorca\"",
-        "\"status\":\"applied\",\"rule_hash\":\"9dc5c70cd1245677\"",
-        "\"status\":\"applied\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
+        "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\"",
         "\"rule_hash\":\"",
         "\"placement\":\"cbo\",\"phase\":\"explore\",\"priority\":0"
       ],
@@ -88,9 +88,9 @@
       "policy": "wetune_bottom_up_rbo.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f0d3437a13186f35\"",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"9dc5c70cd1245677\"",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"083269c328fea89f\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"8dba1c607b8e70a5\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"a261a04c12ff6cb5\"",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"41f0464b2d141f50\"",
         "\"src_rule\":\"4f3da4063a3836ad\",\"dst_rule\":\"eb808b80935652d6\",\"target_path\":\"r\"",
         "\"placement\":\"rbo\"",
         "\"order\":\"bottom_up\""

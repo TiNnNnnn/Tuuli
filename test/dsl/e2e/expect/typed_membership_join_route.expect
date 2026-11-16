@@ -1,5 +1,5 @@
 {
-  "description": "新绑定 IN-to-Join 在 Join 下推路由上保留比较、重复行和父级投影捕获",
+  "description": "Existing DSL dependency rules expose relational membership before or after native unnesting, preserving the complete input and predicate",
   "plans": [
     {
       "name": "before-unnesting",
@@ -12,7 +12,7 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres",

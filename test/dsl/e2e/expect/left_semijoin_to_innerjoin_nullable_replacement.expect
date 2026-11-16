@@ -9,7 +9,7 @@
       ],
       "policy": "isolate_typed_membership.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -32,7 +32,7 @@
         "CXformLeftSemiJoin2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

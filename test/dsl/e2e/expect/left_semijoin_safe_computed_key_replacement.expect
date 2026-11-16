@@ -10,7 +10,7 @@
       "Computed keys without a demand-insensitivity proof"
     ],
     "dsl_rule_hashes": [
-      "b24ead64771bc9fb"
+      "a261a04c12ff6cb5"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "trace": true,
       "policy": "isolate_typed_membership.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ]
     },
     {
@@ -50,7 +50,7 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
         "CScalarCoalesce/2"
       ],
       "not_contains": [

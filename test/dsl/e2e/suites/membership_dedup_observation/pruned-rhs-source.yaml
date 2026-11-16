@@ -1,0 +1,7 @@
+experiment: membership-partial-key-source
+discover: false
+template_route: 1
+template_fingerprint: 077b6c12c1200814
+template_root: r
+template_bindings: true
+cardinalities:

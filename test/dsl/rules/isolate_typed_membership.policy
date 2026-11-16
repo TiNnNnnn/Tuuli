@@ -1,5 +1,15 @@
-# Only the explicit-binding IN-to-Join rule; no legacy DSL fallback.
+# Only membership conversion and its existing scalar-to-relational dependency chain.
 - rule: '*'
   enabled: false
-- rule: 'b24ead64771bc9fb'
+- rule: 'a261a04c12ff6cb5'
+  enabled: true
+- rule: 'eb808b80935652d6'
+  enabled: true
+- rule: 'c83cc9b54086d16c'
+  enabled: true
+- rule: '91905ebab4da4402'
+  enabled: true
+- rule: 'f7eadea871960968'
+  enabled: true
+- rule: '4f3da4063a3836ad'
   enabled: true

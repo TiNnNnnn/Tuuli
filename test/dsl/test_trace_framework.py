@@ -20,6 +20,19 @@ if str(SCRIPT_DIR) not in sys.path:
 
 
 class ReplacementProtocolTest(unittest.TestCase):
+    def test_maintained_e2e_policy_fixtures_exist(self):
+        from run_e2e_cases import policy_setting
+        libraries = [(SCRIPT_DIR / 'e2e/expect', SCRIPT_DIR / 'rules')]
+        libraries.extend((suite / 'expect', suite)
+                         for suite in (SCRIPT_DIR / 'e2e/suites').iterdir()
+                         if suite.is_dir())
+        for expectations, policies in libraries:
+            for path in expectations.glob('*.expect'):
+                expected = json.loads(path.read_text())
+                for state in [*expected.get('plans', []), expected.get('rows', {})]:
+                    with self.subTest(fixture=path, state=state.get('name', 'rows')):
+                        policy_setting(SimpleNamespace(policy_dir=policies), state)
+
     def test_standalone_e2e_and_ml_reader_share_the_contract(self):
         from ml_orca.common import replacement_contract
         self.assertEqual((SCRIPT_DIR / 'replacement_contract.py').read_bytes(),

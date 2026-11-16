@@ -1,0 +1,78 @@
+{
+  "description": "Membership conversion retains both distinct RHS inputs, duplicate counts and NULL semantics",
+  "plans": [
+    {
+      "name": "dsl-off",
+      "dsl": false,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "stats_experiment": "distinct-rhs-chain-source.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a261a04c12ff6cb5",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalLeftSemiJoin",
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "output": [
+      "2,20"
+    ],
+    "postgres_output": [
+      "2,20"
+    ],
+    "off_output": [
+      "2,20"
+    ]
+  }
+}

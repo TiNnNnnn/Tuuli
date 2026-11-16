@@ -1,5 +1,5 @@
 {
-  "description": "A computed IN key remains demand-sensitive even when the fixture values do not overflow; retain the native baseline and reject eager DSL membership lowering",
+  "description": "Relational SemiJoin conversion preserves the computed RHS and its result or error; scalar IN adapter safety is a separate boundary",
   "plans": [
     {
       "name": "native",
@@ -15,11 +15,10 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
-        "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "Falling back to Postgres"
       ]
     },
     {
@@ -42,11 +41,10 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
         "Xform: CXformLeftSemiJoin2InnerJoin"
       ]
     }

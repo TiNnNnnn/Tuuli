@@ -13,7 +13,7 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\"",
         "\"status\":\"applied\",\"rule_hash\":\"41f0464b2d141f50\""
       ],
       "not_contains": [

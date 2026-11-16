@@ -7,7 +7,7 @@
     "scope": "Projected composite equality keys; computed-key and Project-free domains are not certified by this case",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "b24ead64771bc9fb"
+      "a261a04c12ff6cb5"
     ]
   },
   "plans": [
@@ -19,7 +19,7 @@
       ],
       "policy": "isolate_typed_membership.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -47,7 +47,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "alternative": [
         "CXformLeftSemiJoin2InnerJoin",
@@ -72,7 +72,7 @@
         "CXformLeftSemiJoin2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "alternative": [
         "CXformDSLRule_InSub"

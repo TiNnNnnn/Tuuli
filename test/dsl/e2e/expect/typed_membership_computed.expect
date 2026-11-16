@@ -1,5 +1,5 @@
 {
-  "description": "同一已注册新绑定 IN 规则在展开前后保留计算结果：NULL 经 COALESCE 产生 3，不能用底层依赖列替代",
+  "description": "Existing DSL dependency rules expose relational membership before or after native unnesting, preserving the complete input and predicate",
   "plans": [
     {
       "name": "before-unnesting",
@@ -12,7 +12,7 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres",
@@ -39,7 +39,7 @@
       "policy": "isolate_typed_membership.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b24ead64771bc9fb\""
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
       ],
       "not_contains": [
         "Falling back to Postgres"

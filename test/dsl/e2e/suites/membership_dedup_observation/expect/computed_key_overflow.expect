@@ -1,0 +1,36 @@
+{
+  "description": "Relational membership conversion retains the computed RHS and its overflow outcome",
+  "plans": [
+    {
+      "name": "dsl-on",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiJoin2InnerJoin",
+        "CXformLeftSemiJoin2InnerJoinUnderGb"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a261a04c12ff6cb5\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiJoin2InnerJoin",
+      "CXformLeftSemiJoin2InnerJoinUnderGb"
+    ],
+    "error_sqlstate": "22003",
+    "output": [
+      "SQLSTATE 22003"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22003"
+    ],
+    "off_output": [
+      "SQLSTATE 22003"
+    ]
+  }
+}
