@@ -330,15 +330,14 @@ LeftJoin<p0 a0 a1>(Input<t0>,Input<t1>)|LeftJoin<p1 a2 a3>(Input<t2>,Empty<t3>)|
 # child queries remain opaque and require their own total, error-free contract.
 LeftJoin<p0 a0 a1>(Input<t0>,Filter<p1 a2>(Input<t1>))|LeftJoin<p2 a3 a4>(Input<t2>,Empty<t3>)|AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a2,t1);PredicateFalse(p1);t2 := t0;t3 := t1;p2 := p0;a3 := a0;a4 := a1;ErrorFree(t1)
 
-# Replaces CXformLeftSemiJoin2CrossProduct when the semi predicate does not
-# depend on the inner input. SemiJoin names the actual post-unnest relational
-# operator rather than an Exists compatibility view. The inner LIMIT 1
-# preserves existential bag multiplicity. This exact RuleIR is accepted by the
-# generic FormalSQL/Rocq proof, verified 2026-08-29.
-# FORMALSQL_PROVED legacy_hash=513f8737ae6c43ba; FormalSQL/Rocq PROJECTED_BAG_EQ: kernel-checked 2026-10-10. The generic
-# ExistentialProbeRuleSupported theorem proves the inner-independent semi-join
-# lowering with explicit Limit(1, 0); no rule-specific premise is added.
-SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsSub(a0,t0);AttrsEmpty(a1);Deterministic(p0);ScalarOne(n0);ScalarZero(n1);ErrorFree(p0);ErrorFree(p1)
+# Replaces CXformLeftSemiJoin2CrossProduct when the full ON ignores the RHS.
+# LIMIT 1 preserves existential multiplicity; explicit projection retains only
+# left outputs. Actual column dependencies include outer references.
+# FORMALSQL_PROVED legacy_hash=cf0e900e86c12973; FormalSQL/Rocq BAG_OUTCOME_EQ: kernel-checked 2026-11-16.
+# Replaces output-implicit 513f8737ae6c43ba; this is not a syntax-only change.
+# Public template proof composes registered observations, with
+# child/SELECT errors and duplicate left rows retained. No whole-rule lemma.
+SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj<a4 s0>(InnerJoin<p1 a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>)))|t2 := t0;t3 := t1;p1 := p0;a2 := a0;a3 := a1;AttrsSub(a0,t0);AttrsEmpty(a1);Deterministic(p0);ScalarOne(n0);ScalarZero(n1);ErrorFree(p0);ErrorFree(p1);OutputAttrs(a4,t0);SchemaFromAttrs(s0,a4)
 
 # Replaces CXformLeftAntiSemiJoin2CrossProduct without its empty-input and
 # nullable-predicate defects. For a predicate independent of the inner input,
