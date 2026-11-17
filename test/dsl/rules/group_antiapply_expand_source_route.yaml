@@ -1,0 +1,7 @@
+experiment: group_antiapply_expand_source_route
+discover: false
+template_route: 5
+template_fingerprint: 828c13956b47b1f8
+template_root: r
+template_bindings: true
+cardinalities:

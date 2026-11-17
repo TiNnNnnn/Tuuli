@@ -1,0 +1,7 @@
+experiment: group_semiapply_expand_source_route
+discover: false
+template_route: 6
+template_fingerprint: 2733d6f177154b58
+template_root: r
+template_bindings: true
+cardinalities:

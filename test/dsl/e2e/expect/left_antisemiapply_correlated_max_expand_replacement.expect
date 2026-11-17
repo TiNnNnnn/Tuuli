@@ -1,0 +1,92 @@
+{
+  "description": "Safe MAX exercises correlated aggregate key expansion with duplicate outer rows and a NULL group; COUNT overflow guards remain separate.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_group_antiapply_expand.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_group_antiapply_expand.policy",
+      "stats_experiment": "group_antiapply_expand_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "abcd4af97695ed2f",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_group_antiapply_expand.policy",
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ],
+    "off_output": [
+      "2"
+    ]
+  }
+}
