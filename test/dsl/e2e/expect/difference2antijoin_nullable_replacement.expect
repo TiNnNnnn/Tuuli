@@ -50,6 +50,7 @@
       ],
       "policy": "isolate_difference2antijoin.policy",
       "stats_experiment": "difference_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"bbca236752e2719a\""
       ],
