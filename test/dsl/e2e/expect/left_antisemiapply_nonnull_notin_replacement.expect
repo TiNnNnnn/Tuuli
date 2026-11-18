@@ -1,0 +1,92 @@
+{
+  "description": "A non-null NOT IN reaches the registered AntiApply to AntiJoin rewrite after normalization",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "scope": "Uncorrelated NOT IN with two non-null integer keys",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "65a5256ee2c9513c"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "contains": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"65a5256ee2c9513c\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+      ],
+      "stats_experiment": "nonnull_anti_apply_source_route.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"65a5256ee2c9513c\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "65a5256ee2c9513c",
+          "route_sequence": 3,
+          "operators": [
+            "CLogicalLeftAntiSemiApply",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations"
+    ],
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ],
+    "off_output": [
+      "2"
+    ]
+  }
+}

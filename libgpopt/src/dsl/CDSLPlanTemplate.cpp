@@ -1,6 +1,7 @@
 //---------------------------------------------------------------------------
 // Lossless, addressable ORCA-plan view for DSL rule mining.
 //---------------------------------------------------------------------------
+#include "gpopt/xforms/CSubqueryHandler.h"
 #include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/dsl/CDSLPlanTemplate.h"
 #include "gpopt/base/CKeyCollection.h"
@@ -350,6 +351,13 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 				case COperator::EopScalarSubqueryExists: origin = "exists"; break;
 				case COperator::EopScalarSubqueryNotExists: origin = "not_exists"; break;
 				default: break;
+			}
+			if (apply->Eopid() == COperator::EopLogicalLeftAntiSemiApply &&
+				apply->EopidOriginSubq() == COperator::EopScalarSubqueryAll && expr->Arity() == 3)
+			{
+				const BOOL safe = CSubqueryHandler::FAllSubqueryIsNullSafe(
+					mp, (*expr)[0], (*expr)[1], (*expr)[2]);
+				*out << ",\"apply_all_null_safe\":" << (safe ? "true" : "false");
 			}
 			*out << ",\"apply_origin\":" << (origin ? JsonString(origin) : "null")
 				<< ",\"apply_correlated\":" << (apply->FCorrelated() ? "true" : "false")

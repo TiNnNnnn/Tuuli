@@ -264,6 +264,9 @@ public:
 	{
 	}
 
+	static BOOL FAllSubqueryIsNullSafe(CMemoryPool *mp, CExpression *pexprOuter,
+									 CExpression *pexprInner, CExpression *pexprInversePred);
+
 	// build an expression for the quantified comparison of the subquery
 	CExpression *PexprSubqueryPred(CExpression *pexprOuter,
 								   CExpression *pexprSubquery,

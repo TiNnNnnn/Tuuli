@@ -1803,8 +1803,8 @@ FNonNullableCmpOperand(CExpression *pexpr, CColRefSet *pcrsNotNull)
 //		is rejected because the anti-join evaluates it differently.
 //
 //---------------------------------------------------------------------------
-static BOOL
-FAllSubqueryIsNullSafe(CMemoryPool *mp, CExpression *pexprOuter,
+BOOL
+CSubqueryHandler::FAllSubqueryIsNullSafe(CMemoryPool *mp, CExpression *pexprOuter,
 					   CExpression *pexprInner, CExpression *pexprInversePred)
 {
 	if (COperator::EopScalarCmp != pexprInversePred->Pop()->Eopid())
