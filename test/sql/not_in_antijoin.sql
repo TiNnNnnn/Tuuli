@@ -1,12 +1,8 @@
 -- NOT IN (subquery) as a plain anti-join
 --
--- An uncorrelated NOT IN in a WHERE clause is unnested into a null-aware
--- anti-join (LeftAntiSemiJoinNotIn), which the PostgreSQL executor cannot
--- run, so ORCA falls back to the standard planner.  When neither the outer
--- key nor the subquery's output can be NULL, and the operator cannot return
--- NULL for non-null inputs, the null-aware join is equivalent to a plain one
--- and ORCA plans it as an ordinary anti-join (TPC-H Q16 has this shape).
--- Every other case must keep falling back, and must keep its NULL semantics.
+-- ORCA can use an ordinary anti join when both keys are non-null and the
+-- comparison is total on them. Nullable keys require the three-valued
+-- NOT IN comparison, including NULLs introduced by an outer join.
 
 LOAD 'pg_orca';
 SET pg_orca.enable_orca = on;
@@ -51,13 +47,13 @@ select count(*) from nia_outer where t not in (select vc from nia_inner);
 -- empty subquery: every outer row qualifies
 select count(*) from nia_outer where k not in (select k from nia_inner where k < 0);
 
--- nullable subquery output: null-aware, falls back.  The inner side has a
+-- nullable subquery output: requires a null-aware comparison.  The inner side has a
 -- NULL, so no outer row qualifies.
 explain (costs off)
 select k from nia_outer where k not in (select n from nia_inner);
 select count(*) from nia_outer where k not in (select n from nia_inner);
 
--- nullable outer key: null-aware, falls back.  Rows whose key is NULL do
+-- nullable outer key: requires a null-aware comparison.  Rows whose key is NULL do
 -- not qualify.
 select count(*) from nia_outer where n not in (select k from nia_inner);
 

@@ -3072,7 +3072,7 @@ CCostModelPG::CostUnion(CExpressionHandle &exprhdl, const SCostingInfo *pci)
 	if (keys > 0)
 	{
 		cost += cpu_operator_cost * keys * rows + cpu_tuple_cost * groups;
-		cost += op->FHash() ? HashAggSpillCost(rows, width, groups, 0).Get()
+		cost += op->FHash() ? HashAggSpillCost(rows, width, groups, 0, 0.0)
 						  : TupleSortCost(rows, width);
 	}
 	return CCost(pci->NumRebinds() * cost);

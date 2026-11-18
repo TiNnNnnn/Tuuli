@@ -1,12 +1,8 @@
 -- NOT IN (subquery) as a plain anti-join
 --
--- An uncorrelated NOT IN in a WHERE clause is unnested into a null-aware
--- anti-join (LeftAntiSemiJoinNotIn), which the PostgreSQL executor cannot
--- run, so ORCA falls back to the standard planner.  When neither the outer
--- key nor the subquery's output can be NULL, and the operator cannot return
--- NULL for non-null inputs, the null-aware join is equivalent to a plain one
--- and ORCA plans it as an ordinary anti-join (TPC-H Q16 has this shape).
--- Every other case must keep falling back, and must keep its NULL semantics.
+-- ORCA can use an ordinary anti join when both keys are non-null and the
+-- comparison is total on them. Nullable keys require the three-valued
+-- NOT IN comparison, including NULLs introduced by an outer join.
 LOAD 'pg_orca';
 SET pg_orca.enable_orca = on;
 SET pg_orca.trace_fallback = on;
@@ -142,33 +138,28 @@ select count(*) from nia_outer where k not in (select k from nia_inner where k <
     20
 (1 row)
 
--- nullable subquery output: null-aware, falls back.  The inner side has a
+-- nullable subquery output: requires a null-aware comparison.  The inner side has a
 -- NULL, so no outer row qualifies.
 explain (costs off)
 select k from nia_outer where k not in (select n from nia_inner);
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  Falling back to Postgres-based planner because GPORCA does not support the following feature: LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18
-                     QUERY PLAN                      
------------------------------------------------------
- Seq Scan on nia_outer
-   Filter: (NOT (ANY (k = (hashed SubPlan 1).col1)))
-   SubPlan 1
-     ->  Seq Scan on nia_inner
-(4 rows)
+                        QUERY PLAN
+-----------------------------------------------------------
+ Nested Loop Anti Join
+   Join Filter: ((nia_outer.k = nia_inner.n) IS NOT FALSE)
+   ->  Seq Scan on nia_outer
+   ->  Seq Scan on nia_inner
+ Optimizer: pg_orca
+(5 rows)
 
 select count(*) from nia_outer where k not in (select n from nia_inner);
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  Falling back to Postgres-based planner because GPORCA does not support the following feature: LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18
  count 
 -------
      0
 (1 row)
 
--- nullable outer key: null-aware, falls back.  Rows whose key is NULL do
+-- nullable outer key: requires a null-aware comparison.  Rows whose key is NULL do
 -- not qualify.
 select count(*) from nia_outer where n not in (select k from nia_inner);
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  Falling back to Postgres-based planner because GPORCA does not support the following feature: LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18
  count 
 -------
     10
@@ -177,8 +168,6 @@ DETAIL:  Falling back to Postgres-based planner because GPORCA does not support 
 -- a NOT NULL column that the outer side's outer join null-extends
 select count(*) from nia_outer o left join nia_inner i on o.k = i.k
 where i.k not in (select k from nia_inner where flag);
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  Falling back to Postgres-based planner because GPORCA does not support the following feature: LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18
  count 
 -------
      4
@@ -187,8 +176,6 @@ DETAIL:  Falling back to Postgres-based planner because GPORCA does not support 
 -- a NOT NULL column that the subquery's outer join null-extends
 select count(*) from nia_outer
 where k not in (select i.k from nia_outer o left join nia_inner i on o.k = i.k);
-INFO:  pg_orca: falling back to standard planner
-DETAIL:  Falling back to Postgres-based planner because GPORCA does not support the following feature: LeftAntiSemiJoinNotIn (NOT IN with NULLs) not supported in PG18
  count 
 -------
      0

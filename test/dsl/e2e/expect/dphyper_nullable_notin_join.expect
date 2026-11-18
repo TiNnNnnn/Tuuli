@@ -1,0 +1,44 @@
+{
+  "description": "A NULL on the right preserves the NULL-aware DPHyper anti join and filters all unmatched rows",
+  "plans": [
+    {
+      "name": "replacement-dsl",
+      "dsl": true,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "DPHyper: status=applied",
+        "mode=replacement"
+      ],
+      "joins": 1
+    },
+    {
+      "name": "replacement",
+      "dsl": false,
+      "dphyper": true,
+      "dphyper_shadow": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "DPHyper: status=applied",
+        "root=CLogicalInnerJoin nodes=3",
+        "mode=replacement",
+        "\"operator\":\"CLogicalLeftAntiSemiJoinNotIn\",\"source\":\"dphyper\",\"origin\":\"CXformDPHyperJoinRegion\"",
+        "IS NOT FALSE"
+      ],
+      "not_contains": [
+        "Xform: CXformExpandNAryJoinDPv2",
+        "Xform: CXformAntiSemiJoinNotInInnerJoinSwap"
+      ],
+      "joins": 2
+    }
+  ],
+  "rows": {
+    "dphyper": true,
+    "dphyper_shadow": false,
+    "output": [],
+    "postgres_output": []
+  }
+}

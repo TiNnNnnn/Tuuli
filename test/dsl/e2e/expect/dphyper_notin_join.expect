@@ -1,5 +1,5 @@
 {
-  "description": "DPHyper owns NULL-aware anti join swaps inside a mixed join region",
+  "description": "With two non-null keys DPHyper enumerates the ordinary anti join produced by NOT IN",
   "plans": [
     {
       "name": "replacement-dsl",
@@ -8,10 +8,11 @@
       "dphyper_shadow": false,
       "trace": true,
       "contains": [
+        "Optimizer: pg_orca",
         "DPHyper: status=applied",
         "mode=replacement"
       ],
-      "joins": 1
+      "joins": 2
     },
     {
       "name": "replacement",
@@ -20,16 +21,17 @@
       "dphyper_shadow": false,
       "trace": true,
       "contains": [
+        "Optimizer: pg_orca",
         "DPHyper: status=applied",
         "root=CLogicalInnerJoin nodes=3",
         "mode=replacement",
-        "\"operator\":\"CLogicalLeftAntiSemiJoinNotIn\",\"source\":\"dphyper\",\"origin\":\"CXformDPHyperJoinRegion\""
+        "\"operator\":\"CLogicalLeftAntiSemiJoin\",\"source\":\"dphyper\",\"origin\":\"CXformDPHyperJoinRegion\""
       ],
       "not_contains": [
         "Xform: CXformExpandNAryJoinDPv2",
         "Xform: CXformAntiSemiJoinNotInInnerJoinSwap"
       ],
-      "joins": 1
+      "joins": 2
     }
   ],
   "rows": {
