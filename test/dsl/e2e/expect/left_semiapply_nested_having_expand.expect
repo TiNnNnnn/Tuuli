@@ -1,0 +1,69 @@
+{
+  "description": "Correlated HAVING reads the retained grouping key from inside a scalar aggregate subquery.",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_group_semiapply_expand.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4fcc49fec25dcb37\""
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "policy": "isolate_group_semiapply_expand.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"4fcc49fec25dcb37\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftSemiApply2LeftSemiJoin"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApply2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
+    "policy": "isolate_group_semiapply_expand.policy",
+    "output": [
+      "3"
+    ],
+    "postgres_output": [
+      "3"
+    ],
+    "off_output": [
+      "3"
+    ]
+  }
+}

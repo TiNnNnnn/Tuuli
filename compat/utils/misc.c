@@ -1901,7 +1901,7 @@ transformGroupedWindows(Node *node, void *context)
 		/* PG17+: the GROUP RTE stays inside qry->rtable, which moves into
 		 * the subquery below together with the grouped target entries whose
 		 * Vars reference it.  Carry the flag along, or the translator's
-		 * FlattenGroupRTEVars pass will skip the subquery and its RTE_GROUP
+		 * group expression expansion will skip the subquery and its RTE_GROUP
 		 * Vars will fail column-mapping lookup ("No variable entry found
 		 * due to incorrect normalization of query"). */
 		subq->hasGroupRTE = qry->hasGroupRTE;

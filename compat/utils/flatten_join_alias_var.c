@@ -36,6 +36,13 @@ flatten_join_alias_var_optimizer(Query *query, int queryLevel)
 {
 	Query *queryNew = (Query *) copyObject(query);
 
+	/* HAVING subqueries may refer to grouping expressions several levels up. */
+	if (queryNew->hasGroupRTE)
+	{
+		queryNew->targetList = (List *) flatten_group_exprs(NULL, queryNew, (Node *) queryNew->targetList);
+		queryNew->havingQual = flatten_group_exprs(NULL, queryNew, queryNew->havingQual);
+	}
+
 	/*
 	 * Flatten join alias for expression in
 	 * 1. targetlist

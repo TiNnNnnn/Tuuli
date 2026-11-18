@@ -20,26 +20,6 @@ extern "C" {
 #include "nodes/nodeFuncs.h"
 #include "nodes/parsenodes.h"
 #include "nodes/plannodes.h"
-/* Override PG18's variadic walker/mutator macros with fixed-arity wrappers
- * that insert the void* cast ORCA's typed callbacks need.  #undef first. */
-#undef query_or_expression_tree_walker
-#undef expression_tree_walker
-#undef query_tree_walker
-#undef expression_tree_mutator
-#undef query_tree_mutator
-#undef query_or_expression_tree_mutator
-#define query_or_expression_tree_walker(n,w,c,f) \
-	query_or_expression_tree_walker_impl(n,(bool(*)(Node*,void*))w,c,f)
-#define expression_tree_walker(n,w,c) \
-	expression_tree_walker_impl(n,(bool(*)(Node*,void*))w,c)
-#define query_tree_walker(q,w,c,f) \
-	query_tree_walker_impl(q,(bool(*)(Node*,void*))w,c,f)
-#define expression_tree_mutator(n,m,c) \
-	expression_tree_mutator_impl(n,(Node*(*)(Node*,void*))m,c)
-#define query_tree_mutator(q,m,c,f) \
-	query_tree_mutator_impl(q,(Node*(*)(Node*,void*))m,c,f)
-#define query_or_expression_tree_mutator(n,m,c,f) \
-	query_or_expression_tree_mutator_impl(n,(Node*(*)(Node*,void*))m,c,f)
 }
 
 #include "gpopt/base/CUtils.h"
@@ -1113,79 +1093,12 @@ CQueryMutators::NormalizeHaving(CMemoryPool *mp, CMDAccessor *md_accessor,
 //	@doc:
 //		Normalize queries with having and group by clauses
 //---------------------------------------------------------------------------
-/* Mutator context for RTE_GROUP Var replacement */
-struct FlattenGroupRTEContext
-{
-	Query *query;
-};
-
-static Node *
-FlattenGroupRTEMutator(Node *node, void *ctx)
-{
-	if (node == nullptr)
-		return nullptr;
-
-	if (IsA(node, Var))
-	{
-		Var *var = (Var *) node;
-		struct FlattenGroupRTEContext *context =
-			(struct FlattenGroupRTEContext *) ctx;
-		Query *query = context->query;
-
-		if (var->varlevelsup == 0 && var->varno >= 1 &&
-			var->varno <= (unsigned int) list_length(query->rtable))
-		{
-			RangeTblEntry *rte =
-				(RangeTblEntry *) list_nth(query->rtable, var->varno - 1);
-			if (rte->rtekind == RTE_GROUP)
-			{
-				/* varattno is 1-based index into groupexprs */
-				int idx = var->varattno - 1;
-				if (idx >= 0 && idx < list_length(rte->groupexprs))
-				{
-					Node *grp_expr =
-						(Node *) list_nth(rte->groupexprs, idx);
-					/* deep-copy and recurse in case the group expr
-					 * itself references another RTE_GROUP */
-					return FlattenGroupRTEMutator(
-						(Node *) copyObject(grp_expr), ctx);
-				}
-			}
-		}
-		return (Node *) copyObject(var);
-	}
-
-	return expression_tree_mutator(node, FlattenGroupRTEMutator, ctx);
-}
-
-/* Replace Vars that reference RTE_GROUP entries with the underlying
- * grouping expressions.  PG17+ adds an RTE_GROUP entry to the rtable for
- * queries with GROUP BY; ORCA does not know about this RTE kind, so we
- * must expand it before translating the query tree. */
-static Query *
-FlattenGroupRTEVars(Query *query)
-{
-	if (!query->hasGroupRTE)
-		return query;
-
-	struct FlattenGroupRTEContext ctx;
-	ctx.query = query;
-
-	return (Query *) query_tree_mutator(query, FlattenGroupRTEMutator, &ctx,
-										QTW_DONT_COPY_QUERY);
-}
-
 Query *
 CQueryMutators::NormalizeQuery(CMemoryPool *mp, CMDAccessor *md_accessor,
 							   const Query *query, ULONG query_level)
 {
-	/* PG17+: expand RTE_GROUP Vars before further normalization */
-	Query *pqueryFlattenedGroup =
-		FlattenGroupRTEVars(const_cast<Query *>(query));
-
-	// flatten join alias vars defined at the current level of the query
 	Query *pqueryResolveJoinVarReferences =
-		gpdb::FlattenJoinAliasVar(pqueryFlattenedGroup, query_level);
+		gpdb::FlattenJoinAliasVar(const_cast<Query *>(query), query_level);
 
 	// eliminate distinct clause
 	Query *pqueryEliminateDistinct =
