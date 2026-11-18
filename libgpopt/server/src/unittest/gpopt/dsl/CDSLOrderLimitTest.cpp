@@ -351,6 +351,48 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 	{
 		eres = GPOS_FAILED;
 	}
+	// Source matching must reject execution modes that a RowNumber target cannot rebuild.
+	auto rejects = [&](CExpression *candidate) {
+		auto *bindings = GPOS_NEW(mp) CDSLModel(mp);
+		BOOL rejected = !matcherIdentity.FMatch(pruleIdentity->PfragSrc()->PopRoot(),
+												candidate, bindings);
+		bindings->Release();
+		candidate->Release();
+		return rejected;
+	};
+	for (COperator::ESPType stage : {COperator::EsptypeLocal, COperator::EsptypeGlobalTwoStep})
+	{
+		auto *window = CLogicalSequenceProject::PopConvert(pexprLive->Pop());
+		window->Pds()->AddRef();
+		window->Pdrgpos()->AddRef();
+		window->Pdrgpwf()->AddRef();
+		pexprGet->AddRef();
+		(*pexprLive)[1]->AddRef();
+		CExpression *staged = CUtils::PexprLogicalSequenceProject(mp, stage,
+			window->Pds(), window->Pdrgpos(), window->Pdrgpwf(), pexprGet, (*pexprLive)[1]);
+		if (!rejects(staged))
+			eres = GPOS_FAILED;
+	}
+	auto *element = (*(*pexprLive)[1])[0];
+	auto *function = CScalarWindowFunc::PopConvert((*element)[0]->Pop());
+	for (const auto &[stage, null_treatment] :
+		 {std::make_pair(CScalarWindowFunc::EwsPreliminary, 0),
+		  std::make_pair(CScalarWindowFunc::EwsImmediate, 1)})
+	{
+		function->FuncMdId()->AddRef();
+		function->MdidType()->AddRef();
+		auto *call = GPOS_NEW(mp) CScalarWindowFunc(mp, function->FuncMdId(),
+			function->MdidType(), GPOS_NEW(mp) CWStringConst(mp, GPOS_WSZ_LIT("row_number")),
+			stage, false, false, false, null_treatment);
+		element->Pop()->AddRef();
+		auto *item = GPOS_NEW(mp) CExpression(mp, element->Pop(), GPOS_NEW(mp) CExpression(mp, call));
+		auto *list = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), item);
+		pexprLive->Pop()->AddRef();
+		pexprGet->AddRef();
+		auto *staged = GPOS_NEW(mp) CExpression(mp, pexprLive->Pop(), pexprGet, list);
+		if (!rejects(staged))
+			eres = GPOS_FAILED;
+	}
 	CRefCount::SafeRelease(pexprIdentity);
 	pmodelIdentity->Release();
 	CRefCount::SafeRelease(pruleIdentity);

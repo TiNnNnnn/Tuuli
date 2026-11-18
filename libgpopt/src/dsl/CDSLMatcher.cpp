@@ -692,7 +692,7 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 	CLogicalSequenceProject *popWindow =
 		CLogicalSequenceProject::PopConvert(pexpr->Pop());
 	CExpression *pexprList = (*pexpr)[1];
-	if (popWindow->FHasFrameSpecs() ||
+	if (COperator::EsptypeGlobalOneStep != popWindow->Pspt() || popWindow->FHasFrameSpecs() ||
 		COperator::EopScalarProjectList != pexprList->Pop()->Eopid() ||
 		1 != pexprList->Arity() ||
 		COperator::EopScalarProjectElement != (*pexprList)[0]->Pop()->Eopid() ||
@@ -704,7 +704,15 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 	}
 	CScalarWindowFunc *popFunc = CScalarWindowFunc::PopConvert(
 		(*(*pexprList)[0])[0]->Pop());
-	if (!IMDId::MDIdCompare(
+	CColRef *rank = CScalarProjectElement::PopConvert((*pexprList)[0]->Pop())->Pcr();
+	// The DSL binds only partition, order and rank. Other execution modes cannot round-trip.
+	if (CScalarWindowFunc::EwsImmediate != popFunc->Ews() ||
+		popFunc->IsDistinct() || popFunc->IsStarArg() || popFunc->IsSimpleAgg() ||
+		popFunc->FAgg() || 0 != popFunc->GetNullTreatment() ||
+		IMDType::EtiInt8 != rank->RetrieveType()->GetDatumType() ||
+		!rank->RetrieveType()->MDId()->Equals(popFunc->MdidType()) ||
+		rank->TypeModifier() != popFunc->TypeModifier() ||
+		!IMDId::MDIdCompare(
 			popFunc->FuncMdId(), COptCtxt::PoctxtFromTLS()
 									->GetOptimizerConfig()
 									->GetWindowOids()
@@ -738,8 +746,7 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 	}
 
 	CColRefArray *pdrgpcrRank = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	pdrgpcrRank->Append(
-		CScalarProjectElement::PopConvert((*pexprList)[0]->Pop())->Pcr());
+	pdrgpcrRank->Append(rank);
 	CDSLSymbolArray *pdrgpsym = pop->Pdrgpsym();
 	const BOOL fBound = pmodel->FBind((*pdrgpsym)[0], pdrgpcrPartition) &&
 		pmodel->FBind((*pdrgpsym)[1], popWindow->Pdrgpos()) &&
