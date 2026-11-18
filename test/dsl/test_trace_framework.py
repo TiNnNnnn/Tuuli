@@ -3737,9 +3737,9 @@ class TraceFrameworkTest(unittest.TestCase):
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
             if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=',
-                                '# FORMALSQL_PROVED legacy_hash=')):
+                                '# FORMALSQL_PROVED legacy_hash=', '# SOURCE_CONDITIONAL legacy_hash=')):
                 self.assertIsNone(pending)
-                if line.startswith('# FORMALSQL_PROVED'):
+                if line.startswith(('# FORMALSQL_PROVED', '# SOURCE_CONDITIONAL')):
                     self.assertRegex(
                         line,
                         r'FormalSQL/Rocq (?:OUTCOME_EQ|BAG_OUTCOME_EQ|BAG_EQ|PROJECTED_BAG_EQ|ORDERED_EQ): kernel-checked')
