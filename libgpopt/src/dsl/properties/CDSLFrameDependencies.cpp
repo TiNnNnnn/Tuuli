@@ -135,6 +135,10 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FScalar()) return false;
 			break;
+		case COperator::EopScalarIsDistinctFrom:
+			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FScalar() ||
+				!(*expr)[1]->Pop()->FScalar()) return false;
+			break;
 		case COperator::EopScalarProjectList:
 		case COperator::EopScalarProjectElement:
 		case COperator::EopScalarValuesList:
