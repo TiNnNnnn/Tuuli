@@ -65,6 +65,12 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 		case COperator::EopScalarWindowFunc:
 			// Zero-argument windows add no environment reads; not a safety certificate.
 			return 0 == expr->Arity();
+		case COperator::EopLogicalLeftSemiApply:
+		case COperator::EopLogicalLeftSemiCorrelatedApply:
+		case COperator::EopLogicalLeftAntiSemiApply:
+		case COperator::EopLogicalLeftAntiSemiCorrelatedApply:
+		case COperator::EopLogicalLeftSemiJoin:
+		case COperator::EopLogicalLeftAntiSemiJoin:
 		case COperator::EopLogicalInnerJoin:
 		case COperator::EopLogicalLeftOuterJoin:
 		case COperator::EopLogicalFullOuterJoin:
@@ -74,7 +80,7 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 		case COperator::EopLogicalLeftOuterCorrelatedApply:
 			if (3 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FLogical() || !(*expr)[2]->Pop()->FScalar()) return false;
-			// Identity SELECTs of joined rows also read these column identities.
+			// Both input schemas bound identity projections that a join may read.
 			reads->Include((*expr)[0]->DeriveOutputColumns());
 			reads->Include((*expr)[1]->DeriveOutputColumns());
 			break;

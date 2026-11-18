@@ -48,6 +48,8 @@
 #include "gpopt/operators/CScalarAssertConstraint.h"
 #include "gpopt/operators/CScalarAssertConstraintList.h"
 #include "gpopt/operators/CLogicalInnerCorrelatedApply.h"
+#include "gpopt/operators/CLogicalLeftSemiJoin.h"
+#include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
 #include "gpopt/operators/CLogicalInnerApply.h"
 #include "gpopt/operators/CLogicalLeftOuterCorrelatedApply.h"
 #include "gpopt/operators/CLogicalMaxOneRow.h"
@@ -982,6 +984,20 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	frame_facts &= nullptr == frame && partition_json.find("\"window_unpartitioned\":false") != std::string::npos;
 	CRefCount::SafeRelease(frame);
 	partitioned->Release();
+	for (BOOL anti : {false, true})
+	{
+		get->AddRef();
+		right->AddRef();
+		CExpression *predicate = CUtils::PexprScalarConstBool(mp, true);
+		CExpression *join = anti
+			? CUtils::PexprLogicalJoin<CLogicalLeftAntiSemiJoin>(mp, get, right, predicate)
+			: CUtils::PexprLogicalJoin<CLogicalLeftSemiJoin>(mp, get, right, predicate);
+		frame = dslproperties::PcrsFrameReads(mp, join);
+		frame_facts &= nullptr != frame && frame->ContainsAll(get->DeriveOutputColumns()) &&
+			frame->ContainsAll(right->DeriveOutputColumns());
+		CRefCount::SafeRelease(frame);
+		join->Release();
+	}
 	for (BOOL left_outer : {false, true})
 	{
 		get->AddRef();
