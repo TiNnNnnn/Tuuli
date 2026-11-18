@@ -32,6 +32,8 @@
         "CXformLeftAntiSemiApply2LeftAntiSemiJoin"
       ],
       "policy": "isolate_group_antiapply_expand.policy",
+      "stats_experiment": "left_antisemiapply_nested_having_expand.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"abcd4af97695ed2f\""
@@ -39,6 +41,35 @@
       "not_contains": [
         "Falling back to Postgres",
         "Xform: CXformLeftAntiSemiApply2LeftAntiSemiJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "abcd4af97695ed2f",
+          "route_sequence": 32,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

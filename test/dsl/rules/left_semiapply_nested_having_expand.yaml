@@ -1,0 +1,7 @@
+experiment: left_semiapply_nested_having_expand
+discover: false
+template_route: 33
+template_fingerprint: 1391e84f04d1829d
+template_root: r
+template_bindings: true
+cardinalities:

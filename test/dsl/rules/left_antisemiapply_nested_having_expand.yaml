@@ -1,0 +1,7 @@
+experiment: left_antisemiapply_nested_having_expand
+discover: false
+template_route: 32
+template_fingerprint: 3c3bb94ee1bbcbbd
+template_root: r
+template_bindings: true
+cardinalities:

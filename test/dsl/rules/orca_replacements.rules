@@ -595,7 +595,7 @@ Agg<a0 a1 a8 f0 s0 p0>(Filter<p1 a2 a3>(Input<t0>))|Filter<p2 a6 a7>(Agg<a4 a5 a
 # require separate empty-input compensation and cannot use this movement.
 # Baseline includes the nonempty grouping guard; de88cc37456ca76b omitted it.
 # Previous legacy_hash=6aa1c1037ed25f19 lacked whole-RHS demand guards.
-# PARTIAL_BINDING: native expression proof: UNKNOWN (grouped decorrelation search).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: template and nested HAVING capture kernel-checked.
 # Build output keys before aggregate results; only a safe, repeatable independent
 # RHS may move from per-row Apply demand to a standalone Join input.
 # Historical structural certificate withdrawn 2026-10-27: it did not protect
@@ -613,7 +613,7 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a11 f0 s0 p1>(Filter<p2 a5 a2>(Input<
 # polarities; native proof composition is still required for each observation.
 # Baseline includes the nonempty grouping guard; 21e31a7d52a2edcb omitted it.
 # Previous legacy_hash=cc8c6babd433f7f1 lacked whole-RHS demand guards.
-# PARTIAL_BINDING: native expression proof: UNKNOWN (grouped decorrelation search).
+# CONDITIONAL_NATIVE_INSTANCE / BAG_OUTCOME_EQ: template and nested HAVING capture kernel-checked.
 # Build output keys before aggregate results; only a safe, repeatable independent
 # RHS may move from per-row Apply demand to a standalone Join input.
 # The same empty-input boundary applies to NOT EXISTS; the historical
