@@ -10,10 +10,10 @@
       "policy": "isolate_uncorrelated_notin_join.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"555e37d08b6f12c4\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"2341400db5967a6f\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"555e37d08b6f12c4\""
+        "\"status\":\"applied\",\"rule_hash\":\"2341400db5967a6f\""
       ]
     }
   ],

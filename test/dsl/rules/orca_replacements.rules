@@ -427,17 +427,10 @@ AntiApply<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoin<p1 a3 a4>(Input<t2>,Input<t
 AntiApply<p0 a0 a1 a2>(Input<t0>,Limit<n0 n1>(Input<t1>))|AntiJoin<p1 a3 a4>(Input<t2>,Limit<n2 n3>(Input<t3>))|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;n2 := n0;n3 := n1;ScalarOne(n0);ScalarOne(n1);a7 := ScalarDeps(p0);AttrsSub(a7,t0);AttrsEmpty(a2);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);OutputAttrs(a5,t0);OutputAttrs(a6,t1);DepsDisjoint(a5,a6)
 
 # Replaces CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations.
-# AntiApplyNotIn and AntiJoinNotIn are first-class NULL-aware operators rather
-# than aliases of ordinary anti semantics. Their predicate denotes the
-# user-visible ALL comparison; the ORCA adapter alone handles the inverse
-# comparison stored by its physical operator representation. AttrsEmpty is the
-# native xform's complete uncorrelated applicability domain. This exact RuleIR
-# was proved EQ by SQLSolver on 2026-08-31.
-# FormalSQL/Rocq requires error-free quantified predicates when an uncorrelated
-# NULL-aware Apply is normalized to the shared ALL carrier used by AntiJoinNotIn.
-# This is a generic safety premise, not an AntiApplyNotIn-specific proof lemma.
-# FORMALSQL_PROVED legacy_hash=ba392bb44520d75f; FormalSQL/Rocq BAG_EQ: kernel-checked 2026-10-13. The generic ALL-carrier structural proof requires AttrsEmpty and predicate safety.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(p0);ErrorFree(p1)
+# The user comparison is ALL; ORCA stores its inverse on the NULL-aware Join.
+# After UNKNOWN, ALL may still read an error that the Join skips. Require a
+# total, repeatable RHS and comparison independently of the correlation check.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p1 := p0;a3 := a0;a4 := a1;AttrsEmpty(a2);AttrsSub(a0,t0);AttrsSub(a1,t1);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0)
 
 # Replaces the single correlated-Filter decorrelation domain of
 # CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn. The first target predicate
