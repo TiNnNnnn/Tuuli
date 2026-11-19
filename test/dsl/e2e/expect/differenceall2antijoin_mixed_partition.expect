@@ -1,0 +1,42 @@
+{
+  "description": "EXCEPT ALL ranks nullable bigint and boolean keys in their original positions",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_differenceall2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"17e736c7eac2c540\""
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_differenceall2antijoin.policy",
+    "output": [
+      "1,f",
+      "1,t"
+    ],
+    "postgres_output": [
+      "1,f",
+      "1,t"
+    ]
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "description": "INTERSECT ALL ranks nullable bigint and boolean keys in their original positions",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "policy": "isolate_intersectall2semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_IntersectAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersectAll2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "policy": "isolate_intersectall2semijoin.policy",
+    "output": [
+      "1,t",
+      "1,t",
+      "2,f",
+      "2,f",
+      "2,",
+      ",f"
+    ],
+    "postgres_output": [
+      "1,t",
+      "1,t",
+      "2,f",
+      "2,f",
+      "2,",
+      ",f"
+    ]
+  }
+}
