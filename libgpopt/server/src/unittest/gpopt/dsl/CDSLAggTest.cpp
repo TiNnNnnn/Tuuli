@@ -322,6 +322,8 @@ EresAggregatePlanMetadata()
 		GPOS_UNITTEST_ASSERT(json.find(distinct ? "\"aggregate_distinct\":true" :
 			"\"aggregate_distinct\":false") != std::string::npos);
 		GPOS_UNITTEST_ASSERT(json.find("\"aggregate_star\":false,\"aggregate_split\":false") != std::string::npos);
+		const auto comparison = json.find("\"sort_group_ref\":0,\"equality_operator_oid\":96,\"sort_operator_oid\":97");
+		GPOS_UNITTEST_ASSERT((comparison != std::string::npos) == (distinct != 0));
 	}
 	CAutoRef<CExpression> count(CUtils::PexprCountStar(mp, fix.PexprLogicalGet("capture_count", 1)));
 	const auto json = CDSLPlanTemplate::Serialize(mp, count.Value());

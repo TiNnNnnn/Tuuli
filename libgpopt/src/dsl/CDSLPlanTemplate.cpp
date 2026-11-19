@@ -53,6 +53,7 @@
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarWindowFunc.h"
 #include "gpopt/operators/CScalarProjectElement.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarSubquery.h"
 #include "gpopt/operators/CScalarSubqueryQuantified.h"
 #include "gpopt/search/CGroupExpression.h"
@@ -538,6 +539,13 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 			const auto *cast = CScalarCast::PopConvert(expr->Pop());
 			*out << ",\"function_mdid\":" << MetadataId(mp, cast->FuncMdId())
 				<< ",\"binary_coercible\":" << (cast->IsBinaryCoercible() ? "true" : "false");
+		}
+		else if (COperator::EopScalarSortGroupClause == expr->Pop()->Eopid())
+		{
+			const auto *clause = CScalarSortGroupClause::PopConvert(expr->Pop());
+			*out << ",\"sort_group_ref\":" << clause->Index()
+				<< ",\"equality_operator_oid\":" << clause->EqOp()
+				<< ",\"sort_operator_oid\":" << clause->SortOp();
 		}
 		else if (COperator::EopScalarAggFunc == expr->Pop()->Eopid())
 		{
