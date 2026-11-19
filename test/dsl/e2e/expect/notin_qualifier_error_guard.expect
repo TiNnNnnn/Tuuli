@@ -1,0 +1,41 @@
+{
+  "description": "A fallible correlated qualification must retain its division error and cannot be moved to the anti join",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+        "CXformSimplifySelectWithSubquery"
+      ],
+      "policy": "isolate_qualified_notin_join.policy",
+      "stats_experiment": "qualified_notin_source_route.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"ec74a55e93d77092\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations",
+      "CXformSimplifySelectWithSubquery"
+    ],
+    "policy": "isolate_qualified_notin_join.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

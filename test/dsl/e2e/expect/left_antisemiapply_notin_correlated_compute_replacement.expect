@@ -8,7 +8,7 @@
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "a3a384e829b6c009",
-      "4e89c95fb08e5a28"
+      "ec74a55e93d77092"
     ]
   },
   "plans": [
@@ -22,7 +22,7 @@
       "trace": true,
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"4e89c95fb08e5a28\""
+        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
       ],
       "alternative": [
         "CXformDSLRule_Project",
@@ -49,7 +49,7 @@
       ],
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"a3a384e829b6c009\"",
-        "\"status\":\"applied\",\"rule_hash\":\"4e89c95fb08e5a28\""
+        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
       ],
       "provenance": {
         "required_sources": [
