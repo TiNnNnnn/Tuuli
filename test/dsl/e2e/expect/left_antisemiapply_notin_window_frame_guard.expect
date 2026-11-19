@@ -10,11 +10,11 @@
       "policy": "isolate_notin_window_rows.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"fd05e98e4d5b9119\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"9a963f49c91602cf\"",
         "\"expected_operator\":\"AntiApplyNotIn\",\"actual_operator\":\"CLogicalLeftAntiSemiCorrelatedApplyNotIn\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"fd05e98e4d5b9119\""
+        "\"status\":\"applied\",\"rule_hash\":\"9a963f49c91602cf\""
       ]
     }
   ],

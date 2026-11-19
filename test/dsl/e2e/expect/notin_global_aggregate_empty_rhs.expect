@@ -1,0 +1,31 @@
+{
+  "description": "Global MAX returns one NULL for each empty input, so NOT IN drops both outer rows",
+  "plans": [
+    {
+      "name": "native-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_notin_grouped_aggregate.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4e78cb2b4876e20d\"",
+        "\"failed_constraint\":\"AttrsNonEmpty\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"4e78cb2b4876e20d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_notin_grouped_aggregate.policy",
+    "output": [],
+    "postgres_output": [],
+    "off_output": []
+  }
+}
