@@ -1,0 +1,35 @@
+{
+  "description": "An empty NOT IN input skips the fallible outer comparison",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+      ],
+      "policy": "isolate_uncorrelated_notin_join.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"2341400db5967a6f\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"2341400db5967a6f\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotInNoCorrelations"
+    ],
+    "policy": "isolate_uncorrelated_notin_join.policy",
+    "output": [
+      "2"
+    ],
+    "postgres_output": [
+      "2"
+    ],
+    "off_output": [
+      "2"
+    ]
+  }
+}
