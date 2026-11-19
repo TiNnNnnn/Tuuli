@@ -3737,9 +3737,14 @@ class TraceFrameworkTest(unittest.TestCase):
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
             if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=',
-                                '# FORMALSQL_PROVED legacy_hash=', '# SOURCE_CONDITIONAL legacy_hash=')):
+                                '# FORMALSQL_PROVED legacy_hash=', '# SOURCE_CONDITIONAL legacy_hash=',
+                                '# STRENGTHENED legacy_hash=')):
                 self.assertIsNone(pending)
-                if line.startswith(('# FORMALSQL_PROVED', '# SOURCE_CONDITIONAL')):
+                added = []
+                if line.startswith('# STRENGTHENED'):
+                    added = line.split('; added: ', 1)[1].split()
+                    self.assertTrue(added)
+                elif line.startswith(('# FORMALSQL_PROVED', '# SOURCE_CONDITIONAL')):
                     self.assertRegex(
                         line,
                         r'FormalSQL/Rocq (?:OUTCOME_EQ|BAG_OUTCOME_EQ|BAG_EQ|PROJECTED_BAG_EQ|ORDERED_EQ): kernel-checked')
@@ -3767,7 +3772,11 @@ class TraceFrameworkTest(unittest.TestCase):
                 nulls = dict(re.findall(r'(e\d+) := ExprNulls\((a\d+)\)', clauses))
                 list_outputs = dict((expr, attrs) for attrs, expr in
                                     re.findall(r'OutputAttrs\((a\d+),(e\d+)\)', clauses))
-                for clause in clauses.split(';'):
+                remaining = clauses.split(';')
+                for guard in added:
+                    self.assertEqual(remaining.count(guard), 1, guard)
+                    remaining.remove(guard)
+                for clause in remaining:
                     if ':=' not in clause:
                         output = re.fullmatch(r'OutputAttrs\((a\d+),(e\d+)\)', clause)
                         if output and output[2] in nulls:

@@ -10,7 +10,7 @@
       "policy": "isolate_unique_dedup.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"58483b210e2ba41f\""
+        "\"status\":\"applied\",\"rule_hash\":\"a77d6b1ba11308d1\""
       ],
       "not_contains": [
         "Falling back to Postgres",

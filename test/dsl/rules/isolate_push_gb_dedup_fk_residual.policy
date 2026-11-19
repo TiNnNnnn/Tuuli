@@ -2,6 +2,8 @@
 # output shortcut, the general FK grouping rule, and the semi-join producer rule.
 - rule: 58483b210e2ba41f
   enabled: false
+- rule: a77d6b1ba11308d1
+  enabled: false
 - rule: 8e57ee08e04f7d78
   enabled: false
 - rule: 2f1594ef8d7dd7f7
