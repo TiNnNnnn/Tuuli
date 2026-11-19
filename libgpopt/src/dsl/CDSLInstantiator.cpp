@@ -5,6 +5,7 @@
 #include "gpopt/dsl/CDSLInstantiator.h"
 #include "CDSLInstantiatorUtils.h"
 
+#include "gpopt/base/CKeyCollection.h"
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/CUtils.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
@@ -49,6 +50,20 @@ PexprWithoutDistinctAgg(CMemoryPool *mp, CExpression *pexprAgg)
 {
 	GPOS_ASSERT(COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid());
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
+	// Removing aggregate DISTINCT can change the order of aggregate inputs.
+	// A non-null grouping key makes every group a singleton even when an
+	// argument is computed, or the aggregate is order-sensitive.
+	CExpression *input = (*pexprAgg)[0];
+	CColRefSet *group = GPOS_NEW(mp) CColRefSet(mp);
+	group->Include(popGbAgg->Pdrgpcr());
+	group->Intersection(input->DeriveNotNullColumns());
+	CKeyCollection *keys = input->DeriveKeyCollection();
+	const BOOL singleton = input->DeriveMaxCard().Ull() <= 1 ||
+		(nullptr != keys && keys->FKey(group, false /*fExactMatch*/));
+	group->Release();
+	if (!singleton)
+		return nullptr;
+
 	CExpression *pexprOldList = (*pexprAgg)[1];
 	CExpressionArray *pdrgpexprNewElems =
 		GPOS_NEW(mp) CExpressionArray(mp);
@@ -578,6 +593,20 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 		{
 			return nullptr;
 		}
+		// The aggregate shell implements only removal of its inner dedup.
+		// A computed projection or a different input must be built as written.
+		const CDSLOp *targetInput = EdslopInput == popTgtRoot->Edslop()
+			? popTgtRoot : (*popTgtRoot)[0];
+		if (nullptr == targetInput->Pdrgpsym() || 1 != targetInput->Pdrgpsym()->Size() ||
+			PsymResolve((*targetInput->Pdrgpsym())[0]) !=
+				PsymResolve((*(*popSrcRoot)[0]->Pdrgpsym())[0]) ||
+			(targetInput != popTgtRoot &&
+			 (2 != popTgtRoot->Pdrgpsym()->Size() ||
+			  PsymResolve((*popTgtRoot->Pdrgpsym())[0]) !=
+				  PsymResolve((*popSrcRoot->Pdrgpsym())[0]) ||
+			  PsymResolve((*popTgtRoot->Pdrgpsym())[1]) !=
+				  PsymResolve((*popSrcRoot->Pdrgpsym())[1]))))
+			return nullptr;
 		pexprTgt = PexprWithoutDistinctAgg(
 			m_mp, pmodel->PexprDistinctAgg());
 	}

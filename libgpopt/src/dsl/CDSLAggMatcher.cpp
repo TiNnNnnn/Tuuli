@@ -71,8 +71,9 @@ CDSLAggMatcher::FMatchDistinctAggDedup(const CDSLOp *popAgg,
 {
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprAgg->Pop());
 	CExpression *pexprAggList = (*pexprAgg)[1];
-	if (COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
-		nullptr != popGbAgg->PdrgpcrMinimal() ||
+	if (COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() ||
+		COperator::EgbaggtypeGlobal != popGbAgg->Egbaggtype() ||
+		nullptr == popGbAgg->Pdrgpcr() || nullptr != popGbAgg->PdrgpcrMinimal() ||
 		COperator::EopScalarProjectList != pexprAggList->Pop()->Eopid() ||
 		0 == pexprAggList->Arity() || 1 != popAgg->UlChildren())
 	{

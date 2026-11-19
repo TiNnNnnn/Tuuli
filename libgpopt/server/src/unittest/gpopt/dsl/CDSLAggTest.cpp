@@ -2450,6 +2450,29 @@ CDSLAggTest::EresUnittest_InstantiateDistinctAggregateToPlain()
 		}
 	}
 
+	// Even on a singleton group, an explicit SELECT program cannot be
+	// replaced by clearing DISTINCT on the captured aggregate.
+	CAutoRef<CDSLRule> emptySelect(PdslruleParseLocal(mp,
+		"Proj*<a0 s0>(Input<t0>)|Proj<a1 s1 Item()>(Input<t1>)|"
+		"t1 := t0;a1 := a0;s1 := s0;AttrsSub(a0,t0);Unique(t0,a0)"));
+	if (nullptr == emptySelect.Value())
+		eres = GPOS_FAILED;
+	else
+	{
+		CDSLMatcher typed(mp, emptySelect.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		CDSLInstantiator inst(mp);
+		if (!typed.FMatch(emptySelect->PfragSrc()->PopRoot(), pexprGbAgg, model.Value()) ||
+			!checker.FCheck(emptySelect.Value(), model.Value()))
+			eres = GPOS_FAILED;
+		else
+		{
+			CAutoRef<CExpression> result(inst.PexprInstantiate(emptySelect.Value(), model.Value()));
+			if (nullptr != result.Value())
+				eres = GPOS_FAILED;
+		}
+	}
+
 	CRefCount::SafeRelease(pexprTgt);
 	pmodel->Release();
 	pexprGet->Release();

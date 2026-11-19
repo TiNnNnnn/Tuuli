@@ -521,9 +521,11 @@ BOOL
 CDSLProjMatcher::FMatchDistinct(const CDSLOp *popProj, CExpression *pexprAgg,
 								CDSLModel *pmodel) const
 {
-	// Reuse the existing source-root identity view when the SemiJoin output
-	// proves a key. It checks uniqueness and admits only the two-slot form.
-	if (COperator::EopLogicalLeftSemiJoin == pexprAgg->Pop()->Eopid())
+	// Share the column-only SemiJoin identity and aggregate DISTINCT views.
+	if (COperator::EopLogicalLeftSemiJoin == pexprAgg->Pop()->Eopid() ||
+		(2 == popProj->Pdrgpsym()->Size() &&
+		 COperator::EopLogicalGbAgg == pexprAgg->Pop()->Eopid() && 2 == pexprAgg->Arity() &&
+		 0 != (*pexprAgg)[1]->Arity()))
 		return CDSLAggMatcher(m_mp, m_pmatcher).FMatch(popProj, pexprAgg, pmodel);
 	if ((COperator::EopLogicalGbAgg != pexprAgg->Pop()->Eopid() &&
 		 COperator::EopLogicalGbAggDeduplicate != pexprAgg->Pop()->Eopid()) ||

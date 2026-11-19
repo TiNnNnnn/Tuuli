@@ -19,6 +19,22 @@
       "alternative": [
         "CXformDSLRule_Agg"
       ]
+    },
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg",
+        "CXformSplitDQA"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ],
+      "alternative": [
+        "CXformDSLRule_Agg"
+      ]
     }
   ],
   "rows": {

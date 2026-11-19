@@ -1,0 +1,27 @@
+{
+  "description": "Unique DISTINCT arguments in a multirow group do not authorize removing the aggregate input ordering",
+  "plans": [
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"instantiate_rejected\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a4f9a0884e7ffb52\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "10,\"{1,2}\"",
+      "20,{3}"
+    ],
+    "postgres_output": [
+      "10,\"{1,2}\"",
+      "20,{3}"
+    ]
+  }
+}

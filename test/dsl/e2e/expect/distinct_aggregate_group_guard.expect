@@ -1,0 +1,27 @@
+{
+  "description": "Uniqueness of an expression's input column does not make its DISTINCT values unique within a group",
+  "plans": [
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"instantiate_rejected\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a4f9a0884e7ffb52\"",
+        "\"status\":\"applied\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "10,2,1",
+      "20,1,1"
+    ],
+    "postgres_output": [
+      "10,2,1",
+      "20,1,1"
+    ]
+  }
+}
