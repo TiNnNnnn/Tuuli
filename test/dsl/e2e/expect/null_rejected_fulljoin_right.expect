@@ -23,7 +23,7 @@
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
+        "\"status\":\"applied\",\"rule_hash\":\"41923e35fc7261c2\""
       ],
       "not_contains": [
         "Full Join",
@@ -31,7 +31,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "8ac3dc0a2d8d982a",
+          "rule_hash": "41923e35fc7261c2",
           "operators": [
             "CLogicalSelect",
             "CLogicalFullOuterJoin",
@@ -39,6 +39,7 @@
             "CLogicalGet"
           ],
           "target_operators": [
+            "CLogicalProject",
             "CLogicalSelect",
             "CLogicalLeftOuterJoin",
             "CLogicalGet",

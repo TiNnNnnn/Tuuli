@@ -16,7 +16,7 @@
       "outer_join_reduction": false,
       "contains": [
         "\"rule_id\":48,\"status\":\"applied\"",
-        "\"status\":\"applied\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
+        "\"status\":\"applied\",\"rule_hash\":\"41923e35fc7261c2\""
       ],
       "alternative": [
         "CXformDSLRule_Select"
@@ -30,7 +30,7 @@
       "contains": [
         "\"rule_id\":48,\"status\":\"applied_rbo\"",
         "\"placement\":\"rbo\"",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"8ac3dc0a2d8d982a\""
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"41923e35fc7261c2\""
       ]
     }
   ],
