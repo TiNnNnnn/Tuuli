@@ -7,7 +7,7 @@
     "scope": "Intersect All over equally typed ordered input rows, including nullable duplicates",
     "status": "verified_full_replacement",
     "dsl_rule_hashes": [
-      "9159bbc946786098"
+      "1c97c09c804a110c"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_intersectall2semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9159bbc946786098\""
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\""
       ],
       "alternative": [
         "CXformIntersectAll2LeftSemiJoin",
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_intersectall2semijoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9159bbc946786098\""
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\""
       ],
       "alternative": [
         "CXformDSLRule_IntersectAll"

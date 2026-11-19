@@ -1,0 +1,49 @@
+{
+  "description": "Repeated input columns retain their position in the null-safe join predicate",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin",
+        "CXformImplementSetOp"
+      ],
+      "policy": "isolate_differenceall2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"17e736c7eac2c540\"",
+        "Optimizer: pg_orca"
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin",
+      "CXformImplementSetOp"
+    ],
+    "policy": "isolate_differenceall2antijoin.policy",
+    "output": [
+      "1,1,1",
+      "1,1,2",
+      "2,2,",
+      ",,3"
+    ],
+    "postgres_output": [
+      "1,1,1",
+      "1,1,2",
+      "2,2,",
+      ",,3"
+    ]
+  }
+}
