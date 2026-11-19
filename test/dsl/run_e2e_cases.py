@@ -449,12 +449,12 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     if not patterns:
         return 0
     observation = expected.get("native_observation", "exact_tree")
-    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule", "restored_function_program"):
+    if observation not in ("exact_tree", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule", "restored_function_program", "closed_group_bag_outcomes"):
         raise ValueError("unknown native instance observation")
     equivalence = expected.get("native_equivalence_mode", "OUTCOME_EQ")
     if equivalence not in ("OUTCOME_EQ", "BAG_EQ", "BAG_OUTCOME_EQ") or (
             observation in ("all_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule", "restored_function_program") and equivalence != "OUTCOME_EQ") or (
-            observation in ("source_outputs", "dsl_source_outputs") and equivalence != "BAG_OUTCOME_EQ"):
+            observation in ("source_outputs", "dsl_source_outputs", "closed_group_bag_outcomes") and equivalence != "BAG_OUTCOME_EQ"):
         raise ValueError("unsupported native instance equivalence mode")
     # Reuse the regular expectation validator and the maintained trace reader.
     if actual_plan({"rule_source_routes": patterns}, output)["rule_source_routes"] != patterns:
@@ -479,7 +479,10 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
         path.mkdir(parents=True, exist_ok=True)
         (path / "receipt.json").unlink(missing_ok=True)
         (path / "occurrence.json").write_text(canonical(occurrence), encoding="utf-8")
-        if observation == "restored_function_program":
+        if observation == "closed_group_bag_outcomes":
+            from native_group_observation import check_group_observation
+            check_group_observation(occurrence["snapshot"], occurrence["target_snapshot"], path)
+        elif observation == "restored_function_program":
             from native_function_instance import check_function_instance
             check_function_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
                                     lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path)
