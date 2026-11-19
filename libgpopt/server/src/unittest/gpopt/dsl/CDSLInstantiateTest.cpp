@@ -703,6 +703,34 @@ EresComputedResultOutputContract()
 }
 
 static GPOS_RESULT
+EresJoinKeyOutputContract()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	for (ULONG key : {0UL, 1UL})
+	{
+		CColRefArray *left_cols, *right_cols;
+		CExpression *left = fix.PexprLogicalGet("l", 1, &left_cols);
+		CExpression *right = fix.PexprLogicalGet("r", 2, &right_cols, key);
+		CExpression *eq = fix.PexprEqPred((*left_cols)[0], (*right_cols)[0]);
+		CExpression *join = fix.PexprLogicalInnerJoin(left, right, eq);
+		CExpression *source = fix.PexprLogicalProject(join, left_cols);
+		CExpression *target = fix.PexprLogicalProject(left, left_cols);
+		target = CDSLColumnDomain::PexprRestoreJoinKeys(mp, source, target);
+		const BOOL restored = target->DeriveOutputColumns()->FMember((*right_cols)[0]);
+		target->Release();
+		source->Release();
+		join->Release();
+		eq->Release();
+		right->Release();
+		left->Release();
+		GPOS_UNITTEST_ASSERT(restored == (0 == key));
+	}
+	return GPOS_OK;
+}
+
+static GPOS_RESULT
 EresSystemColumnOutputContract()
 {
 	CAutoMemoryPool amp;
@@ -1197,6 +1225,7 @@ CDSLInstantiateTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresComputeAliasFusion),
 		GPOS_UNITTEST_FUNC(EresMemoSourceOutputContract),
 		GPOS_UNITTEST_FUNC(EresSystemColumnOutputContract),
+		GPOS_UNITTEST_FUNC(EresJoinKeyOutputContract),
 		GPOS_UNITTEST_FUNC(EresIntroducedOuterReference),
 		GPOS_UNITTEST_FUNC(EresComputedResultOutputContract),
 		GPOS_UNITTEST_FUNC(CDSLInstantiateTest::EresUnittest_CorrelatedFilterBindings),

@@ -1,6 +1,9 @@
 #include "gpopt/dsl/CDSLColumnDomain.h"
 #include "gpopt/base/CColRefSetIter.h"
 #include "gpopt/base/CUtils.h"
+#include "gpopt/base/CKeyCollection.h"
+#include "gpopt/dsl/CDSLExprListUtils.h"
+#include "gpopt/dsl/CDSLExpressionProperties.h"
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarCmp.h"
 #include "gpopt/operators/CScalarIdent.h"
@@ -44,12 +47,14 @@ CDSLColumnDomain::PexprRestoreJoinKeys(CMemoryPool *mp, CExpression *source,
 		return target;
 
 	CExpression *list = (*target)[1];
-	if (list->DeriveDefinedColumns()->Size() != list->Arity())
+	if (!list->Matches((*source)[1]) || list->DeriveDefinedColumns()->Size() != list->Arity() ||
+		!CDSLExprListUtils::FRowScalar(list) || !dslproperties::FScalarTreeProvablyDeterministic(list))
 		return target;
 	CExpression *removed = (*join)[input == (*join)[0] ? 1 : 0];
-	auto *missing = GPOS_NEW(mp) CColRefSet(mp, *removed->DeriveOutputColumns());
-	missing->Intersection(source->DeriveOutputColumns());
-	missing->Difference(target->DeriveOutputColumns());
+	const CKeyCollection *keys = removed->DeriveKeyCollection();
+	if (nullptr == keys)
+		return target;
+	auto *restored = GPOS_NEW(mp) CColRefSet(mp);
 	const CColRefSet *available = input->DeriveOutputColumns();
 	CExpressionArray *conjuncts = CPredicateUtils::PdrgpexprConjuncts(mp, (*join)[2]);
 	CExpressionArray *items = nullptr;
@@ -72,7 +77,9 @@ CDSLColumnDomain::PexprRestoreJoinKeys(CMemoryPool *mp, CExpression *source,
 			kind != IMDType::EtiOid && kind != IMDType::EtiBool)
 			continue;
 		if (!available->FMember(from) ||
-			!missing->FMember(to) || !FObservable(to) ||
+			!removed->DeriveOutputColumns()->FMember(to) || !FObservable(to) ||
+			!source->DeriveOutputColumns()->FMember(to) ||
+			target->DeriveOutputColumns()->FMember(to) || restored->FMember(to) ||
 			type != to->RetrieveType() ||
 			!CScalarCmp::PopConvert(eq->Pop())->MdIdOp()->Equals(
 				type->GetMdidForCmpType(IMDType::EcmptEq)))
@@ -86,12 +93,18 @@ CDSLColumnDomain::PexprRestoreJoinKeys(CMemoryPool *mp, CExpression *source,
 		}
 		items->Append(CUtils::PexprScalarProjectElement(mp, const_cast<CColRef *>(to),
 			CUtils::PexprScalarIdent(mp, from)));
-		missing->Exclude(to);
+		restored->Include(to);
 	}
 	conjuncts->Release();
-	missing->Release();
-	if (nullptr == items)
+	// The checked rewrite preserves the projected bag. With a unique partner,
+	// no retained row can multiply to compensate for a different missing row.
+	const BOOL unique = nullptr != items && keys->FKey(restored, false);
+	restored->Release();
+	if (!unique)
+	{
+		CRefCount::SafeRelease(items);
 		return target;
+	}
 
 	input->AddRef();
 	target->Release();
