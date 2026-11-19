@@ -1028,6 +1028,11 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	CDSLTargetInputOriginArray inputOrigins;
 	CExpression *pexprTarget = PexprInstantiate(
 		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr);
+	if (nullptr != pexprTarget && nullptr != pexpr->Pgexpr() &&
+		prule->Pexprdefs()->FHasBindings())
+	{
+		pexprTarget = CDSLColumnDomain::PexprRestoreJoinKeys(mp, pexpr, pexprTarget);
+	}
 	if (nullptr != pexprTarget &&
 		!pexpr->DeriveOuterReferences()->ContainsAll(
 			pexprTarget->DeriveOuterReferences()))

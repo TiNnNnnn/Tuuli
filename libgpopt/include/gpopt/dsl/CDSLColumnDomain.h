@@ -6,9 +6,12 @@
 
 namespace gpopt
 {
+class CExpression;
 class CDSLColumnDomain
 {
 public:
+	// Consumes target and preserves the paths of its relational inputs.
+	static CExpression *PexprRestoreJoinKeys(CMemoryPool *mp, CExpression *source, CExpression *target);
 	static BOOL FObservable(const CColRef *column);
 	static CColRefArray *PdrgpcrOutput(CMemoryPool *mp, const CColRefSet *outputs);
 };

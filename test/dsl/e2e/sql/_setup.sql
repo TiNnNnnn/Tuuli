@@ -148,6 +148,11 @@ INSERT INTO dsl_notin_tag VALUES (1),(2),(3);
 INSERT INTO dsl_fk_child VALUES (1,10),(2,10),(3,20);
 INSERT INTO dsl_fk_nullable_child VALUES (1,10),(2,NULL);
 
+CREATE TABLE dsl_numeric_fk_parent(k numeric PRIMARY KEY);
+CREATE TABLE dsl_numeric_fk_child(id int PRIMARY KEY, k numeric NOT NULL REFERENCES dsl_numeric_fk_parent(k));
+INSERT INTO dsl_numeric_fk_parent VALUES (10.00);
+INSERT INTO dsl_numeric_fk_child VALUES (1, 10.0);
+
 CREATE TABLE dsl_composite_fk_parent(
     k1 int,
     k2 int,

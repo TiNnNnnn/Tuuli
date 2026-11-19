@@ -1,0 +1,24 @@
+{
+  "description": "SQL numeric equality cannot reconstruct a missing Memo key with its original scale",
+  "plans": [
+    {
+      "name": "on",
+      "trace": true,
+      "contains": [
+        "DSL_INSTANTIATE_TRACE rule_hash=41f0464b2d141f50 status=rejected reason=missing_source_operator_outputs"
+      ],
+      "not_contains": [
+        "\"rule_id\":84,\"status\":\"applied\""
+      ],
+      "joins": 1
+    }
+  ],
+  "rows": {
+    "output": [
+      "1"
+    ],
+    "postgres_output": [
+      "1"
+    ]
+  }
+}
