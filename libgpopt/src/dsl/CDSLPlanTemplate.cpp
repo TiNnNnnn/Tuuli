@@ -723,7 +723,9 @@ CanonicalKind(const CExpression *expr, BOOL *distinct)
 	switch (expr->Pop()->Eopid())
 	{
 	case COperator::EopLogicalSelect: return EdslopFilter;
-		case COperator::EopLogicalProject: return EdslopCompute;
+		case COperator::EopLogicalProject:
+			return 2 == expr->Arity() && CDSLExprListUtils::FComputeList((*expr)[1], (*expr)[0])
+				? EdslopCompute : EdslopSentinel;
 		case COperator::EopLogicalGbAgg:
 			if (2 == expr->Arity() && 0 == (*expr)[1]->Arity() &&
 				COperator::EgbaggtypeGlobal ==
@@ -1189,9 +1191,6 @@ FExpressionTemplate(CMemoryPool *mp, const CDSLOp *op,
 			if (relational[i] != (*expr)[i])
 				return false;
 	}
-	if (project && (COperator::EopScalarProjectList != (*expr)[1]->Pop()->Eopid() ||
-		(*expr)[1]->DeriveHasNonScalarFunction()))
-		return false;
 	BOOL local = false;
 	if (expand_scalar)
 	{

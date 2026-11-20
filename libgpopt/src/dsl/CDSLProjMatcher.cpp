@@ -57,8 +57,7 @@ CDSLProjMatcher::FMatchCompute(const CDSLOp *popCompute,
 		m_pmatcher->Prule()->Pexprdefs()->FHasBindings();
 	// Fresh outputs and no sibling dependencies. Outer references are allowed,
 	// but construction must retain their original scope. SRFs are not Compute.
-	if (exact && (!CDSLExprListUtils::FComputeList(pexprList) ||
-		!(*pexprProject)[0]->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns())))
+	if (exact && !CDSLExprListUtils::FComputeList(pexprList, (*pexprProject)[0]))
 	{
 		return false;
 	}

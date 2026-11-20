@@ -236,8 +236,7 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 		pexprChild, pdrgpcrAttrs, pdrgpcrSchema);
 	if (!scope_valid ||
 		(m_prule->Pexprdefs()->FHasBindings() &&
-		 (!CDSLExprListUtils::FComputeList(pexprList) ||
-		  !pexprChild->DeriveOutputColumns()->IsDisjoint(pexprList->DeriveDefinedColumns()))))
+		 !CDSLExprListUtils::FComputeList(pexprList, pexprChild)))
 	{
 		pexprChild->Release();
 		if (fOwnAttrs)

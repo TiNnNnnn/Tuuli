@@ -198,10 +198,11 @@ CDSLExprListUtils::PdrgpexprFunctions(CMemoryPool *mp, CExpression *list)
 }
 
 BOOL
-CDSLExprListUtils::FComputeList(CExpression *pexpr)
+CDSLExprListUtils::FComputeList(CExpression *pexpr, CExpression *input)
 {
 	return FTypedProjectList(pexpr) && FRowScalar(pexpr) &&
-		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns());
+		pexpr->DeriveDefinedColumns()->IsDisjoint(pexpr->DeriveUsedColumns()) &&
+		(nullptr == input || input->DeriveOutputColumns()->IsDisjoint(pexpr->DeriveDefinedColumns()));
 }
 
 BOOL

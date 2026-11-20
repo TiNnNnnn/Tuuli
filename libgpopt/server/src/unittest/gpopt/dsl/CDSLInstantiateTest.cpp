@@ -2126,15 +2126,12 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		CExpression *source = GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp), input,
 			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items));
 		std::string exported, error;
-		if (0 == shape || 2 == shape)
-			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error) &&
-				exported == "Compute<e0 a0 s0>(Input<t0>)";
-		else if (shape < 5 || (6 <= shape && shape <= 9))
-			// A sibling definition is not an outer reference. The production
-			// matcher rejects it along with colliding/duplicate outputs.
-			ok &= !CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
-		else
-			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
+		const BOOL sliced = CDSLPlanTemplate::FSlice(mp, source, "r", {"r/0"}, &exported, &error);
+		if (0 == shape)
+			ok &= exported == "Compute<e0 a0 s0>(Input<t0>)";
+		if (2 == shape)
+			ok &= CDSLPlanTemplate::FSlice(mp, source, "r", {"r"}, &exported, &error) &&
+				exported == "Input<t0>";
 		CDSLModel *model = GPOS_NEW(mp) CDSLModel(mp);
 		const BOOL valid = 0 == shape || 5 == shape || 10 == shape || 11 == shape;
 		// An opaque list retains the complete subquery just like its explicit
@@ -2143,7 +2140,7 @@ CDSLInstantiateTest::EresUnittest_SelectItems()
 		const BOOL matched = CDSLMatcher(mp, rule).FMatch(rule->PfragSrc()->PopRoot(), source, model);
 		if (matched != match_valid)
 			GPOS_TRACE_FORMAT("Compute matching domain: shape=%lu", shape);
-		ok &= matched == match_valid;
+		ok &= matched == match_valid && sliced == matched;
 		model->Release();
 		// Probe construction independently: source matching must not be the
 		// only guard for lists assembled by target expressions or other captures.

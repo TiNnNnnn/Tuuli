@@ -65,7 +65,7 @@ public:
 	static CExpression *PexprExistentialInput(CExpression *input);
 	// Typed Compute is a parallel scalar list: unique outputs, no SRFs and
 	// no references to outputs defined by this same list. Outer refs are valid.
-	static BOOL FComputeList(CExpression *pexpr);
+	static BOOL FComputeList(CExpression *pexpr, CExpression *input = nullptr);
 	// Allocate fresh NULL outputs with the template's ordered types/typmods.
 	static CExpression *PexprNulls(CMemoryPool *mp, CColRefArray *columns);
 	static CColRefArray *PdrgpcrOutput(CMemoryPool *mp, CExpression *list);
