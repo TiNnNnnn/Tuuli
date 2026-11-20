@@ -1,0 +1,46 @@
+{
+  "description": "EXCEPT ALL preserves the positions produced by ordered child windows",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_differenceall2antijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"17e736c7eac2c540\""
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_differenceall2antijoin.policy",
+    "output": [
+      "t,4",
+      ",3"
+    ],
+    "postgres_output": [
+      "t,4",
+      ",3"
+    ],
+    "off_output": [
+      "t,4",
+      ",3"
+    ]
+  }
+}

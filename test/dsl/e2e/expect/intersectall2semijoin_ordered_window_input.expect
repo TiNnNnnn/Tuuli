@@ -1,0 +1,58 @@
+{
+  "description": "INTERSECT ALL preserves the positions produced by ordered child windows",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "policy": "isolate_intersectall2semijoin.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\""
+      ],
+      "alternative": [
+        "CXformDSLRule_IntersectAll"
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersectAll2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "policy": "isolate_intersectall2semijoin.policy",
+    "output": [
+      "f,1",
+      "t,1",
+      "t,1",
+      "t,2",
+      "t,2",
+      "t,3"
+    ],
+    "postgres_output": [
+      "f,1",
+      "t,1",
+      "t,1",
+      "t,2",
+      "t,2",
+      "t,3"
+    ],
+    "off_output": [
+      "f,1",
+      "t,1",
+      "t,1",
+      "t,2",
+      "t,2",
+      "t,3"
+    ]
+  }
+}
