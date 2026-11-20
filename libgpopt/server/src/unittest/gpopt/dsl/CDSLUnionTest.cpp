@@ -369,6 +369,35 @@ EresExpressionSetBindings()
 	return GPOS_OK;
 }
 
+// Both inputs in these construction tests are scans. Verify each alias
+// against the actual column at its position in the reordered branch.
+static BOOL
+FReorderedScanInputs(CExpression *target, CExpression *left, CExpression *right,
+					 CColRefArray *left_cols, CColRefArray *right_cols)
+{
+	CLogicalSetOp *set = CLogicalSetOp::PopConvert(target->Pop());
+	CExpression *project = (*target)[0];
+	if (project->Pop()->Eopid() != COperator::EopLogicalProject ||
+		(*project)[0] != right || (*target)[1]->Pop()->Eopid() != COperator::EopLogicalGet)
+		return false;
+	CLogicalGet *copy = CLogicalGet::PopConvert((*target)[1]->Pop());
+	CColRefArray *mapped = (*set->PdrgpdrgpcrInput())[1];
+	if (copy->Ptabdesc() != CLogicalGet::PopConvert(left->Pop())->Ptabdesc() ||
+		!CColRef::Equals(mapped, copy->PdrgpcrOutput()) ||
+		!CColRef::Equals((*set->PdrgpdrgpcrInput())[0], left_cols) ||
+		(*project)[1]->Arity() != left_cols->Size())
+		return false;
+	for (ULONG i = 0; i < mapped->Size(); ++i)
+	{
+		CExpression *item = (*(*project)[1])[i];
+		if ((*mapped)[i] == (*left_cols)[i] ||
+			CScalarProjectElement::PopConvert(item->Pop())->Pcr() != (*left_cols)[i] ||
+			CScalarIdent::PopConvert((*item)[0]->Pop())->Pcr() != (*right_cols)[i])
+			return false;
+	}
+	return true;
+}
+
 // These deliberately unproved templates test faithful construction, not rule
 // equivalence: an explicit target input map must never be replaced by inference.
 static GPOS_RESULT
@@ -419,14 +448,12 @@ EresExplicitSetOpInputMaps()
 			auto *op = CLogicalSetOp::PopConvert(target->Pop());
 			GPOS_UNITTEST_ASSERT(op->Eopid() == kinds[k]);
 			GPOS_UNITTEST_ASSERT(CColRef::Equals(op->PdrgpcrOutput(), left_cols));
-			GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[0], left_cols));
-			GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[1], right_cols));
 			if (variant == 3)
+				GPOS_UNITTEST_ASSERT(FReorderedScanInputs(target.Value(), left.Value(), right.Value(), left_cols, right_cols));
+			else
 			{
-				GPOS_UNITTEST_ASSERT(CLogicalGet::PopConvert((*target)[0]->Pop())->Ptabdesc()->MDId()->Equals(
-					CLogicalGet::PopConvert(right->Pop())->Ptabdesc()->MDId()));
-				GPOS_UNITTEST_ASSERT(CLogicalGet::PopConvert((*target)[1]->Pop())->Ptabdesc()->MDId()->Equals(
-					CLogicalGet::PopConvert(left->Pop())->Ptabdesc()->MDId()));
+				GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[0], left_cols));
+				GPOS_UNITTEST_ASSERT(CColRef::Equals((*op->PdrgpdrgpcrInput())[1], right_cols));
 			}
 		}
 	return GPOS_OK;
@@ -1617,30 +1644,15 @@ EresInstantiateSimpleUnion(BOOL fSwap)
 				CLogicalSetOp::PopConvert(pexprSource->Pop());
 			CLogicalSetOp *popTarget =
 				CLogicalSetOp::PopConvert(pexprTarget->Pop());
-			eres = popTarget->PdrgpcrOutput()->Equals(
-					   popSource->PdrgpcrOutput()) &&
-				   (*popTarget->PdrgpdrgpcrInput())[0]->Equals(
-					   (*popSource->PdrgpdrgpcrInput())[0]) &&
-				   (*popTarget->PdrgpdrgpcrInput())[1]->Equals(
-					   (*popSource->PdrgpdrgpcrInput())[1]) &&
-				   FOutputContains(
-					   (*pexprTarget)[0],
-					   (*popTarget->PdrgpdrgpcrInput())[0]) &&
-				   FOutputContains(
-					   (*pexprTarget)[1],
-					   (*popTarget->PdrgpdrgpcrInput())[1])
+			CColRefArray *left = (*popSource->PdrgpdrgpcrInput())[0];
+			CColRefArray *right = (*popSource->PdrgpdrgpcrInput())[1];
+			BOOL valid = fSwap
+				? FReorderedScanInputs(pexprTarget, pexprLeft, pexprRight, left, right)
+				: CColRef::Equals((*popTarget->PdrgpdrgpcrInput())[0], left) &&
+				  CColRef::Equals((*popTarget->PdrgpdrgpcrInput())[1], right) &&
+				  (*pexprTarget)[0] == pexprLeft && (*pexprTarget)[1] == pexprRight;
+			eres = valid && CColRef::Equals(popTarget->PdrgpcrOutput(), popSource->PdrgpcrOutput())
 				? GPOS_OK : GPOS_FAILED;
-			if (fSwap && GPOS_OK == eres)
-			{
-				eres = CLogicalGet::PopConvert((*pexprTarget)[0]->Pop())
-						   ->Ptabdesc() ==
-					   CLogicalGet::PopConvert(pexprRight->Pop())->Ptabdesc() &&
-					   CLogicalGet::PopConvert((*pexprTarget)[1]->Pop())
-						   ->Ptabdesc() ==
-					   CLogicalGet::PopConvert(pexprLeft->Pop())->Ptabdesc()
-					? GPOS_OK
-					: GPOS_FAILED;
-			}
 		}
 	}
 	CRefCount::SafeRelease(pexprTarget);

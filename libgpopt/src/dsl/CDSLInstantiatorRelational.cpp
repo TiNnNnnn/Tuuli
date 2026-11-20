@@ -30,6 +30,7 @@
 #include "gpopt/operators/CPredicateUtils.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarIdent.h"
+#include "gpopt/operators/CScalarProjectList.h"
 #include "gpopt/xforms/CXformUtils.h"
 
 using namespace gpopt;
@@ -74,49 +75,17 @@ FNullScalarConst(const CExpression *pexpr)
 		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
 }
 
-// A set-op's output identities are anchored to its first input. Reordering
-// branches therefore cannot merely reorder the operator's input-column arrays:
-// later ORCA property derivation assumes every non-first input maps to distinct
-// output CColRefs. Copy the moved child and remap its set-op columns into the
-// identities required at the target position. Consumes pexpr.
-CExpression *
-PexprRemapSetOpChild(CMemoryPool *mp, CExpression *pexpr,
-					 const CColRefArray *pdrgpcrFrom,
-					 const CColRefArray *pdrgpcrTo)
+// Freshen a branch without turning a scan column into a computed column.
+// Repeated positions keep the same identity within this branch.
+CColRefArray *
+PdrgpcrFreshenSetOpChild(CMemoryPool *mp, CExpression *&child, CColRefArray *input)
 {
-	GPOS_ASSERT(nullptr != mp);
-	GPOS_ASSERT(nullptr != pexpr);
-	GPOS_ASSERT(nullptr != pdrgpcrFrom);
-	GPOS_ASSERT(nullptr != pdrgpcrTo);
-	GPOS_ASSERT(pdrgpcrFrom->Size() == pdrgpcrTo->Size());
-
-	UlongToColRefMap *colref_mapping = GPOS_NEW(mp) UlongToColRefMap(mp);
-	BOOL fNeedsRemap = false;
-	for (ULONG ul = 0; ul < pdrgpcrFrom->Size(); ul++)
-	{
-		CColRef *pcrFrom = (*pdrgpcrFrom)[ul];
-		CColRef *pcrTo = (*pdrgpcrTo)[ul];
-		if (pcrFrom == pcrTo)
-		{
-			continue;
-		}
-		BOOL fInserted GPOS_ASSERTS_ONLY = colref_mapping->Insert(
-			GPOS_NEW(mp) ULONG(pcrFrom->Id()), pcrTo);
-		GPOS_ASSERT(fInserted);
-		fNeedsRemap = true;
-	}
-
-	if (!fNeedsRemap)
-	{
-		colref_mapping->Release();
-		return pexpr;
-	}
-
-	CExpression *pexprRemapped = pexpr->PexprCopyWithRemappedColumns(
-		mp, colref_mapping, false /*must_exist*/);
-	colref_mapping->Release();
-	pexpr->Release();
-	return pexprRemapped;
+	CAutoRef<UlongToColRefMap> mapping(GPOS_NEW(mp) UlongToColRefMap(mp));
+	CColRefArray *fresh = CUtils::PdrgpcrRemapAndCreate(mp, input, mapping.Value());
+	CExpression *copy = child->PexprCopyWithRemappedColumns(mp, mapping.Value(), false);
+	child->Release();
+	child = copy;
+	return fresh;
 }
 }  // namespace
 
@@ -550,7 +519,7 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 	CExpressionArray *pdrgpexprBindings = pmodel->PdrgpexprUnionBindings();
 	CColRefArray *pdrgpcrOutput = nullptr;
 	CColRefArray *rgpdrgpcrInput[2] = {nullptr, nullptr};
-	ULONG rgulSourceForTarget[2] = {0, 1};
+	BOOL swapped = false;
 	BOOL fOwnsInputMappings = false;
 
 	for (ULONG ulBinding = 0;
@@ -615,20 +584,15 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 			pdrgpcrOutput = pdrgpcrCandidateOutput;
 			rgpdrgpcrInput[0] = (*pdrgpdrgpcrCandidateInput)[0];
 			rgpdrgpcrInput[1] = (*pdrgpdrgpcrCandidateInput)[1];
-			rgulSourceForTarget[0] = 0;
-			rgulSourceForTarget[1] = 1;
 			break;
 		}
 		if (rgfFits[0][1] && rgfFits[1][0])
 		{
 			pdrgpcrOutput = pdrgpcrCandidateOutput;
-			// Keep the set-op position maps stable and move the child semantics
-			// into those identities below. Swapping these arrays directly can put
-			// an output CColRef in a non-first input and violates ORCA invariants.
+			// Keep the source maps until the swapped branches are built.
 			rgpdrgpcrInput[0] = (*pdrgpdrgpcrCandidateInput)[0];
 			rgpdrgpcrInput[1] = (*pdrgpdrgpcrCandidateInput)[1];
-			rgulSourceForTarget[0] = 1;
-			rgulSourceForTarget[1] = 0;
+			swapped = true;
 			break;
 		}
 	}
@@ -687,15 +651,10 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 				// branches; ORCA requires fresh identities in non-first inputs.
 				if (freshen_right)
 				{
-					UlongToColRefMap *mapping = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
-					CColRefArray *fresh = CUtils::PdrgpcrRemapAndCreate(
-						m_mp, rgpdrgpcrInput[1], mapping);
-					CExpression *copy = pexprRight->PexprCopyWithRemappedColumns(
-						m_mp, mapping, false /*must_exist*/);
-					mapping->Release();
-					pexprRight->Release();
+					CColRefArray *fresh = PdrgpcrFreshenSetOpChild(
+						m_mp, pexprRight, rgpdrgpcrInput[1]);
+					rgpexprTarget[1] = pexprRight;
 					rgpdrgpcrInput[1]->Release();
-					pexprRight = rgpexprTarget[1] = copy;
 					rgpdrgpcrInput[1] = fresh;
 				}
 				pdrgpcrOutput = pdrgpcrAttrs;
@@ -738,31 +697,42 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 		}
 	}
 
-	// Moving a memo-derived aggregate by deep column remapping recreates its
-	// Local/Global split as fresh groups, losing the native xform provenance that
-	// prevents incompatible aggregate xforms from running again. Identity-shaped
-	// Union rules (including the real corpus Proj* rules) need no copy and remain
-	// supported; conservatively reject only a branch move across a GbAgg subtree.
-	for (ULONG ulTarget = 0; ulTarget < 2; ulTarget++)
+	if (swapped)
 	{
-		if (rgulSourceForTarget[ulTarget] != ulTarget &&
-			FContainsGbAgg(rgpexprTarget[ulTarget]))
+		// The first branch names the result. Bind by position: a single input
+		// column can supply several outputs, even when their identities differ.
+		CColRefArray *first = rgpdrgpcrInput[1];
+		BOOL valid = !FContainsGbAgg(pexprRight) && !CUtils::FHasDuplicates(pdrgpcrOutput);
+		const CColRefSet *defined = pexprLeft->DeriveOutputColumns();
+		for (ULONG i = 0; valid && i < first->Size(); ++i)
+		{
+			CColRef *from = (*first)[i];
+			CColRef *to = (*pdrgpcrOutput)[i];
+			valid = !defined->FMember(to) &&
+				from->RetrieveType()->MDId()->Equals(to->RetrieveType()->MDId()) &&
+				from->TypeModifier() == to->TypeModifier();
+		}
+		if (!valid)
 		{
 			pexprLeft->Release();
 			pexprRight->Release();
 			return nullptr;
 		}
-	}
+		CExpressionArray *items = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG i = 0; i < first->Size(); ++i)
+		{
+			items->Append(CUtils::PexprScalarProjectElement(m_mp, (*pdrgpcrOutput)[i],
+				CUtils::PexprScalarIdent(m_mp, (*first)[i])));
+		}
+		rgpexprTarget[0] = CUtils::PexprLogicalProject(m_mp, pexprLeft,
+			GPOS_NEW(m_mp) CExpression(m_mp, GPOS_NEW(m_mp) CScalarProjectList(m_mp), items), false);
 
-	for (ULONG ulTarget = 0; ulTarget < 2; ulTarget++)
-	{
-		ULONG ulSource = rgulSourceForTarget[ulTarget];
-		rgpexprTarget[ulTarget] = PexprRemapSetOpChild(
-			m_mp, rgpexprTarget[ulTarget], rgpdrgpcrInput[ulSource],
-			rgpdrgpcrInput[ulTarget]);
+		rgpdrgpcrInput[1] = PdrgpcrFreshenSetOpChild(
+			m_mp, rgpexprTarget[1], rgpdrgpcrInput[0]);
+		rgpdrgpcrInput[0] = pdrgpcrOutput;
+		pdrgpcrOutput->AddRef();
+		fOwnsInputMappings = true;
 	}
-	pexprLeft = rgpexprTarget[0];
-	pexprRight = rgpexprTarget[1];
 
 	pdrgpcrOutput->AddRef();
 	CColRef2dArray *pdrgpdrgpcrInput =
@@ -795,6 +765,10 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 					pdrgpdrgpcrInput->Append(pdrgpcrChild);
 					(*pexprChild)[ulChild]->AddRef();
 					pdrgpexprChildren->Append((*pexprChild)[ulChild]);
+				}
+				if (fOwnsInputMappings)
+				{
+					rgpdrgpcrInput[ul]->Release();
 				}
 				pexprChild->Release();
 				continue;

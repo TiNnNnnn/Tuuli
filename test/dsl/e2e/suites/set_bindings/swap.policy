@@ -1,0 +1,10 @@
+- rule: '*'
+  enabled: false
+- rule: 00eae29974bbe730
+  enabled: true
+  placement: rbo
+  phase: cleanup
+  effect: preserves_join_graph
+  order: bottom_up
+  budget:
+    per_query: 1

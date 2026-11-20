@@ -1,0 +1,75 @@
+{
+  "description": "Swapping UNION ALL branches keeps repeated columns in their original SQL positions",
+  "plans": [
+    {
+      "name": "alternative",
+      "trace": true,
+      "policy": "construct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"00eae29974bbe730\""
+      ],
+      "alternative": [
+        "CXformDSLRule_UnionAll"
+      ]
+    },
+    {
+      "name": "swapped",
+      "trace": true,
+      "policy": "swap.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "Sort Key: set_right.b, set_right.a, set_right.a",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"00eae29974bbe730\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "swap.policy",
+    "output": [
+      "1,1,10",
+      "1,1,10",
+      "1,1,10",
+      "1,10,10",
+      "1,10,10",
+      "2,2,",
+      "2,99,99",
+      "2,,",
+      "3,3,30",
+      "3,30,30",
+      "4,4,40",
+      ",20,20",
+      ",,20"
+    ],
+    "postgres_output": [
+      "1,1,10",
+      "1,1,10",
+      "1,1,10",
+      "1,10,10",
+      "1,10,10",
+      "2,2,",
+      "2,99,99",
+      "2,,",
+      "3,3,30",
+      "3,30,30",
+      "4,4,40",
+      ",20,20",
+      ",,20"
+    ],
+    "off_output": [
+      "1,1,10",
+      "1,1,10",
+      "1,1,10",
+      "1,10,10",
+      "1,10,10",
+      "2,2,",
+      "2,99,99",
+      "2,,",
+      "3,3,30",
+      "3,30,30",
+      "4,4,40",
+      ",20,20",
+      ",,20"
+    ]
+  }
+}
