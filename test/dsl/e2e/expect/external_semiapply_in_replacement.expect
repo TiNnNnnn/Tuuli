@@ -7,7 +7,7 @@
     "scope": "Base-input LeftSemiApplyIn whose comparison is current-domain and inner Filter is enclosing-domain",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1ab0ec8efdf91762"
+      "c1ea878ea6fae653"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\""
       ],
       "alternative": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin",
@@ -54,11 +54,11 @@
       "native_observation": "dsl_source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "1ab0ec8efdf91762",
+          "rule_hash": "c1ea878ea6fae653",
           "route_sequence": 6,
           "operators": [
             "CLogicalLeftSemiCorrelatedApplyIn",
@@ -67,6 +67,7 @@
             "CLogicalGet"
           ],
           "target_operators": [
+            "CLogicalProject",
             "CLogicalSelect",
             "CLogicalGbAgg",
             "CLogicalInnerJoin",

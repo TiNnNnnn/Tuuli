@@ -7,7 +7,7 @@
     "scope": "Keyed outer SemiApply with residual and external predicates above an inner Join",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1ab0ec8efdf91762"
+      "c1ea878ea6fae653"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -50,7 +50,7 @@
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\""
       ],
       "provenance": {
         "required_sources": [

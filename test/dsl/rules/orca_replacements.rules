@@ -384,12 +384,12 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Limit<n0 n1>(Input<t1>))|SemiJoin<p1 a3 a4>(Inp
 # RHS-local witness-column baseline replaces 11fa492ec540019c; expression and input safety retained.
 # PARTIAL_BINDING legacy_hash=361c929a43360d30; native expression proof: UNKNOWN; FormalSQL/Rocq source-conditional
 # BAG_OUTCOME_EQ with source-output observation: kernel-checked 2026-10-26.
-# Current rule hash 1ab0ec8efdf91762; native-off SQL trigger and rows verified.
-# EXISTS and positive ANY native instances are kernel-checked on captured DSL
-# outputs (2026-10-27); unrestricted native/physical correspondence remains open.
-# Retain only RHS-local witness columns; native runtime/source obligations remain
-# explicit. This conditional theorem is not a deployment certificate or FULL coverage.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>)))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);OutputAttrs(a11,t1);AttrsIntersect(a12,a11,a7);AttrsUnion(a10,a9,a12);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a9);DepsDisjoint(a9,a11)
+# Current rule hash c1ea878ea6fae653. Deduplicate with the RHS-local witnesses,
+# apply the residual predicate, then return the ordered left output columns.
+# Native-off EXISTS and positive ANY exercise the declared DSL row interface.
+# The conditional bag proof retains left uniqueness, RHS scope, repeatability
+# and scalar safety premises.
+SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Proj<a9 s1>(Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>))))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);OutputAttrs(a11,t1);AttrsIntersect(a12,a11,a7);AttrsUnion(a10,a9,a12);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a9);DepsDisjoint(a9,a11);SchemaFromAttrs(s1,a9)
 
 # The grouped sibling is atomic at the RuleIR/Cascades boundary. Local filter
 # dependencies must already be grouping keys; the runtime scope guard rejects

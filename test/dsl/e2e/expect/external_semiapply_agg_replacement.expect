@@ -7,7 +7,7 @@
     "scope": "Equality correlations below a grouped aggregate whose grouping covers every local correlation key",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1ab0ec8efdf91762",
+      "c1ea878ea6fae653",
       "0573ade528949f8d"
     ]
   },
@@ -26,7 +26,7 @@
       "trace": true,
       "policy": "isolate_external_semiapply_agg_chain.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\"",
         "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "alternative": [
@@ -57,12 +57,12 @@
       "native_observation": "dsl_source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\"",
         "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "1ab0ec8efdf91762",
+          "rule_hash": "c1ea878ea6fae653",
           "route_sequence": 28,
           "operators": [
             "CLogicalLeftSemiCorrelatedApply",
@@ -73,6 +73,7 @@
             "CLogicalGet"
           ],
           "target_operators": [
+            "CLogicalProject",
             "CLogicalSelect",
             "CLogicalGbAgg",
             "CLogicalInnerJoin",
@@ -103,7 +104,7 @@
       "policy": "isolate_external_semiapply_agg_chain.policy",
       "stats_experiment": "external_semiapply_agg_filter_source_route.yaml",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\"",
         "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
       ],
       "rule_source_routes": [

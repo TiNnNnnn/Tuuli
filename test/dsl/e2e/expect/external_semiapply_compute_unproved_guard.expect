@@ -9,11 +9,11 @@
       ],
       "policy": "isolate_external_semiapply_in_base.policy",
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1ab0ec8efdf91762\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c1ea878ea6fae653\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1ab0ec8efdf91762\""
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\""
       ]
     }
   ],
