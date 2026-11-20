@@ -7,7 +7,7 @@
     "scope": "Equality correlations below an aggregate whose grouping must be expanded with local correlation keys",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "1c145466514daebf"
+      "c3ff7cdad5952431"
     ]
   },
   "plans": [
@@ -22,8 +22,9 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1c145466514daebf\""
+        "\"status\":\"applied\",\"rule_hash\":\"c3ff7cdad5952431\""
       ],
       "alternative": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
@@ -48,8 +49,9 @@
       "disable_xforms": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
+      "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"1c145466514daebf\""
+        "\"status\":\"applied\",\"rule_hash\":\"c3ff7cdad5952431\""
       ],
       "provenance": {
         "required_sources": [
@@ -66,6 +68,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
     ],
+    "policy": "isolate_external_semiapply_agg_expand.policy",
     "output": [
       "10",
       "20"

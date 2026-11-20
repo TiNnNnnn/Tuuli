@@ -15,15 +15,15 @@
       "disable_xforms": [
         "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
       ],
-      "policy": "external_semiapply_global_aggregate_empty_guard.policy",
+      "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"1c145466514daebf\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"c3ff7cdad5952431\"",
         "\"failed_constraint\":\"AttrsNonEmpty\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"1c145466514daebf\""
+        "\"status\":\"applied\",\"rule_hash\":\"c3ff7cdad5952431\""
       ]
     }
   ],
@@ -31,7 +31,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
     ],
-    "policy": "external_semiapply_global_aggregate_empty_guard.policy",
+    "policy": "isolate_external_semiapply_agg_expand.policy",
     "output": [
       "10",
       "20"
