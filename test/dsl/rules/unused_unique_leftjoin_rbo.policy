@@ -1,0 +1,7 @@
+- rule: '*'
+  enabled: false
+- rule: 70fca357bd306d96
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: changes_join_graph

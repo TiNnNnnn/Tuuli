@@ -1,0 +1,45 @@
+{
+  "description": "A filter removes a key from the referred side of the self join",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on",
+      "xform_trace": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"6bd91f27930d4267\"",
+        "\"failed_constraint\":\"Reference\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"6bd91f27930d4267\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,3"
+    ],
+    "postgres_output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,3"
+    ],
+    "off_output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,3"
+    ]
+  }
+}

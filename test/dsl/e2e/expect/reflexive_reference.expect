@@ -1,23 +1,23 @@
 {
-  "description": "Metadata-independent reflexive Reference on the same table",
+  "description": "Differently filtered aliases of one base table cannot bind the same source Input",
   "plans": [
     {
       "name": "off",
       "dsl": false,
-      "trace": true,
-      "not_contains": [
-        "Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)"
+      "contains": [
+        "Optimizer: pg_orca"
       ]
     },
     {
       "name": "on",
+      "xform_trace": false,
       "trace": true,
       "contains": [
-        "Reference(t0,a0,t1,a1);Reference(t1,a1,t0,a0)",
-        "\"rule_id\":69,\"status\":\"applied\""
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"4b4290d38bd0d727\""
       ],
-      "alternative": [
-        "CXformDSLRule_InnerJoin"
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"4b4290d38bd0d727\""
       ]
     }
   ],
@@ -26,6 +26,9 @@
       "3,3"
     ],
     "postgres_output": [
+      "3,3"
+    ],
+    "off_output": [
       "3,3"
     ]
   }

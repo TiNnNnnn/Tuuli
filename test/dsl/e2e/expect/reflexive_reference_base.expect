@@ -1,0 +1,47 @@
+{
+  "description": "The complete base relation covers its own keys without a declared foreign key",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ]
+    },
+    {
+      "name": "on",
+      "xform_trace": false,
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"6bd91f27930d4267\""
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,1",
+      "1,1",
+      "1,1",
+      "1,1",
+      "2,2",
+      "3,3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      "1,1",
+      "1,1",
+      "2,2",
+      "3,3"
+    ],
+    "off_output": [
+      "1,1",
+      "1,1",
+      "1,1",
+      "1,1",
+      "2,2",
+      "3,3"
+    ]
+  }
+}

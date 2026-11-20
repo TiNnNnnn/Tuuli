@@ -1,12 +1,12 @@
 {
-  "description": "Unique unreferenced inner side removal",
+  "description": "Unique inner keys allow RBO join removal while the CBO group still exposes right-side columns",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "trace": true,
       "not_contains": [
-        "\"rule_id\":90,\"status\":\"applied\""
+        "\"status\":\"applied\",\"rule_hash\":\"70fca357bd306d96\""
       ],
       "joins": 1
     },
@@ -14,10 +14,19 @@
       "name": "on",
       "trace": true,
       "contains": [
-        "\"rule_id\":90,\"status\":\"applied\""
+        "DSL_INSTANTIATE_TRACE rule_hash=70fca357bd306d96 status=rejected reason=missing_source_operator_outputs"
       ],
-      "alternative": [
-        "CXformDSLRule_Project"
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"70fca357bd306d96\""
+      ],
+      "joins": 1
+    },
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "unused_unique_leftjoin_rbo.policy",
+      "contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70fca357bd306d96\""
       ],
       "joins": 0
     }
@@ -30,6 +39,20 @@
     "postgres_output": [
       "10",
       "20"
-    ]
+    ],
+    "plan_outputs": {
+      "off": [
+        "10",
+        "20"
+      ],
+      "on": [
+        "10",
+        "20"
+      ],
+      "rbo": [
+        "10",
+        "20"
+      ]
+    }
   }
 }
