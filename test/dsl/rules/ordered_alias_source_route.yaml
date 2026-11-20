@@ -1,0 +1,7 @@
+experiment: ordered-alias
+discover: false
+template_route: 17
+template_fingerprint: fa07e42a87b010a1
+template_root: r
+template_bindings: true
+cardinalities:

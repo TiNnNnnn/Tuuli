@@ -234,23 +234,28 @@ BOOL AppendBoundExpression(CMemoryPool *mp, std::ostringstream *out,
 	const CExpression *expression);
 
 void
+AppendOrderSpec(CMemoryPool *mp, std::ostringstream *out, const COrderSpec *order)
+{
+	*out << '[';
+	for (ULONG i = 0; i < order->UlSortColumns(); ++i)
+	{
+		if (i) *out << ',';
+		*out << "{\"column\":";
+		AppendColumn(mp, out, order->Pcr(i));
+		*out << ",\"comparison_mdid\":" << MetadataId(mp, order->GetMdIdSortOp(i))
+			<< ",\"null_treatment\":" << order->Ent(i) << '}';
+	}
+	*out << ']';
+}
+
+void
 AppendOrderSpecs(CMemoryPool *mp, std::ostringstream *out, const COrderSpecArray *orders)
 {
 	*out << '[';
 	for (ULONG i = 0; i < orders->Size(); ++i)
 	{
 		if (i) *out << ',';
-		*out << '[';
-		const COrderSpec *order = (*orders)[i];
-		for (ULONG j = 0; j < order->UlSortColumns(); ++j)
-		{
-			if (j) *out << ',';
-			*out << "{\"column\":";
-			AppendColumn(mp, out, order->Pcr(j));
-			*out << ",\"comparison_mdid\":" << MetadataId(mp, order->GetMdIdSortOp(j))
-				<< ",\"null_treatment\":" << order->Ent(j) << '}';
-		}
-		*out << ']';
+		AppendOrderSpec(mp, out, (*orders)[i]);
 	}
 	*out << ']';
 }
@@ -374,6 +379,8 @@ AppendColumnFacts(CMemoryPool *mp, std::ostringstream *out, const CExpression *e
 				<< ",\"limit_has_count\":" << (limit->FHasCount() ? "true" : "false")
 				<< ",\"limit_ordered\":" << (limit->Pos()->IsEmpty() ? "false" : "true")
 				<< ",\"limit_top_dml\":" << (limit->IsTopLimitUnderDMLorCTAS() ? "true" : "false");
+			*out << ",\"limit_order_keys\":";
+			AppendOrderSpec(mp, out, limit->Pos());
 		}
 		if (const auto *window = dynamic_cast<const CLogicalSequenceProject *>(expr->Pop()))
 		{

@@ -11,6 +11,38 @@
         "\"placement\":\"rbo\""
       ],
       "joins": 0
+    },
+    {
+      "name": "cbo",
+      "trace": true,
+      "policy": "isolate_ordered_alias.policy",
+      "stats_experiment": "ordered_alias_source_route.yaml",
+      "native_observation": "ordered_outcomes",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"b5792ba68d392bfc\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "b5792ba68d392bfc",
+          "operators": [
+            "CLogicalProject",
+            "CLogicalLimit",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLimit",
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
     }
   ],
   "rows": {
