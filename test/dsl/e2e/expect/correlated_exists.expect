@@ -1,20 +1,29 @@
 {
-  "description": "Correlated EXISTS adapter retains the implied null guard",
+  "description": "Correlated EXISTS decorrelates with the native Apply-to-Join rule disabled and retains the null guard; the repeated-input IN rule rejects unequal input trees",
   "plans": [
     {
       "name": "off",
       "dsl": false,
       "contains": [
         "Optimizer: pg_orca"
-      ]
+      ],
+      "joins": 1
     },
     {
       "name": "on",
       "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApply2LeftSemiJoin"
+      ],
       "contains": [
         "Optimizer: pg_orca",
-        "\"rule_id\":8,\"status\":\"applied\"",
+        "\"status\":\"applied\",\"rule_hash\":\"91905ebab4da4402\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"8dba1c607b8e70a5\"",
         "IS NULL"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApply2LeftSemiJoin\n",
+        "\"status\":\"applied\",\"rule_hash\":\"8dba1c607b8e70a5\""
       ],
       "alternative": [
         "CXformDSLRule_Exists"
@@ -23,11 +32,18 @@
     }
   ],
   "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApply2LeftSemiJoin"
+    ],
     "output": [
       "10",
       "30"
     ],
     "postgres_output": [
+      "10",
+      "30"
+    ],
+    "off_output": [
       "10",
       "30"
     ]
