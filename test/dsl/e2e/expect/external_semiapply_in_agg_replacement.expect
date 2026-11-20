@@ -60,6 +60,94 @@
           "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
         ]
       }
+    },
+    {
+      "name": "chain_join",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_agg_chain.policy",
+      "stats_experiment": "external_semiapply_in_agg_join_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\"",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c1ea878ea6fae653",
+          "route_sequence": 28,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApplyIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
+    },
+    {
+      "name": "chain_group",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_agg_chain.policy",
+      "stats_experiment": "external_semiapply_agg_filter_source_route.yaml",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"c1ea878ea6fae653\"",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0573ade528949f8d",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+        ]
+      }
     }
   ],
   "rows": {
@@ -74,6 +162,12 @@
     "postgres_output": [
       "10",
       "20"
-    ]
+    ],
+    "plan_outputs": {
+      "chain_join": [
+        "10",
+        "20"
+      ]
+    }
   }
 }
