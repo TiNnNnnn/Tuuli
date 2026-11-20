@@ -7,7 +7,7 @@
     "scope": "Source-conditional independent total deterministic Item at any position and safe lower list; nonempty ordered residual; maximal subset and SRFs remain uncovered",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "8a9abb305aaa9684"
+      "60cf84ec874538a1"
     ]
   },
   "plans": [
@@ -24,7 +24,7 @@
       "trace": true,
       "policy": "isolate_compute_prefix_bindings.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\""
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
       "alternative": [
         "CXformCollapseProject",
@@ -53,7 +53,7 @@
       "native_observation": "source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\""
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
       "not_contains": [
         "Xform: CXformCollapseProject"
@@ -63,7 +63,7 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "8a9abb305aaa9684",
+          "rule_hash": "60cf84ec874538a1",
           "route_sequence": 2,
           "operators": [
             "CLogicalProject",
@@ -71,6 +71,7 @@
             "CLogicalGet"
           ],
           "target_operators": [
+            "CLogicalProject",
             "CLogicalProject",
             "CLogicalProject",
             "CLogicalGet"

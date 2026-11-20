@@ -9,10 +9,10 @@
       ],
       "policy": "isolate_compute_prefix_bindings.policy",
       "contains": [
-        "\"status\":\"match_rejected\",\"rule_hash\":\"8a9abb305aaa9684\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\"",
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\"",
         "Xform: CXformCollapseProject"
       ]
     }

@@ -10,13 +10,13 @@
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"8a9abb305aaa9684\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\"",
         "\"failed_constraint\":\"ErrorFree\""
       ],
       "not_contains": [
         "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
-        "\"status\":\"applied\",\"rule_hash\":\"8a9abb305aaa9684\""
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\""
       ]
     }
   ],

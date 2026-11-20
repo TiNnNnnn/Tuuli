@@ -72,14 +72,14 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj<a4 s0>(InnerJoin<p1 a2 a3>(Input<t2
 # Replaces the old structural concat certificate; SRFs are outside this domain.
 Compute<e0 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<ExprConcat(e1,e0) a2 s2>(Input<t1>)|t1 := t0;DepsDisjoint(e0,s1);AttrsUnion(a2,a0,a1);SchemaUnion(s2,s1,s0);ErrorFree(e1);Deterministic(e0);Deterministic(e1)
 
-# Partial Compute fusion moves an independent Item from any list position.
-# FormalSQL/Rocq BAG_OUTCOME_EQ with original output-column observation:
-# source-conditional kernel check 2026-11-04; digest
-# bd8d3514b5297c4758732d513390618ab483587de64d09edf74d80403f276e21.
-# Ordered residual segments use their own checked scope-transport certificates.
-# Native contracts remain obligations; SRFs and unsafe evaluation remain excluded.
-# DIRECT(expression-rewrite): move one Item, preserving a nonempty residual.
-Compute<ExprConcat(e4,Item(n0,a6,e0)) a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Compute<e2 a2 s2>(Compute<ExprConcat(e3,Item(n1,a7,Item())) a3 s3>(Input<t1>))|t1 := t0;e2 := ExprConcat(e4,e0);e3 := e1;n1 := n0;a7 := a6;DepsDisjoint(a4,s1);DepsDisjoint(e4,a6);DepsDisjoint(e0,a6);ErrorFree(n0);ErrorFree(e1);Deterministic(n0);Deterministic(e1);a2 := ScalarDeps(e2);a4 := ScalarDeps(n0);AttrsUnion(a3,a1,a4);OutputAttrs(a8,e2);AttrsNonEmpty(a8);SchemaFromAttrs(s2,a8);SchemaUnion(s3,s1,a6)
+# Partial Compute fusion moves one independent Item and keeps a nonempty residual.
+# Name the full source Item list so the outer projection restores its original order.
+# The ordered output is the base columns, lower Items, then the original upper Items.
+# DepsDisjoint and scalar safety still apply to the selected Item and its siblings.
+# FormalSQL/Rocq source-conditional BAG_OUTCOME_EQ. Native instances observe source outputs.
+# Prior implicit-output rule hash: 8a9abb305aaa9684.
+# DIRECT(expression-rewrite): retained columns and Item order are explicit.
+Compute<e5 a0 s0>(Compute<e1 a1 s1>(Input<t0>))|Proj<a13 s4>(Compute<e2 a2 s2>(Compute<ExprConcat(e3,Item(n1,a7,Item())) a3 s3>(Input<t1>)))|ExprConcat(e4,e6) := e5;Item(n0,a6,e0) := e6;t1 := t0;e2 := ExprConcat(e4,e0);e3 := e1;n1 := n0;a7 := a6;DepsDisjoint(a4,s1);DepsDisjoint(e4,a6);DepsDisjoint(e0,a6);ErrorFree(n0);ErrorFree(e1);Deterministic(n0);Deterministic(e1);a2 := ScalarDeps(e2);a4 := ScalarDeps(n0);AttrsUnion(a3,a1,a4);OutputAttrs(a8,e2);AttrsNonEmpty(a8);SchemaFromAttrs(s2,a8);SchemaUnion(s3,s1,a6);OutputAttrs(a9,t0);OutputAttrs(a10,e1);OutputAttrs(a11,e5);AttrsUnion(a12,a9,a10);AttrsUnion(a13,a12,a11);SchemaFromAttrs(s4,a13)
 
 # FormalSQL OUTCOME_EQ: native IN shares the quantified support observer;
 # preserve the comparison carrier and exact selected output column.
