@@ -96,8 +96,7 @@ private:
 
 	// Explicit TableShared groups are lowered to one CTE producer and separate
 	// consumer column identities. Keys are target Input symbols owned by RuleIR.
-	std::unordered_map<const CDSLSymbol *, ULONG> m_shared_cte_by_target;
-	std::vector<const CDSLSymbol *> m_shared_sources;
+	std::unordered_map<const CDSLSymbol *, ULONG> m_shared_index_by_target;
 	std::vector<ULONG> m_shared_cte_ids;
 
 	// Populated only for tracing: exact target-template Input anchors and the

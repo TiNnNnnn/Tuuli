@@ -1,15 +1,16 @@
 {
-  "description": "FullJoin expansion with native rules disabled; captured NULL construction is checked separately from the pending whole-rule native proof",
+  "description": "FullJoin expansion uses shared CTE inputs with the native expansion disabled",
   "replacement": {
     "xforms": [
       "CXformExpandFullOuterJoin"
     ],
-    "scope": "Deterministic binary FullJoin predicates over arbitrary relational inputs",
+    "scope": "Deterministic binary FullJoin with independently evaluable shared inputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "10374576f419c6c6"
     ],
     "excluded_native_domains": [
+      "Shared inputs with outer references cannot be materialized outside their correlation scope",
       "Canonical fresh-column allocation and complete CTE/Union native observation proof remain pending"
     ]
   },

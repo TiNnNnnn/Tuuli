@@ -250,7 +250,8 @@ BOOL
 CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 									   const CDSLModel *pmodel)
 {
-	std::unordered_map<const CDSLSymbol *, ULONG> cteBySource;
+	std::unordered_map<const CDSLSymbol *, ULONG> indexBySource;
+	std::vector<const CDSLSymbol *> sources;
 	for (ULONG ul = 0; ul < prule->Pdrgpcon()->Size(); ul++)
 	{
 		const CDSLConstraint *pcon = (*prule->Pdrgpcon())[ul];
@@ -278,30 +279,30 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 			}
 		}
 
-		auto sourceIt = cteBySource.find(source);
-		if (sourceIt == cteBySource.end())
+		auto sourceIndex = indexBySource.emplace(source, sources.size());
+		if (sourceIndex.second)
 		{
-			const ULONG id = COptCtxt::PoctxtFromTLS()->Pcteinfo()->next_id();
-			sourceIt = cteBySource.emplace(source, id).first;
-			m_shared_sources.push_back(source);
-			m_shared_cte_ids.push_back(id);
+			sources.push_back(source);
 		}
 		for (const CDSLSymbol *target : targets)
 		{
 			auto inserted =
-				m_shared_cte_by_target.emplace(target, sourceIt->second);
-			if (!inserted.second && inserted.first->second != sourceIt->second)
+				m_shared_index_by_target.emplace(target, sourceIndex.first->second);
+			if (!inserted.second && inserted.first->second != sourceIndex.first->second)
 			{
 				return false;
 			}
 		}
 	}
-	for (ULONG ul = 0; ul < m_shared_sources.size(); ul++)
+	// Validate every binding before consuming query-wide CTE IDs.
+	for (const CDSLSymbol *source : sources)
 	{
-		CExpression *pexprSource = pmodel->PexprTable(m_shared_sources[ul]);
+		CExpression *pexprSource = pmodel->PexprTable(source);
 		CColRefArray *pdrgpcrOutput = PdrgpcrLiveOutput(m_mp, pexprSource);
+		const ULONG id = COptCtxt::PoctxtFromTLS()->Pcteinfo()->next_id();
+		m_shared_cte_ids.push_back(id);
 		(void) CXformUtils::PexprAddCTEProducer(
-			m_mp, m_shared_cte_ids[ul], pdrgpcrOutput, pexprSource);
+			m_mp, id, pdrgpcrOutput, pexprSource);
 		pdrgpcrOutput->Release();
 	}
 	return true;
@@ -362,8 +363,8 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 		m_pdrgpsymBuiltInputs->Append(
 			const_cast<CDSLSymbol *>(psymTable));
 	}
-	auto shared = m_shared_cte_by_target.find(psymTarget);
-	if (shared != m_shared_cte_by_target.end())
+	auto shared = m_shared_index_by_target.find(psymTarget);
+	if (shared != m_shared_index_by_target.end())
 	{
 		CColRefArray *pdrgpcrFrom = PdrgpcrLiveOutput(m_mp, pexpr);
 		CColRefArray *pdrgpcrConsumer = pdrgpcrFrom;
@@ -376,7 +377,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 			pdrgpcrFrom->Release();
 		}
 		CExpression *pexprConsumer = CXformUtils::PexprCTEConsumer(
-			m_mp, shared->second, pdrgpcrConsumer);
+			m_mp, m_shared_cte_ids[shared->second], pdrgpcrConsumer);
 		RecordBuiltInput(pop, pexprConsumer);
 		return pexprConsumer;
 	}

@@ -2503,6 +2503,22 @@ EresLeftJoinExpansion(BOOL bindings)
 		}
 	}
 
+	// The second input is correlated. Reject both shares before allocating either producer ID.
+	if (GPOS_OK == eres)
+	{
+		CAutoRef<CExpression> parameter(fix.PexprPredAtom(fix.PcrCreateInt4("outer_parameter")));
+		CAutoRef<CExpression> inner(fix.PexprLogicalSelect(pexprRight, parameter.Value()));
+		CAutoRef<CExpression> correlated(fix.PexprLogicalLeftOuterJoin(pexprLeft, inner.Value(), (*pexprJoin)[2]));
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(matcher.FMatch(prule->PfragSrc()->PopRoot(), correlated.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(prule, model.Value()));
+		CCTEInfo *ctes = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+		const ULONG before = ctes->next_id();
+		CDSLInstantiator instantiator(mp);
+		CAutoRef<CExpression> target(instantiator.PexprInstantiate(prule, model.Value()));
+		GPOS_UNITTEST_ASSERT(nullptr == target.Value() && before + 1 == ctes->next_id());
+	}
+
 	CRefCount::SafeRelease(pexprTarget);
 	pmodel->Release();
 	pexprJoin->Release();

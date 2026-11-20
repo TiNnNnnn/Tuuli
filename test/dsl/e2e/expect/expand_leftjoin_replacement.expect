@@ -1,13 +1,17 @@
 {
-  "description": "A DSL syntax migration exercises LeftJoin expansion while preserving the memo output contract with a kernel-checked generic proof",
+  "description": "LeftJoin expansion uses shared CTE inputs with the native expansion disabled",
   "replacement": {
     "xforms": [
       "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
     ],
-    "scope": "Full logical promise for deterministic binary LeftJoin predicates over arbitrary relational inputs",
-    "status": "verified_full_replacement",
+    "scope": "Deterministic binary LeftJoin with independently evaluable shared inputs",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "c17232f27a25923d"
+    ],
+    "excluded_native_domains": [
+      "Shared inputs with outer references cannot be materialized outside their correlation scope",
+      "Whole-rule CTE and positional Union outcome proof remains pending"
     ]
   },
   "plans": [

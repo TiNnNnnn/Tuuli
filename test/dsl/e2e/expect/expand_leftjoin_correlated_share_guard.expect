@@ -1,0 +1,39 @@
+{
+  "description": "The right shared input depends on the current outer row; reject global materialization",
+  "plans": [
+    {
+      "name": "correlated",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ],
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"instantiate_rejected\",\"rule_hash\":\"c17232f27a25923d\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+    ],
+    "policy": "isolate_expand_leftjoin.policy",
+    "output": [
+      "1,1",
+      "3000,0"
+    ],
+    "postgres_output": [
+      "1,1",
+      "3000,0"
+    ],
+    "off_output": [
+      "1,1",
+      "3000,0"
+    ]
+  }
+}
