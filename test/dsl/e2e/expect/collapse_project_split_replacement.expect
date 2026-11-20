@@ -1,15 +1,5 @@
 {
-  "description": "The proved Compute split rule replaces partial Project collapse with a residual",
-  "replacement": {
-    "xforms": [
-      "CXformCollapseProject"
-    ],
-    "scope": "Nonvolatile partial Project collapse; volatile list movement is conservatively rejected",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "e3e696bb19f0eb43"
-    ]
-  },
+  "description": "Partial Project collapse preserves the dependent column and refuses to move potentially overflowing integer additions",
   "plans": [
     {
       "name": "native",
@@ -23,11 +13,16 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
       "alternative": [
-        "CXformCollapseProject",
-        "CXformDSLRule_Project"
+        "CXformCollapseProject"
       ]
     },
     {
@@ -42,26 +37,22 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "guard",
       "trace": true,
       "disable_xforms": [
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3e696bb19f0eb43\""
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
-      "alternative": [
-        "CXformDSLRule_Project"
-      ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformCollapseProject"
-        ]
-      }
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\"",
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ]
     }
   ],
   "rows": {
@@ -74,6 +65,11 @@
       "3,32,130"
     ],
     "postgres_output": [
+      "1,12,110",
+      "2,22,120",
+      "3,32,130"
+    ],
+    "off_output": [
       "1,12,110",
       "2,22,120",
       "3,32,130"

@@ -1,15 +1,5 @@
 {
-  "description": "The Compute concat replacement preserves an independently movable SRF cohort",
-  "replacement": {
-    "xforms": [
-      "CXformCollapseProject"
-    ],
-    "scope": "upper SRF cohort is independent and the lower layer has no SRF",
-    "status": "verified_partial_replacement",
-    "dsl_rule_hashes": [
-      "c0b0ad755b723936"
-    ]
-  },
+  "description": "An independent upper SRF still expands rows with native Project collapse disabled",
   "plans": [
     {
       "name": "native",
@@ -23,11 +13,17 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
+        "Optimizer: pg_orca",
+        "ProjectSet",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
       "alternative": [
-        "CXformCollapseProject",
-        "CXformDSLRule_Project"
+        "CXformCollapseProject"
       ]
     },
     {
@@ -42,26 +38,23 @@
       ]
     },
     {
-      "name": "replacement",
+      "name": "guard",
       "trace": true,
       "disable_xforms": [
         "CXformCollapseProject"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c0b0ad755b723936\""
+        "Optimizer: pg_orca",
+        "ProjectSet",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"60cf84ec874538a1\""
       ],
-      "alternative": [
-        "CXformDSLRule_Project"
-      ],
-      "provenance": {
-        "required_sources": [
-          "dsl"
-        ],
-        "required_origins": [],
-        "forbidden_origins": [
-          "CXformCollapseProject"
-        ]
-      }
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f2532e414a3fb917\"",
+        "\"status\":\"applied\",\"rule_hash\":\"60cf84ec874538a1\"",
+        "Falling back to Postgres",
+        "Xform: CXformCollapseProject"
+      ]
     }
   ],
   "rows": {
@@ -77,6 +70,14 @@
       "3,31,2"
     ],
     "postgres_output": [
+      "1,11,1",
+      "1,11,2",
+      "2,21,1",
+      "2,21,2",
+      "3,31,1",
+      "3,31,2"
+    ],
+    "off_output": [
       "1,11,1",
       "1,11,2",
       "2,21,1",
