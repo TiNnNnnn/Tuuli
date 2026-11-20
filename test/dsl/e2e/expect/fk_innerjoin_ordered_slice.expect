@@ -1,0 +1,27 @@
+{
+  "description": "A column alias stays above an ordered slice with an offset and a row count",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "policy": "wetune_bottom_up_rbo.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"b5792ba68d392bfc\""
+      ]
+    }
+  ],
+  "rows": {
+    "policy": "wetune_bottom_up_rbo.policy",
+    "output": [
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "2",
+      "3"
+    ]
+  }
+}

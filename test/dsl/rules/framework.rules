@@ -27,7 +27,7 @@ Union*<a0 s0>(Input<t0>,Input<t0>)|Union*<a1 s1>(Input<t2>,Input<t3>)|t2 := t0;t
 # ORDER BY is a count-less CLogicalLimit in ORCA. This identity probe verifies
 # the virtual Sort view without relying on a native ordering rewrite.
 SortAsc<a0>(Input<t0>)|SortAsc<a1>(Input<t1>)|t1 := t0;a1 := a0
-
+Compute<Item(Column(a0),a1,Item()) a2 s0>(SortBy<o0>(Input<t0>))|SortBy<o1>(Compute<Item(Column(a0),a1,Item()) a3 s1>(Input<t1>))|t1 := t0;o1 := o0;a3 := a2;s1 := s0
 # MONSOON/dataset/rules/fewshot_curated.txt:11. The outer ordering makes the
 # inner ordering redundant; unlike the identity probe this removes one logical
 # order boundary and proves structural target construction.

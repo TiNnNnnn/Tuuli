@@ -3,10 +3,12 @@
   "plans": [
     {
       "name": "on-native-off",
+      "xform_trace": false,
       "native": false,
       "trace": true,
       "contains": [
-        "Optimizer: pg_orca"
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"3fc8b4dc0dd14617\""
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"3fc8b4dc0dd14617\""
