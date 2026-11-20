@@ -1138,7 +1138,10 @@ CDSLInstantiator::PexprBuildRowNumber(const CDSLOp *pop,
 	CExpression *pexpr = CXformUtils::PexprWindowWithRowNumber(
 		m_mp, pexprChild, pdrgpcrPartition, (*pdrgpcrRank)[0], pdrgpos);
 	pexprChild->Release();
-	if (!FWindowColumns(CLogicalSequenceProject::PopConvert(pexpr->Pop()),
+	const CExpression *item = (*(*pexpr)[1])[0];
+	if (!CDSLExprListUtils::FTypedProjectElement(item) ||
+		(*pdrgpcrRank)[0]->TypeModifier() != CScalar::PopConvert((*item)[0]->Pop())->TypeModifier() ||
+		!FWindowColumns(CLogicalSequenceProject::PopConvert(pexpr->Pop()),
 						(*pexpr)[0], (*pexpr)[1]))
 	{
 		pexpr->Release();

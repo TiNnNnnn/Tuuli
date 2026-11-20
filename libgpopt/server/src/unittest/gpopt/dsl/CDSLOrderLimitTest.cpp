@@ -329,6 +329,18 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 		bindings->Release();
 		CRefCount::SafeRelease(typed);
 	}
+	// A right-side int4 key is fresh for the left input but cannot hold ROW_NUMBER.
+	CColRefArray *rightCols = nullptr;
+	CExpression *right = fix.PexprLogicalGet("other", 1, &rightCols);
+	CExpression *eq = fix.PexprEqPred((*pdrgpcr)[0], (*rightCols)[0]);
+	CExpression *join = fix.PexprLogicalInnerJoin(pexprGet, right, eq);
+	if (!FBindingRoundTrip(mp,
+		"InnerJoin<a0 a1>(Input<t0>,Input<t1>)|RowNumber<a2 o0 r0>(Input<t2>)|"
+		"t2 := t0;AttrsEmpty(a2);OrderEmpty(o0);RankAttrs(a1,r0)", join, true))
+		eres = GPOS_FAILED;
+	join->Release();
+	eq->Release();
+	right->Release();
 	CExpression *pexprLive = CXformUtils::PexprWindowWithRowNumber(
 		mp, pexprGet, pdrgpcr);
 	CDSLRule *pruleIdentity = Prule(mp,
