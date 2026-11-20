@@ -1,0 +1,38 @@
+{
+  "description": "Grouped SemiApply retains duplicate left correlation keys when join witness deduplication would collapse them",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_agg_expand.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "rule_hash=5ec60fb561ebbfbe status=rejected constraint=Unique"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5ec60fb561ebbfbe\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "policy": "isolate_external_semiapply_agg_expand.policy",
+    "output": [
+      "10",
+      "20"
+    ],
+    "postgres_output": [
+      "10",
+      "20"
+    ],
+    "off_output": [
+      "10",
+      "20"
+    ]
+  }
+}

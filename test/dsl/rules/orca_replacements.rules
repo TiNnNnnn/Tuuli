@@ -391,9 +391,9 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Limit<n0 n1>(Input<t1>))|SemiJoin<p1 a3 a4>(Inp
 # and scalar safety premises.
 SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Proj<a9 s1>(Filter<p3 a7 a8>(Proj*<a10 s0>(InnerJoin<p2 a5 a6>(Input<t2>,Input<t3>))))|t2 := t0;t3 := t1;p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a5,a6,a7,a8,t0,t1);CorrelationEquality(p3,a7,a8);OutputAttrs(a9,t0);Unique(t0,a9);OutputAttrs(a11,t1);AttrsIntersect(a12,a11,a7);AttrsUnion(a10,a9,a12);SchemaFromAttrs(s0,a10);ErrorFree(p4);Deterministic(p4);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(a10);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a9);DepsDisjoint(a9,a11);SchemaFromAttrs(s1,a9)
 
-# The grouped sibling is atomic at the RuleIR/Cascades boundary. Local filter
-# dependencies must already be grouping keys; the runtime scope guard rejects
-# a target whose ON predicate reads a produced aggregate column out of scope.
+# This grouped rewrite requires the inner filter's local reads to be grouping keys.
+# Its outer reads must stay outside the aggregate output schema when the filter moves.
+# Predicate construction checks the scope of the join condition separately.
 # Corrected legacy-spelling baseline; previous contract identity 783c620153b85545 lacked RHS safety/scope.
 # Keep witness columns through residual filtering and return the original left column vector.
 # The grouped E2E now isolates GroupFilter + the base external SemiApply rule.
@@ -401,18 +401,18 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Proj<a9 s1>(Filter
 # the composed instance checks do not certify this abstract rule.
 # The former structural assignment assumed aggregate movement outright;
 # its PROJECTED_BAG_EQ certificate is withdrawn (2026-10-24).
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Proj<a13 s3>(Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 a16 f1 s1 p5>(Input<t3>)))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a17,a7,a15);AttrsIntersect(a18,a17,a11);AttrsUnion(a14,a13,a18);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13);a16 := a15;SchemaFromAttrs(s3,a13);Deterministic(p1);DepsDisjoint(p1,a13);AttrsSub(a4,t1)
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Proj<a13 s3>(Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 a16 f1 s1 p5>(Input<t3>)))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a17,a7,a15);AttrsIntersect(a18,a17,a11);AttrsUnion(a14,a13,a18);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13);a16 := a15;SchemaFromAttrs(s3,a13);Deterministic(p1);DepsDisjoint(p1,a13);AttrsSub(a4,t1);DepsDisjoint(a6,s0)
 
 # When local correlation keys are not already grouped, construct the native
-# aggregate compensation with AttrsUnion/SchemaUnion. Predicate partition,
+# aggregate compensation from the expanded keys followed by aggregate outputs.
 # grouping-key expansion and projected witness multiplicity require separate
 # native semantic proofs; a structural assignment cannot stand in for them.
-# Corrected legacy-spelling baseline; previous contract identity c865e55a4672d788 lacked RHS safety/scope.
+# Added grouping keys must not capture previously outer reads of the Apply predicate.
 # Baseline includes the nonempty grouping guard; 435056abc7513b1a omitted it.
 # The shared aggregate must read local arguments and its HAVING must be repeatable and independent of the left row.
 # PROJECTED_BAG_EQ certificate withdrawn (2026-10-25): it depended on the same
 # unrealizable structural PredicateDomainSplit premise as the ungrouped rule.
-SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Proj<a13 s3>(Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 a16 f1 s1 p5>(Input<t3>)))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;AttrsUnion(a17,a7,a15);SchemaFromAttrs(s1,a17);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsIntersect(a18,a17,a11);AttrsUnion(a14,a13,a18);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13);a16 := a15;SchemaFromAttrs(s3,a13);Deterministic(p1);DepsDisjoint(p1,a13);AttrsSub(a4,t1)
+SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Proj<a13 s3>(Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 a16 f1 s1 p5>(Input<t3>)))))|t2 := t0;t3 := t1;AttrsUnion(a7,a3,a5);a8 := a4;f1 := f0;AttrsUnion(a17,a7,a15);SchemaFromAttrs(s1,a17);p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,t1);CorrelationEquality(p2,a5,a6);CorrelationEquality(p4,a11,a12);AttrsNonEmpty(a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsIntersect(a18,a17,a11);AttrsUnion(a14,a13,a18);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13);a16 := a15;SchemaFromAttrs(s3,a13);Deterministic(p1);DepsDisjoint(p1,a13);AttrsSub(a4,t1);DepsDisjoint(a6,s0);a19 := ScalarDeps(p0);AttrsIntersect(a20,a5,a19);AttrsSub(a20,s0)
 
 # Replaces CXformLeftAntiSemiApply2LeftAntiSemiJoinNoCorrelations. AntiApply
 # binds the exact inner-to-outer dependency set; AttrsEmpty is therefore the

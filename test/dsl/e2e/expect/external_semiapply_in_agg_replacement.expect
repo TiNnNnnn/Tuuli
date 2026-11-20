@@ -23,10 +23,10 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "DSL_INSTANTIATE_TRACE rule_hash=75fd37bbb8a7a6ca status=rejected reason=introduced_outer_references"
+        "DSL_INSTANTIATE_TRACE rule_hash=513807f608aae572 status=rejected reason=introduced_outer_references"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"75fd37bbb8a7a6ca\""
+        "\"status\":\"applied\",\"rule_hash\":\"513807f608aae572\""
       ]
     },
     {
@@ -49,10 +49,10 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_INSTANTIATE_TRACE rule_hash=75fd37bbb8a7a6ca status=rejected reason=introduced_outer_references"
+        "DSL_INSTANTIATE_TRACE rule_hash=513807f608aae572 status=rejected reason=introduced_outer_references"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"75fd37bbb8a7a6ca\""
+        "\"status\":\"applied\",\"rule_hash\":\"513807f608aae572\""
       ],
       "provenance": {
         "required_sources": [
