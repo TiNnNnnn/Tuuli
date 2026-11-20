@@ -10,10 +10,10 @@
       "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "rule_hash=22c8d551eb765c71 status=rejected constraint=Unique"
+        "rule_hash=81a8c53d51e5c281 status=rejected constraint=Unique"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"22c8d551eb765c71\""
+        "\"status\":\"applied\",\"rule_hash\":\"81a8c53d51e5c281\""
       ]
     }
   ],

@@ -7,7 +7,7 @@
     "scope": "External IN partitions the aggregate result as a right input column when the existing grouping keys cover the correlation",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "cd67f7f5e6bea033"
+      "ef4552ec2af8613d"
     ]
   },
   "plans": [
@@ -25,7 +25,7 @@
       "policy": "isolate_external_semiapply_agg.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"cd67f7f5e6bea033\""
+        "\"status\":\"applied\",\"rule_hash\":\"ef4552ec2af8613d\""
       ]
     },
     {
@@ -49,7 +49,7 @@
       "policy": "isolate_external_semiapply_agg.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"cd67f7f5e6bea033\""
+        "\"status\":\"applied\",\"rule_hash\":\"ef4552ec2af8613d\""
       ],
       "provenance": {
         "required_sources": [
