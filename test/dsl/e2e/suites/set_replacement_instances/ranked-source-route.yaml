@@ -1,0 +1,7 @@
+experiment: ranked-set-union
+discover: false
+template_route: 1
+template_fingerprint: 8a045a4abc39a28c
+template_root: r
+template_bindings: true
+cardinalities:
