@@ -191,6 +191,22 @@ CDSLConstraint::~CDSLConstraint()
 	m_pdrgpsym->Release();
 }
 
+BOOL
+CDSLConstraint::FValidPartitionPorts(const CDSLSymbolArray *ports)
+{
+	if (9 != ports->Size()) return false;
+	for (ULONG i = 0; i < 7; ++i)
+	{
+		if ((*ports)[i]->Esymkind() != (i < 3 ? EdslsymPred : EdslsymAttrs)) return false;
+	}
+	for (ULONG i = 7; i < ports->Size(); ++i)
+	{
+		const auto kind = (*ports)[i]->Esymkind();
+		if (kind != EdslsymTable && kind != EdslsymAttrs && kind != EdslsymSchema) return false;
+	}
+	return true;
+}
+
 void
 CDSLConstraint::OsPrint(IOstream &os) const
 {

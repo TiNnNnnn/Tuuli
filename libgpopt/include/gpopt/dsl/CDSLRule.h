@@ -151,6 +151,7 @@ public:
 				   CDSLSymbolArray *pdrgpsym, BOOL fLegacyEquality = false);
 
 	~CDSLConstraint() override;
+	static BOOL FValidPartitionPorts(const CDSLSymbolArray *ports);
 
 	EDslConstraintKind Edslcon() const { return m_edslcon; }
 	BOOL FLegacyEquality() const { return m_fLegacyEquality; }

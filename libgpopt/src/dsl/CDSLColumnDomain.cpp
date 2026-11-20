@@ -11,6 +11,23 @@
 
 using namespace gpopt;
 
+CColRefSet *
+CDSLColumnDomain::PcrsBinding(CMemoryPool *mp, CRefCount *binding)
+{
+	if (auto *relation = dynamic_cast<CExpression *>(binding))
+	{
+		if (!relation->Pop()->FLogical()) return nullptr;
+		CColRefSet *outputs = relation->DeriveOutputColumns();
+		outputs->AddRef();
+		return outputs;
+	}
+	auto *columns = dynamic_cast<CColRefArray *>(binding);
+	if (nullptr == columns) return nullptr;
+	auto *outputs = GPOS_NEW(mp) CColRefSet(mp);
+	outputs->Include(columns);
+	return outputs;
+}
+
 BOOL
 CDSLColumnDomain::FObservable(const CColRef *column)
 {

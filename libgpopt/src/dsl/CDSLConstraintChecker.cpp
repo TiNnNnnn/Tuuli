@@ -1039,21 +1039,7 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 	const CDSLModel *pmodel) const
 {
 	CDSLSymbolArray *pdrgpsym = pcon->Pdrgpsym();
-	if (9 != pdrgpsym->Size())
-	{
-		return false;
-	}
-	const EDslSymbolKind rgExpected[] = {
-		EdslsymPred, EdslsymPred, EdslsymPred,
-		EdslsymAttrs, EdslsymAttrs, EdslsymAttrs, EdslsymAttrs,
-		EdslsymTable, EdslsymTable};
-	for (ULONG ul = 0; ul < GPOS_ARRAY_SIZE(rgExpected); ul++)
-	{
-		if (rgExpected[ul] != (*pdrgpsym)[ul]->Esymkind())
-		{
-			return false;
-		}
-	}
+	if (!CDSLConstraint::FValidPartitionPorts(pdrgpsym)) return false;
 
 	// Positions 1..6 are an atomic target-side decomposition. Accepting a
 	// partially bound mixture would let independently matched artifacts disagree
@@ -1125,11 +1111,9 @@ CDSLConstraintChecker::FCheckPredicateDomainSplit(
 		return false;
 	}
 
-	CExpression *pexprOuter = pmodel->PexprTable((*pdrgpsym)[7]);
-	CExpression *pexprInner = pmodel->PexprTable((*pdrgpsym)[8]);
-	return nullptr != pexprOuter && nullptr != pexprInner &&
-		pexprOuter->DeriveOutputColumns()->IsDisjoint(
-			pexprInner->DeriveOutputColumns());
+	CAutoRef<CColRefSet> left(CDSLColumnDomain::PcrsBinding(m_mp, pmodel->PvalLookup((*pdrgpsym)[7])));
+	CAutoRef<CColRefSet> right(CDSLColumnDomain::PcrsBinding(m_mp, pmodel->PvalLookup((*pdrgpsym)[8])));
+	return nullptr != left.Value() && nullptr != right.Value() && left->IsDisjoint(right.Value());
 }
 
 //---------------------------------------------------------------------------

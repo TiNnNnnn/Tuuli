@@ -1,13 +1,13 @@
 {
-  "description": "External IN retains a safe DSL expansion and rejects the grouped candidate that leaks a locally produced aggregate result as an outer reference",
+  "description": "External IN partitions the aggregate result as a right input column when the existing grouping keys cover the correlation",
   "replacement": {
     "xforms": [
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
     ],
-    "scope": "External IN equality below an aggregate whose grouping contains the local correlation key",
+    "scope": "External IN partitions the aggregate result as a right input column when the existing grouping keys cover the correlation",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "0573ade528949f8d"
+      "cd67f7f5e6bea033"
     ]
   },
   "plans": [
@@ -22,11 +22,10 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_external_semiapply_agg.policy",
       "contains": [
-        "DSL_INSTANTIATE_TRACE rule_hash=513807f608aae572 status=rejected reason=introduced_outer_references"
-      ],
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"513807f608aae572\""
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"cd67f7f5e6bea033\""
       ]
     },
     {
@@ -47,12 +46,10 @@
       "disable_xforms": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
       ],
+      "policy": "isolate_external_semiapply_agg.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_INSTANTIATE_TRACE rule_hash=513807f608aae572 status=rejected reason=introduced_outer_references"
-      ],
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"513807f608aae572\""
+        "\"status\":\"applied\",\"rule_hash\":\"cd67f7f5e6bea033\""
       ],
       "provenance": {
         "required_sources": [
@@ -69,6 +66,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
     ],
+    "policy": "isolate_external_semiapply_agg.policy",
     "output": [
       "10",
       "20"

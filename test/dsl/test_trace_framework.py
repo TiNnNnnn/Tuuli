@@ -3935,8 +3935,8 @@ class TraceFrameworkTest(unittest.TestCase):
             0,
         )
         self.assertEqual(
-            sum(item.classification.startswith("DIRECT(") for item in identities),
-            3,
+            sorted(item.classification for item in identities),
+            ["DIRECT(metadata-property)", "DIRECT(predicate-order)"],
         )
 
     def test_replacement_rule_identity_requires_an_immediate_tag(self) -> None:

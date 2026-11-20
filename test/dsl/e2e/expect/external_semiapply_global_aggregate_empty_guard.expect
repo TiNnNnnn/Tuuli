@@ -18,12 +18,12 @@
       "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"5ec60fb561ebbfbe\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"22c8d551eb765c71\"",
         "\"failed_constraint\":\"AttrsNonEmpty\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"5ec60fb561ebbfbe\""
+        "\"status\":\"applied\",\"rule_hash\":\"22c8d551eb765c71\""
       ]
     }
   ],

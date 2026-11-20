@@ -1,5 +1,15 @@
 {
-  "description": "Reject aggregate compensation that leaks a local result; verify the native SubPlan fallback and DSL alternatives without native external-IN expansion",
+  "description": "External IN partitions the aggregate result as a right input column after expanding the grouping keys",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "External IN partitions the aggregate result as a right input column after expanding the grouping keys",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "22c8d551eb765c71"
+    ]
+  },
   "plans": [
     {
       "name": "native",
@@ -12,12 +22,10 @@
     {
       "name": "shadow",
       "trace": true,
+      "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_INSTANTIATE_TRACE rule_hash=5ec60fb561ebbfbe status=rejected reason=introduced_outer_references"
-      ],
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5ec60fb561ebbfbe\""
+        "\"status\":\"applied\",\"rule_hash\":\"22c8d551eb765c71\""
       ]
     },
     {
@@ -42,12 +50,10 @@
       "disable_xforms": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
       ],
+      "policy": "isolate_external_semiapply_agg_expand.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_INSTANTIATE_TRACE rule_hash=5ec60fb561ebbfbe status=rejected reason=introduced_outer_references"
-      ],
-      "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5ec60fb561ebbfbe\""
+        "\"status\":\"applied\",\"rule_hash\":\"22c8d551eb765c71\""
       ],
       "provenance": {
         "required_sources": [
@@ -64,6 +70,7 @@
     "disable_xforms": [
       "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
     ],
+    "policy": "isolate_external_semiapply_agg_expand.policy",
     "output": [
       "10",
       "20"

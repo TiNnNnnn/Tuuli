@@ -117,20 +117,23 @@ CDSLInstantiator::FMaterializePredicateDomainSplit(
 
 	CExpression *pexprSource = PexprResolvePredicate(
 		(*pdrgpsym)[0], pmodel, ulDepth + 1);
-	CExpression *pexprOuter =
-		pmodel->PexprTable(PsymResolve((*pdrgpsym)[7]));
-	CExpression *pexprInner =
-		pmodel->PexprTable(PsymResolve((*pdrgpsym)[8]));
-	if (nullptr == pexprSource ||
-		nullptr == pexprOuter || nullptr == pexprInner)
+	const auto domain = [&](ULONG slot) {
+		const auto *symbol = PsymResolve((*pdrgpsym)[slot]);
+		CRefCount *binding = pmodel->PvalLookup(symbol);
+		if (nullptr == binding && EdslsymTable != symbol->Esymkind())
+			binding = PdrgpcrResolveCols(symbol, pmodel, ulDepth + 1);
+		return CDSLColumnDomain::PcrsBinding(m_mp, binding);
+	};
+	CAutoRef<CColRefSet> outer(domain(7)), inner(domain(8));
+	CColRefSet *pcrsOuter = outer.Value();
+	CColRefSet *pcrsInner = inner.Value();
+	if (nullptr == pexprSource || nullptr == pcrsOuter || nullptr == pcrsInner)
 	{
 		TracePredicateDomainSplitFailure("unbound_input");
 		CRefCount::SafeRelease(pexprSource);
 		return false;
 	}
 
-	CColRefSet *pcrsOuter = pexprOuter->DeriveOutputColumns();
-	CColRefSet *pcrsInner = pexprInner->DeriveOutputColumns();
 	if (!pcrsOuter->IsDisjoint(pcrsInner))
 	{
 		TracePredicateDomainSplitFailure("overlapping_table_domains");

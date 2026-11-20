@@ -342,6 +342,7 @@ EresExpressionBindings()
 	for (const CHAR *invalid : {
 		"p4 := And(p2,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1)",
 		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t9)",
+		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,p1)",
 		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a6,t0,t1)",
 		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);p2 := p0",
 		"p4 := And(p0,p1);PredicateDomainSplit(p4,p2,p3,a4,a5,a6,a7,t0,t1);AttrsEmpty(a4)",
