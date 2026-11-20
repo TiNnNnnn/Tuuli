@@ -111,6 +111,7 @@ public:
 	static GPOS_RESULT EresUnittest_DedupConstructionIdempotence();
 	static GPOS_RESULT EresUnittest_LowerSubqueryPreservesGrouping();
 	static GPOS_RESULT EresUnittest_SplitAggregateCopyNotResplit();
+	static GPOS_RESULT EresUnittest_DedupPushRequiresLocalKey();
 
 	// ORCA Select(GbAgg,HAVING) binds p to the real predicate and reconstructs
 	// the same two-node shape end to end.

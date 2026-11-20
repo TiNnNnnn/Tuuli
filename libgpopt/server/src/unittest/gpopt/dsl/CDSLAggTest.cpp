@@ -49,6 +49,7 @@
 #include "gpopt/xforms/CXformResult.h"
 #include "gpopt/xforms/CXformSplitGbAgg.h"
 #include "gpopt/xforms/CXformSplitGbAggDedup.h"
+#include "gpopt/xforms/CXformUtils.h"
 #include "unittest/gpopt/dsl/CDSLTestFixture.h"
 
 #include <string>
@@ -573,6 +574,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_DedupConstructionIdempotence),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_LowerSubqueryPreservesGrouping),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_SplitAggregateCopyNotResplit),
+		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_DedupPushRequiresLocalKey),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_HavingRoundTrip),
 		GPOS_UNITTEST_FUNC(
 			CDSLAggTest::EresUnittest_AggFilterMovementGroupingGuard),
@@ -849,6 +851,36 @@ CDSLAggTest::EresUnittest_CopySplitGlobalGbAgg()
 			original->Release();
 		}
 	return ok ? GPOS_OK : GPOS_FAILED;
+}
+
+GPOS_RESULT
+CDSLAggTest::EresUnittest_DedupPushRequiresLocalKey()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CColRefArray *leftCols, *rightCols;
+	CAutoRef<CExpression> left(fix.PexprLogicalGet("l", 1, &leftCols, 0));
+	CAutoRef<CExpression> right(fix.PexprLogicalGet("r", 1, &rightCols, 0));
+	CAutoRef<CExpression> pred(fix.PexprEqPred((*leftCols)[0], (*rightCols)[0]));
+	CAutoRef<CExpression> join(fix.PexprLogicalInnerJoin(left.Value(), right.Value(), pred.Value()));
+	for (BOOL localKey : {true, false})
+	{
+		CColRefArray *keys = GPOS_NEW(mp) CColRefArray(mp);
+		keys->Append((*leftCols)[0]);
+		if (!localKey)
+		{
+			keys->Append((*rightCols)[0]);
+		}
+		join->AddRef();
+		CAutoRef<CExpression> agg(GPOS_NEW(mp) CExpression(mp,
+			GPOS_NEW(mp) CLogicalGbAggDeduplicate(mp, join->DeriveOutputColumns()->Pdrgpcr(mp),
+				COperator::EgbaggtypeGlobal, keys), join.Value(),
+			GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp))));
+		CAutoRef<CExpression> pushed(CXformUtils::PexprPushGbBelowJoin(mp, agg.Value()));
+		GPOS_UNITTEST_ASSERT((nullptr != pushed.Value()) == localKey);
+	}
+	return GPOS_OK;
 }
 
 GPOS_RESULT

@@ -461,6 +461,19 @@ CXformUtils::PexprPushGbBelowJoin(CMemoryPool *mp, CExpression *pexpr)
 	CLogicalGbAgg *popGbAgg = CLogicalGbAgg::PopConvert(pexprGb->Pop());
 
 	CColRefSet *pcrsOuterOutput = pexprOuter->DeriveOutputColumns();
+	if (COperator::EopLogicalGbAggDeduplicate == popGbAgg->Eopid())
+	{
+		// The pushed aggregate still deduplicates on the original key.
+		const CColRefArray *keys =
+			CLogicalGbAggDeduplicate::PopConvert(popGbAgg)->PdrgpcrKeys();
+		for (ULONG i = 0; i < keys->Size(); ++i)
+		{
+			if (!pcrsOuterOutput->FMember((*keys)[i]))
+			{
+				return nullptr;
+			}
+		}
+	}
 	CColRefSet *pcrsAggOutput = pexprGb->DeriveOutputColumns();
 	CColRefSet *pcrsUsed = pexprPrjList->DeriveUsedColumns();
 	CColRefSet *pcrsFKey = PcrsFKey(mp, pexprOuter, pexprInner, pexprScalar);
