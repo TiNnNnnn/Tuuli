@@ -7,7 +7,7 @@
     "scope": "Mixed outer/inner grouping containing the outer FK; safe aggregate inputs belong to the outer child",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "f3e932d29f687ca0"
+      "9c6b59c917ddb18a"
     ],
     "excluded_native_domains": [
       "Unbounded COUNT and other potentially throwing aggregate functions"
@@ -26,7 +26,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f3e932d29f687ca0\""
+        "\"status\":\"applied\",\"rule_hash\":\"9c6b59c917ddb18a\""
       ],
       "alternative": [
         "CXformPushGbBelowJoin",
@@ -55,7 +55,7 @@
       "native_observation": "dsl_source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f3e932d29f687ca0\"",
+        "\"status\":\"applied\",\"rule_hash\":\"9c6b59c917ddb18a\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
@@ -63,11 +63,18 @@
       ],
       "rule_source_routes": [
         {
-          "rule_hash": "f3e932d29f687ca0",
+          "rule_hash": "9c6b59c917ddb18a",
           "route_sequence": 3,
           "operators": [
             "CLogicalGbAgg",
             "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGbAgg",
             "CLogicalGet",
             "CLogicalGet"
           ]

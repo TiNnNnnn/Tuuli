@@ -11,7 +11,7 @@
       "Unbounded COUNT and other potentially throwing aggregate functions"
     ],
     "dsl_rule_hashes": [
-      "d819d49a34cd7796"
+      "c4d2ca75e10dc4e0"
     ]
   },
   "plans": [
@@ -27,7 +27,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d819d49a34cd7796\""
+        "\"status\":\"applied\",\"rule_hash\":\"c4d2ca75e10dc4e0\""
       ],
       "alternative": [
         "CXformPushGbWithHavingBelowJoin",
@@ -48,18 +48,40 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformPushGbBelowJoin",
         "CXformPushGbWithHavingBelowJoin"
       ],
+      "stats_experiment": "push_gb_min_interleaved_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d819d49a34cd7796\"",
+        "\"status\":\"applied\",\"rule_hash\":\"c4d2ca75e10dc4e0\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "c4d2ca75e10dc4e0",
+          "route_sequence": 9,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalInnerJoin",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
