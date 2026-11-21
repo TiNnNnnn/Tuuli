@@ -30,7 +30,7 @@ Usage: $0 [-t CASE]...
   -x, --disable-xform XFORM
                    Disable one native xform in every state; may be repeated
   --disable-semantic-xforms AUDIT_JSON
-                   Disable audited semantic rewrites; require ORCA plans and xform trace
+                   Disable audited semantic rewrites; require ORCA plans and enable native xform tracing
   --check-native-instances
                    Kernel-check expected captured source/target occurrences (RuleSolver/Rocq required)
   -h, --help       Show this help

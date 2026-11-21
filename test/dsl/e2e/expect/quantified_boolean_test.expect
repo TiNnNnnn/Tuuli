@@ -4,6 +4,7 @@
     {
       "name": "off",
       "dsl": false,
+      "xform_trace": false,
       "trace": true,
       "contains": [
         "Optimizer: pg_orca"
@@ -17,6 +18,7 @@
     {
       "name": "on",
       "dsl": true,
+      "xform_trace": false,
       "trace": true,
       "contains": [
         "Optimizer: pg_orca"

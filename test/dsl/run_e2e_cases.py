@@ -781,9 +781,8 @@ def main() -> int:
 
         try:
             for plan in expectation.get("plans", []):
-                if args.disable_semantic_xforms and not plan.get("xform_trace", plan.get("trace", False)):
-                    raise ValueError("execution baseline requires xform trace in every plan state")
-                output = run_plan(args, query, plan)
+                settings = {**plan, "xform_trace": True} if args.disable_semantic_xforms else plan
+                output = run_plan(args, query, settings)
                 artifact = args.artifact_dir / f"{case_name}.{plan['name']}.plan"
                 artifact.write_text(output + "\n", encoding="utf-8")
                 if args.check_native_instances:
