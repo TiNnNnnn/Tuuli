@@ -1,5 +1,5 @@
 {
-  "description": "A proved NULL-on-empty aggregate rule decorrelates LeftApply without the native xform",
+  "description": "The NULL-on-empty aggregate rule decorrelates LeftApply with the native xform disabled",
   "replacement": {
     "xforms": [
       "CXformLeftOuterApply2LeftOuterJoin"
@@ -7,7 +7,7 @@
     "scope": "Correlated scalar MIN/MAX aggregate whose equality key can be retained in grouping",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "606fc53928523904"
+      "d811065221a35ab1"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"606fc53928523904\""
+        "\"status\":\"applied\",\"rule_hash\":\"d811065221a35ab1\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"606fc53928523904\"",
+        "\"status\":\"applied\",\"rule_hash\":\"d811065221a35ab1\"",
         "CLogicalLeftOuterJoin"
       ],
       "provenance": {
