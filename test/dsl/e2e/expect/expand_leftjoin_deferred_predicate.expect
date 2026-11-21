@@ -1,0 +1,36 @@
+{
+  "description": "Left join expansion preserves demand for an error in the predicate",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+      ],
+      "policy": "isolate_expand_leftjoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"927b06cd533ddd48\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"927b06cd533ddd48\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
+    ],
+    "policy": "isolate_expand_leftjoin.policy",
+    "output": [
+      "1,"
+    ],
+    "postgres_output": [
+      "1,"
+    ],
+    "off_output": [
+      "1,"
+    ]
+  }
+}

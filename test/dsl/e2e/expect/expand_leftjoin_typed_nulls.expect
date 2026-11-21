@@ -14,7 +14,7 @@
       "policy": "isolate_expand_leftjoin.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"927b06cd533ddd48\""
       ],
       "not_contains": [
         "Falling back to Postgres"

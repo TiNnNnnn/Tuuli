@@ -4,12 +4,13 @@
     "xforms": [
       "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin"
     ],
-    "scope": "Deterministic binary LeftJoin with independently evaluable shared inputs",
+    "scope": "Deterministic, error-free LeftJoin predicate with independently shareable, error-free inputs",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "c17232f27a25923d"
+      "927b06cd533ddd48"
     ],
     "excluded_native_domains": [
+      "The matched branch or a shared producer could force a deferred error earlier",
       "Shared inputs with outer references cannot be materialized outside their correlation scope",
       "Whole-rule CTE and positional Union outcome proof remains pending"
     ]
@@ -28,7 +29,7 @@
       "trace": true,
       "policy": "isolate_expand_leftjoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"927b06cd533ddd48\""
       ],
       "alternative": [
         "CXformLeftOuter2InnerUnionAllLeftAntiSemiJoin",
@@ -40,8 +41,8 @@
       "trace": true,
       "policy": "bounded_expansive_cbo.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\"",
-        "\"status\":\"budget_skipped\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"927b06cd533ddd48\"",
+        "\"status\":\"budget_skipped\",\"rule_hash\":\"927b06cd533ddd48\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"
@@ -70,7 +71,7 @@
       ],
       "policy": "isolate_expand_leftjoin.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"c17232f27a25923d\""
+        "\"status\":\"applied\",\"rule_hash\":\"927b06cd533ddd48\""
       ],
       "alternative": [
         "CXformDSLRule_LeftJoin"

@@ -1,0 +1,37 @@
+{
+  "description": "Full join expansion rejects a deterministic comparison that can fail",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformExpandFullOuterJoin"
+      ],
+      "policy": "isolate_expand_fulljoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"47620430de058007\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"47620430de058007\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformExpandFullOuterJoin"
+    ],
+    "policy": "isolate_expand_fulljoin.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

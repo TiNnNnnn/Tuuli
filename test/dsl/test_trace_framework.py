@@ -3728,15 +3728,30 @@ class TraceFrameworkTest(unittest.TestCase):
                 self.assertNotRegex(line, legacy_equality, f'legacy equality on line {number}')
 
     def test_syntax_migrations_preserve_the_complete_legacy_rule(self) -> None:
+        import hashlib
         import re
 
         kinds = {'t': 'Table', 'p': 'Predicate', 'a': 'Attrs',
                  's': 'Schema', 'e': 'ExprList', 'f': 'Func',
                  'o': 'Order', 'm': 'Frame', 'w': 'Window'}
         pending = None
+        suffix = None
         checked = 0
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
-            if line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=',
+            if line.startswith('# APPENDED source_sha256='):
+                self.assertIsNone(pending)
+                match = re.fullmatch(
+                    r'# APPENDED source_sha256=([0-9a-f]{64}); legacy_hash=[0-9a-f]{16}; added: (.+)', line)
+                self.assertIsNotNone(match)
+                pending, suffix = match.groups()
+            elif line and not line.startswith('#') and suffix is not None:
+                self.assertTrue(line.endswith(';' + suffix))
+                previous = line.removesuffix(';' + suffix)
+                self.assertEqual(hashlib.sha256(previous.encode('ascii')).hexdigest(), pending)
+                self.assertTrue(set(previous.split('|')[2].split(';')).isdisjoint(suffix.split(';')))
+                pending = suffix = None
+                checked += 1
+            elif line.startswith(('# SYNTAX_ONLY legacy_hash=', '# PARTIAL_BINDING legacy_hash=',
                                 '# FORMALSQL_PROVED legacy_hash=', '# SOURCE_CONDITIONAL legacy_hash=',
                                 '# STRENGTHENED legacy_hash=')):
                 self.assertIsNone(pending)

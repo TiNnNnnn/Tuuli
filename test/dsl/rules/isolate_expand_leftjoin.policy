@@ -1,4 +1,4 @@
 - rule: '*'
   enabled: false
-- rule: c17232f27a25923d
+- rule: 927b06cd533ddd48
   enabled: true
