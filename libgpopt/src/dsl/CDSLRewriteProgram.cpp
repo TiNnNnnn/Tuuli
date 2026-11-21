@@ -512,9 +512,9 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 			continue;
 		}
 
-		CExpression *pexprDetachedTarget = decision->PexprDetachTarget();
+		pexprTarget->AddRef();
 		CExpression *pexprNewRoot =
-			PexprReplace(pexprRoot, path, pexprDetachedTarget);
+			PexprReplace(pexprRoot, path, pexprTarget);
 		if (nullptr == pexprNewRoot)
 		{
 			m_pengine->TraceRBOOutcome(
@@ -551,6 +551,7 @@ CDSLRewriteProgram::FApplyAtNode(EDslRulePhase phase, EDslRuleOrder order,
 								 bindingPath.c_str());
 		ObserveReadyAlternatives(path, pexprRoot, pexprSource, prule, ordered,
 							 ulRule + 1);
+		decision->PublishSharedInputs();
 		*ppexprNewRoot = pexprNewRoot;
 		GPOS_DELETE(decision);
 		candidates->Release();

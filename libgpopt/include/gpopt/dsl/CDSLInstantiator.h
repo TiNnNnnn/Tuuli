@@ -34,6 +34,7 @@
 
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLProvenance.h"
+#include "gpopt/dsl/CDSLPendingCTEs.h"
 #include "gpopt/dsl/CDSLRule.h"
 #include "gpopt/operators/CExpression.h"
 
@@ -97,7 +98,7 @@ private:
 	// Explicit TableShared groups are lowered to one CTE producer and separate
 	// consumer column identities. Keys are target Input symbols owned by RuleIR.
 	std::unordered_map<const CDSLSymbol *, ULONG> m_shared_index_by_target;
-	mutable std::vector<ULONG> m_shared_cte_ids;
+	mutable CDSLPendingCTEs m_shared_ctes;
 
 	// Populated only for tracing: exact target-template Input anchors and the
 	// corresponding roots in the instantiated expression.
@@ -356,7 +357,8 @@ public:
 	// (missing binding, unsupported operator). Caller owns the returned ref.
 	CExpression *PexprInstantiate(
 		const CDSLRule *prule, const CDSLModel *pmodel,
-		CDSLTargetInputOriginArray *inputOrigins = nullptr);
+		CDSLTargetInputOriginArray *inputOrigins = nullptr,
+		CDSLPendingCTEs *pending = nullptr);
 };
 }  // namespace gpopt
 

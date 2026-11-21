@@ -14,7 +14,7 @@ CDSLRewriteDecision::CDSLRewriteDecision(
 	ULONG ulFailedConstraint, ULONG ulMatchUs, ULONG ulConstraintUs,
 	ULONG ulInstantiateUs, ULONG ulSourceFingerprint,
 	ULONG ulTargetFingerprint,
-	const CDSLTargetInputOriginArray &targetInputOrigins)
+	const CDSLTargetInputOriginArray &targetInputOrigins, CDSLPendingCTEs *pending)
 	: m_status(status),
 	  m_pmodel(pmodel),
 	  m_pexprTarget(pexprTarget),
@@ -27,6 +27,10 @@ CDSLRewriteDecision::CDSLRewriteDecision(
 	  m_ulTargetFingerprint(ulTargetFingerprint),
 	  m_target_input_origins(targetInputOrigins)
 {
+	if (pending)
+	{
+		m_pending_ctes.ids.swap(pending->ids);
+	}
 	GPOS_ASSERT(nullptr != pmodel);
 	GPOS_ASSERT((EdsldecisionReady == status || EdsldecisionDuplicate == status) ==
 				(nullptr != pexprTarget));
@@ -49,6 +53,7 @@ CDSLRewriteDecision::PmodelDetach()
 CExpression *
 CDSLRewriteDecision::PexprDetachTarget()
 {
+	PublishSharedInputs();
 	CExpression *target = m_pexprTarget;
 	m_pexprTarget = nullptr;
 	return target;

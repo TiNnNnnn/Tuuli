@@ -232,17 +232,21 @@ CDSLInstantiator::CollectTargetInputOrigins(const CExpression *root)
 
 //---------------------------------------------------------------------------
 //	@function:
-//		CDSLInstantiator::~CDSLInstantiator
+//		CDSLPendingCTEs::~CDSLPendingCTEs
 //---------------------------------------------------------------------------
-CDSLInstantiator::~CDSLInstantiator()
+CDSLPendingCTEs::~CDSLPendingCTEs()
 {
-	for (auto it = m_shared_cte_ids.rbegin(); it != m_shared_cte_ids.rend(); ++it)
+	for (auto it = ids.rbegin(); it != ids.rend(); ++it)
 	{
 		if (*it != gpos::ulong_max)
 		{
 			COptCtxt::PoctxtFromTLS()->Pcteinfo()->DiscardUnpublishedProducer(*it);
 		}
 	}
+}
+
+CDSLInstantiator::~CDSLInstantiator()
+{
 	for (auto &entry : m_input_col_maps)
 	{
 		entry.second->Release();
@@ -285,10 +289,10 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 			}
 		}
 
-		auto sourceIndex = indexBySource.emplace(source, m_shared_cte_ids.size());
+		auto sourceIndex = indexBySource.emplace(source, m_shared_ctes.ids.size());
 		if (sourceIndex.second)
 		{
-			m_shared_cte_ids.push_back(gpos::ulong_max);
+			m_shared_ctes.ids.push_back(gpos::ulong_max);
 		}
 		for (const CDSLSymbol *target : targets)
 		{
@@ -310,9 +314,9 @@ CDSLInstantiator::PexprFinalizeSharedInputs(CExpression *pexpr) const
 	{
 		return nullptr;
 	}
-	for (ULONG ul = m_shared_cte_ids.size(); 0 < ul; ul--)
+	for (ULONG ul = m_shared_ctes.ids.size(); 0 < ul; ul--)
 	{
-		const ULONG id = m_shared_cte_ids[ul - 1];
+		const ULONG id = m_shared_ctes.ids[ul - 1];
 		if (id == gpos::ulong_max)
 		{
 			pexpr->Release();
@@ -367,7 +371,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	if (shared != m_shared_index_by_target.end())
 	{
 		CColRefArray *pdrgpcrFrom = PdrgpcrLiveOutput(m_mp, pexpr);
-		ULONG &id = m_shared_cte_ids[shared->second];
+		ULONG &id = m_shared_ctes.ids[shared->second];
 		if (id == gpos::ulong_max)
 		{
 			// Preprocessing the next producer marks CTEs with no consumers unused.
@@ -563,7 +567,8 @@ CDSLInstantiator::PexprFreshRoot(CExpression *pexpr)
 CExpression *
 CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 								   const CDSLModel *pmodel,
-								   CDSLTargetInputOriginArray *inputOrigins)
+								   CDSLTargetInputOriginArray *inputOrigins,
+								   CDSLPendingCTEs *pending)
 {
 	GPOS_ASSERT(nullptr != prule);
 	GPOS_ASSERT(nullptr != pmodel);
@@ -659,8 +664,15 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	CollectTargetInputOrigins(pexprResult);
 	if (nullptr != pexprResult)
 	{
-		// The returned anchors now refer to query-owned producers.
-		m_shared_cte_ids.clear();
+		if (pending)
+		{
+			GPOS_ASSERT(pending->ids.empty());
+			pending->ids.swap(m_shared_ctes.ids);
+		}
+		else
+		{
+			m_shared_ctes.ids.clear();
+		}
 	}
 	return pexprResult;
 }

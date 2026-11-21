@@ -18,6 +18,7 @@
 
 #include "gpopt/dsl/CDSLModel.h"
 #include "gpopt/dsl/CDSLProvenance.h"
+#include "gpopt/dsl/CDSLPendingCTEs.h"
 #include "gpopt/operators/CExpression.h"
 
 namespace gpopt
@@ -48,6 +49,7 @@ private:
 	ULONG m_ulTargetFingerprint;
 	CDSLTargetInputOriginArray m_target_input_origins;
 	std::string m_input_context;
+	CDSLPendingCTEs m_pending_ctes;
 
 public:
 	CDSLRewriteDecision(const CDSLRewriteDecision &) = delete;
@@ -58,7 +60,8 @@ public:
 						ULONG ulFailedConstraint, ULONG ulMatchUs,
 						ULONG ulConstraintUs, ULONG ulInstantiateUs,
 						ULONG ulSourceFingerprint, ULONG ulTargetFingerprint,
-						const CDSLTargetInputOriginArray &targetInputOrigins = {});
+						const CDSLTargetInputOriginArray &targetInputOrigins = {},
+						CDSLPendingCTEs *pending = nullptr);
 	~CDSLRewriteDecision();
 
 	EDslRewriteDecisionStatus Status() const { return m_status; }
@@ -79,7 +82,9 @@ public:
 		return m_target_input_origins;
 	}
 
-	// Transfer the sole target reference to a scheduler.
+	void PublishSharedInputs() { m_pending_ctes.ids.clear(); }
+
+	// Publish the target and transfer its reference to the scheduler.
 	CExpression *PexprDetachTarget();
 
 	// Transfer the binding model when a representation adapter rebuilds the

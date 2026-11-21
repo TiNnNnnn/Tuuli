@@ -2094,6 +2094,35 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	{
 		GPOS_UNITTEST_ASSERT(ctes->UlConsumers(id) == 0);
 	}
+	// This target builds successfully, but the CBO output guard requires the right columns too.
+	CAutoRef<CDSLRule> dropsRight(PdslruleParseLocal(mp,
+		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t0;TableShared(t2,t3);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2)"));
+	CDSLRuleEngine *engine = CDSLRuleEngine::Instance();
+	CDSLRewriteDecision *built = engine->PdecisionEvaluate(mp, dropsRight.Value(), source.Value());
+	GPOS_UNITTEST_ASSERT(EdsldecisionReady == built->Status());
+	GPOS_DELETE(built);
+	CAutoRef<CExpression> dropped(engine->PexprApply(mp, dropsRight.Value(), source.Value()));
+	GPOS_UNITTEST_ASSERT(nullptr == dropped.Value());
+	CAutoRef<CExpressionArray> remaining(ctes->PdrgPexpr(mp));
+	GPOS_UNITTEST_ASSERT(remaining->Size() == 1 && (*remaining.Value())[0] == producer);
+
+	CAutoRef<CDSLRule> sharing(PdslruleParseLocal(mp,
+		"Input<t0>|Union<a0 s0>(Input<t1>,Input<t2>)|"
+		"t1 := t0;t2 := t0;OutputAttrs(a0,t0);SchemaFromAttrs(s0,a0);TableShared(t1,t2)"));
+	for (BOOL publish : {false, true})
+	{
+		CDSLRewriteDecision *decision = engine->PdecisionEvaluate(mp, sharing.Value(), left.Value());
+		GPOS_UNITTEST_ASSERT(EdsldecisionReady == decision->Status());
+		const ULONG id = CLogicalCTEAnchor::PopConvert(decision->PexprTarget()->Pop())->Id();
+		GPOS_UNITTEST_ASSERT(2 == ctes->UlConsumers(id));
+		CAutoRef<CExpression> accepted(publish ? decision->PexprDetachTarget() : nullptr);
+		GPOS_DELETE(decision);
+		CAutoRef<CExpressionArray> producers(ctes->PdrgPexpr(mp));
+		GPOS_UNITTEST_ASSERT(producers->Size() == (publish ? 2U : 1U));
+		GPOS_UNITTEST_ASSERT(ctes->UlConsumers(id) == (publish ? 2U : 0U));
+		GPOS_UNITTEST_ASSERT(ctes->UlConsumers(existing) == 1);
+	}
 	for (const CHAR *shared : {"TableShared(t2,t3)",
 		"TableShared(t0,t2)", "TableShared(t2,t2)"})
 	{

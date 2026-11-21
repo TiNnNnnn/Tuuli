@@ -1026,8 +1026,9 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	if (fTrace)
 		stageTimer.Restart();
 	CDSLTargetInputOriginArray inputOrigins;
+	CDSLPendingCTEs pending;
 	CExpression *pexprTarget = PexprInstantiate(
-		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr);
+		mp, prule, pmodel, fTrace ? &inputOrigins : nullptr, &pending);
 	if (nullptr != pexprTarget && nullptr != pexpr->Pgexpr() &&
 		prule->Pexprdefs()->FHasBindings())
 	{
@@ -1094,7 +1095,7 @@ CDSLRuleEngine::PdecisionEvaluateDirect(CMemoryPool *mp,
 	return GPOS_NEW(mp) CDSLRewriteDecision(
 		pmodel, pexprTarget, status, nullptr, gpos::ulong_max, ulMatchUs,
 		ulConstraintUs, ulInstantiateUs, ulSourceFingerprint,
-		ulTargetFingerprint, inputOrigins);
+		ulTargetFingerprint, inputOrigins, &pending);
 }
 
 //---------------------------------------------------------------------------
@@ -1152,7 +1153,8 @@ CDSLRuleEngine::FCheckConstraints(const CDSLRule *prule,
 CExpression *
 CDSLRuleEngine::PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
 								 const CDSLModel *pmodel,
-								 CDSLTargetInputOriginArray *inputOrigins) const
+								 CDSLTargetInputOriginArray *inputOrigins,
+								 CDSLPendingCTEs *pending) const
 {
 	GPOS_ASSERT(nullptr != mp);
 	GPOS_ASSERT(nullptr != prule);
@@ -1162,7 +1164,7 @@ CDSLRuleEngine::PexprInstantiate(CMemoryPool *mp, const CDSLRule *prule,
 	// AddRef-grafted, residual conjuncts merged, target symbols resolved through
 	// the rule's equality classes. See CDSLInstantiator.
 	CDSLInstantiator instantiator(mp);
-	return instantiator.PexprInstantiate(prule, pmodel, inputOrigins);
+	return instantiator.PexprInstantiate(prule, pmodel, inputOrigins, pending);
 }
 
 // EOF
