@@ -1127,10 +1127,10 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 	{
 		const std::string config = "experiment: bindings\ntemplate_root: r\n"
 			"template_cuts: [r/0]\ntemplate_bindings: " + std::string(enabled ? "true" : "false") +
-			"\ncardinalities:\n";
+			(enabled ? "" : "\ntrace_rule_edges: false") + "\ncardinalities:\n";
 		CDSLStatsExperimentSnapshot *bound_request = CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(
 			mp, config.c_str(), plain_select, &binding_request_errors);
-		binding_facts &= nullptr != bound_request &&
+		binding_facts &= nullptr != bound_request && bound_request->FTraceRuleEdges() == enabled &&
 			(bound_request->TemplateSelectionArtifact(plain_select).find("source_bindings") !=
 				std::string::npos) == enabled;
 		GPOS_DELETE(bound_request);
@@ -1970,6 +1970,8 @@ CDSLStatsExperimentTest::EresUnittest_StrictInput()
 		"experiment: bad\ncardinalities:\n- expression: abcdef0123456789\n rows: 2\n",
 		"experiment: bad\ncardinalities:\n- relations: [a]\n rows: 2\n unknown: 3\n",
 		"experiment: bad\ntemplate_bindings: true\ncardinalities:\n",
+		"experiment: bad\ntrace_rule_edges: no\ncardinalities:\n",
+		"experiment: bad\ntrace_rule_edges: false\ntrace_rule_edges: true\ncardinalities:\n",
 		"experiment: bad\ntemplate_root: r\ntemplate_bindings: yes\ncardinalities:\n",
 		"experiment: bad\ntemplate_root: r\ntemplate_bindings: true\ntemplate_bindings: false\ncardinalities:\n"})
 	{

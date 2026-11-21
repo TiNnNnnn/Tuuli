@@ -703,7 +703,7 @@ Parse(const CHAR *content, std::string *id,
 	  std::vector<SParsedTarget> *targets, BOOL *discover,
 	  std::string *template_root, std::vector<std::string> *template_cuts,
 	  ULONG *template_route, std::string *template_fingerprint,
-	  BOOL *template_bindings,
+	  BOOL *template_bindings, BOOL *trace_rule_edges,
 	  CWStringDynamic *errors)
 {
 	std::istringstream input(nullptr == content ? "" : content);
@@ -712,9 +712,8 @@ Parse(const CHAR *content, std::string *id,
 	BOOL in_cardinalities = false;
 	BOOL has_current = false;
 	BOOL valid = true;
-	BOOL has_discover = false;
 	BOOL has_template_cuts = false;
-	BOOL has_template_bindings = false;
+	std::unordered_set<std::string> boolean_options;
 	ULONG line_no = 0;
 	std::unordered_set<std::string> keys;
 
@@ -795,18 +794,25 @@ Parse(const CHAR *content, std::string *id,
 				valid = false;
 			}
 		}
-		else if (!in_cardinalities && "discover" == key && !has_discover)
+		else if (!in_cardinalities &&
+				 ("discover" == key || "template_bindings" == key || "trace_rule_edges" == key))
 		{
-			has_discover = true;
-			if ("true" == value)
+			if (!boolean_options.insert(key).second)
 			{
-				*discover = true;
-			}
-			else if ("false" != value)
-			{
-				Error(errors, line_no, "discover must be true or false");
+				Error(errors, line_no, "duplicate experiment field: " + key);
 				valid = false;
 			}
+			else if ("true" != value && "false" != value)
+			{
+				Error(errors, line_no, key + " must be true or false");
+				valid = false;
+			}
+			else if ("discover" == key)
+				*discover = "true" == value;
+			else if ("template_bindings" == key)
+				*template_bindings = "true" == value;
+			else
+				*trace_rule_edges = "true" == value;
 		}
 		else if (!in_cardinalities && "template_route" == key && 0 == *template_route)
 		{
@@ -837,17 +843,6 @@ Parse(const CHAR *content, std::string *id,
 			if (template_root->empty())
 			{
 				Error(errors, line_no, "template_root cannot be empty");
-				valid = false;
-			}
-		}
-		else if (!in_cardinalities && "template_bindings" == key && !has_template_bindings)
-		{
-			has_template_bindings = true;
-			if ("true" == value || "false" == value)
-				*template_bindings = "true" == value;
-			else
-			{
-				Error(errors, line_no, "template_bindings must be true or false");
 				valid = false;
 			}
 		}
@@ -907,7 +902,7 @@ Parse(const CHAR *content, std::string *id,
 		Error(errors, 0, "template_cuts requires template_root");
 		valid = false;
 	}
-	if (has_template_bindings && template_root->empty())
+	if (boolean_options.count("template_bindings") && template_root->empty())
 	{
 		Error(errors, 0, "template_bindings requires template_root");
 		valid = false;
@@ -1164,9 +1159,10 @@ CDSLStatsExperimentSnapshot::FParseRequests(const CHAR *content, std::string *id
 	ULONG template_route = 0;
 	std::string template_fingerprint;
 	BOOL template_bindings = false;
+	BOOL trace_rule_edges = true;
 	if (!Parse(content, &parsed_id, &parsed, &parsed_discover,
 			   &template_root, &template_cuts, &template_route, &template_fingerprint,
-			   &template_bindings, errors))
+			   &template_bindings, &trace_rule_edges, errors))
 		return false;
 	std::vector<SDSLStatsExperimentRequest> result;
 	for (const SParsedTarget &entry : parsed)
@@ -1192,9 +1188,10 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	ULONG template_route = 0;
 	std::string template_fingerprint;
 	BOOL template_bindings = false;
+	BOOL trace_rule_edges = true;
 	if (nullptr == root || !Parse(content, &id, &parsed, &discover,
 							 &template_root, &template_cuts, &template_route, &template_fingerprint,
-							 &template_bindings, errors))
+							 &template_bindings, &trace_rule_edges, errors))
 	{
 		return nullptr;
 	}
@@ -1206,6 +1203,7 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	snapshot->m_template_route = template_route;
 	snapshot->m_template_fingerprint = std::move(template_fingerprint);
 	snapshot->m_template_bindings = template_bindings;
+	snapshot->m_trace_rule_edges = trace_rule_edges;
 	if (!template_root.empty())
 	{
 		std::string selection_error;

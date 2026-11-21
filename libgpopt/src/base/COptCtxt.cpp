@@ -1197,7 +1197,8 @@ COptCtxt::TraceDSLCBOEdge(const CDSLRule *prule,
 							 const CExpression *pexprSource, const CHAR *status,
 							 const std::string &bindingPath)
 {
-	if (!GPOS_FTRACE(EopttracePrintDSLRule))
+	if (!GPOS_FTRACE(EopttracePrintDSLRule) ||
+		(nullptr != m_pdslStatsExperimentSnapshot && !m_pdslStatsExperimentSnapshot->FTraceRuleEdges()))
 		return;
 	// Full attempt tracing uses the existing statistics-experiment stream. Keep
 	// ordinary diagnostics root/ready-only: their fixed task buffer must also

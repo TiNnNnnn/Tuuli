@@ -1,5 +1,6 @@
 experiment: insub-join-key-source
 discover: false
+trace_rule_edges: false
 template_route: 406
 template_fingerprint: a26c8703c99f2a99
 template_root: r

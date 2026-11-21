@@ -61,6 +61,7 @@ private:
 	std::string m_template_root;
 	std::vector<std::string> m_template_cuts;
 	BOOL m_template_bindings = false;
+	BOOL m_trace_rule_edges = true;
 
 	explicit CDSLStatsExperimentSnapshot(CMemoryPool *mp)
 		: m_mp(mp), m_fDiscover(false)
@@ -102,6 +103,7 @@ public:
 	const SDSLStatsExperimentTarget *Ptarget(const CExpression *expr) const;
 	const CHAR *SzId() const { return m_id.c_str(); }
 	BOOL FHasTemplateSelection() const { return !m_template_root.empty(); }
+	BOOL FTraceRuleEdges() const { return m_trace_rule_edges; }
 	BOOL FTemplateBindings() const { return m_template_bindings; }
 	ULONG UlTemplateRoute() const { return m_template_route; }
 	std::string TemplateSelectionArtifact(CExpression *root) const;
