@@ -1,0 +1,106 @@
+{
+  "description": "A right-independent anti join can probe one row, preserving an empty right input, left duplicates and UNKNOWN",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct",
+        "\"status\":\"applied\",\"rule_hash\":\"0a16cb77c9f6cff8\""
+      ]
+    },
+    {
+      "name": "replacement",
+      "dsl": true,
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "stats_experiment": "anti_right_presence.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0a16cb77c9f6cff8\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0a16cb77c9f6cff8",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalLimit",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "output": [
+      "empty,0",
+      "empty,1",
+      "empty,2",
+      "empty,2",
+      "empty,",
+      "nonempty,0",
+      "nonempty,1",
+      "nonempty,"
+    ],
+    "postgres_output": [
+      "empty,0",
+      "empty,1",
+      "empty,2",
+      "empty,2",
+      "empty,",
+      "nonempty,0",
+      "nonempty,1",
+      "nonempty,"
+    ],
+    "plan_outputs": {
+      "off": [
+        "empty,0",
+        "empty,1",
+        "empty,2",
+        "empty,2",
+        "empty,",
+        "nonempty,0",
+        "nonempty,1",
+        "nonempty,"
+      ],
+      "replacement": [
+        "empty,0",
+        "empty,1",
+        "empty,2",
+        "empty,2",
+        "empty,",
+        "nonempty,0",
+        "nonempty,1",
+        "nonempty,"
+      ]
+    }
+  }
+}

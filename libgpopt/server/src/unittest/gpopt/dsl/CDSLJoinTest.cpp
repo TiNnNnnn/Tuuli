@@ -1477,7 +1477,7 @@ CDSLJoinTest::EresUnittest_UncorrelatedNotInApplyBuildsNotInJoin()
 }
 
 static GPOS_RESULT
-EresIndependentNotInRoutesAndMatches(const CHAR *rule)
+EresIndependentNotInRoutesAndMatches(const CHAR *rule, COperator::EOperatorId target_op)
 {
 	CAutoMemoryPool amp;
 	CMemoryPool *mp = amp.Pmp();
@@ -1520,16 +1520,21 @@ EresIndependentNotInRoutesAndMatches(const CHAR *rule)
 	{
 		CDSLInstantiator instantiator(mp);
 		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
-		CExpression *pexprAnchorB = nullptr == pexprTarget
-			? nullptr
-			: (*pexprTarget)[0];
-		CExpression *pexprUnion = nullptr == pexprAnchorB
-			? nullptr
-			: (*pexprAnchorB)[0];
-		if (nullptr == pexprUnion ||
-			COperator::EopLogicalCTEAnchor != pexprTarget->Pop()->Eopid() ||
-			COperator::EopLogicalCTEAnchor != pexprAnchorB->Pop()->Eopid() ||
-			COperator::EopLogicalUnionAll != pexprUnion->Pop()->Eopid())
+		if (nullptr == pexprTarget || target_op != pexprTarget->Pop()->Eopid())
+		{
+			eres = GPOS_FAILED;
+		}
+		else if (COperator::EopLogicalCTEAnchor == target_op)
+		{
+			CExpression *next = (*pexprTarget)[0];
+			if (COperator::EopLogicalCTEAnchor != next->Pop()->Eopid() ||
+				COperator::EopLogicalUnionAll != (*next)[0]->Pop()->Eopid())
+				eres = GPOS_FAILED;
+		}
+		else if (COperator::EopLogicalLimit != (*pexprTarget)[1]->Pop()->Eopid() ||
+				 COperator::EopScalarBooleanTest != (*pexprTarget)[2]->Pop()->Eopid() ||
+				 CScalarBooleanTest::EbtIsNotTrue !=
+					 CScalarBooleanTest::PopConvert((*pexprTarget)[2]->Pop())->Ebt())
 		{
 			eres = GPOS_FAILED;
 		}
@@ -1557,8 +1562,14 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 		"p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);"
 		"OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;"
 		"a4 := a2;Deterministic(p0);ErrorFree(p0)"})
-		if (GPOS_OK != EresIndependentNotInRoutesAndMatches(rule)) return GPOS_FAILED;
-	return GPOS_OK;
+		if (GPOS_OK != EresIndependentNotInRoutesAndMatches(rule, COperator::EopLogicalCTEAnchor))
+			return GPOS_FAILED;
+	return EresIndependentNotInRoutesAndMatches(
+		"AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|"
+		"AntiJoin<NotTrue(p0) a2 a3>(Input<t2>,Limit<n0 n1>(Input<t3>))|"
+		"t2 := t0;t3 := t1;a2 := a0;a3 := a1;AttrsEmpty(a1);ScalarOne(n0);"
+		"ScalarZero(n1);Deterministic(p0);ErrorFree(p0);ErrorFree(t1)",
+		COperator::EopLogicalLeftAntiSemiJoin);
 }
 
 static GPOS_RESULT
