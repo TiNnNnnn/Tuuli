@@ -3,6 +3,7 @@
 // Filter, set, order, limit and window builders; no rule scheduling or matching.
 //---------------------------------------------------------------------------
 #include "gpopt/dsl/CDSLInstantiator.h"
+#include "gpopt/dsl/CDSLConstraintChecker.h"
 #include "CDSLInstantiatorUtils.h"
 #include "gpos/common/CAutoRef.h"
 
@@ -1131,8 +1132,10 @@ CDSLInstantiator::PexprBuildRowNumber(const CDSLOp *pop,
 		return nullptr;
 	}
 	CExpression *pexprChild = PexprBuild((*pop)[0], pmodel);
-	if (nullptr == pexprChild)
+	if (nullptr == pexprChild || !CDSLConstraintChecker(m_mp).FRankInputAllowed(
+			m_prule, (*pdrgpsym)[2], pexprChild))
 	{
+		CRefCount::SafeRelease(pexprChild);
 		return nullptr;
 	}
 	CExpression *pexpr = CXformUtils::PexprWindowWithRowNumber(

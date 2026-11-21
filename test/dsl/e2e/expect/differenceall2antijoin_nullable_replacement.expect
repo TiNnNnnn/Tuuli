@@ -4,10 +4,13 @@
     "xforms": [
       "CXformDifferenceAll2LeftAntiSemiJoin"
     ],
-    "scope": "Except All over equally typed ordered input rows, including nullable duplicates",
-    "status": "verified_full_replacement",
+    "scope": "Matching ordered input columns with representable int8 duplicate positions on both sides, including NULLs",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "17e736c7eac2c540"
+    ],
+    "excluded_native_domains": [
+      "Inputs whose ROW_NUMBER positions have no verified int8 bound"
     ]
   },
   "plans": [

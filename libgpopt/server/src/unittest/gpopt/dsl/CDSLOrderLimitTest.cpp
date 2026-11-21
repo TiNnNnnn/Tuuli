@@ -282,7 +282,8 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 	CMemoryPool *mp = amp.Pmp();
 	CDSLTestFixture fix(mp);
 	CColRefArray *pdrgpcr = nullptr;
-	CExpression *pexprGet = fix.PexprLogicalGet("ranked", 1, &pdrgpcr);
+	CExpression *scan = fix.PexprLogicalGet("ranked", 1, &pdrgpcr);
+	CExpression *pexprGet = CUtils::PexprLimit(mp, scan, 0, 8);
 	CDSLRule *prule = Prule(mp,
 		"Input<t0>|RowNumber<a0 o0 r0>(Input<t1>)|"
 		"TableEq(t1,t0);AttrsEmpty(a0);OrderEmpty(o0);RankAttrs(a1,r0)");
@@ -405,6 +406,15 @@ CDSLOrderLimitTest::EresUnittest_RowNumberConstructiveTarget()
 		if (!rejects(staged))
 			eres = GPOS_FAILED;
 	}
+	// The same alias must be guarded on both sides. OFFSET alone leaves
+	// the synthetic distributed scan unbounded, even with a small estimate.
+	CExpression *unbounded = PexprLimit(mp, scan, GPOS_NEW(mp) COrderSpec(mp), false, 1, 0);
+	CExpression *unboundedRank = CXformUtils::PexprWindowWithRowNumber(mp, unbounded, pdrgpcr);
+	if (!rejects(unboundedRank) || !FBindingRoundTrip(mp,
+		"Input<t0>|RowNumber<a0 o0 r0>(Input<t1>)|t1 := t0;AttrsEmpty(a0);OrderEmpty(o0);"
+		"r0 := r1;RankAttrs(a1,r1);ErrorFree(r1)", unbounded, true))
+		eres = GPOS_FAILED;
+	unbounded->Release();
 	CRefCount::SafeRelease(pexprIdentity);
 	pmodelIdentity->Release();
 	CRefCount::SafeRelease(pruleIdentity);

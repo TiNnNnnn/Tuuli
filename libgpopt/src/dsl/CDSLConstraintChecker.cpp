@@ -43,6 +43,7 @@
 #include "gpopt/operators/CLogical.h"
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalGet.h"
+#include "gpopt/operators/CLogicalLimit.h"
 #include "gpopt/operators/CLogicalDynamicGetBase.h"
 #include "gpopt/operators/CLogicalIndexGet.h"
 #include "gpopt/operators/CLogicalBitmapTableGet.h"
@@ -98,6 +99,52 @@ FTargetContainsSymbol(const CDSLOp *op,
 		}
 	}
 	return false;
+}
+
+BOOL
+FUsesRank(const CDSLOp *op, const CDSLRule *rule, const CDSLSymbol *rank,
+		  CDSLInstantiator &aliases)
+{
+	if (EdslopRowNumber == op->Edslop() &&
+		aliases.PsymBindingOrigin(rule, (*op->Pdrgpsym())[2]) == rank) return true;
+	for (ULONG i = 0; i < op->UlChildren(); ++i)
+		if (FUsesRank((*op)[i], rule, rank, aliases)) return true;
+	return false;
+}
+
+// A single local PostgreSQL heap has a 32-bit block number and a 16-bit
+// offset within each block. A successful scan cannot reach the int8 limit.
+BOOL
+FRankPositionsFit(CExpression *input)
+{
+	switch (input->Pop()->Eopid())
+	{
+		case COperator::EopLogicalConstTableGet:
+		case COperator::EopLogicalMaxOneRow:
+			return true;
+		case COperator::EopLogicalGet:
+		{
+			const auto *table = CLogicalGet::PopConvert(input->Pop())->Ptabdesc();
+			return !table->IsPartitioned() &&
+				table->GetRelDistribution() == IMDRelation::EreldistrMasterOnly &&
+				table->RetrieveRelStorageType() == IMDRelation::ErelstorageHeap;
+		}
+		case COperator::EopLogicalLimit:
+		{
+			const auto *limit = CLogicalLimit::PopConvert(input->Pop());
+			if (3 != input->Arity()) return false;
+			return (limit->FGlobal() && limit->FHasCount() &&
+					dslproperties::FNonnegativeLimitBound((*input)[2])) ||
+				FRankPositionsFit((*input)[0]);
+		}
+		case COperator::EopLogicalSelect:
+		case COperator::EopLogicalProject:
+		case COperator::EopLogicalSequenceProject:
+			return 2 == input->Arity() && !(*input)[1]->DeriveHasNonScalarFunction() &&
+				FRankPositionsFit((*input)[0]);
+		default:
+			return false;
+	}
 }
 
 BOOL
@@ -881,6 +928,25 @@ CDSLConstraintChecker::FCheckOrderEmpty(const CDSLConstraint *pcon,
 	return nullptr == pdrgpos
 		? EdslsideTarget == (*pdrgpsym)[0]->Eside()
 		: FEmptyOrder(pdrgpos);
+}
+
+BOOL
+CDSLConstraintChecker::FRankInputAllowed(const CDSLRule *rule, const CDSLSymbol *rank,
+										 CExpression *input) const
+{
+	if (nullptr == rule) return true;
+	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
+	{
+		const auto *guard = (*rule->Pdrgpcon())[i];
+		if (EdslconErrorFree != guard->Edslcon()) continue;
+		const auto *operand = (*guard->Pdrgpsym())[0];
+		if (EdslsymRank != operand->Esymkind()) continue;
+		if (operand == rank) return FRankPositionsFit(input);
+		CDSLInstantiator aliases(m_mp);
+		if (aliases.PsymBindingOrigin(rule, operand) == aliases.PsymBindingOrigin(rule, rank))
+			return FRankPositionsFit(input);
+	}
+	return true;
 }
 
 BOOL
@@ -2677,7 +2743,10 @@ CDSLConstraintChecker::FCheckScalarProperty(const CDSLRule *prule,
 		case EdslsymRank:
 		{
 			CColRefArray *pdrgpcr = pmodel->PdrgpcrRank(psymBound);
-			return nullptr != pdrgpcr && 1 == pdrgpcr->Size();
+			if (nullptr == pdrgpcr || 1 != pdrgpcr->Size()) return false;
+			// Every use of this rank checks its own child during match or construction.
+			return FUsesRank(prule->PfragSrc()->PopRoot(), prule, psymBound, materializer) ||
+				FUsesRank(prule->PfragTgt()->PopRoot(), prule, psymBound, materializer);
 		}
 		default:
 			break;

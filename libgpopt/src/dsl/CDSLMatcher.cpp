@@ -706,7 +706,8 @@ CDSLMatcher::FMatchRowNumber(const CDSLOp *pop, CExpression *pexpr,
 		(*(*pexprList)[0])[0]->Pop());
 	CColRef *rank = CScalarProjectElement::PopConvert((*pexprList)[0]->Pop())->Pcr();
 	// The DSL binds only partition, order and rank. Other execution modes cannot round-trip.
-	if (CScalarWindowFunc::EwsImmediate != popFunc->Ews() ||
+	if (!CDSLConstraintChecker(m_mp).FRankInputAllowed(m_prule, (*pop->Pdrgpsym())[2], (*pexpr)[0]) ||
+		CScalarWindowFunc::EwsImmediate != popFunc->Ews() ||
 		popFunc->IsDistinct() || popFunc->IsStarArg() || popFunc->IsSimpleAgg() ||
 		popFunc->FAgg() || 0 != popFunc->GetNullTreatment() ||
 		IMDType::EtiInt8 != rank->RetrieveType()->GetDatumType() ||

@@ -213,6 +213,8 @@ public:
 	// SequenceProject represents no ordering by one empty order specification.
 	static BOOL FEmptyOrder(const COrderSpecArray *orders);
 
+	BOOL FRankInputAllowed(const CDSLRule *rule, const CDSLSymbol *rank, CExpression *input) const;
+
 	explicit CDSLConstraintChecker(CMemoryPool *mp) : m_mp(mp)
 	{
 		GPOS_ASSERT(nullptr != mp);

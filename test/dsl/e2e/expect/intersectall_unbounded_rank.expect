@@ -1,0 +1,37 @@
+{
+  "description": "A small estimated cross product supplies no hard upper bound for row_number",
+  "plans": [
+    {
+      "name": "physical_fallback",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "policy": "isolate_intersectall2semijoin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"instantiate_rejected\",\"rule_hash\":\"1c97c09c804a110c\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\""
+      ],
+      "alternative": [
+        "CXformImplementSetOp"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "policy": "isolate_intersectall2semijoin.policy",
+    "output": [
+      "1",
+      "1"
+    ],
+    "postgres_output": [
+      "1",
+      "1"
+    ]
+  }
+}

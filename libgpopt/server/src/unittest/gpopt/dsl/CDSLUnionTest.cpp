@@ -1107,6 +1107,11 @@ CDSLUnionTest::EresUnittest_SetInputBindingsBuildJoin()
 		CColRefArray *pdrgpcrLeft = nullptr, *pdrgpcrRight = nullptr;
 		CExpression *pexprLeft = fix.PexprLogicalGet("intersect_left", 2, &pdrgpcrLeft);
 		CExpression *pexprRight = fix.PexprLogicalGet("intersect_right", 2, &pdrgpcrRight);
+		if (all)
+		{
+			pexprLeft = CUtils::PexprLimit(mp, pexprLeft, 0, 10);
+			pexprRight = CUtils::PexprLimit(mp, pexprRight, 0, 10);
+		}
 		CExpression *pexprSource = PexprSetOpById(
 			mp,
 			difference
