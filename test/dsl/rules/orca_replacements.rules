@@ -438,8 +438,8 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Input<t1>)|AntiJoinNotIn<p1 a3 a4>(Input<t
 # selects which inner rows participate. The adapter emits ORCA's equivalent raw
 # predicate, inverse(comparison) AND (qualification IS TRUE), without conflating the two
 # dependency domains. The input and both predicates must tolerate changes in
-# evaluation order and demand.
-AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := p0;a5 := a0;a6 := a1;p3 := p1;a7 := a2;a8 := a3;AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1)
+# evaluation order and demand. The independent join input must no longer read the outer row.
+AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoinNotIn<p2 a5 a6 p3 a7 a8>(Input<t2>,Input<t3>)|t2 := t0;t3 := t1;p2 := p0;a5 := a0;a6 := a1;p3 := p1;a7 := a2;a8 := a3;AttrsSub(a0,t0);AttrsSub(a1,t1);AttrsSub(a3,t1);AttrsSub(a2,t0);ErrorFree(t1);Deterministic(t1);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);Deterministic(p1);OutputAttrs(a9,t0);DepsDisjoint(t1,a9)
 
 # Extends the NULL-aware decorrelation domain across a grouped aggregate when
 # its correlation key is not already grouped. AttrsUnion/SchemaUnion construct

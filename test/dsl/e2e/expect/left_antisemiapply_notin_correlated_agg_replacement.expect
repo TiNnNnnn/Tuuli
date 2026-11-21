@@ -16,7 +16,7 @@
       "not_contains": [
         "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ]
     },
     {
@@ -41,7 +41,7 @@
       "not_contains": [
         "Falling back to Postgres",
         "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
-        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ]
     }
   ],

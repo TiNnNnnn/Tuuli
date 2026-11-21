@@ -13,10 +13,10 @@
       "stats_experiment": "qualified_notin_source_route.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"ec74a55e93d77092\""
+        "\"status\":\"match_rejected\",\"rule_hash\":\"100d5a4bfb44d544\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"ec74a55e93d77092\""
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ]
     }
   ],
