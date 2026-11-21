@@ -1,0 +1,147 @@
+{
+  "description": "Tied integer order keys preserve full-partition MAX during qualified NOT IN decorrelation",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Integer MAX with explicit fully unbounded ROWS and tied integer sort keys",
+    "status": "verified_full_replacement",
+    "excluded_native_domains": [
+      "Assert decorrelation that changes strict error reachability"
+    ],
+    "dsl_rule_hashes": [
+      "7ac97a55ff9b47c8",
+      "100d5a4bfb44d544"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_window_filter_qualified_notin.policy",
+      "stats_experiment": "qualified_notin_ordered_window_replacement.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\"",
+        "CLogicalLeftAntiSemiJoinNotIn"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "7ac97a55ff9b47c8",
+          "dst_rule": "100d5a4bfb44d544",
+          "dst_binding_path": "r/1/0",
+          "candidate_status": "ready_cbo",
+          "relation": "memo_consumes",
+          "producer_outcome": "memo_inserted"
+        }
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "100d5a4bfb44d544",
+          "route_sequence": 8,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoinNotIn",
+            "CLogicalGet",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+        ]
+      }
+    },
+    {
+      "name": "checked_window",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_window_filter_qualified_notin.policy",
+      "stats_experiment": "qualified_notin_ordered_window_window.yaml",
+      "rule_source_routes": [
+        {
+          "rule_hash": "7ac97a55ff9b47c8",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalSequenceProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalSequenceProject",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_window_filter_qualified_notin.policy",
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  }
+}

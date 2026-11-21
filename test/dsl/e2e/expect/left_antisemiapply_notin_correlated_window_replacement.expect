@@ -4,7 +4,7 @@
     "xforms": [
       "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
     ],
-    "scope": "Correlated integer MAX window with equality keys covered by the cumulative window partition",
+    "scope": "Correlated integer MAX over a full partition with equality keys covered by PARTITION BY",
     "status": "verified_full_replacement",
     "excluded_native_domains": [
       "Assert decorrelation that changes strict error reachability"
@@ -25,7 +25,7 @@
       "trace": true,
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied\",\"rule_hash\":\"b79e23f8fd9fdced\""
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ],
       "alternative": [
         "CXformDSLRule_All"

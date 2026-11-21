@@ -502,20 +502,36 @@ FRelationalTreeProvablyErrorFree(CExpression *pexpr, BOOL deterministic)
 		}
 		case COperator::EopLogicalSequenceProject:
 		{
-			// Without ordering, total MIN/MAX over a full frame observes the partition;
-			// arbitrary row order cannot change its value. Audit partition equality too.
+			// A full-partition MIN/MAX is unaffected by the order of tied rows.
 			const auto *window = CLogicalSequenceProject::PopConvert(pexpr->Pop());
 			if (2 != pexpr->Arity() || !(*pexpr)[0]->Pop()->FLogical() ||
 				COperator::EopScalarProjectList != (*pexpr)[1]->Pop()->Eopid() ||
-				COperator::EsptypeGlobalOneStep != window->Pspt() ||
-				window->FHasOrderSpecs()) return false;
+				COperator::EsptypeGlobalOneStep != window->Pspt()) return false;
+			if (window->FHasOrderSpecs())
+			{
+				if (1 != window->Pdrgpos()->Size() || 1 != window->Pdrgpwf()->Size() ||
+					CWindowFrame::IsEmpty((*window->Pdrgpwf())[0])) return false;
+				const COrderSpec *order = (*window->Pdrgpos())[0];
+				for (ULONG i = 0; i < order->UlSortColumns(); ++i)
+				{
+					const IMDType *type = order->Pcr(i)->RetrieveType();
+					const IMDId *op = order->GetMdIdSortOp(i);
+					if ((IMDType::EtiInt4 != type->GetDatumType() &&
+						 IMDType::EtiInt8 != type->GetDatumType() &&
+						 IMDType::EtiBool != type->GetDatumType()) ||
+						!IMDId::IsValid(op) ||
+						(!op->Equals(type->GetMdidForCmpType(IMDType::EcmptL)) &&
+						 !op->Equals(type->GetMdidForCmpType(IMDType::EcmptG))) ||
+						COrderSpec::EntAuto <= order->Ent(i)) return false;
+				}
+			}
 			for (ULONG i = 0; i < window->Pdrgpwf()->Size(); ++i)
 			{
 				const CWindowFrame *frame = (*window->Pdrgpwf())[i];
 				// RANGE CURRENT ROW includes all peers when ORDER BY is empty.
 				if (CWindowFrame::EfbUnboundedPreceding != frame->EfbLeading() ||
 					(CWindowFrame::EfbUnboundedFollowing != frame->EfbTrailing() &&
-					 !(CWindowFrame::EfsRange == frame->Efs() &&
+					 !(!window->FHasOrderSpecs() && CWindowFrame::EfsRange == frame->Efs() &&
 					   CWindowFrame::EfbCurrentRow == frame->EfbTrailing())) ||
 					frame->PexprLeading() || frame->PexprTrailing() ||
 					(CWindowFrame::EfesNone != frame->Efes() &&

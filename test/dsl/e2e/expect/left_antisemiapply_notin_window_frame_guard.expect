@@ -1,5 +1,5 @@
 {
-  "description": "PostgreSQL supplies a frame even for ROW_NUMBER; the frameless WindowRows template must reject it",
+  "description": "ROW_NUMBER with tied order keys cannot discharge qualified NOT IN demand and repeatability",
   "plans": [
     {
       "name": "guard",
@@ -7,14 +7,14 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
-      "policy": "isolate_notin_window_rows.policy",
+      "policy": "isolate_window_filter_qualified_notin.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"match_rejected\",\"rule_hash\":\"9a963f49c91602cf\"",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"100d5a4bfb44d544\"",
         "\"expected_operator\":\"AntiApplyNotIn\",\"actual_operator\":\"CLogicalLeftAntiSemiCorrelatedApplyNotIn\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"9a963f49c91602cf\""
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ]
     }
   ],
@@ -22,7 +22,7 @@
     "disable_xforms": [
       "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
     ],
-    "policy": "isolate_notin_window_rows.policy",
+    "policy": "isolate_window_filter_qualified_notin.policy",
     "output": [
       "1",
       "2"

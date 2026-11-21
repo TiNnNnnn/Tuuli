@@ -7,13 +7,15 @@
       "disable_xforms": [
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
+      "policy": "isolate_window_filter_qualified_notin.policy",
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"b79e23f8fd9fdced\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
         "\"failed_constraint\":\"AttrsSub\""
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"b79e23f8fd9fdced\"",
-        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\"",
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn",
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
       ]
     }
   ],
@@ -21,6 +23,7 @@
     "disable_xforms": [
       "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
     ],
+    "policy": "isolate_window_filter_qualified_notin.policy",
     "output": [
       "1",
       "2",

@@ -1,0 +1,7 @@
+experiment: notin-window
+discover: false
+template_route: 4
+template_fingerprint: ad7f7f0c3b3becf6
+template_root: r
+template_bindings: true
+cardinalities:

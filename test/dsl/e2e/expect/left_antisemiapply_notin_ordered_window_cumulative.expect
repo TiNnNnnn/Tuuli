@@ -1,0 +1,22 @@
+{
+  "description": "Tied order keys can change cumulative MAX across rows and block qualified NOT IN decorrelation",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_window_filter_qualified_notin.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"match_rejected\",\"rule_hash\":\"100d5a4bfb44d544\"",
+        "\"expected_operator\":\"AntiApplyNotIn\",\"actual_operator\":\"CLogicalLeftAntiSemiCorrelatedApplyNotIn\"",
+        "\"status\":\"applied\",\"rule_hash\":\"7ac97a55ff9b47c8\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
+      ]
+    }
+  ]
+}
