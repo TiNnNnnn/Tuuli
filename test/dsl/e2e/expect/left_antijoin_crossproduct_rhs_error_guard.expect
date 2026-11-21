@@ -24,12 +24,12 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"a14e5e02a664e6c1\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"e3a7a8c0f638f22d\"",
         "\"failed_constraint\":\"ErrorFree\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\"",
         "Xform: CXformLeftAntiSemiJoin2CrossProduct",
         "Falling back to Postgres"
       ]

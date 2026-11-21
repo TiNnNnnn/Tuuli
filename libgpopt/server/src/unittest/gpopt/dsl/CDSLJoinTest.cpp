@@ -179,7 +179,7 @@ using namespace gpopt;
 	"TableEq(t3,t1);TableEq(t5,t1);TableShared(t3,t5);"              \
 	"PredicateEq(p1,p0);AttrsEq(a5,a0);AttrsSub(a0,t0);AttrsEmpty(a1);" \
 	"OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);AttrsEq(a3,a2);"       \
-	"AttrsEq(a4,a2);Deterministic(p0);ErrorFree(p0)"
+	"AttrsEq(a4,a2);Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0)"
 
 #define GPOPT_DSL_CORRELATED_NOT_IN_FILTER_RULE                           \
 	"AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|" \
@@ -1561,7 +1561,7 @@ CDSLJoinTest::EresUnittest_IndependentNotInRoutesAndMatches()
 		"t3 := t1;t5 := t1;TableShared(t3,t5);"
 		"p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);"
 		"OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;"
-		"a4 := a2;Deterministic(p0);ErrorFree(p0)"})
+		"a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0)"})
 		if (GPOS_OK != EresIndependentNotInRoutesAndMatches(rule, COperator::EopLogicalCTEAnchor))
 			return GPOS_FAILED;
 	return EresIndependentNotInRoutesAndMatches(

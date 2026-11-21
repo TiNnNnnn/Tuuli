@@ -1,0 +1,38 @@
+{
+  "description": "AntiJoin expansion rejects a potentially failing shared left input",
+  "plans": [
+    {
+      "name": "guarded",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"e3a7a8c0f638f22d\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "error_sqlstate": "22012",
+    "output": [
+      "SQLSTATE 22012"
+    ],
+    "postgres_output": [
+      "SQLSTATE 22012"
+    ],
+    "off_output": [
+      "SQLSTATE 22012"
+    ]
+  }
+}

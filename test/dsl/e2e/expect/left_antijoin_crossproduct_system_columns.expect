@@ -9,7 +9,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\"",
+        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\"",
         "DSL_CTE_BINDING",
         "DSL_CTE_PRODUCER_PORT",
         "DSL_CTE_CONSUMER_PORT"

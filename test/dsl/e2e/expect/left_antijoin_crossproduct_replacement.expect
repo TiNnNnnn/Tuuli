@@ -4,14 +4,14 @@
     "xforms": [
       "CXformLeftAntiSemiJoin2CrossProduct"
     ],
-    "scope": "Provably error-free RHS and deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
+    "scope": "Provably error-free inputs and deterministic, error-free AntiJoin predicate with non-empty dependencies only on the left input",
     "status": "verified_partial_replacement",
     "excluded_native_domains": [
-      "RHS not provably error-free: shared producer evaluation can precede an empty left input",
+      "Either shared producer may evaluate an otherwise undemanded expression",
       "Complete captured-query shared input and demand proof remains pending"
     ],
     "dsl_rule_hashes": [
-      "a14e5e02a664e6c1"
+      "e3a7a8c0f638f22d"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "trace": true,
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\""
       ]
     },
     {
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"a14e5e02a664e6c1\""
+        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\""
       ],
       "provenance": {
         "required_sources": [
