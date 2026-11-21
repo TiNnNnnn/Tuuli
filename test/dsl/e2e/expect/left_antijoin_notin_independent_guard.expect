@@ -8,12 +8,12 @@
         "CXformLeftAntiSemiJoinNotIn2CrossProduct"
       ],
       "contains": [
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"d613644408000ac4\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"32e7c1e66aa23b61\"",
         "\"failed_constraint\":\"AttrsEmpty\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"d613644408000ac4\"",
+        "\"status\":\"applied\",\"rule_hash\":\"32e7c1e66aa23b61\"",
         "Xform: CXformLeftAntiSemiJoinNotIn2CrossProduct",
         "Falling back to Postgres"
       ]

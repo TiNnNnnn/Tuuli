@@ -327,22 +327,25 @@ SemiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Proj<a4 s0>(InnerJoin<p1 a2 a3>(Input<t2
 # PredicateNotTrue preserves both FALSE and UNKNOWN. Shared inputs avoid
 # separate runtime copies. The legacy OUTCOME_EQ certificate (2026-09-05)
 # interprets Inputs as base tables, not arbitrary query/error outcomes.
-# STRENGTHENED legacy_hash=02fa8d41fd179f73; native expression proof: UNKNOWN; added: ErrorFree(t0)
+# Before bounding both probes, the legacy spelling had hash 02fa8d41fd179f73.
+# STRENGTHENED legacy_hash=41e34b58be88145e; native expression proof: UNKNOWN; added: ErrorFree(t0)
 # Shared CTE evaluation is not yet lowered; the base-table certificate cannot
 # authorize the complete captured-query rewrite.
 # Sharing both inputs can evaluate an otherwise unused column of either producer.
 # Full captured-query migration remains pending: empty-left RHS demand and
 # repeated input observations must be justified independently of TableShared.
-AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0)
+# LIMIT 1 bounds each existence probe even when its physical implementation counts rows.
+AntiJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Limit<n0 n1>(Input<t3>)),NotExists(Input<t4>,Limit<n0 n1>(Input<t5>)))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := NotTrue(p0);a5 := a0;AttrsSub(a0,t0);AttrsNonEmpty(a0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0);ScalarOne(n0);ScalarZero(n1)
 
 # Replace CXformLeftAntiSemiJoinNotIn2CrossProduct for an ALL comparison that
 # does not depend on the inner input. A non-empty inner keeps TRUE outer rows;
 # an empty inner keeps every outer row. The legacy OUTCOME_EQ certificate
 # (2026-09-05) uses base-table Inputs; complete captured-query lowering is pending.
-# STRENGTHENED legacy_hash=44094ceb70214301; native expression proof: UNKNOWN; added: ErrorFree(t0)
+# Before bounding both probes, the legacy spelling had hash 44094ceb70214301.
+# STRENGTHENED legacy_hash=f70361e9c881f014; native expression proof: UNKNOWN; added: ErrorFree(t0)
 # Shared CTE evaluation and complete NULL-aware query outcomes remain unproved.
 # Sharing both inputs can evaluate an otherwise unused column of either producer.
-AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Input<t3>),NotExists(Input<t4>,Input<t5>))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0)
+AntiJoinNotIn<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0 a3 a4>(Exists(Filter<p1 a5>(Input<t2>),Limit<n0 n1>(Input<t3>)),NotExists(Input<t4>,Limit<n0 n1>(Input<t5>)))|t2 := t0;t4 := t0;TableShared(t2,t4);t3 := t1;t5 := t1;TableShared(t3,t5);p1 := p0;a5 := a0;AttrsSub(a0,t0);AttrsEmpty(a1);OutputAttrs(a2,t0);SchemaFromAttrs(s0,a2);a3 := a2;a4 := a2;Deterministic(p0);ErrorFree(p0);ErrorFree(t1);ErrorFree(t0);ScalarOne(n0);ScalarZero(n1)
 
 # Replace CXformInlineCTEConsumer. The table symbol is the consumer's existing
 # column-remapped inline definition; the same rule composes under Filter.

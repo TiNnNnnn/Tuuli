@@ -11,7 +11,7 @@
       "Complete captured-query shared input and demand proof remains pending"
     ],
     "dsl_rule_hashes": [
-      "e3a7a8c0f638f22d"
+      "b0e9528419b83660"
     ]
   },
   "plans": [
@@ -28,7 +28,7 @@
       "trace": true,
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\""
+        "\"status\":\"applied\",\"rule_hash\":\"b0e9528419b83660\""
       ]
     },
     {
@@ -50,7 +50,7 @@
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"e3a7a8c0f638f22d\""
+        "\"status\":\"applied\",\"rule_hash\":\"b0e9528419b83660\""
       ],
       "provenance": {
         "required_sources": [

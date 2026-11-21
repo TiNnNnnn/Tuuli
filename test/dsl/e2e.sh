@@ -124,7 +124,7 @@ DATA_DIR="$DSL_E2E_ROOT/data"
 SOCKET_DIR="$DSL_E2E_ROOT/socket"
 RULE_BUNDLE="$DSL_E2E_ROOT/e2e.rules"
 SERVER_LOG="$ARTIFACT_DIR/postgresql.log"
-SERVER_STARTED=0
+SERVER_START_ATTEMPTED=0
 mkdir -p "$SOCKET_DIR"
 : >"$SERVER_LOG"
 
@@ -139,8 +139,10 @@ awk 'FNR == 1 && NR != 1 { print "" } { print }' "${RULE_FILES[@]}" >"$RULE_BUND
 
 cleanup()
 {
-    if [[ $SERVER_STARTED -eq 1 ]]; then
-        "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" stop -m fast >/dev/null 2>&1 || true
+    # pg_ctl may time out while the postmaster is still starting.
+    if [[ $SERVER_START_ATTEMPTED -eq 1 ]] && ! "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" stop -m fast >/dev/null; then
+        echo "Could not confirm PostgreSQL stopped. Preserving $DSL_E2E_ROOT" >&2
+        exit 1
     fi
     if [[ "${DSL_E2E_KEEP_TMP:-0}" = "1" ]]; then
         echo "Preserving DSL E2E temporary directory: $DSL_E2E_ROOT" >&2
@@ -153,11 +155,11 @@ trap cleanup EXIT
 "$PG_BINDIR/initdb" -D "$DATA_DIR" --no-locale --encoding=UTF8 --auth=trust \
     >"$ARTIFACT_DIR/initdb.log"
 
+SERVER_START_ATTEMPTED=1
 MONSOON_DSL_RULES="$RULE_BUNDLE" \
     "$PG_BINDIR/pg_ctl" -D "$DATA_DIR" -l "$SERVER_LOG" \
     -o "-c listen_addresses='' -c logging_collector=off -k $SOCKET_DIR -p $PORT" \
     start
-SERVER_STARTED=1
 
 PSQL=(
     "$PG_BINDIR/psql"
