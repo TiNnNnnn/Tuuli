@@ -1,0 +1,40 @@
+{
+  "description": "The grouped input still reads the left row below the movable equality filter",
+  "plans": [
+    {
+      "name": "native-off",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_notin_grouped_aggregate.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f8d8281de48030fe\"",
+        "\"failed_constraint\":\"DepsDisjoint\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"f8d8281de48030fe\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_notin_grouped_aggregate.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ],
+    "off_output": [
+      "1",
+      "2"
+    ]
+  }
+}

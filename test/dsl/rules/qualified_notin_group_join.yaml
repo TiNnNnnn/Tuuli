@@ -1,0 +1,7 @@
+experiment: grouped-notin-join
+discover: false
+template_route: 11
+template_fingerprint: 4bf5dca263c18a3f
+template_root: r
+template_bindings: true
+cardinalities:

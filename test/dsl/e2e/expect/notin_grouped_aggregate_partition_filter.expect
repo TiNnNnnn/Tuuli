@@ -1,0 +1,114 @@
+{
+  "description": "A grouped MAX with an existing correlation key feeds qualified NOT IN for nullable and empty inputs",
+  "plans": [
+    {
+      "name": "group",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_group_filter_qualified_notin.policy",
+      "stats_experiment": "qualified_notin_group_group.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "0573ade528949f8d",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "join",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_group_filter_qualified_notin.policy",
+      "stats_experiment": "qualified_notin_group_join.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"0573ade528949f8d\"",
+        "\"status\":\"applied\",\"rule_hash\":\"100d5a4bfb44d544\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_edges": [
+        {
+          "src_rule": "0573ade528949f8d",
+          "dst_rule": "100d5a4bfb44d544",
+          "dst_binding_path": "r/1",
+          "candidate_status": "ready_cbo",
+          "relation": "memo_consumes",
+          "producer_outcome": "memo_inserted"
+        }
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "100d5a4bfb44d544",
+          "route_sequence": 11,
+          "operators": [
+            "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoinNotIn",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_group_filter_qualified_notin.policy",
+    "output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5"
+    ]
+  }
+}
