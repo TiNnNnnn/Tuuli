@@ -1,0 +1,112 @@
+{
+  "description": "NOT IN compares every right value using IS NOT TRUE, preserving empty inputs, NULLs and duplicate left rows",
+  "plans": [
+    {
+      "name": "off",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoinNotIn2CrossProduct",
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiJoinNotIn2CrossProduct",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct",
+        "\"status\":\"applied\",\"rule_hash\":\"28ca7df3945bdd3a\""
+      ]
+    },
+    {
+      "name": "replacement",
+      "dsl": true,
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoinNotIn2CrossProduct",
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "stats_experiment": "not_in_comparison.yaml",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"28ca7df3945bdd3a\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftAntiSemiJoinNotIn2CrossProduct",
+        "Xform: CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "28ca7df3945bdd3a",
+          "route_sequence": 2,
+          "operators": [
+            "CLogicalLeftAntiSemiJoinNotIn",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoinNotIn2CrossProduct",
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "output": [
+      "empty,0",
+      "empty,1",
+      "empty,2",
+      "empty,2",
+      "empty,",
+      "nonnull,0",
+      "nonnull,1",
+      "nonnull,2",
+      "nonnull,2"
+    ],
+    "postgres_output": [
+      "empty,0",
+      "empty,1",
+      "empty,2",
+      "empty,2",
+      "empty,",
+      "nonnull,0",
+      "nonnull,1",
+      "nonnull,2",
+      "nonnull,2"
+    ],
+    "plan_outputs": {
+      "off": [
+        "empty,0",
+        "empty,1",
+        "empty,2",
+        "empty,2",
+        "empty,",
+        "nonnull,0",
+        "nonnull,1",
+        "nonnull,2",
+        "nonnull,2"
+      ],
+      "replacement": [
+        "empty,0",
+        "empty,1",
+        "empty,2",
+        "empty,2",
+        "empty,",
+        "nonnull,0",
+        "nonnull,1",
+        "nonnull,2",
+        "nonnull,2"
+      ]
+    }
+  }
+}

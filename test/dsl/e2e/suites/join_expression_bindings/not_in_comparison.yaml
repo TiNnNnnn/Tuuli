@@ -1,0 +1,7 @@
+experiment: capture-notin
+discover: false
+template_route: 2
+template_fingerprint: 11e0c3684b014dc3
+template_root: r
+template_bindings: true
+cardinalities:
