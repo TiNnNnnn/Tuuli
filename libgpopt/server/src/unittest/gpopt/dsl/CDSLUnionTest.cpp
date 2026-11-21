@@ -2069,6 +2069,31 @@ CDSLUnionTest::EresUnittest_SharedBranchesUseCTE()
 	CAutoRef<CExpression> predicate(CUtils::PexprScalarConstBool(mp, true));
 	CAutoRef<CExpression> source(fix.PexprLogicalInnerJoin(
 		left.Value(), right.Value(), predicate.Value()));
+	// The two consumers can be built, but the declared Union columns belong to the other input.
+	CAutoRef<CDSLRule> missingMap(PdslruleParseLocal(mp,
+		"InnerJoin<p0 a0 a1>(Input<t0>,Input<t1>)|Union<a2 s0>(Input<t2>,Input<t3>)|"
+		"t2 := t0;t3 := t0;TableShared(t2,t3);OutputAttrs(a2,t1);SchemaFromAttrs(s0,a2)"));
+	GPOS_UNITTEST_ASSERT(nullptr != missingMap.Value());
+	CAutoRef<CDSLModel> bindings(GPOS_NEW(mp) CDSLModel(mp));
+	GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, missingMap.Value()).FMatch(
+		missingMap->PfragSrc()->PopRoot(), source.Value(), bindings.Value()));
+	GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(missingMap.Value(), bindings.Value()));
+	CCTEInfo *ctes = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+	const ULONG existing = ctes->next_id();
+	CColRefArray *columns = CLogicalConstTableGet::PopConvert(left->Pop())->PdrgpcrOutput();
+	CExpression *producer = CXformUtils::PexprAddCTEProducer(mp, existing, columns, left.Value());
+	ctes->IncrementConsumers(existing);
+	CAutoRef<CExpression> rejected(CDSLInstantiator(mp).PexprInstantiate(
+		missingMap.Value(), bindings.Value()));
+	GPOS_UNITTEST_ASSERT(nullptr == rejected.Value());
+	CAutoRef<CExpressionArray> after(ctes->PdrgPexpr(mp));
+	GPOS_UNITTEST_ASSERT(after->Size() == 1 && (*after.Value())[0] == producer);
+	GPOS_UNITTEST_ASSERT(ctes->FUsed(existing) && ctes->UlConsumers(existing) == 1);
+	const ULONG next = ctes->next_id();
+	for (ULONG id = existing + 1; id < next; ++id)
+	{
+		GPOS_UNITTEST_ASSERT(ctes->UlConsumers(id) == 0);
+	}
 	for (const CHAR *shared : {"TableShared(t2,t3)",
 		"TableShared(t0,t2)", "TableShared(t2,t2)"})
 	{

@@ -264,6 +264,9 @@ public:
 	// add cte producer to hashmap
 	void AddCTEProducer(CExpression *pexprCTEProducer);
 
+	// Discard a fresh producer and its main-query consumers after a rejected rewrite.
+	void DiscardUnpublishedProducer(ULONG id);
+
 	// replace cte producer with given expression
 	void ReplaceCTEProducer(CExpression *pexprCTEProducer);
 

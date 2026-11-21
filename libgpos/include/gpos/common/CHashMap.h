@@ -299,6 +299,18 @@ public:
 					// then removing the last element
 					(*chain)->Swap(ul, (*chain)->Size() - 1);
 					CHashMapElem *to_delete = (*chain)->RemoveLast();
+					// Iterators use this non-owning index. Drop the key before freeing it.
+					ULONG pos = m_size - 1;
+					while ((*m_keys)[pos] != to_delete->Key())
+					{
+						--pos;
+					}
+					for (; pos + 1 < m_size; ++pos)
+					{
+						m_keys->Swap(pos, pos + 1);
+					}
+					m_keys->RemoveLast();
+					--m_size;
 					CleanupDelete(to_delete);
 					return true;
 				}

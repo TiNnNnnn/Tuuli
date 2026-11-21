@@ -2375,6 +2375,9 @@ EresFullJoinExpansion(BOOL bindings)
 				CLogicalCTEAnchor::PopConvert(pexprTarget->Pop())->Id();
 			const ULONG idB =
 				CLogicalCTEAnchor::PopConvert(pexprAnchorB->Pop())->Id();
+			CCTEInfo *ctes = COptCtxt::PoctxtFromTLS()->Pcteinfo();
+			GPOS_UNITTEST_ASSERT(ctes->FUsed(idA) && ctes->FUsed(idB));
+			GPOS_UNITTEST_ASSERT(ctes->UlConsumers(idA) == 2 && ctes->UlConsumers(idB) == 2);
 			CLogicalSetOp *popUnion =
 				CLogicalSetOp::PopConvert(pexprUnion->Pop());
 			CColRefArray *pdrgpcrOutput = popUnion->PdrgpcrOutput();

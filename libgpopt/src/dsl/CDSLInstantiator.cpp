@@ -236,6 +236,13 @@ CDSLInstantiator::CollectTargetInputOrigins(const CExpression *root)
 //---------------------------------------------------------------------------
 CDSLInstantiator::~CDSLInstantiator()
 {
+	for (auto it = m_shared_cte_ids.rbegin(); it != m_shared_cte_ids.rend(); ++it)
+	{
+		if (*it != gpos::ulong_max)
+		{
+			COptCtxt::PoctxtFromTLS()->Pcteinfo()->DiscardUnpublishedProducer(*it);
+		}
+	}
 	for (auto &entry : m_input_col_maps)
 	{
 		entry.second->Release();
@@ -251,7 +258,6 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 									   const CDSLModel *pmodel)
 {
 	std::unordered_map<const CDSLSymbol *, ULONG> indexBySource;
-	std::vector<const CDSLSymbol *> sources;
 	for (ULONG ul = 0; ul < prule->Pdrgpcon()->Size(); ul++)
 	{
 		const CDSLConstraint *pcon = (*prule->Pdrgpcon())[ul];
@@ -279,10 +285,10 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 			}
 		}
 
-		auto sourceIndex = indexBySource.emplace(source, sources.size());
+		auto sourceIndex = indexBySource.emplace(source, m_shared_cte_ids.size());
 		if (sourceIndex.second)
 		{
-			sources.push_back(source);
+			m_shared_cte_ids.push_back(gpos::ulong_max);
 		}
 		for (const CDSLSymbol *target : targets)
 		{
@@ -293,17 +299,6 @@ CDSLInstantiator::FPrepareSharedInputs(const CDSLRule *prule,
 				return false;
 			}
 		}
-	}
-	// Validate every binding before consuming query-wide CTE IDs.
-	for (const CDSLSymbol *source : sources)
-	{
-		CExpression *pexprSource = pmodel->PexprTable(source);
-		CColRefArray *pdrgpcrOutput = PdrgpcrLiveOutput(m_mp, pexprSource);
-		const ULONG id = COptCtxt::PoctxtFromTLS()->Pcteinfo()->next_id();
-		m_shared_cte_ids.push_back(id);
-		(void) CXformUtils::PexprAddCTEProducer(
-			m_mp, id, pdrgpcrOutput, pexprSource);
-		pdrgpcrOutput->Release();
 	}
 	return true;
 }
@@ -317,9 +312,14 @@ CDSLInstantiator::PexprFinalizeSharedInputs(CExpression *pexpr) const
 	}
 	for (ULONG ul = m_shared_cte_ids.size(); 0 < ul; ul--)
 	{
+		const ULONG id = m_shared_cte_ids[ul - 1];
+		if (id == gpos::ulong_max)
+		{
+			pexpr->Release();
+			return nullptr;
+		}
 		pexpr = GPOS_NEW(m_mp) CExpression(
-			m_mp, GPOS_NEW(m_mp) CLogicalCTEAnchor(
-				m_mp, m_shared_cte_ids[ul - 1]), pexpr);
+			m_mp, GPOS_NEW(m_mp) CLogicalCTEAnchor(m_mp, id), pexpr);
 	}
 	return pexpr;
 }
@@ -367,6 +367,13 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 	if (shared != m_shared_index_by_target.end())
 	{
 		CColRefArray *pdrgpcrFrom = PdrgpcrLiveOutput(m_mp, pexpr);
+		ULONG &id = m_shared_cte_ids[shared->second];
+		if (id == gpos::ulong_max)
+		{
+			// Preprocessing the next producer marks CTEs with no consumers unused.
+			id = COptCtxt::PoctxtFromTLS()->Pcteinfo()->next_id();
+			(void) CXformUtils::PexprAddCTEProducer(m_mp, id, pdrgpcrFrom, pexpr);
+		}
 		CColRefArray *pdrgpcrConsumer = pdrgpcrFrom;
 		if (fAlreadyBuilt)
 		{
@@ -377,7 +384,7 @@ CDSLInstantiator::PexprBuildInput(const CDSLOp *pop,
 			pdrgpcrFrom->Release();
 		}
 		CExpression *pexprConsumer = CXformUtils::PexprCTEConsumer(
-			m_mp, m_shared_cte_ids[shared->second], pdrgpcrConsumer);
+			m_mp, id, pdrgpcrConsumer);
 		RecordBuiltInput(pop, pexprConsumer);
 		return pexprConsumer;
 	}
@@ -650,5 +657,10 @@ CDSLInstantiator::PexprInstantiate(const CDSLRule *prule,
 	CExpression *pexprResult =
 		PexprFreshRoot(PexprFinalizeSharedInputs(pexprTgt));
 	CollectTargetInputOrigins(pexprResult);
+	if (nullptr != pexprResult)
+	{
+		// The returned anchors now refer to query-owned producers.
+		m_shared_cte_ids.clear();
+	}
 	return pexprResult;
 }

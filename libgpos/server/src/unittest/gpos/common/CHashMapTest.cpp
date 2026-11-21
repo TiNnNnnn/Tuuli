@@ -97,6 +97,14 @@ CHashMapTest::EresUnittest_Basic()
 	BOOL fSuccess GPOS_ASSERTS_ONLY = phm->Replace(&ulp, rgsz[0]);
 	GPOS_UNITTEST_ASSERT(!fSuccess);
 
+	fSuccess = phm->Delete(&rgul[1]);
+	GPOS_UNITTEST_ASSERT(fSuccess && !phm->Delete(&rgul[1]));
+	GPOS_UNITTEST_ASSERT(ulCnt - 1 == phm->Size());
+	GPOS_UNITTEST_ASSERT(ulCnt - 1 == phm->GetKeys()->Size());
+	for (ULONG i = 0; i < phm->Size(); ++i)
+	{
+		GPOS_UNITTEST_ASSERT((*phm->GetKeys())[i] == &rgul[i == 0 ? 0 : i + 1]);
+	}
 	phm->Release();
 
 	// test replacing values and triggering their release

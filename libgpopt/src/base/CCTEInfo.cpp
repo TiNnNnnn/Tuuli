@@ -247,6 +247,19 @@ CCTEInfo::AddCTEProducer(CExpression *pexprCTEProducer)
 }
 
 
+void
+CCTEInfo::DiscardUnpublishedProducer(ULONG id)
+{
+	const ULONG parent = gpos::ulong_max;
+	auto *consumers = m_phmulprodconsmap->Find(&parent);
+	if (nullptr != consumers)
+	{
+		consumers->Delete(&id);
+	}
+	m_phmulcteinfoentry->Delete(&id);
+}
+
+
 //---------------------------------------------------------------------------
 //	@function:
 //		CCTEInfo::ReplaceCTEProducer
