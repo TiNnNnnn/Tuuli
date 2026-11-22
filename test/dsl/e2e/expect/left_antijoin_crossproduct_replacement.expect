@@ -45,12 +45,28 @@
     {
       "name": "replacement",
       "trace": true,
+      "debug_plan": true,
       "disable_xforms": [
         "CXformLeftAntiSemiJoin2CrossProduct"
       ],
       "policy": "isolate_left_antijoin_crossproduct.policy",
+      "stats_experiment": "anti_crossproduct_shared_inputs.yaml",
+      "native_observation": "shared_input_prefixes",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"b0e9528419b83660\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "b0e9528419b83660",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
