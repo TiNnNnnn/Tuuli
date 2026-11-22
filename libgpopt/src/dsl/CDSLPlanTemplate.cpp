@@ -1325,6 +1325,82 @@ CollectSourcePaths(const CDSLOp *op, const std::string &path,
 		CollectSourcePaths((*op)[i], path + '/' + std::to_string(i), definitions, paths);
 }
 
+void
+CollectInputPaths(const CDSLOp *op, const std::string &path, SourcePaths *paths)
+{
+	if (EdslopInput == op->Edslop())
+		(*paths)[(*op->Pdrgpsym())[0]].push_back(path);
+	for (ULONG i = 0; i < op->UlChildren(); ++i)
+		CollectInputPaths((*op)[i], path + '/' + std::to_string(i), paths);
+}
+
+// Scalar wrappers are transparent in the snapshot's ordered relational frontier.
+void
+CollectCTEReaderPaths(const CExpression *expr, const std::string &raw, std::string path,
+					  ULONG &next, std::map<std::string, std::string> *readers)
+{
+	GPOS_CHECK_STACK_SIZE;
+	const bool logical = expr->Pop()->FLogical();
+	if (logical && raw != "r")
+		path += '/' + std::to_string(next++);
+	if (COperator::EopLogicalCTEConsumer == expr->Pop()->Eopid())
+		readers->emplace(raw, path);
+	ULONG child_index = 0;
+	for (ULONG i = 0; i < expr->Arity(); ++i)
+		CollectCTEReaderPaths((*expr)[i], raw + '/' + std::to_string(i), path,
+							  logical ? child_index : next, readers);
+}
+
+// Template input addresses are DSL paths; instantiation records raw operator child indices.
+std::string
+SharedInputs(CMemoryPool *mp, const CDSLRule *rule, const CExpression *target,
+			const CDSLTargetInputOriginArray &origins)
+{
+	std::ostringstream groups;
+	SourcePaths paths;
+	std::map<std::string, std::string> readers;
+	bool first = true;
+	for (ULONG i = 0; i < rule->Pdrgpcon()->Size(); ++i)
+	{
+		const auto *constraint = (*rule->Pdrgpcon())[i];
+		if (constraint->Edslcon() != EdslconTableShared)
+			continue;
+		if (first)
+		{
+			CollectInputPaths(rule->PfragTgt()->PopRoot(), "r", &paths);
+			ULONG next = 0;
+			CollectCTEReaderPaths(target, "r", "r", next, &readers);
+		}
+		groups << (first ? ",\"shared_inputs\":[" : ",") << '[';
+		first = false;
+		for (ULONG j = 0; j < constraint->Pdrgpsym()->Size(); ++j)
+		{
+			const CDSLSymbol *symbol = (*constraint->Pdrgpsym())[j];
+			groups << (j ? "," : "") << "{\"symbol\":" << JsonString(SymbolText(mp, symbol))
+				   << ",\"reads\":[";
+			bool first_read = true;
+			for (const auto &path : paths[symbol])
+			{
+				groups << (first_read ? "" : ",") << "{\"template_path\":" << JsonString(path);
+				const auto origin = std::find_if(origins.begin(), origins.end(),
+					[&](const SDSLTargetInputOrigin &entry) { return entry.m_template_path == path; });
+				if (origin != origins.end())
+				{
+					const auto reader = readers.find(origin->m_expression_path);
+					if (reader != readers.end())
+						groups << ",\"plan_path\":" << JsonString(reader->second);
+				}
+				groups << '}';
+				first_read = false;
+			}
+			groups << "]}";
+		}
+		groups << ']';
+	}
+	if (!first) groups << ']';
+	return groups.str();
+}
+
 // Column arrays retain binding order, unlike the sets in plan column_facts.
 // Unsupported payloads remain explicit; this does not validate a lowering.
 std::string
@@ -1460,7 +1536,8 @@ CDSLPlanTemplate::MatchedSourceBindings(const CDSLRule *rule, const CDSLModel *m
 }
 
 std::string
-CDSLPlanTemplate::ConstructedBindings(const CDSLRule *rule, const CDSLModel *model)
+CDSLPlanTemplate::ConstructedBindings(const CDSLRule *rule, const CDSLModel *model,
+	const CExpression *target, const CDSLTargetInputOriginArray *origins)
 {
 	GPOS_ASSERT(nullptr != rule && nullptr != model);
 	std::vector<const CDSLSymbol *> symbols;
@@ -1489,7 +1566,8 @@ CDSLPlanTemplate::ConstructedBindings(const CDSLRule *rule, const CDSLModel *mod
 		definitions << "]}";
 	}
 	return "{\"definitions\":[" + definitions.str() + "],\"bindings\":" +
-		SourceBindings(model->Pmp(), symbols, model, nullptr) + '}';
+		SourceBindings(model->Pmp(), symbols, model, nullptr) +
+		(target && origins ? SharedInputs(model->Pmp(), rule, target, *origins) : "") + '}';
 }
 
 std::vector<const CExpression *>

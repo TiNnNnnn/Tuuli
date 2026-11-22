@@ -1904,7 +1904,8 @@ EresSharedBranchesUseCTE(const CHAR *text)
 		checker.FCheck(prule, pmodel))
 	{
 		CDSLInstantiator instantiator(mp);
-		pexprTarget = instantiator.PexprInstantiate(prule, pmodel);
+		CDSLTargetInputOriginArray origins;
+		pexprTarget = instantiator.PexprInstantiate(prule, pmodel, &origins);
 		GPOS_UNITTEST_ASSERT(nullptr != pexprTarget);
 		CExpression *pexprUnion = nullptr == pexprTarget
 			? nullptr
@@ -1929,6 +1930,10 @@ EresSharedBranchesUseCTE(const CHAR *text)
 		GPOS_UNITTEST_ASSERT(GPOS_OK == eres);
 		if (GPOS_OK == eres)
 		{
+			const auto bindings = CDSLPlanTemplate::ConstructedBindings(prule, pmodel, pexprTarget, &origins);
+			GPOS_UNITTEST_ASSERT(bindings.find("\"shared_inputs\":[[{\"symbol\":\"t1\",\"reads\":["
+				"{\"template_path\":\"r/0\",\"plan_path\":\"r/0/0\"}]},{\"symbol\":\"t2\",\"reads\":["
+				"{\"template_path\":\"r/1\",\"plan_path\":\"r/0/1\"}]}]]") != std::string::npos);
 			// Shared consumers must expose their own remapped keys, never a
 			// producer's column identity or the sibling consumer's columns.
 			for (ULONG child = 0; child < 2; ++child)

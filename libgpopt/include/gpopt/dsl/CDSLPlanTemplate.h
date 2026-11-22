@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "gpopt/dsl/CDSLProvenance.h"
 #include "gpos/base.h"
 
 namespace gpopt
@@ -47,7 +48,8 @@ public:
 	// Observe already-materialized constructor inputs/outputs without resolving
 	// them again. Missing values stay explicit; this is not a proof receipt.
 	static std::string ConstructedBindings(
-		const CDSLRule *rule, const CDSLModel *model);
+		const CDSLRule *rule, const CDSLModel *model, const CExpression *target = nullptr,
+		const CDSLTargetInputOriginArray *origins = nullptr);
 	static BOOL FValidateSelection(
 		const CExpression *expr, const std::string &root_path,
 		const std::vector<std::string> &cut_paths, std::string *error);

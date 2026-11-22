@@ -898,7 +898,7 @@ COptCtxt::TraceDSLExperimentCandidate(
 			CDSLStatsExperimentSnapshot::BindingContext(prule, decision->Pmodel(),
 				nullptr != m_pdslStatsExperimentSnapshot &&
 				m_pdslStatsExperimentSnapshot->FTemplateBindings() &&
-				EdsldecisionReady == decision->Status(), pexprTarget));
+				EdsldecisionReady == decision->Status(), pexprTarget, &decision->TargetInputOrigins()));
 		if (nullptr != decision->PconFailed())
 			event << ",\"failed_constraint\":\""
 				<< CDSLConstraintKindTable::SzName(decision->PconFailed()->Edslcon())

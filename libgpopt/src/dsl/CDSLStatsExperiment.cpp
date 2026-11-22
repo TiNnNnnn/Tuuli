@@ -73,7 +73,7 @@ CDSLStatsExperimentSnapshot::ExpressionShape(const CExpression *expr)
 
 std::string
 CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLModel *model,
-	BOOL source_bindings, const CExpression *target)
+	BOOL source_bindings, const CExpression *target, const CDSLTargetInputOriginArray *origins)
 {
 	const CDSLSymbolArray *symbols = rule->PfragSrc()->Pdrgpsym();
 	std::string entries;
@@ -146,7 +146,7 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 			result += ",\"target_context\":{\"capture\":\"after_instantiation\","
 				"\"scope\":\"constructed_rule_target\",\"fingerprint\":\"" + Fingerprint(model->Pmp(), target) +
 				"\",\"plan_template\":" + CDSLPlanTemplate::SerializeCaptured(model->Pmp(), target) +
-				",\"construction\":" + CDSLPlanTemplate::ConstructedBindings(rule, model) + '}';
+				",\"construction\":" + CDSLPlanTemplate::ConstructedBindings(rule, model, target, origins) + '}';
 	}
 	return result + '}';
 }
