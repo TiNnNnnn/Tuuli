@@ -29,7 +29,6 @@
 #include "access/htup_details.h"
 #include "access/table.h"
 #include "catalog/pg_am.h"
-#include "catalog/pg_amop.h"
 #include "catalog/pg_operator.h"
 #include "utils/catcache.h"
 #include "utils/fmgroids.h"
@@ -102,7 +101,6 @@
 #include "access/hash.h"
 #include "access/htup_details.h"
 #include "catalog/pg_am.h"
-#include "catalog/pg_amop.h"
 #include "catalog/pg_amproc.h"
 #include "commands/defrem.h"
 #include "parser/parse_coerce.h"
@@ -120,125 +118,98 @@
  * Called from gpdbwrappers.cpp: gpdb::GetComparisonType / GetComparisonOperator.
  * ======================================================================== */
 
+static Oid
+common_comparison_family(Oid lefttype, Oid righttype, bool hash)
+{
+	int			flags = hash ? TYPECACHE_HASH_OPFAMILY : TYPECACHE_BTREE_OPFAMILY;
+	TypeCacheEntry *left = lookup_type_cache(lefttype, flags);
+	TypeCacheEntry *right = lefttype == righttype ? left : lookup_type_cache(righttype, flags);
+	Oid			family = hash ? left->hash_opf : left->btree_opf;
+
+	return family == (hash ? right->hash_opf : right->btree_opf) ? family : InvalidOid;
+}
+
 /*
- * get_comparison_type
- *
- * Given an operator OID, return the semantic comparison type (CmpType).
- *
- * Cloudberry uses get_op_btree_interpretation() which walks pg_amop to find
- * the B-tree strategy number for the operator.  That function is not exposed
- * in PG18's public headers, so we fall back to inspecting the operator's
- * name.  This is correct for all built-in types and is sufficient for ORCA's
- * single-node usage.
+ * ORCA uses this classification to infer equal keys and orderings.  Only
+ * operator families used by the operands' default comparisons justify that.
  */
 CmpType
 get_comparison_type(Oid op_oid)
 {
-	HeapTuple	htup;
-	const char *opname;
-	CmpType		result;
+	HeapTuple	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(op_oid));
+	Oid			lefttype;
+	Oid			righttype;
+	Oid			negator;
+	Oid			family;
 
-	htup = SearchSysCache1(OPEROID, ObjectIdGetDatum(op_oid));
-	if (!HeapTupleIsValid(htup))
+	if (!HeapTupleIsValid(tuple))
+		return CmptOther;
+	lefttype = ((Form_pg_operator) GETSTRUCT(tuple))->oprleft;
+	righttype = ((Form_pg_operator) GETSTRUCT(tuple))->oprright;
+	negator = ((Form_pg_operator) GETSTRUCT(tuple))->oprnegate;
+	ReleaseSysCache(tuple);
+	if (!OidIsValid(lefttype) || !OidIsValid(righttype))
 		return CmptOther;
 
-	opname = NameStr(((Form_pg_operator) GETSTRUCT(htup))->oprname);
-	result = CmptOther;
-
-	if (strcmp(opname, "=") == 0)
-		result = CmptEq;
-	else if (strcmp(opname, "<>") == 0)
-		result = CmptNEq;
-	else if (strcmp(opname, "<") == 0)
-		result = CmptLT;
-	else if (strcmp(opname, ">") == 0)
-		result = CmptGT;
-	else if (strcmp(opname, "<=") == 0)
-		result = CmptLEq;
-	else if (strcmp(opname, ">=") == 0)
-		result = CmptGEq;
-
-	ReleaseSysCache(htup);
-	return result;
+	family = common_comparison_family(lefttype, righttype, false);
+	if (OidIsValid(family))
+	{
+		switch (get_op_opfamily_strategy(op_oid, family))
+		{
+			case BTLessStrategyNumber: return CmptLT;
+			case BTLessEqualStrategyNumber: return CmptLEq;
+			case BTEqualStrategyNumber: return CmptEq;
+			case BTGreaterEqualStrategyNumber: return CmptGEq;
+			case BTGreaterStrategyNumber: return CmptGT;
+		}
+		if (OidIsValid(negator) &&
+			get_op_opfamily_strategy(negator, family) == BTEqualStrategyNumber)
+			return CmptNEq;
+	}
+	family = common_comparison_family(lefttype, righttype, true);
+	if (OidIsValid(family))
+	{
+		if (get_op_opfamily_strategy(op_oid, family) == HTEqualStrategyNumber)
+			return CmptEq;
+		if (OidIsValid(negator) &&
+			get_op_opfamily_strategy(negator, family) == HTEqualStrategyNumber)
+			return CmptNEq;
+	}
+	return CmptOther;
 }
 
-/*
- * get_comparison_operator
- *
- * Given two type OIDs and a comparison type, return the OID of the
- * corresponding B-tree comparison operator from pg_amop, or InvalidOid if
- * none is found.
- *
- * Ported verbatim from Cloudberry lsyscache.c, with heap_open/heap_close
- * replaced by table_open/table_close (PG18 API).
- */
+/* Resolve generated comparisons in the same families used for classification. */
 Oid
 get_comparison_operator(Oid oidLeft, Oid oidRight, CmpType cmpt)
 {
-	int16		opstrat;
-	HeapTuple	ht;
-	Oid			result = InvalidOid;
-	Relation	pg_amop;
-	ScanKeyData scankey[4];
-	SysScanDesc sscan;
+	int16		strategy;
+	Oid			family;
+	Oid			op = InvalidOid;
+
+	if (!OidIsValid(oidLeft) || !OidIsValid(oidRight))
+		return InvalidOid;
 
 	switch (cmpt)
 	{
-		case CmptLT:
-			opstrat = BTLessStrategyNumber;
-			break;
-		case CmptLEq:
-			opstrat = BTLessEqualStrategyNumber;
-			break;
+		case CmptLT:  strategy = BTLessStrategyNumber; break;
+		case CmptLEq: strategy = BTLessEqualStrategyNumber; break;
 		case CmptEq:
-			opstrat = BTEqualStrategyNumber;
-			break;
-		case CmptGEq:
-			opstrat = BTGreaterEqualStrategyNumber;
-			break;
-		case CmptGT:
-			opstrat = BTGreaterStrategyNumber;
-			break;
-		default:
-			return InvalidOid;
+		case CmptNEq: strategy = BTEqualStrategyNumber; break;
+		case CmptGEq: strategy = BTGreaterEqualStrategyNumber; break;
+		case CmptGT:  strategy = BTGreaterStrategyNumber; break;
+		default: return InvalidOid;
 	}
 
-	pg_amop = table_open(AccessMethodOperatorRelationId, AccessShareLock);
-
-	ScanKeyInit(&scankey[0],
-				Anum_pg_amop_amoplefttype,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(oidLeft));
-	ScanKeyInit(&scankey[1],
-				Anum_pg_amop_amoprighttype,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(oidRight));
-	ScanKeyInit(&scankey[2],
-				Anum_pg_amop_amopmethod,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(BTREE_AM_OID));
-	ScanKeyInit(&scankey[3],
-				Anum_pg_amop_amopstrategy,
-				BTEqualStrategyNumber, F_INT2EQ,
-				Int16GetDatum(opstrat));
-
-	/* XXX: There is no index for this combination, so this is slow! */
-	sscan = systable_beginscan(pg_amop, InvalidOid, false,
-							   NULL, 4, scankey);
-
-	/* XXX: There can be multiple results; arbitrarily use the first one */
-	while (HeapTupleIsValid(ht = systable_getnext(sscan)))
+	family = common_comparison_family(oidLeft, oidRight, false);
+	if (OidIsValid(family))
+		op = get_opfamily_member(family, oidLeft, oidRight, strategy);
+	if (!OidIsValid(op) && strategy == BTEqualStrategyNumber)
 	{
-		Form_pg_amop amoptup = (Form_pg_amop) GETSTRUCT(ht);
-
-		result = amoptup->amopopr;
-		break;
+		family = common_comparison_family(oidLeft, oidRight, true);
+		if (OidIsValid(family))
+			op = get_opfamily_member(family, oidLeft, oidRight, HTEqualStrategyNumber);
 	}
-
-	systable_endscan(sscan);
-	table_close(pg_amop, AccessShareLock);
-
-	return result;
+	return cmpt == CmptNEq && OidIsValid(op) ? get_negator(op) : op;
 }
 
 /* ========================================================================

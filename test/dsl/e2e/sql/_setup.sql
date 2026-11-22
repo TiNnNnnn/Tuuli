@@ -5,6 +5,12 @@ CREATE TABLE dsl_insub_inner(id int PRIMARY KEY);
 INSERT INTO dsl_insub_outer VALUES (1,10),(2,20),(3,30);
 INSERT INTO dsl_insub_inner VALUES (1),(3);
 
+-- This operator shares the equality spelling but permits several keys to match.
+CREATE SCHEMA dsl_nonkey;
+CREATE OPERATOR dsl_nonkey.= (
+    LEFTARG = int, RIGHTARG = int, FUNCTION = pg_catalog.int4le
+);
+
 CREATE SEQUENCE dsl_compute_sequence;
 
 CREATE FUNCTION dsl_next_token(int, int) RETURNS bigint

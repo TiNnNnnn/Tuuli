@@ -1,0 +1,29 @@
+{
+  "plans": [
+    {
+      "name": "observed",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "DSL_CONSTRAINT_TRACE rule_hash=5fdded19bfafcf9f status=rejected constraint=CorrelationEquality"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "70"
+    ],
+    "postgres_output": [
+      "70"
+    ]
+  }
+}

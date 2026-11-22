@@ -1,0 +1,35 @@
+{
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformSimplifyGbAgg"
+      ],
+      "policy": "isolate_unique_dedup.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "DSL_CONSTRAINT_TRACE rule_hash=a77d6b1ba11308d1 status=rejected constraint=Unique"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"a77d6b1ba11308d1\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformSimplifyGbAgg"
+    ],
+    "policy": "isolate_unique_dedup.policy",
+    "output": [
+      "1",
+      "2",
+      "3"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3"
+    ]
+  }
+}
