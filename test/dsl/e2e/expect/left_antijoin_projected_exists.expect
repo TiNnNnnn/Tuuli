@@ -1,0 +1,42 @@
+{
+  "description": "A correlated EXISTS computed by the left input can feed an independent AntiJoin",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b0e9528419b83660\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiJoin2CrossProduct"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "output": [
+      "1,1",
+      "1,1",
+      ",3"
+    ],
+    "postgres_output": [
+      "1,1",
+      "1,1",
+      ",3"
+    ]
+  }
+}
