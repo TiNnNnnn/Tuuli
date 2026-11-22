@@ -1,0 +1,69 @@
+{
+  "description": "A left-only disjunction preserves duplicates and UNKNOWN after AntiJoin expansion",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "debug_plan": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiJoin2CrossProduct"
+      ],
+      "policy": "isolate_left_antijoin_crossproduct.policy",
+      "stats_experiment": "anti_crossproduct_or.yaml",
+      "native_observation": "shared_input_prefixes",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"b0e9528419b83660\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "b0e9528419b83660",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiJoin2CrossProduct"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiJoin2CrossProduct"
+    ],
+    "policy": "isolate_left_antijoin_crossproduct.policy",
+    "output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,1,1",
+      "nonempty,1,1",
+      "nonempty,,3"
+    ],
+    "postgres_output": [
+      "empty,1,1",
+      "empty,1,1",
+      "empty,1,2",
+      "empty,2,2",
+      "empty,2,",
+      "empty,,3",
+      "nonempty,1,1",
+      "nonempty,1,1",
+      "nonempty,,3"
+    ]
+  }
+}
