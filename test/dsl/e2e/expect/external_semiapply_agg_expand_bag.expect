@@ -1,0 +1,83 @@
+{
+  "description": "Expanded correlation keys preserve HAVING results, reject NULL equality, and preserve duplicate outer rows",
+  "replacement": {
+    "xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "scope": "Equality correlations below an aggregate whose grouping must be expanded with local correlation keys",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "81a8c53d51e5c281"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true,
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "policy": "isolate_external_semiapply_agg_expand.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"81a8c53d51e5c281\""
+      ],
+      "alternative": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin",
+        "CXformDSLRule_Exists"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+      ],
+      "policy": "isolate_external_semiapply_agg_expand.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"81a8c53d51e5c281\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftSemiApplyWithExternalCorrs2InnerJoin"
+    ],
+    "policy": "isolate_external_semiapply_agg_expand.policy",
+    "output": [
+      "2",
+      "2",
+      "2"
+    ],
+    "postgres_output": [
+      "2",
+      "2",
+      "2"
+    ]
+  }
+}
