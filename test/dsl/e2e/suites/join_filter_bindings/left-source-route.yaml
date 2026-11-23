@@ -1,6 +1,6 @@
 experiment: join-filter-source
 discover: false
-template_route: 2
+template_route: 1
 template_fingerprint: cdcbc8f9ab3bcf4a
 template_root: r
 template_bindings: true
