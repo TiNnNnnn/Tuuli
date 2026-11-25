@@ -1,0 +1,86 @@
+{
+  "description": "Expanded grouped NOT IN keeps NULL observations within the qualifying partition after HAVING",
+  "replacement": {
+    "xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "scope": "Correlated aggregate NOT IN with a safe integer MAX and an added correlation grouping key",
+    "status": "verified_partial_replacement",
+    "dsl_rule_hashes": [
+      "f8d8281de48030fe"
+    ]
+  },
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "trace": true
+    },
+    {
+      "name": "shadow",
+      "trace": true,
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f8d8281de48030fe\""
+      ],
+      "alternative": [
+        "CXformDSLRule_All"
+      ]
+    },
+    {
+      "name": "negative",
+      "dsl": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ]
+    },
+    {
+      "name": "replacement",
+      "xform_trace": false,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+      ],
+      "policy": "isolate_notin_grouped_aggregate.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"f8d8281de48030fe\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
+    ],
+    "policy": "isolate_notin_grouped_aggregate.policy",
+    "output": [
+      "1",
+      "2",
+      "3",
+      "5"
+    ],
+    "postgres_output": [
+      "1",
+      "2",
+      "3",
+      "5"
+    ],
+    "off_output": [
+      "1",
+      "2",
+      "3",
+      "5"
+    ]
+  }
+}
