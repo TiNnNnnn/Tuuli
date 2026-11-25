@@ -7,7 +7,7 @@
     "scope": "Correlated scalar MIN/MAX aggregate whose equality key can be retained in grouping",
     "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
-      "5fdded19bfafcf9f"
+      "805a91b2da339d8a"
     ]
   },
   "plans": [
@@ -23,7 +23,7 @@
       "name": "shadow",
       "trace": true,
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\""
+        "\"status\":\"applied\",\"rule_hash\":\"805a91b2da339d8a\""
       ]
     },
     {
@@ -44,7 +44,7 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\"",
+        "\"status\":\"applied\",\"rule_hash\":\"805a91b2da339d8a\"",
         "CLogicalLeftOuterJoin"
       ],
       "provenance": {

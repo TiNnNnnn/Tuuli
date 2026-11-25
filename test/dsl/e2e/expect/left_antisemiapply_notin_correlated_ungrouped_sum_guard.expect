@@ -8,7 +8,7 @@
         "CXformLeftAntiSemiApplyNotIn2LeftAntiSemiJoinNotIn"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"f8d8281de48030fe\""
+        "\"status\":\"applied\",\"rule_hash\":\"4519f706d2bb3d7b\""
       ]
     }
   ],

@@ -12,7 +12,7 @@
     ],
     "dsl_rule_hashes": [
       "029bd16d63f81a56",
-      "5fdded19bfafcf9f",
+      "805a91b2da339d8a",
       "5e87dc02d937835e"
     ]
   },
@@ -31,7 +31,7 @@
       "policy": "isolate_inner_apply_outer_key.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"029bd16d63f81a56\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\"",
+        "\"status\":\"applied\",\"rule_hash\":\"805a91b2da339d8a\"",
         "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
       ]
     },
@@ -58,7 +58,7 @@
       "policy": "isolate_inner_apply_outer_key.policy",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"029bd16d63f81a56\"",
-        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\"",
+        "\"status\":\"applied\",\"rule_hash\":\"805a91b2da339d8a\"",
         "\"status\":\"applied\",\"rule_hash\":\"5e87dc02d937835e\""
       ],
       "provenance": {

@@ -10,12 +10,12 @@
       "policy": "isolate_notin_grouped_aggregate.policy",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"f8d8281de48030fe\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"4519f706d2bb3d7b\"",
         "\"failed_constraint\":\"AttrsNonEmpty\""
       ],
       "not_contains": [
         "Falling back to Postgres",
-        "\"status\":\"applied\",\"rule_hash\":\"f8d8281de48030fe\""
+        "\"status\":\"applied\",\"rule_hash\":\"4519f706d2bb3d7b\""
       ]
     }
   ],

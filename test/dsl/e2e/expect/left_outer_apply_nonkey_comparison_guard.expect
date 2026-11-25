@@ -8,10 +8,10 @@
       ],
       "contains": [
         "Optimizer: pg_orca",
-        "DSL_CONSTRAINT_TRACE rule_hash=5fdded19bfafcf9f status=rejected constraint=CorrelationEquality"
+        "DSL_CONSTRAINT_TRACE rule_hash=805a91b2da339d8a status=rejected constraint=CorrelationEquality"
       ],
       "not_contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"5fdded19bfafcf9f\""
+        "\"status\":\"applied\",\"rule_hash\":\"805a91b2da339d8a\""
       ]
     }
   ],
