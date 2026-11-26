@@ -370,12 +370,20 @@ EresAggregateTotalityScope()
 		CExpression *aggregate = CUtils::PexprLogicalGbAggGlobal(mp,
 			GPOS_NEW(mp) CColRefArray(mp), input, list);
 		GPOS_UNITTEST_ASSERT(dslproperties::FQueryDemandInsensitive(aggregate) ==
-			(bounded && validComparison));
-		// The aggregate function alone has no input bound: never promote an
-		// invocation-local COUNT proof to universal ErrorFree(function).
-		GPOS_UNITTEST_ASSERT(!dslproperties::FQueryDemandInsensitive(count));
+			validComparison);
+		// The int4 value domain also bounds an invocation without its input tree.
+		GPOS_UNITTEST_ASSERT(dslproperties::FQueryDemandInsensitive(count) == validComparison);
 		aggregate->Release();
 	}
+	// A bigint DISTINCT argument can exceed the counter unless the input itself is bounded.
+	CColRef *wide = COptCtxt::PoctxtFromTLS()->Pcf()->PcrCreate(
+		COptCtxt::PoctxtFromTLS()->Pmda()->RetrieveType(&CMDIdGPDB::m_mdid_int8), default_type_modifier);
+	CExpression *wideCount = CUtils::PexprCount(mp, wide, true, false);
+	(*wideCount)[EaggfuncIndexDistinct]->PdrgPexpr()->Append(GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSortGroupClause(mp, 0, 410, 412, false, true)));
+	GPOS_UNITTEST_ASSERT(!dslproperties::FScalarTreeProvablyErrorFree(wideCount));
+	GPOS_UNITTEST_ASSERT(dslproperties::FScalarTreeProvablyErrorFree(wideCount, CMaxCard(2)));
+	wideCount->Release();
 	return ok ? GPOS_OK : GPOS_FAILED;
 }
 

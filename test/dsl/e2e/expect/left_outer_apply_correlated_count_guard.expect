@@ -10,13 +10,13 @@
       "contains": [
         "\"status\":\"constraint_rejected\",\"rule_hash\":\"70f44b028e470dae\"",
         "\"failed_constraint\":\"NullOnEmpty\"",
-        "\"status\":\"constraint_rejected\",\"rule_hash\":\"7db5b8002f41d9e7\"",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"78a01eeb9531e7b2\"",
         "\"failed_constraint\":\"ErrorFree\"",
         "Optimizer: pg_orca"
       ],
       "not_contains": [
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
-        "\"status\":\"applied\",\"rule_hash\":\"7db5b8002f41d9e7\"",
+        "\"status\":\"applied\",\"rule_hash\":\"78a01eeb9531e7b2\"",
         "Falling back to Postgres",
         "Xform: CXformLeftOuterApply2LeftOuterJoin"
       ]

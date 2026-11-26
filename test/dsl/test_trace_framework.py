@@ -3737,8 +3737,23 @@ class TraceFrameworkTest(unittest.TestCase):
         pending = None
         suffix = None
         checked = 0
+        revised = None
         for line in (SCRIPT_DIR / 'rules/orca_replacements.rules').read_text().splitlines():
-            if line.startswith('# APPENDED source_sha256='):
+            if line.startswith('# REVISED_TARGET '):
+                self.assertIsNone(pending)
+                self.assertIsNone(revised)
+                revised = re.fullmatch(r'# REVISED_TARGET legacy_hash=[0-9a-f]{16}; preserved_guards=(\d+); '
+                                       r'source_guards_sha256=([0-9a-f]{64})', line)
+                self.assertIsNotNone(revised)
+            elif revised is not None and line and not line.startswith('#'):
+                source, _, clauses = line.split('|')
+                count, digest = revised.groups()
+                prefix = clauses.split(';')[:int(count)]
+                self.assertEqual(len(prefix), int(count))
+                self.assertEqual(hashlib.sha256((source + '|' + ';'.join(prefix)).encode('ascii')).hexdigest(), digest)
+                checked += 1
+                revised = None
+            elif line.startswith('# APPENDED source_sha256='):
                 self.assertIsNone(pending)
                 match = re.fullmatch(
                     r'# APPENDED source_sha256=([0-9a-f]{64}); legacy_hash=[0-9a-f]{16}; added: (.+)', line)
@@ -3890,6 +3905,7 @@ class TraceFrameworkTest(unittest.TestCase):
                 pending = None
                 checked += 1
         self.assertIsNone(pending)
+        self.assertIsNone(revised)
         self.assertGreater(checked, 0)
 
     def test_extraction_derives_residual_dependencies(self) -> None:

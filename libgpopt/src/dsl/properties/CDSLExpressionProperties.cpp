@@ -339,13 +339,10 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 				aggregateInput.Ull() != GPOPT_MAX_CARD &&
 				aggregateInput.Ull() <= static_cast<ULLONG>(gpos::lint_max);
 			const BOOL selectingInteger = FAggFuncProvablyErrorFree(popAgg);
-			// DISTINCT cannot increase COUNT's transitions beyond its input
-			// bound. The argument's equality/order callbacks still need auditing.
-			const BOOL boundedCountAny = boundedCount && popAgg->FCountAny();
+			const BOOL distinctCount = popAgg->FCountAny() && popAgg->IsDistinct();
 			if (!popAgg->FGlobal() || popAgg->FSplit() ||
 				popAgg->AggKind() != EaggfunckindNormal ||
-				(!boundedCount && !selectingInteger) ||
-				(popAgg->IsDistinct() && !selectingInteger && !boundedCountAny) ||
+				(!boundedCount && !selectingInteger && !distinctCount) ||
 				EaggfuncIndexSentinel != pexpr->Arity())
 			{
 				return false;
@@ -354,7 +351,8 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 			// slot. Validate that dormant metadata as well as an active clause.
 			const BOOL hasDistinctClause =
 				(*pexpr)[EaggfuncIndexDistinct]->Arity() != 0;
-			if (hasDistinctClause && !selectingInteger && !boundedCountAny)
+			if ((popAgg->IsDistinct() || hasDistinctClause) &&
+				!selectingInteger && !popAgg->FCountAny())
 			{
 				return false;
 			}
@@ -387,6 +385,11 @@ FScalarTreeProvablyErrorFree(CExpression *pexpr,
 				}
 				const OID typeOid = CMDIdGPDB::CastMdid(typeId)->Oid();
 				if (typeOid != GPDB_INT2 && typeOid != GPDB_INT4 && typeOid != GPDB_INT8)
+				{
+					return false;
+				}
+				// At most 2^32 different non-NULL int2/int4 values can increment COUNT.
+				if (distinctCount && !boundedCount && typeOid == GPDB_INT8)
 				{
 					return false;
 				}

@@ -1,0 +1,51 @@
+{
+  "description": "Bounded DISTINCT count over repeated and missing keys",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformImplementApply",
+        "CXformImplementLeftOuterCorrelatedApply"
+      ],
+      "policy": "isolate_count_leftapply.policy",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"78a01eeb9531e7b2\"",
+        "Optimizer: pg_orca",
+        "Append",
+        "Anti Join"
+      ],
+      "not_contains": [
+        "Xform: CXformLeftOuterApply2LeftOuterJoin",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin",
+      "CXformImplementApply",
+      "CXformImplementLeftOuterCorrelatedApply"
+    ],
+    "policy": "isolate_count_leftapply.policy",
+    "output": [
+      "1,2",
+      "1,2",
+      "2,1",
+      "2,1",
+      "2,1",
+      "3,0",
+      ",0"
+    ],
+    "postgres_output": [
+      "1,2",
+      "1,2",
+      "2,1",
+      "2,1",
+      "2,1",
+      "3,0",
+      ",0"
+    ]
+  }
+}
