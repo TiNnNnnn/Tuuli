@@ -1,0 +1,10 @@
+- rule: '*'
+  enabled: false
+- rule: 70f44b028e470dae
+  enabled: true
+  placement: rbo
+  phase: pre_join
+  effect: changes_join_graph
+  priority: 0
+  order: bottom_up
+  fixpoint: true

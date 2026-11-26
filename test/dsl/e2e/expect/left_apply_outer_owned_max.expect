@@ -1,0 +1,59 @@
+{
+  "description": "An aggregate that reads only the enclosing range variable is evaluated by the outer group",
+  "plans": [
+    {
+      "name": "disabled_native",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ]
+    },
+    {
+      "name": "rbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_rbo.policy",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,",
+      "2,",
+      "3,5"
+    ],
+    "postgres_output": [
+      "1,",
+      "2,",
+      "3,5"
+    ],
+    "off_output": [
+      "1,",
+      "2,",
+      "3,5"
+    ],
+    "plan_outputs": {
+      "rbo": [
+        "1,",
+        "2,",
+        "3,5"
+      ]
+    }
+  }
+}
