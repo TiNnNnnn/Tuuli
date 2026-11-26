@@ -1,0 +1,39 @@
+{
+  "description": "Nested MAX resolves its local payload when the ancestor has a column of the same name",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "900,39",
+      "901,-1",
+      "902,"
+    ],
+    "postgres_output": [
+      "900,39",
+      "901,-1",
+      "902,"
+    ]
+  }
+}
