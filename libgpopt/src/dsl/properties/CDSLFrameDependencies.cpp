@@ -10,6 +10,7 @@
 #include "gpopt/base/CDistributionSpec.h"
 #include "gpopt/operators/CScalarIdent.h"
 #include "gpopt/operators/CScalarSubquery.h"
+#include "gpopt/operators/CScalarSubqueryQuantified.h"
 
 using namespace gpopt;
 
@@ -142,6 +143,8 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 		case COperator::EopScalarSubqueryAll:
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FLogical() ||
 				!(*expr)[1]->Pop()->FScalar()) return false;
+			// The quantified input projects this column before the comparison.
+			reads->Include(CScalarSubqueryQuantified::PopConvert(expr->Pop())->Pcr());
 			break;
 		case COperator::EopScalarIsDistinctFrom:
 			if (2 != expr->Arity() || !(*expr)[0]->Pop()->FScalar() ||

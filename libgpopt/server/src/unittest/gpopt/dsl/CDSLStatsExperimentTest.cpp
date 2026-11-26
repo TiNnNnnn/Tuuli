@@ -1093,6 +1093,14 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 				GPOS_NEW(mp) CWStringConst(GPOS_WSZ_LIT("=")), first));
 		CExpression *value = mode < 2 ? GPOS_NEW(mp) CExpression(mp, subquery, grouped) :
 			GPOS_NEW(mp) CExpression(mp, subquery, grouped, CUtils::PexprScalarIdent(mp, (*cols)[0]));
+		if (mode >= 2)
+		{
+			frame = dslproperties::PcrsFrameReads(mp, value);
+			frame_facts &= nullptr != frame && frame->Size() == 3 &&
+				frame->FMember(first) && frame->FMember((*right_cols)[0]) &&
+				frame->FMember((*cols)[0]);
+			CRefCount::SafeRelease(frame);
+		}
 		get->AddRef();
 		CExpression *wrapped = mode < 2 ? GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CLogicalProject(mp),
 			get, GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp),
