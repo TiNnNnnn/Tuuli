@@ -1059,14 +1059,49 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 		pcrsExpectedSchema->Size() ==
 			pdrgpcrGroup->Size() + pdrgpcrAggOutputs->Size();
 
-	BOOL fColumnsValid = fInputsValid && fSchemaValid &&
-					 pcrsChild->ContainsAll(pcrsGroup) &&
-					 pcrsChild->ContainsAll(pcrsFuncInputs);
+	// A second occurrence of Input has fresh column identities. Only use
+	// its recorded range-variable map, after validating the declared program.
+	const auto copy = m_input_col_maps.find((*pop)[0]);
+	CAutoRef<CColRefArray> liveGroup;
+	CAutoRef<CExpressionArray> liveFunctions;
+	CAutoRef<UlongToColRefMap> groupMap;
+	BOOL fColumnsValid = pcrsChild->ContainsAll(pcrsGroup) && pcrsChild->ContainsAll(pcrsFuncInputs);
+	if (!fColumnsValid && fInputsValid && fSchemaValid && copy != m_input_col_maps.end())
+	{
+		liveGroup = CUtils::PdrgpcrRemap(m_mp, pdrgpcrGroup, copy->second, false);
+		fColumnsValid = FColSetContainsArray(pcrsChild, liveGroup.Value());
+		groupMap = GPOS_NEW(m_mp) UlongToColRefMap(m_mp);
+		for (ULONG i = 0; fColumnsValid && i < pdrgpcrGroup->Size(); ++i)
+		{
+			CColRef *from = (*pdrgpcrGroup)[i];
+			CColRef *to = (*liveGroup.Value())[i];
+			if (from != to)
+			{
+				fColumnsValid = !pcrsSchema->FMember(to);
+				groupMap->Insert(GPOS_NEW(m_mp) ULONG(from->Id()), to);
+			}
+		}
+		pdrgpcrGroup = liveGroup.Value();
+		liveFunctions = GPOS_NEW(m_mp) CExpressionArray(m_mp);
+		for (ULONG i = 0; fColumnsValid && i < pdrgpexprFuncs->Size(); ++i)
+		{
+			CExpression *func = (*pdrgpexprFuncs)[i];
+			if (func->DeriveHasSubquery())
+			{
+				fColumnsValid = false;
+				break;
+			}
+			CExpression *mapped = PexprRemapPredicate(m_mp, func, copy->second);
+			liveFunctions->Append(mapped);
+			fColumnsValid = pcrsChild->ContainsAll(mapped->DeriveUsedColumns());
+		}
+		pdrgpexprFuncs = liveFunctions.Value();
+	}
 	pcrsGroup->Release();
 	pcrsFuncInputs->Release();
 	pcrsExpectedSchema->Release();
 	pcrsSchema->Release();
-	if (!fColumnsValid)
+	if (!fInputsValid || !fSchemaValid || !fColumnsValid)
 	{
 		pexprChild->Release();
 		if (fOwnAggOutputs)
@@ -1096,6 +1131,12 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	// otherwise it was derived for an old child and may no longer be valid.
 	CColRefArray *pdrgpcrMinimal =
 		PdrgpcrMinimalGrouping(psymGroup, psymSchema, pmodel);
+	if (nullptr != pdrgpcrMinimal && nullptr != groupMap.Value())
+	{
+		CColRefArray *mapped = CUtils::PdrgpcrRemap(m_mp, pdrgpcrMinimal, groupMap.Value(), false);
+		pdrgpcrMinimal->Release();
+		pdrgpcrMinimal = mapped;
+	}
 	CExpression *pexprSourceAgg = pmodel->PexprAggBinding(psymSchema);
 	if (nullptr == pdrgpcrMinimal && nullptr != pexprSourceAgg &&
 		COperator::EopLogicalGbAgg == pexprSourceAgg->Pop()->Eopid())
@@ -1144,6 +1185,13 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 	// HAVING is evaluated on aggregate outputs. Resolve the same typed binding
 	// program as Filter, and reject references outside the constructed schema.
 	CExpression *pexprHaving = PexprResolvePredicate(psymHaving, pmodel);
+	if (nullptr != pexprHaving && nullptr != groupMap.Value())
+	{
+		CExpression *mapped = pexprHaving->DeriveHasSubquery() ? nullptr
+			: PexprRemapPredicate(m_mp, pexprHaving, groupMap.Value());
+		pexprHaving->Release();
+		pexprHaving = mapped;
+	}
 	if (nullptr == pexprHaving ||
 		!pexprResult->DeriveOutputColumns()->ContainsAll(pexprHaving->DeriveUsedColumns()))
 	{

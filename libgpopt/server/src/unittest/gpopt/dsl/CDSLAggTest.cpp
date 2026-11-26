@@ -36,6 +36,7 @@
 #include "gpopt/operators/CLogicalGbAgg.h"
 #include "gpopt/operators/CLogicalProject.h"
 #include "gpopt/operators/CLogicalSelect.h"
+#include "gpopt/operators/CLogicalSetOp.h"
 #include "gpopt/operators/CLogicalGbAggDeduplicate.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiApply.h"
 #include "gpopt/operators/CLogicalLeftAntiSemiJoin.h"
@@ -343,6 +344,50 @@ EresAggregatePlanMetadata()
 	return GPOS_OK;
 }
 
+// Grouping keys make the output unique. UNION DISTINCT of two copies also
+// exercises distinct range variables for the keys, aggregate arguments and HAVING.
+static GPOS_RESULT
+EresAggregateCopiedInput()
+{
+	CAutoMemoryPool amp;
+	CMemoryPool *mp = amp.Pmp();
+	CDSLTestFixture fix(mp);
+	CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp,
+		"Agg<a0 a1 a2 f0 s0 p0>(Input<t0>)|Union*<a3 s1 a4 a5>("
+		"Agg<a6 a7 a8 f1 s2 p1>(Input<t1>),Agg<a9 a10 a11 f2 s3 p2>(Input<t2>))|"
+		"t1 := t0;t2 := t0;a6 := a0;a9 := a0;a7 := a1;a10 := a1;"
+		"a8 := a2;a11 := a2;f1 := f0;f2 := f0;s2 := s0;s3 := s0;p1 := p0;p2 := p0;"
+		"AttrsUnion(a3,a0,a2);SchemaFromAttrs(s1,a3);a4 := a3;a5 := a3"));
+	GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+	CExpression *get, *group;
+	CColRefArray *inputs;
+	CColRef *aggOutput;
+	BuildRealGbAgg(fix, &get, &group, &inputs, &aggOutput);
+	CAutoRef<CExpression> ownerGet(get), ownerGroup(group), having(fix.PexprPredAtom((*inputs)[0]));
+	CAutoRef<CExpression> source(fix.PexprLogicalSelect(group, having.Value()));
+	CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+	GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(rule->PfragSrc()->PopRoot(), source.Value(), model.Value()));
+	GPOS_UNITTEST_ASSERT(CDSLConstraintChecker(mp).FCheck(rule.Value(), model.Value()));
+	CDSLInstantiator inst(mp);
+	CAutoRef<CExpression> target(inst.PexprInstantiate(rule.Value(), model.Value()));
+	GPOS_UNITTEST_ASSERT(nullptr != target.Value() && target->Pop()->Eopid() == COperator::EopLogicalUnion);
+	auto *ports = CLogicalSetOp::PopConvert(target->Pop())->PdrgpdrgpcrInput();
+	CExpression *rhs = (*target)[1];
+	GPOS_UNITTEST_ASSERT(rhs->Pop()->Eopid() == COperator::EopLogicalProject);
+	GPOS_UNITTEST_ASSERT((*ports)[1]->Size() == 2);
+	for (ULONG i = 0; i < (*ports)[1]->Size(); ++i)
+		GPOS_UNITTEST_ASSERT((*rhs)[1]->DeriveDefinedColumns()->FMember((*(*ports)[1])[i]));
+	CExpression *select = (*rhs)[0];
+	GPOS_UNITTEST_ASSERT(select->Pop()->Eopid() == COperator::EopLogicalSelect);
+	CExpression *agg = (*select)[0];
+	GPOS_UNITTEST_ASSERT(agg->Pop()->Eopid() == COperator::EopLogicalGbAgg);
+	CColRef *key = (*CLogicalGbAgg::PopConvert(agg->Pop())->Pdrgpcr())[0];
+	GPOS_UNITTEST_ASSERT(key != (*inputs)[0] && (*select)[1]->DeriveUsedColumns()->FMember(key));
+	GPOS_UNITTEST_ASSERT(!(*agg)[1]->DeriveUsedColumns()->FMember((*inputs)[1]) &&
+		(*agg)[0]->DeriveOutputColumns()->ContainsAll((*agg)[1]->DeriveUsedColumns()));
+	return GPOS_OK;
+}
+
 static GPOS_RESULT
 EresAggregateIdentityMetadata()
 {
@@ -543,6 +588,7 @@ CDSLAggTest::EresUnittest()
 		GPOS_UNITTEST_FUNC(EresNamedAggregateStage),
 		GPOS_UNITTEST_FUNC(EresAggregatePlanMetadata),
 		GPOS_UNITTEST_FUNC(EresAggregateIdentityMetadata),
+		GPOS_UNITTEST_FUNC(EresAggregateCopiedInput),
 		GPOS_UNITTEST_FUNC(EresAggregateExpressionBindings),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchBindsDedupGbAgg),
 		GPOS_UNITTEST_FUNC(CDSLAggTest::EresUnittest_MatchSplitDedupInput),

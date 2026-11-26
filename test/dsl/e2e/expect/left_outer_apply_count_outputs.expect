@@ -1,0 +1,34 @@
+{
+  "description": "Correlated COUNT preserves the raw aggregate, its alias, and the compensated result for unmatched rows",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,1,1,1",
+      "2,1,1,1",
+      "3,0,0,0"
+    ],
+    "postgres_output": [
+      "1,1,1,1",
+      "2,1,1,1",
+      "3,0,0,0"
+    ]
+  }
+}

@@ -76,6 +76,33 @@ FNullScalarConst(const CExpression *pexpr)
 		CScalarConst::PopConvert(pexpr->Pop())->GetDatum()->IsNull();
 }
 
+// Publish fresh SetOp input ports while retaining the aggregate subtree and its memo identity.
+CColRefArray *
+PdrgpcrAliasSetOpChild(CMemoryPool *mp, CExpression *&child, CColRefArray *input)
+{
+	CColumnFactory *factory = COptCtxt::PoctxtFromTLS()->Pcf();
+	CAutoRef<UlongToColRefMap> aliases(GPOS_NEW(mp) UlongToColRefMap(mp));
+	CExpressionArray *items = GPOS_NEW(mp) CExpressionArray(mp);
+	CColRefArray *ports = GPOS_NEW(mp) CColRefArray(mp);
+	for (ULONG i = 0; i < input->Size(); ++i)
+	{
+		CColRef *source = (*input)[i];
+		ULONG id = source->Id();
+		CColRef *alias = aliases->Find(&id);
+		if (nullptr == alias)
+		{
+			alias = factory->PcrCreate(source->RetrieveType(), source->TypeModifier());
+			aliases->Insert(GPOS_NEW(mp) ULONG(id), alias);
+			items->Append(CUtils::PexprScalarProjectElement(mp, alias,
+				CUtils::PexprScalarIdent(mp, source)));
+		}
+		ports->Append(alias);
+	}
+	child = CUtils::PexprLogicalProject(mp, child,
+		GPOS_NEW(mp) CExpression(mp, GPOS_NEW(mp) CScalarProjectList(mp), items), true);
+	return ports;
+}
+
 // Freshen a branch without turning a scan column into a computed column.
 // Repeated positions keep the same identity within this branch.
 CColRefArray *
@@ -643,17 +670,20 @@ CDSLInstantiator::PexprBuildUnion(const CDSLOp *pop,
 						freshen_right |= input == (*pdrgpcrAttrs)[i];
 				}
 			}
-			// Keep the existing ban on deep-remapping memo-derived aggregates:
-			// their Local/Global xform provenance cannot be copied with columns.
-			valid &= !freshen_right || !FContainsGbAgg(pexprRight);
+			const BOOL aliasAggregate = valid && freshen_right && FContainsGbAgg(pexprRight);
+			// A source SetOp with overlapping input identities may map them to different
+			// positions. An alias on its rebuilt branch cannot resolve that ambiguity.
+			if (aliasAggregate && nullptr != pdrgpexprBindings && 0 != pdrgpexprBindings->Size())
+				valid = false;
 			if (valid)
 			{
 				// Explicit projections can restore the same schema in both
 				// branches; ORCA requires fresh identities in non-first inputs.
 				if (freshen_right)
 				{
-					CColRefArray *fresh = PdrgpcrFreshenSetOpChild(
-						m_mp, pexprRight, rgpdrgpcrInput[1]);
+					CColRefArray *fresh = aliasAggregate
+						? PdrgpcrAliasSetOpChild(m_mp, pexprRight, rgpdrgpcrInput[1])
+						: PdrgpcrFreshenSetOpChild(m_mp, pexprRight, rgpdrgpcrInput[1]);
 					rgpexprTarget[1] = pexprRight;
 					rgpdrgpcrInput[1]->Release();
 					rgpdrgpcrInput[1] = fresh;
