@@ -1,0 +1,53 @@
+{
+  "description": "Preserve scalar NULL when HAVING rejects the matched group of a correlated COUNT",
+  "plans": [
+    {
+      "name": "native",
+      "dsl": false,
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "dsl",
+      "contains": [
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "output": [
+      "1,2",
+      "1,2",
+      "2,",
+      "2,",
+      "2,",
+      "3,0",
+      ",0"
+    ],
+    "postgres_output": [
+      "1,2",
+      "1,2",
+      "2,",
+      "2,",
+      "2,",
+      "3,0",
+      ",0"
+    ],
+    "off_output": [
+      "1,2",
+      "1,2",
+      "2,",
+      "2,",
+      "2,",
+      "3,0",
+      ",0"
+    ]
+  }
+}
