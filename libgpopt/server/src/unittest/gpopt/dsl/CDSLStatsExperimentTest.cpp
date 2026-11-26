@@ -32,6 +32,8 @@
 #include "naucrates/traceflags/traceflags.h"
 #include "gpopt/operators/CScalarConst.h"
 #include "gpopt/operators/CScalarCast.h"
+#include "gpopt/operators/CScalarCoalesce.h"
+#include "gpopt/operators/CScalarSortGroupClause.h"
 #include "gpopt/operators/CScalarFunc.h"
 #include "gpopt/operators/CScalarOp.h"
 #include "naucrates/md/CMDIdGPDB.h"
@@ -1037,6 +1039,22 @@ CDSLStatsExperimentTest::EresUnittest_PlanTemplateContext()
 		CRefCount::SafeRelease(frame);
 		cast->Release();
 	}
+	IMDId *coalesce_type = (*cols)[0]->RetrieveType()->MDId();
+	coalesce_type->AddRef();
+	CExpression *coalesce = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarCoalesce(mp, coalesce_type),
+		CUtils::PexprScalarIdent(mp, (*cols)[0]), CUtils::PexprScalarIdent(mp, (*right_cols)[0]));
+	frame = dslproperties::PcrsFrameReads(mp, coalesce);
+	frame_facts &= nullptr != frame && 2 == frame->Size() &&
+		frame->FMember((*cols)[0]) && frame->FMember((*right_cols)[0]);
+	CRefCount::SafeRelease(frame);
+	coalesce->Release();
+	CExpression *clause = GPOS_NEW(mp) CExpression(mp,
+		GPOS_NEW(mp) CScalarSortGroupClause(mp, 0, 96, 97, false, true));
+	frame = dslproperties::PcrsFrameReads(mp, clause);
+	frame_facts &= nullptr != frame && 0 == frame->Size();
+	CRefCount::SafeRelease(frame);
+	clause->Release();
 	CExpression *grouped = fixture.PexprLogicalGbAgg(right, right_cols,
 		first, (*right_cols)[0]);
 	binding_facts &= CDSLPlanTemplate::FSlice(mp, grouped, "r", {"r/0"},

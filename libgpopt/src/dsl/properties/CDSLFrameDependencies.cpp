@@ -27,6 +27,8 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 		case COperator::EopLogicalConstTableGet:
 			return 0 == expr->Arity(); // Closed relations, not reads of their outputs.
 		case COperator::EopScalarConst:
+		case COperator::EopScalarSortGroupClause:
+			// A sort/group reference indexes the argument list, not the frame.
 			return 0 == expr->Arity();
 		case COperator::EopScalarIdent:
 			if (0 != expr->Arity()) return false;
@@ -36,6 +38,12 @@ FCollectFrameReads(CExpression *expr, CColRefSet *reads)
 			// A cast observes its sole argument in the same environment. This
 			// footprint says nothing about cast totality or runtime errors.
 			if (1 != expr->Arity() || !(*expr)[0]->Pop()->FScalar()) return false;
+			break;
+		case COperator::EopScalarCoalesce:
+			// Any argument may be reached, all in the caller's frame.
+			if (0 == expr->Arity()) return false;
+			for (ULONG i = 0; i < expr->Arity(); ++i)
+				if (!(*expr)[i]->Pop()->FScalar()) return false;
 			break;
 		case COperator::EopLogicalGbAgg:
 		{
