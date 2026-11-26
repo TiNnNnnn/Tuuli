@@ -1,0 +1,48 @@
+{
+  "description": "Expanded MAX handles HAVING TRUE, FALSE and UNKNOWN and preserves duplicate left rows",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,20,1",
+      "1,20,1",
+      "2,,",
+      "3,,"
+    ],
+    "postgres_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,,",
+      "3,,"
+    ],
+    "off_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,,",
+      "3,,"
+    ]
+  }
+}
