@@ -13,9 +13,9 @@
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
       ],
-      "memo_frame_columns": {
-        "70f44b028e470dae": []
-      },
+      "memo_root_frame": [
+        "70f44b028e470dae"
+      ],
       "provenance": {
         "required_sources": [
           "dsl"

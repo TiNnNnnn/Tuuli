@@ -3,7 +3,7 @@
 from collections import defaultdict
 
 
-def memo_frame_columns(records, rule_hash, candidate_sequence=None):
+def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_root_frame=False):
     def of(kind):
         return [r for r in records if r["kind"] == kind]
 
@@ -99,6 +99,9 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None):
             if parent not in reachable:
                 continue
             if op in ("CLogicalInnerJoin", "CLogicalLeftOuterJoin", "CLogicalRightOuterJoin") and port < 2:
+                # Even a zero-column sibling can introduce a row frame.
+                if require_root_frame:
+                    raise ValueError("candidate may enter a different frame from the Memo root")
                 sibling = groups[children[1 - port]]["output"]
                 if sibling is None:
                     raise ValueError("missing sibling row schema")

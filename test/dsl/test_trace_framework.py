@@ -45,6 +45,13 @@ class ReplacementProtocolTest(unittest.TestCase):
                             "group_expression": i, "operator": op}
                            for i, (op, _) in enumerate(alts) if op.startswith("CLogical"))
         self.assertEqual(memo_frame_columns(records, rule, 1), columns)
+        empty_siblings = deepcopy(records)
+        for record in empty_siblings:
+            if record["kind"] == "memo_scope_group" and record["group"] in (2, 3):
+                record["output"] = []
+        self.assertEqual(memo_frame_columns(empty_siblings, rule), [])
+        with self.assertRaisesRegex(ValueError, "different frame"):
+            memo_frame_columns(empty_siblings, rule, require_root_frame=True)
         merged = deepcopy(records)
         merged[0].update(groups=6, duplicate_groups=1)
         self.assertEqual(memo_frame_columns(merged, rule, 1), columns)

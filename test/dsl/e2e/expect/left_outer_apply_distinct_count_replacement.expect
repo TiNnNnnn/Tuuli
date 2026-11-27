@@ -3,6 +3,7 @@
   "plans": [
     {
       "name": "replacement",
+      "memo_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftOuterApply2LeftOuterJoin",
@@ -10,6 +11,7 @@
         "CXformImplementLeftOuterCorrelatedApply"
       ],
       "policy": "isolate_count_leftapply.policy",
+      "stats_experiment": "capture_rule_bindings.yaml",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
         "Optimizer: pg_orca",
@@ -19,6 +21,9 @@
       "not_contains": [
         "Xform: CXformLeftOuterApply2LeftOuterJoin",
         "Falling back to Postgres"
+      ],
+      "memo_root_frame": [
+        "956880d04ef6f242"
       ]
     }
   ],

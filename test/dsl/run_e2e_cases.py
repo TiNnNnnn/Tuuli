@@ -518,10 +518,11 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
                                         {**evidence, "byteorder": abi["byteorder"]}, path)
         else:
             scoped = {}
-            if occurrence["rule_hash"] in expected.get("memo_frame_columns", {}):
+            root_frame = occurrence["rule_hash"] in expected.get("memo_root_frame", [])
+            if root_frame or occurrence["rule_hash"] in expected.get("memo_frame_columns", {}):
                 from memo_scope import memo_frame_columns
-                scoped["frame_columns"] = memo_frame_columns(records, occurrence["rule_hash"],
-                                                            occurrence["candidate_sequence"])
+                scoped["frame_columns"] = memo_frame_columns(
+                    records, occurrence["rule_hash"], occurrence["candidate_sequence"], require_root_frame=root_frame)
             check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
                                   lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
                                   observe_compute=observation == "all_source_outputs", **scoped,
@@ -646,15 +647,23 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
             c["source_bindings"].get("complete") is True and
             source_binding_matches(c["source_bindings"], p["symbols"]) == p["symbols"]
             for c in contexts)]
-    if "memo_frame_columns" in expected:
+    if "memo_frame_columns" in expected or "memo_root_frame" in expected:
         import ml_orca_test_support
         from ml_orca.collect.run_workload_comparison import trace_records
         from memo_scope import memo_frame_columns
         records = trace_records(output)
-        requested = expected["memo_frame_columns"]
-        if not isinstance(requested, dict) or not requested:
-            raise ValueError("memo_frame_columns requires at least one rule identity")
-        actual["memo_frame_columns"] = {rule: memo_frame_columns(records, rule) for rule in requested}
+        if "memo_frame_columns" in expected:
+            requested = expected["memo_frame_columns"]
+            if not isinstance(requested, dict) or not requested:
+                raise ValueError("memo_frame_columns requires at least one rule identity")
+            actual["memo_frame_columns"] = {rule: memo_frame_columns(records, rule) for rule in requested}
+        if "memo_root_frame" in expected:
+            requested = expected["memo_root_frame"]
+            if not isinstance(requested, list) or not requested or not all(isinstance(rule, str) for rule in requested):
+                raise ValueError("memo_root_frame requires rule identities")
+            for rule in requested:
+                memo_frame_columns(records, rule, require_root_frame=True)
+            actual["memo_root_frame"] = requested
     if "provenance" in expected:
         records = memo_provenance(output)
         sources = {record.get("source") for record in records}
