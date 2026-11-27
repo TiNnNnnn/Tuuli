@@ -146,15 +146,12 @@ CDSLInstantiator::PexprBuildFilterPredicate(
 		CColRefSet *pcrsDeclared = GPOS_NEW(m_mp) CColRefSet(m_mp);
 		for (ULONG ulPart = 1; ulPart < pdrgpsymTarget->Size(); ulPart++)
 		{
+			BOOL implicit = false;
 			CColRefArray *pdrgpcrPart = PdrgpcrResolveCols(
-				PsymResolve((*pdrgpsymTarget)[ulPart]), pmodel);
+				(*pdrgpsymTarget)[ulPart], pmodel, 0, &implicit);
 			if (nullptr == pdrgpcrPart)
 			{
-				const CDSLSymbol *psymPart =
-					PsymResolve((*pdrgpsymTarget)[ulPart]);
-				if (2 != pdrgpsymTarget->Size() ||
-					EdslsideTarget != psymPart->Eside() ||
-					nullptr != m_prule->Pexprdefs()->Pdef(psymPart))
+				if (2 != pdrgpsymTarget->Size() || !implicit)
 				{
 					pcrsDeclared->Release();
 					pexprDerived->Release();

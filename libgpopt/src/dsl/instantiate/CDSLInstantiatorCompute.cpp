@@ -172,18 +172,19 @@ CDSLInstantiator::PexprBuildCompute(const CDSLOp *pop,
 	const CDSLSymbol *psymAttrs = PsymResolve((*pop->Pdrgpsym())[1]);
 	const CDSLSymbol *psymSchema = PsymResolve((*pop->Pdrgpsym())[2]);
 	CExpression *pexprList = PexprResolveExpr(psymExpr, pmodel);
+	BOOL implicitAttrs = false, implicitSchema = false;
 	CColRefArray *pdrgpcrAttrs =
-		PdrgpcrResolveCols(psymAttrs, pmodel);
+		PdrgpcrResolveCols(psymAttrs, pmodel, 0, &implicitAttrs);
 	CColRefArray *pdrgpcrSchema =
-		PdrgpcrResolveCols(psymSchema, pmodel);
+		PdrgpcrResolveCols(psymSchema, pmodel, 0, &implicitSchema);
 	BOOL fOwnAttrs = false;
 	BOOL fOwnSchema = false;
-	if (nullptr != pexprList && nullptr == pdrgpcrAttrs)
+	if (nullptr != pexprList && implicitAttrs)
 	{
 		pdrgpcrAttrs = pexprList->DeriveUsedColumns()->Pdrgpcr(m_mp);
 		fOwnAttrs = true;
 	}
-	if (nullptr != pexprList && nullptr == pdrgpcrSchema &&
+	if (nullptr != pexprList && implicitSchema &&
 		COperator::EopScalarProjectList == pexprList->Pop()->Eopid())
 	{
 		pdrgpcrSchema = GPOS_NEW(m_mp) CColRefArray(m_mp);

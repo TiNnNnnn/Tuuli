@@ -130,7 +130,7 @@ private:
 	CExpression *PexprResolveLegacyPredicate(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
 	CColRefArray *PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
-		const CDSLModel *pmodel, ULONG ulDepth) const;
+		const CDSLModel *pmodel, ULONG ulDepth, BOOL *implicit = nullptr) const;
 	CExpression *PexprResolveLegacyExpr(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
 
@@ -165,16 +165,12 @@ private:
 
 	// Takes ownership and returns the cached vector borrowed by column consumers.
 	CColRefArray *PdrgpcrCacheColumns(const CDSLSymbol *symbol, CColRefArray *columns) const;
-	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
-	// ordered subset, AttrsUnion a stable duplicate-free union, AttrsEmpty
-	// materializes a target-only empty attrs vector, and OutputAttrs derives the
-	// complete output vector of a keyed relation. SchemaFromAttrs explicitly
-	// carries a resolved attrs vector into the schema namespace.
 	CColRefArray *PdrgpcrFromColumnConstraint(const CDSLConstraint *constraint,
 		const CDSLSymbol *symbol, const CDSLModel *model, ULONG depth) const;
+	// On a missing vector, implicit is true only for an undeclared target slot.
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,
 									 const CDSLModel *pmodel,
-									 ULONG ulDepth = 0) const;
+									 ULONG ulDepth = 0, BOOL *implicit = nullptr) const;
 
 	// Materialize child-dependent minimal grouping metadata when the rule
 	// explicitly declares MinimalGrouping(group,schema). Returns an owned array,

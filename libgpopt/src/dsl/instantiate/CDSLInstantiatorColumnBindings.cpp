@@ -22,8 +22,9 @@ CDSLInstantiator::PdrgpcrCacheColumns(const CDSLSymbol *psym, CColRefArray *colu
 CColRefArray *
 CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 									const CDSLModel *pmodel,
-									ULONG ulDepth) const
+									ULONG ulDepth, BOOL *implicit) const
 {
+	if (nullptr != implicit) *implicit = false;
 	if (nullptr == psym || nullptr == m_prule ||
 		ulDepth > m_prule->Pdrgpcon()->Size() + m_prule->Pexprdefs()->UlDefinitions())
 	{
@@ -137,7 +138,7 @@ CDSLInstantiator::PdrgpcrResolveCols(const CDSLSymbol *psym,
 		columns->Append(column);
 		return PdrgpcrCacheColumns(psym, columns);
 	}
-	return PdrgpcrFromLegacyEquality(psym, pmodel, ulDepth);
+	return PdrgpcrFromLegacyEquality(psym, pmodel, ulDepth, implicit);
 }
 
 CColRefArray *

@@ -14,6 +14,7 @@
 #include "gpopt/operators/CPredicateUtils.h"
 
 #include "gpos/base.h"
+#include "gpos/common/CAutoRef.h"
 #include "gpos/memory/CAutoMemoryPool.h"
 #include "gpos/string/CWStringDynamic.h"
 #include "gpos/test/CUnittest.h"
@@ -770,6 +771,24 @@ CDSLProjTest::EresUnittest_ComputeExactRoundTrip()
 		{
 			eres = GPOS_FAILED;
 		}
+	}
+
+	// Column requires one attribute. An explicitly declared footprint must
+	// resolve even when the target's SELECT list already has known dependencies.
+	for (BOOL use_input_row : {false, true})
+	{
+		std::string text = "Compute<e0 a0 s0>(Input<t0>)|Compute<e1 a1 s1>(Input<t1>)|"
+			"t1 := t0;e1 := e0;s1 := s0;a1 := ScalarDeps(n0);";
+		text += use_input_row ? "OutputAttrs(a2,t0);n0 := Column(a2)" : "n0 := Column(a0)";
+		CAutoRef<CDSLRule> rule(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != rule.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, rule.Value()).FMatch(
+			rule->PfragSrc()->PopRoot(), pexprProject, model.Value()));
+		GPOS_UNITTEST_ASSERT(checker.FCheck(rule.Value(), model.Value()));
+		CDSLInstantiator inst(mp);
+		CAutoRef<CExpression> target(inst.PexprInstantiate(rule.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT((nullptr == target.Value()) == use_input_row);
 	}
 
 	CRefCount::SafeRelease(pexprTarget);

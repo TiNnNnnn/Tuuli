@@ -351,8 +351,9 @@ CDSLInstantiator::PexprResolveLegacyPredicate(const CDSLSymbol *psym, const CDSL
 
 CColRefArray *
 CDSLInstantiator::PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
-	const CDSLModel *pmodel, ULONG ulDepth) const
+	const CDSLModel *pmodel, ULONG ulDepth, BOOL *implicit) const
 {
+	BOOL hasEquality = false;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
 	// An equality may name another target-side value that is itself derived
 	// (for example, a Union input row equal to its derived output row).
@@ -373,6 +374,7 @@ CDSLInstantiator::PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
 		{
 			if ((*pcon->Pdrgpsym())[side] == psym)
 			{
+				hasEquality = true;
 				CColRefArray *pdrgpcrPeer = PdrgpcrResolveCols(
 					(*pcon->Pdrgpsym())[1 - side], pmodel, ulDepth + 1);
 				if (nullptr != pdrgpcrPeer)
@@ -382,6 +384,8 @@ CDSLInstantiator::PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
 			}
 		}
 	}
+	// Only an undeclared target slot may inherit metadata from its operator.
+	if (nullptr != implicit) *implicit = !hasEquality && EdslsideTarget == psym->Eside();
 	return nullptr;
 }
 
