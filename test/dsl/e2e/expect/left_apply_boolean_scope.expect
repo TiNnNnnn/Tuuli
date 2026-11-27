@@ -1,0 +1,79 @@
+{
+  "description": "A boolean operand enclosing a correlated subquery preserves its input row",
+  "plans": [
+    {
+      "name": "replacement",
+      "xform_trace": true,
+      "memo_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_boolean_scope.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_enclosing_source_path": "auto",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "memo_frame_columns": {
+        "70f44b028e470dae": [
+          {
+            "id": 0,
+            "type": "0.23.1.0",
+            "typmod": -1
+          }
+        ]
+      },
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "0,t",
+      "1,t",
+      "2,",
+      "3,"
+    ],
+    "postgres_output": [
+      "0,t",
+      "1,t",
+      "2,",
+      "3,"
+    ],
+    "off_output": [
+      "0,t",
+      "1,t",
+      "2,",
+      "3,"
+    ]
+  }
+}

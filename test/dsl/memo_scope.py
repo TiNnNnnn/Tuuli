@@ -122,6 +122,11 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_r
                 if (len(children) < 2 or (len(children) != 2 and op not in ("CLogicalUnion", "CLogicalUnionAll"))
                         or any(groups[g]["output"] is None for g in children)):
                     raise ValueError(f"invalid SetOp operands at {op}")
+            elif op in ("CScalarBoolOp", "CScalarNullTest", "CScalarBooleanTest"):
+                # Boolean operators and truth tests evaluate operands in the same row.
+                if ((op != "CScalarBoolOp" and len(children) != 1)
+                        or any(groups[g]["output"] is not None for g in children)):
+                    raise ValueError("expected scalar boolean operands")
             elif not (
                 (port == 0 and (op in _APPLY or op in ("CLogicalProject", "CLogicalSelect", "CLogicalLimit", "CLogicalGbAgg")))
                 or (port == 0 and op in ("CScalarSubquery", "CScalarSubqueryAny", "CScalarSubqueryAll",
