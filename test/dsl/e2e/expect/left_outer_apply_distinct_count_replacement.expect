@@ -11,7 +11,7 @@
       ],
       "policy": "isolate_count_leftapply.policy",
       "contains": [
-        "\"status\":\"applied\",\"rule_hash\":\"78a01eeb9531e7b2\"",
+        "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
         "Optimizer: pg_orca",
         "Append",
         "Anti Join"

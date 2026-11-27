@@ -194,7 +194,9 @@ CScaleFactorUtils::CalcCumulativeScaleFactorSqrtAlg(
 	for (ULONG ul = 0; ul < independent_join_preds->Size(); ul++)
 	{
 		CDouble local_scale_factor = *(*independent_join_preds)[ul];
-		cumulative_scale_factor = cumulative_scale_factor * local_scale_factor;
+		// A fractional row estimate from a missing histogram can imply selectivity above one.
+		cumulative_scale_factor =
+			cumulative_scale_factor * std::max(1.0, local_scale_factor.Get());
 	}
 
 	return cumulative_scale_factor;
@@ -296,7 +298,7 @@ CScaleFactorUtils::CumulativeJoinScaleFactor(
 		// columns (ignore non-equi joins for a moment). We know that this NDV
 		// cannot exceed the cardinality of the larger of the tables.
 		cumulative_scale_factor = std::min(cumulative_scale_factor.Get(),
-										   limit_for_result_scale_factor.Get());
+										   std::max(1.0, limit_for_result_scale_factor.Get()));
 
 		independent_join_preds->Release();
 		scale_factor_hashmap->Release();

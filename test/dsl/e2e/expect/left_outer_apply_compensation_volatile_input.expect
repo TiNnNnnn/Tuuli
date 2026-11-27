@@ -1,0 +1,40 @@
+{
+  "description": "Duplicating a volatile left input must be rejected before creating either compensation branch",
+  "plans": [
+    {
+      "name": "guard",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_count_leftapply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"956880d04ef6f242\"",
+        "\"failed_constraint\":\"Deterministic\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_count_leftapply.policy",
+    "output": [
+      "1,t,20",
+      "1,t,20",
+      "2,t,",
+      "3,t,"
+    ],
+    "postgres_output": [
+      "1,t,20",
+      "1,t,20",
+      "2,t,",
+      "3,t,"
+    ]
+  }
+}

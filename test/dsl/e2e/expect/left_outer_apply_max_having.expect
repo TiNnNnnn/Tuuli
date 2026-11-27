@@ -50,6 +50,26 @@
           }
         }
       ]
+    },
+    {
+      "name": "compensation",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin",
+        "CXformImplementApply",
+        "CXformImplementLeftOuterCorrelatedApply"
+      ],
+      "policy": "isolate_count_leftapply.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
+        "Append",
+        "Anti Join"
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "Xform: CXformLeftOuterApply2LeftOuterJoin"
+      ]
     }
   ],
   "rows": {
@@ -76,6 +96,12 @@
     ],
     "plan_outputs": {
       "rbo": [
+        "1,20,1",
+        "1,20,1",
+        "2,,",
+        "3,,"
+      ],
+      "compensation": [
         "1,20,1",
         "1,20,1",
         "2,,",
