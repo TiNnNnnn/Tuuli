@@ -211,6 +211,7 @@ SET pg_orca.dphyper_edge_budget={edge_budget};
 SET pg_orca.dphyper_pair_budget={pair_budget};
 {native_setting(bool(plan.get('native', True)))}
 {disabled_xform_settings(plan, args.disable_xform)}
+{bool_guc_setting('optimizer_print_memo_after_optimization', plan.get('memo_trace'), False)}
 SET optimizer_print_xform={xform_trace};
 SET optimizer_print_xform_results={xform_trace};
 SET pg_orca.trace_dsl_rule={trace};
@@ -535,7 +536,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
     actual = {
         key: expected[key]
         for key in (
-            "name", "dsl", "xform_trace", "dphyper", "dphyper_edge_budget",
+            "name", "dsl", "xform_trace", "memo_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose", "debug_plan",
             "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "outer_join_reduction", "native_observation",
             "native_equivalence_mode", "execution_observation"

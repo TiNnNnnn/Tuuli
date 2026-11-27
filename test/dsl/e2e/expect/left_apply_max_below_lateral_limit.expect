@@ -30,6 +30,33 @@
           }
         }
       ]
+    },
+    {
+      "name": "cbo",
+      "memo_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "capture_rule_bindings.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "MEMO after optimization",
+        "CLogicalRightOuterJoin"
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "symbols": [
+            {
+              "symbol": "f0",
+              "kind": "f"
+            }
+          ]
+        }
+      ]
     }
   ],
   "rows": {
@@ -59,6 +86,13 @@
       "2,3,,"
     ],
     "plan_outputs": {
+      "cbo": [
+        "1,1,20,1",
+        "1,1,20,1",
+        "1,2,,",
+        "2,2,,",
+        "2,3,,"
+      ],
       "rbo": [
         "1,1,20,1",
         "1,1,20,1",

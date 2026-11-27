@@ -1,0 +1,5 @@
+- rule: '*'
+  enabled: false
+- rule: 70f44b028e470dae
+  enabled: true
+  placement: cbo
