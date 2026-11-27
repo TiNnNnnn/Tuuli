@@ -1,0 +1,47 @@
+{
+  "description": "Key 3 is absent from the left input; evaluating its aggregate would divide by zero",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"failed_constraint\":\"ErrorFree\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,20",
+      "2,",
+      "2,",
+      "4,"
+    ],
+    "postgres_output": [
+      "1,20",
+      "2,",
+      "2,",
+      "4,"
+    ],
+    "off_output": [
+      "1,20",
+      "2,",
+      "2,",
+      "4,"
+    ]
+  }
+}
