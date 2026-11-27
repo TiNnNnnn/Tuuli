@@ -1,0 +1,6 @@
+experiment: bound-parents
+template_route: 4
+template_fingerprint: b8d90418551001eb
+template_root: r
+template_bindings: true
+cardinalities:

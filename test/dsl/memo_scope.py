@@ -13,6 +13,9 @@ _APPLY = {
     "CLogicalLeftAntiSemiApplyNotIn", "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
 }
 
+_SET = {"CLogicalUnion", "CLogicalUnionAll", "CLogicalIntersect", "CLogicalIntersectAll",
+        "CLogicalDifference", "CLogicalDifferenceAll"}
+
 
 def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_root_frame=False):
     def of(kind):
@@ -114,6 +117,11 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_r
                 frame = children[1 - port]
             elif (op in _APPLY or op in ("CLogicalProject", "CLogicalSelect")) and port == 1:
                 frame = children[0]
+            elif op in _SET:
+                # Each relational operand inherits the parent's environment.
+                if (len(children) < 2 or (len(children) != 2 and op not in ("CLogicalUnion", "CLogicalUnionAll"))
+                        or any(groups[g]["output"] is None for g in children)):
+                    raise ValueError(f"invalid SetOp operands at {op}")
             elif not (
                 (port == 0 and (op in _APPLY or op in ("CLogicalProject", "CLogicalSelect", "CLogicalLimit", "CLogicalGbAgg")))
                 or (port == 0 and op in ("CScalarSubquery", "CScalarSubqueryAny", "CScalarSubqueryAll",

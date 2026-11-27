@@ -45,6 +45,18 @@ class ReplacementProtocolTest(unittest.TestCase):
                             "group_expression": i, "operator": op}
                            for i, (op, _) in enumerate(alts) if op.startswith("CLogical"))
         self.assertEqual(memo_frame_columns(records, rule, 1), columns)
+        # One path through a set contributes no row; the other path still crosses a join.
+        mixed = deepcopy(records)
+        root = next(r for r in mixed if r["kind"] == "memo_scope_group" and r["root"])
+        root["alternatives"][0].update(operator="CLogicalUnionAll", children=[2, 3, 1])
+        next(r for r in mixed if r["kind"] == "memo_alternative" and r["group"] == 0
+             and r["group_expression"] == 0)["operator"] = "CLogicalUnionAll"
+        self.assertEqual(memo_frame_columns(mixed, rule), columns[1:])
+        with self.assertRaisesRegex(ValueError, "different frame"):
+            memo_frame_columns(mixed, rule, require_root_frame=True)
+        root["alternatives"][0]["children"][0] = 4
+        with self.assertRaisesRegex(ValueError, "invalid SetOp operands"):
+            memo_frame_columns(mixed, rule)
         empty_siblings = deepcopy(records)
         for record in empty_siblings:
             if record["kind"] == "memo_scope_group" and record["group"] in (2, 3):
