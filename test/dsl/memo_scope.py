@@ -24,6 +24,7 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None):
     alternatives = {}
     logical = set()
     parents = defaultdict(list)
+    producers = defaultdict(set)
     for group, record in groups.items():
         for expr in record["alternatives"]:
             key = (group, expr["id"])
@@ -33,6 +34,12 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None):
             if key in alternatives or any(child not in groups for child in expr["children"]):
                 raise ValueError("duplicate expression or missing child group")
             alternatives[key] = op
+            if "CTE" in op:
+                if (op not in ("CLogicalCTEAnchor", "CLogicalCTEConsumer", "CLogicalCTEProducer")
+                        or type(expr.get("cte_id")) is not int or expr["cte_id"] < 0):
+                    raise ValueError("missing or unknown CTE binding")
+                if op == "CLogicalCTEProducer":
+                    producers[expr["cte_id"]].add(group)
             if op.startswith("CLogical"):
                 logical.add((*key, op))
             for port, child in enumerate(expr["children"]):
@@ -50,8 +57,15 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None):
             continue
         reachable.add(group)
         for expr in groups[group]["alternatives"]:
-            if "CTE" in expr["operator"]:
-                raise ValueError("scope across CTE producer and consumer requires their binding")
+            if expr["operator"] in ("CLogicalCTEAnchor", "CLogicalCTEConsumer"):
+                definitions = producers.get(expr["cte_id"])
+                if not definitions:
+                    raise ValueError("reachable CTE has no producer in the final Memo")
+                # Keep every possible definition path. Crossing one still needs
+                # a proof of its enclosing frames and is rejected on the ascent.
+                for producer in definitions:
+                    parents[producer].append((group, expr["operator"], None, ()))
+                    pending.append(producer)
             pending.extend(expr["children"])
 
     matches = [r for r in of("rule_candidate_outcome") if r.get("status") == "memo_inserted"

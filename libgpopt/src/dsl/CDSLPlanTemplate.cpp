@@ -1549,8 +1549,15 @@ CDSLPlanTemplate::TraceMemoGroup(CMemoryPool *mp, CGroup *group, ULONG stage, BO
 		}
 		if (!first) out << ",";
 		first = false;
-		out << "{\"id\":" << expr->Id() << ",\"operator\":\"" << expr->Pop()->SzId()
-			<< "\",\"children\":[";
+		const COperator *op = expr->Pop();
+		out << "{\"id\":" << expr->Id() << ",\"operator\":\"" << op->SzId() << "\"";
+		if (const auto *anchor = dynamic_cast<const CLogicalCTEAnchor *>(op))
+			out << ",\"cte_id\":" << anchor->Id();
+		else if (const auto *consumer = dynamic_cast<const CLogicalCTEConsumer *>(op))
+			out << ",\"cte_id\":" << consumer->UlCTEId();
+		else if (const auto *producer = dynamic_cast<const CLogicalCTEProducer *>(op))
+			out << ",\"cte_id\":" << producer->UlCTEId();
+		out << ",\"children\":[";
 		for (ULONG port = 0; port < expr->Arity(); ++port)
 		{
 			if (port) out << ",";

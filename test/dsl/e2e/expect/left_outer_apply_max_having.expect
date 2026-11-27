@@ -3,14 +3,19 @@
   "plans": [
     {
       "name": "replacement",
+      "memo_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
+      "stats_experiment": "capture_rule_bindings.yaml",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
       ],
+      "memo_frame_columns": {
+        "70f44b028e470dae": []
+      },
       "provenance": {
         "required_sources": [
           "dsl"

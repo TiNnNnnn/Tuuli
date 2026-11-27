@@ -62,10 +62,26 @@ class ReplacementProtocolTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported enclosing"):
             memo_frame_columns(hidden, rule)
         cte = deepcopy(records)
+        consumer = "CLogicalCTEConsumer"
+        producer = "CLogicalCTEProducer"
         for r in cte:
             if r.get("group") == 2 and r["kind"] in ("memo_alternative", "memo_scope_group"):
-                (r if "operator" in r else r["alternatives"][0])["operator"] = "CLogicalCTEConsumer"
-        with self.assertRaisesRegex(ValueError, "CTE"):
+                (r if "operator" in r else r["alternatives"][0])["operator"] = consumer
+        with self.assertRaisesRegex(ValueError, "CTE binding"):
+            memo_frame_columns(cte, rule)
+        next(r for r in cte if r["kind"] == "memo_scope_group" and r["group"] == 2)["alternatives"][0]["cte_id"] = 7
+        with self.assertRaisesRegex(ValueError, "no producer"):
+            memo_frame_columns(cte, rule)
+        # The consumer on the other join arm can enter its definition. Its
+        # enclosing scope matters only if that definition can reach our group.
+        definition = {"id": 0, "operator": producer, "cte_id": 7, "children": [3]}
+        cte += [{"kind": "memo_scope_group", "group": 5, "root": False, "stage": 0, "output": [],
+                 "physical": 0, "alternatives": [definition]},
+                {"kind": "memo_alternative", "group": 5, "group_expression": 0, "stage": 0, "operator": producer}]
+        cte[0].update(groups=6, group_expressions=8)
+        self.assertEqual(memo_frame_columns(cte, rule), columns)
+        definition["children"] = [1]
+        with self.assertRaisesRegex(ValueError, producer):
             memo_frame_columns(cte, rule)
 
     def test_maintained_e2e_policy_fixtures_exist(self):
