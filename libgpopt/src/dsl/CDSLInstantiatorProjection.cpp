@@ -1059,6 +1059,20 @@ CDSLInstantiator::PexprBuildAgg(const CDSLOp *pop,
 		pcrsExpectedSchema->Size() ==
 			pdrgpcrGroup->Size() + pdrgpcrAggOutputs->Size();
 
+	if (fSchemaValid && m_prule->Pexprdefs()->FHasBindings())
+	{
+		// Bindings expose a positional SELECT: keys first, then the aggregate items.
+		fSchemaValid = pdrgpcrSchema->Size() == pcrsExpectedSchema->Size();
+		ULONG pos = 0;
+		for (const CColRefArray *part : {pdrgpcrGroup, pdrgpcrAggOutputs})
+		{
+			for (ULONG i = 0; fSchemaValid && i < part->Size(); ++i)
+			{
+				fSchemaValid = (*pdrgpcrSchema)[pos++] == (*part)[i];
+			}
+		}
+	}
+
 	// A second occurrence of Input has fresh column identities. Only use
 	// its recorded range-variable map, after validating the declared program.
 	const auto copy = m_input_col_maps.find((*pop)[0]);

@@ -1801,6 +1801,23 @@ CDSLAggTest::EresUnittest_InstantiateRealAgg()
 		}
 	}
 
+	// The target's declared SELECT order must agree with the constructed Group.
+	for (BOOL keys_first : {false, true})
+	{
+		const std::string text =
+			std::string("Agg<a0 a1 a2 f0 s0 p0>(Input<t0>)|Agg<a3 a4 a5 f1 s1 p1>(Input<t1>)|"
+						"t1 := t0;a3 := a0;a4 := a1;a5 := a2;f1 := f0;p1 := p0;") +
+			(keys_first ? "AttrsUnion(a6,a0,a2)" : "AttrsUnion(a6,a2,a0)") + ";SchemaFromAttrs(s1,a6)";
+		CAutoRef<CDSLRule> typed(PdslruleParseLocal(mp, text.c_str()));
+		GPOS_UNITTEST_ASSERT(nullptr != typed.Value());
+		CAutoRef<CDSLModel> model(GPOS_NEW(mp) CDSLModel(mp));
+		GPOS_UNITTEST_ASSERT(CDSLMatcher(mp, typed.Value()).FMatch(
+			typed->PfragSrc()->PopRoot(), pexprGbAgg, model.Value()) && checker.FCheck(typed.Value(), model.Value()));
+		CDSLInstantiator inst(mp);
+		CAutoRef<CExpression> target(inst.PexprInstantiate(typed.Value(), model.Value()));
+		GPOS_UNITTEST_ASSERT(keys_first == (nullptr != target.Value()));
+	}
+
 	CRefCount::SafeRelease(pexprTgt);
 	pmodel->Release();
 	pexprGet->Release();
