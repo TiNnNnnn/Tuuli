@@ -2751,7 +2751,7 @@ CDSLQuantifiedTest::EresUnittest_ExpressionDefinedScalarSubquery()
 		CRefCount::SafeRelease(unscoped_target);
 		unscoped->Release();
 		// Force construction during a metadata check, then instantiate separately.
-		std::string checked = text + ";DepsDisjoint(p0,a3)";
+		std::string checked = text + ";AttrsNonEmpty(a3);DepsDisjoint(p0,a3)";
 		CDSLRule *checked_rule = PruleParse(mp, checked.c_str());
 		CDSLModel *checked_model = GPOS_NEW(mp) CDSLModel(mp);
 		GPOS_UNITTEST_ASSERT(nullptr != checked_rule &&

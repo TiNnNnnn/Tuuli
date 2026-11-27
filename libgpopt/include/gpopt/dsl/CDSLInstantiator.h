@@ -129,7 +129,7 @@ private:
 	// failure MUST NOT retry these recipes. Operand resolution stays shared.
 	CExpression *PexprResolveLegacyPredicate(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
-	CColRefArray *PdrgpcrResolveLegacyCols(const CDSLSymbol *psym,
+	CColRefArray *PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
 	CExpression *PexprResolveLegacyExpr(const CDSLSymbol *psym,
 		const CDSLModel *pmodel, ULONG ulDepth) const;
@@ -163,11 +163,15 @@ private:
 									   const CDSLModel *pmodel,
 									   ULONG ulDepth) const;
 
+	// Takes ownership and returns the cached vector borrowed by column consumers.
+	CColRefArray *PdrgpcrCacheColumns(const CDSLSymbol *symbol, CColRefArray *columns) const;
 	// Resolve a bound/aliased attrs or schema vector. AttrsIntersect derives an
 	// ordered subset, AttrsUnion a stable duplicate-free union, AttrsEmpty
 	// materializes a target-only empty attrs vector, and OutputAttrs derives the
 	// complete output vector of a keyed relation. SchemaFromAttrs explicitly
 	// carries a resolved attrs vector into the schema namespace.
+	CColRefArray *PdrgpcrFromColumnConstraint(const CDSLConstraint *constraint,
+		const CDSLSymbol *symbol, const CDSLModel *model, ULONG depth) const;
 	CColRefArray *PdrgpcrResolveCols(const CDSLSymbol *psym,
 									 const CDSLModel *pmodel,
 									 ULONG ulDepth = 0) const;

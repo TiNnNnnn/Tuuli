@@ -664,7 +664,6 @@ CDSLConstraintKindTable::EsymkindDerivedOutput(
 			return 1 == ulPosition || 2 == ulPosition ? EdslsymFrameBound
 													  : EdslsymSentinel;
 		case EdslconAttrsEmpty:
-		case EdslconAttrsNonEmpty:
 		case EdslconOutputAttrs:
 			return 0 == ulPosition ? EdslsymAttrs : EdslsymSentinel;
 		case EdslconSchemaFromAttrs:

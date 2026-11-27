@@ -350,349 +350,39 @@ CDSLInstantiator::PexprResolveLegacyPredicate(const CDSLSymbol *psym, const CDSL
 }
 
 CColRefArray *
-CDSLInstantiator::PdrgpcrResolveLegacyCols(const CDSLSymbol *psym, const CDSLModel *pmodel, ULONG ulDepth) const
+CDSLInstantiator::PdrgpcrFromLegacyEquality(const CDSLSymbol *psym,
+	const CDSLModel *pmodel, ULONG ulDepth) const
 {
-	const CDSLConstraint *pconDef = nullptr;
-	BOOL fEmptyDef = false;
 	CDSLConstraintArray *pdrgpcon = m_prule->Pdrgpcon();
+	// An equality may name another target-side value that is itself derived
+	// (for example, a Union input row equal to its derived output row).
+	// Source aliases are handled by BuildAliasMap; follow only the remaining
+	// target equality here, with the existing depth bound preventing cycles.
+	const EDslConstraintKind edslconEq =
+		EdslsymAttrs == psym->Esymkind() ? EdslconAttrsEq
+										  : EdslconSchemaEq;
 	for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
 	{
 		const CDSLConstraint *pcon = (*pdrgpcon)[ul];
-		if (EdslconAttrsEmpty == pcon->Edslcon() &&
-			1 == pcon->Pdrgpsym()->Size() && (*pcon->Pdrgpsym())[0] == psym)
+		if (edslconEq != pcon->Edslcon() ||
+			2 != pcon->Pdrgpsym()->Size())
 		{
-			if (fEmptyDef || nullptr != pconDef ||
-				EdslsymAttrs != psym->Esymkind())
-			{
-				return nullptr;
-			}
-			fEmptyDef = true;
 			continue;
 		}
-		if ((EdslconAttrsIntersect == pcon->Edslcon() ||
-			 EdslconAttrsUnion == pcon->Edslcon() ||
-			 EdslconSchemaUnion == pcon->Edslcon()) &&
-			3 == pcon->Pdrgpsym()->Size() &&
-			(*pcon->Pdrgpsym())[0] == psym)
+		for (ULONG side = 0; side < 2; side++)
 		{
-			if (fEmptyDef || nullptr != pconDef)
+			if ((*pcon->Pdrgpsym())[side] == psym)
 			{
-				return nullptr;
-			}
-			pconDef = pcon;
-		}
-		if (EdslconOutputAttrs == pcon->Edslcon() &&
-			2 == pcon->Pdrgpsym()->Size() &&
-			(*pcon->Pdrgpsym())[0] == psym)
-		{
-			if (fEmptyDef || nullptr != pconDef ||
-				EdslsymAttrs != psym->Esymkind())
-			{
-				return nullptr;
-			}
-			pconDef = pcon;
-		}
-		if (EdslconSchemaFromAttrs == pcon->Edslcon() &&
-			2 == pcon->Pdrgpsym()->Size() &&
-			(*pcon->Pdrgpsym())[0] == psym)
-		{
-			if (fEmptyDef || nullptr != pconDef ||
-				EdslsymSchema != psym->Esymkind())
-			{
-				return nullptr;
-			}
-			pconDef = pcon;
-		}
-		if (EdslconFuncAttrs == pcon->Edslcon() &&
-			2 == pcon->Pdrgpsym()->Size() &&
-			(*pcon->Pdrgpsym())[0] == psym)
-		{
-			if (fEmptyDef || nullptr != pconDef ||
-				EdslsymAttrs != psym->Esymkind())
-			{
-				return nullptr;
-			}
-			pconDef = pcon;
-		}
-		if (EdslconExprNulls == pcon->Edslcon() &&
-			3 == pcon->Pdrgpsym()->Size() &&
-			(*pcon->Pdrgpsym())[2] == psym)
-		{
-			if (fEmptyDef || nullptr != pconDef ||
-				EdslsymAttrs != psym->Esymkind())
-			{
-				return nullptr;
-			}
-			pconDef = pcon;
-		}
-		if (EdslconPredicateDomainSplit == pcon->Edslcon() &&
-			9 == pcon->Pdrgpsym()->Size())
-		{
-			BOOL fDefines = false;
-			for (ULONG ulOutput = 3; ulOutput <= 6; ulOutput++)
-			{
-				fDefines = fDefines || (*pcon->Pdrgpsym())[ulOutput] == psym;
-			}
-			if (fDefines)
-			{
-				if (fEmptyDef || nullptr != pconDef ||
-					EdslsymAttrs != psym->Esymkind())
+				CColRefArray *pdrgpcrPeer = PdrgpcrResolveCols(
+					(*pcon->Pdrgpsym())[1 - side], pmodel, ulDepth + 1);
+				if (nullptr != pdrgpcrPeer)
 				{
-					return nullptr;
-				}
-				pconDef = pcon;
-			}
-		}
-	}
-	if (fEmptyDef)
-	{
-		CColRefArray *pdrgpcrEmpty = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
-									 pdrgpcrEmpty))
-		{
-			pdrgpcrEmpty->Release();
-			return nullptr;
-		}
-		return pdrgpcrEmpty;
-	}
-	if (nullptr == pconDef)
-	{
-		// An equality may name another target-side value that is itself derived
-		// (for example, a Union input row equal to its derived output row).
-		// Source aliases are handled by BuildAliasMap; follow only the remaining
-		// target equality here, with the existing depth bound preventing cycles.
-		const EDslConstraintKind edslconEq =
-			EdslsymAttrs == psym->Esymkind() ? EdslconAttrsEq
-											  : EdslconSchemaEq;
-		for (ULONG ul = 0; ul < pdrgpcon->Size(); ul++)
-		{
-			const CDSLConstraint *pcon = (*pdrgpcon)[ul];
-			if (edslconEq != pcon->Edslcon() ||
-				2 != pcon->Pdrgpsym()->Size())
-			{
-				continue;
-			}
-			for (ULONG side = 0; side < 2; side++)
-			{
-				if ((*pcon->Pdrgpsym())[side] == psym)
-				{
-					CColRefArray *pdrgpcrPeer = PdrgpcrResolveCols(
-						(*pcon->Pdrgpsym())[1 - side], pmodel, ulDepth + 1);
-					if (nullptr != pdrgpcrPeer)
-					{
-						return pdrgpcrPeer;
-					}
+					return pdrgpcrPeer;
 				}
 			}
 		}
-		return nullptr;
 	}
-	if (EdslconExprNulls == pconDef->Edslcon())
-	{
-		CExpression *pexprNulls = PexprResolveExpr(
-			(*pconDef->Pdrgpsym())[0], pmodel, ulDepth + 1);
-		CRefCount::SafeRelease(pexprNulls);
-		return dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
-	}
-	if (EdslconPredicateDomainSplit == pconDef->Edslcon())
-	{
-		if (!FMaterializePredicateDomainSplit(pconDef, pmodel, ulDepth + 1))
-		{
-			return nullptr;
-		}
-		return dynamic_cast<CColRefArray *>(m_phmDerivedCols->Find(psym));
-	}
-	if (EdslconOutputAttrs == pconDef->Edslcon())
-	{
-		const CDSLSymbol *psymTable =
-			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		CColRefArray *pdrgpcrResult = nullptr;
-		if (EdslsymExpr == psymTable->Esymkind())
-		{
-			CExpression *list = PexprResolveExpr(psymTable, pmodel, ulDepth + 1);
-			pdrgpcrResult = CDSLExprListUtils::PdrgpcrOutput(m_mp, list);
-			CRefCount::SafeRelease(list);
-		}
-		else if (EdslsymTable == psymTable->Esymkind())
-		{
-			CExpression *pexprTable = pmodel->PexprTable(psymTable);
-			// OutputAttrs uses the same observable row domain as its checker.
-			// List outputs instead retain their exact order.
-			if (nullptr != pexprTable)
-				pdrgpcrResult = CDSLColumnDomain::PdrgpcrOutput(m_mp, pexprTable->DeriveOutputColumns());
-		}
-		if (nullptr == pdrgpcrResult) return nullptr;
-		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
-									 pdrgpcrResult))
-		{
-			pdrgpcrResult->Release();
-			return nullptr;
-		}
-		return pdrgpcrResult;
-	}
-	if (EdslconSchemaFromAttrs == pconDef->Edslcon())
-	{
-		const CDSLSymbol *psymAttrs =
-			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		if (EdslsymAttrs != psymAttrs->Esymkind())
-		{
-			return nullptr;
-		}
-		CColRefArray *pdrgpcrAttrs =
-			PdrgpcrResolveCols(psymAttrs, pmodel, ulDepth + 1);
-		if (nullptr == pdrgpcrAttrs)
-		{
-			return nullptr;
-		}
-		pdrgpcrAttrs->AddRef();
-		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
-									 pdrgpcrAttrs))
-		{
-			pdrgpcrAttrs->Release();
-			return nullptr;
-		}
-		return pdrgpcrAttrs;
-	}
-	if (EdslconFuncAttrs == pconDef->Edslcon())
-	{
-		const CDSLSymbol *psymFuncs =
-			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		CAutoRef<CExpressionArray> functions(PdrgpexprResolveFunctions(psymFuncs, pmodel));
-		CExpressionArray *pdrgpexprFuncs = functions.Value();
-		if (nullptr == pdrgpexprFuncs)
-		{
-			return nullptr;
-		}
-		CColRefSet *pcrsAttrs = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		for (ULONG ul = 0; ul < pdrgpexprFuncs->Size(); ul++)
-		{
-			pcrsAttrs->Include((*pdrgpexprFuncs)[ul]->DeriveUsedColumns());
-		}
-		CColRefArray *pdrgpcrAttrs = pcrsAttrs->Pdrgpcr(m_mp);
-		pcrsAttrs->Release();
-		if (!m_phmDerivedCols->Insert(
-				const_cast<CDSLSymbol *>(psym), pdrgpcrAttrs))
-		{
-			pdrgpcrAttrs->Release();
-			return nullptr;
-		}
-		return pdrgpcrAttrs;
-	}
-	if (EdslconAttrsUnion == pconDef->Edslcon() ||
-		EdslconSchemaUnion == pconDef->Edslcon())
-	{
-		const CDSLSymbol *psymLeft =
-			PsymResolve((*pconDef->Pdrgpsym())[1]);
-		const CDSLSymbol *psymRight =
-			PsymResolve((*pconDef->Pdrgpsym())[2]);
-		const BOOL fAttrsUnion = EdslconAttrsUnion == pconDef->Edslcon();
-		if ((fAttrsUnion &&
-			 (EdslsymAttrs != psym->Esymkind() ||
-			  EdslsymAttrs != psymLeft->Esymkind() ||
-			  EdslsymAttrs != psymRight->Esymkind())) ||
-			(!fAttrsUnion &&
-			 (EdslsymSchema != psym->Esymkind() ||
-			  EdslsymSchema != psymLeft->Esymkind() ||
-			  (EdslsymAttrs != psymRight->Esymkind() &&
-			   EdslsymSchema != psymRight->Esymkind()))))
-		{
-			return nullptr;
-		}
-		CColRefArray *pdrgpcrLeft =
-			PdrgpcrResolveCols(psymLeft, pmodel, ulDepth + 1);
-		CColRefArray *pdrgpcrRight =
-			PdrgpcrResolveCols(psymRight, pmodel, ulDepth + 1);
-		if (nullptr == pdrgpcrLeft || nullptr == pdrgpcrRight)
-		{
-			return nullptr;
-		}
-
-		CColRefArray *pdrgpcrResult = GPOS_NEW(m_mp) CColRefArray(m_mp);
-		CColRefSet *pcrsSeen = GPOS_NEW(m_mp) CColRefSet(m_mp);
-		CColRefArray *rgpdrgpcr[] = {pdrgpcrLeft, pdrgpcrRight};
-		for (ULONG ulInput = 0; ulInput < 2; ulInput++)
-		{
-			for (ULONG ul = 0; ul < rgpdrgpcr[ulInput]->Size(); ul++)
-			{
-				CColRef *pcr = (*rgpdrgpcr[ulInput])[ul];
-				if (!pcrsSeen->FMember(pcr))
-				{
-					pcrsSeen->Include(pcr);
-					pdrgpcrResult->Append(pcr);
-				}
-			}
-		}
-		pcrsSeen->Release();
-		if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
-									 pdrgpcrResult))
-		{
-			pdrgpcrResult->Release();
-			return nullptr;
-		}
-		return pdrgpcrResult;
-	}
-
-	const CDSLSymbol *psymInput = (*pconDef->Pdrgpsym())[1];
-	const CDSLSymbol *psymDomain =
-		PsymResolve((*pconDef->Pdrgpsym())[2]);
-	if (psymInput->Esymkind() != psym->Esymkind() &&
-		EdslsymTable != psymInput->Esymkind())
-	{
-		return nullptr;
-	}
-	CColRefArray *pdrgpcrInput =
-		PdrgpcrResolveCols(psymInput, pmodel, ulDepth + 1);
-	if (nullptr == pdrgpcrInput)
-	{
-		return nullptr;
-	}
-
-	CColRefSet *pcrsDomain = GPOS_NEW(m_mp) CColRefSet(m_mp);
-	if (EdslsymTable == psymDomain->Esymkind())
-	{
-		CExpression *pexprDomain = pmodel->PexprTable(psymDomain);
-		if (nullptr == pexprDomain)
-		{
-			pcrsDomain->Release();
-			return nullptr;
-		}
-		pcrsDomain->Include(pexprDomain->DeriveOutputColumns());
-	}
-	else if (EdslsymAttrs == psymDomain->Esymkind() ||
-			 EdslsymSchema == psymDomain->Esymkind())
-	{
-		CColRefArray *pdrgpcrDomain =
-			PdrgpcrResolveCols(psymDomain, pmodel, ulDepth + 1);
-		if (nullptr == pdrgpcrDomain)
-		{
-			pcrsDomain->Release();
-			return nullptr;
-		}
-		pcrsDomain->Include(pdrgpcrDomain);
-	}
-	else
-	{
-		pcrsDomain->Release();
-		return nullptr;
-	}
-
-	CColRefArray *pdrgpcrResult = GPOS_NEW(m_mp) CColRefArray(m_mp);
-	for (ULONG ul = 0; ul < pdrgpcrInput->Size(); ul++)
-	{
-		CColRef *pcr = (*pdrgpcrInput)[ul];
-		if (pcrsDomain->FMember(pcr))
-		{
-			pdrgpcrResult->Append(pcr);
-		}
-	}
-	pcrsDomain->Release();
-	if (!m_phmDerivedCols->Insert(const_cast<CDSLSymbol *>(psym),
-								 pdrgpcrResult))
-	{
-		pdrgpcrResult->Release();
-		return nullptr;
-	}
-	return pdrgpcrResult;
+	return nullptr;
 }
 
 CExpression *
