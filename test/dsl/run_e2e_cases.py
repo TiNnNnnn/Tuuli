@@ -525,6 +525,8 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
                 from memo_scope import memo_frame_columns
                 scoped["frame_columns"] = memo_frame_columns(
                     records, occurrence["rule_hash"], occurrence["candidate_sequence"], require_root_frame=root_frame)
+                if root_frame:
+                    scoped["root_frame"] = True
             if "native_enclosing_source_path" in expected:
                 scoped["enclosing_source"] = (query_input(), expected["native_enclosing_source_path"])
             check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],

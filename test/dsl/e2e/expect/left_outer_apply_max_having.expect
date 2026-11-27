@@ -3,15 +3,32 @@
   "plans": [
     {
       "name": "replacement",
+      "xform_trace": true,
       "memo_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
-      "stats_experiment": "capture_rule_bindings.yaml",
+      "stats_experiment": "left_outer_apply_max_having.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "memo_root_frame": [
         "70f44b028e470dae"
