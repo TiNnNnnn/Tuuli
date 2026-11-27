@@ -1,0 +1,69 @@
+{
+  "description": "Two left occurrences match the same MAX group; FALSE, UNKNOWN and a NULL correlation key are padded",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_max_duplicate_and_null_keys.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_enclosing_source_path": "auto",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 6,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalUnionAll",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,20",
+      "1,20",
+      "2,",
+      "3,",
+      ","
+    ],
+    "postgres_output": [
+      "1,20",
+      "1,20",
+      "2,",
+      "3,",
+      ","
+    ],
+    "off_output": [
+      "1,20",
+      "1,20",
+      "2,",
+      "3,",
+      ","
+    ]
+  }
+}
