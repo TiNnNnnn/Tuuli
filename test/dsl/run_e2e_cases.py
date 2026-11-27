@@ -446,10 +446,15 @@ def native_server_abi():
 
 def check_native_routes(expected: dict[str, object], output: str, destination: pathlib.Path) -> int:
     """Check all occurrences selected by the expectation, including their actual target."""
+    receipt_fields = expected.get("native_receipt_fields", {})
+    if not isinstance(receipt_fields, dict):
+        raise ValueError("native_receipt_fields must be an object")
+    if "native_environment_domain" in expected:
+        receipt_fields = {**receipt_fields, "environment_domain": expected["native_environment_domain"]}
     patterns = expected.get("rule_source_routes", [])
     if not patterns:
-        if "native_environment_domain" in expected:
-            raise ValueError("native environment domain requires a captured source route")
+        if receipt_fields:
+            raise ValueError("native receipt checks require a captured source route")
         return 0
     observation = expected.get("native_observation", "exact_tree")
     if observation not in ("exact_tree", "ordered_outcomes", "all_source_outputs", "source_outputs", "dsl_source_outputs", "source_row_stream", "selected_scalar_consumer", "deferred_query", "deferred_rule", "restored_function_program", "closed_group_bag_outcomes", "shared_input_prefixes"):
@@ -540,10 +545,11 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
                                   **({"observe_outputs": True} if observation in ("source_outputs", "dsl_source_outputs") else {}),
                                   **({"row_interface": "dsl_outputs"} if observation == "dsl_source_outputs" else {}),
                                   **({"execution_model": "ROW_STREAM"} if observation == "source_row_stream" else {}))
-        if "native_environment_domain" in expected:
+        if receipt_fields:
             receipt = json.loads((path / "receipt.json").read_text(encoding="utf-8"))
-            if receipt.get("kernel_checked") is not True or receipt.get("environment_domain") != expected["native_environment_domain"]:
-                raise ValueError(f"kernel receipt does not establish the expected environment domain for {path.name}")
+            for field, value in {**receipt_fields, "kernel_checked": True}.items():
+                if field not in receipt or type(receipt[field]) is not type(value) or receipt[field] != value:
+                    raise ValueError(f"kernel receipt does not establish {field}={value!r} for {path.name}")
         checked += 1
     if not checked:
         raise ValueError("native instance check captured no matching occurrences")
@@ -557,7 +563,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
             "name", "dsl", "xform_trace", "memo_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose", "debug_plan",
             "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "outer_join_reduction", "native_observation",
-            "native_equivalence_mode", "native_environment_domain", "execution_observation", "native_enclosing_source_path"
+            "native_equivalence_mode", "native_environment_domain", "execution_observation", "native_enclosing_source_path", "native_receipt_fields"
         )
         if key in expected
     }
