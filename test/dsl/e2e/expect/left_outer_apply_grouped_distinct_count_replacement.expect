@@ -11,7 +11,9 @@
         "CXformImplementLeftOuterCorrelatedApply"
       ],
       "policy": "isolate_count_leftapply.policy",
-      "stats_experiment": "capture_rule_bindings.yaml",
+      "stats_experiment": "left_outer_apply_grouped_distinct_count_replacement.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
         "Optimizer: pg_orca",
@@ -21,6 +23,20 @@
       "not_contains": [
         "Xform: CXformLeftOuterApply2LeftOuterJoin",
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "956880d04ef6f242",
+          "route_sequence": 8,
+          "operators": [
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "memo_root_frame": [
         "956880d04ef6f242"

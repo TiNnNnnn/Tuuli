@@ -1,0 +1,6 @@
+experiment: aggregate-binding
+template_route: 8
+template_fingerprint: 1569ecaecfc1a5a0
+template_root: r
+template_bindings: true
+cardinalities:
