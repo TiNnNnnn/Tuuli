@@ -1,0 +1,6 @@
+experiment: nested-aggregate-owner
+template_route: 9
+template_fingerprint: 532de7d1331f48d3
+template_root: r
+template_bindings: true
+cardinalities:

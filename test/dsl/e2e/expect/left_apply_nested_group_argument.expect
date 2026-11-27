@@ -1,0 +1,65 @@
+{
+  "description": "Keyed local MIN feeds a correlated MAX and HAVING",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_nested_group_argument.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_enclosing_source_path": "auto",
+      "native_receipt_fields": {
+        "owned_group_instance_theorem": "actual_native_owned_instance"
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 9,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,5"
+    ],
+    "postgres_output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,5"
+    ],
+    "off_output": [
+      "1,",
+      "1,",
+      "2,",
+      "3,5"
+    ]
+  }
+}
