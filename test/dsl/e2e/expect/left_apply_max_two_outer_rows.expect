@@ -13,7 +13,7 @@
       "stats_experiment": "left_apply_max_two_outer_rows.yaml",
       "native_observation": "source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
-      "native_enclosing_source_path": "r/0/0/1/0/1/0/0",
+      "native_enclosing_source_path": "auto",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
