@@ -50,6 +50,47 @@
           "CXformLeftOuterApply2LeftOuterJoin"
         ]
       }
+    },
+    {
+      "name": "query_input",
+      "xform_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_boolean_scope.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_environment_domain": "TYPED_BOUNDED_FRAMES_V1",
+      "native_enclosing_source_path": "auto",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 5,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformLeftOuterApply2LeftOuterJoin"
+        ]
+      }
     }
   ],
   "rows": {

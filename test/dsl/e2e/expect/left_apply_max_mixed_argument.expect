@@ -1,0 +1,47 @@
+{
+  "description": "The aggregate argument reads both the grouped input and the correlated left row",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"failed_constraint\":\"AttrsSub\""
+      ],
+      "not_contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,20",
+      "1,20",
+      "2,2",
+      "3,5"
+    ],
+    "postgres_output": [
+      "1,20",
+      "1,20",
+      "2,2",
+      "3,5"
+    ],
+    "off_output": [
+      "1,20",
+      "1,20",
+      "2,2",
+      "3,5"
+    ]
+  }
+}
