@@ -1,0 +1,75 @@
+{
+  "description": "The aggregate input guard rejects a MAX argument that also reads the outer row",
+  "plans": [
+    {
+      "name": "cbo",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "DSL_CONSTRAINT_TRACE rule_hash=70f44b028e470dae status=rejected constraint=AttrsSub "
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ]
+    },
+    {
+      "name": "rbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_rbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"constraint_rejected\",\"rule_hash\":\"70f44b028e470dae\",\"placement\":\"rbo\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\""
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "postgres_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "off_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "plan_outputs": {
+      "cbo": [
+        "1,20,1",
+        "1,20,1",
+        "2,2,2",
+        "3,5,3"
+      ],
+      "rbo": [
+        "1,20,1",
+        "1,20,1",
+        "2,2,2",
+        "3,5,3"
+      ]
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "description": "The local MAX argument can move across the correlated filter",
+  "plans": [
+    {
+      "name": "cbo",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    },
+    {
+      "name": "rbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_rbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\",\"placement\":\"rbo\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "postgres_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "off_output": [
+      "1,20,1",
+      "1,20,1",
+      "2,2,2",
+      "3,5,3"
+    ],
+    "plan_outputs": {
+      "cbo": [
+        "1,20,1",
+        "1,20,1",
+        "2,2,2",
+        "3,5,3"
+      ],
+      "rbo": [
+        "1,20,1",
+        "1,20,1",
+        "2,2,2",
+        "3,5,3"
+      ]
+    }
+  }
+}
