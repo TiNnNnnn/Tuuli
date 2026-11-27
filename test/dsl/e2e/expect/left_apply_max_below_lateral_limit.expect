@@ -56,7 +56,16 @@
             }
           ]
         }
-      ]
+      ],
+      "memo_frame_columns": {
+        "70f44b028e470dae": [
+          {
+            "id": 0,
+            "type": "0.23.1.0",
+            "typmod": -1
+          }
+        ]
+      }
     }
   ],
   "rows": {

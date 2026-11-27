@@ -20,6 +20,54 @@ if str(SCRIPT_DIR) not in sys.path:
 
 
 class ReplacementProtocolTest(unittest.TestCase):
+    def test_final_memo_bounds_include_every_reachable_parent(self):
+        from memo_scope import memo_frame_columns
+        from copy import deepcopy
+
+        rule = "cap"
+        columns = [{"id": i, "type": "0.23.1.0", "typmod": -1} for i in (1, 2)]
+        records = [{"kind": "memo_summary", "stage": 0, "groups": 5,
+                    "duplicate_groups": 0, "group_expressions": 7},
+                   {"kind": "rule_candidate_outcome", "status": "memo_inserted", "rule_hash": rule,
+                    "candidate_sequence": 1, "group": 1, "group_expression": 1, "experiment": "e"},
+                   {"kind": "rule_candidate", "sequence": 1, "placement": "cbo", "rule_hash": rule,
+                    "group": 1, "group_expression": 0, "experiment": "e"}]
+        for g, (output, alts) in enumerate([
+                ([], [("CLogicalLeftOuterJoin", [2, 1, 4]), ("CLogicalRightOuterJoin", [1, 3, 4])]),
+                ([], [("CLogicalGet", []), ("CLogicalGet", [])]),
+                ([columns[0]], [("CLogicalGet", [])]), ([columns[1]], [("CLogicalGet", [])]),
+                (None, [("CScalarConst", [])])]):
+            records.append({"kind": "memo_scope_group", "stage": 0, "group": g, "root": g == 0,
+                            "output": output, "physical": 0, "alternatives": [
+                                {"id": i, "operator": op, "children": children}
+                                for i, (op, children) in enumerate(alts)]})
+            records.extend({"kind": "memo_alternative", "stage": 0, "group": g,
+                            "group_expression": i, "operator": op}
+                           for i, (op, _) in enumerate(alts) if op.startswith("CLogical"))
+        self.assertEqual(memo_frame_columns(records, rule, 1), columns)
+        merged = deepcopy(records)
+        merged[0].update(groups=6, duplicate_groups=1)
+        self.assertEqual(memo_frame_columns(merged, rule, 1), columns)
+        merged[0]["group_expressions"] += 1
+        with self.assertRaisesRegex(ValueError, "inventory"):
+            memo_frame_columns(merged, rule)
+        with self.assertRaisesRegex(ValueError, "no inserted"):
+            memo_frame_columns(records, rule, 2)
+        with self.assertRaisesRegex(ValueError, "inventory"):
+            memo_frame_columns(records[:-1], rule)
+        # A second route through a scalar subquery cannot silently disappear.
+        hidden = deepcopy(records)
+        scalar = hidden[-1]["alternatives"][0]
+        scalar.update(operator="CScalarSubquery", children=[1])
+        with self.assertRaisesRegex(ValueError, "unsupported enclosing"):
+            memo_frame_columns(hidden, rule)
+        cte = deepcopy(records)
+        for r in cte:
+            if r.get("group") == 2 and r["kind"] in ("memo_alternative", "memo_scope_group"):
+                (r if "operator" in r else r["alternatives"][0])["operator"] = "CLogicalCTEConsumer"
+        with self.assertRaisesRegex(ValueError, "CTE"):
+            memo_frame_columns(cte, rule)
+
     def test_maintained_e2e_policy_fixtures_exist(self):
         from run_e2e_cases import policy_setting
         libraries = [(SCRIPT_DIR / 'e2e/expect', SCRIPT_DIR / 'rules')]

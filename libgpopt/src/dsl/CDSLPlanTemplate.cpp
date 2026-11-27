@@ -14,6 +14,9 @@
 #include <unordered_set>
 #include <utility>
 
+#include "gpopt/search/CGroupProxy.h"
+#include "gpopt/base/CDrvdPropRelational.h"
+#include "gpos/error/CAutoTrace.h"
 #include "gpos/common/CAutoRef.h"
 #include "gpos/io/COstreamString.h"
 #include "gpos/string/CWStringDynamic.h"
@@ -1513,6 +1516,50 @@ SourceBindings(CMemoryPool *mp, const std::vector<const CDSLSymbol *> &symbols,
 	return out.str();
 }
 }  // namespace
+
+// Snapshot the child ports of every logical and scalar alternative. A scalar
+// subquery can also lead to the captured group through a different parent.
+void
+CDSLPlanTemplate::TraceMemoGroup(CMemoryPool *mp, CGroup *group, ULONG stage, BOOL root)
+{
+	CAutoTrace trace(mp);
+	auto &out = trace.Os();
+	out << "DSL_TRACE {\"kind\":\"memo_scope_group\",\"stage\":" << stage
+		<< ",\"group\":" << group->Id() << ",\"root\":" << (root ? "true" : "false")
+		<< ",\"output\":";
+	auto *props = group->Pdp();
+	if (!group->FScalar() && nullptr != props && props->IsComplete())
+	{
+		std::ostringstream columns;
+		AppendColumns(mp, &columns, CDrvdPropRelational::GetRelationalProperties(props)->GetOutputColumns());
+		out << columns.str().c_str();
+	}
+	else
+		out << "null";
+	out << ",\"alternatives\":[";
+	CGroupProxy proxy(group);
+	ULONG physical = 0;
+	BOOL first = true;
+	for (auto *expr = proxy.PgexprFirst(); nullptr != expr; expr = proxy.PgexprNext(expr))
+	{
+		if (expr->Pop()->FPhysical())
+		{
+			++physical;
+			continue;
+		}
+		if (!first) out << ",";
+		first = false;
+		out << "{\"id\":" << expr->Id() << ",\"operator\":\"" << expr->Pop()->SzId()
+			<< "\",\"children\":[";
+		for (ULONG port = 0; port < expr->Arity(); ++port)
+		{
+			if (port) out << ",";
+			out << (*expr)[port]->Id();
+		}
+		out << "]}";
+	}
+	out << "],\"physical\":" << physical << "}" << std::endl;
+}
 
 std::string
 CDSLPlanTemplate::SerializeCaptured(CMemoryPool *mp, const CExpression *expr)

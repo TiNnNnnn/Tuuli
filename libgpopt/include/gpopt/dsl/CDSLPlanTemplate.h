@@ -16,6 +16,7 @@ namespace gpopt
 using namespace gpos;
 
 class CExpression;
+class CGroup;
 class COperator;
 class CDSLRule;
 class CDSLModel;
@@ -27,6 +28,7 @@ public:
 
 	static std::vector<const CExpression *> RelationalChildren(
 		const CExpression *expr);
+	static void TraceMemoGroup(CMemoryPool *mp, CGroup *group, ULONG stage, BOOL root);
 	static std::string ExpressionShape(const CExpression *expr);
 	// Append machine-readable scalar fields without deriving any properties.
 	// Unknown non-null generic constants keep value_observed=false.

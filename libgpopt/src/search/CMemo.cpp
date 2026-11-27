@@ -24,6 +24,8 @@
 #include "gpopt/base/COptCtxt.h"
 #include "gpopt/base/COptimizationContext.h"
 #include "gpopt/base/CReqdPropPlan.h"
+#include "gpopt/dsl/CDSLPlanTemplate.h"
+#include "gpopt/dsl/CDSLStatsExperiment.h"
 #include "gpopt/engine/CEngine.h"
 #include "gpopt/exception.h"
 #include "gpopt/operators/CExpressionHandle.h"
@@ -862,10 +864,15 @@ CMemo::TraceLogicalProvenance(ULONG search_stage)
 	ULONG dphyper = 0;
 	ULONG dsl_dphyper = 0;
 	ULONG native = 0;
+	const auto *experiment = COptCtxt::PoctxtFromTLS()->PDSLStatsExperimentSnapshot();
+	const BOOL trace_scope = GPOS_FTRACE(EopttracePrintMemoAfterOptimization) &&
+		nullptr != experiment && experiment->FTemplateBindings();
 
 	for (CGroup *pgroup = m_listGroups.PtFirst(); nullptr != pgroup;
 		 pgroup = m_listGroups.Next(pgroup))
 	{
+		if (trace_scope && !pgroup->FDuplicateGroup())
+			CDSLPlanTemplate::TraceMemoGroup(m_mp, pgroup, search_stage, pgroup == m_pgroupRoot);
 		if (pgroup->FScalar() || pgroup->FDuplicateGroup())
 		{
 			continue;
