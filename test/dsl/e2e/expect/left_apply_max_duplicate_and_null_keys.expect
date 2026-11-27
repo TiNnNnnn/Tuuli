@@ -13,6 +13,9 @@
       "native_observation": "source_outputs",
       "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "native_enclosing_source_path": "auto",
+      "native_receipt_fields": {
+        "owned_group_instance_theorem": "actual_native_owned_instance"
+      },
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""

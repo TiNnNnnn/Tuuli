@@ -15,6 +15,7 @@
       "native_enclosing_source_path": "auto",
       "native_receipt_fields": {
         "aggregate_argument_columns_checked": true,
+        "owned_group_instance_theorem": "actual_native_owned_instance",
         "environment_domain": "TYPED_BOUNDED_FRAMES_V1"
       },
       "contains": [
