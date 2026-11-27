@@ -1,0 +1,71 @@
+{
+  "description": "The right side of a lateral LIMIT reads the current left row when MAX is decorrelated inside it",
+  "plans": [
+    {
+      "name": "rbo",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_rbo.policy",
+      "stats_experiment": "capture_rule_bindings.yaml",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"binding_path\":\"r/0/0/1/0/0\",\"placement\":\"rbo\",\"status\":\"applied_rbo\""
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "symbols": [
+            {
+              "symbol": "f0",
+              "kind": "f"
+            }
+          ],
+          "root_operators": {
+            "r/0/0": "CLogicalLeftOuterJoin",
+            "r/0/0/1": "CLogicalLimit",
+            "r/0/0/1/0/0": "CLogicalLeftOuterApply"
+          }
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_rbo.policy",
+    "output": [
+      "1,1,20,1",
+      "1,1,20,1",
+      "1,2,,",
+      "2,2,,",
+      "2,3,,"
+    ],
+    "postgres_output": [
+      "1,1,20,1",
+      "1,1,20,1",
+      "1,2,,",
+      "2,2,,",
+      "2,3,,"
+    ],
+    "off_output": [
+      "1,1,20,1",
+      "1,1,20,1",
+      "1,2,,",
+      "2,2,,",
+      "2,3,,"
+    ],
+    "plan_outputs": {
+      "rbo": [
+        "1,1,20,1",
+        "1,1,20,1",
+        "1,2,,",
+        "2,2,,",
+        "2,3,,"
+      ]
+    }
+  }
+}

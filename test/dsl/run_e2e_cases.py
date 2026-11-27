@@ -609,6 +609,10 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
                 or not isinstance(p.get("symbols"), list) for p in patterns):
             raise ValueError("rule binding checks require a rule identity and symbol patterns")
         for pattern in patterns:
+            if "root_operators" in pattern and (not isinstance(pattern["root_operators"], dict)
+                    or not pattern["root_operators"] or any(not isinstance(op, str)
+                        for op in pattern["root_operators"].values())):
+                raise ValueError("root_operators requires plan paths and operator names")
             source_binding_matches({"scope": "matched_source_symbols", "symbols": []}, pattern["symbols"])
         contexts = []
         for event in trace_records(output):
@@ -619,11 +623,20 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
             if context.get("rule_hash") != event.get("rule_hash"):
                 raise ValueError("source bindings belong to another rule")
             source_binding_matches(context["source_bindings"], [])
+            if "root_before_replacement" in context:
+                if event.get("status") != "applied_rbo" or event.get("placement") != "rbo":
+                    raise ValueError("pre-replacement root belongs to an applied RBO occurrence")
+                root = context["root_before_replacement"]
+                if isinstance(root, dict) and root.get("complete") is True:
+                    context = dict(context, root_operators={
+                        n["path"]: n["orca_operator"] for n in root["nodes"]})
             contexts.append(context)
         # All requested captures must come from ONE occurrence, not the union
         # of multiple matches of the same rule in different Memo contexts.
         actual["rule_binding_matches"] = [p for p in patterns if any(
             c["rule_hash"] == p["rule_hash"] and
+            ("root_operators" not in p or all(
+                c.get("root_operators", {}).get(path) == op for path, op in p["root_operators"].items())) and
             c["source_bindings"].get("complete") is True and
             source_binding_matches(c["source_bindings"], p["symbols"]) == p["symbols"]
             for c in contexts)]

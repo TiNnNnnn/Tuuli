@@ -28,9 +28,27 @@
         "CXformLeftOuterApply2LeftOuterJoin"
       ],
       "policy": "isolate_left_apply_max_rbo.policy",
+      "stats_experiment": "capture_rule_bindings.yaml",
       "contains": [
         "Optimizer: pg_orca",
-        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\""
+        "\"status\":\"applied_rbo\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"binding_path\":\"r/0/0\",\"placement\":\"rbo\",\"status\":\"applied_rbo\""
+      ],
+      "rule_binding_matches": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "symbols": [
+            {
+              "symbol": "f0",
+              "kind": "f"
+            }
+          ],
+          "root_operators": {
+            "r": "CLogicalProject",
+            "r/0": "CLogicalLimit",
+            "r/0/0": "CLogicalLeftOuterApply"
+          }
+        }
       ]
     }
   ],

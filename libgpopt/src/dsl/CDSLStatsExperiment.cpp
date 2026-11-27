@@ -73,7 +73,8 @@ CDSLStatsExperimentSnapshot::ExpressionShape(const CExpression *expr)
 
 std::string
 CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLModel *model,
-	BOOL source_bindings, const CExpression *target, const CDSLTargetInputOriginArray *origins)
+	BOOL source_bindings, const CExpression *target, const CDSLTargetInputOriginArray *origins,
+	const CExpression *rbo_root)
 {
 	const CDSLSymbolArray *symbols = rule->PfragSrc()->Pdrgpsym();
 	std::string entries;
@@ -142,6 +143,9 @@ CDSLStatsExperimentSnapshot::BindingContext(const CDSLRule *rule, const CDSLMode
 	{
 		result += ",\"rule_hash\":\"" + std::string(rule->SzIdentity()) +
 			"\",\"source_bindings\":" + CDSLPlanTemplate::MatchedSourceBindings(rule, model);
+		if (nullptr != rbo_root)
+			result += ",\"root_before_replacement\":" +
+				CDSLPlanTemplate::SerializeCaptured(model->Pmp(), rbo_root);
 		if (nullptr != target)
 			result += ",\"target_context\":{\"capture\":\"after_instantiation\","
 				"\"scope\":\"constructed_rule_target\",\"fingerprint\":\"" + Fingerprint(model->Pmp(), target) +
@@ -1180,6 +1184,19 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 											  const CExpression *root,
 											  CWStringDynamic *errors)
 {
+	CDSLStatsExperimentSnapshot *snapshot = PsnapshotParse(mp, content, errors);
+	if (nullptr != snapshot && !snapshot->FResolve(root, errors))
+	{
+		GPOS_DELETE(snapshot);
+		return nullptr;
+	}
+	return snapshot;
+}
+
+CDSLStatsExperimentSnapshot *
+CDSLStatsExperimentSnapshot::PsnapshotParse(CMemoryPool *mp, const CHAR *content,
+										  CWStringDynamic *errors)
+{
 	std::string id;
 	std::vector<SParsedTarget> parsed;
 	BOOL discover = false;
@@ -1189,7 +1206,7 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	std::string template_fingerprint;
 	BOOL template_bindings = false;
 	BOOL trace_rule_edges = true;
-	if (nullptr == root || !Parse(content, &id, &parsed, &discover,
+	if (!Parse(content, &id, &parsed, &discover,
 							 &template_root, &template_cuts, &template_route, &template_fingerprint,
 							 &template_bindings, &trace_rule_edges, errors))
 	{
@@ -1204,79 +1221,84 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 	snapshot->m_template_fingerprint = std::move(template_fingerprint);
 	snapshot->m_template_bindings = template_bindings;
 	snapshot->m_trace_rule_edges = trace_rule_edges;
-	if (!template_root.empty())
-	{
-		std::string selection_error;
-		if (0 == template_route && !CDSLPlanTemplate::FValidateSelection(
-				root, template_root, template_cuts, &selection_error))
-		{
-			Error(errors, 0, selection_error);
-			GPOS_DELETE(snapshot);
-			return nullptr;
-		}
-		snapshot->m_template_root = std::move(template_root);
-		snapshot->m_template_cuts = std::move(template_cuts);
-	}
-	std::unordered_map<std::string, ULONG> target_by_key;
-	std::unordered_map<std::string, ULONG> target_by_expression;
+	snapshot->m_template_root = std::move(template_root);
+	snapshot->m_template_cuts = std::move(template_cuts);
 	for (const SParsedTarget &entry : parsed)
 	{
-		const ULONG index = (ULONG) snapshot->m_targets.size();
 		if (!entry.m_aliases.empty())
 		{
 			const std::string key = RelationKey(entry.m_aliases);
-			target_by_key.emplace(key, index);
 			snapshot->m_targets.push_back(
 				{key, "", "", entry.m_rows, EdslstatsboundaryScan,
 				 nullptr, true});
 		}
 		else
 		{
-			const std::string key =
-				entry.m_operator + ":" + entry.m_fingerprint;
-			target_by_expression.emplace(key, index);
 			snapshot->m_targets.push_back(
 				{"", entry.m_fingerprint, entry.m_operator, entry.m_rows,
 				 EdslstatsboundaryExpression, nullptr, true});
 		}
 	}
+	return snapshot;
+}
+
+BOOL
+CDSLStatsExperimentSnapshot::FResolve(const CExpression *root, CWStringDynamic *errors)
+{
+	if (nullptr == root)
+		return false;
+	std::string selection_error;
+	if (FHasTemplateSelection() && 0 == m_template_route &&
+		!CDSLPlanTemplate::FValidateSelection(root, m_template_root, m_template_cuts, &selection_error))
+	{
+		Error(errors, 0, selection_error);
+		return false;
+	}
+	std::unordered_map<std::string, ULONG> target_by_key, target_by_expression;
+	for (ULONG index = 0; index < m_targets.size(); ++index)
+	{
+		const auto &target = m_targets[index];
+		if (!target.m_relations.empty())
+			target_by_key.emplace(target.m_relations, index);
+		else
+			target_by_expression.emplace(target.m_operator + ":" + target.m_fingerprint, index);
+	}
 	BOOL valid = true;
 	std::unordered_map<const CExpression *, std::string> fingerprints;
-	Resolve(root, mp, &target_by_key, &target_by_expression,
-			&snapshot->m_targets, discover, errors, &valid, &fingerprints);
+	Resolve(root, m_mp, &target_by_key, &target_by_expression,
+			&m_targets, m_fDiscover, errors, &valid, &fingerprints);
 	if (!valid)
 	{
-		GPOS_DELETE(snapshot);
-		return nullptr;
+		return false;
 	}
-	if (discover)
+	if (m_fDiscover)
 	{
 		std::unordered_set<const COperator *> claimed;
-		for (const SDSLStatsExperimentTarget &target : snapshot->m_targets)
+		for (const SDSLStatsExperimentTarget &target : m_targets)
 		{
 			if (target.m_inject && nullptr != target.m_pop)
 				claimed.insert(target.m_pop);
 		}
 		// Explicit injections supersede discovery-only observations. Two
 		// explicit selectors for one node still fail the uniqueness check below.
-		auto &targets = snapshot->m_targets;
+		auto &targets = m_targets;
 		targets.erase(std::remove_if(targets.begin(), targets.end(),
 			[&claimed](const SDSLStatsExperimentTarget &target) {
 				return !target.m_inject && claimed.count(target.m_pop) != 0;
 			}), targets.end());
-		for (const SDSLStatsExperimentTarget &target : snapshot->m_targets)
+		for (const SDSLStatsExperimentTarget &target : m_targets)
 		{
 			if (nullptr != target.m_pop)
 			{
 				claimed.insert(target.m_pop);
 			}
 		}
-		DiscoverExpressions(root, mp, &snapshot->m_targets, &claimed,
+		DiscoverExpressions(root, m_mp, &m_targets, &claimed,
 							&fingerprints);
 	}
-	for (ULONG index = 0; index < snapshot->m_targets.size(); ++index)
+	for (ULONG index = 0; index < m_targets.size(); ++index)
 	{
-		SDSLStatsExperimentTarget &target = snapshot->m_targets[index];
+		SDSLStatsExperimentTarget &target = m_targets[index];
 		if (nullptr == target.m_pop)
 		{
 			Error(errors, 0, target.m_relations.empty()
@@ -1284,17 +1306,15 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadBuffer(CMemoryPool *mp,
 					  target.m_fingerprint
 				: "relation set not found in an SPJ region: " +
 					  target.m_relations);
-			GPOS_DELETE(snapshot);
-			return nullptr;
+			return false;
 		}
-		if (!snapshot->m_operator_targets.emplace(target.m_pop, index).second)
+		if (!m_operator_targets.emplace(target.m_pop, index).second)
 		{
 			Error(errors, 0, "multiple selectors resolve to the same expression");
-			GPOS_DELETE(snapshot);
-			return nullptr;
+			return false;
 		}
 	}
-	return snapshot;
+	return true;
 }
 
 std::string
@@ -1306,9 +1326,8 @@ CDSLStatsExperimentSnapshot::TemplateSelectionArtifact(CExpression *root) const
 }
 
 CDSLStatsExperimentSnapshot *
-CDSLStatsExperimentSnapshot::PsnapshotLoadFile(CMemoryPool *mp,
+CDSLStatsExperimentSnapshot::PsnapshotReadFile(CMemoryPool *mp,
 											const CHAR *path,
-											const CExpression *root,
 											CWStringDynamic *errors)
 {
 	std::ifstream input(path);
@@ -1324,7 +1343,7 @@ CDSLStatsExperimentSnapshot::PsnapshotLoadFile(CMemoryPool *mp,
 	}
 	std::ostringstream content;
 	content << input.rdbuf();
-	return PsnapshotLoadBuffer(mp, content.str().c_str(), root, errors);
+	return PsnapshotParse(mp, content.str().c_str(), errors);
 }
 
 const SDSLStatsExperimentTarget *

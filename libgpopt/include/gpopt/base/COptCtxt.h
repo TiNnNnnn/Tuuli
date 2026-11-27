@@ -294,6 +294,8 @@ private:
 	CDSLPolicySnapshot *m_pdslPolicySnapshot;
 
 	CDSLStatsExperimentSnapshot *m_pdslStatsExperimentSnapshot;
+	CDSLStatsExperimentSnapshot *m_pendingDSLStatsExperiment = nullptr;
+	CDSLStatsExperimentSnapshot *PpendingDSLStatsExperiment();
 	std::unordered_map<const CGroup *, const SDSLStatsExperimentTarget *>
 		m_dsl_stats_group_targets;
 	std::unordered_set<const CGroup *> m_dsl_stats_traced_groups;

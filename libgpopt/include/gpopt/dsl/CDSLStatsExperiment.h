@@ -69,6 +69,9 @@ private:
 	{
 	}
 
+	static CDSLStatsExperimentSnapshot *PsnapshotParse(CMemoryPool *mp,
+		const CHAR *content, CWStringDynamic *errors);
+
 public:
 	CDSLStatsExperimentSnapshot(const CDSLStatsExperimentSnapshot &) = delete;
 
@@ -81,9 +84,10 @@ public:
 	static CDSLStatsExperimentSnapshot *PsnapshotLoadBuffer(
 		CMemoryPool *mp, const CHAR *content, const CExpression *root,
 		CWStringDynamic *errors);
-	static CDSLStatsExperimentSnapshot *PsnapshotLoadFile(
-		CMemoryPool *mp, const CHAR *path, const CExpression *root,
-		CWStringDynamic *errors);
+	static CDSLStatsExperimentSnapshot *PsnapshotReadFile(
+		CMemoryPool *mp, const CHAR *path, CWStringDynamic *errors);
+	// Resolve injection targets once against the post-preprocessing root.
+	BOOL FResolve(const CExpression *root, CWStringDynamic *errors);
 	static std::string Fingerprint(CMemoryPool *mp, const CExpression *expr);
 	// Cached properties only: never derive statistics for instrumentation.
 	static std::string InputContext(const CExpression *expr, CMemoryPool *mp = nullptr,
@@ -94,7 +98,7 @@ public:
 	static std::string ExpressionShape(const CExpression *expr);
 	static std::string BindingContext(const CDSLRule *rule, const CDSLModel *model,
 		BOOL source_bindings = false, const CExpression *target = nullptr,
-		const CDSLTargetInputOriginArray *origins = nullptr);
+		const CDSLTargetInputOriginArray *origins = nullptr, const CExpression *rbo_root = nullptr);
 	// Bounded log records transport the entire JSON value, including large trees.
 	static std::vector<std::string> ContextRecords(ULONG id, const CHAR *field,
 		const std::string &value);

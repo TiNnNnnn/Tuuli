@@ -176,26 +176,37 @@ COptCtxt::~COptCtxt()
 	m_dsl_generated_alternatives_by_rule->Release();
 	GPOS_DELETE(m_pdslPolicySnapshot);
 	GPOS_DELETE(m_pdslStatsExperimentSnapshot);
+	GPOS_DELETE(m_pendingDSLStatsExperiment);
+}
+
+CDSLStatsExperimentSnapshot *
+COptCtxt::PpendingDSLStatsExperiment()
+{
+	if (nullptr != m_pendingDSLStatsExperiment)
+		return m_pendingDSLStatsExperiment;
+	const CHAR *path =
+		m_optimizer_config->GetHint()->SzDSLStatsExperimentPath();
+	if (nullptr == path || '\0' == path[0])
+	{
+		return nullptr;
+	}
+	CWStringDynamic errors(m_mp);
+	m_pendingDSLStatsExperiment = CDSLStatsExperimentSnapshot::PsnapshotReadFile(m_mp, path, &errors);
+	if (nullptr == m_pendingDSLStatsExperiment)
+		GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration, errors.GetBuffer());
+	return m_pendingDSLStatsExperiment;
 }
 
 void
 COptCtxt::InitializeDSLStatsExperiment(const CExpression *root)
 {
 	GPOS_ASSERT(nullptr == m_pdslStatsExperimentSnapshot);
-	const CHAR *path =
-		m_optimizer_config->GetHint()->SzDSLStatsExperimentPath();
-	if (nullptr == path || '\0' == path[0])
-	{
+	if (nullptr == PpendingDSLStatsExperiment())
 		return;
-	}
 	CWStringDynamic errors(m_mp);
-	m_pdslStatsExperimentSnapshot =
-		CDSLStatsExperimentSnapshot::PsnapshotLoadFile(m_mp, path, root, &errors);
-	if (nullptr == m_pdslStatsExperimentSnapshot)
-	{
-		GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration,
-				   errors.GetBuffer());
-	}
+	if (!m_pendingDSLStatsExperiment->FResolve(root, &errors))
+		GPOS_RAISE(gpopt::ExmaGPOPT, gpopt::ExmiInvalidConfiguration, errors.GetBuffer());
+	m_pdslStatsExperimentSnapshot = std::exchange(m_pendingDSLStatsExperiment, nullptr);
 	for (const std::string &suffix : m_dsl_pending_experiment_candidates)
 	{
 		EmitExperimentCandidate(m_mp, m_pdslStatsExperimentSnapshot->SzId(),
@@ -894,11 +905,16 @@ COptCtxt::TraceDSLExperimentCandidate(
 			<< (nullptr == decision->Pmodel() ? 0 : decision->Pmodel()->Size());
 		if (!decision->InputContext().empty())
 			contextReference("input_context", decision->InputContext());
-		contextReference("binding_context",
-			CDSLStatsExperimentSnapshot::BindingContext(prule, decision->Pmodel(),
-				nullptr != m_pdslStatsExperimentSnapshot &&
-				m_pdslStatsExperimentSnapshot->FTemplateBindings() &&
-				EdsldecisionReady == decision->Status(), pexprTarget, &decision->TargetInputOrigins()));
+		// RBO runs before cardinality selectors can be resolved against the CBO input.
+		const BOOL rboOccurrence = applied && nullptr != bindingPath;
+		const auto *experiment = m_pdslStatsExperimentSnapshot;
+		if (rboOccurrence && nullptr == experiment)
+			experiment = PpendingDSLStatsExperiment();
+		const BOOL bindings = nullptr != experiment && experiment->FTemplateBindings() &&
+			EdsldecisionReady == decision->Status();
+		contextReference("binding_context", CDSLStatsExperimentSnapshot::BindingContext(
+			prule, decision->Pmodel(), bindings, pexprTarget, &decision->TargetInputOrigins(),
+			rboOccurrence ? pexprState : nullptr));
 		if (nullptr != decision->PconFailed())
 			event << ",\"failed_constraint\":\""
 				<< CDSLConstraintKindTable::SzName(decision->PconFailed()->Edslcon())

@@ -1,0 +1,4 @@
+experiment: capture-rule-bindings
+template_root: r
+template_bindings: true
+cardinalities:
