@@ -467,6 +467,13 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
     rules = native_rule_texts(output)
     checked = 0
     records = trace_records(output)
+    def query_input():
+        callers = [r["value"].get("input_context", {}).get("plan_template") for r in records
+                   if r.get("kind") == "candidate_context" and r.get("field") == "query_input_context"]
+        if len(callers) != 1 or not isinstance(callers[0], dict):
+            raise ValueError("expected one actual query-input capture")
+        return callers[0]
+
     for occurrence in source_route_occurrences(records):
         if not any(all(occurrence.get(key) == value for key, value in pattern.items())
                    for pattern in patterns):
@@ -503,13 +510,8 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
             if "parameter_context" in evidence:
                 raise ValueError("inherited parameters require one actual query-input capture")
             if "parameter_input_path" in evidence:
-                callers = [r.get("value", {}).get("input_context", {}).get("plan_template")
-                           for r in records if r.get("kind") == "candidate_context"
-                           and r.get("field") == "query_input_context"]
-                if len(callers) != 1 or not isinstance(callers[0], dict):
-                    raise ValueError("inherited parameters require one actual query-input capture")
                 evidence["parameter_context"] = {
-                    "snapshot": callers[0], "input_path": evidence.pop("parameter_input_path")}
+                    "snapshot": query_input(), "input_path": evidence.pop("parameter_input_path")}
             abi = native_server_abi()
             (path / "server-abi.json").write_text(canonical(abi), encoding="utf-8")
             (path / "rule.txt").write_text(rule + "\n", encoding="utf-8")
@@ -523,6 +525,8 @@ def check_native_routes(expected: dict[str, object], output: str, destination: p
                 from memo_scope import memo_frame_columns
                 scoped["frame_columns"] = memo_frame_columns(
                     records, occurrence["rule_hash"], occurrence["candidate_sequence"], require_root_frame=root_frame)
+            if "native_enclosing_source_path" in expected:
+                scoped["enclosing_source"] = (query_input(), expected["native_enclosing_source_path"])
             check_native_instance(rule, occurrence["snapshot"], occurrence["target_snapshot"],
                                   lambda manifest: bind_source_captures(occurrence["bindings"], manifest), path,
                                   observe_compute=observation == "all_source_outputs", **scoped,
@@ -545,7 +549,7 @@ def actual_plan(expected: dict[str, object], output: str) -> dict[str, object]:
             "name", "dsl", "xform_trace", "memo_trace", "dphyper", "dphyper_edge_budget",
             "dphyper_pair_budget", "dphyper_shadow", "native", "trace", "verbose", "debug_plan",
             "disable_xforms", "policy", "stats_experiment", "assert_maxonerow", "outer_join_reduction", "native_observation",
-            "native_equivalence_mode", "execution_observation"
+            "native_equivalence_mode", "execution_observation", "native_enclosing_source_path"
         )
         if key in expected
     }
