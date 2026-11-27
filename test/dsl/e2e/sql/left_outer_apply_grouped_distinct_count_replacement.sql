@@ -1,4 +1,4 @@
-SELECT o.b, max(o.b) AS group_max,
+SELECT o.b, max(o.a) AS group_max,
        (SELECT count(DISTINCT i.b)
         FROM dsl_bag_pair_left AS i WHERE i.a = o.b) AS n
 FROM dsl_bag_pair_right AS o

@@ -1,5 +1,5 @@
 {
-  "description": "Correlated DISTINCT count under an outer GROUP BY with duplicate and NULL keys",
+  "description": "Correlated DISTINCT count with separate grouping and MAX columns, duplicate keys and NULLs",
   "plans": [
     {
       "name": "replacement",
@@ -32,14 +32,14 @@
     "output": [
       "1,1,2",
       "2,2,1",
-      "3,3,0",
-      ",,0"
+      "3,,0",
+      ",2,0"
     ],
     "postgres_output": [
       "1,1,2",
       "2,2,1",
-      "3,3,0",
-      ",,0"
+      "3,,0",
+      ",2,0"
     ]
   }
 }
