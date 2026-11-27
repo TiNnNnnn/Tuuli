@@ -1,0 +1,6 @@
+experiment: argument-ownership
+template_route: 5
+template_fingerprint: c0dbf5d4cb5440d4
+template_root: r
+template_bindings: true
+cardinalities:

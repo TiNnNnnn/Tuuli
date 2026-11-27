@@ -17,6 +17,21 @@
         "\"status\":\"applied\",\"rule_hash\":\"956880d04ef6f242\"",
         "Falling back to Postgres"
       ]
+    },
+    {
+      "name": "single_read",
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\""
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ]
     }
   ],
   "rows": {
