@@ -3,6 +3,17 @@
 from collections import defaultdict
 
 
+# Apply evaluates its right relational child with the current left row.
+_APPLY = {
+    "CLogicalInnerApply", "CLogicalInnerCorrelatedApply",
+    "CLogicalLeftOuterApply", "CLogicalLeftOuterCorrelatedApply",
+    "CLogicalLeftSemiApply", "CLogicalLeftSemiCorrelatedApply",
+    "CLogicalLeftSemiApplyIn", "CLogicalLeftSemiCorrelatedApplyIn",
+    "CLogicalLeftAntiSemiApply", "CLogicalLeftAntiSemiCorrelatedApply",
+    "CLogicalLeftAntiSemiApplyNotIn", "CLogicalLeftAntiSemiCorrelatedApplyNotIn",
+}
+
+
 def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_root_frame=False):
     def of(kind):
         return [r for r in records if r["kind"] == kind]
@@ -98,17 +109,27 @@ def memo_frame_columns(records, rule_hash, candidate_sequence=None, *, require_r
         for parent, op, port, children in parents[child]:
             if parent not in reachable:
                 continue
-            if op in ("CLogicalInnerJoin", "CLogicalLeftOuterJoin", "CLogicalRightOuterJoin") and port < 2:
-                # Even a zero-column sibling can introduce a row frame.
+            frame = None
+            if op in ("CLogicalInnerJoin", "CLogicalLeftOuterJoin", "CLogicalRightOuterJoin") and port in (0, 1):
+                frame = children[1 - port]
+            elif (op in _APPLY or op in ("CLogicalProject", "CLogicalSelect")) and port == 1:
+                frame = children[0]
+            elif not (
+                (port == 0 and (op in _APPLY or op in ("CLogicalProject", "CLogicalSelect", "CLogicalLimit", "CLogicalGbAgg")))
+                or (port == 0 and op in ("CScalarSubquery", "CScalarSubqueryAny", "CScalarSubqueryAll",
+                                         "CScalarSubqueryExists", "CScalarSubqueryNotExists", "CScalarProjectElement"))
+                or op in ("CScalarProjectList", "CScalarCmp")
+            ):
+                raise ValueError(f"unsupported enclosing scope at {op} child {port}")
+            if frame is not None:
+                # Even a zero-column input can introduce a row frame.
                 if require_root_frame:
                     raise ValueError("candidate may enter a different frame from the Memo root")
-                sibling = groups[children[1 - port]]["output"]
+                sibling = groups[frame]["output"]
                 if sibling is None:
-                    raise ValueError("missing sibling row schema")
+                    raise ValueError("missing enclosing row schema")
                 for column in sibling:
                     if columns.setdefault(column["id"], column) != column:
                         raise ValueError("conflicting sibling column metadata")
-            elif op not in ("CLogicalProject", "CLogicalSelect", "CLogicalLimit") or port != 0:
-                raise ValueError(f"unsupported enclosing scope at {op} child {port}")
             pending.append(parent)
     return [columns[i] for i in sorted(columns)]

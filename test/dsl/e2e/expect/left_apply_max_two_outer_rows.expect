@@ -1,0 +1,79 @@
+{
+  "description": "The MAX replacement under two correlated subqueries inherits both outer row columns",
+  "plans": [
+    {
+      "name": "cbo",
+      "xform_trace": true,
+      "memo_trace": true,
+      "trace": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_max_two_outer_rows.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "MEMO after optimization"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 7,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ],
+      "memo_frame_columns": {
+        "70f44b028e470dae": [
+          {
+            "id": 0,
+            "type": "0.23.1.0",
+            "typmod": -1
+          },
+          {
+            "id": 1,
+            "type": "0.23.1.0",
+            "typmod": -1
+          }
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,20",
+      "2,",
+      "3,"
+    ],
+    "postgres_output": [
+      "1,20",
+      "2,",
+      "3,"
+    ],
+    "off_output": [
+      "1,20",
+      "2,",
+      "3,"
+    ],
+    "plan_outputs": {
+      "cbo": [
+        "1,20",
+        "2,",
+        "3,"
+      ]
+    }
+  }
+}
