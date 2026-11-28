@@ -54,10 +54,36 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_sequence_project2apply_boolean.policy",
+      "stats_experiment": "sequence_project2apply_any_argument_replacement.yaml",
+      "native_observation": "restored_function_program",
+      "native_receipt_fields": {
+        "rule_instance_checked": true,
+        "observation": "restored_function_program"
+      },
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Window",
         "\"status\":\"applied\",\"rule_hash\":\"f7fdfa6e8f34afff\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "f7fdfa6e8f34afff",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSequenceProject",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSequenceProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

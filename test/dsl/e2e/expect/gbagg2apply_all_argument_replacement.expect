@@ -5,9 +5,12 @@
       "CXformGbAgg2Apply"
     ],
     "scope": "A correlated ALL nested in CASE inside an aggregate argument",
-    "status": "verified_full_replacement",
+    "status": "verified_partial_replacement",
     "dsl_rule_hashes": [
       "6d3fe2388c23d917"
+    ],
+    "excluded_native_domains": [
+      "Physical Bind demand and cache/executor correspondence remain unproved"
     ]
   },
   "plans": [
@@ -52,10 +55,36 @@
         "CXformSubquery2CorrelatedApply"
       ],
       "policy": "isolate_gbagg2apply_all_direct.policy",
+      "stats_experiment": "gbagg2apply_all_argument_replacement.yaml",
+      "native_observation": "restored_function_program",
+      "native_receipt_fields": {
+        "rule_instance_checked": true,
+        "observation": "restored_function_program"
+      },
       "contains": [
         "Optimizer: pg_orca",
         "CXformDSLRule_Agg",
         "\"status\":\"applied\",\"rule_hash\":\"6d3fe2388c23d917\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "6d3fe2388c23d917",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
