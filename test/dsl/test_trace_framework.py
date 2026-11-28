@@ -4146,29 +4146,36 @@ class TraceFrameworkTest(unittest.TestCase):
         self.assertEqual(audit["unexpected_native_origins"], {"CXformRewrite": 1})
 
     def test_replacement_matrix_requires_causal_four_states(self) -> None:
+        targets = ["CXformSimplifyGbAgg", "CXformCollapseGbAgg"]
         matrix = {
-            "replacement": {"xforms": ["CXformSimplifyGbAgg"]},
+            "replacement": {"xforms": targets},
             "plans": [
                 {"name": "native", "dsl": False},
                 {"name": "shadow"},
                 {
                     "name": "negative",
                     "dsl": False,
-                    "disable_xforms": ["CXformSimplifyGbAgg"],
+                    "disable_xforms": targets,
                 },
                 {
                     "name": "replacement",
-                    "disable_xforms": ["CXformSimplifyGbAgg"],
+                    "disable_xforms": targets,
                     "provenance": {
                         "required_sources": ["dsl"],
-                        "forbidden_origins": ["CXformSimplifyGbAgg"],
+                        "forbidden_origins": targets,
                     },
                 },
             ],
-            "rows": {"disable_xforms": ["CXformSimplifyGbAgg"]},
+            "rows": {"disable_xforms": targets},
         }
 
         self.assertIsNone(validate_replacement_matrix(matrix))
+        for plan in matrix["plans"][:2]:
+            with self.subTest(state=plan["name"]):
+                plan["disable_xforms"] = targets[:1]
+                with self.assertRaisesRegex(ValueError, "must enable every target"):
+                    validate_replacement_matrix(matrix)
+                del plan["disable_xforms"]
         matrix["replacement"]["excluded_native_domains"] = [""]
         with self.assertRaisesRegex(ValueError, "unique descriptions"):
             validate_replacement_matrix(matrix)

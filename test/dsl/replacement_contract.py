@@ -60,7 +60,8 @@ def validate_replacement_matrix(expectation: dict[str, object]) -> None:
             raise ValueError(f"replacement state {state} has the wrong DSL setting")
         disabled = set(plan.get("disable_xforms", []))
         should_disable = state in {"negative", "replacement"}
-        if target.issubset(disabled) != should_disable:
+        expected_disabled = target if should_disable else set()
+        if disabled.intersection(target) != expected_disabled:
             action = "disable" if should_disable else "enable"
             raise ValueError(
                 f"replacement state {state} must {action} every target xform"
