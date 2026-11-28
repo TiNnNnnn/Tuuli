@@ -399,17 +399,17 @@ SemiApply<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a4>(Input<t1>))|Proj<a9 s1>(Filter
 # Aggregate argument reads must keep their owner when the left Apply row is removed.
 # Corrected legacy-spelling baseline; previous contract identity 783c620153b85545 lacked RHS safety/scope.
 # Keep witness columns through residual filtering and return the original left column vector.
-# The grouped E2E now isolates GroupFilter + the base external SemiApply rule.
+# The grouped E2E checks the composed path and an isolated direct occurrence.
 # Keep this monolithic candidate pending an applicability/redundancy proof;
-# the composed instance checks do not certify this abstract rule.
+# the current whole template has a separately checked BAG_OUTCOME_EQ proof.
 # The former structural assignment assumed aggregate movement outright;
 # its PROJECTED_BAG_EQ certificate is withdrawn (2026-10-24).
 SemiApply<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a15 f0 s0 p1>(Filter<p2 a5 a6>(Input<t1>)))|Proj<a13 s3>(Filter<p4 a11 a12>(Proj*<a14 s2>(InnerJoin<p3 a9 a10>(Input<t2>,Agg<a7 a8 a16 f1 s1 p5>(Input<t3>)))))|t2 := t0;t3 := t1;a7 := a3;a8 := a4;f1 := f0;s1 := s0;p5 := p1;p6 := And(p0,p2);PredicateDomainSplit(p6,p3,p4,a9,a10,a11,a12,t0,s1);CorrelationEquality(p4,a11,a12);AttrsSub(a5,a3);AttrsNonEmpty(a5);OutputAttrs(a13,t0);Unique(t0,a13);AttrsUnion(a17,a7,a15);AttrsIntersect(a18,a17,a11);AttrsUnion(a14,a13,a18);SchemaFromAttrs(s2,a14);ErrorFree(p6);Deterministic(p6);ErrorFree(p0);Deterministic(p0);ErrorFree(p1);ErrorFree(p2);Deterministic(p2);ErrorFree(p3);Deterministic(p3);ErrorFree(p4);Deterministic(p4);ErrorFree(p5);ErrorFree(a4);ErrorFree(f0);ErrorFree(a8);ErrorFree(f1);ErrorFree(a14);ErrorFree(t1);Deterministic(t1);DepsDisjoint(t1,a13);a16 := a15;SchemaFromAttrs(s3,a13);Deterministic(p1);DepsDisjoint(p1,a13);AttrsSub(a4,t1);DepsDisjoint(a6,s0);DepsDisjoint(a4,a13)
 
 # When local correlation keys are not already grouped, construct the native
 # aggregate compensation from the expanded keys followed by aggregate outputs.
-# grouping-key expansion and projected witness multiplicity require separate
-# native semantic proofs; a structural assignment cannot stand in for them.
+# The whole-template proof covers key expansion and projected witness multiplicity;
+# the native-off expansion fixture also checks the actual constructed pair.
 # Added keys must preserve the evaluation scope of both the Apply predicate and HAVING.
 # Baseline includes the nonempty grouping guard; 435056abc7513b1a omitted it.
 # The shared aggregate must read local arguments and its HAVING must be repeatable and independent of the left row.
@@ -454,7 +454,7 @@ AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Filter<p1 a3 a2>(Input<t1>))|AntiJoinNotIn
 # A global aggregate still emits one row on empty input; adding a key loses it.
 # APPENDED source_sha256=c3833f6ecf3a43661aa39c00a0a75f06f7b0ca3685d94e7ae3e95f2a609d2b59; legacy_hash=d215eba1903c75b0; added: OutputAttrs(a16,t0);DepsDisjoint(t1,a16);Deterministic(p1);a17 := ScalarDeps(p1);AttrsSub(a17,s0);a18 := ScalarDeps(p0);AttrsIntersect(a19,a5,a18);AttrsSub(a19,s0);DepsDisjoint(a4,a16)
 # The original grouping list is nonempty. Removing the left frame must preserve aggregate argument ownership.
-# Complete captured-query equivalence remains a separate proof obligation.
+# Isolated native-off instances check the actual NOT IN outputs with retained and expanded keys.
 AntiApplyNotIn<p0 a0 a1 a2>(Input<t0>,Agg<a3 a4 a13 f0 s0 p1>(Filter<p2 a5 a2>(Input<t1>)))|AntiJoinNotIn<p3 a7 a8 p4 a9 a10>(Input<t2>,Agg<a11 a12 a14 f1 s1 p5>(Input<t3>))|t2 := t0;t3 := t1;p3 := p0;a7 := a0;a8 := a1;p4 := p2;a9 := a2;a10 := a5;AttrsUnion(a11,a3,a5);a12 := a4;f1 := f0;AttrsUnion(a15,a11,a14);SchemaFromAttrs(s1,a15);p5 := p1;CorrelationEquality(p2,a5,a2);AttrsNonEmpty(a3);AttrsNonEmpty(a5);AttrsSub(a0,t0);AttrsSub(a1,s0);AttrsSub(a3,t1);AttrsSub(a4,t1);AttrsSub(a5,t1);AttrsSub(a2,t0);Deterministic(p0);Deterministic(p3);Deterministic(p2);Deterministic(p4);ErrorFree(p0);ErrorFree(a4);ErrorFree(f0);ErrorFree(p1);ErrorFree(p2);ErrorFree(p3);ErrorFree(a12);ErrorFree(f1);ErrorFree(p5);ErrorFree(p4);a14 := a13;ErrorFree(t1);Deterministic(t1);OutputAttrs(a16,t0);DepsDisjoint(t1,a16);Deterministic(p1);a17 := ScalarDeps(p1);AttrsSub(a17,s0);a18 := ScalarDeps(p0);AttrsIntersect(a19,a5,a18);AttrsSub(a19,s0);DepsDisjoint(a4,a16)
 
 # Pull a correlated Filter above a Window when every local correlation key is

@@ -1,0 +1,7 @@
+experiment: grouped-notin-direct
+discover: false
+template_route: 5
+template_fingerprint: e555a68b04b336bf
+template_root: r
+template_bindings: true
+cardinalities:
