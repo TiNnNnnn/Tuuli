@@ -1,0 +1,68 @@
+{
+  "description": "HAVING keeps one sibling group, rejects another and pads the left row whose only group evaluates to UNKNOWN",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_mixed_group_having.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_enclosing_source_path": "auto",
+      "native_receipt_fields": {
+        "owned_group_instance_theorem": "actual_native_owned_instance"
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"selected_plan_cbo_dsl_rules\":{\"70f44b028e470dae\":",
+        "Group Key: i.v, i.g"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,10,10",
+      "1,10,10",
+      "2,,",
+      "3,5,5"
+    ],
+    "postgres_output": [
+      "1,10,10",
+      "1,10,10",
+      "2,,",
+      "3,5,5"
+    ],
+    "off_output": [
+      "1,10,10",
+      "1,10,10",
+      "2,,",
+      "3,5,5"
+    ]
+  }
+}
