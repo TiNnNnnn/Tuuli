@@ -1,0 +1,7 @@
+experiment: external-semiapply-in-agg-replacement
+discover: false
+template_route: 10
+template_fingerprint: 2a7c14f942da5612
+template_root: r
+template_bindings: true
+cardinalities:

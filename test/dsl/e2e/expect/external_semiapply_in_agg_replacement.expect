@@ -41,15 +41,42 @@
     },
     {
       "name": "replacement",
-      "xform_trace": false,
+      "xform_trace": true,
       "trace": true,
       "disable_xforms": [
         "CXformLeftSemiApplyInWithExternalCorrs2InnerJoin"
       ],
       "policy": "isolate_external_semiapply_agg.policy",
+      "stats_experiment": "external_semiapply_in_agg_replacement_source_route.yaml",
+      "native_observation": "dsl_source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"ef4552ec2af8613d\""
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "ef4552ec2af8613d",
+          "route_sequence": 10,
+          "operators": [
+            "CLogicalLeftSemiCorrelatedApplyIn",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalInnerJoin",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
