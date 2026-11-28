@@ -1,0 +1,67 @@
+{
+  "description": "INTERSECT ALL uses two bounded occurrence ranks and preserves duplicate and NULL multiplicities",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformIntersectAll2LeftSemiJoin"
+      ],
+      "policy": "isolate_intersectall2semijoin.policy",
+      "stats_experiment": "intersectall2semijoin_bounded_values.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"1c97c09c804a110c\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_IntersectAll"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "1c97c09c804a110c",
+          "operators": [
+            "CLogicalIntersectAll",
+            "CLogicalConstTableGet",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftSemiJoin",
+            "CLogicalSequenceProject",
+            "CLogicalConstTableGet",
+            "CLogicalSequenceProject",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformIntersectAll2LeftSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformIntersectAll2LeftSemiJoin"
+    ],
+    "policy": "isolate_intersectall2semijoin.policy",
+    "output": [
+      "1",
+      "<null>"
+    ],
+    "postgres_output": [
+      "1",
+      "<null>"
+    ]
+  }
+}

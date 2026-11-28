@@ -1,0 +1,67 @@
+{
+  "description": "EXCEPT ALL uses two bounded occurrence ranks and preserves duplicate and NULL multiplicities",
+  "plans": [
+    {
+      "name": "replacement",
+      "trace": true,
+      "disable_xforms": [
+        "CXformDifferenceAll2LeftAntiSemiJoin"
+      ],
+      "policy": "isolate_differenceall2antijoin.policy",
+      "stats_experiment": "differenceall2antijoin_bounded_values.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "contains": [
+        "\"status\":\"applied\",\"rule_hash\":\"17e736c7eac2c540\"",
+        "Optimizer: pg_orca"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "alternative": [
+        "CXformDSLRule_DifferenceAll"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "17e736c7eac2c540",
+          "operators": [
+            "CLogicalDifferenceAll",
+            "CLogicalConstTableGet",
+            "CLogicalConstTableGet"
+          ],
+          "target_operators": [
+            "CLogicalProject",
+            "CLogicalLeftAntiSemiJoin",
+            "CLogicalSequenceProject",
+            "CLogicalConstTableGet",
+            "CLogicalSequenceProject",
+            "CLogicalConstTableGet"
+          ]
+        }
+      ],
+      "provenance": {
+        "required_sources": [
+          "dsl"
+        ],
+        "required_origins": [],
+        "forbidden_origins": [
+          "CXformDifferenceAll2LeftAntiSemiJoin"
+        ]
+      }
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformDifferenceAll2LeftAntiSemiJoin"
+    ],
+    "policy": "isolate_differenceall2antijoin.policy",
+    "output": [
+      "1",
+      "2"
+    ],
+    "postgres_output": [
+      "1",
+      "2"
+    ]
+  }
+}

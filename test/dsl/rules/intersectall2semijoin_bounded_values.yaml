@@ -1,0 +1,7 @@
+experiment: intersectall2semijoin_bounded_values
+discover: false
+template_route: 1
+template_fingerprint: ad7f8110107bdc33
+template_root: r
+template_bindings: true
+cardinalities:

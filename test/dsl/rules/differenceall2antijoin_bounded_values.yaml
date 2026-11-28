@@ -1,0 +1,7 @@
+experiment: differenceall2antijoin_bounded_values
+discover: false
+template_route: 1
+template_fingerprint: 2e38e56434d4826f
+template_root: r
+template_bindings: true
+cardinalities:
