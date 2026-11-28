@@ -1,0 +1,74 @@
+{
+  "description": "Each duplicate left row sees two matching groups after the correlation key is added; a NULL grouping key remains distinguishable from an unmatched row",
+  "plans": [
+    {
+      "name": "dsl",
+      "trace": true,
+      "verbose": true,
+      "disable_xforms": [
+        "CXformLeftOuterApply2LeftOuterJoin"
+      ],
+      "policy": "isolate_left_apply_max_cbo.policy",
+      "stats_experiment": "left_apply_multiple_matching_groups.yaml",
+      "native_observation": "source_outputs",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
+      "native_enclosing_source_path": "auto",
+      "native_receipt_fields": {
+        "owned_group_instance_theorem": "actual_native_owned_instance"
+      },
+      "contains": [
+        "Optimizer: pg_orca",
+        "\"status\":\"applied\",\"rule_hash\":\"70f44b028e470dae\"",
+        "\"selected_plan_cbo_dsl_rules\":{\"70f44b028e470dae\":",
+        "Group Key: i.v, i.g"
+      ],
+      "not_contains": [
+        "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "70f44b028e470dae",
+          "route_sequence": 4,
+          "operators": [
+            "CLogicalLeftOuterApply",
+            "CLogicalGet",
+            "CLogicalSelect",
+            "CLogicalGbAgg",
+            "CLogicalSelect",
+            "CLogicalGet"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": {
+    "disable_xforms": [
+      "CXformLeftOuterApply2LeftOuterJoin"
+    ],
+    "policy": "isolate_left_apply_max_cbo.policy",
+    "output": [
+      "1,10,1",
+      "1,10,1",
+      "1,20,1",
+      "1,20,1",
+      "2,,2",
+      "3,,"
+    ],
+    "postgres_output": [
+      "1,10,1",
+      "1,10,1",
+      "1,20,1",
+      "1,20,1",
+      "2,,2",
+      "3,,"
+    ],
+    "off_output": [
+      "1,10,1",
+      "1,10,1",
+      "1,20,1",
+      "1,20,1",
+      "2,,2",
+      "3,,"
+    ]
+  }
+}
