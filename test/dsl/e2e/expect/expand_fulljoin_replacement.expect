@@ -12,7 +12,7 @@
     "excluded_native_domains": [
       "The left-join branch or a shared producer could force a deferred error earlier",
       "Shared inputs with outer references cannot be materialized outside their correlation scope",
-      "Canonical fresh-column allocation and complete CTE/Union native observation proof remain pending"
+      "End-to-end equivalence of the selected physical CTE and Union plan to the shared-bag template remains unverified"
     ]
   },
   "plans": [
@@ -50,6 +50,7 @@
     {
       "name": "replacement",
       "trace": true,
+      "debug_plan": true,
       "disable_xforms": [
         "CXformExpandFullOuterJoin",
         "CXformFullOuterJoin2HashJoin",
@@ -57,11 +58,23 @@
       ],
       "policy": "isolate_expand_fulljoin.policy",
       "stats_experiment": "expand_fulljoin_source_route.yaml",
+      "native_observation": "shared_input_prefixes",
+      "native_equivalence_mode": "BAG_OUTCOME_EQ",
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"47620430de058007\""
       ],
       "alternative": [
         "CXformDSLRule_FullJoin"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "47620430de058007",
+          "operators": [
+            "CLogicalFullOuterJoin",
+            "CLogicalGet",
+            "CLogicalGet"
+          ]
+        }
       ],
       "rule_binding_matches": [
         {

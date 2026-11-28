@@ -1,7 +1,7 @@
-experiment: registered-fulljoin-null-allocation
+experiment: full-join-shared-inputs
 discover: false
-template_route: 1
-template_fingerprint: d4189c9196604bbb
+template_route: 2
+template_fingerprint: 947fc14427e7134b
 template_root: r
 template_bindings: true
 cardinalities:

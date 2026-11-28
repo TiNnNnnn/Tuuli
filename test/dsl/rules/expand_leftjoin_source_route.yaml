@@ -1,0 +1,7 @@
+experiment: left-join-shared-inputs
+discover: false
+template_route: 15
+template_fingerprint: 74d7f2cd9e3f73d2
+template_root: r
+template_bindings: true
+cardinalities:
