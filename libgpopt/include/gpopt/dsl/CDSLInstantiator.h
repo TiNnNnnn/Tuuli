@@ -187,6 +187,9 @@ private:
 								 const CDSLModel *pmodel,
 								 ULONG ulDepth = 0) const;
 
+	CExpression *PexprBuildNulls(const CDSLSymbol *symbol, CColRefArray *columns,
+								 const CDSLSymbol *outputAttrs = nullptr) const;
+
 	// Find the source Filter that owns psymPred, then copy its bound predicate
 	// while remapping source Filter attrs to the target Filter attrs. Returns
 	// NULL when the vectors are incompatible.

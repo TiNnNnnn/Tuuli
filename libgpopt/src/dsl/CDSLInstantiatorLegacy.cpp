@@ -440,23 +440,9 @@ CDSLInstantiator::PexprResolveLegacyExpr(const CDSLSymbol *psym, const CDSLModel
 	}
 	if (EdslconExprNulls == pconDef->Edslcon())
 	{
-		CColRefArray *pdrgpcrTemplate = PdrgpcrResolveCols(
-			(*pconDef->Pdrgpsym())[1], pmodel, ulDepth + 1);
-		if (nullptr == pdrgpcrTemplate)
-		{
-			return nullptr;
-		}
-		CExpression *pexprResult = CDSLExprListUtils::PexprNulls(m_mp, pdrgpcrTemplate);
-		CColRefArray *pdrgpcrOutput = CDSLExprListUtils::PdrgpcrOutput(m_mp, pexprResult);
-		const CDSLSymbol *psymOutputAttrs = (*pconDef->Pdrgpsym())[2];
-		if (!m_phmDerivedCols->Insert(
-				const_cast<CDSLSymbol *>(psymOutputAttrs), pdrgpcrOutput))
-		{
-			pdrgpcrOutput->Release();
-			pexprResult->Release();
-			return nullptr;
-		}
-		return pexprResult;
+		const auto *symbols = pconDef->Pdrgpsym();
+		return PexprBuildNulls(psym, PdrgpcrResolveCols((*symbols)[1], pmodel, ulDepth + 1),
+							   (*symbols)[2]);
 	}
 
 	if (EdslconExprSplit == pconDef->Edslcon())

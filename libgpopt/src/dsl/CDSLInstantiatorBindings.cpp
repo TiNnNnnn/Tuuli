@@ -875,6 +875,24 @@ CDSLInstantiator::PexprResolvePredicate(const CDSLSymbol *psym,
 	return PexprResolveLegacyPredicate(psym, pmodel, ulDepth);
 }
 
+// The expression and every reference to its output columns share one allocation.
+CExpression *
+CDSLInstantiator::PexprBuildNulls(const CDSLSymbol *symbol, CColRefArray *columns,
+								  const CDSLSymbol *outputAttrs) const
+{
+	if (nullptr == columns) return nullptr;
+	CExpression *list = CDSLExprListUtils::PexprNulls(m_mp, columns);
+	if ((nullptr != outputAttrs && nullptr == PdrgpcrCacheColumns(
+			outputAttrs, CDSLExprListUtils::PdrgpcrOutput(m_mp, list))) ||
+		!m_phmDerivedPreds->Insert(const_cast<CDSLSymbol *>(symbol), list))
+	{
+		list->Release();
+		return nullptr;
+	}
+	list->AddRef();
+	return list;
+}
+
 CExpression *
 CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 								   const CDSLModel *pmodel,
@@ -905,18 +923,7 @@ CDSLInstantiator::PexprResolveExpr(const CDSLSymbol *psym,
 			return PexprResolveContext(psym, pmodel, ulDepth);
 		if (EdslexprNulls == binding->Edslexpr())
 		{
-			CColRefArray *columns = PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1);
-			if (nullptr == columns) return nullptr;
-			CExpression *list = CDSLExprListUtils::PexprNulls(m_mp, columns);
-			// Metadata derivation and target construction must share one fresh
-			// allocation per binding, regardless of their resolution order.
-			if (!m_phmDerivedPreds->Insert(const_cast<CDSLSymbol *>(psym), list))
-			{
-				list->Release();
-				return nullptr;
-			}
-			list->AddRef();
-			return list;
+			return PexprBuildNulls(psym, PdrgpcrResolveCols(binding->PsymOperand(0), pmodel, ulDepth + 1));
 		}
 		if (EdslexprConcat == binding->Edslexpr())
 		{

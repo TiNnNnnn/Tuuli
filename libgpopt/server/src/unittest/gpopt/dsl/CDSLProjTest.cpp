@@ -2207,6 +2207,14 @@ CDSLProjTest::EresUnittest_ConstructTypedNullExpressions()
 			pmodel->FBind((*symbols)[0], list);
 		if (!generated && 7 != variant)
 			pmodel->FBind((*symbols)[2], outputs);
+		if (generated)
+		{
+			CDSLInstantiator resolver(mp);
+			CAutoRef<CExpression> first(resolver.PexprInstantiateBinding(prule, (*symbols)[0], pmodel));
+			CAutoRef<CExpression> again(resolver.PexprInstantiateBinding(prule, (*symbols)[0], pmodel));
+			GPOS_UNITTEST_ASSERT(nullptr != first.Value() && first.Value() == again.Value());
+			GPOS_UNITTEST_ASSERT(nullptr == pmodel->PexprExpr((*symbols)[0]));
+		}
 		const BOOL accepted = checker.FCheck(prule, pmodel);
 		if (expected != accepted)
 		{
