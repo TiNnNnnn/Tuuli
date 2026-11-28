@@ -50,6 +50,9 @@
       "stats_experiment": "max_one_row_source_route.yaml",
       "assert_maxonerow": true,
       "native_observation": "source_row_stream",
+      "native_receipt_fields": {
+        "bag_outcome_theorem": "native_stream_instance_bag_outcomes"
+      },
       "contains": [
         "\"status\":\"applied\",\"rule_hash\":\"dda6affc7d996bbc\""
       ],
