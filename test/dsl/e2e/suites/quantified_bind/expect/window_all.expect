@@ -12,12 +12,85 @@
         "CXformSequenceProject2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
+      "stats_experiment": "window_all.yaml",
+      "native_observation": "selected_scalar_consumer",
+      "execution_observation": {
+        "source_scalar_path": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "scalar_path": [
+          1,
+          0,
+          0,
+          0
+        ],
+        "source_lookup_path": [
+          0
+        ],
+        "lookup_path": [
+          0
+        ],
+        "apply_path": "r/0",
+        "column": {
+          "id": 16,
+          "type": "0.16.1.0",
+          "typmod": -1
+        },
+        "subplan_path": [
+          "planTree",
+          "plan.targetlist",
+          1,
+          "expr",
+          "args",
+          0,
+          "args",
+          0
+        ],
+        "consumer_path": [
+          "planTree",
+          "plan.targetlist",
+          1,
+          "expr",
+          "args",
+          0
+        ],
+        "scan_path": [
+          "subplans",
+          0
+        ],
+        "input_path": "r/0/1/0"
+      },
+      "native_receipt_fields": {
+        "quantified_consumer_checked": true,
+        "execution_protocol": "scan_per_lookup"
+      },
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"246bb54f8a078070\""
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "246bb54f8a078070",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalSequenceProject",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalSequenceProject",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [

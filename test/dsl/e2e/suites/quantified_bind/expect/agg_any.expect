@@ -12,12 +12,36 @@
         "CXformSequenceProject2Apply",
         "CXformSubquery2CorrelatedApply"
       ],
+      "stats_experiment": "agg_any.yaml",
+      "native_observation": "restored_function_program",
+      "native_receipt_fields": {
+        "observation": "restored_function_program",
+        "rule_instance_checked": true
+      },
       "contains": [
         "Optimizer: pg_orca",
         "\"status\":\"applied\",\"rule_hash\":\"a55fff01d3e1e68c\""
       ],
       "not_contains": [
         "Falling back to Postgres"
+      ],
+      "rule_source_routes": [
+        {
+          "rule_hash": "a55fff01d3e1e68c",
+          "route_sequence": 1,
+          "operators": [
+            "CLogicalGbAgg",
+            "CLogicalGet",
+            "CLogicalGet"
+          ],
+          "target_operators": [
+            "CLogicalGbAgg",
+            "CLogicalLeftOuterCorrelatedApply",
+            "CLogicalGet",
+            "CLogicalProject",
+            "CLogicalGet"
+          ]
+        }
       ],
       "provenance": {
         "required_sources": [
